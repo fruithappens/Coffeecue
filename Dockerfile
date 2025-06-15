@@ -1,33 +1,17 @@
-# Multi-stage build for React frontend and Python backend
-FROM node:18-alpine AS frontend-builder
-
-# Set working directory for frontend build
-WORKDIR /frontend
-
-# Copy frontend package files
-COPY ["Barista Front End/package*.json", "./"]
-
-# Install frontend dependencies
-RUN npm ci --only=production
-
-# Copy frontend source code
-COPY ["Barista Front End/", "./"]
-
-# Build React app for production
-ENV NODE_ENV=production
-RUN npm run build
-
-# Python backend stage
+# Simplified single-stage build to avoid timeout
 FROM python:3.11-slim
 
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
+# Install system dependencies with optimizations
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
     gcc \
     libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
 # Copy requirements first for better caching
 COPY requirements.txt .
@@ -35,11 +19,24 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Install Node.js for building frontend
+RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
+    apt-get install -y nodejs && \
+    apt-get clean
+
 # Copy backend application code
 COPY . .
 
-# Copy built frontend from the first stage
-COPY --from=frontend-builder /frontend/build ./static
+# Build React frontend
+WORKDIR /app/Barista\ Front\ End
+RUN npm ci --only=production && \
+    NODE_ENV=production npm run build && \
+    cp -r build/* /app/static/ && \
+    cd /app && \
+    rm -rf /app/Barista\ Front\ End/node_modules
+
+# Return to app directory
+WORKDIR /app
 
 # Create logs directory
 RUN mkdir -p logs
