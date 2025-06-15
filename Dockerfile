@@ -1,4 +1,4 @@
-# Simplified single-stage build to avoid timeout
+# Backend-only deployment for now (skip frontend build to avoid complexity)
 FROM python:3.11-slim
 
 # Set working directory
@@ -9,7 +9,6 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     gcc \
     libpq-dev \
-    curl \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
@@ -19,24 +18,14 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Node.js for building frontend
-RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
-    apt-get install -y nodejs && \
-    apt-get clean
-
 # Copy backend application code
 COPY . .
 
-# Build React frontend
-WORKDIR /app/Barista\ Front\ End
-RUN npm ci --only=production && \
-    NODE_ENV=production npm run build && \
-    cp -r build/* /app/static/ && \
-    cd /app && \
-    rm -rf /app/Barista\ Front\ End/node_modules
+# Create static directory for frontend (can be added later)
+RUN mkdir -p static
 
-# Return to app directory
-WORKDIR /app
+# Create basic index.html for API access
+RUN echo '<!DOCTYPE html><html><head><title>Expresso Coffee API</title></head><body><h1>Expresso Coffee Ordering System</h1><p>API is running at <a href="/api/health">/api/health</a></p><p><a href="/api/auth/login">Login API</a></p></body></html>' > static/index.html
 
 # Create logs directory
 RUN mkdir -p logs
