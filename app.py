@@ -237,6 +237,16 @@ def create_app():
     if isinstance(allowed_origins, str):
         allowed_origins = [origin.strip() for origin in allowed_origins.split(',')]
     
+    # Add Railway domain if running on Railway
+    railway_domain = os.getenv('RAILWAY_STATIC_URL', '')
+    if railway_domain:
+        allowed_origins.append(railway_domain)
+        allowed_origins.append(railway_domain.replace('https://', 'http://'))  # Both protocols
+    
+    # Also allow wildcard for same-origin requests on Railway
+    if os.getenv('RAILWAY_ENVIRONMENT'):
+        allowed_origins.append('*')
+    
     CORS(app, 
          resources={r"/*": {"origins": allowed_origins}}, 
          supports_credentials=config.CORS_SUPPORTS_CREDENTIALS)
@@ -531,6 +541,17 @@ def create_app():
         # This is now handled in the auth module's load_user_from_jwt function
         # Keep it empty for backward compatibility
         pass
+    
+    # Simple API test endpoint
+    @app.route('/api/test', methods=['GET'])
+    def api_test():
+        """Simple test endpoint to verify API connectivity"""
+        return jsonify({
+            'status': 'success',
+            'message': 'API is working',
+            'timestamp': datetime.now().isoformat(),
+            'environment': 'railway' if os.getenv('RAILWAY_ENVIRONMENT') else 'local'
+        })
     
     # Authentication API endpoints
     @app.route('/api/auth/login', methods=['POST'])
