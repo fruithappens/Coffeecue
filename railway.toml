@@ -1,9 +1,5 @@
 [build]
-builder = "nixpacks"
+builder = "dockerfile"
 
 [deploy]
-startCommand = "./start.sh"
-
-[build.nixpacks]
-provider = "python"
-pythonVersion = "3.11"
+startCommand = "python run_server.py"
