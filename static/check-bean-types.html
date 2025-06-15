@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Check Bean Types</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+        button { padding: 15px 30px; margin: 10px; background: #007cba; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; }
+        button:hover { background: #005a87; }
+        .fix-btn { background: #28a745; }
+        .fix-btn:hover { background: #218838; }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+        .warning { color: #ff9800; font-weight: bold; }
+        .info { background: #f0f8ff; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 5px; overflow-x: auto; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <h1>Check Bean Types - Station Coffee Stock</h1>
+    
+    <div class="info">
+        <strong>Quick check of what bean types are actually in your barista stock</strong><br>
+        This will show what the walk-in order dialog should be displaying.
+    </div>
+    
+    <button onclick="checkBeanTypes()">🔍 Check Current Bean Types</button>
+    <button onclick="addSampleBeans()" class="fix-btn">➕ Add Sample Beans</button>
+    <button onclick="showWhatWalkInSees()">👁️ Show What Walk-in Sees</button>
+    
+    <div id="output"></div>
+
+    <script>
+        function checkBeanTypes() {
+            const output = document.getElementById('output');
+            output.innerHTML = '<h2>Current Bean Types in Stock</h2>';
+            
+            // Check each station's coffee stock
+            let foundStations = 0;
+            for (let i = 1; i <= 5; i++) {
+                const stockKey = `coffee_stock_station_${i}`;
+                const stockData = localStorage.getItem(stockKey);
+                
+                if (stockData) {
+                    foundStations++;
+                    const stock = JSON.parse(stockData);
+                    
+                    output.innerHTML += `<h3>Station ${i}:</h3>`;
+                    
+                    if (stock.coffee && stock.coffee.length > 0) {
+                        output.innerHTML += '<p><strong>Coffee items in stock:</strong></p><ul>';
+                        stock.coffee.forEach(item => {
+                            const beanName = item.name.replace(/\s*(Coffee\s*)?Beans?\s*$/i, '').trim();
+                            output.innerHTML += `<li>${item.name} (${item.amount} ${item.unit}) → Bean type: "<strong>${beanName}</strong>"</li>`;
+                        });
+                        output.innerHTML += '</ul>';
+                        
+                        // Show what would be extracted
+                        const beanTypes = [];
+                        stock.coffee.forEach(item => {
+                            if (item.amount > 0) {
+                                const beanName = item.name.replace(/\s*(Coffee\s*)?Beans?\s*$/i, '').trim();
+                                if (!beanTypes.includes(beanName)) {
+                                    beanTypes.push(beanName);
+                                }
+                            }
+                        });
+                        
+                        if (beanTypes.length > 0) {
+                            output.innerHTML += `<p class="success">✅ Available bean types: ${beanTypes.join(', ')}</p>`;
+                        } else {
+                            output.innerHTML += '<p class="error">❌ No bean types could be extracted</p>';
+                        }
+                    } else {
+                        output.innerHTML += '<p class="error">❌ No coffee items in stock</p>';
+                    }
+                }
+            }
+            
+            if (foundStations === 0) {
+                output.innerHTML += '<p class="error">❌ No station stock data found!</p>';
+                output.innerHTML += '<p>Click "Add Sample Beans" to create some test data.</p>';
+            }
+        }
+        
+        function addSampleBeans() {
+            const output = document.getElementById('output');
+            output.innerHTML = '<h2>Adding Sample Beans...</h2>';
+            
+            const sampleBeans = [
+                { id: 'coffee_monjava', name: 'Monjava Beans', amount: 5, capacity: 10, unit: 'kg', status: 'good', lowThreshold: 2, criticalThreshold: 1 },
+                { id: 'coffee_deep_black', name: 'Deep Black Beans', amount: 4, capacity: 10, unit: 'kg', status: 'good', lowThreshold: 2, criticalThreshold: 1 },
+                { id: 'coffee_house_blend', name: 'House Blend Beans', amount: 6, capacity: 10, unit: 'kg', status: 'good', lowThreshold: 2, criticalThreshold: 1 },
+                { id: 'coffee_decaf', name: 'Decaf Beans', amount: 3, capacity: 10, unit: 'kg', status: 'good', lowThreshold: 2, criticalThreshold: 1 }
+            ];
+            
+            // Add to station 1 as example
+            const stockKey = 'coffee_stock_station_1';
+            let stockData = JSON.parse(localStorage.getItem(stockKey) || '{}');
+            
+            if (!stockData.coffee) {
+                stockData.coffee = [];
+            }
+            
+            sampleBeans.forEach(bean => {
+                // Check if already exists
+                if (!stockData.coffee.find(item => item.id === bean.id)) {
+                    stockData.coffee.push(bean);
+                    output.innerHTML += `<p class="success">✅ Added ${bean.name}</p>`;
+                }
+            });
+            
+            localStorage.setItem(stockKey, JSON.stringify(stockData));
+            
+            output.innerHTML += '<h3 class="success">✅ Sample beans added to Station 1!</h3>';
+            output.innerHTML += '<p>Now the walk-in order dialog should show: Monjava, Deep Black, House Blend, Decaf</p>';
+        }
+        
+        function showWhatWalkInSees() {
+            const output = document.getElementById('output');
+            output.innerHTML = '<h2>Walk-in Order Dialog Bean Extraction Logic</h2>';
+            
+            // Simulate the exact logic from WalkInOrderDialog.js
+            const stationId = 1; // Check station 1
+            const stockKey = `coffee_stock_station_${stationId}`;
+            const stockData = localStorage.getItem(stockKey);
+            
+            if (stockData) {
+                const stock = JSON.parse(stockData);
+                
+                output.innerHTML += '<h3>Step-by-step bean type extraction:</h3>';
+                
+                if (stock.coffee) {
+                    const beanTypes = [];
+                    
+                    output.innerHTML += '<ol>';
+                    stock.coffee.forEach((coffeeItem, index) => {
+                        output.innerHTML += `<li>Coffee item: "${coffeeItem.name}" (Amount: ${coffeeItem.amount})`;
+                        
+                        if (coffeeItem.amount > 0) {
+                            const beanName = coffeeItem.name
+                                .replace(/\s*(Coffee\s*)?Beans?\s*$/i, '')
+                                .trim();
+                            
+                            output.innerHTML += ` → Extract bean type: "<strong>${beanName}</strong>"`;
+                            
+                            if (!beanTypes.includes(beanName)) {
+                                beanTypes.push(beanName);
+                                output.innerHTML += ' ✅ Added to list';
+                            } else {
+                                output.innerHTML += ' (duplicate, skipped)';
+                            }
+                        } else {
+                            output.innerHTML += ' → Skipped (no stock)';
+                        }
+                        
+                        output.innerHTML += '</li>';
+                    });
+                    output.innerHTML += '</ol>';
+                    
+                    if (beanTypes.length > 0) {
+                        output.innerHTML += `<h3 class="success">Final bean types for dropdown: ${beanTypes.join(', ')}</h3>`;
+                    } else {
+                        output.innerHTML += '<h3 class="error">No bean types would show in dropdown!</h3>';
+                    }
+                } else {
+                    output.innerHTML += '<p class="error">No coffee category in stock data</p>';
+                }
+            } else {
+                output.innerHTML += '<p class="error">No stock data found for Station 1</p>';
+            }
+        }
+    </script>
+</body>
+</html>

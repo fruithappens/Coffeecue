@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quick Login Test - DELETE LATER</title>
+  <style>
+    body { font-family: sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+    .error { color: red; }
+    .success { color: green; }
+    .warning { color: orange; }
+    button { padding: 10px 15px; margin: 5px; }
+  </style>
+</head>
+<body>
+  <h1>Quick Login Test</h1>
+  <p><strong>WARNING: DELETE BEFORE DEPLOYMENT</strong></p>
+  
+  <div>
+    <label>Username: <input type="text" id="username" value="barista"></label><br><br>
+    <label>Password: <input type="password" id="password" value="BaristaSecure2024!"></label><br><br>
+    <button onclick="testLogin()">Test Login</button>
+    <button onclick="clearStorage()">Clear Storage</button>
+  </div>
+  
+  <div id="result"></div>
+  
+  <script>
+    function log(message, type = 'info') {
+      const result = document.getElementById('result');
+      const div = document.createElement('div');
+      div.className = type;
+      div.innerHTML = `<strong>[${new Date().toLocaleTimeString()}]</strong> ${message}`;
+      result.appendChild(div);
+    }
+    
+    async function testLogin() {
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      
+      document.getElementById('result').innerHTML = '';
+      log(`Testing login with username: ${username}`);
+      
+      try {
+        // Test direct API call first
+        log('Testing direct API call...');
+        const response = await fetch('http://localhost:5001/api/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({ username, password }),
+          mode: 'cors'
+        });
+        
+        log(`Response status: ${response.status}`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          log('Login successful!', 'success');
+          log(`Token received: ${data.token ? 'Yes' : 'No'}`, 'success');
+          log(`User data: ${JSON.stringify(data.user)}`, 'success');
+          
+          // Store token
+          if (data.token) {
+            localStorage.setItem('coffee_system_token', data.token);
+            localStorage.setItem('coffee_system_user', JSON.stringify(data.user));
+            if (data.refreshToken) {
+              localStorage.setItem('coffee_system_refresh_token', data.refreshToken);
+            }
+            log('Token stored in localStorage', 'success');
+          }
+        } else {
+          const errorData = await response.json();
+          log(`Login failed: ${errorData.message}`, 'error');
+        }
+      } catch (error) {
+        log(`Network error: ${error.message}`, 'error');
+        
+        // Try relative URL
+        log('Trying relative URL...');
+        try {
+          const response2 = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify({ username, password }),
+            mode: 'cors'
+          });
+          
+          log(`Relative URL response status: ${response2.status}`);
+          
+          if (response2.ok) {
+            const data = await response2.json();
+            log('Login with relative URL successful!', 'success');
+            
+            if (data.token) {
+              localStorage.setItem('coffee_system_token', data.token);
+              localStorage.setItem('coffee_system_user', JSON.stringify(data.user));
+              if (data.refreshToken) {
+                localStorage.setItem('coffee_system_refresh_token', data.refreshToken);
+              }
+              log('Token stored in localStorage', 'success');
+            }
+          } else {
+            const errorData = await response2.json();
+            log(`Relative URL login failed: ${errorData.message}`, 'error');
+          }
+        } catch (error2) {
+          log(`Both absolute and relative URLs failed: ${error2.message}`, 'error');
+        }
+      }
+    }
+    
+    function clearStorage() {
+      localStorage.removeItem('coffee_system_token');
+      localStorage.removeItem('coffee_system_refresh_token');
+      localStorage.removeItem('coffee_system_user');
+      localStorage.removeItem('coffee_system_token_expiry');
+      log('Storage cleared', 'warning');
+    }
+    
+    log('Login test page loaded');
+  </script>
+</body>
+</html>

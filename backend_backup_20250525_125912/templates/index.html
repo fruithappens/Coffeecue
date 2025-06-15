@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+            <html>
+            <head>
+                <title>{{ event_name }} - Coffee Service</title>
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+                <style>
+                    body { padding-top: 20px; }
+                    .jumbotron { padding: 2rem; background-color: #f8f9fa; border-radius: 0.3rem; }
+                    .loyalty-card {
+                        background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+                        color: white;
+                        border-radius: 10px;
+                        padding: 20px;
+                        margin-bottom: 20px;
+                    }
+                </style>
+                <!-- Added Socket.IO script -->
+                <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="jumbotron text-center">
+                        <h1>{{ event_name }}</h1>
+                        <h2>Coffee Service</h2>
+                        <p class="lead">Order your coffee via SMS!</p>
+                        <div class="mt-4">
+                            <h5>Scan the QR code or text your order to:</h5>
+                            <h3>{{ twilio_number }}</h3>
+                        </div>
+                    </div>
+                    
+                    <div class="row mt-4">
+                        <div class="col-md-8 offset-md-2">
+                            <div class="loyalty-card">
+                                <h4><i class="bi bi-star-fill"></i> Loyalty Program</h4>
+                                <p>Earn 10 points per order. 100 points = FREE coffee!</p>
+                                <p>Text "points" to check your balance or "redeem" to get your free coffee.</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mt-4">
+                        <div class="col-md-6 offset-md-3">
+                            <div class="card">
+                                <div class="card-header">
+                                    How to Order
+                                </div>
+                                <div class="card-body">
+                                    <h5 class="card-title">Text your order to: {{ twilio_number }}</h5>
+                                    <p class="card-text">Simply text your coffee order, for example:</p>
+                                    <ul>
+                                        <li>"medium cappuccino with skim milk, 1 sugar"</li>
+                                        <li>"large latte with almond milk, no sugar"</li>
+                                        <li>"small flat white, extra hot"</li>
+                                    </ul>
+                                    <p class="card-text mt-3"><strong>Quick Commands:</strong></p>
+                                    <ul>
+                                        <li><strong>coffee time</strong> - Order your usual coffee</li>
+                                        <li><strong>menu</strong> - See available options</li>
+                                        <li><strong>status</strong> - Check your order status</li>
+                                        <li><strong>points</strong> - Check your loyalty points</li>
+                                        <li><strong>redeem</strong> - Use points for a free coffee</li>
+                                        <li><strong>help</strong> - Get help with ordering</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mt-4">
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-header">For Baristas</div>
+                                <div class="card-body">
+                                    <p>Manage and process coffee orders</p>
+                                    <a href="/barista" class="btn btn-primary">Barista View</a>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-header">Dashboard</div>
+                                <div class="card-body">
+                                    <p>View order statistics and analytics</p>
+                                    <a href="/dashboard" class="btn btn-success">Dashboard</a>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-header">Admin</div>
+                                <div class="card-body">
+                                    <p>Admin functions and station management</p>
+                                    <a href="/admin" class="btn btn-info">Admin Login</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <footer class="mt-5 text-center">
+                        <p>&copy; {{ event_name }} - Coffee Service</p>
+                    </footer>
+                </div>
+                
+                <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+            </body>
+            </html>

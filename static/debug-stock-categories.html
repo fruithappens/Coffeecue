@@ -1,0 +1,328 @@
+<\!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Stock Categories</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .category { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .items { margin-left: 20px; }
+        .item { padding: 5px 0; }
+        .error { color: red; }
+        .success { color: green; }
+        button { padding: 10px 20px; margin: 10px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Stock Categories Debug Tool</h1>
+    
+    <div id="status"></div>
+    
+    <button onclick="analyzeStock()">1. Analyze Current Stock</button>
+    <button onclick="fixCategories()">2. Fix Categories</button>
+    <button onclick="rebuildStock()">3. Rebuild Stock from Inventory</button>
+    
+    <script>
+        function analyzeStock() {
+            const statusDiv = document.getElementById('status');
+            let html = '<h2>Current Stock Analysis:</h2>';
+            
+            // Check current station
+            const currentStation = localStorage.getItem('coffee_barista_station_id') || '1';
+            html += `<p><strong>Current Station:</strong> ${currentStation}</p>`;
+            
+            // Check all possible stock keys
+            for (let i = 1; i <= 10; i++) {
+                const stockKey = `coffee_stock_station_${i}`;
+                const stockData = localStorage.getItem(stockKey);
+                
+                if (stockData) {
+                    html += `<div class="category"><h3>Station ${i} Stock:</h3>`;
+                    
+                    try {
+                        const stock = JSON.parse(stockData);
+                        
+                        // Show categories and item counts
+                        Object.keys(stock).forEach(category => {
+                            const items = stock[category];
+                            html += `<div class="items"><strong>${category}:</strong> ${items.length} items`;
+                            
+                            // Show sweetener items in other category
+                            if (category === 'other') {
+                                const sweetenerItems = items.filter(item => 
+                                    item.name.includes('Sugar') || 
+                                    item.name.includes('Honey') || 
+                                    item.name.includes('Stevia') || 
+                                    item.name.includes('Sweetener') ||
+                                    item.category === 'sweeteners'
+                                );
+                                
+                                if (sweetenerItems.length > 0) {
+                                    html += '<div class="error">⚠️ Found sweeteners in "other" category:</div>';
+                                    sweetenerItems.forEach(item => {
+                                        html += `<div class="item">- ${item.name}</div>`;
+                                    });
+                                }
+                            }
+                            
+                            html += '</div>';
+                        });
+                        
+                        // Check for missing categories
+                        const expectedCategories = ['milk', 'coffee', 'cups', 'syrups', 'sweeteners', 'drinks', 'other'];
+                        const missingCategories = expectedCategories.filter(cat => \!stock[cat]);
+                        
+                        if (missingCategories.length > 0) {
+                            html += `<div class="error">❌ Missing categories: ${missingCategories.join(', ')}</div>`;
+                        }
+                        
+                    } catch (e) {
+                        html += `<div class="error">Error parsing stock data: ${e.message}</div>`;
+                    }
+                    
+                    html += '</div>';
+                }
+            }
+            
+            statusDiv.innerHTML = html;
+        }
+        
+        function fixCategories() {
+            const statusDiv = document.getElementById('status');
+            let fixCount = 0;
+            
+            for (let i = 1; i <= 10; i++) {
+                const stockKey = `coffee_stock_station_${i}`;
+                const stockData = localStorage.getItem(stockKey);
+                
+                if (stockData) {
+                    try {
+                        const stock = JSON.parse(stockData);
+                        let modified = false;
+                        
+                        // Create sweeteners category if missing
+                        if (\!stock.sweeteners) {
+                            stock.sweeteners = [];
+                            modified = true;
+                        }
+                        
+                        // Create drinks category if missing
+                        if (\!stock.drinks) {
+                            stock.drinks = [];
+                            modified = true;
+                        }
+                        
+                        // Move sweeteners from other to sweeteners
+                        if (stock.other && stock.other.length > 0) {
+                            const newOther = [];
+                            
+                            stock.other.forEach(item => {
+                                if (item.name.includes('Sugar') || 
+                                    item.name.includes('Honey') || 
+                                    item.name.includes('Stevia') || 
+                                    item.name.includes('Sweetener') ||
+                                    item.category === 'sweeteners') {
+                                    
+                                    // Update category
+                                    item.category = 'sweeteners';
+                                    stock.sweeteners.push(item);
+                                    modified = true;
+                                } else {
+                                    newOther.push(item);
+                                }
+                            });
+                            
+                            stock.other = newOther;
+                        }
+                        
+                        // Add default drinks if empty
+                        if (stock.drinks.length === 0) {
+                            stock.drinks = [
+                                {
+                                    id: "drink_1",
+                                    name: "Hot Chocolate",
+                                    amount: 50,
+                                    capacity: 50,
+                                    unit: "servings",
+                                    status: "good",
+                                    lowThreshold: 12.5,
+                                    criticalThreshold: 5,
+                                    category: "drinks",
+                                    enabled: true
+                                },
+                                {
+                                    id: "drink_2",
+                                    name: "Chai Latte",
+                                    amount: 30,
+                                    capacity: 30,
+                                    unit: "servings",
+                                    status: "good",
+                                    lowThreshold: 7.5,
+                                    criticalThreshold: 3,
+                                    category: "drinks",
+                                    enabled: true
+                                },
+                                {
+                                    id: "drink_3",
+                                    name: "Matcha Latte",
+                                    amount: 20,
+                                    capacity: 20,
+                                    unit: "servings",
+                                    status: "good",
+                                    lowThreshold: 5,
+                                    criticalThreshold: 2,
+                                    category: "drinks",
+                                    enabled: true
+                                },
+                                {
+                                    id: "drink_4",
+                                    name: "Iced Tea",
+                                    amount: 5,
+                                    capacity: 5,
+                                    unit: "L",
+                                    status: "good",
+                                    lowThreshold: 1.25,
+                                    criticalThreshold: 0.5,
+                                    category: "drinks",
+                                    enabled: true
+                                }
+                            ];
+                            modified = true;
+                        }
+                        
+                        if (modified) {
+                            localStorage.setItem(stockKey, JSON.stringify(stock));
+                            fixCount++;
+                        }
+                        
+                    } catch (e) {
+                        console.error(`Error fixing station ${i}:`, e);
+                    }
+                }
+            }
+            
+            statusDiv.innerHTML = `<div class="success">✅ Fixed ${fixCount} stations. Refresh the page to see changes.</div>`;
+            
+            // Clear any caches
+            localStorage.removeItem('coffee_stock_cache');
+            localStorage.removeItem('stockService_lastFetch');
+        }
+        
+        function rebuildStock() {
+            // This will force regenerate stock from the event inventory
+            const eventInventory = localStorage.getItem('event_inventory');
+            const stationConfigs = localStorage.getItem('station_inventory_configs');
+            
+            if (\!eventInventory || \!stationConfigs) {
+                document.getElementById('status').innerHTML = 
+                    '<div class="error">❌ Missing event inventory or station configs. Run the main inventory fix first.</div>';
+                return;
+            }
+            
+            // Import the inventory integration service logic
+            const inventory = JSON.parse(eventInventory);
+            const configs = JSON.parse(stationConfigs);
+            
+            // For each station, rebuild stock
+            [1, 2, 3].forEach(stationId => {
+                const stockData = {
+                    milk: [],
+                    coffee: [],
+                    cups: [],
+                    syrups: [],
+                    sweeteners: [], // This must be its own category
+                    drinks: [],     // This must be its own category
+                    other: []
+                };
+                
+                const stationConfig = configs[stationId] || {};
+                
+                // Process each category correctly
+                Object.keys(inventory).forEach(category => {
+                    let targetCategory = category;
+                    
+                    // Map extras to other, but keep sweeteners as sweeteners
+                    if (category === 'extras') {
+                        targetCategory = 'other';
+                    }
+                    
+                    // Process items for this category
+                    (inventory[category] || []).forEach(item => {
+                        if (item.enabled && stationConfig[category]?.[item.id]) {
+                            const stockItem = {
+                                id: item.id,
+                                name: item.name,
+                                amount: getDefaultAmount(category, item.name),
+                                capacity: getDefaultAmount(category, item.name),
+                                unit: getDefaultUnit(category, item.name),
+                                status: "good",
+                                lowThreshold: getDefaultAmount(category, item.name) * 0.25,
+                                criticalThreshold: getDefaultAmount(category, item.name) * 0.1,
+                                description: item.description,
+                                category: category, // Keep original category
+                                enabled: true
+                            };
+                            
+                            if (stockData[targetCategory]) {
+                                stockData[targetCategory].push(stockItem);
+                            }
+                        }
+                    });
+                });
+                
+                // Save rebuilt stock
+                localStorage.setItem(`coffee_stock_station_${stationId}`, JSON.stringify(stockData));
+            });
+            
+            document.getElementById('status').innerHTML = 
+                '<div class="success">✅ Stock rebuilt from inventory. Refresh the page.</div>';
+        }
+        
+        function getDefaultAmount(category, itemName) {
+            const name = itemName.toUpperCase();
+            
+            switch(category) {
+                case 'milk':
+                    return name.includes('WHOLE') ? 20 : 10;
+                case 'coffee':
+                    return 5;
+                case 'cups':
+                    return name.includes('SMALL') ? 200 : 150;
+                case 'syrups':
+                    return 2;
+                case 'sweeteners':
+                    return name.includes('PACKET') ? 500 : 5;
+                case 'drinks':
+                    return 30;
+                default:
+                    return 10;
+            }
+        }
+        
+        function getDefaultUnit(category, itemName) {
+            const name = itemName.toUpperCase();
+            
+            switch(category) {
+                case 'milk':
+                    return 'L';
+                case 'coffee':
+                    return 'kg';
+                case 'cups':
+                    return 'pcs';
+                case 'syrups':
+                    return 'L';
+                case 'sweeteners':
+                    return name.includes('PACKET') || name.includes('PCS') ? 'pcs' : 
+                           name.includes('HONEY') ? 'L' : 'kg';
+                case 'drinks':
+                    return 'servings';
+                default:
+                    return 'unit';
+            }
+        }
+        
+        // Auto-analyze on load
+        window.onload = () => analyzeStock();
+    </script>
+</body>
+</html>
+EOF < /dev/null

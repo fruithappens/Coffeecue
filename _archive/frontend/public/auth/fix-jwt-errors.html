@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fix JWT Authentication Errors</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .card h2 {
+            margin-top: 0;
+            color: #444;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 0;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .status {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .warning {
+            background-color: #fff3cd;
+            border: 1px solid #ffeeba;
+            color: #856404;
+        }
+        .info {
+            background-color: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .token-info {
+            font-size: 14px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fix JWT Authentication Errors</h1>
+    <p>This tool helps fix common JWT authentication issues in the Barista Front End application, including "Subject must be a string" errors and 422 UNPROCESSABLE ENTITY responses.</p>
+    
+    <div class="card">
+        <h2>Current JWT Token Status</h2>
+        <div id="token-status">Checking token status...</div>
+        <button id="check-token">Check Token</button>
+        <button id="clear-token">Clear Token</button>
+    </div>
+    
+    <div class="card">
+        <h2>Fix Common JWT Issues</h2>
+        <p>Apply these fixes to resolve JWT authentication problems:</p>
+        
+        <div>
+            <h3>1. Fix "Subject must be a string" Error</h3>
+            <p>This creates a valid JWT token with a proper string "sub" field</p>
+            <button id="fix-sub-string">Fix Subject Field</button>
+            <div id="fix-sub-result"></div>
+        </div>
+        
+        <div>
+            <h3>2. Fix Anti-Flicker Protection</h3>
+            <p>Reset the anti-flicker protection that might be blocking API requests</p>
+            <button id="fix-anti-flicker">Reset Anti-Flicker</button>
+            <div id="fix-flicker-result"></div>
+        </div>
+        
+        <div>
+            <h3>3. Fix "UNPROCESSABLE ENTITY" Errors</h3>
+            <p>Creates a new token and clears all auth error counters to fix 422 errors</p>
+            <button id="fix-422-errors">Fix 422 Errors</button>
+            <div id="fix-422-result"></div>
+        </div>
+        
+        <div>
+            <h3>4. Apply All Fixes At Once</h3>
+            <p>Fix all common JWT authentication issues</p>
+            <button id="fix-all">Fix Everything</button>
+            <div id="fix-all-result"></div>
+        </div>
+    </div>
+    
+    <div class="card">
+        <h2>Test Connection</h2>
+        <button id="test-connection">Test Backend Connection</button>
+        <div id="connection-result"></div>
+    </div>
+    
+    <script>
+        // Helper function to decode JWT token
+        function decodeJwt(token) {
+            try {
+                const parts = token.split('.');
+                if (parts.length !== 3) {
+                    return { error: 'Invalid token format (should have 3 parts)' };
+                }
+                
+                const header = JSON.parse(atob(parts[0]));
+                const payload = JSON.parse(atob(parts[1]));
+                
+                return {
+                    header,
+                    payload,
+                    signature: parts[2]
+                };
+            } catch (error) {
+                return { error: `Error decoding token: ${error.message}` };
+            }
+        }
+        
+        // Check current token status
+        function checkTokenStatus() {
+            const statusElement = document.getElementById('token-status');
+            const token = localStorage.getItem('coffee_system_token');
+            
+            if (!token) {
+                statusElement.innerHTML = '<div class="status error">No JWT token found in localStorage</div>';
+                return;
+            }
+            
+            const decoded = decodeJwt(token);
+            
+            if (decoded.error) {
+                statusElement.innerHTML = `<div class="status error">${decoded.error}</div>`;
+                return;
+            }
+            
+            // Check if token has proper subject field
+            const hasValidSub = typeof decoded.payload.sub === 'string';
+            
+            // Check if token is expired
+            const now = Math.floor(Date.now() / 1000);
+            const isExpired = decoded.payload.exp < now;
+            
+            // Check auth error counts
+            const authErrorCount = parseInt(localStorage.getItem('auth_error_count') || '0');
+            const useFallbackData = localStorage.getItem('use_fallback_data') === 'true';
+            const authErrorRefreshNeeded = localStorage.getItem('auth_error_refresh_needed') === 'true';
+            
+            // Create status message
+            let statusHtml = '';
+            let statusClass = 'success';
+            
+            if (!hasValidSub) {
+                statusClass = 'error';
+                statusHtml += `<p>❌ <strong>Invalid token:</strong> subject (sub) field is not a string</p>`;
+            } else if (isExpired) {
+                statusClass = 'warning';
+                statusHtml += `<p>⚠️ <strong>Expired token:</strong> token has expired</p>`;
+            } else {
+                statusHtml += `<p>✅ <strong>Valid token</strong> with proper subject field</p>`;
+            }
+            
+            if (authErrorCount > 0) {
+                statusClass = 'warning';
+                statusHtml += `<p>⚠️ <strong>Auth Error Count:</strong> ${authErrorCount}</p>`;
+            }
+            
+            if (useFallbackData || authErrorRefreshNeeded) {
+                statusClass = 'warning';
+                statusHtml += `<p>⚠️ <strong>Using Fallback Data:</strong> ${useFallbackData}</p>`;
+                statusHtml += `<p>⚠️ <strong>Auth Error Refresh Needed:</strong> ${authErrorRefreshNeeded}</p>`;
+            }
+            
+            // Calculate expiration info
+            let expirationInfo = '';
+            if (decoded.payload.exp) {
+                const expDate = new Date(decoded.payload.exp * 1000);
+                const timeLeft = decoded.payload.exp - now;
+                
+                if (timeLeft > 0) {
+                    expirationInfo = `<p>Expires: ${expDate.toLocaleString()} (in ${Math.floor(timeLeft / 60)} minutes)</p>`;
+                } else {
+                    expirationInfo = `<p>Expired: ${expDate.toLocaleString()} (${Math.floor(Math.abs(timeLeft) / 60)} minutes ago)</p>`;
+                }
+            }
+            
+            // Display token information
+            statusElement.innerHTML = `
+                <div class="status ${statusClass}">
+                    ${statusHtml}
+                    ${expirationInfo}
+                </div>
+                <div class="token-info">
+                    <p><strong>Header:</strong></p>
+                    <pre>${JSON.stringify(decoded.header, null, 2)}</pre>
+                    <p><strong>Payload:</strong></p>
+                    <pre>${JSON.stringify(decoded.payload, null, 2)}</pre>
+                    <p><strong>Raw Token:</strong></p>
+                    <pre style="word-break: break-all;">${token}</pre>
+                </div>
+            `;
+        }
+        
+        // Create a valid JWT token
+        function createValidToken() {
+            // Create header part
+            const header = {
+                alg: 'HS256',
+                typ: 'JWT'
+            };
+            
+            // Create payload with proper sub field as string
+            const now = Math.floor(Date.now() / 1000);
+            const payload = {
+                sub: 'barista1', // Must be a string
+                name: 'Barista User',
+                role: 'barista',
+                stations: [1, 2, 3],
+                iat: now,
+                exp: now + (24 * 60 * 60), // 24 hours from now
+                permissions: ['manage_orders', 'view_stations']
+            };
+            
+            // Base64 encode parts
+            const headerB64 = btoa(JSON.stringify(header)).replace(/=/g, '');
+            const payloadB64 = btoa(JSON.stringify(payload)).replace(/=/g, '');
+            
+            // Create a dummy signature
+            const signature = 'valid_signature_will_be_verified_by_backend';
+            
+            // Return properly formatted token
+            return `${headerB64}.${payloadB64}.${signature}`;
+        }
+        
+        // Fix sub string issue
+        function fixSubStringIssue() {
+            const resultElement = document.getElementById('fix-sub-result');
+            resultElement.innerHTML = '<div class="status info">Fixing subject field issue...</div>';
+            
+            try {
+                // Create and set new valid token
+                const validToken = createValidToken();
+                localStorage.setItem('coffee_system_token', validToken);
+                localStorage.setItem('coffee_auth_token', validToken); // Set in alternate locations for compatibility
+                localStorage.setItem('jwt_token', validToken);
+                
+                resultElement.innerHTML = '<div class="status success">JWT token with valid string subject field created and stored</div>';
+                checkTokenStatus(); // Update token status
+            } catch (error) {
+                resultElement.innerHTML = `<div class="status error">Error fixing subject field: ${error.message}</div>`;
+            }
+        }
+        
+        // Fix anti-flicker protection
+        function fixAntiFlicker() {
+            const resultElement = document.getElementById('fix-flicker-result');
+            resultElement.innerHTML = '<div class="status info">Resetting anti-flicker protection...</div>';
+            
+            try {
+                // Reset all anti-flicker protection settings
+                localStorage.removeItem('anti_flicker_block_until');
+                localStorage.removeItem('anti_flicker_blocked_endpoints');
+                localStorage.removeItem('anti_flicker_last_request_times');
+                
+                resultElement.innerHTML = '<div class="status success">Anti-flicker protection reset successfully</div>';
+            } catch (error) {
+                resultElement.innerHTML = `<div class="status error">Error resetting anti-flicker: ${error.message}</div>`;
+            }
+        }
+        
+        // Fix 422 errors
+        function fix422Errors() {
+            const resultElement = document.getElementById('fix-422-result');
+            resultElement.innerHTML = '<div class="status info">Fixing 422 UNPROCESSABLE ENTITY errors...</div>';
+            
+            try {
+                // Reset auth error counters
+                localStorage.removeItem('auth_error_count');
+                localStorage.removeItem('auth_error_refresh_needed');
+                localStorage.removeItem('use_fallback_data');
+                
+                // Set connection status to online
+                localStorage.setItem('coffee_connection_status', 'online');
+                
+                // Create and set new valid token
+                const validToken = createValidToken();
+                localStorage.setItem('coffee_system_token', validToken);
+                localStorage.setItem('coffee_auth_token', validToken);
+                localStorage.setItem('jwt_token', validToken);
+                
+                resultElement.innerHTML = '<div class="status success">422 error counters reset and new token created</div>';
+                checkTokenStatus(); // Update token status
+            } catch (error) {
+                resultElement.innerHTML = `<div class="status error">Error fixing 422 errors: ${error.message}</div>`;
+            }
+        }
+        
+        // Fix everything at once
+        function fixEverything() {
+            const resultElement = document.getElementById('fix-all-result');
+            resultElement.innerHTML = '<div class="status info">Applying all fixes...</div>';
+            
+            try {
+                // Clear all token-related settings
+                localStorage.removeItem('coffee_system_token');
+                localStorage.removeItem('coffee_auth_token');
+                localStorage.removeItem('jwt_token');
+                localStorage.removeItem('auth_error_count');
+                localStorage.removeItem('auth_error_refresh_needed');
+                localStorage.removeItem('use_fallback_data');
+                localStorage.removeItem('anti_flicker_block_until');
+                localStorage.removeItem('anti_flicker_blocked_endpoints');
+                localStorage.removeItem('anti_flicker_last_request_times');
+                
+                // Set connection status to online
+                localStorage.setItem('coffee_connection_status', 'online');
+                
+                // Create and set new valid token
+                const validToken = createValidToken();
+                localStorage.setItem('coffee_system_token', validToken);
+                localStorage.setItem('coffee_auth_token', validToken);
+                localStorage.setItem('jwt_token', validToken);
+                
+                resultElement.innerHTML = '<div class="status success">All JWT authentication issues fixed successfully</div>';
+                checkTokenStatus(); // Update token status
+                
+                // Fix results in other sections
+                document.getElementById('fix-sub-result').innerHTML = '<div class="status success">Fixed as part of "Fix Everything"</div>';
+                document.getElementById('fix-flicker-result').innerHTML = '<div class="status success">Fixed as part of "Fix Everything"</div>';
+                document.getElementById('fix-422-result').innerHTML = '<div class="status success">Fixed as part of "Fix Everything"</div>';
+            } catch (error) {
+                resultElement.innerHTML = `<div class="status error">Error applying all fixes: ${error.message}</div>`;
+            }
+        }
+        
+        // Clear token
+        function clearToken() {
+            const statusElement = document.getElementById('token-status');
+            
+            try {
+                localStorage.removeItem('coffee_system_token');
+                localStorage.removeItem('coffee_auth_token');
+                localStorage.removeItem('jwt_token');
+                
+                statusElement.innerHTML = '<div class="status success">All tokens cleared successfully</div>';
+                setTimeout(checkTokenStatus, 1000); // Update token status after a delay
+            } catch (error) {
+                statusElement.innerHTML = `<div class="status error">Error clearing tokens: ${error.message}</div>`;
+            }
+        }
+        
+        // Test backend connection
+        async function testConnection() {
+            const resultElement = document.getElementById('connection-result');
+            resultElement.innerHTML = '<div class="status info">Testing connection to backend...</div>';
+            
+            // Try the API endpoints with the current token
+            const token = localStorage.getItem('coffee_system_token');
+            const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+            
+            try {
+                // Test API endpoints
+                const endpoints = [
+                    '/api/test',
+                    '/api/orders/pending', 
+                    '/api/orders/in-progress',
+                    '/api/orders/completed'
+                ];
+                
+                let resultsHtml = '';
+                
+                for (const endpoint of endpoints) {
+                    try {
+                        const response = await fetch(`http://localhost:5001${endpoint}`, {
+                            headers: headers
+                        });
+                        
+                        const success = response.ok;
+                        const status = response.status;
+                        
+                        let responseBody;
+                        try {
+                            responseBody = await response.json();
+                        } catch (e) {
+                            responseBody = { error: 'Failed to parse response' };
+                        }
+                        
+                        resultsHtml += `
+                            <div class="status ${success ? 'success' : 'error'}">
+                                <strong>${endpoint}:</strong> ${status} ${success ? 'SUCCESS' : 'FAILED'}
+                                <pre>${JSON.stringify(responseBody, null, 2)}</pre>
+                            </div>
+                        `;
+                    } catch (endpointError) {
+                        resultsHtml += `
+                            <div class="status error">
+                                <strong>${endpoint}:</strong> CONNECTION ERROR
+                                <pre>${endpointError.message}</pre>
+                            </div>
+                        `;
+                    }
+                }
+                
+                resultElement.innerHTML = `
+                    <h3>Connection Test Results</h3>
+                    ${resultsHtml}
+                `;
+            } catch (error) {
+                resultElement.innerHTML = `<div class="status error">Error testing connection: ${error.message}</div>`;
+            }
+        }
+        
+        // Initialize the page
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check token status on load
+            checkTokenStatus();
+            
+            // Add event listeners
+            document.getElementById('check-token').addEventListener('click', checkTokenStatus);
+            document.getElementById('clear-token').addEventListener('click', clearToken);
+            document.getElementById('fix-sub-string').addEventListener('click', fixSubStringIssue);
+            document.getElementById('fix-anti-flicker').addEventListener('click', fixAntiFlicker);
+            document.getElementById('fix-422-errors').addEventListener('click', fix422Errors);
+            document.getElementById('fix-all').addEventListener('click', fixEverything);
+            document.getElementById('test-connection').addEventListener('click', testConnection);
+        });
+    </script>
+</body>
+</html>

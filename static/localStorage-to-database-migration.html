@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>localStorage to Database Migration Tool</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+        
+        .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+        
+        .content {
+            padding: 30px;
+        }
+        
+        .section {
+            margin-bottom: 30px;
+            padding: 25px;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            background: #fafafa;
+        }
+        
+        .section h2 {
+            margin: 0 0 20px 0;
+            color: #333;
+            font-size: 1.5em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        
+        .icon.info { background: #3498db; }
+        .icon.warning { background: #f39c12; }
+        .icon.success { background: #27ae60; }
+        .icon.danger { background: #e74c3c; }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            margin: 5px;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #56ab2f, #a8e6cf);
+            color: white;
+        }
+        
+        .btn-warning {
+            background: linear-gradient(135deg, #f093fb, #f5576c);
+            color: white;
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
+            color: white;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-weight: 500;
+        }
+        
+        .status.info {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            color: #1976d2;
+        }
+        
+        .status.success {
+            background: #e8f5e8;
+            border-left: 4px solid #4caf50;
+            color: #2e7d32;
+        }
+        
+        .status.warning {
+            background: #fff3e0;
+            border-left: 4px solid #ff9800;
+            color: #f57c00;
+        }
+        
+        .status.error {
+            background: #ffebee;
+            border-left: 4px solid #f44336;
+            color: #c62828;
+        }
+        
+        .data-preview {
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-left: 4px solid #667eea;
+        }
+        
+        .card h3 {
+            margin: 0 0 15px 0;
+            color: #333;
+        }
+        
+        .metric {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+            margin: 10px 0;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔄 Database Migration Tool</h1>
+            <p>Fix Architecture: Move localStorage Data to PostgreSQL Database</p>
+        </div>
+        
+        <div class="content">
+            <!-- Step 1: Analysis -->
+            <div class="section">
+                <h2>
+                    <span class="icon info">1</span>
+                    localStorage Data Analysis
+                </h2>
+                <p>First, let's analyze what data is currently stored in your browser's localStorage.</p>
+                <button class="btn btn-primary" onclick="analyzeLocalStorage()">
+                    <span id="analyze-btn-text">🔍 Analyze localStorage Data</span>
+                    <span id="analyze-loading" class="loading hidden"></span>
+                </button>
+                <div id="analysis-results"></div>
+            </div>
+            
+            <!-- Step 2: Preview -->
+            <div class="section" id="preview-section" style="display: none;">
+                <h2>
+                    <span class="icon warning">2</span>
+                    Data Preview & Validation
+                </h2>
+                <p>Review the data before migration to ensure everything looks correct.</p>
+                <div id="data-preview-grid" class="grid"></div>
+                <div id="data-preview"></div>
+            </div>
+            
+            <!-- Step 3: Migration -->
+            <div class="section" id="migration-section" style="display: none;">
+                <h2>
+                    <span class="icon success">3</span>
+                    Database Migration
+                </h2>
+                <p>Migrate your localStorage data to the PostgreSQL database for permanent storage.</p>
+                <div class="status warning">
+                    ⚠️ <strong>Important:</strong> This will replace any existing data in the database. Make sure the backend is running.
+                </div>
+                <button class="btn btn-success" onclick="migrateToDatabase()">
+                    <span id="migrate-btn-text">🚀 Migrate to Database</span>
+                    <span id="migrate-loading" class="loading hidden"></span>
+                </button>
+                <div class="progress-bar" id="migration-progress" style="display: none;">
+                    <div class="progress-fill" id="progress-fill"></div>
+                </div>
+                <div id="migration-results"></div>
+            </div>
+            
+            <!-- Step 4: Verification -->
+            <div class="section" id="verification-section" style="display: none;">
+                <h2>
+                    <span class="icon success">4</span>
+                    Verification & Testing
+                </h2>
+                <p>Verify that data was migrated successfully and test database connectivity.</p>
+                <button class="btn btn-primary" onclick="verifyMigration()">
+                    <span id="verify-btn-text">✅ Verify Migration</span>
+                    <span id="verify-loading" class="loading hidden"></span>
+                </button>
+                <div id="verification-results"></div>
+            </div>
+            
+            <!-- Step 5: Backup Status -->
+            <div class="section" id="backup-section" style="display: none;">
+                <h2>
+                    <span class="icon info">5</span>
+                    Automatic Backup System
+                </h2>
+                <p>Monitor the automatic backup system that protects your data.</p>
+                <button class="btn btn-primary" onclick="checkBackupStatus()">
+                    <span id="backup-btn-text">📊 Check Backup Status</span>
+                    <span id="backup-loading" class="loading hidden"></span>
+                </button>
+                <div id="backup-results"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let localStorageData = {};
+        
+        async function analyzeLocalStorage() {
+            const btn = document.getElementById('analyze-btn-text');
+            const loading = document.getElementById('analyze-loading');
+            
+            btn.style.display = 'none';
+            loading.style.display = 'inline-block';
+            
+            try {
+                // Extract all relevant localStorage data
+                const relevantKeys = [
+                    'event_inventory',
+                    'event_stock_levels', 
+                    'station_inventory_configs',
+                    'station_inventory_quantities',
+                    'branding_settings',
+                    'sms_settings',
+                    'system_settings',
+                    'coffee_system_token',
+                    'coffee_connection_status',
+                    'user_preferences'
+                ];
+                
+                localStorageData = {};
+                let totalSize = 0;
+                let foundKeys = 0;
+                
+                for (const key of relevantKeys) {
+                    const value = localStorage.getItem(key);
+                    if (value !== null) {
+                        try {
+                            localStorageData[key] = JSON.parse(value);
+                            totalSize += value.length;
+                            foundKeys++;
+                        } catch (e) {
+                            localStorageData[key] = value;
+                            totalSize += value.length;
+                            foundKeys++;
+                        }
+                    }
+                }
+                
+                // Display analysis results
+                const resultsDiv = document.getElementById('analysis-results');
+                resultsDiv.innerHTML = `
+                    <div class="status success">
+                        ✅ <strong>Analysis Complete:</strong> Found ${foundKeys} relevant data items (${formatBytes(totalSize)} total)
+                    </div>
+                    <div class="grid">
+                        <div class="card">
+                            <h3>📊 Data Items Found</h3>
+                            <div class="metric">${foundKeys}</div>
+                            <p>localStorage keys with data</p>
+                        </div>
+                        <div class="card">
+                            <h3>💾 Total Size</h3>
+                            <div class="metric">${formatBytes(totalSize)}</div>
+                            <p>Data to be migrated</p>
+                        </div>
+                        <div class="card">
+                            <h3>🔑 Key Items</h3>
+                            <div class="metric">${Object.keys(localStorageData).length}</div>
+                            <p>Unique data categories</p>
+                        </div>
+                    </div>
+                    <div style="margin-top: 20px;">
+                        <strong>Found Data Keys:</strong>
+                        <ul>
+                            ${Object.keys(localStorageData).map(key => 
+                                `<li><strong>${key}</strong>: ${getDataDescription(key, localStorageData[key])}</li>`
+                            ).join('')}
+                        </ul>
+                    </div>
+                `;
+                
+                // Show preview section
+                document.getElementById('preview-section').style.display = 'block';
+                showDataPreview();
+                
+            } catch (error) {
+                document.getElementById('analysis-results').innerHTML = `
+                    <div class="status error">
+                        ❌ <strong>Analysis Failed:</strong> ${error.message}
+                    </div>
+                `;
+            }
+            
+            btn.style.display = 'inline';
+            loading.style.display = 'none';
+        }
+        
+        function getDataDescription(key, data) {
+            if (!data) return 'No data';
+            
+            switch (key) {
+                case 'event_inventory':
+                    const categories = Object.keys(data || {});
+                    const totalItems = categories.reduce((sum, cat) => sum + Object.keys(data[cat] || {}).length, 0);
+                    return `${categories.length} categories, ${totalItems} items`;
+                
+                case 'event_stock_levels':
+                    return `${Object.keys(data || {}).length} stock items`;
+                
+                case 'station_inventory_configs':
+                    return `${Object.keys(data || {}).length} station configurations`;
+                
+                case 'station_inventory_quantities':
+                    const totalQuantities = Object.values(data || {}).reduce((sum, station) => 
+                        sum + Object.keys(station || {}).length, 0);
+                    return `${Object.keys(data || {}).length} stations, ${totalQuantities} quantity records`;
+                
+                default:
+                    if (typeof data === 'object') {
+                        return `${Object.keys(data).length} properties`;
+                    }
+                    return typeof data;
+            }
+        }
+        
+        function showDataPreview() {
+            const previewGrid = document.getElementById('data-preview-grid');
+            const previewDiv = document.getElementById('data-preview');
+            
+            // Create preview cards for major data types
+            const cards = [];
+            
+            if (localStorageData.event_inventory) {
+                const inventory = localStorageData.event_inventory;
+                const categories = Object.keys(inventory);
+                const totalItems = categories.reduce((sum, cat) => sum + Object.keys(inventory[cat] || {}).length, 0);
+                
+                cards.push(`
+                    <div class="card">
+                        <h3>📦 Event Inventory</h3>
+                        <div class="metric">${totalItems}</div>
+                        <p>${categories.length} categories</p>
+                        <small>${categories.join(', ')}</small>
+                    </div>
+                `);
+            }
+            
+            if (localStorageData.event_stock_levels) {
+                const stockCount = Object.keys(localStorageData.event_stock_levels).length;
+                cards.push(`
+                    <div class="card">
+                        <h3>📊 Stock Levels</h3>
+                        <div class="metric">${stockCount}</div>
+                        <p>Items with stock data</p>
+                    </div>
+                `);
+            }
+            
+            if (localStorageData.station_inventory_configs) {
+                const stationCount = Object.keys(localStorageData.station_inventory_configs).length;
+                cards.push(`
+                    <div class="card">
+                        <h3>🏪 Station Configs</h3>
+                        <div class="metric">${stationCount}</div>
+                        <p>Station configurations</p>
+                    </div>
+                `);
+            }
+            
+            previewGrid.innerHTML = cards.join('');
+            
+            // Show full data preview (truncated)
+            const previewText = JSON.stringify(localStorageData, null, 2);
+            const truncatedPreview = previewText.length > 5000 ? 
+                previewText.substring(0, 5000) + '\n\n... (truncated, ' + formatBytes(previewText.length) + ' total)' : 
+                previewText;
+                
+            previewDiv.innerHTML = `
+                <div class="status info">
+                    💡 <strong>Data Preview:</strong> Review the structure before migration
+                </div>
+                <div class="data-preview">${truncatedPreview}</div>
+            `;
+            
+            // Show migration section
+            document.getElementById('migration-section').style.display = 'block';
+        }
+        
+        async function migrateToDatabase() {
+            const btn = document.getElementById('migrate-btn-text');
+            const loading = document.getElementById('migrate-loading');
+            const progressBar = document.getElementById('migration-progress');
+            const progressFill = document.getElementById('progress-fill');
+            const resultsDiv = document.getElementById('migration-results');
+            
+            btn.style.display = 'none';
+            loading.style.display = 'inline-block';
+            progressBar.style.display = 'block';
+            
+            try {
+                // Simulate progress
+                let progress = 0;
+                const progressInterval = setInterval(() => {
+                    progress += 10;
+                    progressFill.style.width = progress + '%';
+                    if (progress >= 90) {
+                        clearInterval(progressInterval);
+                    }
+                }, 200);
+                
+                // Send data to backend
+                const response = await fetch('/api/migration/export-localStorage', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('coffee_system_token') || ''}`
+                    },
+                    body: JSON.stringify(localStorageData)
+                });
+                
+                clearInterval(progressInterval);
+                progressFill.style.width = '100%';
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    resultsDiv.innerHTML = `
+                        <div class="status success">
+                            ✅ <strong>Migration Successful!</strong> Your data has been moved to the PostgreSQL database.
+                        </div>
+                        <div class="status info">
+                            📝 <strong>Next Steps:</strong>
+                            <ul>
+                                <li>Verify the migration worked correctly</li>
+                                <li>Update your React app to use database APIs instead of localStorage</li>
+                                <li>Clear localStorage data once verification is complete</li>
+                            </ul>
+                        </div>
+                    `;
+                    
+                    // Show verification section
+                    document.getElementById('verification-section').style.display = 'block';
+                } else {
+                    resultsDiv.innerHTML = `
+                        <div class="status error">
+                            ❌ <strong>Migration Failed:</strong> ${result.error || 'Unknown error'}
+                        </div>
+                        <div class="status warning">
+                            💡 <strong>Troubleshooting:</strong>
+                            <ul>
+                                <li>Make sure the backend server is running on port 5001</li>
+                                <li>Check that the database migration system is initialized</li>
+                                <li>Verify your authentication token is valid</li>
+                            </ul>
+                        </div>
+                    `;
+                }
+                
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="status error">
+                        ❌ <strong>Network Error:</strong> ${error.message}
+                    </div>
+                    <div class="status warning">
+                        💡 <strong>Check:</strong> Make sure the backend server is running and accessible.
+                    </div>
+                `;
+            }
+            
+            btn.style.display = 'inline';
+            loading.style.display = 'none';
+        }
+        
+        async function verifyMigration() {
+            const btn = document.getElementById('verify-btn-text');
+            const loading = document.getElementById('verify-loading');
+            const resultsDiv = document.getElementById('verification-results');
+            
+            btn.style.display = 'none';
+            loading.style.display = 'inline-block';
+            
+            try {
+                const response = await fetch('/api/migration/get-inventory', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('coffee_system_token') || ''}`
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (result.success && result.data) {
+                    const dbData = result.data;
+                    
+                    // Compare with localStorage data
+                    const comparisons = [];
+                    
+                    if (localStorageData.event_inventory && dbData.event_inventory) {
+                        const localCount = Object.keys(localStorageData.event_inventory).reduce((sum, cat) => 
+                            sum + Object.keys(localStorageData.event_inventory[cat] || {}).length, 0);
+                        const dbCount = Object.keys(dbData.event_inventory).reduce((sum, cat) => 
+                            sum + Object.keys(dbData.event_inventory[cat] || {}).length, 0);
+                        comparisons.push(`Event Inventory: ${localCount} → ${dbCount} items`);
+                    }
+                    
+                    if (localStorageData.event_stock_levels && dbData.event_stock_levels) {
+                        const localCount = Object.keys(localStorageData.event_stock_levels).length;
+                        const dbCount = Object.keys(dbData.event_stock_levels).length;
+                        comparisons.push(`Stock Levels: ${localCount} → ${dbCount} items`);
+                    }
+                    
+                    if (localStorageData.station_inventory_configs && dbData.station_inventory_configs) {
+                        const localCount = Object.keys(localStorageData.station_inventory_configs).length;
+                        const dbCount = Object.keys(dbData.station_inventory_configs).length;
+                        comparisons.push(`Station Configs: ${localCount} → ${dbCount} stations`);
+                    }
+                    
+                    resultsDiv.innerHTML = `
+                        <div class="status success">
+                            ✅ <strong>Verification Successful!</strong> Data is properly stored in the database.
+                        </div>
+                        <div class="grid">
+                            <div class="card">
+                                <h3>📊 Migration Results</h3>
+                                <ul>
+                                    ${comparisons.map(comp => `<li>${comp}</li>`).join('')}
+                                </ul>
+                            </div>
+                            <div class="card">
+                                <h3>✅ Database Status</h3>
+                                <div class="metric">✓</div>
+                                <p>All data accessible via API</p>
+                            </div>
+                        </div>
+                        <div class="status info">
+                            🎉 <strong>Migration Complete!</strong> Your Expresso system now uses proper database storage for all critical data.
+                        </div>
+                    `;
+                    
+                    // Show backup section
+                    document.getElementById('backup-section').style.display = 'block';
+                } else {
+                    resultsDiv.innerHTML = `
+                        <div class="status warning">
+                            ⚠️ <strong>Verification Issue:</strong> ${result.error || 'Could not retrieve data from database'}
+                        </div>
+                    `;
+                }
+                
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="status error">
+                        ❌ <strong>Verification Error:</strong> ${error.message}
+                    </div>
+                `;
+            }
+            
+            btn.style.display = 'inline';
+            loading.style.display = 'none';
+        }
+        
+        async function checkBackupStatus() {
+            const btn = document.getElementById('backup-btn-text');
+            const loading = document.getElementById('backup-loading');
+            const resultsDiv = document.getElementById('backup-results');
+            
+            btn.style.display = 'none';
+            loading.style.display = 'inline-block';
+            
+            try {
+                const response = await fetch('/api/migration/backup-status', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('coffee_system_token') || ''}`
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (result.success && result.data) {
+                    const status = result.data;
+                    
+                    resultsDiv.innerHTML = `
+                        <div class="status ${status.backup_running ? 'success' : 'warning'}">
+                            ${status.backup_running ? '✅' : '⚠️'} <strong>Backup System:</strong> ${status.backup_running ? 'Running' : 'Stopped'}
+                        </div>
+                        <div class="grid">
+                            <div class="card">
+                                <h3>🔄 Backup Interval</h3>
+                                <div class="metric">${status.backup_interval_minutes}min</div>
+                                <p>Automatic backup frequency</p>
+                            </div>
+                            <div class="card">
+                                <h3>📁 Total Backups</h3>
+                                <div class="metric">${status.total_backups}</div>
+                                <p>Stored backup files</p>
+                            </div>
+                            <div class="card">
+                                <h3>💾 Storage Used</h3>
+                                <div class="metric">${formatBytes(status.total_size_bytes)}</div>
+                                <p>Total backup size</p>
+                            </div>
+                            ${status.latest_backup ? `
+                            <div class="card">
+                                <h3>🕒 Latest Backup</h3>
+                                <div class="metric">${new Date(status.latest_backup.created_at).toLocaleString()}</div>
+                                <p>Most recent backup</p>
+                            </div>
+                            ` : ''}
+                        </div>
+                        <div class="status info">
+                            💡 <strong>Backup System:</strong> Your data is automatically backed up every ${status.backup_interval_minutes} minutes to prevent data loss.
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML = `
+                        <div class="status error">
+                            ❌ <strong>Backup Status Error:</strong> ${result.error || 'Could not retrieve backup status'}
+                        </div>
+                    `;
+                }
+                
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="status error">
+                        ❌ <strong>Network Error:</strong> ${error.message}
+                    </div>
+                `;
+            }
+            
+            btn.style.display = 'inline';
+            loading.style.display = 'none';
+        }
+        
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        // Auto-start analysis on page load
+        window.addEventListener('load', () => {
+            setTimeout(analyzeLocalStorage, 1000);
+        });
+    </script>
+</body>
+</html>

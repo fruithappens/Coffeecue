@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Walk-In Order Test - DELETE LATER</title>
+  <style>
+    body { font-family: sans-serif; max-width: 1000px; margin: 20px auto; padding: 20px; }
+    .success { color: green; background: #e6ffe6; padding: 10px; margin: 5px 0; border-left: 5px solid green; }
+    .error { color: red; background: #ffe6e6; padding: 10px; margin: 5px 0; border-left: 5px solid red; }
+    .warning { color: orange; background: #fff3e6; padding: 10px; margin: 5px 0; border-left: 5px solid orange; }
+    .info { color: blue; background: #e6f3ff; padding: 10px; margin: 5px 0; border-left: 5px solid blue; }
+    button { padding: 10px 15px; margin: 5px; background: #007cba; color: white; border: none; cursor: pointer; }
+    input, select { padding: 8px; margin: 5px; }
+    .test-section { border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px; }
+    pre { background: #f5f5f5; padding: 10px; overflow-x: auto; white-space: pre-wrap; }
+    .order-form { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+  </style>
+</head>
+<body>
+  <h1>🧪 Walk-In Order Testing</h1>
+  <p><strong>WARNING: DELETE BEFORE DEPLOYMENT</strong></p>
+  
+  <div class="test-section">
+    <h3>Step 1: Login First</h3>
+    <button onclick="performLogin()">Login as Barista</button>
+    <div id="login-status"></div>
+  </div>
+  
+  <div class="test-section">
+    <h3>Step 2: Test Walk-In Order Creation</h3>
+    <div class="order-form">
+      <div>
+        <label>Customer Name:</label>
+        <input type="text" id="customer-name" value="Test Customer" placeholder="Customer name">
+        
+        <label>Coffee Type:</label>
+        <select id="coffee-type">
+          <option value="espresso">Espresso</option>
+          <option value="americano">Americano</option>
+          <option value="latte">Latte</option>
+          <option value="cappuccino">Cappuccino</option>
+          <option value="macchiato">Macchiato</option>
+          <option value="mocha">Mocha</option>
+        </select>
+        
+        <label>Size:</label>
+        <select id="size">
+          <option value="small">Small</option>
+          <option value="medium" selected>Medium</option>
+          <option value="large">Large</option>
+        </select>
+        
+        <label>Milk Type:</label>
+        <select id="milk-type">
+          <option value="none">No Milk</option>
+          <option value="dairy" selected>Dairy Milk</option>
+          <option value="almond">Almond Milk</option>
+          <option value="soy">Soy Milk</option>
+          <option value="oat">Oat Milk</option>
+          <option value="coconut">Coconut Milk</option>
+        </select>
+      </div>
+      
+      <div>
+        <label>Special Instructions:</label>
+        <textarea id="special-instructions" placeholder="Any special requests..."></textarea>
+        
+        <label>Priority:</label>
+        <select id="priority">
+          <option value="normal" selected>Normal</option>
+          <option value="urgent">Urgent</option>
+          <option value="vip">VIP</option>
+        </select>
+        
+        <label>Payment Method:</label>
+        <select id="payment-method">
+          <option value="cash" selected>Cash</option>
+          <option value="card">Card</option>
+          <option value="mobile">Mobile Payment</option>
+        </select>
+      </div>
+    </div>
+    
+    <div style="margin-top: 15px;">
+      <button onclick="createWalkInOrder()">Create Walk-In Order</button>
+      <button onclick="testOrderAPIs()">Test Order APIs</button>
+      <button onclick="clearLogs()">Clear Logs</button>
+    </div>
+  </div>
+  
+  <div class="test-section">
+    <h3>Test Results</h3>
+    <div id="test-logs"></div>
+  </div>
+  
+  <script>
+    function log(message, type = 'info') {
+      const logs = document.getElementById('test-logs');
+      const div = document.createElement('div');
+      div.className = type;
+      div.innerHTML = `<strong>[${new Date().toLocaleTimeString()}]</strong> ${message}`;
+      logs.appendChild(div);
+      console.log(`[${type.toUpperCase()}] ${message}`);
+    }
+    
+    function logObject(obj, label) {
+      const logs = document.getElementById('test-logs');
+      const div = document.createElement('div');
+      div.className = 'info';
+      div.innerHTML = `<strong>[${new Date().toLocaleTimeString()}] ${label}:</strong><pre>${JSON.stringify(obj, null, 2)}</pre>`;
+      logs.appendChild(div);
+      console.log(label, obj);
+    }
+    
+    function clearLogs() {
+      document.getElementById('test-logs').innerHTML = '';
+    }
+    
+    function getAuthHeaders() {
+      const token = localStorage.getItem('coffee_system_token');
+      if (!token) {
+        throw new Error('No authentication token found. Please login first.');
+      }
+      return {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      };
+    }
+    
+    async function performLogin() {
+      const loginStatus = document.getElementById('login-status');
+      loginStatus.innerHTML = 'Logging in...';
+      
+      try {
+        const response = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: 'barista', password: 'ExpressoBarista2025' })
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          localStorage.setItem('coffee_system_token', data.token);
+          localStorage.setItem('coffee_system_user', JSON.stringify(data.user));
+          if (data.refreshToken) {
+            localStorage.setItem('coffee_system_refresh_token', data.refreshToken);
+          }
+          
+          loginStatus.innerHTML = '<div class="success">✅ Login successful!</div>';
+          log('Login successful', 'success');
+        } else {
+          loginStatus.innerHTML = '<div class="error">❌ Login failed</div>';
+          log(`Login failed: ${response.status}`, 'error');
+        }
+      } catch (error) {
+        loginStatus.innerHTML = '<div class="error">❌ Login error</div>';
+        log(`Login error: ${error.message}`, 'error');
+      }
+    }
+    
+    async function createWalkInOrder() {
+      clearLogs();
+      log('Creating walk-in order...');
+      
+      try {
+        const orderData = {
+          customer_name: document.getElementById('customer-name').value,
+          coffee_type: document.getElementById('coffee-type').value,
+          size: document.getElementById('size').value,
+          milk_type: document.getElementById('milk-type').value,
+          special_instructions: document.getElementById('special-instructions').value || null,
+          priority: document.getElementById('priority').value,
+          payment_method: document.getElementById('payment-method').value,
+          order_type: 'walk-in',
+          created_by: 'barista'
+        };
+        
+        logObject(orderData, 'Order Data');
+        
+        const headers = getAuthHeaders();
+        log('Making API request to create order...');
+        
+        const response = await fetch('/api/orders', {
+          method: 'POST',
+          headers: headers,
+          body: JSON.stringify(orderData)
+        });
+        
+        log(`Response status: ${response.status} ${response.statusText}`);
+        
+        if (response.ok) {
+          const result = await response.json();
+          log('✅ Walk-in order created successfully!', 'success');
+          logObject(result, 'Order Result');
+          
+          // Test retrieving the order
+          if (result.id || result.order_id) {
+            const orderId = result.id || result.order_id;
+            log(`Testing retrieval of order ${orderId}...`);
+            await testOrderRetrieval(orderId);
+          }
+        } else {
+          const errorText = await response.text();
+          log(`❌ Order creation failed: ${response.status}`, 'error');
+          log(`Error response: ${errorText}`, 'error');
+          
+          try {
+            const errorData = JSON.parse(errorText);
+            logObject(errorData, 'Error Details');
+          } catch (e) {
+            log('Could not parse error response as JSON', 'warning');
+          }
+        }
+      } catch (error) {
+        log(`❌ Error creating order: ${error.message}`, 'error');
+        logObject({
+          name: error.name,
+          message: error.message,
+          stack: error.stack
+        }, 'Error Details');
+      }
+    }
+    
+    async function testOrderRetrieval(orderId) {
+      try {
+        const headers = getAuthHeaders();
+        const response = await fetch(`/api/orders/${orderId}`, {
+          method: 'GET',
+          headers: headers
+        });
+        
+        if (response.ok) {
+          const order = await response.json();
+          log('✅ Order retrieval successful', 'success');
+          logObject(order, 'Retrieved Order');
+        } else {
+          log(`❌ Order retrieval failed: ${response.status}`, 'error');
+        }
+      } catch (error) {
+        log(`❌ Error retrieving order: ${error.message}`, 'error');
+      }
+    }
+    
+    async function testOrderAPIs() {
+      clearLogs();
+      log('Testing order-related APIs...');
+      
+      try {
+        const headers = getAuthHeaders();
+        
+        // Test 1: Get all orders
+        log('Test 1: Fetching all orders...');
+        const ordersResponse = await fetch('/api/orders', {
+          method: 'GET',
+          headers: headers
+        });
+        
+        log(`Orders API response: ${ordersResponse.status}`);
+        if (ordersResponse.ok) {
+          const orders = await ordersResponse.json();
+          log(`✅ Found ${orders.length || 'unknown number of'} orders`, 'success');
+          if (orders.length > 0) {
+            logObject(orders.slice(0, 2), 'Sample Orders (first 2)');
+          }
+        } else {
+          log(`❌ Orders API failed: ${ordersResponse.status}`, 'error');
+        }
+        
+        // Test 2: Get pending orders
+        log('Test 2: Fetching pending orders...');
+        const pendingResponse = await fetch('/api/orders?status=pending', {
+          method: 'GET',
+          headers: headers
+        });
+        
+        log(`Pending orders API response: ${pendingResponse.status}`);
+        if (pendingResponse.ok) {
+          const pendingOrders = await pendingResponse.json();
+          log(`✅ Found ${pendingOrders.length || 'unknown number of'} pending orders`, 'success');
+        }
+        
+        // Test 3: Check stations API
+        log('Test 3: Checking stations API...');
+        const stationsResponse = await fetch('/api/stations', {
+          method: 'GET',
+          headers: headers
+        });
+        
+        log(`Stations API response: ${stationsResponse.status}`);
+        if (stationsResponse.ok) {
+          const stations = await stationsResponse.json();
+          log(`✅ Found ${stations.length || 'unknown number of'} stations`, 'success');
+          logObject(stations, 'Available Stations');
+        } else {
+          log(`❌ Stations API failed: ${stationsResponse.status}`, 'error');
+        }
+        
+        // Test 4: Check inventory API
+        log('Test 4: Checking inventory API...');
+        const inventoryResponse = await fetch('/api/inventory', {
+          method: 'GET',
+          headers: headers
+        });
+        
+        log(`Inventory API response: ${inventoryResponse.status}`);
+        if (inventoryResponse.ok) {
+          const inventory = await inventoryResponse.json();
+          log(`✅ Inventory API working`, 'success');
+          logObject(inventory, 'Current Inventory');
+        } else {
+          log(`❌ Inventory API failed: ${inventoryResponse.status}`, 'error');
+        }
+        
+        log('=== API TESTING COMPLETE ===');
+        
+      } catch (error) {
+        log(`❌ Error during API testing: ${error.message}`, 'error');
+      }
+    }
+    
+    // Auto-check login status on page load
+    window.addEventListener('load', function() {
+      const token = localStorage.getItem('coffee_system_token');
+      const loginStatus = document.getElementById('login-status');
+      
+      if (token) {
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          const expiry = new Date(payload.exp * 1000);
+          
+          if (expiry > new Date()) {
+            loginStatus.innerHTML = '<div class="success">✅ Already logged in</div>';
+            log('Already authenticated', 'success');
+          } else {
+            loginStatus.innerHTML = '<div class="warning">⚠️ Token expired, please login</div>';
+            log('Token expired', 'warning');
+          }
+        } catch (e) {
+          loginStatus.innerHTML = '<div class="warning">⚠️ Invalid token, please login</div>';
+          log('Invalid token found', 'warning');
+        }
+      } else {
+        loginStatus.innerHTML = '<div class="info">ℹ️ Please login first</div>';
+      }
+    });
+  </script>
+</body>
+</html>

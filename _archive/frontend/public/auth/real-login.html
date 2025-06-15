@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coffee Cue Real Login</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 500px;
+            margin: 50px auto;
+            padding: 2rem;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        h1 {
+            color: #1E88E5;
+            margin-top: 0;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 2rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+        
+        input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #1E88E5;
+            box-shadow: 0 0 0 2px rgba(30, 136, 229, 0.2);
+        }
+        
+        .button-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 2rem;
+        }
+        
+        .btn {
+            flex: 1;
+            padding: 0.75rem;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background-color: #1E88E5;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: #1976D2;
+        }
+        
+        .btn-secondary {
+            background-color: #f5f5f5;
+            color: #333;
+            border: 1px solid #ddd;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #eee;
+        }
+        
+        .status {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            border-radius: 4px;
+            font-weight: 500;
+            display: none;
+        }
+        
+        .status-success {
+            background-color: #E8F5E9;
+            color: #2E7D32;
+            border-left: 4px solid #2E7D32;
+        }
+        
+        .status-error {
+            background-color: #FFEBEE;
+            color: #C62828;
+            border-left: 4px solid #C62828;
+        }
+        
+        .api-config {
+            margin-top: 2rem;
+            padding: 1rem;
+            background-color: #f5f5f5;
+            border-radius: 4px;
+        }
+        
+        .api-url {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .spinner {
+            display: none;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(0, 0, 0, 0.1);
+            border-top-color: #1E88E5;
+            border-radius: 50%;
+            animation: spinner 1s ease-in-out infinite;
+            margin-right: 10px;
+        }
+        
+        @keyframes spinner {
+            to {transform: rotate(360deg);}
+        }
+        
+        .loader {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            margin-top: 1rem;
+        }
+        
+        .loader-text {
+            margin-left: 0.5rem;
+        }
+        
+        .launch-info {
+            margin-top: 2rem;
+            padding: 1rem;
+            background-color: #E8F5E9;
+            border-radius: 4px;
+            text-align: center;
+            display: none;
+        }
+        
+        .launch-btn {
+            display: inline-block;
+            background-color: #2E7D32;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            margin-top: 1rem;
+            transition: all 0.2s;
+        }
+        
+        .launch-btn:hover {
+            background-color: #216B26;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Coffee Cue Login</h1>
+        <p class="subtitle">Connect to the real backend API and access your data</p>
+        
+        <div class="form-group">
+            <label for="apiUrl">Backend API URL</label>
+            <div class="api-url">
+                <input type="text" id="apiUrl" value="http://localhost:5001" placeholder="e.g., http://localhost:5001">
+                <button id="testConnectionBtn" class="btn btn-secondary" style="flex: 0; white-space: nowrap;">Test</button>
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label for="username">Username</label>
+            <input type="text" id="username" value="barista" placeholder="Enter your username">
+        </div>
+        
+        <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" value="password123" placeholder="Enter your password">
+        </div>
+        
+        <div class="button-row">
+            <button id="loginBtn" class="btn btn-primary">Log In</button>
+            <button id="clearStorageBtn" class="btn btn-secondary">Clear Storage</button>
+        </div>
+        
+        <div class="loader" id="loader">
+            <div class="spinner"></div>
+            <span class="loader-text">Processing...</span>
+        </div>
+        
+        <div class="status" id="status"></div>
+        
+        <div class="launch-info" id="launchInfo">
+            <p><strong>Login successful!</strong> You can now access the Barista interface with real data.</p>
+            <button id="launchBtn" class="launch-btn">Launch Barista Interface</button>
+        </div>
+    </div>
+    
+    <!-- Connection fix script -->
+    <script src="fix-connection.js"></script>
+    
+    <script>
+        // DOM elements
+        const elements = {
+            apiUrl: document.getElementById('apiUrl'),
+            username: document.getElementById('username'),
+            password: document.getElementById('password'),
+            loginBtn: document.getElementById('loginBtn'),
+            clearStorageBtn: document.getElementById('clearStorageBtn'),
+            testConnectionBtn: document.getElementById('testConnectionBtn'),
+            loader: document.getElementById('loader'),
+            status: document.getElementById('status'),
+            launchInfo: document.getElementById('launchInfo'),
+            launchBtn: document.getElementById('launchBtn')
+        };
+        
+        // Show loading state
+        function showLoader() {
+            elements.loader.style.display = 'flex';
+            elements.loginBtn.disabled = true;
+            elements.clearStorageBtn.disabled = true;
+            elements.testConnectionBtn.disabled = true;
+        }
+        
+        // Hide loading state
+        function hideLoader() {
+            elements.loader.style.display = 'none';
+            elements.loginBtn.disabled = false;
+            elements.clearStorageBtn.disabled = false;
+            elements.testConnectionBtn.disabled = false;
+        }
+        
+        // Show status message
+        function showStatus(message, isSuccess = true) {
+            elements.status.textContent = message;
+            elements.status.className = isSuccess ? 'status status-success' : 'status status-error';
+            elements.status.style.display = 'block';
+            
+            // Hide status after 10 seconds if it's a success message
+            if (isSuccess) {
+                setTimeout(() => {
+                    elements.status.style.display = 'none';
+                }, 10000);
+            }
+        }
+        
+        // Show launch info
+        function showLaunchInfo() {
+            elements.launchInfo.style.display = 'block';
+        }
+        
+        // Hide launch info
+        function hideLaunchInfo() {
+            elements.launchInfo.style.display = 'none';
+        }
+        
+        // Test connection to backend API
+        async function testConnection() {
+            const apiUrl = elements.apiUrl.value.trim();
+            
+            if (!apiUrl) {
+                showStatus('Please enter a backend API URL', false);
+                return;
+            }
+            
+            showLoader();
+            
+            try {
+                // Try to connect to the API
+                const response = await fetch(`${apiUrl}/api/health`);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    showStatus(`Connection successful! API status: ${data.status || 'OK'}`);
+                    return true;
+                } else {
+                    // Try a fallback endpoint
+                    const fallbackResponse = await fetch(`${apiUrl}/api`);
+                    
+                    if (fallbackResponse.ok) {
+                        showStatus('Connection successful (using fallback endpoint)');
+                        return true;
+                    } else {
+                        showStatus(`Connection failed with status: ${response.status}. Make sure the server is running.`, false);
+                        return false;
+                    }
+                }
+            } catch (error) {
+                showStatus(`Connection error: ${error.message}. Make sure the server is running and the URL is correct.`, false);
+                return false;
+            } finally {
+                hideLoader();
+            }
+        }
+        
+        // Login to the backend API
+        async function login() {
+            const apiUrl = elements.apiUrl.value.trim();
+            const username = elements.username.value.trim();
+            const password = elements.password.value.trim();
+            
+            if (!apiUrl || !username || !password) {
+                showStatus('Please fill in all fields', false);
+                return;
+            }
+            
+            showLoader();
+            
+            try {
+                // Test connection first
+                const connectionOk = await testConnection();
+                
+                if (!connectionOk) {
+                    showStatus('Cannot connect to API. Please check the URL and make sure the server is running.', false);
+                    return;
+                }
+                
+                // Store API URL in localStorage for the connection fix script
+                localStorage.setItem('backend_api_url', apiUrl);
+                
+                // Try to login
+                const response = await fetch(`${apiUrl}/api/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    if (data.token) {
+                        // Store auth data
+                        localStorage.setItem('token', data.token);
+                        localStorage.setItem('user', JSON.stringify(data.user || {}));
+                        localStorage.setItem('isAuthenticated', 'true');
+                        
+                        // Store API URL for the application
+                        localStorage.setItem('api_url', apiUrl);
+                        
+                        // Make sure real data is used
+                        localStorage.setItem('useFallbackData', 'false');
+                        localStorage.setItem('use_demo_mode', 'false');
+                        
+                        showStatus('Login successful!');
+                        showLaunchInfo();
+                        
+                        // Create script to ensure connection to real API
+                        createConnectionFixScript();
+                        
+                        return true;
+                    } else {
+                        showStatus('Login response did not include a token. Check server logs.', false);
+                        return false;
+                    }
+                } else {
+                    try {
+                        const errorData = await response.json();
+                        showStatus(`Login failed: ${errorData.message || errorData.error || 'Invalid credentials'}`, false);
+                    } catch (e) {
+                        showStatus(`Login failed with status ${response.status}. Check your credentials.`, false);
+                    }
+                    return false;
+                }
+            } catch (error) {
+                showStatus(`Login error: ${error.message}`, false);
+                return false;
+            } finally {
+                hideLoader();
+            }
+        }
+        
+        // Create connection fix script
+        function createConnectionFixScript() {
+            const apiUrl = elements.apiUrl.value.trim();
+            
+            // Create a script to fix API connections
+            const script = `
+                // Fix API connection issues
+                (function() {
+                    // Store API URL
+                    const API_URL = "${apiUrl}";
+                    
+                    // Override fetch to ensure proper API URL
+                    const originalFetch = window.fetch;
+                    
+                    window.fetch = function(resource, options = {}) {
+                        const url = resource.url || resource;
+                        
+                        // Only intercept API calls
+                        if (typeof url === 'string' && url.includes('/api/')) {
+                            // If it's a relative URL, prepend the API URL
+                            if (url.startsWith('/api/')) {
+                                console.log('Redirecting API call to proper backend:', url);
+                                return originalFetch(API_URL + url, options);
+                            }
+                        }
+                        
+                        // Default behavior for non-API calls
+                        return originalFetch(resource, options);
+                    };
+                    
+                    // Disable fallback data
+                    localStorage.setItem('useFallbackData', 'false');
+                    localStorage.setItem('use_demo_mode', 'false');
+                    
+                    if (window.appConfig) {
+                        window.appConfig.useFallbackData = false;
+                    }
+                    
+                    // Override any functions that might force fallback data
+                    window.shouldUseFallbackData = function() { return false; };
+                    
+                    console.log('API connection fix applied');
+                })();
+            `;
+            
+            // Store in sessionStorage for the app to use
+            sessionStorage.setItem('api_connection_fix', script);
+        }
+        
+        // Clear all storage
+        function clearStorage() {
+            try {
+                // Clear localStorage
+                localStorage.clear();
+                
+                // Clear sessionStorage
+                sessionStorage.clear();
+                
+                // Clear cookies
+                document.cookie.split(';').forEach(cookie => {
+                    document.cookie = cookie.trim().split('=')[0] + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT';
+                });
+                
+                showStatus('All storage cleared successfully');
+                hideLaunchInfo();
+            } catch (error) {
+                showStatus(`Error clearing storage: ${error.message}`, false);
+            }
+        }
+        
+        // Launch the barista interface
+        function launchBaristaInterface() {
+            // Make sure the connection fix is stored
+            createConnectionFixScript();
+            
+            // Redirect to barista page
+            window.location.href = '/barista';
+        }
+        
+        // Add event listeners
+        elements.loginBtn.addEventListener('click', login);
+        elements.clearStorageBtn.addEventListener('click', clearStorage);
+        elements.testConnectionBtn.addEventListener('click', testConnection);
+        elements.launchBtn.addEventListener('click', launchBaristaInterface);
+        
+        // Check if already logged in
+        function checkExistingLogin() {
+            const token = localStorage.getItem('token');
+            const user = localStorage.getItem('user');
+            
+            if (token && user) {
+                showStatus('Already logged in');
+                showLaunchInfo();
+            }
+        }
+        
+        // Initialize
+        checkExistingLogin();
+    </script>
+</body>
+</html>

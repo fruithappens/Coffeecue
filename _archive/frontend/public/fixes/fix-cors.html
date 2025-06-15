@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fix CORS Error</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+            line-height: 1.6;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        pre {
+            background-color: #f8f8f8;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 14px;
+        }
+        .error-box {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .solution-box {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        .code-block {
+            background-color: #f8f9fa;
+            border: 1px solid #eaecef;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .step {
+            padding: 10px;
+            margin-bottom: 15px;
+            border-left: 4px solid #4CAF50;
+            background-color: #f9f9f9;
+        }
+    </style>
+</head>
+<body>
+    <h1>CORS Error Fix</h1>
+    
+    <div class="card">
+        <h2>Detected Problem</h2>
+        <div class="error-box">
+            <strong>CORS Configuration Error:</strong> Your backend server is sending multiple 'Access-Control-Allow-Origin' header values.
+            <pre>The 'Access-Control-Allow-Origin' header contains multiple values 'http://localhost:3000, *', but only one is allowed.</pre>
+        </div>
+        
+        <p>This error occurs when the backend is misconfigured to send multiple CORS headers instead of a single one, which browsers reject. The server should send either <code>http://localhost:3000</code> OR <code>*</code> as the allowed origin, but not both.</p>
+    </div>
+    
+    <div class="card">
+        <h2>How to Fix This</h2>
+        
+        <div class="step">
+            <h3>Step 1: Locate the backend server file with CORS configuration</h3>
+            <p>Find the main Flask application file (typically <code>app.py</code> or similar) at the root of your Expresso project.</p>
+        </div>
+        
+        <div class="step">
+            <h3>Step 2: Fix the CORS configuration</h3>
+            <p>You need to modify the CORS setup to only include one origin. Based on your setup, we recommend editing app.py as follows:</p>
+            
+            <div class="code-block">
+# Find this section in app.py:
+from flask_cors import CORS
+CORS(app, origins=["http://localhost:3000", "*"])  # This is the problem!
+
+# Replace it with:
+from flask_cors import CORS
+CORS(app, origins=["*"])  # Using just wildcard is simpler
+
+# Or for more security but still working with your app:
+from flask_cors import CORS
+CORS(app, origins=["http://localhost:3000"])  # Just one specific origin
+            </div>
+        </div>
+        
+        <div class="step">
+            <h3>Step 3: Restart the backend server</h3>
+            <p>After making the change, you'll need to restart the Flask server for the changes to take effect.</p>
+        </div>
+        
+        <div class="solution-box">
+            <strong>Alternative Fix Script:</strong> You can also try using our automated fix script which will attempt to fix this for you.
+            <br><br>
+            <a href="/fix-cors-and-restart.sh" download>
+                <button>Download Fix Script</button>
+            </a>
+            <p>Running the script (on macOS or Linux):</p>
+            <pre>chmod +x fix-cors-and-restart.sh
+./fix-cors-and-restart.sh</pre>
+        </div>
+    </div>
+    
+    <div class="card">
+        <h2>Fix the Auto-Refresh Issue</h2>
+        <p>While we're fixing issues, we can also make the auto-refresh less aggressive to prevent constant CORS errors:</p>
+        
+        <div id="refresh-status"></div>
+        
+        <button id="disable-auto-refresh">Disable Auto-Refresh</button>
+        <button id="fix-auto-refresh">Fix Auto-Refresh (Set to 30s)</button>
+        
+        <script>
+            // Get the status element
+            const refreshStatus = document.getElementById('refresh-status');
+            
+            // Function to update status
+            function updateStatus(message, isError = false) {
+                refreshStatus.innerHTML = `<div class="${isError ? 'error-box' : 'solution-box'}">${message}</div>`;
+            }
+            
+            // Check current auto-refresh settings
+            function checkAutoRefresh() {
+                const enabled = localStorage.getItem('coffee_auto_refresh_enabled');
+                const interval = localStorage.getItem('coffee_auto_refresh_interval');
+                
+                let message = '';
+                
+                if (enabled === 'true') {
+                    message += `<p>Auto-refresh is currently <strong>ENABLED</strong>`;
+                    
+                    if (interval) {
+                        const seconds = parseInt(interval);
+                        message += ` with an interval of <strong>${seconds} seconds</strong>.</p>`;
+                        
+                        if (seconds < 15) {
+                            message += `<p style="color: red;">⚠️ This interval is too short and can cause excessive requests and flickering.</p>`;
+                        }
+                    } else {
+                        message += ` with an unknown interval.</p>`;
+                    }
+                } else {
+                    message += `<p>Auto-refresh is currently <strong>DISABLED</strong>.</p>`;
+                }
+                
+                updateStatus(message);
+            }
+            
+            // Disable auto-refresh
+            document.getElementById('disable-auto-refresh').addEventListener('click', function() {
+                localStorage.setItem('coffee_auto_refresh_enabled', 'false');
+                updateStatus('<p>✅ Auto-refresh has been disabled. Refresh the main application to apply.</p>');
+            });
+            
+            // Fix auto-refresh
+            document.getElementById('fix-auto-refresh').addEventListener('click', function() {
+                localStorage.setItem('coffee_auto_refresh_enabled', 'true');
+                localStorage.setItem('coffee_auto_refresh_interval', '30');
+                updateStatus('<p>✅ Auto-refresh has been set to 30 seconds. Refresh the main application to apply.</p>');
+            });
+            
+            // Initialize
+            checkAutoRefresh();
+        </script>
+    </div>
+    
+    <div class="card">
+        <h2>For Immediate Testing</h2>
+        <p>Until you fix the backend CORS issue, you can use the following tools to minimize its impact:</p>
+        
+        <ol>
+            <li><a href="/fix-connection.html">Connection Troubleshooter</a> - Fix cached connection states</li>
+            <li><a href="/connection-test.html">Connection Monitor</a> - Monitor and diagnose connection issues</li>
+        </ol>
+        
+        <p><strong>Important:</strong> These tools can help, but fixing the backend CORS issue is the only permanent solution.</p>
+    </div>
+</body>
+</html>

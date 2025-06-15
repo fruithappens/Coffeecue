@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Clean Reset for Barista Interface</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      line-height: 1.6;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      color: #333;
+    }
+    .card {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px 0;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #0066cc;
+    }
+    button {
+      background-color: #0066cc;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 10px 0;
+    }
+    button:hover {
+      background-color: #0055aa;
+    }
+    .success {
+      color: #00aa55;
+      font-weight: bold;
+    }
+    .warning {
+      color: #f5a623;
+      font-weight: bold;
+    }
+    #status {
+      margin-top: 20px;
+      padding: 15px;
+      background-color: #f5f5f5;
+      border-radius: 4px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>Clean Reset for Barista Interface</h1>
+  
+  <div class="card">
+    <h2>Reset to Clean State</h2>
+    <p>This will remove all debug tools, disable console logging, reset connection status, and restore the app to a clean state.</p>
+    <button id="cleanReset">Reset to Clean State</button>
+  </div>
+  
+  <div class="card">
+    <h2>Restore Default Content Loading</h2>
+    <p>This fixes the issue where content under the orders, stock, schedule, etc. tabs doesn't load properly.</p>
+    <button id="fixContentLoading">Fix Content Loading</button>
+  </div>
+  
+  <div class="card">
+    <h2>Remove UI Debug Elements</h2>
+    <p>This removes all debug buttons and tools from the interface.</p>
+    <button id="removeDebugTools">Remove Debug UI Elements</button>
+  </div>
+  
+  <div id="status"></div>
+  
+  <script>
+    function showStatus(message, isSuccess = true) {
+      const statusEl = document.getElementById('status');
+      statusEl.innerHTML = `<p class="${isSuccess ? 'success' : 'warning'}">${message}</p>`;
+      statusEl.style.display = 'block';
+      
+      // Add return link after a delay
+      setTimeout(() => {
+        statusEl.innerHTML += `
+          <p>Changes have been applied.</p>
+          <a href="/" style="display: inline-block; padding: 10px 15px; background: #0066cc; color: white; text-decoration: none; border-radius: 4px; margin-top: 10px;">Return to App</a>
+        `;
+      }, 1000);
+    }
+    
+    // Reset to clean state
+    document.getElementById('cleanReset').addEventListener('click', function() {
+      // Clear localStorage items related to debug tools, connection status, etc.
+      localStorage.removeItem('coffee_connection_status');
+      localStorage.removeItem('coffee_connection_timestamp');
+      localStorage.removeItem('disable_console_capture');
+      localStorage.removeItem('use_throttled_logging');
+      localStorage.removeItem('resource_issues_detected');
+      localStorage.removeItem('jwt_error_endpoints');
+      localStorage.removeItem('debug_mode');
+      
+      // Set auto-refresh to normal values
+      localStorage.setItem('coffee_auto_refresh_enabled', 'true');
+      localStorage.setItem('coffee_auto_refresh_interval', '30');
+      
+      // Set a flag to indicate we've performed a clean reset
+      localStorage.setItem('clean_reset_performed', 'true');
+      
+      showStatus('✅ Reset to clean state successful!');
+    });
+    
+    // Fix content loading
+    document.getElementById('fixContentLoading').addEventListener('click', function() {
+      // Reset any cached component state that might be preventing content from loading
+      localStorage.removeItem('barista_interface_state');
+      
+      // Reset component render flags
+      localStorage.setItem('force_barista_rerender', 'true');
+      
+      // Clear any cached error states or loading states
+      localStorage.removeItem('api_error_state');
+      localStorage.removeItem('loading_state');
+      
+      // Force a fresh data load on next page visit
+      localStorage.setItem('force_data_reload', 'true');
+      
+      showStatus('✅ Content loading fix applied!');
+    });
+    
+    // Remove debug UI elements
+    document.getElementById('removeDebugTools').addEventListener('click', function() {
+      // Set flag to hide debug elements
+      localStorage.setItem('hide_debug_tools', 'true');
+      
+      // Set flag to use clean interface
+      localStorage.setItem('use_clean_interface', 'true');
+      
+      showStatus('✅ Debug UI elements will be removed');
+    });
+  </script>
+</body>
+</html>

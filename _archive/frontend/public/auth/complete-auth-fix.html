@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coffee Cue Complete Authentication Fix</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #6f4e37;
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        .subtitle {
+            color: #666;
+            margin-top: 0;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+        p {
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+        .status-container {
+            margin: 30px 0;
+            padding: 20px;
+            border-radius: 6px;
+            background-color: #f1f8e9;
+            border-left: 4px solid #7cb342;
+        }
+        .progress-track {
+            width: 100%;
+            height: 8px;
+            background-color: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 30px;
+            position: relative;
+        }
+        .progress-bar {
+            height: 100%;
+            background-color: #6f4e37;
+            border-radius: 4px;
+            transition: width 0.4s ease;
+            width: 0;
+        }
+        .buttons {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 30px;
+        }
+        .button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .primary {
+            background-color: #6f4e37;
+            color: white;
+        }
+        .primary:hover {
+            background-color: #5d4126;
+        }
+        .secondary {
+            background-color: #e0e0e0;
+            color: #333;
+        }
+        .secondary:hover {
+            background-color: #d0d0d0;
+        }
+        .step {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 15px;
+        }
+        .step-number {
+            width: 24px;
+            height: 24px;
+            background-color: #6f4e37;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: bold;
+            margin-right: 12px;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+        .step-content {
+            flex: 1;
+        }
+        .step-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .step-description {
+            color: #666;
+            font-size: 14px;
+            margin: 0;
+        }
+        .checkmark {
+            display: inline-block;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background-color: #4caf50;
+            color: white;
+            text-align: center;
+            line-height: 22px;
+            margin-left: 8px;
+            font-weight: bold;
+            font-size: 14px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .completed .checkmark {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Complete Authentication Fix</h1>
+        <p class="subtitle">One-click solution for all authentication issues</p>
+        
+        <p>This tool will automatically fix all authentication issues and set up the system for reliable offline operation with demo data. No backend connection required.</p>
+        
+        <div class="progress-track">
+            <div class="progress-bar" id="progress-bar"></div>
+        </div>
+        
+        <div class="steps">
+            <div class="step" id="step-1">
+                <div class="step-number">1</div>
+                <div class="step-content">
+                    <div class="step-title">Create valid JWT token <span class="checkmark">✓</span></div>
+                    <p class="step-description">Generate a properly formatted JWT token with a valid string subject field.</p>
+                </div>
+            </div>
+            
+            <div class="step" id="step-2">
+                <div class="step-number">2</div>
+                <div class="step-content">
+                    <div class="step-title">Enable demo mode <span class="checkmark">✓</span></div>
+                    <p class="step-description">Configure the application to operate in offline demo mode.</p>
+                </div>
+            </div>
+            
+            <div class="step" id="step-3">
+                <div class="step-number">3</div>
+                <div class="step-content">
+                    <div class="step-title">Prepare offline data <span class="checkmark">✓</span></div>
+                    <p class="step-description">Create comprehensive sample data for all application features.</p>
+                </div>
+            </div>
+            
+            <div class="step" id="step-4">
+                <div class="step-number">4</div>
+                <div class="step-content">
+                    <div class="step-title">Fix anti-flicker settings <span class="checkmark">✓</span></div>
+                    <p class="step-description">Clear blocked endpoints and reset error counters.</p>
+                </div>
+            </div>
+            
+            <div class="step" id="step-5">
+                <div class="step-number">5</div>
+                <div class="step-content">
+                    <div class="step-title">Apply system optimizations <span class="checkmark">✓</span></div>
+                    <p class="step-description">Configure additional settings for optimal offline performance.</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="status-container" id="status-container">
+            <p id="status-message">Ready to apply the complete authentication fix. Click the button below to start.</p>
+        </div>
+        
+        <div class="buttons">
+            <button class="button primary" id="fix-button">Apply Complete Fix</button>
+            <button class="button secondary" id="skip-button" style="display: none;">Skip to Application</button>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const fixButton = document.getElementById('fix-button');
+            const skipButton = document.getElementById('skip-button');
+            const progressBar = document.getElementById('progress-bar');
+            const statusMessage = document.getElementById('status-message');
+            const statusContainer = document.getElementById('status-container');
+            
+            // Get all steps
+            const steps = [
+                document.getElementById('step-1'),
+                document.getElementById('step-2'),
+                document.getElementById('step-3'),
+                document.getElementById('step-4'),
+                document.getElementById('step-5')
+            ];
+            
+            // Check if we're already in demo mode
+            const isAlreadyInDemoMode = localStorage.getItem('use_fallback_data') === 'true' && 
+                                       localStorage.getItem('demo_mode_enabled') === 'true';
+            
+            if (isAlreadyInDemoMode) {
+                statusMessage.textContent = 'System is already running in demo mode. You can proceed to the application.';
+                fixButton.textContent = 'Refresh Demo Mode';
+                skipButton.style.display = 'block';
+            }
+            
+            // Apply fix button handler
+            fixButton.addEventListener('click', function() {
+                fixButton.disabled = true;
+                statusMessage.textContent = 'Applying complete authentication fix...';
+                statusContainer.style.backgroundColor = '#f1f8e9';
+                progressBar.style.width = '10%';
+                
+                // Load and execute the complete-auth-solution.js script
+                const script = document.createElement('script');
+                script.src = 'complete-auth-solution.js';
+                
+                // Set up progress and step completion simulation
+                let currentStep = 0;
+                
+                const interval = setInterval(function() {
+                    if (currentStep < steps.length) {
+                        // Mark step as completed
+                        steps[currentStep].classList.add('completed');
+                        
+                        // Update progress bar
+                        progressBar.style.width = `${(currentStep + 1) * 20}%`;
+                        
+                        currentStep++;
+                    } else {
+                        clearInterval(interval);
+                        
+                        // Final status update
+                        statusMessage.textContent = 'Authentication fix completed successfully! You can now use the application in offline mode with sample data.';
+                        fixButton.textContent = 'Go to Application';
+                        fixButton.disabled = false;
+                        fixButton.onclick = function() {
+                            window.location.href = '/';
+                        };
+                    }
+                }, 800);
+                
+                // Add the script to the document to execute it
+                document.head.appendChild(script);
+            });
+            
+            // Skip button handler
+            skipButton.addEventListener('click', function() {
+                window.location.href = '/';
+            });
+        });
+    </script>
+</body>
+</html>

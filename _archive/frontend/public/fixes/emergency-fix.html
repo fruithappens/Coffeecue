@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Emergency Refresh Fix</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f7f7f7;
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 30px;
+    }
+    .card {
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    button {
+      background-color: #0066cc;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-right: 10px;
+      margin-bottom: 10px;
+    }
+    button:hover {
+      background-color: #0055aa;
+    }
+    .danger {
+      background-color: #cc3300;
+    }
+    .danger:hover {
+      background-color: #aa2200;
+    }
+    .success {
+      background-color: #4CAF50;
+      color: white;
+      padding: 10px;
+      border-radius: 4px;
+      margin-top: 10px;
+      display: none;
+    }
+    .settings-info {
+      background-color: #f5f5f5;
+      border-left: 4px solid #0066cc;
+      padding: 15px;
+      margin: 15px 0;
+      font-size: 15px;
+    }
+    .warning {
+      background-color: #ffe0e0;
+      border: 1px solid #ff9999;
+      padding: 10px 15px;
+      border-radius: 4px;
+      margin: 15px 0;
+    }
+    .status {
+      font-size: 18px;
+      margin-top: 15px;
+      font-weight: bold;
+    }
+    .step {
+      margin-bottom: 20px;
+      padding-left: 20px;
+      border-left: 3px solid #ddd;
+    }
+    .console-output {
+      background-color: #333;
+      color: #f0f0f0;
+      padding: 15px;
+      border-radius: 4px;
+      font-family: monospace;
+      margin: 15px 0;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>🚨 Emergency UI Refresh Fix</h1>
+  
+  <div class="card">
+    <h2>Current Status</h2>
+    <div class="settings-info" id="current-settings">Loading...</div>
+    
+    <div class="warning">
+      <strong>Problem:</strong> The app is refreshing constantly, causing extreme UI flickering and making the interface unusable.
+    </div>
+  </div>
+  
+  <div class="card">
+    <h2>Emergency Fix Steps</h2>
+    
+    <div class="step">
+      <h3>Step 1: Stop All Auto-Refresh</h3>
+      <p>This will completely disable auto-refresh functionality:</p>
+      <button id="disable-button" onclick="disableAutoRefresh()">DISABLE ALL AUTO-REFRESH</button>
+      <div class="success" id="disable-success">Auto-refresh has been disabled!</div>
+    </div>
+    
+    <div class="step">
+      <h3>Step 2: Fix Cached Connection</h3>
+      <p>This will set a stable connection status:</p>
+      <button onclick="fixConnectionStatus()">Set Stable Connection</button>
+      <div class="success" id="connection-success">Connection status has been stabilized!</div>
+    </div>
+    
+    <div class="step">
+      <h3>Step 3: Enable Fallback Data</h3>
+      <p>This will enable fallback data mode to avoid API calls:</p>
+      <button onclick="enableFallbackData()">Enable Fallback Data</button>
+      <div class="success" id="fallback-success">Fallback data mode enabled!</div>
+    </div>
+    
+    <div class="step">
+      <h3>Step 4: Return to App with Emergency Controls</h3>
+      <p>Return to the app with manual refresh controls:</p>
+      <button onclick="applyAllFixesAndReturn()">APPLY ALL FIXES & RETURN TO APP</button>
+    </div>
+  </div>
+  
+  <div class="card">
+    <h2>Advanced Options</h2>
+    
+    <button class="danger" onclick="resetAllSettings()">Reset ALL Settings</button>
+    <button onclick="clearConsoleLog()">Clear Console Log</button>
+    
+    <div class="console-output" id="console-output">
+      Waiting for actions...
+    </div>
+  </div>
+  
+  <script>
+    // Utility functions
+    function log(message) {
+      const console = document.getElementById('console-output');
+      const timestamp = new Date().toLocaleTimeString();
+      console.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+      console.scrollTop = console.scrollHeight;
+    }
+    
+    function showSuccess(id, message) {
+      const el = document.getElementById(id);
+      el.textContent = message || el.textContent;
+      el.style.display = 'block';
+      setTimeout(() => {
+        el.style.display = 'none';
+      }, 3000);
+    }
+    
+    // Update display
+    function updateDisplay() {
+      const autoRefreshEnabled = localStorage.getItem('coffee_auto_refresh_enabled') === 'true';
+      const autoRefreshInterval = parseInt(localStorage.getItem('coffee_auto_refresh_interval') || '30');
+      const connectionStatus = localStorage.getItem('coffee_connection_status') || 'unknown';
+      const connectionTimestamp = parseInt(localStorage.getItem('coffee_connection_timestamp') || '0');
+      const useFallbackData = localStorage.getItem('use_fallback_data') === 'true';
+      
+      const timeSinceLastConnectionCheck = Date.now() - connectionTimestamp;
+      const connectionAge = Math.round(timeSinceLastConnectionCheck / 1000);
+      
+      document.getElementById('current-settings').innerHTML = `
+        <strong>Auto-Refresh Enabled:</strong> ${autoRefreshEnabled ? 'YES - THIS IS CAUSING FLICKERING' : 'No - Good!'}<br>
+        <strong>Auto-Refresh Interval:</strong> ${autoRefreshInterval} seconds<br>
+        <strong>Using Fallback Data:</strong> ${useFallbackData ? 'Yes - Good!' : 'NO - THIS CAUSES API CALLS'}<br>
+        <strong>Connection Status:</strong> ${connectionStatus}<br>
+        <strong>Last Connection Check:</strong> ${connectionAge} seconds ago
+      `;
+      
+      // Update button state
+      const disableButton = document.getElementById('disable-button');
+      if (!autoRefreshEnabled) {
+        disableButton.textContent = '✅ AUTO-REFRESH ALREADY DISABLED';
+        disableButton.disabled = true;
+      } else {
+        disableButton.textContent = 'DISABLE ALL AUTO-REFRESH';
+        disableButton.disabled = false;
+      }
+      
+      log('Display updated with current settings');
+    }
+    
+    // Disable auto-refresh
+    function disableAutoRefresh() {
+      log('Disabling auto-refresh...');
+      localStorage.setItem('coffee_auto_refresh_enabled', 'false');
+      localStorage.setItem('coffee_auto_refresh_interval', '300');
+      showSuccess('disable-success');
+      log('Auto-refresh disabled and interval set to 5 minutes');
+      updateDisplay();
+    }
+    
+    // Fix connection status
+    function fixConnectionStatus() {
+      log('Setting stable connection status...');
+      localStorage.setItem('coffee_connection_status', 'online');
+      localStorage.setItem('coffee_connection_timestamp', Date.now().toString());
+      localStorage.setItem('connection_cache_expiry', '600000');
+      showSuccess('connection-success');
+      log('Connection status set to online with 10 minute cache');
+      updateDisplay();
+    }
+    
+    // Enable fallback data
+    function enableFallbackData() {
+      log('Enabling fallback data mode...');
+      localStorage.setItem('use_fallback_data', 'true');
+      localStorage.setItem('fallback_data_available', 'true');
+      showSuccess('fallback-success');
+      log('Fallback data mode enabled');
+      updateDisplay();
+    }
+    
+    // Apply all fixes and return to app
+    function applyAllFixesAndReturn() {
+      log('Applying all fixes...');
+      disableAutoRefresh();
+      fixConnectionStatus();
+      enableFallbackData();
+      
+      // Add emergency control script reference to localStorage
+      localStorage.setItem('emergency_refresh_fix_applied', 'true');
+      
+      // Create script tag for main page
+      try {
+        localStorage.setItem('add_emergency_script', 'true');
+        log('Emergency script flag set');
+      } catch (e) {
+        log('Error setting emergency script flag: ' + e.message);
+      }
+      
+      log('All fixes applied! Returning to main app...');
+      setTimeout(() => {
+        window.location.href = '/?emergency_fix=' + Date.now();
+      }, 1000);
+    }
+    
+    // Reset all settings
+    function resetAllSettings() {
+      if (confirm('Are you sure you want to reset ALL settings? This should only be used as a last resort.')) {
+        log('Resetting all settings to defaults...');
+        
+        // Auto-refresh settings
+        localStorage.removeItem('coffee_auto_refresh_enabled');
+        localStorage.removeItem('coffee_auto_refresh_interval');
+        
+        // Connection settings
+        localStorage.removeItem('coffee_connection_status');
+        localStorage.removeItem('coffee_connection_timestamp');
+        localStorage.removeItem('connection_cache_expiry');
+        
+        // Fallback data settings
+        localStorage.removeItem('use_fallback_data');
+        localStorage.removeItem('fallback_data_available');
+        
+        // Other settings
+        localStorage.removeItem('emergency_refresh_fix_applied');
+        localStorage.removeItem('add_emergency_script');
+        
+        // Set safe defaults
+        localStorage.setItem('coffee_auto_refresh_enabled', 'false');
+        localStorage.setItem('coffee_auto_refresh_interval', '300');
+        localStorage.setItem('coffee_connection_status', 'online');
+        localStorage.setItem('coffee_connection_timestamp', Date.now().toString());
+        
+        log('All settings reset to defaults');
+        updateDisplay();
+      }
+    }
+    
+    // Clear console log
+    function clearConsoleLog() {
+      document.getElementById('console-output').innerHTML = 'Console cleared.';
+      log('Ready for new actions...');
+    }
+    
+    // Initialize
+    window.onload = function() {
+      log('Emergency fix page loaded');
+      updateDisplay();
+    };
+  </script>
+</body>
+</html>

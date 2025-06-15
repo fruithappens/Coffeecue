@@ -1,0 +1,26 @@
+{
+  "name": "coffee-cue-test-framework",
+  "version": "1.0.0",
+  "description": "Comprehensive automated testing framework for Coffee Cue system",
+  "main": "orchestrator.js",
+  "scripts": {
+    "test:full": "node orchestrator.js",
+    "test:ui": "node browser-automation.js",
+    "monitor": "open http://localhost:8082/monitor-dashboard.html",
+    "summary": "node claude-summary.js",
+    "install:deps": "npm install"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "puppeteer": "^21.11.0",
+    "ws": "^8.14.2"
+  },
+  "keywords": [
+    "testing",
+    "automation",
+    "puppeteer",
+    "monitoring"
+  ],
+  "author": "Coffee Cue Team",
+  "license": "MIT"
+}

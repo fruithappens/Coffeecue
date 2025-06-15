@@ -1,0 +1,102 @@
+{% extends "barista_layout.html" %}
+
+{% block title %}Scan QR Code - Barista Interface{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-header">
+            <h3>Scan Order QR Code</h3>
+        </div>
+        <div class="card-body">
+            <div id="scanner-container" class="mb-4 position-relative">
+                <video id="scanner" class="w-100" playsinline></video>
+                <div class="scan-overlay">
+                    <div class="scan-line"></div>
+                </div>
+            </div>
+            
+            <div class="text-center mb-3">
+                <button id="scanner-toggle" class="btn btn-primary">
+                    <i class="bi bi-camera"></i> Start Scanner
+                </button>
+            </div>
+            
+            <div class="separator text-center my-4">
+                <span>or</span>
+            </div>
+            
+            <form class="manual-entry-form" action="{{ url_for('barista.scan_code') }}" method="post">
+                <div class="mb-3">
+                    <label for="order_code" class="form-label">Enter Order Number Manually</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="order_code" name="order_code" 
+                               placeholder="e.g., P123456AB" autocomplete="off">
+                        <button type="submit" class="btn btn-primary">Submit</button>
+                    </div>
+                    <div class="form-text">
+                        Enter the order code from the customer's SMS or QR code
+                    </div>
+                </div>
+            </form>
+            
+            <div class="text-center mt-4">
+                <a href="{{ url_for('barista.barista_view') }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Back to Orders
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card mt-4">
+        <div class="card-header">
+            <h3>Scanning Tips</h3>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>For best results:</h5>
+                    <ul>
+                        <li>Ensure good lighting</li>
+                        <li>Hold camera steady</li>
+                        <li>Position QR code within the scanning area</li>
+                        <li>Make sure the QR code is not damaged or obscured</li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <h5>Keyboard Shortcuts:</h5>
+                    <ul>
+                        <li><strong>S</strong> - Start/stop scanner</li>
+                        <li><strong>Tab</strong> - Jump to manual entry</li>
+                        <li><strong>Esc</strong> - Cancel and go back</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="alert alert-info mt-3">
+                <i class="bi bi-info-circle"></i>
+                If a customer doesn't have their QR code, you can also search for their order using their phone number or order number from the main dashboard.
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- QR code scanning is handled by barista.js -->
+<script>
+    // Add keyboard shortcut for starting scanner
+    document.addEventListener('keydown', function(e) {
+        // S key starts scanner (when not typing in input)
+        if (e.key === 's' && document.activeElement.tagName !== 'INPUT') {
+            e.preventDefault();
+            document.getElementById('scanner-toggle').click();
+        }
+        
+        // Esc key to go back
+        if (e.key === 'Escape') {
+            window.location.href = "{{ url_for('barista.barista_view') }}";
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Station API</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            padding: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #f5f5f5;
+        }
+        h1 { color: #333; }
+        .section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .success { 
+            background-color: #e8f5e9;
+            color: #2e7d32;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .error { 
+            background-color: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .warning {
+            background-color: #fff3e0;
+            color: #e65100;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .info {
+            background-color: #e3f2fd;
+            color: #1565c0;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        button {
+            background: #1a73e8;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #1557b0;
+        }
+        .debug-button {
+            background: #d32f2f;
+            font-weight: bold;
+        }
+        .debug-button:hover {
+            background: #b71c1c;
+        }
+        pre {
+            background: #f0f8ff;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🐛 Debug Station API</h1>
+    
+    <div class="section">
+        <h2>Issue Analysis</h2>
+        <p>Station status changes are not persisting. Let's debug step by step:</p>
+        <ul>
+            <li>Check authentication tokens</li>
+            <li>Test direct API endpoints</li>
+            <li>Verify React API service integration</li>
+        </ul>
+    </div>
+    
+    <div class="section">
+        <h2>🔍 Debug Steps</h2>
+        <button onclick="checkAuth()">1. Check Authentication</button>
+        <button onclick="testDirectAPI()">2. Test Direct API</button>
+        <button onclick="testReactAPI()">3. Test React API Service</button>
+        <button class="debug-button" onclick="debugFullFlow()">4. Debug Full Flow</button>
+    </div>
+    
+    <div class="section">
+        <h2>📋 Debug Results</h2>
+        <div id="results"></div>
+    </div>
+
+    <script>
+        function checkAuth() {
+            const results = document.getElementById('results');
+            let html = '<h3>🔐 Checking Authentication...</h3>';
+            
+            // Check all possible token locations
+            const tokenSources = {
+                'localStorage.accessToken': localStorage.getItem('accessToken'),
+                'localStorage.token': localStorage.getItem('token'),
+                'sessionStorage.accessToken': sessionStorage.getItem('accessToken'),
+                'sessionStorage.token': sessionStorage.getItem('token'),
+                'localStorage.authToken': localStorage.getItem('authToken'),
+                'localStorage.jwt_token': localStorage.getItem('jwt_token')
+            };
+            
+            html += '<div class="info">Token locations checked:</div>';
+            
+            let foundToken = null;
+            Object.keys(tokenSources).forEach(source => {
+                const token = tokenSources[source];
+                if (token) {
+                    foundToken = token;
+                    html += `<div class="success">✅ ${source}: ${token.substring(0, 20)}...</div>`;
+                    
+                    // Try to decode JWT
+                    try {
+                        const payload = JSON.parse(atob(token.split('.')[1]));
+                        html += `<div>Token payload: ${JSON.stringify(payload, null, 2)}</div>`;
+                    } catch (e) {
+                        html += `<div>Token format: ${typeof token} (length: ${token.length})</div>`;
+                    }
+                } else {
+                    html += `<div>❌ ${source}: Not found</div>`;
+                }
+            });
+            
+            if (!foundToken) {
+                html += '<div class="error">❌ No authentication token found! You need to login first.</div>';
+            } else {
+                html += '<div class="success">✅ Authentication token found</div>';
+            }
+            
+            results.innerHTML = html;
+        }
+        
+        async function testDirectAPI() {
+            const results = document.getElementById('results');
+            let html = '<h3>🔗 Testing Direct API...</h3>';
+            
+            // Get token
+            const token = localStorage.getItem('accessToken') || localStorage.getItem('token') || 
+                         sessionStorage.getItem('accessToken') || sessionStorage.getItem('token');
+            
+            if (!token) {
+                html += '<div class="error">❌ No token found. Please login first.</div>';
+                results.innerHTML = html;
+                return;
+            }
+            
+            try {
+                // Test GET /api/stations
+                html += '<div class="info">Testing GET /api/stations...</div>';
+                
+                const response = await fetch('http://localhost:5001/api/stations', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    html += '<div class="success">✅ GET /api/stations works</div>';
+                    html += `<div>Found ${data.stations?.length || 0} stations</div>`;
+                    
+                    if (data.stations && data.stations.length > 0) {
+                        const station = data.stations[0];
+                        html += `<div>First station: ID ${station.id}, Status: ${station.status}</div>`;
+                        
+                        // Test status update
+                        html += '<div class="info">Testing PATCH /api/stations/{id}/status...</div>';
+                        
+                        const newStatus = station.status === 'active' ? 'inactive' : 'active';
+                        
+                        const updateResponse = await fetch(`http://localhost:5001/api/stations/${station.id}/status`, {
+                            method: 'PATCH',
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ status: newStatus })
+                        });
+                        
+                        const updateData = await updateResponse.json();
+                        
+                        if (updateResponse.ok) {
+                            html += '<div class="success">✅ Status update API works</div>';
+                            html += `<div>Changed station ${station.id} from ${station.status} to ${newStatus}</div>';
+                            html += `<div>Response: ${updateData.message}</div>`;
+                        } else {
+                            html += '<div class="error">❌ Status update failed</div>';
+                            html += `<div>Error: ${updateData.error || updateData.message}</div>`;
+                        }
+                    }
+                    
+                    html += '<div class="info">Raw response:</div>';
+                    html += `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                } else {
+                    html += '<div class="error">❌ GET /api/stations failed</div>';
+                    html += `<div>Status: ${response.status}</div>`;
+                    html += `<div>Error: ${data.error || data.message}</div>`;
+                }
+                
+            } catch (error) {
+                html += `<div class="error">❌ Direct API test failed: ${error.message}</div>`;
+                console.error('Direct API test error:', error);
+            }
+            
+            results.innerHTML = html;
+        }
+        
+        async function testReactAPI() {
+            const results = document.getElementById('results');
+            let html = '<h3>⚛️ Testing React API Service...</h3>';
+            
+            try {
+                // Check if React's ApiService is available
+                if (typeof window.fetch === 'undefined') {
+                    html += '<div class="error">❌ Fetch API not available</div>';
+                    results.innerHTML = html;
+                    return;
+                }
+                
+                // Simulate what React's ApiService would do
+                html += '<div class="info">Simulating React ApiService request...</div>';
+                
+                const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
+                if (!token) {
+                    html += '<div class="error">❌ No token for React API simulation</div>';
+                    results.innerHTML = html;
+                    return;
+                }
+                
+                // Test the exact same way React would call it
+                const apiUrl = 'http://localhost:5001/api/stations';
+                
+                html += `<div>API URL: ${apiUrl}</div>`;
+                html += `<div>Token: ${token.substring(0, 20)}...</div>`;
+                
+                const response = await fetch(apiUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                const responseText = await response.text();
+                let data;
+                
+                try {
+                    data = JSON.parse(responseText);
+                } catch (e) {
+                    html += '<div class="error">❌ Response is not valid JSON</div>';
+                    html += `<div>Raw response: ${responseText}</div>`;
+                    results.innerHTML = html;
+                    return;
+                }
+                
+                if (response.ok && data.success) {
+                    html += '<div class="success">✅ React API simulation works</div>';
+                    html += `<div>Success: ${data.success}</div>`;
+                    html += `<div>Stations count: ${data.stations?.length || 0}</div>`;
+                } else {
+                    html += '<div class="error">❌ React API simulation failed</div>';
+                    html += `<div>Response status: ${response.status}</div>`;
+                    html += `<div>Data: ${JSON.stringify(data)}</div>`;
+                }
+                
+            } catch (error) {
+                html += `<div class="error">❌ React API test failed: ${error.message}</div>`;
+                console.error('React API test error:', error);
+            }
+            
+            results.innerHTML = html;
+        }
+        
+        async function debugFullFlow() {
+            const results = document.getElementById('results');
+            let html = '<h3>🎯 Full Flow Debug...</h3>';
+            
+            try {
+                // Step 1: Check current React state
+                html += '<div class="info">Step 1: Checking current React app state...</div>';
+                
+                // Check if we're in the React app context
+                if (window.location.port === '3000') {
+                    html += '<div class="warning">⚠️ You are on the React dev server (port 3000)</div>';
+                    html += '<div>This may cause CORS issues with the backend API</div>';
+                } else if (window.location.port === '5001') {
+                    html += '<div class="success">✅ You are on the backend server (port 5001)</div>';
+                } else {
+                    html += '<div class="info">Port: ' + window.location.port + '</div>';
+                }
+                
+                // Step 2: Check network connectivity
+                html += '<div class="info">Step 2: Testing backend connectivity...</div>';
+                
+                try {
+                    const healthResponse = await fetch('http://localhost:5001/api/health', {
+                        method: 'GET'
+                    });
+                    
+                    if (healthResponse.ok) {
+                        html += '<div class="success">✅ Backend is reachable</div>';
+                    } else {
+                        html += '<div class="error">❌ Backend health check failed</div>';
+                    }
+                } catch (e) {
+                    html += '<div class="error">❌ Cannot reach backend</div>';
+                    html += `<div>Error: ${e.message}</div>`;
+                }
+                
+                // Step 3: Check authentication
+                html += '<div class="info">Step 3: Checking authentication...</div>';
+                
+                const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
+                if (token) {
+                    html += '<div class="success">✅ Token found</div>';
+                    
+                    // Test authenticated endpoint
+                    try {
+                        const authTest = await fetch('http://localhost:5001/api/stations', {
+                            method: 'GET',
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json'
+                            }
+                        });
+                        
+                        if (authTest.ok) {
+                            html += '<div class="success">✅ Authentication works</div>';
+                        } else {
+                            html += '<div class="error">❌ Authentication failed</div>';
+                            html += `<div>Status: ${authTest.status}</div>`;
+                            
+                            const errorData = await authTest.json();
+                            html += `<div>Error: ${JSON.stringify(errorData)}</div>`;
+                        }
+                    } catch (e) {
+                        html += '<div class="error">❌ Auth test failed</div>';
+                        html += `<div>Error: ${e.message}</div>`;
+                    }
+                } else {
+                    html += '<div class="error">❌ No authentication token</div>';
+                }
+                
+                // Step 4: Provide recommendations
+                html += '<div class="info">Step 4: Recommendations...</div>';
+                
+                if (!token) {
+                    html += '<div class="warning">🔧 Solution: Login to the Organiser interface first</div>';
+                } else {
+                    html += '<div class="warning">🔧 Possible solutions:</div>';
+                    html += '<div>1. Try refreshing the Organiser interface</div>';
+                    html += '<div>2. Check browser console for JavaScript errors</div>';
+                    html += '<div>3. Verify the React app is using the updated code</div>';
+                }
+                
+            } catch (error) {
+                html += `<div class="error">❌ Full flow debug failed: ${error.message}</div>`;
+                console.error('Full flow debug error:', error);
+            }
+            
+            results.innerHTML = html;
+        }
+        
+        // Auto-run auth check on page load
+        window.onload = () => {
+            checkAuth();
+        };
+    </script>
+</body>
+</html>

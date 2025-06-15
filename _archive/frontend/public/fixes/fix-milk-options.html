@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fix Milk Options</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    h1 {
+      color: #333;
+    }
+    .card {
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    button {
+      background-color: #007aff;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-right: 10px;
+    }
+    button:hover {
+      background-color: #0062cc;
+    }
+    .success {
+      background-color: #e7f7ee;
+      border-left: 4px solid #00a86b;
+      padding: 15px;
+      margin: 15px 0;
+    }
+    pre {
+      background: #f5f5f5;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+    .milk-chip {
+      display: inline-block;
+      padding: 5px 10px;
+      margin: 5px;
+      border-radius: 15px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Fix Milk Options</h1>
+  
+  <div class="card">
+    <h2>The Problem</h2>
+    <p>The app is showing <code>milkType.toLowerCase is not a function</code> error because the milk type data isn't in the correct format.</p>
+    <p>This tool will fix the milk options data and ensure all orders have milk types as plain strings (not objects).</p>
+  </div>
+  
+  <div class="card">
+    <h2>Available Milk Types</h2>
+    <div id="milk-types">Loading...</div>
+  </div>
+  
+  <div class="card">
+    <h2>Fix Options</h2>
+    <button onclick="applyFix()">Apply Milk Type Fix</button>
+    <button onclick="resetAndApplyFix()">Reset Orders & Apply Fix</button>
+    
+    <div id="result" style="margin-top: 15px; display: none;"></div>
+  </div>
+  
+  <div class="card">
+    <h2>Fixed Order Example</h2>
+    <pre id="sample-order">// Will display a sample fixed order</pre>
+  </div>
+  
+  <script>
+    // Helper to handle milkType issues
+    function getSafeMilkType(milk) {
+      if (!milk) return 'Regular';
+      if (typeof milk === 'string') return milk;
+      return milk.name || milk.type || 'Regular';
+    }
+    
+    // Fix the orders in localStorage
+    function fixOrders() {
+      try {
+        let fixCount = 0;
+        
+        // Helper to fix a set of orders
+        const fixOrderSet = (key) => {
+          try {
+            const orders = JSON.parse(localStorage.getItem(key) || '[]');
+            let updated = false;
+            
+            orders.forEach(order => {
+              // Check and fix milkType if needed
+              if (order.milkType && typeof order.milkType !== 'string') {
+                order.milkType = getSafeMilkType(order.milkType);
+                updated = true;
+                fixCount++;
+              } else if (!order.milkType) {
+                order.milkType = 'Regular';
+                updated = true;
+                fixCount++;
+              }
+            });
+            
+            if (updated) {
+              localStorage.setItem(key, JSON.stringify(orders));
+              return orders.length;
+            }
+            
+            return 0;
+          } catch (e) {
+            console.error(`Error fixing ${key}:`, e);
+            return 0;
+          }
+        };
+        
+        // Fix all order types
+        const pendingCount = fixOrderSet('fallback_pending_orders');
+        const inProgressCount = fixOrderSet('fallback_in_progress_orders');
+        const completedCount = fixOrderSet('fallback_completed_orders');
+        
+        return {
+          success: true,
+          fixCount,
+          pendingCount,
+          inProgressCount,
+          completedCount
+        };
+      } catch (e) {
+        return {
+          success: false,
+          error: e.message
+        };
+      }
+    }
+    
+    // Reset orders with proper milk types
+    function resetOrdersWithProperMilk() {
+      try {
+        // Create sample orders with correct milk types
+        const pendingOrders = [
+          {
+            id: 'test-1001',
+            orderNumber: 'ORD1001',
+            customerName: 'John Smith',
+            coffeeType: 'Large Cappuccino',
+            milkType: 'Regular',
+            sugar: 'No sugar',
+            phoneNumber: '+61412345678',
+            createdAt: new Date(Date.now() - 1000 * 60 * 10).toISOString(),
+            waitTime: 5,
+            promisedTime: 15,
+            priority: false,
+            status: 'pending',
+            stationId: 1
+          },
+          {
+            id: 'test-1002',
+            orderNumber: 'ORD1002',
+            customerName: 'Jane Doe',
+            coffeeType: 'Medium Flat White',
+            milkType: 'Almond',
+            sugar: '1 sugar',
+            phoneNumber: '+61412345679',
+            createdAt: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
+            waitTime: 8,
+            promisedTime: 15,
+            priority: true,
+            status: 'pending',
+            stationId: 2
+          }
+        ];
+        
+        const inProgressOrders = [
+          {
+            id: 'test-2001',
+            orderNumber: 'ORD2001',
+            customerName: 'Michael Brown',
+            coffeeType: 'Medium Long Black',
+            milkType: 'None',
+            sugar: 'No sugar',
+            phoneNumber: '+61412345681',
+            createdAt: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
+            waitTime: 15,
+            promisedTime: 15,
+            priority: false,
+            status: 'in-progress',
+            stationId: 3
+          }
+        ];
+        
+        // Save to localStorage
+        localStorage.setItem('fallback_pending_orders', JSON.stringify(pendingOrders));
+        localStorage.setItem('fallback_in_progress_orders', JSON.stringify(inProgressOrders));
+        localStorage.setItem('fallback_completed_orders', JSON.stringify([]));
+        
+        // Show sample in UI
+        document.getElementById('sample-order').textContent = JSON.stringify(pendingOrders[0], null, 2);
+        
+        return {
+          success: true,
+          pendingCount: pendingOrders.length,
+          inProgressCount: inProgressOrders.length
+        };
+      } catch (e) {
+        return {
+          success: false,
+          error: e.message
+        };
+      }
+    }
+    
+    // Apply the milk type fix
+    function applyFix() {
+      const result = fixOrders();
+      
+      const resultDiv = document.getElementById('result');
+      resultDiv.style.display = 'block';
+      
+      if (result.success) {
+        resultDiv.className = 'success';
+        resultDiv.innerHTML = `
+          <strong>✅ Fix applied successfully!</strong><br>
+          Fixed ${result.fixCount} orders with incorrect milk types.<br>
+          - Pending orders: ${result.pendingCount}<br>
+          - In-progress orders: ${result.inProgressCount}<br>
+          - Completed orders: ${result.completedCount}<br><br>
+          <a href="/" style="color: #00a86b; font-weight: bold;">Go to Application</a>
+        `;
+      } else {
+        resultDiv.className = 'error';
+        resultDiv.innerHTML = `
+          <strong>❌ Error applying fix:</strong><br>
+          ${result.error}
+        `;
+      }
+    }
+    
+    // Reset all orders and apply fix
+    function resetAndApplyFix() {
+      const result = resetOrdersWithProperMilk();
+      
+      const resultDiv = document.getElementById('result');
+      resultDiv.style.display = 'block';
+      
+      if (result.success) {
+        resultDiv.className = 'success';
+        resultDiv.innerHTML = `
+          <strong>✅ Orders reset with correct milk types!</strong><br>
+          - Pending orders: ${result.pendingCount}<br>
+          - In-progress orders: ${result.inProgressCount}<br><br>
+          <a href="/" style="color: #00a86b; font-weight: bold;">Go to Application</a>
+        `;
+      } else {
+        resultDiv.className = 'error';
+        resultDiv.innerHTML = `
+          <strong>❌ Error resetting orders:</strong><br>
+          ${result.error}
+        `;
+      }
+    }
+    
+    // Display available milk types
+    function displayMilkTypes() {
+      const milkTypes = [
+        { name: 'Regular', color: '#FFFFFF' },
+        { name: 'Skim', color: '#F0F8FF' },
+        { name: 'Almond', color: '#FAEBD7' },
+        { name: 'Oat', color: '#F5DEB3' },
+        { name: 'Soy', color: '#FFF8DC' },
+        { name: 'Lactose Free', color: '#FFFACD' }
+      ];
+      
+      const container = document.getElementById('milk-types');
+      container.innerHTML = '';
+      
+      milkTypes.forEach(milk => {
+        const chip = document.createElement('div');
+        chip.className = 'milk-chip';
+        chip.textContent = milk.name;
+        chip.style.backgroundColor = milk.color;
+        chip.style.border = '1px solid #ddd';
+        
+        container.appendChild(chip);
+      });
+    }
+    
+    // On page load
+    window.addEventListener('DOMContentLoaded', function() {
+      displayMilkTypes();
+      
+      // Show a sample order
+      const sampleOrder = {
+        id: 'test-1001',
+        orderNumber: 'ORD1001',
+        customerName: 'John Smith',
+        coffeeType: 'Large Cappuccino',
+        milkType: 'Regular', // Correct string format
+        sugar: 'No sugar',
+        status: 'pending'
+      };
+      
+      document.getElementById('sample-order').textContent = JSON.stringify(sampleOrder, null, 2);
+    });
+  </script>
+</body>
+</html>

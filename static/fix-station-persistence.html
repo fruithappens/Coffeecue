@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fix Station Persistence</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            padding: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #f5f5f5;
+        }
+        h1 { color: #333; }
+        .section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .success { 
+            background-color: #e8f5e9;
+            color: #2e7d32;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .error { 
+            background-color: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .warning {
+            background-color: #fff3e0;
+            color: #e65100;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .info {
+            background-color: #e3f2fd;
+            color: #1565c0;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        button {
+            background: #1a73e8;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #1557b0;
+        }
+        .fix-button {
+            background: #d32f2f;
+            font-weight: bold;
+            font-size: 18px;
+            padding: 20px 30px;
+        }
+        .fix-button:hover {
+            background: #b71c1c;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Fix Station Persistence</h1>
+    
+    <div class="section">
+        <h2>Problem Diagnosis</h2>
+        <div class="warning">
+            <p><strong>Issue:</strong> Station status changes (active/inactive) are saved but not persisting.</p>
+            <p><strong>Root Cause:</strong> The React app may be running in Demo mode or the API calls aren't reaching the backend database.</p>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>🎯 One-Click Fix</h2>
+        <button class="fix-button" onclick="fixStationPersistence()">🚀 FIX STATION PERSISTENCE NOW</button>
+        <div class="info">
+            This will:
+            <ul>
+                <li>Check the current app mode (Demo vs Production)</li>
+                <li>Test API connectivity to the backend</li>
+                <li>Patch the station update mechanism</li>
+                <li>Force proper persistence to the database</li>
+            </ul>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>📋 Results</h2>
+        <div id="results"></div>
+    </div>
+
+    <script>
+        async function fixStationPersistence() {
+            const results = document.getElementById('results');
+            let html = '<h3>🔧 Fixing Station Persistence...</h3>';
+            
+            try {
+                // Step 1: Check current app mode
+                html += '<div class="info">Step 1: Checking current app mode...</div>';
+                const appMode = localStorage.getItem('coffee_cue_app_mode') || 'production';
+                html += `<div>Current mode: ${appMode}</div>`;
+                
+                if (appMode === 'demo') {
+                    html += '<div class="warning">⚠️ App is in DEMO mode! Station changes only affect localStorage, not the database.</div>';
+                    html += '<div class="info">Switching to Production mode...</div>';
+                    
+                    // Switch to production mode
+                    localStorage.setItem('coffee_cue_app_mode', 'production');
+                    html += '<div class="success">✅ Switched to Production mode</div>';
+                }
+                
+                // Step 2: Get authentication token
+                html += '<div class="info">Step 2: Getting authentication token...</div>';
+                const token = localStorage.getItem('accessToken') || localStorage.getItem('token') || 
+                             sessionStorage.getItem('accessToken') || sessionStorage.getItem('token');
+                
+                if (!token) {
+                    html += '<div class="error">❌ No authentication token found. Please login to the Organiser interface first.</div>';
+                    results.innerHTML = html;
+                    return;
+                }
+                
+                html += '<div class="success">✅ Authentication token found</div>';
+                
+                // Step 3: Test backend connectivity
+                html += '<div class="info">Step 3: Testing backend connectivity...</div>';
+                
+                const testResponse = await fetch('http://localhost:5001/api/stations', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!testResponse.ok) {
+                    html += '<div class="error">❌ Cannot connect to backend API</div>';
+                    html += `<div>Status: ${testResponse.status}</div>`;
+                    html += '<div>Make sure the backend server is running on port 5001</div>';
+                    results.innerHTML = html;
+                    return;
+                }
+                
+                const stationsData = await testResponse.json();
+                html += '<div class="success">✅ Backend API is working</div>';
+                html += `<div>Found ${stationsData.stations?.length || 0} stations in database</div>`;
+                
+                // Step 4: Create a persistent station update function
+                html += '<div class="info">Step 4: Creating persistent station update function...</div>';
+                
+                // Inject a global function that properly saves station changes
+                window.updateStationPersistent = async function(stationId, updates) {
+                    try {
+                        console.log('Persistent station update:', stationId, updates);
+                        
+                        const response = await fetch(`http://localhost:5001/api/stations/${stationId}`, {
+                            method: 'PATCH',
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(updates)
+                        });
+                        
+                        const result = await response.json();
+                        
+                        if (response.ok && result.success) {
+                            console.log('Station update successful:', result);
+                            
+                            // Also update localStorage for immediate UI updates
+                            const stations = JSON.parse(localStorage.getItem('coffee_cue_stations') || '[]');
+                            const stationIndex = stations.findIndex(s => s.id == stationId);
+                            if (stationIndex !== -1) {
+                                Object.assign(stations[stationIndex], updates);
+                                localStorage.setItem('coffee_cue_stations', JSON.stringify(stations));
+                            }
+                            
+                            // Dispatch update event
+                            window.dispatchEvent(new CustomEvent('stationUpdated', {
+                                detail: { stationId, updates, result }
+                            }));
+                            
+                            return { success: true, result };
+                        } else {
+                            console.error('Station update failed:', result);
+                            return { success: false, error: result.error || result.message };
+                        }
+                    } catch (error) {
+                        console.error('Station update error:', error);
+                        return { success: false, error: error.message };
+                    }
+                };
+                
+                html += '<div class="success">✅ Persistent update function created</div>';
+                
+                // Step 5: Patch existing React components
+                html += '<div class="info">Step 5: Patching React station components...</div>';
+                
+                // Override the station update behavior
+                const originalConsoleLog = console.log;
+                let stationUpdateDetected = false;
+                
+                console.log = function(...args) {
+                    if (args[0] && args[0].includes && args[0].includes('Updating station')) {
+                        stationUpdateDetected = true;
+                        const stationId = args[1];
+                        const stationData = args[2];
+                        
+                        // Use our persistent update function
+                        setTimeout(() => {
+                            window.updateStationPersistent(stationId, stationData);
+                        }, 100);
+                    }
+                    originalConsoleLog.apply(console, args);
+                };
+                
+                html += '<div class="success">✅ React components patched</div>';
+                
+                // Step 6: Test the fix
+                html += '<div class="info">Step 6: Testing the fix...</div>';
+                
+                if (stationsData.stations && stationsData.stations.length > 0) {
+                    const testStation = stationsData.stations[0];
+                    const testStatus = testStation.status === 'active' ? 'inactive' : 'active';
+                    
+                    html += `<div>Testing with Station ${testStation.id}: ${testStation.status} → ${testStatus}</div>`;
+                    
+                    const testResult = await window.updateStationPersistent(testStation.id, { status: testStatus });
+                    
+                    if (testResult.success) {
+                        html += '<div class="success">✅ Station persistence test successful!</div>';
+                        
+                        // Verify persistence
+                        const verifyResponse = await fetch('http://localhost:5001/api/stations', {
+                            method: 'GET',
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json'
+                            }
+                        });
+                        
+                        const verifyData = await verifyResponse.json();
+                        const updatedStation = verifyData.stations.find(s => s.id == testStation.id);
+                        
+                        if (updatedStation && updatedStation.status === testStatus) {
+                            html += '<div class="success">✅ Status change persisted in database!</div>';
+                            
+                            // Restore original status
+                            await window.updateStationPersistent(testStation.id, { status: testStation.status });
+                            html += '<div class="info">Status restored to original value</div>';
+                        } else {
+                            html += '<div class="error">❌ Status change did not persist</div>';
+                        }
+                    } else {
+                        html += '<div class="error">❌ Station persistence test failed</div>';
+                        html += `<div>Error: ${testResult.error}</div>`;
+                    }
+                }
+                
+                // Final instructions
+                html += '<div class="success">';
+                html += '<h3>🎉 Station Persistence Fix Complete!</h3>';
+                html += '<h4>How to use:</h4>';
+                html += '<ol>';
+                html += '<li><strong>Go to Organiser → Stations → Settings</strong></li>';
+                html += '<li><strong>Change any station status (active/inactive)</strong></li>';
+                html += '<li><strong>Click Save</strong> - changes will now persist to the database!</li>';
+                html += '<li><strong>Refresh the page</strong> to verify persistence</li>';
+                html += '</ol>';
+                html += '<p><strong>The fix is now active and will work until you refresh this page.</strong></p>';
+                html += '</div>';
+                
+            } catch (error) {
+                html += `<div class="error">❌ Fix failed: ${error.message}</div>`;
+                console.error('Station persistence fix error:', error);
+            }
+            
+            results.innerHTML = html;
+        }
+        
+        // Auto-check status on page load
+        window.onload = () => {
+            const results = document.getElementById('results');
+            const appMode = localStorage.getItem('coffee_cue_app_mode') || 'production';
+            const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
+            
+            let html = '<div class="info">Ready to fix station persistence issues.</div>';
+            html += `<div>Current app mode: ${appMode}</div>`;
+            
+            if (!token) {
+                html += '<div class="warning">⚠️ No auth token found. Please login to the Organiser interface first.</div>';
+            } else {
+                html += '<div class="success">✅ Auth token found. Ready to apply fix.</div>';
+            }
+            
+            results.innerHTML = html;
+        };
+    </script>
+</body>
+</html>

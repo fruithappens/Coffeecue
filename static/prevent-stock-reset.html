@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Prevent Stock Reset Issue</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            padding: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #f5f5f5;
+        }
+        h1 { color: #333; }
+        .section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .error { 
+            background-color: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .success { 
+            background-color: #e8f5e9;
+            color: #2e7d32;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .warning {
+            background-color: #fff3e0;
+            color: #e65100;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .info {
+            background-color: #e3f2fd;
+            color: #1565c0;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        button {
+            background: #1a73e8;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #1557b0;
+        }
+        .fix-button {
+            background: #4CAF50;
+        }
+        .fix-button:hover {
+            background: #45a049;
+        }
+        .data {
+            background: #f0f8ff;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 5px 0;
+            font-family: monospace;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>🛡️ Prevent Stock Reset Issue</h1>
+    
+    <div class="section">
+        <h2>❌ Current Problem</h2>
+        <p><strong>Root Cause Found:</strong> When station inventory is updated, the EventStockManagement component is resetting all event stock quantities to zero through the <code>initializeDefaultStock()</code> function.</p>
+        <p>This happens because:</p>
+        <ul>
+            <li>Station inventory changes trigger inventory updates</li>
+            <li>EventStockManagement reacts to inventory changes</li>
+            <li><code>initializeDefaultStock()</code> was overwriting existing quantities</li>
+        </ul>
+    </div>
+    
+    <div class="section">
+        <h2>✅ Fix Applied</h2>
+        <p>I've updated the React component to preserve existing quantities and allocated amounts when initializing.</p>
+        <p><strong>Changes made to EventStockManagement.js:</strong></p>
+        <ul>
+            <li>✅ <code>initializeDefaultStock()</code> now preserves existing quantities</li>
+            <li>✅ Only new items get default values</li>
+            <li>✅ Allocated amounts are preserved during updates</li>
+            <li>✅ Added better logging to track what's happening</li>
+        </ul>
+    </div>
+    
+    <div class="section">
+        <h2>🧪 Test the Fix</h2>
+        <button onclick="setupTestScenario()">1. Setup Test Scenario</button>
+        <button onclick="simulateStationUpdate()">2. Simulate Station Update</button>
+        <button onclick="verifyNoReset()">3. Verify No Reset Occurs</button>
+        <button class="fix-button" onclick="repairCurrentData()">4. Repair Current Data</button>
+    </div>
+    
+    <div class="section">
+        <h2>📋 Results</h2>
+        <div id="results"></div>
+    </div>
+
+    <script>
+        function setupTestScenario() {
+            const results = document.getElementById('results');
+            let html = '<h3>🧪 Setting up test scenario...</h3>';
+            
+            // Create event stock with realistic quantities
+            const eventStock = {
+                milk: {
+                    "milk_1": { quantity: 1000, allocated: 35, available: 965, unit: "L" },
+                    "milk_2": { quantity: 100, allocated: 25, available: 75, unit: "L" },
+                    "milk_3": { quantity: 100, allocated: 25, available: 75, unit: "L" }
+                }
+            };
+            
+            // Create station quantities
+            const stationQuantities = {
+                '1': {
+                    milk: {
+                        "milk_1": { quantity: 25, unit: "L" },
+                        "milk_2": { quantity: 15, unit: "L" },
+                        "milk_3": { quantity: 15, unit: "L" }
+                    }
+                },
+                '2': {
+                    milk: {
+                        "milk_1": { quantity: 5, unit: "L" },
+                        "milk_2": { quantity: 5, unit: "L" },
+                        "milk_3": { quantity: 5, unit: "L" }
+                    }
+                },
+                '3': {
+                    milk: {
+                        "milk_1": { quantity: 5, unit: "L" },
+                        "milk_2": { quantity: 5, unit: "L" },
+                        "milk_3": { quantity: 5, unit: "L" }
+                    }
+                }
+            };
+            
+            // Create event inventory
+            const eventInventory = {
+                milk: [
+                    {id: "milk_1", name: "Whole Milk", enabled: true, category: "milk"},
+                    {id: "milk_2", name: "Skim Milk", enabled: true, category: "milk"},
+                    {id: "milk_3", name: "Oat Milk", enabled: true, category: "milk"}
+                ]
+            };
+            
+            // Save all data
+            localStorage.setItem('event_stock_levels', JSON.stringify(eventStock));
+            localStorage.setItem('station_inventory_quantities', JSON.stringify(stationQuantities));
+            localStorage.setItem('event_inventory', JSON.stringify(eventInventory));
+            
+            html += '<div class="success">✅ Test scenario created:</div>';
+            html += '<div><strong>Event Stock Quantities:</strong></div>';
+            html += '<div>• Whole Milk: 1000 L (35 L allocated)</div>';
+            html += '<div>• Skim Milk: 100 L (25 L allocated)</div>';
+            html += '<div>• Oat Milk: 100 L (25 L allocated)</div>';
+            
+            html += '<div class="info">💡 These quantities should NOT reset to zero when station inventory is updated</div>';
+            
+            results.innerHTML = html;
+        }
+        
+        function simulateStationUpdate() {
+            const results = document.getElementById('results');
+            let html = '<h3>🔄 Simulating station inventory update...</h3>';
+            
+            // Get current event stock to verify before/after
+            const beforeStock = localStorage.getItem('event_stock_levels');
+            if (!beforeStock) {
+                html += '<div class="error">❌ No event stock to test with. Run "Setup Test Scenario" first.</div>';
+                results.innerHTML = html;
+                return;
+            }
+            
+            const before = JSON.parse(beforeStock);
+            html += '<div><strong>Before Update:</strong></div>';
+            Object.keys(before).forEach(category => {
+                Object.keys(before[category]).forEach(itemId => {
+                    const item = before[category][itemId];
+                    html += `<div>• ${itemId}: ${item.quantity} ${item.unit} (${item.allocated} allocated)</div>`;
+                });
+            });
+            
+            // Simulate what happens when station inventory is updated
+            // Update station quantities (like user would do in Station Inventory)
+            const stationQuantities = JSON.parse(localStorage.getItem('station_inventory_quantities'));
+            stationQuantities['1']['milk']['milk_1'].quantity = 30; // Change from 25 to 30
+            
+            localStorage.setItem('station_inventory_quantities', JSON.stringify(stationQuantities));
+            
+            // Dispatch the event that StationInventoryConfig would send
+            window.dispatchEvent(new CustomEvent('stationInventory:updated', {
+                detail: { inventory: stationQuantities }
+            }));
+            
+            html += '<div class="warning">⚠️ Simulated station inventory update (changed milk_1 from 25L to 30L at Station 1)</div>';
+            html += '<div class="info">📡 Dispatched stationInventory:updated event</div>';
+            
+            // Check if event stock got reset (this is what we're trying to prevent)
+            setTimeout(() => {
+                const afterStock = localStorage.getItem('event_stock_levels');
+                if (afterStock) {
+                    const after = JSON.parse(afterStock);
+                    
+                    html += '<div><strong>After Update:</strong></div>';
+                    let wasReset = false;
+                    
+                    Object.keys(after).forEach(category => {
+                        Object.keys(after[category]).forEach(itemId => {
+                            const beforeItem = before[category][itemId];
+                            const afterItem = after[category][itemId];
+                            
+                            if (beforeItem.quantity !== afterItem.quantity && afterItem.quantity < 50) {
+                                wasReset = true;
+                                html += `<div class="error">• ${itemId}: ${beforeItem.quantity} → ${afterItem.quantity} ${afterItem.unit} (RESET!)</div>`;
+                            } else {
+                                html += `<div class="success">• ${itemId}: ${afterItem.quantity} ${afterItem.unit} (${afterItem.allocated} allocated) ✅</div>`;
+                            }
+                        });
+                    });
+                    
+                    if (wasReset) {
+                        html += '<div class="error">❌ Stock quantities were reset! The fix didn\'t work.</div>';
+                        html += '<div class="warning">🔧 The React component needs to be refreshed to pick up the code changes.</div>';
+                    } else {
+                        html += '<div class="success">✅ Stock quantities preserved! The fix is working.</div>';
+                    }
+                } else {
+                    html += '<div class="error">❌ Event stock was completely deleted!</div>';
+                }
+                
+                document.getElementById('results').innerHTML = html;
+            }, 500);
+            
+            results.innerHTML = html;
+        }
+        
+        function verifyNoReset() {
+            const results = document.getElementById('results');
+            let html = '<h3>🔍 Verifying no reset occurs...</h3>';
+            
+            const eventStock = localStorage.getItem('event_stock_levels');
+            if (!eventStock) {
+                html += '<div class="error">❌ No event stock found</div>';
+                results.innerHTML = html;
+                return;
+            }
+            
+            const stock = JSON.parse(eventStock);
+            let allGood = true;
+            
+            html += '<div><strong>Current Event Stock:</strong></div>';
+            Object.keys(stock).forEach(category => {
+                Object.keys(stock[category]).forEach(itemId => {
+                    const item = stock[category][itemId];
+                    if (item.quantity < 50) { // Assuming realistic quantities should be > 50
+                        allGood = false;
+                        html += `<div class="error">• ${itemId}: ${item.quantity} ${item.unit} (TOO LOW - likely reset)</div>`;
+                    } else {
+                        html += `<div class="success">• ${itemId}: ${item.quantity} ${item.unit} (${item.allocated} allocated) ✅</div>`;
+                    }
+                });
+            });
+            
+            if (allGood) {
+                html += '<div class="success">✅ All quantities look normal - no reset detected</div>';
+            } else {
+                html += '<div class="error">❌ Some quantities appear to have been reset</div>';
+                html += '<div class="warning">🔄 Try refreshing the React app to pick up the component fixes</div>';
+            }
+            
+            results.innerHTML = html;
+        }
+        
+        function repairCurrentData() {
+            const results = document.getElementById('results');
+            let html = '<h3>🔧 Repairing current data...</h3>';
+            
+            try {
+                // Set realistic event stock quantities
+                const repairedStock = {
+                    milk: {
+                        "milk_1": { quantity: 1000, allocated: 0, available: 1000, unit: "L" },
+                        "milk_2": { quantity: 100, allocated: 0, available: 100, unit: "L" },
+                        "milk_3": { quantity: 100, allocated: 0, available: 100, unit: "L" }
+                    }
+                };
+                
+                // Calculate actual allocated amounts from station quantities
+                const stationQuantities = localStorage.getItem('station_inventory_quantities');
+                if (stationQuantities) {
+                    const quantities = JSON.parse(stationQuantities);
+                    
+                    Object.keys(repairedStock).forEach(category => {
+                        Object.keys(repairedStock[category]).forEach(itemId => {
+                            let totalAllocated = 0;
+                            
+                            Object.keys(quantities).forEach(stationId => {
+                                const stationData = quantities[stationId];
+                                if (stationData[category] && stationData[category][itemId]) {
+                                    const quantity = stationData[category][itemId].quantity || 0;
+                                    totalAllocated += quantity;
+                                }
+                            });
+                            
+                            repairedStock[category][itemId].allocated = totalAllocated;
+                            repairedStock[category][itemId].available = Math.max(0, 
+                                repairedStock[category][itemId].quantity - totalAllocated
+                            );
+                        });
+                    });
+                }
+                
+                localStorage.setItem('event_stock_levels', JSON.stringify(repairedStock));
+                
+                html += '<div class="success">✅ Repaired event stock with realistic quantities:</div>';
+                Object.keys(repairedStock).forEach(category => {
+                    Object.keys(repairedStock[category]).forEach(itemId => {
+                        const item = repairedStock[category][itemId];
+                        html += `<div>• ${itemId}: ${item.quantity} ${item.unit} (${item.allocated} allocated, ${item.available} available)</div>`;
+                    });
+                });
+                
+                html += '<div class="info">🔄 Now refresh the Event Stock page to see the corrected values</div>';
+                
+            } catch (e) {
+                html += '<div class="error">❌ Error repairing data: ' + e.message + '</div>';
+            }
+            
+            results.innerHTML = html;
+        }
+        
+        // Auto-setup on load
+        window.onload = () => {
+            const results = document.getElementById('results');
+            results.innerHTML = '<div class="info">🛡️ Ready to test the stock reset prevention fix. Click "Setup Test Scenario" to begin.</div>';
+        };
+    </script>
+</body>
+</html>

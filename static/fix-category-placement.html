@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fix Category Placement</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+        button { padding: 15px 30px; margin: 10px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; }
+        button:hover { background: #218838; }
+        .check-btn { background: #007cba; }
+        .check-btn:hover { background: #005a87; }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+        .warning { color: #ff9800; font-weight: bold; }
+        .info { background: #f0f8ff; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        .item { margin: 10px 0; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+        .moved { background: #d4edda; border-color: #c3e6cb; }
+    </style>
+</head>
+<body>
+    <h1>Fix Category Placement</h1>
+    
+    <div class="info">
+        <strong>Fix Items in Wrong Categories</strong><br>
+        This will move sweeteners from "Other" to "Sweeteners" category and fix other misplaced items.
+    </div>
+    
+    <button onclick="checkMisplacedItems()" class="check-btn">🔍 Check Misplaced Items</button>
+    <button onclick="fixCategoryPlacement()">🔧 Fix Category Placement</button>
+    <button onclick="showCategories()" class="check-btn">📋 Show All Categories</button>
+    
+    <div id="output"></div>
+
+    <script>
+        function checkMisplacedItems() {
+            const output = document.getElementById('output');
+            output.innerHTML = '<h2>Checking for Misplaced Items...</h2>';
+            
+            let foundIssues = false;
+            
+            // Check each station
+            for (let i = 1; i <= 5; i++) {
+                const stockKey = `coffee_stock_station_${i}`;
+                const stockData = localStorage.getItem(stockKey);
+                
+                if (stockData) {
+                    const stock = JSON.parse(stockData);
+                    output.innerHTML += `<h3>Station ${i}:</h3>`;
+                    
+                    // Check for sweeteners in wrong categories
+                    if (stock.other) {
+                        const misplacedSweeteners = stock.other.filter(item => 
+                            item.name.toLowerCase().includes('sugar') ||
+                            item.name.toLowerCase().includes('honey') ||
+                            item.name.toLowerCase().includes('stevia') ||
+                            item.name.toLowerCase().includes('sweetener')
+                        );
+                        
+                        if (misplacedSweeteners.length > 0) {
+                            foundIssues = true;
+                            output.innerHTML += '<div class="warning">❌ Sweeteners found in "Other" category:</div>';
+                            misplacedSweeteners.forEach(item => {
+                                output.innerHTML += `<div class="item">• ${item.name} (${item.amount} ${item.unit})</div>`;
+                            });
+                        }
+                    }
+                    
+                    // Check for drinks in wrong categories
+                    if (stock.other) {
+                        const misplacedDrinks = stock.other.filter(item => 
+                            item.name.toLowerCase().includes('chocolate') ||
+                            item.name.toLowerCase().includes('chai') ||
+                            item.name.toLowerCase().includes('matcha') ||
+                            item.name.toLowerCase().includes('tea')
+                        );
+                        
+                        if (misplacedDrinks.length > 0) {
+                            foundIssues = true;
+                            output.innerHTML += '<div class="warning">❌ Drink ingredients found in "Other" category:</div>';
+                            misplacedDrinks.forEach(item => {
+                                output.innerHTML += `<div class="item">• ${item.name} (${item.amount} ${item.unit})</div>`;
+                            });
+                        }
+                    }
+                    
+                    if (!foundIssues) {
+                        output.innerHTML += '<div class="success">✅ No misplaced items found</div>';
+                    }
+                }
+            }
+            
+            if (!foundIssues) {
+                output.innerHTML += '<h3 class="success">✅ All items are in the correct categories!</h3>';
+            }
+        }
+        
+        function fixCategoryPlacement() {
+            const output = document.getElementById('output');
+            output.innerHTML = '<h2>Fixing Category Placement...</h2>';
+            
+            let fixedCount = 0;
+            
+            // Fix each station
+            for (let i = 1; i <= 5; i++) {
+                const stockKey = `coffee_stock_station_${i}`;
+                const stockData = localStorage.getItem(stockKey);
+                
+                if (stockData) {
+                    const stock = JSON.parse(stockData);
+                    let stationFixed = false;
+                    
+                    output.innerHTML += `<h3>Station ${i}:</h3>`;
+                    
+                    // Ensure all categories exist
+                    if (!stock.sweeteners) stock.sweeteners = [];
+                    if (!stock.drinks) stock.drinks = [];
+                    if (!stock.other) stock.other = [];
+                    
+                    // Move sweeteners from other to sweeteners
+                    if (stock.other) {
+                        const sweetenersToMove = stock.other.filter(item => 
+                            item.name.toLowerCase().includes('sugar') ||
+                            item.name.toLowerCase().includes('honey') ||
+                            item.name.toLowerCase().includes('stevia') ||
+                            item.name.toLowerCase().includes('sweetener')
+                        );
+                        
+                        sweetenersToMove.forEach(item => {
+                            // Add to sweeteners category
+                            stock.sweeteners.push(item);
+                            output.innerHTML += `<div class="item moved">✅ Moved "${item.name}" to Sweeteners category</div>`;
+                            stationFixed = true;
+                        });
+                        
+                        // Remove from other category
+                        stock.other = stock.other.filter(item => 
+                            !item.name.toLowerCase().includes('sugar') &&
+                            !item.name.toLowerCase().includes('honey') &&
+                            !item.name.toLowerCase().includes('stevia') &&
+                            !item.name.toLowerCase().includes('sweetener')
+                        );
+                    }
+                    
+                    // Move drink ingredients from other to drinks
+                    if (stock.other) {
+                        const drinksToMove = stock.other.filter(item => 
+                            item.name.toLowerCase().includes('chocolate') ||
+                            item.name.toLowerCase().includes('chai') ||
+                            item.name.toLowerCase().includes('matcha') ||
+                            item.name.toLowerCase().includes('tea')
+                        );
+                        
+                        drinksToMove.forEach(item => {
+                            // Add to drinks category
+                            stock.drinks.push(item);
+                            output.innerHTML += `<div class="item moved">✅ Moved "${item.name}" to Drinks category</div>`;
+                            stationFixed = true;
+                        });
+                        
+                        // Remove from other category
+                        stock.other = stock.other.filter(item => 
+                            !item.name.toLowerCase().includes('chocolate') &&
+                            !item.name.toLowerCase().includes('chai') &&
+                            !item.name.toLowerCase().includes('matcha') &&
+                            !item.name.toLowerCase().includes('tea')
+                        );
+                    }
+                    
+                    if (stationFixed) {
+                        // Save the fixed stock data
+                        localStorage.setItem(stockKey, JSON.stringify(stock));
+                        fixedCount++;
+                    } else {
+                        output.innerHTML += '<div class="success">✅ No items needed moving</div>';
+                    }
+                }
+            }
+            
+            output.innerHTML += `<h3 class="success">✅ Fixed ${fixedCount} stations!</h3>`;
+            output.innerHTML += '<p>Refresh the Barista interface to see items in their correct categories.</p>';
+        }
+        
+        function showCategories() {
+            const output = document.getElementById('output');
+            output.innerHTML = '<h2>Current Category Structure</h2>';
+            
+            // Check station 1 as example
+            const stockKey = 'coffee_stock_station_1';
+            const stockData = localStorage.getItem(stockKey);
+            
+            if (stockData) {
+                const stock = JSON.parse(stockData);
+                const categories = Object.keys(stock);
+                
+                output.innerHTML += '<h3>Available Categories:</h3>';
+                categories.forEach(category => {
+                    const items = stock[category] || [];
+                    output.innerHTML += `<div class="item">
+                        <strong>${category.charAt(0).toUpperCase() + category.slice(1)}</strong>: 
+                        ${items.length} items
+                    </div>`;
+                });
+                
+                // Show items in each category
+                categories.forEach(category => {
+                    const items = stock[category] || [];
+                    if (items.length > 0) {
+                        output.innerHTML += `<h4>${category.charAt(0).toUpperCase() + category.slice(1)} Items:</h4>`;
+                        items.forEach(item => {
+                            output.innerHTML += `<div style="margin-left: 20px;">• ${item.name} (${item.amount} ${item.unit})</div>`;
+                        });
+                    }
+                });
+            } else {
+                output.innerHTML += '<p class="error">No stock data found for Station 1</p>';
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block title %}System Settings - Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Main content -->
+        <div class="col-12">
+            <h1 class="mt-4 mb-4">System Settings</h1>
+            
+            {% with messages = get_flashed_messages() %}
+                {% if messages %}
+                    {% for message in messages %}
+                        <div class="alert alert-success alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            
+            <div class="card shadow-sm mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">General Settings</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('admin.system_settings') }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        
+                        <div class="mb-3">
+                            <label for="system_name" class="form-label">System Name</label>
+                            <input type="text" class="form-control" id="system_name" name="system_name" value="{{ system_name }}" required>
+                            <div class="form-text">The name of the system shown in UI elements (e.g., "Expresso Coffee System")</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="event_name" class="form-label">Event Name</label>
+                            <input type="text" class="form-control" id="event_name" name="event_name" value="{{ event_name }}" required>
+                            <div class="form-text">The name of the event displayed in various places (e.g., "ANZCA ASM 2025 Cairns")</div>
+                        </div>
+                        
+                        <hr class="my-4">
+                        
+                        <h5>Sponsor Settings</h5>
+                        
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="sponsor_display_enabled" name="sponsor_display_enabled" {% if sponsor_display_enabled %}checked{% endif %}>
+                            <label class="form-check-label" for="sponsor_display_enabled">Show sponsor information</label>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="sponsor_name" class="form-label">Sponsor Name</label>
+                            <input type="text" class="form-control" id="sponsor_name" name="sponsor_name" value="{{ sponsor_name }}">
+                            <div class="form-text">The name of the sponsor (leave empty if none)</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="sponsor_message" class="form-label">Sponsor Message Template</label>
+                            <input type="text" class="form-control" id="sponsor_message" name="sponsor_message" value="{{ sponsor_message }}">
+                            <div class="form-text">Message template with {sponsor} placeholder for the sponsor name</div>
+                        </div>
+                        
+                        <div class="card bg-light mb-3">
+                            <div class="card-header">Message Preview</div>
+                            <div class="card-body">
+                                <p class="card-text" id="sponsor_preview">
+                                    {% if sponsor_name and sponsor_message and sponsor_display_enabled %}
+                                        {{ sponsor_message.replace('{sponsor}', sponsor_name) }}
+                                    {% else %}
+                                        <em>No sponsor message will be displayed</em>
+                                    {% endif %}
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">Save Settings</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Get form elements
+    const sponsorName = document.getElementById('sponsor_name');
+    const sponsorMessage = document.getElementById('sponsor_message');
+    const sponsorDisplay = document.getElementById('sponsor_display_enabled');
+    const previewElement = document.getElementById('sponsor_preview');
+    
+    if (sponsorName && sponsorMessage && sponsorDisplay && previewElement) {
+        // Function to update preview
+        function updatePreview() {
+            if (sponsorName.value && sponsorMessage.value && sponsorDisplay.checked) {
+                const message = sponsorMessage.value.replace('{sponsor}', sponsorName.value);
+                previewElement.textContent = message;
+            } else {
+                previewElement.innerHTML = '<em>No sponsor message will be displayed</em>';
+            }
+        }
+        
+        // Add event listeners
+        sponsorName.addEventListener('input', updatePreview);
+        sponsorMessage.addEventListener('input', updatePreview);
+        sponsorDisplay.addEventListener('change', updatePreview);
+        
+        // Initialize preview
+        updatePreview();
+    }
+});
+</script>
+{% endblock %}

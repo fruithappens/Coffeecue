@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Previous Orders</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-result { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .success { background-color: #d4edda; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; border: 1px solid #f5c6cb; }
+        .info { background-color: #d1ecf1; border: 1px solid #bee5eb; }
+        button { margin: 5px; padding: 10px; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 5px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Previous Orders Debug Test</h1>
+    <div id="results"></div>
+    
+    <h2>Debug Actions</h2>
+    <button onclick="checkCurrentStorage()">Check Storage</button>
+    <button onclick="addTestPreviousOrder()">Add Test Previous Order</button>
+    <button onclick="simulateDemoMode()">Enable Demo Mode</button>
+    <button onclick="clearStorage()">Clear Storage</button>
+    
+    <script>
+        function addResult(message, type = 'info') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `test-result ${type}`;
+            div.innerHTML = message;
+            results.appendChild(div);
+        }
+
+        function checkCurrentStorage() {
+            addResult('Checking current storage for order data...', 'info');
+            
+            const keys = [
+                'orders_cache_station_1',
+                'orders_cache_station_2', 
+                'orders_cache_station_3',
+                'fallback_previous_orders',
+                'demo_previous_orders',
+                'local_orders_station_1',
+                'local_orders_station_2',
+                'local_orders_station_3'
+            ];
+            
+            let foundData = false;
+            
+            keys.forEach(key => {
+                try {
+                    const data = localStorage.getItem(key);
+                    if (data) {
+                        const parsed = JSON.parse(data);
+                        if (key.includes('cache')) {
+                            addResult(`<strong>${key}:</strong><br>
+                                Pending: ${parsed.pendingOrders?.length || 0}<br>
+                                In Progress: ${parsed.inProgressOrders?.length || 0}<br>
+                                Completed: ${parsed.completedOrders?.length || 0}<br>
+                                Previous: ${parsed.previousOrders?.length || 0}`, 'info');
+                            if (parsed.previousOrders?.length > 0) {
+                                foundData = true;
+                                addResult(`Previous orders found in ${key}:` + 
+                                    parsed.previousOrders.map(o => `<br>&nbsp;&nbsp;• ${o.id} - ${o.customerName} (pickedUpAt: ${o.pickedUpAt ? 'Yes' : 'No'})`).join(''), 'success');
+                            }
+                        } else {
+                            if (Array.isArray(parsed) && parsed.length > 0) {
+                                addResult(`<strong>${key}:</strong> ${parsed.length} orders`, 'info');
+                                if (key.includes('previous')) {
+                                    foundData = true;
+                                    addResult(`Previous orders found in ${key}:` + 
+                                        parsed.map(o => `<br>&nbsp;&nbsp;• ${o.id} - ${o.customerName} (pickedUpAt: ${o.pickedUpAt ? 'Yes' : 'No'})`).join(''), 'success');
+                                }
+                            }
+                        }
+                    }
+                } catch (e) {
+                    addResult(`Error parsing ${key}: ${e.message}`, 'error');
+                }
+            });
+            
+            if (!foundData) {
+                addResult('No previous orders found in any storage location', 'error');
+            }
+        }
+
+        function addTestPreviousOrder() {
+            addResult('Adding test previous order...', 'info');
+            
+            const testOrder = {
+                id: 'test_previous_' + Date.now(),
+                orderNumber: 'TEST001',
+                customerName: 'Test Customer',
+                coffeeType: 'Test Latte',
+                milkType: 'Test Milk',
+                sugar: 'No sugar',
+                createdAt: new Date(Date.now() - 60*60000),
+                completedAt: new Date(Date.now() - 30*60000),
+                pickedUpAt: new Date(),
+                status: 'picked_up',
+                stationId: 1
+            };
+            
+            // Add to fallback storage
+            try {
+                const existing = JSON.parse(localStorage.getItem('fallback_previous_orders') || '[]');
+                existing.push(testOrder);
+                localStorage.setItem('fallback_previous_orders', JSON.stringify(existing));
+                addResult('Added test order to fallback_previous_orders', 'success');
+            } catch (e) {
+                addResult(`Error adding to fallback storage: ${e.message}`, 'error');
+            }
+            
+            // Add to station cache
+            try {
+                const cacheKey = 'orders_cache_station_1';
+                const cache = JSON.parse(localStorage.getItem(cacheKey) || '{}');
+                if (!cache.previousOrders) cache.previousOrders = [];
+                cache.previousOrders.push(testOrder);
+                cache.timestamp = Date.now();
+                localStorage.setItem(cacheKey, JSON.stringify(cache));
+                addResult('Added test order to station 1 cache', 'success');
+            } catch (e) {
+                addResult(`Error adding to station cache: ${e.message}`, 'error');
+            }
+        }
+
+        function simulateDemoMode() {
+            addResult('Simulating demo mode activation...', 'info');
+            
+            const demoData = [
+                {
+                    id: 'demo_prev_1',
+                    orderNumber: 'DEMO001',
+                    customerName: 'Demo Previous Customer',
+                    coffeeType: 'Demo Latte',
+                    milkType: 'Regular milk',
+                    sugar: '1 sugar',
+                    createdAt: new Date(Date.now() - 120*60000),
+                    completedAt: new Date(Date.now() - 60*60000),
+                    pickedUpAt: new Date(Date.now() - 30*60000),
+                    status: 'picked_up',
+                    stationId: 1
+                },
+                {
+                    id: 'demo_prev_2',
+                    orderNumber: 'DEMO002',
+                    customerName: 'Another Demo Customer',
+                    coffeeType: 'Demo Espresso',
+                    milkType: 'No milk',
+                    sugar: 'No sugar',
+                    createdAt: new Date(Date.now() - 180*60000),
+                    completedAt: new Date(Date.now() - 90*60000),
+                    pickedUpAt: new Date(Date.now() - 45*60000),
+                    status: 'picked_up',
+                    stationId: 1
+                }
+            ];
+            
+            localStorage.setItem('demo_previous_orders', JSON.stringify(demoData));
+            localStorage.setItem('fallback_previous_orders', JSON.stringify(demoData));
+            localStorage.setItem('demo_data_initialized', 'true');
+            localStorage.setItem('use_fallback_data', 'true');
+            
+            addResult('Demo mode activated with sample previous orders', 'success');
+        }
+
+        function clearStorage() {
+            localStorage.clear();
+            sessionStorage.clear();
+            addResult('All storage cleared', 'info');
+        }
+
+        // Initial check
+        addResult('Previous Orders Debug Test Loaded', 'info');
+        checkCurrentStorage();
+    </script>
+</body>
+</html>

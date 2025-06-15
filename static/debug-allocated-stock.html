@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Allocated Stock Flow</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            padding: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #f5f5f5;
+        }
+        h1 { color: #333; }
+        .section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .step {
+            margin: 15px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: #f9f9f9;
+        }
+        .step h3 {
+            margin: 0 0 10px 0;
+            color: #1a73e8;
+        }
+        .data {
+            background: #f0f8ff;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 5px 0;
+            font-family: monospace;
+            overflow-x: auto;
+        }
+        .error { 
+            background-color: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .success { 
+            background-color: #e8f5e9;
+            color: #2e7d32;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .warning {
+            background-color: #fff3e0;
+            color: #e65100;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        button {
+            background: #1a73e8;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #1557b0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f5f5f5;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Debug Allocated Stock Flow</h1>
+    
+    <div class="section">
+        <h2>Current Issue</h2>
+        <p>Station inventory quantities entered in Organiser don't update the Event Stock "Allocated" amounts.</p>
+        <p>Expected flow: <strong>Station Inventory Quantity Input → Event Stock Allocated Display</strong></p>
+    </div>
+    
+    <div class="section">
+        <h2>🛠️ Debug Actions</h2>
+        <button onclick="debugDataFlow()">Trace Data Flow</button>
+        <button onclick="showStationQuantities()">Show Station Quantities</button>
+        <button onclick="calculateAllocated()">Calculate Allocated Stock</button>
+        <button onclick="simulateQuantityUpdate()">Simulate Quantity Update</button>
+    </div>
+    
+    <div class="section">
+        <h2>📋 Debug Results</h2>
+        <div id="results"></div>
+    </div>
+
+    <script>
+        function debugDataFlow() {
+            const results = document.getElementById('results');
+            let html = '<h3>🔍 Data Flow Analysis:</h3>';
+            
+            // Step 1: Check station_inventory_quantities
+            html += '<div class="step">';
+            html += '<h3>Step 1: Station Inventory Quantities (Where user enters quantities)</h3>';
+            
+            const stationQuantities = localStorage.getItem('station_inventory_quantities');
+            if (stationQuantities) {
+                try {
+                    const quantities = JSON.parse(stationQuantities);
+                    html += '<div class="success">✅ Station quantities data exists</div>';
+                    html += '<div class="data">';
+                    
+                    // Show quantities for each station
+                    Object.keys(quantities).forEach(stationId => {
+                        html += `<strong>Station ${stationId}:</strong><br>`;
+                        const stationData = quantities[stationId];
+                        
+                        Object.keys(stationData).forEach(category => {
+                            const categoryData = stationData[category];
+                            html += `&nbsp;&nbsp;${category}:<br>`;
+                            
+                            Object.keys(categoryData).forEach(itemId => {
+                                const itemData = categoryData[itemId];
+                                if (itemData.quantity > 0) {
+                                    html += `&nbsp;&nbsp;&nbsp;&nbsp;${itemId}: ${itemData.quantity} ${itemData.unit || 'units'}<br>`;
+                                }
+                            });
+                        });
+                        html += '<br>';
+                    });
+                    
+                    html += '</div>';
+                } catch (e) {
+                    html += '<div class="error">❌ Station quantities data is corrupted</div>';
+                }
+            } else {
+                html += '<div class="error">❌ No station quantities data found!</div>';
+            }
+            html += '</div>';
+            
+            // Step 2: Check event_inventory (total available)
+            html += '<div class="step">';
+            html += '<h3>Step 2: Event Inventory (Total Available Stock)</h3>';
+            
+            const eventInventory = localStorage.getItem('event_inventory');
+            if (eventInventory) {
+                try {
+                    const inventory = JSON.parse(eventInventory);
+                    html += '<div class="success">✅ Event inventory exists</div>';
+                    html += '<div class="data">';
+                    
+                    Object.keys(inventory).forEach(category => {
+                        const items = inventory[category] || [];
+                        html += `<strong>${category}:</strong> ${items.length} items<br>`;
+                        items.forEach(item => {
+                            html += `&nbsp;&nbsp;${item.name} (${item.id})<br>`;
+                        });
+                    });
+                    
+                    html += '</div>';
+                } catch (e) {
+                    html += '<div class="error">❌ Event inventory is corrupted</div>';
+                }
+            } else {
+                html += '<div class="error">❌ No event inventory found!</div>';
+            }
+            html += '</div>';
+            
+            // Step 3: Calculate what allocated should be
+            html += '<div class="step">';
+            html += '<h3>Step 3: Expected Allocated Calculations</h3>';
+            
+            if (stationQuantities && eventInventory) {
+                try {
+                    const quantities = JSON.parse(stationQuantities);
+                    const inventory = JSON.parse(eventInventory);
+                    
+                    html += '<div class="success">✅ Can calculate allocated amounts</div>';
+                    html += '<table>';
+                    html += '<tr><th>Item</th><th>Total Allocated</th><th>Station Breakdown</th></tr>';
+                    
+                    // For each inventory item, sum up allocations across all stations
+                    Object.keys(inventory).forEach(category => {
+                        const items = inventory[category] || [];
+                        
+                        items.forEach(item => {
+                            let totalAllocated = 0;
+                            let stationBreakdown = [];
+                            
+                            // Check each station
+                            Object.keys(quantities).forEach(stationId => {
+                                const stationData = quantities[stationId];
+                                if (stationData[category] && stationData[category][item.id]) {
+                                    const quantity = stationData[category][item.id].quantity || 0;
+                                    if (quantity > 0) {
+                                        totalAllocated += quantity;
+                                        stationBreakdown.push(`Station ${stationId}: ${quantity}`);
+                                    }
+                                }
+                            });
+                            
+                            if (totalAllocated > 0) {
+                                html += `<tr>`;
+                                html += `<td>${item.name}</td>`;
+                                html += `<td><strong>${totalAllocated}</strong></td>`;
+                                html += `<td>${stationBreakdown.join(', ')}</td>`;
+                                html += `</tr>`;
+                            }
+                        });
+                    });
+                    
+                    html += '</table>';
+                } catch (e) {
+                    html += '<div class="error">❌ Error calculating allocated amounts: ' + e.message + '</div>';
+                }
+            } else {
+                html += '<div class="warning">⚠️ Missing data to calculate allocated amounts</div>';
+            }
+            html += '</div>';
+            
+            results.innerHTML = html;
+        }
+        
+        function showStationQuantities() {
+            const results = document.getElementById('results');
+            let html = '<h3>📊 Current Station Quantities:</h3>';
+            
+            const stationQuantities = localStorage.getItem('station_inventory_quantities');
+            if (stationQuantities) {
+                try {
+                    const quantities = JSON.parse(stationQuantities);
+                    
+                    html += '<table>';
+                    html += '<tr><th>Station</th><th>Category</th><th>Item</th><th>Quantity</th><th>Unit</th></tr>';
+                    
+                    Object.keys(quantities).forEach(stationId => {
+                        const stationData = quantities[stationId];
+                        
+                        Object.keys(stationData).forEach(category => {
+                            const categoryData = stationData[category];
+                            
+                            Object.keys(categoryData).forEach(itemId => {
+                                const itemData = categoryData[itemId];
+                                if (itemData.quantity > 0) {
+                                    html += `<tr>`;
+                                    html += `<td>Station ${stationId}</td>`;
+                                    html += `<td>${category}</td>`;
+                                    html += `<td>${itemId}</td>`;
+                                    html += `<td><strong>${itemData.quantity}</strong></td>`;
+                                    html += `<td>${itemData.unit || 'units'}</td>`;
+                                    html += `</tr>`;
+                                }
+                            });
+                        });
+                    });
+                    
+                    html += '</table>';
+                } catch (e) {
+                    html += '<div class="error">❌ Error parsing station quantities: ' + e.message + '</div>';
+                }
+            } else {
+                html += '<div class="error">❌ No station quantities found!</div>';
+            }
+            
+            results.innerHTML = html;
+        }
+        
+        function calculateAllocated() {
+            const results = document.getElementById('results');
+            let html = '<h3>🧮 Allocated Stock Calculator:</h3>';
+            
+            const stationQuantities = localStorage.getItem('station_inventory_quantities');
+            const eventInventory = localStorage.getItem('event_inventory');
+            
+            if (!stationQuantities || !eventInventory) {
+                html += '<div class="error">❌ Missing required data (station quantities or event inventory)</div>';
+                results.innerHTML = html;
+                return;
+            }
+            
+            try {
+                const quantities = JSON.parse(stationQuantities);
+                const inventory = JSON.parse(eventInventory);
+                
+                // Calculate allocated amounts by item
+                const allocatedByItem = {};
+                
+                // Process each station's quantities
+                Object.keys(quantities).forEach(stationId => {
+                    const stationData = quantities[stationId];
+                    
+                    Object.keys(stationData).forEach(category => {
+                        const categoryData = stationData[category];
+                        
+                        Object.keys(categoryData).forEach(itemId => {
+                            const itemData = categoryData[itemId];
+                            const quantity = itemData.quantity || 0;
+                            
+                            if (quantity > 0) {
+                                if (!allocatedByItem[itemId]) {
+                                    allocatedByItem[itemId] = {
+                                        total: 0,
+                                        unit: itemData.unit || 'units',
+                                        stations: [],
+                                        category: category
+                                    };
+                                }
+                                
+                                allocatedByItem[itemId].total += quantity;
+                                allocatedByItem[itemId].stations.push({
+                                    station: stationId,
+                                    quantity: quantity
+                                });
+                            }
+                        });
+                    });
+                });
+                
+                // Display results
+                html += '<div class="success">✅ Calculated allocated amounts from station quantities</div>';
+                html += '<table>';
+                html += '<tr><th>Item ID</th><th>Category</th><th>Total Allocated</th><th>Unit</th><th>Station Details</th></tr>';
+                
+                Object.keys(allocatedByItem).forEach(itemId => {
+                    const itemData = allocatedByItem[itemId];
+                    const stationDetails = itemData.stations.map(s => `Station ${s.station}: ${s.quantity}`).join(', ');
+                    
+                    html += `<tr>`;
+                    html += `<td>${itemId}</td>`;
+                    html += `<td>${itemData.category}</td>`;
+                    html += `<td><strong>${itemData.total} ${itemData.unit}</strong></td>`;
+                    html += `<td>${itemData.unit}</td>`;
+                    html += `<td>${stationDetails}</td>`;
+                    html += `</tr>`;
+                });
+                
+                html += '</table>';
+                
+                // Store calculated allocated amounts for Event Stock to use
+                const allocatedKey = 'calculated_allocated_stock';
+                localStorage.setItem(allocatedKey, JSON.stringify(allocatedByItem));
+                
+                html += '<div class="success">💾 Saved calculated allocated amounts to localStorage key: ' + allocatedKey + '</div>';
+                html += '<div class="warning">🔄 The Event Stock component should read from this key to display allocated amounts</div>';
+                
+            } catch (e) {
+                html += '<div class="error">❌ Error calculating allocated amounts: ' + e.message + '</div>';
+            }
+            
+            results.innerHTML = html;
+        }
+        
+        function simulateQuantityUpdate() {
+            const results = document.getElementById('results');
+            let html = '<h3>🧪 Simulate Quantity Update:</h3>';
+            
+            // Simulate adding a quantity for milk_1 at station 1
+            const stationId = '1';
+            const category = 'milk';
+            const itemId = 'milk_1';
+            const quantity = 15;
+            const unit = 'L';
+            
+            // Get or create station quantities
+            let stationQuantities = {};
+            const existingQuantities = localStorage.getItem('station_inventory_quantities');
+            if (existingQuantities) {
+                try {
+                    stationQuantities = JSON.parse(existingQuantities);
+                } catch (e) {
+                    html += '<div class="warning">⚠️ Existing quantities corrupted, creating new</div>';
+                }
+            }
+            
+            // Ensure structure exists
+            if (!stationQuantities[stationId]) {
+                stationQuantities[stationId] = {};
+            }
+            if (!stationQuantities[stationId][category]) {
+                stationQuantities[stationId][category] = {};
+            }
+            
+            // Set the quantity
+            stationQuantities[stationId][category][itemId] = {
+                quantity: quantity,
+                unit: unit
+            };
+            
+            // Save back to localStorage
+            localStorage.setItem('station_inventory_quantities', JSON.stringify(stationQuantities));
+            
+            html += '<div class="success">✅ Simulated setting quantity for ' + itemId + ' at Station ' + stationId + ': ' + quantity + ' ' + unit + '</div>';
+            html += '<div class="data">Updated station_inventory_quantities structure</div>';
+            
+            // Now recalculate allocated
+            setTimeout(() => {
+                calculateAllocated();
+            }, 100);
+            
+            results.innerHTML = html;
+        }
+        
+        // Auto-run on load
+        window.onload = () => {
+            debugDataFlow();
+        };
+    </script>
+</body>
+</html>

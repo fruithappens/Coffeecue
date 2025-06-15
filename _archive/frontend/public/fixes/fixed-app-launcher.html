@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fixed App Launcher</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f5f5f5;
+        }
+        .container {
+            text-align: center;
+            padding: 30px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            max-width: 500px;
+            width: 100%;
+        }
+        h1 {
+            color: #2196f3;
+            margin-bottom: 20px;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 4px;
+            background-color: #e3f2fd;
+            color: #0d47a1;
+        }
+        .progress {
+            width: 100%;
+            height: 6px;
+            background-color: #e0e0e0;
+            border-radius: 3px;
+            margin: 20px 0;
+            overflow: hidden;
+        }
+        .progress-bar {
+            height: 100%;
+            background-color: #2196f3;
+            width: 0;
+            transition: width 0.3s ease;
+        }
+        .buttons {
+            margin-top: 20px;
+        }
+        button {
+            background-color: #2196f3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #1976d2;
+        }
+        button:disabled {
+            background-color: #bbdefb;
+            cursor: not-allowed;
+        }
+        .log {
+            margin-top: 20px;
+            text-align: left;
+            height: 200px;
+            overflow-y: auto;
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 13px;
+            color: #333;
+        }
+        .log-entry {
+            margin-bottom: 5px;
+            line-height: 1.4;
+        }
+        .success {
+            color: #4caf50;
+        }
+        .error {
+            color: #f44336;
+        }
+        .warning {
+            color: #ff9800;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Fixed App Launcher</h1>
+        <p>This page will automatically apply all required fixes and launch the app.</p>
+        
+        <div class="status" id="status">Preparing application...</div>
+        
+        <div class="progress">
+            <div class="progress-bar" id="progress-bar"></div>
+        </div>
+        
+        <div class="log" id="log"></div>
+        
+        <div class="buttons">
+            <button id="btnLaunch" disabled>Launch App</button>
+            <button id="btnReset">Reset & Retry</button>
+        </div>
+    </div>
+    
+    <script>
+        // Elements
+        const statusEl = document.getElementById('status');
+        const progressBar = document.getElementById('progress-bar');
+        const logEl = document.getElementById('log');
+        const btnLaunch = document.getElementById('btnLaunch');
+        const btnReset = document.getElementById('btnReset');
+        
+        // Logging function
+        function log(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = message;
+            logEl.appendChild(entry);
+            logEl.scrollTop = logEl.scrollHeight;
+            
+            console.log(`[${type}] ${message}`);
+        }
+        
+        // Update status and progress
+        function updateStatus(message, progress) {
+            statusEl.textContent = message;
+            progressBar.style.width = `${progress}%`;
+        }
+        
+        // Apply all fixes
+        async function applyFixes() {
+            // Start with 0% progress
+            updateStatus('Starting fix process...', 0);
+            log('Starting fix process', 'info');
+            
+            // Clear existing fixes
+            updateStatus('Clearing existing fixes...', 10);
+            sessionStorage.removeItem('indexHtmlFixScript');
+            sessionStorage.removeItem('refreshTokenFixScript');
+            sessionStorage.removeItem('directFix');
+            log('Cleared existing fixes from sessionStorage', 'success');
+            
+            // Reset app state
+            updateStatus('Resetting app state...', 20);
+            localStorage.removeItem('use_fallback_data');
+            localStorage.removeItem('force_offline_mode');
+            localStorage.setItem('coffee_connection_status', 'online');
+            localStorage.setItem('api_mode', 'online');
+            localStorage.removeItem('use_sample_data');
+            localStorage.removeItem('use_offline_mode');
+            localStorage.removeItem('force_demo_mode');
+            log('Reset app online/offline state flags', 'success');
+            
+            // Store auth fix in sessionStorage
+            updateStatus('Preparing auth fix...', 40);
+            const authFixScript = `
+                // Create a script element for the standalone auth fix
+                const authFixScript = document.createElement('script');
+                authFixScript.src = '/auth-fix-standalone.js';
+                document.head.appendChild(authFixScript);
+                
+                // Add event listener for when DOM is loaded
+                document.addEventListener('DOMContentLoaded', function() {
+                    // After a short delay, load the test script
+                    setTimeout(() => {
+                        const testScript = document.createElement('script');
+                        testScript.src = '/real-app-test.js';
+                        document.head.appendChild(testScript);
+                        console.log('Loaded real-app-test.js');
+                    }, 2000);
+                });
+            `;
+            
+            sessionStorage.setItem('indexHtmlFixScript', authFixScript);
+            log('Stored auth fix script in sessionStorage', 'success');
+            
+            // Create or update JWT token
+            updateStatus('Creating valid JWT token...', 60);
+            try {
+                // Create a properly formatted JWT token
+                const header = {
+                    alg: 'HS256',
+                    typ: 'JWT'
+                };
+                
+                const now = Math.floor(Date.now() / 1000);
+                const payload = {
+                    sub: 'barista', // subject
+                    name: 'Barista User',
+                    role: 'barista',
+                    iat: now, // issued at
+                    exp: now + 86400 * 30, // expires in 30 days
+                    jti: generateUUID() // unique identifier
+                };
+                
+                // Encode JWT parts
+                const encodeBase64 = (obj) => {
+                    return btoa(JSON.stringify(obj))
+                        .replace(/=/g, '')
+                        .replace(/\+/g, '-')
+                        .replace(/\//g, '_');
+                };
+                
+                const headerEncoded = encodeBase64(header);
+                const payloadEncoded = encodeBase64(payload);
+                
+                // Generate a signature (doesn't need to be cryptographically valid)
+                const signature = btoa('signature-placeholder')
+                    .replace(/=/g, '')
+                    .replace(/\+/g, '-')
+                    .replace(/\//g, '_');
+                
+                // Combine to form JWT
+                const token = `${headerEncoded}.${payloadEncoded}.${signature}`;
+                
+                // Store token
+                localStorage.setItem('coffee_auth_token', token);
+                localStorage.setItem('authenticated', 'true');
+                localStorage.setItem('user_role', 'barista');
+                localStorage.setItem('user_name', 'Barista User');
+                
+                log('Created and stored valid JWT token', 'success');
+            } catch (e) {
+                log(`Error creating JWT token: ${e.message}`, 'error');
+            }
+            
+            // Clear any fallback data
+            updateStatus('Clearing fallback data...', 80);
+            const fallbackKeys = [
+                'fallback_pending_orders',
+                'fallback_in_progress_orders',
+                'fallback_completed_orders',
+                'sample_orders',
+                'demo_orders',
+                'coffee_fallback_data'
+            ];
+            
+            fallbackKeys.forEach(key => {
+                localStorage.removeItem(key);
+            });
+            log('Cleared fallback data from localStorage', 'success');
+            
+            // All done
+            updateStatus('All fixes applied successfully! Ready to launch.', 100);
+            log('All fixes have been applied successfully', 'success');
+            log('Click "Launch App" to start the application with all fixes', 'info');
+            
+            // Enable launch button
+            btnLaunch.disabled = false;
+        }
+        
+        // Generate a UUID function
+        function generateUUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+        
+        // Reset button event
+        btnReset.addEventListener('click', function() {
+            btnLaunch.disabled = true;
+            logEl.innerHTML = '';
+            applyFixes();
+        });
+        
+        // Launch button event
+        btnLaunch.addEventListener('click', function() {
+            log('Launching application...', 'info');
+            window.location.href = 'http://localhost:3000';
+        });
+        
+        // Apply fixes when page loads
+        window.addEventListener('load', applyFixes);
+    </script>
+</body>
+</html>

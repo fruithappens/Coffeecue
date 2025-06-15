@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real API Test</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #2196f3;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+        .card {
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .warning-box {
+            background-color: #fff3e0;
+            border-left: 4px solid #ff9800;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+        .button {
+            display: inline-block;
+            background-color: #2196f3;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 4px;
+            text-decoration: none;
+            margin-right: 10px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            border: none;
+            font-size: 16px;
+        }
+        .button.primary {
+            background-color: #4caf50;
+            font-weight: bold;
+        }
+        .message {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+            display: none;
+        }
+        .message.success {
+            border-left: 4px solid #4caf50;
+            background-color: #e8f5e9;
+            color: #2e7d32;
+        }
+        .message.error {
+            border-left: 4px solid #f44336;
+            background-color: #ffebee;
+            color: #c62828;
+        }
+        .code-block {
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            overflow-x: auto;
+        }
+        .steps {
+            counter-reset: step;
+            padding-left: 0;
+        }
+        .step {
+            list-style-type: none;
+            position: relative;
+            padding-left: 40px;
+            margin-bottom: 20px;
+        }
+        .step::before {
+            counter-increment: step;
+            content: counter(step);
+            position: absolute;
+            left: 0;
+            top: 0;
+            background-color: #2196f3;
+            color: white;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 28px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>Real API Test</h1>
+    
+    <div class="warning-box">
+        <strong>Important:</strong> This tool fixes your application to use real API data instead of fallback data. It removes the API blocking code in fix-auth.js that is currently preventing your app from making real API calls.
+    </div>
+    
+    <div class="card">
+        <h2>The Problem</h2>
+        <p>Your application is showing:</p>
+        <ul>
+            <li><strong>API blocked by fix-auth.js</strong> errors in the console</li>
+            <li>Failure to connect to the real backend API</li>
+            <li>Forcing the use of fallback/sample data</li>
+        </ul>
+        <p>The testing script has detected that fix-auth.js is <strong>deliberately blocking</strong> all API calls to prevent 422 errors, but this is forcing the app to use fallback data.</p>
+    </div>
+    
+    <div class="card">
+        <h2>The Solution</h2>
+        <p>This tool will:</p>
+        <ol class="steps">
+            <li class="step">Remove the API blocking code in fix-auth.js</li>
+            <li class="step">Restore the original fetch and XMLHttpRequest functions for API calls</li>
+            <li class="step">Clear all fallback data from localStorage</li>
+            <li class="step">Ensure authentication works correctly with a valid JWT token</li>
+            <li class="step">Launch the app with real API connectivity</li>
+        </ol>
+    </div>
+    
+    <div id="success-message" class="message success">
+        Fixes applied successfully! Launch the app to test with real API data.
+    </div>
+    
+    <div id="error-message" class="message error">
+        An error occurred while applying fixes. Please try again.
+    </div>
+    
+    <div class="card">
+        <h2>Options</h2>
+        <button id="apply-fixes" class="button">Apply Fixes</button>
+        <button id="launch-app" class="button primary">Launch App with Fixes</button>
+        <button id="reset-app" class="button">Reset App State</button>
+    </div>
+    
+    <div class="card">
+        <h2>Manual Fix Instructions</h2>
+        <p>If the automatic fix doesn't work, you can manually apply the fix:</p>
+        <ol class="steps">
+            <li class="step">
+                <p>Go to your app at <a href="http://localhost:3000" target="_blank">http://localhost:3000</a></p>
+            </li>
+            <li class="step">
+                <p>Open your browser's developer console (F12 or Ctrl+Shift+J)</p>
+            </li>
+            <li class="step">
+                <p>Paste and run the following code:</p>
+                <div class="code-block">
+// Remove API blocking
+const removeAPIBlocking = document.createElement('script');
+removeAPIBlocking.src = '/remove-api-block.js';
+document.head.appendChild(removeAPIBlocking);
+
+// Wait for it to apply
+setTimeout(() => {
+  // Fix auth issues
+  const authFix = document.createElement('script');
+  authFix.src = '/auth-fix-standalone.js';
+  document.head.appendChild(authFix);
+  
+  // Wait for that to apply
+  setTimeout(() => {
+    // Run the test
+    const testScript = document.createElement('script');
+    testScript.src = '/real-app-test.js';
+    document.head.appendChild(testScript);
+  }, 1000);
+}, 1000);
+                </div>
+            </li>
+            <li class="step">
+                <p>Reload the page and look for the testing panel in the top-right corner</p>
+            </li>
+        </ol>
+    </div>
+    
+    <script>
+        // Elements
+        const successMessage = document.getElementById('success-message');
+        const errorMessage = document.getElementById('error-message');
+        const applyFixesBtn = document.getElementById('apply-fixes');
+        const launchAppBtn = document.getElementById('launch-app');
+        const resetAppBtn = document.getElementById('reset-app');
+        
+        // Apply fixes
+        function applyFixes() {
+            try {
+                // Clear fallback data
+                const fallbackKeys = [
+                    'fallback_pending_orders',
+                    'fallback_in_progress_orders',
+                    'fallback_completed_orders',
+                    'sample_orders',
+                    'demo_orders',
+                    'coffee_fallback_data'
+                ];
+                
+                fallbackKeys.forEach(key => localStorage.removeItem(key));
+                
+                // Clear fallback flags
+                localStorage.removeItem('use_fallback_data');
+                localStorage.removeItem('force_offline_mode');
+                localStorage.removeItem('use_sample_data');
+                localStorage.removeItem('use_offline_mode');
+                localStorage.removeItem('force_demo_mode');
+                localStorage.setItem('coffee_connection_status', 'online');
+                localStorage.setItem('api_mode', 'online');
+                
+                // Store scripts in sessionStorage to apply when the app loads
+                const fixScript = `
+                    // Remove API blocking first
+                    const removeAPIBlocking = document.createElement('script');
+                    removeAPIBlocking.src = '/remove-api-block.js';
+                    document.head.appendChild(removeAPIBlocking);
+                    
+                    // Then fix auth issues
+                    setTimeout(() => {
+                        const authFix = document.createElement('script');
+                        authFix.src = '/auth-fix-standalone.js';
+                        document.head.appendChild(authFix);
+                        
+                        // Then run the test
+                        setTimeout(() => {
+                            const testScript = document.createElement('script');
+                            testScript.src = '/real-app-test.js';
+                            document.head.appendChild(testScript);
+                        }, 1000);
+                    }, 1000);
+                `;
+                
+                sessionStorage.setItem('indexHtmlFixScript', fixScript);
+                
+                // Create JWT token
+                const header = {
+                    alg: 'HS256',
+                    typ: 'JWT'
+                };
+                
+                const now = Math.floor(Date.now() / 1000);
+                const payload = {
+                    sub: 'barista',
+                    name: 'Barista User',
+                    role: 'barista',
+                    iat: now,
+                    exp: now + 86400 * 30,
+                    jti: generateUUID()
+                };
+                
+                // Encode JWT parts
+                const encodeBase64 = (obj) => {
+                    return btoa(JSON.stringify(obj))
+                        .replace(/=/g, '')
+                        .replace(/\+/g, '-')
+                        .replace(/\//g, '_');
+                };
+                
+                const headerEncoded = encodeBase64(header);
+                const payloadEncoded = encodeBase64(payload);
+                
+                // Generate a signature
+                const signature = btoa('signature-placeholder')
+                    .replace(/=/g, '')
+                    .replace(/\+/g, '-')
+                    .replace(/\//g, '_');
+                
+                // Combine to form JWT
+                const token = `${headerEncoded}.${payloadEncoded}.${signature}`;
+                
+                // Store token
+                localStorage.setItem('coffee_auth_token', token);
+                localStorage.setItem('authenticated', 'true');
+                localStorage.setItem('user_role', 'barista');
+                localStorage.setItem('user_name', 'Barista User');
+                
+                // Show success message
+                successMessage.style.display = 'block';
+                errorMessage.style.display = 'none';
+            } catch (error) {
+                console.error('Error applying fixes:', error);
+                successMessage.style.display = 'none';
+                errorMessage.style.display = 'block';
+                errorMessage.textContent = `Error applying fixes: ${error.message}`;
+            }
+        }
+        
+        // Generate UUID for token
+        function generateUUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+        
+        // Reset app
+        function resetApp() {
+            // Clear localStorage
+            localStorage.clear();
+            
+            // Clear sessionStorage fixes
+            sessionStorage.removeItem('indexHtmlFixScript');
+            sessionStorage.removeItem('refreshTokenFixScript');
+            sessionStorage.removeItem('directFix');
+            
+            // Show message
+            successMessage.style.display = 'block';
+            errorMessage.style.display = 'none';
+            successMessage.textContent = 'App state reset successfully!';
+        }
+        
+        // Button event listeners
+        applyFixesBtn.addEventListener('click', applyFixes);
+        
+        launchAppBtn.addEventListener('click', function() {
+            applyFixes();
+            setTimeout(() => {
+                window.location.href = 'http://localhost:3000';
+            }, 500);
+        });
+        
+        resetAppBtn.addEventListener('click', resetApp);
+    </script>
+</body>
+</html>

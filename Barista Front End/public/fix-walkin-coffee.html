@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fix Walk-in Coffee Types</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+        .container { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
+        button { padding: 15px 30px; margin: 10px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; }
+        button:hover { background: #218838; }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+        .info { background: #f0f8ff; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        .warning { background: #fff3cd; padding: 15px; border-radius: 5px; margin: 10px 0; color: #856404; }
+    </style>
+</head>
+<body>
+    <h1>Fix Walk-in Coffee Types</h1>
+    
+    <div class="info">
+        <strong>Quick Fix for Coffee Types</strong><br>
+        This will ensure your coffee menu properly reflects available drinks based on inventory.
+    </div>
+    
+    <div class="warning">
+        <strong>Current Issue:</strong> Walk-in orders show hardcoded coffee types instead of your actual menu.
+    </div>
+    
+    <button onclick="fixCoffeeMenu()">🔧 Fix Coffee Menu</button>
+    <button onclick="setupSampleMenu()">📋 Setup Sample Menu</button>
+    
+    <div id="output"></div>
+
+    <script>
+        function fixCoffeeMenu() {
+            const output = document.getElementById('output');
+            output.innerHTML = '<h2>Fixing Coffee Menu...</h2>';
+            
+            try {
+                // Get current coffee menu or create new one
+                let coffeeMenu = JSON.parse(localStorage.getItem('coffeeMenu') || '{}');
+                
+                // If empty, set up default menu
+                if (Object.keys(coffeeMenu).length === 0) {
+                    coffeeMenu = {
+                        'espresso': { id: 'espresso', name: 'Espresso', category: 'espresso-based', enabled: true, requiresMilk: false },
+                        'long_black': { id: 'long_black', name: 'Long Black', category: 'espresso-based', enabled: true, requiresMilk: false },
+                        'flat_white': { id: 'flat_white', name: 'Flat White', category: 'milk-based', enabled: true, requiresMilk: true },
+                        'cappuccino': { id: 'cappuccino', name: 'Cappuccino', category: 'milk-based', enabled: true, requiresMilk: true },
+                        'latte': { id: 'latte', name: 'Latte', category: 'milk-based', enabled: true, requiresMilk: true },
+                        'mocha': { id: 'mocha', name: 'Mocha', category: 'milk-based', enabled: true, requiresMilk: true }
+                    };
+                    
+                    output.innerHTML += '<p class="success">Created default coffee menu</p>';
+                } else {
+                    output.innerHTML += '<p>Found existing coffee menu with ' + Object.keys(coffeeMenu).length + ' items</p>';
+                }
+                
+                // Save coffee menu
+                localStorage.setItem('coffeeMenu', JSON.stringify(coffeeMenu));
+                
+                // Set up station menu assignments for all stations
+                const stations = JSON.parse(localStorage.getItem('stations') || '[]');
+                let stationMenuAssignments = JSON.parse(localStorage.getItem('stationMenuAssignments') || '{}');
+                
+                stations.forEach(station => {
+                    if (!stationMenuAssignments[station.id]) {
+                        stationMenuAssignments[station.id] = {};
+                    }
+                    
+                    // Enable all drinks for each station by default
+                    Object.keys(coffeeMenu).forEach(drinkId => {
+                        if (!stationMenuAssignments[station.id][drinkId]) {
+                            stationMenuAssignments[station.id][drinkId] = { enabled: true };
+                        }
+                    });
+                    
+                    output.innerHTML += `<p>Enabled menu items for Station ${station.id}</p>`;
+                });
+                
+                localStorage.setItem('stationMenuAssignments', JSON.stringify(stationMenuAssignments));
+                
+                output.innerHTML += '<h3 class="success">✅ Coffee menu fixed!</h3>';
+                output.innerHTML += '<p>The walk-in order dialog should now show your actual coffee menu.</p>';
+                
+            } catch (error) {
+                output.innerHTML += `<p class="error">Error: ${error.message}</p>`;
+            }
+        }
+        
+        function setupSampleMenu() {
+            const output = document.getElementById('output');
+            output.innerHTML = '<h2>Setting Up Sample Menu...</h2>';
+            
+            try {
+                // Create a comprehensive coffee menu
+                const coffeeMenu = {
+                    // Espresso-based drinks
+                    'espresso': { id: 'espresso', name: 'Espresso', category: 'espresso-based', enabled: true, requiresMilk: false, customizable: { decaf: true } },
+                    'double_espresso': { id: 'double_espresso', name: 'Double Espresso', category: 'espresso-based', enabled: true, requiresMilk: false, customizable: { decaf: true } },
+                    'long_black': { id: 'long_black', name: 'Long Black', category: 'espresso-based', enabled: true, requiresMilk: false, customizable: { decaf: true } },
+                    'americano': { id: 'americano', name: 'Americano', category: 'espresso-based', enabled: true, requiresMilk: false, customizable: { decaf: true } },
+                    
+                    // Milk-based drinks
+                    'flat_white': { id: 'flat_white', name: 'Flat White', category: 'milk-based', enabled: true, requiresMilk: true, customizable: { decaf: true } },
+                    'cappuccino': { id: 'cappuccino', name: 'Cappuccino', category: 'milk-based', enabled: true, requiresMilk: true, customizable: { decaf: true } },
+                    'latte': { id: 'latte', name: 'Latte', category: 'milk-based', enabled: true, requiresMilk: true, customizable: { decaf: true } },
+                    'mocha': { id: 'mocha', name: 'Mocha', category: 'milk-based', enabled: true, requiresMilk: true, customizable: { decaf: true } },
+                    'macchiato': { id: 'macchiato', name: 'Macchiato', category: 'milk-based', enabled: true, requiresMilk: true, customizable: { decaf: true } },
+                    
+                    // Non-coffee drinks
+                    'hot_chocolate': { id: 'hot_chocolate', name: 'Hot Chocolate', category: 'non-coffee', enabled: true, requiresMilk: true },
+                    'chai_latte': { id: 'chai_latte', name: 'Chai Latte', category: 'non-coffee', enabled: true, requiresMilk: true },
+                    'matcha_latte': { id: 'matcha_latte', name: 'Matcha Latte', category: 'non-coffee', enabled: true, requiresMilk: true }
+                };
+                
+                localStorage.setItem('coffeeMenu', JSON.stringify(coffeeMenu));
+                output.innerHTML += '<p class="success">Created comprehensive coffee menu with ' + Object.keys(coffeeMenu).length + ' drinks</p>';
+                
+                // Enable for all stations
+                const stations = JSON.parse(localStorage.getItem('stations') || '[]');
+                let stationMenuAssignments = {};
+                
+                stations.forEach(station => {
+                    stationMenuAssignments[station.id] = {};
+                    Object.keys(coffeeMenu).forEach(drinkId => {
+                        stationMenuAssignments[station.id][drinkId] = { enabled: true };
+                    });
+                });
+                
+                localStorage.setItem('stationMenuAssignments', JSON.stringify(stationMenuAssignments));
+                
+                output.innerHTML += '<h3 class="success">✅ Sample menu created!</h3>';
+                output.innerHTML += '<h4>Menu includes:</h4>';
+                output.innerHTML += '<ul>';
+                output.innerHTML += '<li>Espresso-based: Espresso, Double Espresso, Long Black, Americano</li>';
+                output.innerHTML += '<li>Milk-based: Flat White, Cappuccino, Latte, Mocha, Macchiato</li>';
+                output.innerHTML += '<li>Non-coffee: Hot Chocolate, Chai Latte, Matcha Latte</li>';
+                output.innerHTML += '</ul>';
+                output.innerHTML += '<p>All drinks enabled for all stations. You can customize in the Organiser interface.</p>';
+                
+            } catch (error) {
+                output.innerHTML += `<p class="error">Error: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

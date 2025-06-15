@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}Scan Order - Expresso Coffee System{% endblock %}
+
+{% block head %}
+{{ super() }}
+<style>
+    .scan-container {
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+    .scan-options {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        margin-top: 20px;
+    }
+    .manual-entry {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 20px;
+        margin-top: 20px;
+    }
+    .btn-scan {
+        background-color: #28a745;
+        color: white;
+        font-weight: bold;
+    }
+    .btn-back {
+        margin-right: 10px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container scan-container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Scan Order QR Code</h1>
+        <a href="{{ url_for('barista.barista_view') }}" class="btn btn-outline-secondary btn-back">
+            <i class="fas fa-arrow-left"></i> Back to Orders
+        </a>
+    </div>
+
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle"></i> 
+        Scan a customer's QR code or enter the order number manually to view and update order details.
+    </div>
+
+    <div class="scan-options">
+        <div class="text-center">
+            <button id="startScan" class="btn btn-lg btn-scan">
+                <i class="fas fa-qrcode"></i> Start Camera Scan
+            </button>
+        </div>
+        
+        <div id="reader" style="display: none; width: 100%"></div>
+        
+        <div class="manual-entry">
+            <h4>Manual Entry</h4>
+            <form method="POST" action="{{ url_for('barista.scan_code') }}">
+                <div class="form-group">
+                    <label for="orderCode">Order Code/Number:</label>
+                    <input type="text" class="form-control" id="orderCode" name="order_code" 
+                           placeholder="Enter order number or scan code" required>
+                    <small class="form-text text-muted">Enter the order number (e.g., ORD12345) or the full QR code text.</small>
+                </div>
+                <button type="submit" class="btn btn-primary mt-3">
+                    <i class="fas fa-search"></i> Find Order
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% block scripts %}
+{{ super() }}
+<script src="https://unpkg.com/html5-qrcode@2.0.9/dist/html5-qrcode.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const startScanButton = document.getElementById('startScan');
+        const readerDiv = document.getElementById('reader');
+        let html5QrCode;
+
+        startScanButton.addEventListener('click', function() {
+            readerDiv.style.display = 'block';
+            startScanButton.style.display = 'none';
+            
+            html5QrCode = new Html5Qrcode("reader");
+            const qrCodeSuccessCallback = (decodedText, decodedResult) => {
+                console.log(`QR Code detected: ${decodedText}`);
+                html5QrCode.stop();
+                
+                // Extract order number from QR code text
+                let orderNumber = decodedText;
+                if (orderNumber.includes('/')) {
+                    orderNumber = orderNumber.split('/').pop();
+                }
+                if (orderNumber.startsWith('ORDER:')) {
+                    orderNumber = orderNumber.substring(6);
+                }
+                
+                // Redirect to order details page
+                window.location.href = `{{ url_for('barista.order_details', order_number='PLACEHOLDER') }}`.replace('PLACEHOLDER', orderNumber);
+            };
+            
+            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+            
+            html5QrCode.start(
+                { facingMode: "environment" }, 
+                config, 
+                qrCodeSuccessCallback
+            ).catch(err => {
+                console.error(`QR Code scanning failed: ${err}`);
+                alert('Could not start camera: ' + err);
+                readerDiv.style.display = 'none';
+                startScanButton.style.display = 'block';
+            });
+        });
+    });
+</script>
+{% endblock %}
+{% endblock %}

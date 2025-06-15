@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fix Stock Display - Simple</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .success {
+            color: green;
+            font-weight: bold;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+        .info {
+            color: blue;
+        }
+        button {
+            padding: 15px 30px;
+            margin: 10px 0;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            background: #4CAF50;
+            color: white;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        pre {
+            background: #f0f0f0;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Fix Stock Display Issue</h1>
+        
+        <p>This tool will fix the stock display issue by ensuring the stock data matches your current station.</p>
+        
+        <div id="status"></div>
+        
+        <button onclick="fixStockDisplay()">Fix Stock Display Now</button>
+        
+        <div id="result"></div>
+    </div>
+
+    <script>
+        function fixStockDisplay() {
+            const statusDiv = document.getElementById('status');
+            const resultDiv = document.getElementById('result');
+            
+            statusDiv.innerHTML = '<p class="info">Analyzing stock data...</p>';
+            
+            // Get current station
+            const selectedStation = localStorage.getItem('selectedStation') || '1';
+            const stationName = localStorage.getItem('stationName') || 'Coffee Station';
+            
+            statusDiv.innerHTML += `<p>Current station: ${stationName} (ID: ${selectedStation})</p>`;
+            
+            // Find any existing stock data
+            let foundStockData = null;
+            let foundStockKey = null;
+            
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith('coffee_stock_station_')) {
+                    try {
+                        const data = localStorage.getItem(key);
+                        if (data) {
+                            foundStockData = JSON.parse(data);
+                            foundStockKey = key;
+                            break;
+                        }
+                    } catch (e) {
+                        console.error('Error parsing stock data:', e);
+                    }
+                }
+            }
+            
+            const correctKey = `coffee_stock_station_${selectedStation}`;
+            
+            if (foundStockData && foundStockKey !== correctKey) {
+                // Copy the data to the correct key
+                localStorage.setItem(correctKey, JSON.stringify(foundStockData));
+                
+                // Remove the old key
+                if (foundStockKey !== correctKey) {
+                    localStorage.removeItem(foundStockKey);
+                }
+                
+                resultDiv.innerHTML = `
+                    <h2 class="success">✓ Stock Display Fixed!</h2>
+                    <p>Stock data has been migrated from <code>${foundStockKey}</code> to <code>${correctKey}</code></p>
+                    <p><strong>Next steps:</strong></p>
+                    <ol>
+                        <li>Go back to the Barista interface</li>
+                        <li>Refresh the page (press F5 or Cmd+R)</li>
+                        <li>Click on the Stock tab</li>
+                        <li>You should now see your stock items!</li>
+                    </ol>
+                `;
+            } else if (foundStockKey === correctKey) {
+                resultDiv.innerHTML = `
+                    <h2 class="info">Stock data is already correctly configured</h2>
+                    <p>The stock data key matches your current station.</p>
+                    <p>If you're still not seeing stock items, try:</p>
+                    <ol>
+                        <li>Refresh the Barista interface page</li>
+                        <li>Make sure you're on the correct station</li>
+                        <li>Check the browser console for any errors</li>
+                    </ol>
+                `;
+            } else {
+                // No stock data found, create default data
+                const defaultStock = {
+                    milk: [
+                        { id: 'milk_regular', name: 'Regular Milk', amount: 20, capacity: 20, unit: 'L', status: 'good', lowThreshold: 5, criticalThreshold: 2 },
+                        { id: 'milk_skim', name: 'Skim Milk', amount: 10, capacity: 10, unit: 'L', status: 'good', lowThreshold: 3, criticalThreshold: 1 },
+                        { id: 'milk_almond', name: 'Almond Milk', amount: 5, capacity: 5, unit: 'L', status: 'good', lowThreshold: 2, criticalThreshold: 1 },
+                        { id: 'milk_soy', name: 'Soy Milk', amount: 5, capacity: 5, unit: 'L', status: 'good', lowThreshold: 2, criticalThreshold: 1 }
+                    ],
+                    coffee: [
+                        { id: 'coffee_house', name: 'House Blend', amount: 5, capacity: 5, unit: 'kg', status: 'good', lowThreshold: 1.5, criticalThreshold: 0.5 },
+                        { id: 'coffee_dark', name: 'Dark Roast', amount: 3, capacity: 3, unit: 'kg', status: 'good', lowThreshold: 1, criticalThreshold: 0.3 },
+                        { id: 'coffee_decaf', name: 'Decaf Blend', amount: 2, capacity: 2, unit: 'kg', status: 'good', lowThreshold: 0.5, criticalThreshold: 0.2 }
+                    ],
+                    cups: [
+                        { id: 'cups_small', name: 'Small Cups', amount: 200, capacity: 200, unit: 'pcs', status: 'good', lowThreshold: 50, criticalThreshold: 20 },
+                        { id: 'cups_medium', name: 'Medium Cups', amount: 200, capacity: 200, unit: 'pcs', status: 'good', lowThreshold: 50, criticalThreshold: 20 },
+                        { id: 'cups_large', name: 'Large Cups', amount: 100, capacity: 100, unit: 'pcs', status: 'good', lowThreshold: 30, criticalThreshold: 10 }
+                    ],
+                    syrups: [
+                        { id: 'syrup_vanilla', name: 'Vanilla Syrup', amount: 2, capacity: 2, unit: 'L', status: 'good', lowThreshold: 0.5, criticalThreshold: 0.2 },
+                        { id: 'syrup_caramel', name: 'Caramel Syrup', amount: 2, capacity: 2, unit: 'L', status: 'good', lowThreshold: 0.5, criticalThreshold: 0.2 },
+                        { id: 'syrup_hazelnut', name: 'Hazelnut Syrup', amount: 1, capacity: 1, unit: 'L', status: 'good', lowThreshold: 0.3, criticalThreshold: 0.1 }
+                    ],
+                    sweeteners: [
+                        { id: 'sugar_white', name: 'White Sugar', amount: 5, capacity: 5, unit: 'kg', status: 'good', lowThreshold: 1, criticalThreshold: 0.5 },
+                        { id: 'sugar_brown', name: 'Brown Sugar', amount: 3, capacity: 3, unit: 'kg', status: 'good', lowThreshold: 0.8, criticalThreshold: 0.3 },
+                        { id: 'sweetener_packets', name: 'Sweetener Packets', amount: 500, capacity: 500, unit: 'pcs', status: 'good', lowThreshold: 100, criticalThreshold: 50 },
+                        { id: 'honey', name: 'Honey', amount: 2, capacity: 2, unit: 'L', status: 'good', lowThreshold: 0.5, criticalThreshold: 0.2 }
+                    ],
+                    drinks: [
+                        { id: 'hot_chocolate_powder', name: 'Hot Chocolate Powder', amount: 3, capacity: 3, unit: 'kg', status: 'good', lowThreshold: 0.8, criticalThreshold: 0.3 },
+                        { id: 'chai_latte_mix', name: 'Chai Latte Mix', amount: 2, capacity: 2, unit: 'kg', status: 'good', lowThreshold: 0.5, criticalThreshold: 0.2 },
+                        { id: 'matcha_powder', name: 'Matcha Powder', amount: 1, capacity: 1, unit: 'kg', status: 'good', lowThreshold: 0.3, criticalThreshold: 0.1 }
+                    ],
+                    other: [
+                        { id: 'napkins', name: 'Napkins', amount: 1000, capacity: 1000, unit: 'pcs', status: 'good', lowThreshold: 200, criticalThreshold: 100 }
+                    ]
+                };
+                
+                localStorage.setItem(correctKey, JSON.stringify(defaultStock));
+                
+                resultDiv.innerHTML = `
+                    <h2 class="success">✓ Stock Data Created!</h2>
+                    <p>No existing stock data was found, so default stock data has been created.</p>
+                    <p><strong>Next steps:</strong></p>
+                    <ol>
+                        <li>Go back to the Barista interface</li>
+                        <li>Refresh the page (press F5 or Cmd+R)</li>
+                        <li>Click on the Stock tab</li>
+                        <li>You should now see the default stock items!</li>
+                    </ol>
+                `;
+            }
+            
+            // Show the final stock data
+            const finalData = localStorage.getItem(correctKey);
+            if (finalData) {
+                try {
+                    const stockData = JSON.parse(finalData);
+                    let summary = '<h3>Stock Summary:</h3><ul>';
+                    Object.keys(stockData).forEach(category => {
+                        if (Array.isArray(stockData[category])) {
+                            summary += `<li><strong>${category}:</strong> ${stockData[category].length} items</li>`;
+                        }
+                    });
+                    summary += '</ul>';
+                    resultDiv.innerHTML += summary;
+                } catch (e) {
+                    console.error('Error showing summary:', e);
+                }
+            }
+        }
+        
+        // Auto-run on page load
+        window.onload = function() {
+            const statusDiv = document.getElementById('status');
+            const selectedStation = localStorage.getItem('selectedStation');
+            const stationName = localStorage.getItem('stationName');
+            
+            if (selectedStation && stationName) {
+                statusDiv.innerHTML = `<p><strong>Current Station:</strong> ${stationName} (ID: ${selectedStation})</p>`;
+            } else {
+                statusDiv.innerHTML = '<p class="error">No station selected. Please log into the Barista interface first.</p>';
+            }
+        };
+    </script>
+</body>
+</html>

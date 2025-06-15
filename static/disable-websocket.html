@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Disable WebSocket</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        button {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px 0;
+        }
+        button:hover {
+            background: #c82333;
+        }
+        .enable {
+            background: #28a745;
+        }
+        .enable:hover {
+            background: #218838;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 10px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+        }
+        code {
+            background: #e9ecef;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <h1>WebSocket Control</h1>
+    <p>The WebSocket connection is causing authentication loops. You can disable it here:</p>
+    
+    <div class="status" id="status">
+        Current status: <strong id="currentStatus">Checking...</strong>
+    </div>
+    
+    <button onclick="disableWebSocket()">Disable WebSocket</button>
+    <button class="enable" onclick="enableWebSocket()">Enable WebSocket</button>
+    
+    <hr>
+    
+    <h3>Alternative: Run in Console</h3>
+    <p>You can also open DevTools (F12) and paste this in the Console:</p>
+    <code>localStorage.setItem('disable_websocket', 'true'); location.reload();</code>
+    
+    <hr>
+    
+    <button onclick="goToApp()">Go to Application</button>
+    
+    <script>
+        function checkStatus() {
+            const disabled = localStorage.getItem('disable_websocket') === 'true';
+            document.getElementById('currentStatus').textContent = disabled ? 'DISABLED' : 'ENABLED';
+            document.getElementById('currentStatus').style.color = disabled ? '#dc3545' : '#28a745';
+        }
+        
+        function disableWebSocket() {
+            localStorage.setItem('disable_websocket', 'true');
+            
+            // Also try to stop any existing connections
+            if (window.io && window.io.sockets) {
+                window.io.sockets.forEach(socket => socket.disconnect());
+            }
+            
+            checkStatus();
+            alert('WebSocket disabled. The page will reload.');
+            location.reload();
+        }
+        
+        function enableWebSocket() {
+            localStorage.removeItem('disable_websocket');
+            checkStatus();
+            alert('WebSocket enabled. The page will reload.');
+            location.reload();
+        }
+        
+        function goToApp() {
+            window.location.href = 'http://localhost:5001';
+        }
+        
+        // Check status on load
+        checkStatus();
+    </script>
+</body>
+</html>

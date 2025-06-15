@@ -1,0 +1,23 @@
+{
+  "name": "autonomous-test-system",
+  "version": "1.0.0",
+  "description": "Autonomous testing system for Coffee Cue",
+  "main": "autonomous-test-system.js",
+  "scripts": {
+    "test:auto": "node autonomous-test-system.js",
+    "test:auto:headless": "node autonomous-test-system.js --headless",
+    "test:auto:debug": "node autonomous-test-system.js --retries=1"
+  },
+  "dependencies": {
+    "puppeteer": "^21.6.0"
+  },
+  "devDependencies": {},
+  "keywords": [
+    "testing",
+    "automation",
+    "puppeteer",
+    "self-healing"
+  ],
+  "author": "Coffee Cue Team",
+  "license": "MIT"
+}

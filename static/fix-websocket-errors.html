@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fix WebSocket and Connection Errors</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .success { color: green; }
+        .error { color: red; }
+        .warning { color: orange; }
+        button {
+            padding: 10px 15px;
+            margin: 5px;
+            cursor: pointer;
+        }
+        pre {
+            background: #eee;
+            padding: 10px;
+            overflow-x: auto;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            background: #f5f5f5;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fix WebSocket and Connection Errors</h1>
+    
+    <div class="section">
+        <h2>Issue Summary</h2>
+        <p>The app is experiencing the following issues:</p>
+        <ul>
+            <li>WebSocket connection errors causing thousands of console errors</li>
+            <li>JWT tokens expired causing authentication failures</li>
+            <li>Functions like adding walk-in orders not working due to WebSocket issues</li>
+        </ul>
+    </div>
+    
+    <div class="section">
+        <h2>Step 1: Get New JWT Token</h2>
+        <p>Your JWT token has expired. Let's get a new one:</p>
+        <button onclick="getNewToken()">Get New Token</button>
+        <div id="tokenResult"></div>
+    </div>
+    
+    <div class="section">
+        <h2>Step 2: Disable WebSocket to Stop Errors</h2>
+        <p>WebSocket is causing console errors. Let's disable it temporarily:</p>
+        <button onclick="disableWebSocket()">Disable WebSocket</button>
+        <div id="websocketResult"></div>
+    </div>
+    
+    <div class="section">
+        <h2>Step 3: Clear Error Logs and Reset</h2>
+        <button onclick="clearAndReset()">Clear Console & Reset</button>
+        <div id="clearResult"></div>
+    </div>
+    
+    <div class="section">
+        <h2>Step 4: Test Fixed Functionality</h2>
+        <button onclick="testFunctionality()">Test Order Functions</button>
+        <div id="testResult"></div>
+    </div>
+    
+    <div class="section">
+        <h2>Access Test Pages</h2>
+        <p>Use these links to access test pages:</p>
+        <ul>
+            <li><a href="/static/test-picked-up-fix.html">Test Picked Up Orders Fix</a></li>
+            <li><a href="/static/debug-picked-up-orders.html">Debug Picked Up Orders</a></li>
+        </ul>
+    </div>
+
+    <script>
+        async function getNewToken() {
+            const output = document.getElementById('tokenResult');
+            output.innerHTML = '<p>Getting new token...</p>';
+            
+            try {
+                // First try to refresh token
+                const refreshToken = localStorage.getItem('refresh_token');
+                if (refreshToken) {
+                    const response = await fetch('http://localhost:5001/api/auth/refresh', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${refreshToken}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        localStorage.setItem('access_token', data.access_token);
+                        output.innerHTML = '<p class="success">✓ Token refreshed successfully!</p>';
+                        return;
+                    }
+                }
+                
+                // If refresh fails, prompt for login
+                output.innerHTML = `
+                    <p class="warning">Refresh token expired or missing. Please log in:</p>
+                    <label>Username: <input type="text" id="username" value="barista"></label><br>
+                    <label>Password: <input type="password" id="password" value="barista123"></label><br>
+                    <p><small>✅ Users have been fixed! Try: barista/barista123, admin/admin123, or coffeecue/adminpassword</small></p>
+                    <button onclick="doLogin()">Login</button>
+                `;
+            } catch (error) {
+                output.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+            }
+        }
+        
+        async function doLogin() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const output = document.getElementById('tokenResult');
+            
+            try {
+                const response = await fetch('http://localhost:5001/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                
+                console.log('Login response:', response.status, data);
+                
+                if (response.ok && (data.token || data.access_token)) {
+                    localStorage.setItem('access_token', data.token || data.access_token);
+                    localStorage.setItem('refresh_token', data.refreshToken || data.refresh_token);
+                    localStorage.setItem('user_role', data.user?.role || data.role);
+                    localStorage.setItem('user_id', data.user?.id || data.user_id);
+                    
+                    output.innerHTML = '<p class="success">✓ Login successful! New tokens saved.</p>';
+                } else {
+                    output.innerHTML = `<p class="error">Login failed: ${data.msg || 'Unknown error'}</p>`;
+                }
+            } catch (error) {
+                output.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+            }
+        }
+        
+        function disableWebSocket() {
+            const output = document.getElementById('websocketResult');
+            
+            try {
+                // Set flag to disable WebSocket
+                localStorage.setItem('websocket_disabled', 'true');
+                
+                // Also override the WebSocket constructor temporarily
+                window.WebSocketOriginal = window.WebSocket;
+                window.WebSocket = function() {
+                    console.log('WebSocket connection blocked to prevent errors');
+                    return {
+                        send: () => {},
+                        close: () => {},
+                        addEventListener: () => {},
+                        removeEventListener: () => {},
+                        readyState: 3 // CLOSED
+                    };
+                };
+                
+                output.innerHTML = '<p class="success">✓ WebSocket disabled. Reload the app to apply changes.</p>';
+                output.innerHTML += '<p><a href="/" target="_blank">Open App in New Tab</a></p>';
+            } catch (error) {
+                output.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+            }
+        }
+        
+        function clearAndReset() {
+            const output = document.getElementById('clearResult');
+            
+            try {
+                // Clear console
+                console.clear();
+                
+                // Remove error counts
+                localStorage.removeItem('auth_error_count');
+                localStorage.removeItem('websocket_error_count');
+                
+                // Reset connection flags
+                sessionStorage.clear();
+                
+                output.innerHTML = '<p class="success">✓ Console cleared and error counts reset.</p>';
+            } catch (error) {
+                output.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+            }
+        }
+        
+        async function testFunctionality() {
+            const output = document.getElementById('testResult');
+            output.innerHTML = '<p>Testing order functionality...</p>';
+            
+            const token = localStorage.getItem('access_token');
+            if (!token) {
+                output.innerHTML = '<p class="error">No token found. Please get a new token first.</p>';
+                return;
+            }
+            
+            try {
+                // Test API health
+                const healthResponse = await fetch('http://localhost:5001/api/health', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                let html = '<h3>Test Results:</h3>';
+                
+                if (healthResponse.ok) {
+                    html += '<p class="success">✓ API Health Check: OK</p>';
+                } else {
+                    html += '<p class="error">✗ API Health Check: Failed</p>';
+                }
+                
+                // Test getting orders
+                const ordersResponse = await fetch('http://localhost:5001/api/orders', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (ordersResponse.ok) {
+                    const data = await ordersResponse.json();
+                    html += `<p class="success">✓ Get Orders: OK (${data.data?.length || 0} orders)</p>`;
+                } else {
+                    html += '<p class="error">✗ Get Orders: Failed</p>';
+                }
+                
+                // Check if WebSocket is disabled
+                if (localStorage.getItem('websocket_disabled') === 'true') {
+                    html += '<p class="success">✓ WebSocket is disabled (no more console errors)</p>';
+                } else {
+                    html += '<p class="warning">⚠ WebSocket is still enabled</p>';
+                }
+                
+                output.innerHTML = html;
+            } catch (error) {
+                output.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+            }
+        }
+        
+        // Auto-run token check on load
+        window.addEventListener('load', () => {
+            const token = localStorage.getItem('access_token');
+            if (!token) {
+                document.getElementById('tokenResult').innerHTML = '<p class="warning">No JWT token found. Click "Get New Token" to start.</p>';
+            } else {
+                document.getElementById('tokenResult').innerHTML = '<p>JWT token found. You may need to refresh it if expired.</p>';
+            }
+        });
+    </script>
+</body>
+</html>

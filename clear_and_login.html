@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear Storage and Login</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        button {
+            display: block;
+            width: 100%;
+            padding: 15px;
+            margin: 10px 0;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 4px;
+            display: none;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .credentials {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .cred-item {
+            margin: 10px 0;
+            padding: 10px;
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+        }
+        code {
+            background-color: #e9ecef;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>☕ Coffee Cue - Fix Login Issues</h1>
+        
+        <div class="info status" style="display: block;">
+            <strong>Instructions:</strong>
+            <ol>
+                <li>Click "Clear All Storage" to remove any corrupted data</li>
+                <li>Click "Go to App" to open the Coffee Cue system</li>
+                <li>Use one of the login credentials below</li>
+            </ol>
+        </div>
+        
+        <button onclick="clearAllStorage()">1. Clear All Storage</button>
+        <button onclick="goToApp()">2. Go to App</button>
+        
+        <div class="credentials">
+            <h3>Login Credentials:</h3>
+            <div class="cred-item">
+                <strong>Barista:</strong><br>
+                Username: <code>barista</code><br>
+                Password: <code>barista123</code>
+            </div>
+            <div class="cred-item">
+                <strong>Admin:</strong><br>
+                Username: <code>coffeecue</code><br>
+                Password: <code>adminpassword</code>
+            </div>
+            <div class="cred-item">
+                <strong>Organizer:</strong><br>
+                Username: <code>organizer</code><br>
+                Password: <code>organizer123</code>
+            </div>
+        </div>
+        
+        <div id="status" class="status"></div>
+    </div>
+    
+    <script>
+        function clearAllStorage() {
+            try {
+                // Clear localStorage
+                localStorage.clear();
+                
+                // Clear sessionStorage
+                sessionStorage.clear();
+                
+                // Clear cookies
+                document.cookie.split(";").forEach(function(c) { 
+                    document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+                });
+                
+                // Clear IndexedDB
+                if ('indexedDB' in window) {
+                    indexedDB.databases().then(databases => {
+                        databases.forEach(db => indexedDB.deleteDatabase(db.name));
+                    }).catch(e => console.log('IndexedDB clear error:', e));
+                }
+                
+                showStatus('✅ All storage cleared successfully! You can now go to the app.', 'success');
+            } catch (error) {
+                showStatus('❌ Error clearing storage: ' + error.message, 'error');
+            }
+        }
+        
+        function goToApp() {
+            window.location.href = 'http://localhost:5001';
+        }
+        
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = 'status ' + type;
+            status.style.display = 'block';
+        }
+    </script>
+</body>
+</html>

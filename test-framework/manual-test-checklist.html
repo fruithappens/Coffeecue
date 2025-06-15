@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Coffee Cue Manual Test Checklist</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .header { background: #2563eb; color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        .test-section { border: 1px solid #e5e7eb; margin: 15px 0; padding: 15px; border-radius: 8px; }
+        .test-item { margin: 10px 0; padding: 10px; background: #f9fafb; border-radius: 4px; }
+        .checkbox { margin-right: 10px; }
+        .instructions { background: #fef3c7; padding: 15px; border-radius: 8px; margin: 20px 0; }
+        .url { background: #eff6ff; padding: 10px; border-radius: 4px; font-family: monospace; }
+        button { background: #2563eb; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #1d4ed8; }
+        .completed { background: #d1fae5; border-left: 4px solid #10b981; }
+        .failed { background: #fee2e2; border-left: 4px solid #ef4444; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>☕ Coffee Cue Manual Test Checklist</h1>
+        <p>Follow this checklist to thoroughly test the Coffee Cue application</p>
+    </div>
+
+    <div class="instructions">
+        <h3>📋 Before You Start</h3>
+        <p><strong>1.</strong> Make sure backend is running: <code>python run_server.py</code></p>
+        <p><strong>2.</strong> Make sure frontend is running: <code>npm start</code> (in Barista Front End folder)</p>
+        <p><strong>3.</strong> Open the app at: <span class="url">http://localhost:3000</span></p>
+        <p><strong>4.</strong> Check each item as you complete it</p>
+    </div>
+
+    <div class="test-section">
+        <h2>🔐 Authentication Tests</h2>
+        <div class="test-item">
+            <input type="checkbox" class="checkbox" id="auth1" onchange="updateStatus(this)">
+            <label for="auth1">App loads without errors (check browser console)</label>
+        </div>
+        <div class="test-item">
+            <input type="checkbox" class="checkbox" id="auth2" onchange="updateStatus(this)">
+            <label for="auth2">Login page appears or auth redirect works</label>
+        </div>
+        <div class="test-item">
+            <input type="checkbox" class="checkbox" id="auth3" onchange="updateStatus(this)">
+            <label for="auth3">Can login with demo credentials (barista/barista123)</label>
+        </div>
+        <div class="test-item">
+            <input type="checkbox" class="checkbox" id="auth4" onchange="updateStatus(this)">
+            <label for="auth4">Dashboard loads after successful login</label>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>📱 Barista Interface Tests</h2>
+        <div class="test-item">
+            <input type="checkbox" class="checkbox" id="barista1" onchange="updateStatus(this)">
+            <label for="barista1">Orders tab shows pending orders list</label>
+        </div>
+        <div class="test-item">
+            <input type="checkbox" class="checkbox" id="barista2" onchange="updateStatus(this)">
+            <label for="barista2">Can click on individual orders to view details</label>
+        </div>
+        <div class="test-item">
+            <input type="checkbox" class="checkbox" id="barista3" onchange="updateStatus(this)">
+            <label for="barista3">Station selector works (if multiple stations available)</label>
+        </div>
+        <div class="test-item">
+            <input type="checkbox" class="checkbox" id="barista4" onchange="updateStatus(this)">
+            <label for="barista4">Stock tab loads and shows inventory items</label>
+        </div>
+        <div class="test-item">
+            <input type="checkbox" class="checkbox" id="barista5" onchange="updateStatus(this)">
+            <label for="barista5">Settings tab loads with configuration options</label>
+        </div>
+        <div class="test-item">
+            <input type="checkbox" class="checkbox" id="barista6" onchange="updateStatus(this)">
+            <label for="barista6">Display tab loads with QR codes and display options</label>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🔊 Audio System Tests</h2>
+        <div class="test-item">
+            <input type="checkbox" class="checkbox" id="audio1" onchange="updateStatus(this)">
+            <label for="audio1">Audio system initializes (check console for "Coffee Sounds initialized")</label>
+        </div>
+        <div class="test-item">
+            <input type="checkbox" class="checkbox" id="audio2" onchange="updateStatus(this)">
+            <label for="audio2">Can trigger test sounds from settings</label>
+        </div>
+        <div class="test-item">
+            <input type="checkbox" class="checkbox" id="audio3" onchange="updateStatus(this)">
+            <label for="audio3">Notification sounds play when new orders arrive</label>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>⚙️ Settings Persistence Tests</h2>
+        <div class="test-item">
+            <input type="checkbox" class="checkbox" id="settings1" onchange="updateStatus(this)">
+            <label for="settings1">Toggle "Balance Queue" setting and switch tabs - setting persists</label>
+        </div>
+        <div class="test-item">
+            <input type="checkbox" class="checkbox" id="settings2" onchange="updateStatus(this)">
+            <label for="settings2">Toggle "AI Queue Management" and refresh page - setting persists</label>
+        </div>
+        <div class="test-item">
+            <input type="checkbox" class="checkbox" id="settings3" onchange="updateStatus(this)">
+            <label for="settings3">Change milk color preferences and verify they save</label>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>📺 Display Features Tests</h2>
+        <div class="test-item">
+            <input type="checkbox" class="checkbox" id="display1" onchange="updateStatus(this)">
+            <label for="display1">QR codes generate correctly in Display tab</label>
+        </div>
+        <div class="test-item">
+            <input type="checkbox" class="checkbox" id="display2" onchange="updateStatus(this)">
+            <label for="display2">Display type presets work (Lobby, Kitchen, etc.)</label>
+        </div>
+        <div class="test-item">
+            <input type="checkbox" class="checkbox" id="display3" onchange="updateStatus(this)">
+            <label for="display3">Zoom controls function properly</label>
+        </div>
+        <div class="test-item">
+            <input type="checkbox" class="checkbox" id="display4" onchange="updateStatus(this)">
+            <label for="display4">External display URL works when opened in new tab</label>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🔄 Error Handling Tests</h2>
+        <div class="test-item">
+            <input type="checkbox" class="checkbox" id="error1" onchange="updateStatus(this)">
+            <label for="error1">No console errors when navigating between tabs</label>
+        </div>
+        <div class="test-item">
+            <input type="checkbox" class="checkbox" id="error2" onchange="updateStatus(this)">
+            <label for="error2">Graceful handling when backend is temporarily unavailable</label>
+        </div>
+        <div class="test-item">
+            <input type="checkbox" class="checkbox" id="error3" onchange="updateStatus(this)">
+            <label for="error3">Offline mode works (disconnect internet briefly)</label>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 Test Summary</h2>
+        <p><strong>Completed:</strong> <span id="completed-count">0</span></p>
+        <p><strong>Total:</strong> <span id="total-count">0</span></p>
+        <p><strong>Progress:</strong> <span id="progress">0%</span></p>
+        <button onclick="generateReport()">📋 Generate Test Report</button>
+    </div>
+
+    <script>
+        function updateStatus(checkbox) {
+            const testItem = checkbox.parentElement;
+            if (checkbox.checked) {
+                testItem.classList.add('completed');
+                testItem.classList.remove('failed');
+            } else {
+                testItem.classList.remove('completed');
+            }
+            updateSummary();
+        }
+
+        function updateSummary() {
+            const totalCheckboxes = document.querySelectorAll('.checkbox').length;
+            const completedCheckboxes = document.querySelectorAll('.checkbox:checked').length;
+            const progress = Math.round((completedCheckboxes / totalCheckboxes) * 100);
+
+            document.getElementById('completed-count').textContent = completedCheckboxes;
+            document.getElementById('total-count').textContent = totalCheckboxes;
+            document.getElementById('progress').textContent = progress + '%';
+        }
+
+        function generateReport() {
+            const results = [];
+            document.querySelectorAll('.test-item').forEach(item => {
+                const checkbox = item.querySelector('.checkbox');
+                const label = item.querySelector('label');
+                results.push({
+                    test: label.textContent,
+                    passed: checkbox.checked
+                });
+            });
+
+            const report = {
+                timestamp: new Date().toISOString(),
+                results: results,
+                summary: {
+                    total: results.length,
+                    passed: results.filter(r => r.passed).length,
+                    failed: results.filter(r => !r.passed).length
+                }
+            };
+
+            const reportWindow = window.open('', '_blank');
+            reportWindow.document.write(`
+                <html>
+                <head><title>Coffee Cue Test Report</title></head>
+                <body style="font-family: Arial, sans-serif; padding: 20px;">
+                    <h1>☕ Coffee Cue Test Report</h1>
+                    <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
+                    <h2>Summary</h2>
+                    <p>✅ Passed: ${report.summary.passed}</p>
+                    <p>❌ Failed: ${report.summary.failed}</p>
+                    <p>📊 Total: ${report.summary.total}</p>
+                    <h2>Detailed Results</h2>
+                    ${results.map(r => `
+                        <div style="margin: 10px 0; padding: 10px; background: ${r.passed ? '#d1fae5' : '#fee2e2'}; border-radius: 4px;">
+                            ${r.passed ? '✅' : '❌'} ${r.test}
+                        </div>
+                    `).join('')}
+                </body>
+                </html>
+            `);
+        }
+
+        // Initialize summary on page load
+        document.addEventListener('DOMContentLoaded', updateSummary);
+    </script>
+</body>
+</html>

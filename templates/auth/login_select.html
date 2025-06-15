@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Login - Select Role{% endblock %}
+
+{% block styles %}
+<style>
+    .login-container {
+        max-width: 800px;
+        margin: 2rem auto;
+        padding: 1rem;
+    }
+    
+    .role-cards {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1.5rem;
+        justify-content: center;
+        margin-top: 2rem;
+    }
+    
+    .role-card {
+        width: 220px;
+        text-align: center;
+        padding: 1.5rem;
+        border-radius: 1rem;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    
+    .role-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 1rem 2rem rgba(0, 0, 0, 0.15);
+    }
+    
+    .role-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+    }
+    
+    .organizer-card {
+        background-color: #f8f9fa;
+        border-top: 4px solid #4c6ef5;
+    }
+    
+    .organizer-card .role-icon {
+        color: #4c6ef5;
+    }
+    
+    .barista-card {
+        background-color: #f8f9fa;
+        border-top: 4px solid #20c997;
+    }
+    
+    .barista-card .role-icon {
+        color: #20c997;
+    }
+    
+    .display-card {
+        background-color: #f8f9fa;
+        border-top: 4px solid #fd7e14;
+    }
+    
+    .display-card .role-icon {
+        color: #fd7e14;
+    }
+    
+    .login-header {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    
+    .login-logo {
+        max-width: 150px;
+        margin-bottom: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="login-container">
+    <div class="login-header">
+        <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Expresso Logo" class="login-logo">
+        <h1>Expresso Coffee Ordering System</h1>
+        <p class="text-muted">ANZCA ASM 2025 Cairns</p>
+    </div>
+
+    <div class="role-cards">
+        <a href="{{ url_for('auth.login', role='organizer') }}" class="role-card organizer-card text-decoration-none text-dark">
+            <div class="role-icon">
+                <i class="bi bi-speedometer2"></i>
+            </div>
+            <h2>Organizer</h2>
+            <p class="text-muted">Access the admin dashboard to manage stations, view analytics, and configure the system.</p>
+        </a>
+        
+        <a href="{{ url_for('auth.login', role='barista') }}" class="role-card barista-card text-decoration-none text-dark">
+            <div class="role-icon">
+                <i class="bi bi-cup-hot"></i>
+            </div>
+            <h2>Barista</h2>
+            <p class="text-muted">Process orders, manage inventory, and communicate with customers.</p>
+        </a>
+        
+        <a href="{{ url_for('auth.display_login') }}" class="role-card display-card text-decoration-none text-dark">
+            <div class="role-icon">
+                <i class="bi bi-display"></i>
+            </div>
+            <h2>Display Screen</h2>
+            <p class="text-muted">Show order status information for customers to view.</p>
+        </a>
+    </div>
+</div>
+{% endblock %}

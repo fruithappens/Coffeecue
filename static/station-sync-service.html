@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Station Sync Service</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            padding: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #f5f5f5;
+        }
+        h1 { color: #333; }
+        .section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .success { 
+            background-color: #e8f5e9;
+            color: #2e7d32;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .info {
+            background-color: #e3f2fd;
+            color: #1565c0;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .critical {
+            background-color: #f3e5f5;
+            color: #4a148c;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+            border: 2px solid #9c27b0;
+        }
+        .status {
+            background-color: #e8f5e9;
+            border: 2px solid #4caf50;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { border-color: #4caf50; }
+            50% { border-color: #81c784; }
+            100% { border-color: #4caf50; }
+        }
+        button {
+            background: #1a73e8;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #1557b0;
+        }
+        .start-button {
+            background: #4CAF50;
+            font-weight: bold;
+            font-size: 18px;
+            padding: 20px 30px;
+        }
+        .start-button:hover {
+            background: #45a049;
+        }
+        .stop-button {
+            background: #d32f2f;
+            font-weight: bold;
+        }
+        .stop-button:hover {
+            background: #b71c1c;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔄 Station Sync Service</h1>
+    
+    <div class="section">
+        <h2>Solution Found!</h2>
+        <div class="success">
+            <p><strong>✅ Backend API works perfectly</strong> - Your manual updates proved this</p>
+            <p><strong>❌ React interface not calling API</strong> - This is the real problem</p>
+            <p><strong>🔧 Solution:</strong> Auto-sync service that monitors localStorage and keeps database in sync</p>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>🚀 Auto-Sync Service</h2>
+        <button class="start-button" onclick="startSyncService()">🚀 START SYNC SERVICE</button>
+        <button class="stop-button" onclick="stopSyncService()">🛑 STOP SERVICE</button>
+        
+        <div class="critical">
+            <p><strong>How it works:</strong></p>
+            <ul>
+                <li>🔄 Monitors localStorage for station changes every 2 seconds</li>
+                <li>🔍 Compares localStorage with database state</li>
+                <li>📡 Automatically syncs any differences to database</li>
+                <li>💾 Keeps React UI and database perfectly in sync</li>
+            </ul>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>📊 Service Status</h2>
+        <div id="service-status"></div>
+        <div id="sync-log"></div>
+    </div>
+
+    <script>
+        let syncService = null;
+        let authToken = null;
+        let syncCount = 0;
+        let lastSync = null;
+
+        function getAuthToken() {
+            if (authToken) return authToken;
+            
+            authToken = localStorage.getItem('accessToken') || 
+                       localStorage.getItem('token') || 
+                       sessionStorage.getItem('accessToken') ||
+                       sessionStorage.getItem('token');
+            
+            return authToken;
+        }
+
+        async function makeApiRequest(endpoint, options = {}) {
+            const token = getAuthToken();
+            if (!token) {
+                throw new Error('No auth token found');
+            }
+
+            const url = `http://localhost:5001/api${endpoint}`;
+            const defaultOptions = {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            };
+
+            const response = await fetch(url, { ...defaultOptions, ...options });
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(`API Error ${response.status}: ${data.error || data.message || 'Unknown error'}`);
+            }
+            
+            return data;
+        }
+
+        async function syncStations() {
+            try {
+                // Get current database state
+                const dbResponse = await makeApiRequest('/stations');
+                if (!dbResponse.success) return;
+
+                const dbStations = dbResponse.stations;
+                
+                // Get localStorage state
+                const localStations = localStorage.getItem('coffee_cue_stations');
+                if (!localStations) return;
+
+                const parsedLocalStations = JSON.parse(localStations);
+                
+                // Compare and sync differences
+                let syncedCount = 0;
+                let changes = [];
+
+                for (const localStation of parsedLocalStations) {
+                    const dbStation = dbStations.find(s => s.id == localStation.id);
+                    
+                    if (dbStation) {
+                        // Check for differences
+                        const differences = {};
+                        
+                        if (dbStation.status !== localStation.status) {
+                            differences.status = localStation.status;
+                        }
+                        
+                        if (dbStation.name !== localStation.name) {
+                            differences.name = localStation.name;
+                        }
+                        
+                        if (dbStation.location !== localStation.location) {
+                            differences.location = localStation.location;
+                        }
+
+                        // If there are differences, sync to database
+                        if (Object.keys(differences).length > 0) {
+                            console.log(`🔄 SYNC SERVICE: Syncing station ${localStation.id}:`, differences);
+                            
+                            try {
+                                const updateResponse = await makeApiRequest(`/stations/${localStation.id}`, {
+                                    method: 'PATCH',
+                                    body: JSON.stringify(differences)
+                                });
+                                
+                                if (updateResponse.success) {
+                                    syncedCount++;
+                                    changes.push({
+                                        stationId: localStation.id,
+                                        changes: differences,
+                                        success: true
+                                    });
+                                    console.log(`✅ SYNC SERVICE: Successfully synced station ${localStation.id}`);
+                                } else {
+                                    changes.push({
+                                        stationId: localStation.id,
+                                        changes: differences,
+                                        success: false,
+                                        error: updateResponse.error || 'Unknown error'
+                                    });
+                                }
+                            } catch (error) {
+                                changes.push({
+                                    stationId: localStation.id,
+                                    changes: differences,
+                                    success: false,
+                                    error: error.message
+                                });
+                                console.error(`❌ SYNC SERVICE: Failed to sync station ${localStation.id}:`, error);
+                            }
+                        }
+                    }
+                }
+
+                if (syncedCount > 0) {
+                    lastSync = new Date();
+                    updateSyncLog(changes);
+                }
+
+                return { syncedCount, changes };
+
+            } catch (error) {
+                console.error('SYNC SERVICE ERROR:', error);
+                return { syncedCount: 0, changes: [], error: error.message };
+            }
+        }
+
+        function startSyncService() {
+            if (syncService) {
+                clearInterval(syncService);
+            }
+
+            const token = getAuthToken();
+            if (!token) {
+                alert('No auth token found. Please login to the Organiser interface first.');
+                return;
+            }
+
+            syncService = setInterval(async () => {
+                syncCount++;
+                const result = await syncStations();
+                updateServiceStatus(true, result);
+            }, 2000); // Check every 2 seconds
+
+            console.log('🚀 SYNC SERVICE STARTED');
+            updateServiceStatus(true, { syncedCount: 0, changes: [] });
+        }
+
+        function stopSyncService() {
+            if (syncService) {
+                clearInterval(syncService);
+                syncService = null;
+            }
+
+            console.log('🛑 SYNC SERVICE STOPPED');
+            updateServiceStatus(false);
+        }
+
+        function updateServiceStatus(isRunning, result = null) {
+            const statusDiv = document.getElementById('service-status');
+            
+            if (isRunning) {
+                statusDiv.innerHTML = `
+                    <div class="status">
+                        <h3>🔄 Sync Service Running</h3>
+                        <p><strong>Status:</strong> Active and monitoring localStorage</p>
+                        <p><strong>Sync Count:</strong> ${syncCount}</p>
+                        <p><strong>Last Check:</strong> ${new Date().toLocaleTimeString()}</p>
+                        ${result && result.syncedCount > 0 ? `<p><strong>Last Sync:</strong> ${result.syncedCount} stations synced</p>` : ''}
+                        ${result && result.error ? `<p style="color: red;"><strong>Error:</strong> ${result.error}</p>` : ''}
+                        <p><strong>Next Check:</strong> In 2 seconds</p>
+                    </div>
+                `;
+            } else {
+                statusDiv.innerHTML = `
+                    <div class="info">
+                        <h3>⏹️ Sync Service Stopped</h3>
+                        <p>The service is not monitoring for changes.</p>
+                    </div>
+                `;
+            }
+        }
+
+        function updateSyncLog(changes) {
+            const logDiv = document.getElementById('sync-log');
+            
+            if (changes.length > 0) {
+                let logHtml = '<div class="success"><h4>📡 Recent Syncs:</h4>';
+                
+                changes.forEach(change => {
+                    if (change.success) {
+                        logHtml += `<div>✅ Station ${change.stationId}: ${Object.keys(change.changes).join(', ')}</div>`;
+                    } else {
+                        logHtml += `<div style="color: red;">❌ Station ${change.stationId}: ${change.error}</div>`;
+                    }
+                });
+                
+                logHtml += `<div><em>Synced at: ${lastSync.toLocaleTimeString()}</em></div>`;
+                logHtml += '</div>';
+                
+                logDiv.innerHTML = logHtml;
+            }
+        }
+
+        // Auto-start on page load if token is available
+        window.onload = () => {
+            const token = getAuthToken();
+            const statusDiv = document.getElementById('service-status');
+            
+            if (token) {
+                statusDiv.innerHTML = '<div class="success">✅ Auth token found. Ready to start sync service.</div>';
+            } else {
+                statusDiv.innerHTML = '<div class="error">❌ No auth token found. Please login to the Organiser interface first, then refresh this page.</div>';
+            }
+        };
+
+        // Clean up on page unload
+        window.addEventListener('beforeunload', () => {
+            stopSyncService();
+        });
+    </script>
+</body>
+</html>

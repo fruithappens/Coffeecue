@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fix Stock Integration</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .success {
+            color: green;
+            font-weight: bold;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+        .warning {
+            color: orange;
+            font-weight: bold;
+        }
+        button {
+            padding: 15px 30px;
+            margin: 10px 0;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            background: #4CAF50;
+            color: white;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 4px;
+        }
+        pre {
+            background: #f0f0f0;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Fix Stock Integration Issue</h1>
+        
+        <div class="section">
+            <h2>Problem Analysis</h2>
+            <div id="analysis"></div>
+        </div>
+        
+        <button onclick="runCompleteFix()">Run Complete Fix</button>
+        
+        <div class="section">
+            <h2>Fix Results</h2>
+            <div id="results"></div>
+        </div>
+    </div>
+
+    <script>
+        function analyzeIssue() {
+            const analysisDiv = document.getElementById('analysis');
+            let html = '';
+            
+            // Check selected station
+            const selectedStation = localStorage.getItem('selectedStation');
+            const stationName = localStorage.getItem('stationName');
+            
+            html += `<p><strong>Current Station:</strong> ${stationName || 'Not set'} (ID: ${selectedStation || 'Not set'})</p>`;
+            
+            // Check for stock data
+            const stockKeys = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith('coffee_stock_station_')) {
+                    stockKeys.push(key);
+                }
+            }
+            
+            if (stockKeys.length === 0) {
+                html += '<p class="error">❌ No stock data found in localStorage</p>';
+            } else {
+                html += `<p class="success">✓ Found ${stockKeys.length} stock data key(s): ${stockKeys.join(', ')}</p>`;
+                
+                // Check if the current station has stock data
+                const expectedKey = `coffee_stock_station_${selectedStation}`;
+                if (stockKeys.includes(expectedKey)) {
+                    html += '<p class="success">✓ Stock data exists for current station</p>';
+                } else {
+                    html += `<p class="warning">⚠️ No stock data for current station (expected: ${expectedKey})</p>`;
+                }
+            }
+            
+            // Check organiser inventory
+            const organiserInventory = localStorage.getItem('organiser_inventory');
+            if (organiserInventory) {
+                html += '<p class="success">✓ Organiser inventory data found</p>';
+            } else {
+                html += '<p class="warning">⚠️ No organiser inventory data found</p>';
+            }
+            
+            analysisDiv.innerHTML = html;
+            return { selectedStation, stockKeys };
+        }
+        
+        function runCompleteFix() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<p>Running fix...</p>';
+            
+            const { selectedStation, stockKeys } = analyzeIssue();
+            
+            if (!selectedStation) {
+                resultsDiv.innerHTML = '<p class="error">No station selected. Please log into the Barista interface first.</p>';
+                return;
+            }
+            
+            const correctKey = `coffee_stock_station_${selectedStation}`;
+            let fixApplied = false;
+            let html = '';
+            
+            // Step 1: Check if we need to migrate existing stock data
+            if (stockKeys.length > 0 && !stockKeys.includes(correctKey)) {
+                // Migrate the first found stock data to the correct key
+                const sourceKey = stockKeys[0];
+                try {
+                    const stockData = JSON.parse(localStorage.getItem(sourceKey));
+                    localStorage.setItem(correctKey, JSON.stringify(stockData));
+                    localStorage.removeItem(sourceKey);
+                    html += `<p class="success">✓ Migrated stock data from ${sourceKey} to ${correctKey}</p>`;
+                    fixApplied = true;
+                } catch (e) {
+                    html += `<p class="error">❌ Failed to migrate stock data: ${e.message}</p>`;
+                }
+            }
+            
+            // Step 2: If no stock data exists, create default data
+            if (!localStorage.getItem(correctKey)) {
+                const defaultStock = {
+                    milk: [
+                        { id: 'milk_regular', name: 'Regular Milk', amount: 20, capacity: 20, unit: 'L', status: 'good', lowThreshold: 5, criticalThreshold: 2 },
+                        { id: 'milk_skim', name: 'Skim Milk', amount: 10, capacity: 10, unit: 'L', status: 'good', lowThreshold: 3, criticalThreshold: 1 },
+                        { id: 'milk_almond', name: 'Almond Milk', amount: 5, capacity: 5, unit: 'L', status: 'good', lowThreshold: 2, criticalThreshold: 1 },
+                        { id: 'milk_soy', name: 'Soy Milk', amount: 5, capacity: 5, unit: 'L', status: 'good', lowThreshold: 2, criticalThreshold: 1 },
+                        { id: 'milk_oat', name: 'Oat Milk', amount: 5, capacity: 5, unit: 'L', status: 'good', lowThreshold: 2, criticalThreshold: 1 }
+                    ],
+                    coffee: [
+                        { id: 'coffee_house', name: 'House Blend', amount: 5, capacity: 5, unit: 'kg', status: 'good', lowThreshold: 1.5, criticalThreshold: 0.5 },
+                        { id: 'coffee_dark', name: 'Dark Roast', amount: 3, capacity: 3, unit: 'kg', status: 'good', lowThreshold: 1, criticalThreshold: 0.3 },
+                        { id: 'coffee_decaf', name: 'Decaf Blend', amount: 2, capacity: 2, unit: 'kg', status: 'good', lowThreshold: 0.5, criticalThreshold: 0.2 },
+                        { id: 'coffee_medium', name: 'Medium Roast', amount: 4, capacity: 4, unit: 'kg', status: 'good', lowThreshold: 1.2, criticalThreshold: 0.4 }
+                    ],
+                    cups: [
+                        { id: 'cups_small', name: 'Small Cups', amount: 200, capacity: 200, unit: 'pcs', status: 'good', lowThreshold: 50, criticalThreshold: 20 },
+                        { id: 'cups_medium', name: 'Medium Cups', amount: 200, capacity: 200, unit: 'pcs', status: 'good', lowThreshold: 50, criticalThreshold: 20 },
+                        { id: 'cups_large', name: 'Large Cups', amount: 100, capacity: 100, unit: 'pcs', status: 'good', lowThreshold: 30, criticalThreshold: 10 }
+                    ],
+                    syrups: [
+                        { id: 'syrup_vanilla', name: 'Vanilla Syrup', amount: 2, capacity: 2, unit: 'L', status: 'good', lowThreshold: 0.5, criticalThreshold: 0.2 },
+                        { id: 'syrup_caramel', name: 'Caramel Syrup', amount: 2, capacity: 2, unit: 'L', status: 'good', lowThreshold: 0.5, criticalThreshold: 0.2 },
+                        { id: 'syrup_hazelnut', name: 'Hazelnut Syrup', amount: 1, capacity: 1, unit: 'L', status: 'good', lowThreshold: 0.3, criticalThreshold: 0.1 },
+                        { id: 'syrup_chocolate', name: 'Chocolate Syrup', amount: 2, capacity: 2, unit: 'L', status: 'good', lowThreshold: 0.5, criticalThreshold: 0.2 }
+                    ],
+                    sweeteners: [
+                        { id: 'sugar_white', name: 'White Sugar', amount: 5, capacity: 5, unit: 'kg', status: 'good', lowThreshold: 1, criticalThreshold: 0.5 },
+                        { id: 'sugar_brown', name: 'Brown Sugar', amount: 3, capacity: 3, unit: 'kg', status: 'good', lowThreshold: 0.8, criticalThreshold: 0.3 },
+                        { id: 'sweetener_packets', name: 'Sweetener Packets', amount: 500, capacity: 500, unit: 'pcs', status: 'good', lowThreshold: 100, criticalThreshold: 50 },
+                        { id: 'honey', name: 'Honey', amount: 2, capacity: 2, unit: 'L', status: 'good', lowThreshold: 0.5, criticalThreshold: 0.2 },
+                        { id: 'agave', name: 'Agave Syrup', amount: 1, capacity: 1, unit: 'L', status: 'good', lowThreshold: 0.3, criticalThreshold: 0.1 }
+                    ],
+                    drinks: [
+                        { id: 'hot_chocolate_powder', name: 'Hot Chocolate Powder', amount: 3, capacity: 3, unit: 'kg', status: 'good', lowThreshold: 0.8, criticalThreshold: 0.3 },
+                        { id: 'chai_latte_mix', name: 'Chai Latte Mix', amount: 2, capacity: 2, unit: 'kg', status: 'good', lowThreshold: 0.5, criticalThreshold: 0.2 },
+                        { id: 'matcha_powder', name: 'Matcha Powder', amount: 1, capacity: 1, unit: 'kg', status: 'good', lowThreshold: 0.3, criticalThreshold: 0.1 }
+                    ],
+                    other: [
+                        { id: 'napkins', name: 'Napkins', amount: 1000, capacity: 1000, unit: 'pcs', status: 'good', lowThreshold: 200, criticalThreshold: 100 },
+                        { id: 'stirrers', name: 'Stirrers', amount: 500, capacity: 500, unit: 'pcs', status: 'good', lowThreshold: 100, criticalThreshold: 50 },
+                        { id: 'lids', name: 'Cup Lids', amount: 300, capacity: 300, unit: 'pcs', status: 'good', lowThreshold: 75, criticalThreshold: 30 }
+                    ]
+                };
+                
+                localStorage.setItem(correctKey, JSON.stringify(defaultStock));
+                html += '<p class="success">✓ Created default stock data with all categories</p>';
+                fixApplied = true;
+            }
+            
+            // Step 3: Force a reinitialize flag
+            localStorage.setItem('stock_reinitialize_needed', 'true');
+            
+            // Step 4: Clear any cached data that might be stale
+            const keysToCheck = ['stock_last_sync', 'stock_cache_timestamp'];
+            keysToCheck.forEach(key => {
+                if (localStorage.getItem(key)) {
+                    localStorage.removeItem(key);
+                    html += `<p>Cleared cache key: ${key}</p>`;
+                }
+            });
+            
+            if (!fixApplied) {
+                html += '<p class="success">✓ Stock data already correctly configured</p>';
+            }
+            
+            // Verify the fix
+            const finalData = localStorage.getItem(correctKey);
+            if (finalData) {
+                try {
+                    const stockData = JSON.parse(finalData);
+                    html += '<h3>Stock Data Summary:</h3>';
+                    html += '<ul>';
+                    Object.keys(stockData).forEach(category => {
+                        if (Array.isArray(stockData[category])) {
+                            html += `<li><strong>${category}:</strong> ${stockData[category].length} items`;
+                            if (stockData[category].length > 0) {
+                                const items = stockData[category].map(item => item.name).join(', ');
+                                html += ` (${items})`;
+                            }
+                            html += '</li>';
+                        }
+                    });
+                    html += '</ul>';
+                    
+                    html += '<h3 class="success">✓ Fix Complete!</h3>';
+                    html += '<p><strong>Next steps:</strong></p>';
+                    html += '<ol>';
+                    html += '<li>Go back to the Barista interface</li>';
+                    html += '<li>Press <strong>Ctrl+Shift+R</strong> (or <strong>Cmd+Shift+R</strong> on Mac) to hard refresh</li>';
+                    html += '<li>Click on the Stock tab</li>';
+                    html += '<li>You should now see all your stock items!</li>';
+                    html += '</ol>';
+                } catch (e) {
+                    html += `<p class="error">Error verifying stock data: ${e.message}</p>`;
+                }
+            }
+            
+            resultsDiv.innerHTML = html;
+        }
+        
+        // Run analysis on page load
+        window.onload = function() {
+            analyzeIssue();
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ultimate Allocation Fix</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            padding: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #f5f5f5;
+        }
+        h1 { color: #333; }
+        .section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .error { 
+            background-color: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .success { 
+            background-color: #e8f5e9;
+            color: #2e7d32;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .warning {
+            background-color: #fff3e0;
+            color: #e65100;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .info {
+            background-color: #e3f2fd;
+            color: #1565c0;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .critical {
+            background-color: #f3e5f5;
+            color: #4a148c;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+            border: 2px solid #9c27b0;
+        }
+        button {
+            background: #1a73e8;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #1557b0;
+        }
+        .ultimate-button {
+            background: #d32f2f;
+            font-weight: bold;
+            font-size: 18px;
+            padding: 20px 30px;
+        }
+        .ultimate-button:hover {
+            background: #b71c1c;
+        }
+        .data {
+            background: #f0f8ff;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 5px 0;
+            font-family: monospace;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+        .live-update {
+            background: #e8f5e9;
+            border: 2px solid #4caf50;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { border-color: #4caf50; }
+            50% { border-color: #81c784; }
+            100% { border-color: #4caf50; }
+        }
+    </style>
+</head>
+<body>
+    <h1>🎯 ULTIMATE ALLOCATION FIX</h1>
+    
+    <div class="section">
+        <h2>🚨 The Problem</h2>
+        <div class="critical">
+            <p><strong>Issue:</strong> Despite multiple rebuilds and component fixes, allocated amounts in Event Stock still show as empty ("Allocated: L")</p>
+            <p><strong>Cause:</strong> The React component either isn't running the calculation logic or the production build isn't using the updated code</p>
+            <p><strong>Solution:</strong> Bypass the React component entirely and calculate allocations directly</p>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>🔧 One-Click Ultimate Fix</h2>
+        <button class="ultimate-button" onclick="ultimateAllocationFix()">🎯 FIX ALLOCATIONS NOW</button>
+        <div class="info">
+            This will:
+            <ul>
+                <li>Calculate all allocated amounts from your current station quantities</li>
+                <li>Update event stock with correct allocations</li>
+                <li>Force React to refresh and display the correct values</li>
+                <li>Add real-time monitoring to keep allocations in sync</li>
+            </ul>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>📊 Live Status</h2>
+        <div id="live-status"></div>
+    </div>
+    
+    <div class="section">
+        <h2>📋 Results</h2>
+        <div id="results"></div>
+    </div>
+
+    <script>
+        let monitoringInterval = null;
+
+        function ultimateAllocationFix() {
+            const results = document.getElementById('results');
+            let html = '<h3>🚀 ULTIMATE ALLOCATION FIX IN PROGRESS...</h3>';
+            
+            try {
+                // Step 1: Analyze current data
+                html += '<div class="info"><h4>📊 Step 1: Analyzing Current Data</h4></div>';
+                
+                const stationQuantities = localStorage.getItem('station_inventory_quantities');
+                const eventStockLevels = localStorage.getItem('event_stock_levels');
+                const eventInventory = localStorage.getItem('event_inventory');
+                
+                if (!stationQuantities) {
+                    html += '<div class="error">❌ No station quantities found</div>';
+                    results.innerHTML = html;
+                    return;
+                }
+                
+                if (!eventInventory) {
+                    html += '<div class="error">❌ No event inventory found</div>';
+                    results.innerHTML = html;
+                    return;
+                }
+                
+                const quantities = JSON.parse(stationQuantities);
+                const inventory = JSON.parse(eventInventory);
+                let eventStock = eventStockLevels ? JSON.parse(eventStockLevels) : {};
+                
+                html += '<div class="success">✅ All required data found</div>';
+                
+                // Step 2: Calculate allocations for each item
+                html += '<div class="info"><h4>🧮 Step 2: Calculating Allocated Amounts</h4></div>';
+                
+                const allocationResults = {};
+                let totalCalculations = 0;
+                
+                Object.keys(inventory).forEach(category => {
+                    const items = inventory[category] || [];
+                    allocationResults[category] = {};
+                    
+                    items.forEach(item => {
+                        if (item.enabled) {
+                            let totalAllocated = 0;
+                            const breakdown = [];
+                            
+                            // Sum quantities from all stations for this item
+                            Object.keys(quantities).forEach(stationId => {
+                                const stationData = quantities[stationId];
+                                if (stationData[category] && stationData[category][item.id]) {
+                                    const quantity = stationData[category][item.id].quantity || 0;
+                                    if (quantity > 0) {
+                                        totalAllocated += quantity;
+                                        breakdown.push(`Station ${stationId}: ${quantity}`);
+                                    }
+                                }
+                            });
+                            
+                            allocationResults[category][item.id] = {
+                                allocated: totalAllocated,
+                                breakdown: breakdown,
+                                itemName: item.name
+                            };
+                            
+                            if (totalAllocated > 0) {
+                                totalCalculations++;
+                                html += `<div>• ${item.name}: ${totalAllocated} (${breakdown.join(', ')})</div>`;
+                            }
+                        }
+                    });
+                });
+                
+                html += `<div class="success">✅ Calculated allocations for ${totalCalculations} items</div>`;
+                
+                // Step 3: Update event stock with calculated allocations
+                html += '<div class="info"><h4>💾 Step 3: Updating Event Stock</h4></div>';
+                
+                // Ensure event stock exists for all items
+                Object.keys(inventory).forEach(category => {
+                    if (!eventStock[category]) {
+                        eventStock[category] = {};
+                    }
+                    
+                    const items = inventory[category] || [];
+                    items.forEach(item => {
+                        if (item.enabled) {
+                            const allocated = allocationResults[category][item.id].allocated;
+                            
+                            if (!eventStock[category][item.id]) {
+                                // Create new entry
+                                const categoryUnits = {
+                                    milk: { unit: 'L', defaultQuantity: 100 },
+                                    coffee: { unit: 'kg', defaultQuantity: 5 },
+                                    cups: { unit: 'units', defaultQuantity: 100 },
+                                    syrups: { unit: 'bottles', defaultQuantity: 5 },
+                                    sweeteners: { unit: 'units', defaultQuantity: 100 },
+                                    extras: { unit: 'units', defaultQuantity: 50 }
+                                };
+                                
+                                const unit = categoryUnits[category]?.unit || 'units';
+                                const defaultQty = categoryUnits[category]?.defaultQuantity || 50;
+                                const quantity = Math.max(defaultQty, allocated * 3); // Ensure enough stock
+                                
+                                eventStock[category][item.id] = {
+                                    quantity: quantity,
+                                    unit: unit,
+                                    allocated: allocated,
+                                    available: quantity - allocated
+                                };
+                                
+                                html += `<div>➕ Created: ${item.name}: ${quantity} ${unit} (${allocated} allocated)</div>`;
+                            } else {
+                                // Update existing entry
+                                const currentItem = eventStock[category][item.id];
+                                const oldAllocated = currentItem.allocated || 0;
+                                
+                                eventStock[category][item.id] = {
+                                    ...currentItem,
+                                    allocated: allocated,
+                                    available: Math.max(0, currentItem.quantity - allocated)
+                                };
+                                
+                                if (oldAllocated !== allocated) {
+                                    html += `<div>🔄 Updated: ${item.name}: ${oldAllocated} → ${allocated} ${currentItem.unit}</div>`;
+                                }
+                            }
+                        }
+                    });
+                });
+                
+                // Step 4: Save updated event stock
+                localStorage.setItem('event_stock_levels', JSON.stringify(eventStock));
+                html += '<div class="success">✅ Event stock updated and saved</div>';
+                
+                // Step 5: Force React to update
+                html += '<div class="info"><h4>📡 Step 4: Forcing React Updates</h4></div>';
+                
+                // Dispatch multiple events to trigger all possible React update mechanisms
+                const events = [
+                    'eventStock:updated',
+                    'stationInventory:updated',
+                    'inventory:updated',
+                    'stock:updated',
+                    'storage'
+                ];
+                
+                events.forEach(eventName => {
+                    window.dispatchEvent(new CustomEvent(eventName, {
+                        detail: { 
+                            source: 'ultimate-fix',
+                            eventStock: eventStock,
+                            allocations: allocationResults,
+                            timestamp: Date.now()
+                        }
+                    }));
+                });
+                
+                // Also trigger browser storage event
+                window.dispatchEvent(new StorageEvent('storage', {
+                    key: 'event_stock_levels',
+                    newValue: JSON.stringify(eventStock),
+                    url: window.location.href
+                }));
+                
+                html += '<div class="success">✅ Dispatched all React update events</div>';
+                
+                // Step 6: Set up continuous monitoring
+                html += '<div class="info"><h4>🔄 Step 5: Setting Up Continuous Monitoring</h4></div>';
+                
+                setupContinuousMonitoring(allocationResults);
+                
+                html += '<div class="success">✅ Continuous monitoring enabled</div>';
+                
+                // Final results
+                html += '<div class="critical">';
+                html += '<h3>🎯 ULTIMATE FIX COMPLETE!</h3>';
+                html += '<h4>Expected Results in Event Stock:</h4>';
+                
+                Object.keys(allocationResults).forEach(category => {
+                    Object.keys(allocationResults[category]).forEach(itemId => {
+                        const result = allocationResults[category][itemId];
+                        if (result.allocated > 0) {
+                            const unit = eventStock[category][itemId].unit;
+                            html += `<div><strong>${result.itemName}:</strong> Should show "Allocated: ${result.allocated} ${unit}"</div>`;
+                        }
+                    });
+                });
+                
+                html += '<h4>🚀 Next Steps:</h4>';
+                html += '<ol>';
+                html += '<li><strong>Go to your Event Stock page NOW</strong></li>';
+                html += '<li><strong>Refresh the page (F5 or Cmd+R)</strong></li>';
+                html += '<li><strong>Check the allocated amounts - they should now show correctly!</strong></li>';
+                html += '</ol>';
+                html += '</div>';
+                
+            } catch (e) {
+                html += '<div class="error">❌ Error during ultimate fix: ' + e.message + '</div>';
+                console.error('Ultimate fix error:', e);
+            }
+            
+            results.innerHTML = html;
+            updateLiveStatus();
+        }
+        
+        function setupContinuousMonitoring(initialResults) {
+            // Clear any existing monitoring
+            if (monitoringInterval) {
+                clearInterval(monitoringInterval);
+            }
+            
+            // Set up monitoring to keep allocations in sync
+            monitoringInterval = setInterval(() => {
+                try {
+                    const stationQuantities = localStorage.getItem('station_inventory_quantities');
+                    const eventStockLevels = localStorage.getItem('event_stock_levels');
+                    
+                    if (stationQuantities && eventStockLevels) {
+                        const quantities = JSON.parse(stationQuantities);
+                        const eventStock = JSON.parse(eventStockLevels);
+                        let hasUpdates = false;
+                        
+                        // Recalculate allocations
+                        Object.keys(eventStock).forEach(category => {
+                            Object.keys(eventStock[category]).forEach(itemId => {
+                                let totalAllocated = 0;
+                                
+                                Object.keys(quantities).forEach(stationId => {
+                                    const stationData = quantities[stationId];
+                                    if (stationData[category] && stationData[category][itemId]) {
+                                        totalAllocated += stationData[category][itemId].quantity || 0;
+                                    }
+                                });
+                                
+                                if (eventStock[category][itemId].allocated !== totalAllocated) {
+                                    eventStock[category][itemId].allocated = totalAllocated;
+                                    eventStock[category][itemId].available = Math.max(0, 
+                                        eventStock[category][itemId].quantity - totalAllocated
+                                    );
+                                    hasUpdates = true;
+                                }
+                            });
+                        });
+                        
+                        if (hasUpdates) {
+                            localStorage.setItem('event_stock_levels', JSON.stringify(eventStock));
+                            
+                            // Dispatch update event
+                            window.dispatchEvent(new CustomEvent('eventStock:updated', {
+                                detail: { 
+                                    source: 'continuous-monitor',
+                                    eventStock: eventStock,
+                                    timestamp: Date.now()
+                                }
+                            }));
+                            
+                            console.log('Continuous monitor: Updated allocations');
+                        }
+                    }
+                } catch (e) {
+                    console.error('Monitoring error:', e);
+                }
+                
+                updateLiveStatus();
+            }, 2000); // Check every 2 seconds
+        }
+        
+        function updateLiveStatus() {
+            const liveStatus = document.getElementById('live-status');
+            
+            try {
+                const stationQuantities = localStorage.getItem('station_inventory_quantities');
+                const eventStockLevels = localStorage.getItem('event_stock_levels');
+                
+                if (!stationQuantities || !eventStockLevels) {
+                    liveStatus.innerHTML = '<div class="warning">⚠️ Missing data for live monitoring</div>';
+                    return;
+                }
+                
+                const quantities = JSON.parse(stationQuantities);
+                const eventStock = JSON.parse(eventStockLevels);
+                
+                let html = '<div class="live-update">';
+                html += `<h4>🔄 Live Status (Updated: ${new Date().toLocaleTimeString()})</h4>`;
+                
+                let totalAllocatedItems = 0;
+                let totalStations = Object.keys(quantities).length;
+                
+                Object.keys(eventStock).forEach(category => {
+                    Object.keys(eventStock[category]).forEach(itemId => {
+                        const item = eventStock[category][itemId];
+                        if (item.allocated > 0) {
+                            totalAllocatedItems++;
+                            html += `<div>• ${itemId}: ${item.allocated} ${item.unit} allocated (${item.available} ${item.unit} available)</div>`;
+                        }
+                    });
+                });
+                
+                html += `<div class="success">✅ Monitoring ${totalAllocatedItems} allocated items across ${totalStations} stations</div>`;
+                html += '</div>';
+                
+                liveStatus.innerHTML = html;
+                
+            } catch (e) {
+                liveStatus.innerHTML = '<div class="error">❌ Live status error: ' + e.message + '</div>';
+            }
+        }
+        
+        // Start live monitoring on page load
+        window.onload = () => {
+            updateLiveStatus();
+            
+            // Auto-run the ultimate fix after a short delay
+            setTimeout(() => {
+                const results = document.getElementById('results');
+                results.innerHTML = '<div class="info">🎯 Page loaded. Click "FIX ALLOCATIONS NOW" to solve the allocation display issue.</div>';
+            }, 500);
+        };
+        
+        // Clean up on page unload
+        window.onbeforeunload = () => {
+            if (monitoringInterval) {
+                clearInterval(monitoringInterval);
+            }
+        };
+    </script>
+</body>
+</html>

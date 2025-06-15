@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+
+{% block title %}Track Your Coffee - Order #{{ order.display_code }}{% endblock %}
+
+{% block head %}
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/track.css') }}">
+<meta name="theme-color" content="#4a2c2a">
+{% endblock %}
+
+{% block content %}
+<div class="tracking-container">
+  <div class="tracking-header">
+    <div class="logo-container">
+      <h1>EXPRESSO</h1>
+      <p>ANZCA ASM 2025 Cairns</p>
+    </div>
+    
+    <div class="order-code">
+      <span class="label">Your order:</span>
+      <span class="code">{{ order.display_code }}</span>
+    </div>
+  </div>
+  
+  <div class="tracking-card">
+    <div class="tracking-status {{ order.status_class }}">
+      <div class="status-icon">
+        {% if order.status_class == 'waiting' %}
+          <i class="bi bi-hourglass-split"></i>
+        {% elif order.status_class == 'preparing' %}
+          <i class="bi bi-cup-hot"></i>
+        {% elif order.status_class == 'ready' %}
+          <i class="bi bi-check-circle"></i>
+        {% elif order.status_class == 'complete' %}
+          <i class="bi bi-bag-check"></i>
+        {% endif %}
+      </div>
+      <div class="status-text">{{ order.status }}</div>
+    </div>
+    
+    <div class="progress-container">
+      <div class="progress-track">
+        <div class="progress-fill" style="width: {{ order.progress }}%"></div>
+      </div>
+      <div class="progress-stages">
+        <div class="stage {% if order.progress >= 10 %}completed{% endif %}">
+          <div class="stage-dot"></div>
+          <div class="stage-label">Received</div>
+        </div>
+        <div class="stage {% if order.progress >= 50 %}completed{% endif %}">
+          <div class="stage-dot"></div>
+          <div class="stage-label">Preparing</div>
+        </div>
+        <div class="stage {% if order.progress >= 100 %}completed{% endif %}">
+          <div class="stage-dot"></div>
+          <div class="stage-label">Ready</div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="order-details">
+      <h3>Order Summary</h3>
+      <div class="coffee-details">
+        <div class="coffee-icon">
+          <i class="bi bi-cup"></i>
+        </div>
+        <div class="coffee-info">
+          <div class="coffee-name">{{ order.size }} {{ order.coffee_type }}</div>
+          <div class="coffee-customization">
+            {{ order.milk_type }} milk
+            {% if order.sugar > 0 %}
+              • {{ order.sugar }} sugar
+            {% endif %}
+            {% if order.extra_hot %}
+              • Extra hot
+            {% endif %}
+          </div>
+          {% if order.special_instructions %}
+          <div class="special-instructions">
+            <i class="bi bi-info-circle"></i> {{ order.special_instructions }}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    
+    <div class="pickup-info">
+      <h3>Pickup Information</h3>
+      <div class="location-info">
+        <div class="location-icon">
+          <i class="bi bi-geo-alt"></i>
+        </div>
+        <div class="station-details">
+          <div class="station-name">{{ order.station_name }}</div>
+          <div class="station-location">{{ order.station_location }}</div>
+        </div>
+      </div>
+      
+      {% if order.status_class == 'waiting' and order.estimated_wait %}
+      <div class="estimated-time">
+        <i class="bi bi-clock"></i> Estimated wait: ~{{ order.estimated_wait }} minutes
+      </div>
+      {% endif %}
+      
+      <div class="qr-info">
+        <div class="qr-explanation">
+          <i class="bi bi-qr-code"></i>
+          Show this code to pick up your order:
+        </div>
+        <div class="qr-code">
+          <img src="{{ url_for('static', filename='qr/' + order.display_code + '.svg') }}" alt="QR Code">
+        </div>
+      </div>
+    </div>
+    
+    <div class="action-buttons">
+      <button class="btn-refresh" onclick="location.reload()">
+        <i class="bi bi-arrow-clockwise"></i> Refresh Status
+      </button>
+      
+      {% if order.status_class == 'ready' %}
+      <a href="{{ url_for('track.map', code=tracking_code) }}" class="btn-directions">
+        <i class="bi bi-map"></i> Get Directions
+      </a>
+      {% endif %}
+    </div>
+  </div>
+  
+  <div class="map-preview">
+    <h3>Location</h3>
+    <div class="map-container">
+      <img src="{{ url_for('static', filename='images/venue-map.jpg') }}" alt="Venue Map" class="venue-map">
+      <div class="station-marker" style="top: {{ station.map_y }}%; left: {{ station.map_x }}%">
+        <div class="station-pin"></div>
+        <div class="station-label">{{ order.station_name }}</div>
+      </div>
+    </div>
+    <a href="{{ url_for('track.map', code=tracking_code) }}" class="btn-full-map">
+      <i class="bi bi-arrows-fullscreen"></i> View Full Map
+    </a>
+  </div>
+  
+  <div class="feedback-prompt {% if order.status_class == 'complete' %}active{% endif %}">
+    <h3>How was your coffee?</h3>
+    <div class="rating-buttons">
+      <button class="rating-btn" data-rating="1">
+        <i class="bi bi-emoji-frown"></i>
+      </button>
+      <button class="rating-btn" data-rating="2">
+        <i class="bi bi-emoji-neutral"></i>
+      </button>
+      <button class="rating-btn" data-rating="3">
+        <i class="bi bi-emoji-smile"></i>
+      </button>
+      <button class="rating-btn" data-rating="4">
+        <i class="bi bi-emoji-laughing"></i>
+      </button>
+    </div>
+    <textarea class="feedback-text" placeholder="Any additional feedback? (optional)"></textarea>
+    <button class="btn-submit-feedback">Submit Feedback</button>
+  </div>
+  
+  <div class="loyalty-status">
+    <h3>Loyalty Program</h3>
+    <div class="coffee-stamps">
+      {% for i in range(1, 11) %}
+      <div class="stamp {% if i <= customer_loyalty.stamps %}stamped{% endif %}">
+        <i class="bi bi-cup-hot-fill"></i>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="loyalty-info">
+      <p>You have {{ customer_loyalty.stamps }}/10 stamps</p>
+      {% if customer_loyalty.free_coffees > 0 %}
+      <p>You have {{ customer_loyalty.free_coffees }} free coffee(s) available!</p>
+      {% endif %}
+    </div>
+  </div>
+  
+  <div class="footer">
+    <p>Order placed at {{ order.created_at }}</p>
+    <p>ANZCA ASM 2025 Cairns</p>
+  </div>
+</div>
+
+<!-- Auto-update status -->
+<script>
+  // Refresh page every 30 seconds if order is not yet ready
+  {% if order.status_class in ['waiting', 'preparing'] %}
+  setTimeout(function() {
+    location.reload();
+  }, 30000);
+  {% endif %}
+  
+  // Handle feedback submission
+  document.addEventListener('DOMContentLoaded', function() {
+    const ratingButtons = document.querySelectorAll('.rating-btn');
+    const feedbackSubmit = document.querySelector('.btn-submit-feedback');
+    let selectedRating = null;
+    
+    ratingButtons.forEach(button => {
+      button.addEventListener('click', function() {
+        ratingButtons.forEach(b => b.classList.remove('selected'));
+        this.classList.add('selected');
+        selectedRating = this.dataset.rating;
+      });
+    });
+    
+    if (feedbackSubmit) {
+      feedbackSubmit.addEventListener('click', function() {
+        if (!selectedRating) {
+          alert('Please select a rating');
+          return;
+        }
+        
+        const feedback = document.querySelector('.feedback-text').value;
+        const orderId = '{{ order.id }}';
+        
+        // Submit feedback
+        fetch('/track/feedback', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            order_id: orderId,
+            rating: selectedRating,
+            feedback: feedback
+          })
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            document.querySelector('.feedback-prompt').innerHTML = '<h3>Thank you for your feedback!</h3>';
+          } else {
+            alert('Error submitting feedback. Please try again.');
+          }
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          alert('Error submitting feedback. Please try again.');
+        });
+      });
+    }
+  });
+</script>
+{% endblock %}

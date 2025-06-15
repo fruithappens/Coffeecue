@@ -1,0 +1,237 @@
+/* Milk color coding system */
+
+/* Standard Milks - name-based classes */
+.order-milk-full-cream-milk {
+  background-color: #FFFFFF;
+  border-left: 4px solid #E8E8E8;
+}
+
+.order-milk-skim-milk {
+  background-color: #F0F8FF;
+  border-left: 4px solid #ADD8E6;
+}
+
+.order-milk-reduced-fat-milk {
+  background-color: #F5F5F5;
+  border-left: 4px solid #D3D3D3;
+}
+
+.order-milk-lactose-free-milk {
+  background-color: #FFFFFF;
+  border: 1px dashed #6495ED;
+  border-left: 4px solid #6495ED;
+}
+
+/* Standard Milks - ID-based classes */
+.order-milk-full_cream {
+  background-color: #FFFFFF;
+  border-left-color: #E8E8E8 !important;
+}
+
+.order-milk-skim {
+  background-color: #F0F8FF;
+  border-left-color: #ADD8E6 !important;
+}
+
+.order-milk-reduced_fat {
+  background-color: #F5F5F5;
+  border-left-color: #D3D3D3 !important;
+}
+
+.order-milk-lactose_free {
+  background-color: #FFFFFF;
+  border: 1px dashed #6495ED;
+  border-left-color: #6495ED !important;
+}
+
+/* Alternative Milks - name-based classes */
+.order-milk-soy-milk {
+  background-color: #FFFAED;
+  border-left: 4px solid #FFEC8B;
+}
+
+.order-milk-oat-milk {
+  background-color: #FFF0F0;
+  border-left: 4px solid #FF7F7F;
+}
+
+.order-milk-almond-milk {
+  background-color: #EEF6FB;
+  border-left: 4px solid #87CEEB;
+}
+
+/* Alternative Milks - ID-based classes */
+.order-milk-soy {
+  background-color: #FFFAED;
+  border-left-color: #FFEC8B !important;
+}
+
+.order-milk-oat {
+  background-color: #FFF0F0;
+  border-left-color: #FF7F7F !important;
+}
+
+.order-milk-almond {
+  background-color: #EEF6FB;
+  border-left-color: #87CEEB !important;
+}
+
+.order-milk-coconut {
+  background-color: #F0F8F0;
+  border-left-color: #90EE90 !important;
+}
+
+.order-milk-macadamia {
+  background-color: #F5EFE5;
+  border-left-color: #DEB887 !important;
+}
+
+.order-milk-rice {
+  background-color: #F5F0FF;
+  border-left-color: #E6E6FA !important;
+}
+
+.order-milk-hemp {
+  background-color: #F0FFF0;
+  border-left-color: #D8F8D8 !important;
+}
+
+.order-milk-cashew {
+  background-color: #FEF5E7;
+  border-left-color: #F5DEB3 !important;
+}
+
+.order-milk-pea {
+  background-color: #F0FFF0;
+  border-left-color: #CCFFCC !important;
+}
+
+.order-milk-coconut-milk {
+  background-color: #F0F8F0;
+  border-left: 4px solid #90EE90;
+}
+
+.order-milk-macadamia-milk {
+  background-color: #F5EFE5;
+  border-left: 4px solid #DEB887;
+}
+
+.order-milk-rice-milk {
+  background-color: #F5F0FF;
+  border-left: 4px solid #E6E6FA;
+}
+
+.order-milk-hemp-milk {
+  background-color: #F0FFF0;
+  border-left: 4px solid #D8F8D8;
+}
+
+.order-milk-cashew-milk {
+  background-color: #FEF5E7;
+  border-left: 4px solid #F5DEB3;
+}
+
+.order-milk-pea-milk {
+  background-color: #F0FFF0;
+  border-left: 4px solid #CCFFCC;
+}
+
+/* Milk indicator dots by ID */
+
+.milk-indicator-dot.full_cream { 
+  background-color: #FFFFFF; 
+  border: 1px solid #D3D3D3; 
+}
+
+.milk-indicator-dot.skim { 
+  background-color: #ADD8E6; 
+}
+
+.milk-indicator-dot.reduced_fat { 
+  background-color: #D3D3D3; 
+}
+
+.milk-indicator-dot.lactose_free { 
+  background-color: #FFFFFF; 
+  border: 1px dashed #6495ED; 
+}
+
+.milk-indicator-dot.soy { 
+  background-color: #FFEC8B; 
+}
+
+.milk-indicator-dot.oat { 
+  background-color: #FF7F7F; 
+}
+
+.milk-indicator-dot.almond { 
+  background-color: #87CEEB; 
+}
+
+.milk-indicator-dot.coconut { 
+  background-color: #90EE90; 
+}
+
+.milk-indicator-dot.macadamia { 
+  background-color: #DEB887; 
+}
+
+.milk-indicator-dot.rice { 
+  background-color: #E6E6FA; 
+}
+
+.milk-indicator-dot.hemp { 
+  background-color: #D8F8D8; 
+}
+
+.milk-indicator-dot.cashew { 
+  background-color: #F5DEB3; 
+}
+
+.milk-indicator-dot.pea { 
+  background-color: #CCFFCC; 
+}
+
+/* Indicator dots for milk types */
+.milk-indicator-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 5px;
+}
+
+.milk-indicator-dot.full-cream-milk { background-color: #FFFFFF; border: 1px solid #ccc; }
+.milk-indicator-dot.skim-milk { background-color: #ADD8E6; }
+.milk-indicator-dot.reduced-fat-milk { background-color: #D3D3D3; }
+.milk-indicator-dot.lactose-free-milk { background-color: #FFFFFF; border: 1px dashed #6495ED; }
+.milk-indicator-dot.soy-milk { background-color: #FFEC8B; }
+.milk-indicator-dot.oat-milk { background-color: #FF7F7F; }
+.milk-indicator-dot.almond-milk { background-color: #87CEEB; }
+.milk-indicator-dot.coconut-milk { background-color: #90EE90; }
+.milk-indicator-dot.macadamia-milk { background-color: #DEB887; }
+.milk-indicator-dot.rice-milk { background-color: #E6E6FA; }
+.milk-indicator-dot.hemp-milk { background-color: #D8F8D8; }
+.milk-indicator-dot.cashew-milk { background-color: #F5DEB3; }
+.milk-indicator-dot.pea-milk { background-color: #CCFFCC; }
+
+/* Accessibility considerations */
+@media (prefers-reduced-motion: reduce) {
+  /* Remove any animations */
+  .order-milk-* {
+    transition: none !important;
+  }
+}
+
+@media (prefers-contrast: more) {
+  /* Increase contrast for better visibility */
+  .order-milk-* {
+    border-left-width: 6px !important;
+  }
+  
+  .milk-indicator-dot {
+    width: 12px !important;
+    height: 12px !important;
+    border-width: 2px !important;
+  }
+}

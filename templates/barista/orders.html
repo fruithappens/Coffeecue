@@ -1,0 +1,155 @@
+{% extends "barista_layout.html" %}
+
+{% block title %}Orders Dashboard - Barista Interface{% endblock %}
+
+{% block content %}
+<div class="orders-dashboard">
+    <div class="dashboard-header">
+        <h2>Active Orders</h2>
+        <div class="dashboard-actions">
+            <a href="{{ url_for('barista.scan_code') }}" class="btn btn-primary">
+                <i class="bi bi-qr-code-scan"></i> Scan QR Code
+            </a>
+        </div>
+    </div>
+    
+    <!-- Quick Stats -->
+    <div class="stat-cards">
+        <div class="stat-card">
+            <div class="stat-value text-primary">{{ orders_by_station|sum(attribute='0')|length }}</div>
+            <div class="stat-label">Active Orders</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value text-success">{{ completed_count }}</div>
+            <div class="stat-label">Completed Today</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value text-warning">
+                {% set vip_count = 0 %}
+                {% for station_id, orders in orders_by_station.items() %}
+                    {% for order in orders %}
+                        {% if order.is_vip %}
+                            {% set vip_count = vip_count + 1 %}
+                        {% endif %}
+                    {% endfor %}
+                {% endfor %}
+                {{ vip_count }}
+            </div>
+            <div class="stat-label">VIP Orders</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="current-time">{{ now.strftime('%H:%M') }}</div>
+            <div class="stat-label">Current Time</div>
+        </div>
+    </div>
+    
+    <!-- Orders Container -->
+    <div class="orders-container">
+        {% for station in stations %}
+            <div class="station-orders" data-station-id="{{ station.station_id }}">
+                <h3 class="station-header">
+                    <div class="station-info">
+                        <span class="station-name">Station {{ station.station_id }}</span>
+                        {% if station.barista_name %}
+                            <span class="barista-badge">{{ station.barista_name }}</span>
+                        {% endif %}
+                    </div>
+                    <span class="order-count">{{ orders_by_station[station.station_id]|length }}</span>
+                </h3>
+                
+                <div class="order-list">
+                    {% for order in orders_by_station[station.station_id] %}
+                        <div class="order-card {% if order.is_vip %}vip-order{% endif %}" 
+                             data-order-id="{{ order.id }}" 
+                             data-status="{{ order.status }}">
+                            <div class="order-header">
+                                <span class="order-number">{{ order.order_number }}</span>
+                                <span class="order-time">{{ order.wait_time }}m</span>
+                            </div>
+                            <div class="order-content">
+                                <p class="order-details">{{ order.formatted_details }}</p>
+                                {% if order.customer_name %}
+                                <p class="customer-name">{{ order.customer_name }}</p>
+                                {% endif %}
+                                {% if order.payment_status == 'pending' and order.price > 0 %}
+                                <div class="payment-badge">
+                                    <i class="bi bi-credit-card"></i> Payment Required
+                                </div>
+                                {% endif %}
+                            </div>
+                            <div class="order-actions">
+                                {% if order.status == 'pending' %}
+                                <button class="btn action-start" data-order-id="{{ order.id }}">Start</button>
+                                {% elif order.status == 'in-progress' %}
+                                <button class="btn action-complete" data-order-id="{{ order.id }}">Complete</button>
+                                {% endif %}
+                                <button class="btn action-details" data-order-id="{{ order.id }}">Details</button>
+                                {% if order.payment_status == 'pending' and order.price > 0 %}
+                                <button class="btn btn-outline-primary action-payment" data-order-id="{{ order.id }}">
+                                    Pay
+                                </button>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="no-orders-message">
+                            <i class="bi bi-cup"></i>
+                            <p>No active orders for this station</p>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Update current time every minute
+    function updateCurrentTime() {
+        const now = new Date();
+        const timeElement = document.getElementById('current-time');
+        if (timeElement) {
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            timeElement.textContent = `${hours}:${minutes}`;
+        }
+    }
+    
+    // Update wait times every minute
+    function updateWaitTimes() {
+        document.querySelectorAll('.order-time').forEach(timeElement => {
+            const currentMinutes = parseInt(timeElement.textContent);
+            if (!isNaN(currentMinutes)) {
+                timeElement.textContent = `${currentMinutes + 1}m`;
+                
+                // Highlight long wait times
+                if (currentMinutes + 1 > 10) {
+                    timeElement.classList.add('text-danger');
+                } else if (currentMinutes + 1 > 5) {
+                    timeElement.classList.add('text-warning');
+                }
+            }
+        });
+    }
+    
+    // Set up timers when document loads
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initial updates
+        updateCurrentTime();
+        
+        // Set up interval timers
+        setInterval(updateCurrentTime, 60000); // Update time every minute
+        setInterval(updateWaitTimes, 60000);   // Update wait times every minute
+        
+        // Auto-refresh the page every 5 minutes if not active
+        setInterval(function() {
+            // Only refresh if the page has been inactive
+            if (document.hidden && !document.querySelector('.order-card:hover')) {
+                location.reload();
+            }
+        }, 5 * 60 * 1000);
+    });
+</script>
+{% endblock %}

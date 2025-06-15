@@ -1,0 +1,87 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+.venv/
+
+# Environment variables - CRITICAL SECURITY
+.env
+.env.local
+.env.exposed
+.env.backup
+.env.production
+
+# Flask
+instance/
+.webassets-cache
+
+# Logs
+logs/*.log
+*.log
+log/
+logs/
+
+# Database
+*.db
+*.sqlite3
+
+# Temporary files
+tmp/
+temp/
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Node.js (for frontend)
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# Frontend build
+/Barista Front End/build/
+
+# Configuration backup files
+twilio-config.json
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Generated files
+diagnostics/*_results.json
+
+# Security - Never commit these
+.env.*
+*secret*
+*password*
+*token*
+*key*
+
+# Railway deployment files - OK to commit
+!Procfile
+!railway.json
+!runtime.txt

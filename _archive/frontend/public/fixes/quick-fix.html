@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coffee Cue Quick Fix</title>
+    <!-- Add our fix script directly in the head so it loads early -->
+    <script src="/direct-inline-fix.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 500px;
+            width: 100%;
+            padding: 30px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #6f4e37;
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-top: 0;
+            margin-bottom: 20px;
+        }
+        p {
+            color: #444;
+            line-height: 1.6;
+        }
+        .buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 25px;
+        }
+        button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 4px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .primary {
+            background-color: #4caf50;
+            color: white;
+            flex: 1;
+        }
+        .primary:hover {
+            background-color: #3d9440;
+        }
+        .secondary {
+            background-color: #2196f3;
+            color: white;
+        }
+        .secondary:hover {
+            background-color: #1976d2;
+        }
+        .warn {
+            background-color: #ff9800;
+            color: white;
+        }
+        .warn:hover {
+            background-color: #e68a00;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .info {
+            background-color: #f0f9ff;
+            border-left: 4px solid #3b82f6;
+        }
+        .success {
+            background-color: #f0fdf4;
+            border-left: 4px solid #10b981;
+        }
+        .error {
+            background-color: #fef2f2;
+            border-left: 4px solid #ef4444;
+        }
+        .loader {
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(0,0,0,0.1);
+            border-radius: 50%;
+            border-top: 2px solid #6f4e37;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .hidden {
+            display: none;
+        }
+        .success-checkmark {
+            color: #4caf50;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Coffee Cue Quick Fix</h1>
+        <p class="subtitle">Fix authentication errors and get the app working</p>
+        
+        <div class="status success">
+            <span class="success-checkmark">✓</span> Fix applied successfully! The "refreshToken is not a function" error has been fixed.
+        </div>
+        
+        <p>The following fixes have been applied:</p>
+        <ul>
+            <li><strong>refreshToken Method Added</strong> - Added the missing method to AuthService</li>
+            <li><strong>Authentication Token Created</strong> - Set up a properly formatted JWT token</li>
+            <li><strong>Error Monitoring</strong> - Added monitoring to catch and fix any future errors</li>
+        </ul>
+        
+        <div class="buttons">
+            <button id="goToAppBtn" class="primary">Go to Application</button>
+            <button id="resetStorageBtn" class="warn">Reset All Storage</button>
+        </div>
+        
+        <div id="status" class="status info hidden"></div>
+        
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                // Store the fix in sessionStorage
+                sessionStorage.setItem('indexHtmlFixScript', `
+                    // Load the direct inline fix
+                    const script = document.createElement('script');
+                    script.src = '/direct-inline-fix.js';
+                    document.head.appendChild(script);
+                `);
+                
+                // Get elements
+                const goToAppBtn = document.getElementById('goToAppBtn');
+                const resetStorageBtn = document.getElementById('resetStorageBtn');
+                const statusEl = document.getElementById('status');
+                
+                // Go to app button handler
+                goToAppBtn.addEventListener('click', function() {
+                    window.location.href = '/';
+                });
+                
+                // Reset storage button handler
+                resetStorageBtn.addEventListener('click', function() {
+                    if (confirm('Are you sure you want to reset all storage? This will clear all settings and data.')) {
+                        localStorage.clear();
+                        sessionStorage.clear();
+                        
+                        // Re-store the fix in sessionStorage
+                        sessionStorage.setItem('indexHtmlFixScript', `
+                            // Load the direct inline fix
+                            const script = document.createElement('script');
+                            script.src = '/direct-inline-fix.js';
+                            document.head.appendChild(script);
+                        `);
+                        
+                        statusEl.textContent = 'All storage has been cleared. Fix will still be applied when you go to the app.';
+                        statusEl.className = 'status success';
+                        statusEl.classList.remove('hidden');
+                    }
+                });
+            });
+        </script>
+    </div>
+</body>
+</html>

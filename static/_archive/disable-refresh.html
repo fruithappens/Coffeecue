@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Disable Auto-Refresh</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+            line-height: 1.6;
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+            text-align: left;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 4px;
+            margin: 15px 0;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 18px;
+            margin: 10px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+            width: 100%;
+            max-width: 400px;
+        }
+        .button-warning {
+            background-color: #ff9800;
+        }
+        .button-danger {
+            background-color: #f44336;
+        }
+        .panel {
+            margin-top: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>Quick Fix: Disable Auto-Refresh</h1>
+    
+    <div class="card">
+        <p>This tool will help reduce the CORS errors by disabling the auto-refresh functionality. This is a temporary fix until you can resolve the CORS issue in the backend.</p>
+        
+        <div id="status" class="status warning">
+            <p>Click one of the buttons below to modify auto-refresh settings.</p>
+        </div>
+        
+        <div class="panel">
+            <button id="disable" class="button-danger">DISABLE Auto-Refresh</button>
+            <button id="slower" class="button-warning">Set Auto-Refresh to 30 seconds</button>
+            <button id="check">Check Current Settings</button>
+        </div>
+        
+        <p style="font-size: 14px; margin-top: 20px;">After making changes, refresh the main application for the changes to take effect.</p>
+    </div>
+    
+    <script>
+        // DOM elements
+        const statusEl = document.getElementById('status');
+        const disableBtn = document.getElementById('disable');
+        const slowerBtn = document.getElementById('slower');
+        const checkBtn = document.getElementById('check');
+        
+        // Check current auto-refresh settings
+        function checkSettings() {
+            const enabled = localStorage.getItem('coffee_auto_refresh_enabled');
+            const interval = localStorage.getItem('coffee_auto_refresh_interval');
+            
+            let message = '';
+            let type = 'warning';
+            
+            if (enabled === 'true') {
+                message = `<p><strong>Auto-refresh is currently ENABLED</strong>`;
+                
+                if (interval) {
+                    const seconds = parseInt(interval);
+                    message += ` with interval: ${seconds} seconds</p>`;
+                    
+                    if (seconds < 15) {
+                        message += `<p>⚠️ This interval is too short and may cause excessive requests and errors.</p>`;
+                        type = 'error';
+                    } else if (seconds < 30) {
+                        message += `<p>⚠️ This interval could be increased to reduce load on the server.</p>`;
+                        type = 'warning';
+                    } else {
+                        message += `<p>This interval is reasonable for normal operation.</p>`;
+                        type = 'success';
+                    }
+                } else {
+                    message += ` with unknown interval.</p>`;
+                    type = 'warning';
+                }
+            } else if (enabled === 'false') {
+                message = `<p><strong>Auto-refresh is currently DISABLED</strong></p>
+                <p>This should help reduce CORS errors but you'll need to manually refresh to see updates.</p>`;
+                type = 'success';
+            } else {
+                message = `<p><strong>Auto-refresh settings not found</strong></p>
+                <p>Default behavior is enabled with 30 second interval.</p>`;
+                type = 'warning';
+            }
+            
+            statusEl.className = `status ${type}`;
+            statusEl.innerHTML = message;
+        }
+        
+        // Disable auto-refresh
+        function disableAutoRefresh() {
+            localStorage.setItem('coffee_auto_refresh_enabled', 'false');
+            statusEl.className = 'status success';
+            statusEl.innerHTML = `
+                <p>✅ Auto-refresh has been <strong>DISABLED</strong>.</p>
+                <p>You will need to manually refresh the page to see updates, but this will stop the CORS errors.</p>
+                <p><strong>Refresh the main application</strong> for this change to take effect.</p>
+            `;
+        }
+        
+        // Set slower auto-refresh
+        function setSlowerAutoRefresh() {
+            localStorage.setItem('coffee_auto_refresh_enabled', 'true');
+            localStorage.setItem('coffee_auto_refresh_interval', '30');
+            statusEl.className = 'status success';
+            statusEl.innerHTML = `
+                <p>✅ Auto-refresh has been set to <strong>30 seconds</strong>.</p>
+                <p>This will reduce the frequency of CORS errors while still providing updates.</p>
+                <p><strong>Refresh the main application</strong> for this change to take effect.</p>
+            `;
+        }
+        
+        // Event listeners
+        disableBtn.addEventListener('click', disableAutoRefresh);
+        slowerBtn.addEventListener('click', setSlowerAutoRefresh);
+        checkBtn.addEventListener('click', checkSettings);
+        
+        // Initialize
+        checkSettings();
+    </script>
+</body>
+</html>

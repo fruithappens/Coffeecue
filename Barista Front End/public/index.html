@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#000000" />
+    <meta
+      name="description"
+      content="Coffee Cue - Skip the Queue, Get Your Cue"
+    />
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
+    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+    <title>Coffee Cue Ordering System</title>
+    
+    <!-- Coffee Cue Sound System -->
+    <script src="%PUBLIC_URL%/coffee-sounds.js"></script>
+    
+    <!-- Fix localStorage on load -->
+    <script src="%PUBLIC_URL%/fix-localstorage.js"></script>
+    
+    <!-- Automated UI Test Script -->
+    <script src="%PUBLIC_URL%/auto-test.js"></script>
+    
+    <!-- Conditionally disable WebSocket if flag is set -->
+    <script>
+      if (localStorage.getItem('websocket_disabled') === 'true') {
+        document.write('<script src="%PUBLIC_URL%/disable-websocket.js"><\/script>');
+      }
+    </script>
+    
+    <!-- Display Scaling CSS for External Displays -->
+    <link rel="stylesheet" href="%PUBLIC_URL%/display-scaling.css">
+    
+    <!-- Display Helper for External Display Management -->
+    <script src="%PUBLIC_URL%/display-helper.js"></script>
+    
+    <!-- Initialize config settings and apply branding -->
+    <script>
+      // Ensure config is set
+      localStorage.setItem('coffee_system_config', JSON.stringify({
+        apiBaseUrl: 'http://localhost:5001/api',
+        defaultWaitTime: 15,
+        notificationTimeout: 30
+      }));
+      
+      // Reset any error counters on fresh page load
+      localStorage.removeItem('auth_error_count');
+      
+      // Apply branding from localStorage if available
+      try {
+        const branding = localStorage.getItem('coffee_system_branding');
+        if (branding) {
+          const brandingConfig = JSON.parse(branding);
+          if (brandingConfig.landingTitle) {
+            document.title = brandingConfig.landingTitle;
+          }
+        }
+      } catch (e) {
+        // Ignore branding errors
+      }
+      
+      // Disable fallback mode by default
+      localStorage.setItem('use_fallback_data', 'false');
+    </script>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+  </body>
+</html>

@@ -1,0 +1,209 @@
+{% extends "barista_layout.html" %}
+
+{% block title %}Order Details - Barista Interface{% endblock %}
+
+{% block barista_content %}
+<div class="order-detail-container">
+    <div class="order-detail-card">
+        <div class="order-header">
+            <h2>Order #{{ order.order_number }}</h2>
+            <span class="status-badge {{ order.status }}">{{ order.status|capitalize }}</span>
+        </div>
+        
+        <div class="order-info">
+            <div class="order-content">
+                <h3>Order Details</h3>
+                <p class="order-text">{{ formatted_details }}</p>
+                
+                <div class="order-metadata">
+                    <div class="metadata-item">
+                        <i class="bi bi-clock"></i> 
+                        {{ order.created_at }}
+                    </div>
+                    
+                    <div class="metadata-item">
+                        <i class="bi bi-geo-alt"></i> 
+                        Station {{ order.station_id }}
+                    </div>
+                    
+                    {% if order.scheduled_for %}
+                    <div class="metadata-item">
+                        <i class="bi bi-calendar-event"></i> 
+                        Scheduled: {{ order.scheduled_for }}
+                    </div>
+                    {% endif %}
+                    
+                    {% if order.price %}
+                    <div class="metadata-item">
+                        <i class="bi bi-currency-dollar"></i> 
+                        ${{ order.price }}
+                    </div>
+                    {% endif %}
+                    
+                    <div class="metadata-item">
+                        <i class="bi bi-credit-card"></i> 
+                        {{ order.payment_status|capitalize }}
+                    </div>
+                    
+                    {% if order.for_friend %}
+                    <div class="metadata-item">
+                        <i class="bi bi-people"></i> 
+                        For: {{ order.for_friend }}
+                    </div>
+                    {% endif %}
+                </div>
+                
+                {% if order.barista_notes %}
+                <div class="notes-section mt-3">
+                    <h5>Barista Notes</h5>
+                    <div class="notes-content">
+                        {{ order.barista_notes }}
+                    </div>
+                </div>
+                {% endif %}
+                
+                <div class="notes-form mt-3">
+                    <h5>Add Notes</h5>
+                    <form id="notes-form">
+                        <div class="mb-3">
+                            <textarea class="form-control" id="barista-notes" rows="2" 
+                                      placeholder="Add notes about this order...">{{ order.barista_notes }}</textarea>
+                        </div>
+                        <button type="submit" class="btn btn-sm btn-outline-primary">Save Notes</button>
+                    </form>
+                </div>
+            </div>
+            
+            <div class="customer-info">
+                <h3>Customer</h3>
+                
+                {% if customer %}
+                <div class="customer-details">
+                    <p><strong>Name:</strong> {{ customer.name }}</p>
+                    <p><strong>Phone:</strong> {{ order.phone }}</p>
+                    <p><strong>Total Orders:</strong> {{ customer.total_orders }}</p>
+                    
+                    {% if customer.loyalty_points %}
+                    <div class="loyalty-info">
+                        <div class="loyalty-header">
+                            <i class="bi bi-star-fill"></i> Loyalty
+                        </div>
+                        <p>{{ customer.loyalty_points }} points</p>
+                        
+                        <div class="progress" style="height: 10px;">
+                            <div class="progress-bar bg-success" role="progressbar" 
+                                 style="width: {{ (customer.loyalty_points % 100) }}%;" 
+                                 aria-valuenow="{{ customer.loyalty_points % 100 }}" 
+                                 aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% else %}
+                <p>No customer information available</p>
+                {% endif %}
+                
+                {% if order.qr_code_url %}
+                <div class="qr-display mt-3">
+                    <div class="qr-label">Order QR Code</div>
+                    <img src="{{ order.qr_code_url }}" alt="Order QR Code" class="qr-image">
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="action-bar">
+            {% if order.status == 'pending' %}
+            <button class="btn btn-primary action-start" data-order-id="{{ order.id }}">
+                <i class="bi bi-play-fill"></i> Start Order
+            </button>
+            {% elif order.status == 'in-progress' %}
+            <button class="btn btn-success action-complete" data-order-id="{{ order.id }}">
+                <i class="bi bi-check-lg"></i> Complete Order
+            </button>
+            {% endif %}
+            
+            {% if order.payment_status == 'pending' and order.price > 0 %}
+            <button class="btn btn-outline-primary action-payment" data-order-id="{{ order.id }}">
+                <i class="bi bi-credit-card"></i> Mark as Paid
+            </button>
+            {% endif %}
+            
+            {% if order.status != 'cancelled' and order.status != 'completed' %}
+            <button class="btn btn-outline-danger action-cancel" data-order-id="{{ order.id }}">
+                <i class="bi bi-x-lg"></i> Cancel Order
+            </button>
+            {% endif %}
+            
+            <a href="{{ url_for('barista.edit_order', order_id=order.id) }}" class="btn btn-outline-secondary">
+                <i class="bi bi-pencil"></i> Edit Order
+            </a>
+            
+            <a href="{{ url_for('barista.barista_view') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back to Orders
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    // Notes form submission
+    document.addEventListener('DOMContentLoaded', function() {
+        const notesForm = document.getElementById('notes-form');
+        if (notesForm) {
+            notesForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const notes = document.getElementById('barista-notes').value;
+                saveNotes('{{ order.id }}', notes);
+            });
+        }
+    });
+    
+    // Save notes function
+    function saveNotes(orderId, notes) {
+        fetch(`/barista/save_notes/${orderId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+                // Removed CSRF token header
+            },
+            body: JSON.stringify({ notes: notes })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('Notes Saved', 'Barista notes were saved successfully', 'success');
+            } else {
+                showNotification('Error', data.message || 'Failed to save notes', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error saving notes:', error);
+            showNotification('Error', 'Network error. Notes will sync when connection is restored.', 'error');
+            
+            // Queue for offline sync
+            if (!navigator.onLine) {
+                addToOfflineQueue({ 
+                    type: 'saveNotes', 
+                    orderId: orderId,
+                    notes: notes,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+    }
+    
+    // Temporary implementation of showNotification if not already defined
+    function showNotification(title, message, type) {
+        if (window.showNotification) {
+            window.showNotification(title, message, type);
+        } else {
+            alert(`${title}: ${message}`);
+        }
+    }
+</script>
+{% endblock %}

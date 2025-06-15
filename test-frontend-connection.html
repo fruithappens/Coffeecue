@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Frontend Connection</title>
+</head>
+<body>
+    <h1>Frontend Connection Test</h1>
+    <button onclick="testDirect()">Test Direct API (http://localhost:5001/api/health)</button>
+    <button onclick="testProxy()">Test Proxy API (/api/health)</button>
+    <button onclick="testStations()">Test Stations API</button>
+    <pre id="output"></pre>
+    
+    <script>
+        const output = document.getElementById('output');
+        
+        async function testDirect() {
+            try {
+                const response = await fetch('http://localhost:5001/api/health', {
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                const data = await response.json();
+                output.textContent = 'Direct API Response:\n' + JSON.stringify(data, null, 2);
+            } catch (error) {
+                output.textContent = 'Direct API Error:\n' + error.message;
+            }
+        }
+        
+        async function testProxy() {
+            try {
+                const response = await fetch('/api/health', {
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                const data = await response.json();
+                output.textContent = 'Proxy API Response:\n' + JSON.stringify(data, null, 2);
+            } catch (error) {
+                output.textContent = 'Proxy API Error:\n' + error.message;
+            }
+        }
+        
+        async function testStations() {
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch('http://localhost:5001/api/stations', {
+                    headers: {
+                        'Accept': 'application/json',
+                        'Authorization': token ? `Bearer ${token}` : ''
+                    }
+                });
+                const data = await response.json();
+                output.textContent = 'Stations API Response:\n' + JSON.stringify(data, null, 2);
+            } catch (error) {
+                output.textContent = 'Stations API Error:\n' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>

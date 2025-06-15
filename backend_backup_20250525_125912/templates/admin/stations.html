@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+
+{% block title %}Station Management - {{ event_name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">Coffee Station Management</h1>
+            
+            {% for message in get_flashed_messages() %}
+            <div class="alert alert-info">{{ message }}</div>
+            {% endfor %}
+
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Active Stations</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Station ID</th>
+                                    <th>Location</th>
+                                    <th>Barista</th>
+                                    <th>Status</th>
+                                    <th>Current Load</th>
+                                    <th>Avg. Wait Time</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for station in stations %}
+                                <tr>
+                                    <td>{{ station.station_id }}</td>
+                                    <td>{{ station.location or "Main Area" }}</td>
+                                    <td>{{ station.barista_name or "Not assigned" }}</td>
+                                    <td>
+                                        <span class="badge {% if station.status == 'active' %}bg-success{% elif station.status == 'break' %}bg-warning{% else %}bg-danger{% endif %}">
+                                            {{ station.status }}
+                                        </span>
+                                    </td>
+                                    <td>{{ station.current_load }}</td>
+                                    <td>{{ (station.avg_completion_time / 60)|round(1) }} min</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#editStationModal{{ station.station_id }}">
+                                            Edit
+                                        </button>
+                                        
+                                        <!-- Admin actions dropdown -->
+                                        <div class="dropdown d-inline-block">
+                                            <button class="btn btn-sm btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                                Actions
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                <li>
+                                                    <form method="post" action="{{ url_for('admin.station_management') }}">
+                                                        <input type="hidden" name="action" value="update_status">
+                                                        <input type="hidden" name="station_id" value="{{ station.station_id }}">
+                                                        <input type="hidden" name="status" value="active">
+                                                        <button type="submit" class="dropdown-item">Set Active</button>
+                                                    </form>
+                                                </li>
+                                                <li>
+                                                    <form method="post" action="{{ url_for('admin.station_management') }}">
+                                                        <input type="hidden" name="action" value="update_status">
+                                                        <input type="hidden" name="station_id" value="{{ station.station_id }}">
+                                                        <input type="hidden" name="status" value="break">
+                                                        <button type="submit" class="dropdown-item">Set On Break</button>
+                                                    </form>
+                                                </li>
+                                                <li>
+                                                    <form method="post" action="{{ url_for('admin.station_management') }}">
+                                                        <input type="hidden" name="action" value="update_status">
+                                                        <input type="hidden" name="station_id" value="{{ station.station_id }}">
+                                                        <input type="hidden" name="status" value="offline">
+                                                        <button type="submit" class="dropdown-item">Set Offline</button>
+                                                    </form>
+                                                </li>
+                                                <li><hr class="dropdown-divider"></li>
+                                                <li>
+                                                    <a href="{{ url_for('admin.station_schedule') }}" class="dropdown-item">Manage Schedule</a>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </td>
+                                </tr>
+                                
+                                <!-- Edit Station Modal -->
+                                <div class="modal fade" id="editStationModal{{ station.station_id }}" tabindex="-1" aria-hidden="true">
+                                    <div class="modal-dialog">
+                                        <div class="modal-content">
+                                            <form method="post" action="{{ url_for('admin.station_management') }}">
+                                                <input type="hidden" name="action" value="update_equipment">
+                                                <input type="hidden" name="station_id" value="{{ station.station_id }}">
+                                                
+                                                <div class="modal-header">
+                                                    <h5 class="modal-title">Edit Station {{ station.station_id }}</h5>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                </div>
+                                                <div class="modal-body">
+                                                    <div class="mb-3">
+                                                        <label class="form-label">Equipment Status:</label>
+                                                        <select name="equipment_status" class="form-select">
+                                                            <option value="operational" {% if station.equipment_status == 'operational' %}selected{% endif %}>Operational</option>
+                                                            <option value="maintenance_needed" {% if station.equipment_status == 'maintenance_needed' %}selected{% endif %}>Maintenance Needed</option>
+                                                            <option value="broken" {% if station.equipment_status == 'broken' %}selected{% endif %}>Broken</option>
+                                                        </select>
+                                                    </div>
+                                                    
+                                                    <div class="mb-3">
+                                                        <label class="form-label">Specialist Drinks:</label>
+                                                        <textarea name="specialist_drinks" class="form-control" rows="3" placeholder="Enter specialist drinks this station can make">{{ station.specialist_drinks or "" }}</textarea>
+                                                        <div class="form-text">Enter drink types separated by commas</div>
+                                                    </div>
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Add Station Button -->
+            <div class="mb-4">
+                <form method="post" action="{{ url_for('admin.station_management') }}">
+                    <input type="hidden" name="action" value="add_station">
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-plus-circle"></i> Add New Station
+                    </button>
+                </form>
+            </div>
+            
+            <!-- Station Assignment -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Assign Barista to Station</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" action="{{ url_for('admin.station_management') }}" class="row g-3">
+                        <input type="hidden" name="action" value="assign_barista">
+                        
+                        <div class="col-md-4">
+                            <label class="form-label">Station:</label>
+                            <select name="station_id" class="form-select" required>
+                                <option value="">Select a station</option>
+                                {% for station in stations %}
+                                <option value="{{ station.station_id }}">Station {{ station.station_id }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <label class="form-label">Barista Name:</label>
+                            <input type="text" name="barista_name" class="form-control" required>
+                        </div>
+                        
+                        <div class="col-md-4 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary">Assign Barista</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

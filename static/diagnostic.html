@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coffee Cue Diagnostic</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        .container {
+            background: rgba(255,255,255,0.1);
+            padding: 30px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+        .status {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.2);
+        }
+        .success { background: rgba(76, 175, 80, 0.3); }
+        .error { background: rgba(244, 67, 54, 0.3); }
+        .warning { background: rgba(255, 152, 0, 0.3); }
+        button {
+            background: #fff;
+            color: #667eea;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 10px 5px;
+            font-weight: bold;
+        }
+        button:hover { opacity: 0.8; }
+        pre {
+            background: rgba(0,0,0,0.3);
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>☕ Coffee Cue System Diagnostic</h1>
+        
+        <div class="status">
+            <h2>📊 Current Status</h2>
+            <p>✅ You're seeing this page from the Flask backend (port 5001)</p>
+            <p>🔍 Now let's test the React frontend (port 3000)</p>
+        </div>
+        
+        <div class="status">
+            <h2>🧪 Port Tests</h2>
+            <button onclick="testPort3000()">Test Port 3000 (React)</button>
+            <button onclick="testPort5001()">Test Port 5001 (Backend)</button>
+            <div id="port-results"></div>
+        </div>
+        
+        <div class="status">
+            <h2>🔗 Direct Links</h2>
+            <button onclick="window.open('http://localhost:3000', '_blank')">🚀 Open React App (Port 3000)</button>
+            <button onclick="window.open('http://localhost:5001', '_blank')">🔧 Open Backend (Port 5001)</button>
+            <button onclick="window.open('http://localhost:5001/static/localStorage-to-database-migration.html', '_blank')">📦 Migration Tool</button>
+        </div>
+        
+        <div class="status">
+            <h2>🛠 Troubleshooting</h2>
+            <p><strong>If React app (3000) doesn't work:</strong></p>
+            <ul>
+                <li>Check if React dev server is running in Terminal</li>
+                <li>Look for error messages in the React Terminal window</li>
+                <li>Try restarting: <code>cd "Barista Front End" && npm start</code></li>
+            </ul>
+            
+            <p><strong>If you only see the backend (5001):</strong></p>
+            <ul>
+                <li>The React development server might not be starting</li>
+                <li>There might be compile errors in the React code</li>
+                <li>Port 3000 might be blocked or in use</li>
+            </ul>
+        </div>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        async function testPort3000() {
+            const resultsDiv = document.getElementById('port-results');
+            resultsDiv.innerHTML = '<p>🔄 Testing React app on port 3000...</p>';
+            
+            try {
+                // Try to fetch from port 3000
+                const response = await fetch('http://localhost:3000/', {
+                    method: 'GET',
+                    mode: 'no-cors'
+                });
+                
+                resultsDiv.innerHTML += '<div class="status success">✅ Port 3000 is responding!</div>';
+                
+                // Try to open in new window
+                window.open('http://localhost:3000', '_blank');
+                
+            } catch (error) {
+                resultsDiv.innerHTML += `<div class="status error">❌ Port 3000 failed: ${error.message}</div>`;
+                resultsDiv.innerHTML += '<p>💡 React development server might not be running</p>';
+            }
+        }
+        
+        async function testPort5001() {
+            const resultsDiv = document.getElementById('port-results');
+            resultsDiv.innerHTML += '<p>🔄 Testing backend on port 5001...</p>';
+            
+            try {
+                const response = await fetch('http://localhost:5001/api/health');
+                if (response.ok) {
+                    const data = await response.json();
+                    resultsDiv.innerHTML += '<div class="status success">✅ Backend API is working!</div>';
+                    resultsDiv.innerHTML += `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                } else {
+                    resultsDiv.innerHTML += `<div class="status warning">⚠️ Backend responded with status: ${response.status}</div>`;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML += `<div class="status error">❌ Backend failed: ${error.message}</div>`;
+            }
+        }
+        
+        // Auto-test on load
+        window.onload = function() {
+            setTimeout(testPort3000, 1000);
+        };
+    </script>
+</body>
+</html>

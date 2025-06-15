@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fix Inventory Categories - Final Solution</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            padding: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #f5f5f5;
+        }
+        h1 { color: #333; }
+        .section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .category {
+            margin: 10px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: #f9f9f9;
+        }
+        .category h3 {
+            margin: 0 0 10px 0;
+            color: #1a73e8;
+        }
+        .items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .item {
+            padding: 5px 10px;
+            background: #e3f2fd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .error { 
+            background-color: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .success { 
+            background-color: #e8f5e9;
+            color: #2e7d32;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .warning {
+            background-color: #fff3e0;
+            color: #e65100;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        button {
+            background: #1a73e8;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #1557b0;
+        }
+        button.danger {
+            background: #d32f2f;
+        }
+        button.danger:hover {
+            background: #b71c1c;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Fix Inventory Categories - Complete Solution</h1>
+    
+    <div class="section">
+        <h2>📊 Current Status</h2>
+        <div id="status"></div>
+    </div>
+    
+    <div class="section">
+        <h2>🛠️ Fix Actions</h2>
+        <button onclick="analyzeProblem()">1. Analyze Current State</button>
+        <button onclick="setupCorrectInventory()">2. Setup Correct Event Inventory</button>
+        <button onclick="fixStockCategories()">3. Fix Stock Categories</button>
+        <button onclick="verifyFix()">4. Verify Fix</button>
+        <button class="danger" onclick="nuclearReset()">🚨 Nuclear Reset (Last Resort)</button>
+    </div>
+    
+    <div class="section">
+        <h2>📋 Results</h2>
+        <div id="results"></div>
+    </div>
+
+    <script>
+        // Correct inventory structure with proper categories
+        const CORRECT_EVENT_INVENTORY = {
+            milk: [
+                {id: "milk_1", name: "Whole Milk", description: "Regular dairy milk", enabled: true, category: "milk"},
+                {id: "milk_2", name: "Skim Milk", description: "Low-fat dairy milk", enabled: true, category: "milk"},
+                {id: "milk_3", name: "Oat Milk", description: "Plant-based oat milk", enabled: true, category: "milk"},
+                {id: "milk_4", name: "Almond Milk", description: "Plant-based almond milk", enabled: true, category: "milk"},
+                {id: "milk_5", name: "Soy Milk", description: "Plant-based soy milk", enabled: true, category: "milk"},
+                {id: "milk_6", name: "Coconut Milk", description: "Plant-based coconut milk", enabled: true, category: "milk"}
+            ],
+            coffee: [
+                {id: "coffee_1", name: "Espresso", description: "Strong coffee shot", enabled: true, category: "coffee"},
+                {id: "coffee_2", name: "Americano", description: "Espresso with hot water", enabled: true, category: "coffee"},
+                {id: "coffee_3", name: "Latte", description: "Espresso with steamed milk", enabled: true, category: "coffee"},
+                {id: "coffee_4", name: "Cappuccino", description: "Espresso with foam", enabled: true, category: "coffee"},
+                {id: "coffee_5", name: "Flat White", description: "Double shot with microfoam", enabled: true, category: "coffee"},
+                {id: "coffee_6", name: "Mocha", description: "Chocolate coffee drink", enabled: true, category: "coffee"},
+                {id: "coffee_7", name: "Filter Coffee", description: "Drip brewed coffee", enabled: true, category: "coffee"},
+                {id: "coffee_8", name: "Cold Brew", description: "Cold steeped coffee", enabled: true, category: "coffee"}
+            ],
+            cups: [
+                {id: "cups_1", name: "Small (8oz)", description: "240ml cup", volume: 240, shots: 1, enabled: true, category: "cups"},
+                {id: "cups_2", name: "Medium (12oz)", description: "350ml cup", volume: 350, shots: 1, enabled: true, category: "cups"},
+                {id: "cups_3", name: "Large (16oz)", description: "470ml cup", volume: 470, shots: 2, enabled: true, category: "cups"},
+                {id: "cups_4", name: "Extra Large (20oz)", description: "590ml cup", volume: 590, shots: 2, enabled: true, category: "cups"}
+            ],
+            syrups: [
+                {id: "syrup_1", name: "Vanilla Syrup", description: "Classic vanilla flavor", enabled: true, category: "syrups"},
+                {id: "syrup_2", name: "Caramel Syrup", description: "Sweet caramel flavor", enabled: true, category: "syrups"},
+                {id: "syrup_3", name: "Hazelnut Syrup", description: "Nutty hazelnut flavor", enabled: true, category: "syrups"},
+                {id: "syrup_4", name: "Cinnamon Syrup", description: "Warm spice flavor", enabled: true, category: "syrups"},
+                {id: "syrup_5", name: "Chocolate Syrup", description: "Rich chocolate flavor", enabled: true, category: "syrups"}
+            ],
+            sweeteners: [
+                {id: "sweetener_1", name: "White Sugar", description: "Regular granulated sugar", enabled: true, category: "sweeteners"},
+                {id: "sweetener_2", name: "Brown Sugar", description: "Raw cane sugar", enabled: true, category: "sweeteners"},
+                {id: "sweetener_3", name: "Honey", description: "Natural honey sweetener", enabled: true, category: "sweeteners"},
+                {id: "sweetener_4", name: "Stevia", description: "Natural leaf sweetener", enabled: true, category: "sweeteners"},
+                {id: "sweetener_5", name: "Artificial Sweetener", description: "Sugar substitute packets", enabled: true, category: "sweeteners"}
+            ],
+            drinks: [
+                {id: "drink_1", name: "Hot Chocolate", description: "Rich chocolate drink", enabled: true, category: "drinks"},
+                {id: "drink_2", name: "Chai Latte", description: "Spiced tea latte", enabled: true, category: "drinks"},
+                {id: "drink_3", name: "Matcha Latte", description: "Green tea latte", enabled: true, category: "drinks"},
+                {id: "drink_4", name: "Iced Tea", description: "Refreshing cold tea", enabled: true, category: "drinks"},
+                {id: "drink_5", name: "Lemonade", description: "Fresh lemonade", enabled: true, category: "drinks"},
+                {id: "drink_6", name: "Orange Juice", description: "Fresh orange juice", enabled: true, category: "drinks"},
+                {id: "drink_7", name: "Apple Juice", description: "Fresh apple juice", enabled: true, category: "drinks"},
+                {id: "drink_8", name: "Sparkling Water", description: "Carbonated water", enabled: true, category: "drinks"}
+            ],
+            extras: [
+                {id: "extra_1", name: "Whipped Cream", description: "Dairy whipped topping", enabled: true, category: "extras"},
+                {id: "extra_2", name: "Cinnamon Powder", description: "Ground cinnamon spice", enabled: true, category: "extras"},
+                {id: "extra_3", name: "Cocoa Powder", description: "Chocolate dusting powder", enabled: true, category: "extras"},
+                {id: "extra_4", name: "Vanilla Extract", description: "Natural vanilla flavoring", enabled: true, category: "extras"},
+                {id: "extra_5", name: "Caramel Drizzle", description: "Caramel sauce topping", enabled: true, category: "extras"}
+            ]
+        };
+
+        function analyzeProblem() {
+            const resultsDiv = document.getElementById('results');
+            let html = '<h3>🔍 Analysis Results:</h3>';
+            
+            // Check event inventory
+            const eventInventory = localStorage.getItem('event_inventory');
+            if (!eventInventory) {
+                html += '<div class="error">❌ No event inventory found!</div>';
+            } else {
+                try {
+                    const inventory = JSON.parse(eventInventory);
+                    html += '<div class="success">✅ Event inventory exists</div>';
+                    html += '<div class="category"><h4>Categories in Event Inventory:</h4>';
+                    Object.keys(inventory).forEach(cat => {
+                        html += `<div>${cat}: ${inventory[cat]?.length || 0} items</div>`;
+                    });
+                    html += '</div>';
+                } catch (e) {
+                    html += '<div class="error">❌ Event inventory is corrupted!</div>';
+                }
+            }
+            
+            // Check station stock
+            const currentStation = localStorage.getItem('coffee_barista_station_id') || '1';
+            html += `<div class="warning">Current Station: ${currentStation}</div>`;
+            
+            for (let i = 1; i <= 3; i++) {
+                const stockKey = `coffee_stock_station_${i}`;
+                const stockData = localStorage.getItem(stockKey);
+                
+                if (stockData) {
+                    try {
+                        const stock = JSON.parse(stockData);
+                        html += `<div class="category"><h4>Station ${i} Stock:</h4>`;
+                        
+                        Object.keys(stock).forEach(category => {
+                            const items = stock[category];
+                            html += `<div><strong>${category}:</strong> ${items.length} items</div>`;
+                            
+                            // Check for misplaced items
+                            if (category === 'other') {
+                                const misplaced = items.filter(item => 
+                                    item.name.includes('Sugar') || 
+                                    item.name.includes('Honey') || 
+                                    item.name.includes('Stevia') || 
+                                    item.name.includes('Sweetener') ||
+                                    item.name.includes('Hot Chocolate') ||
+                                    item.name.includes('Chai') ||
+                                    item.name.includes('Matcha') ||
+                                    item.name.includes('Tea') ||
+                                    item.name.includes('Juice')
+                                );
+                                
+                                if (misplaced.length > 0) {
+                                    html += '<div class="error">⚠️ Found misplaced items in "other":</div>';
+                                    html += '<div class="items">';
+                                    misplaced.forEach(item => {
+                                        html += `<span class="item">${item.name}</span>`;
+                                    });
+                                    html += '</div>';
+                                }
+                            }
+                        });
+                        
+                        html += '</div>';
+                    } catch (e) {
+                        html += `<div class="error">Station ${i} stock is corrupted!</div>`;
+                    }
+                }
+            }
+            
+            resultsDiv.innerHTML = html;
+        }
+
+        function setupCorrectInventory() {
+            // Set up the correct event inventory
+            localStorage.setItem('event_inventory', JSON.stringify(CORRECT_EVENT_INVENTORY));
+            
+            // Set up station configurations (all items enabled for all stations)
+            const stationConfigs = {};
+            for (let stationId = 1; stationId <= 3; stationId++) {
+                stationConfigs[stationId] = {};
+                
+                Object.keys(CORRECT_EVENT_INVENTORY).forEach(category => {
+                    stationConfigs[stationId][category] = {};
+                    CORRECT_EVENT_INVENTORY[category].forEach(item => {
+                        stationConfigs[stationId][category][item.id] = true;
+                    });
+                });
+            }
+            
+            localStorage.setItem('station_inventory_configs', JSON.stringify(stationConfigs));
+            
+            document.getElementById('results').innerHTML = 
+                '<div class="success">✅ Event inventory and station configurations set up correctly!</div>';
+        }
+
+        function fixStockCategories() {
+            const results = [];
+            
+            for (let stationId = 1; stationId <= 3; stationId++) {
+                const stockKey = `coffee_stock_station_${stationId}`;
+                
+                // Create properly categorized stock
+                const stockData = {
+                    milk: [],
+                    coffee: [],
+                    cups: [],
+                    syrups: [],
+                    sweeteners: [],  // Must be its own category
+                    drinks: [],      // Must be its own category
+                    other: []        // Only for extras
+                };
+                
+                // Process each category from event inventory
+                Object.keys(CORRECT_EVENT_INVENTORY).forEach(category => {
+                    const items = CORRECT_EVENT_INVENTORY[category];
+                    
+                    items.forEach(item => {
+                        const stockItem = {
+                            id: item.id,
+                            name: item.name,
+                            amount: getDefaultAmount(category, item.name),
+                            capacity: getDefaultAmount(category, item.name),
+                            unit: getDefaultUnit(category, item.name),
+                            status: "good",
+                            lowThreshold: getDefaultAmount(category, item.name) * 0.25,
+                            criticalThreshold: getDefaultAmount(category, item.name) * 0.1,
+                            description: item.description,
+                            category: category,
+                            enabled: true
+                        };
+                        
+                        // Map to correct stock category
+                        let targetCategory = category;
+                        if (category === 'extras') {
+                            targetCategory = 'other';
+                        }
+                        
+                        if (stockData[targetCategory]) {
+                            stockData[targetCategory].push(stockItem);
+                        }
+                    });
+                });
+                
+                // Save the correctly structured stock
+                localStorage.setItem(stockKey, JSON.stringify(stockData));
+                results.push(`Station ${stationId}: ✅ Fixed`);
+            }
+            
+            // Clear any caches
+            localStorage.removeItem('coffee_stock_cache');
+            localStorage.removeItem('stockService_lastFetch');
+            
+            document.getElementById('results').innerHTML = 
+                '<div class="success">✅ Stock categories fixed for all stations!<br>' + 
+                results.join('<br>') + 
+                '<br><br>Please refresh the Barista interface to see the changes.</div>';
+        }
+
+        function getDefaultAmount(category, itemName) {
+            const name = itemName.toUpperCase();
+            
+            switch(category) {
+                case 'milk':
+                    return name.includes('WHOLE') ? 20 : 10;
+                case 'coffee':
+                    return 5;
+                case 'cups':
+                    return name.includes('SMALL') ? 200 : 
+                           name.includes('MEDIUM') ? 300 :
+                           name.includes('LARGE') ? 150 : 100;
+                case 'syrups':
+                    return 3;
+                case 'sweeteners':
+                    return name.includes('ARTIFICIAL') ? 500 : 5;
+                case 'drinks':
+                    return 30;
+                case 'extras':
+                    return 2;
+                default:
+                    return 10;
+            }
+        }
+        
+        function getDefaultUnit(category, itemName) {
+            const name = itemName.toUpperCase();
+            
+            switch(category) {
+                case 'milk':
+                    return 'L';
+                case 'coffee':
+                    return 'kg';
+                case 'cups':
+                    return 'pcs';
+                case 'syrups':
+                    return 'L';
+                case 'sweeteners':
+                    return name.includes('ARTIFICIAL') ? 'pcs' : 
+                           name.includes('HONEY') ? 'L' : 'kg';
+                case 'drinks':
+                    return 'servings';
+                case 'extras':
+                    return 'unit';
+                default:
+                    return 'unit';
+            }
+        }
+
+        function verifyFix() {
+            let allGood = true;
+            let html = '<h3>✅ Verification Results:</h3>';
+            
+            for (let i = 1; i <= 3; i++) {
+                const stockKey = `coffee_stock_station_${i}`;
+                const stockData = localStorage.getItem(stockKey);
+                
+                if (stockData) {
+                    const stock = JSON.parse(stockData);
+                    html += `<div class="category"><h4>Station ${i}:</h4>`;
+                    
+                    // Check each category
+                    const expectedCategories = ['milk', 'coffee', 'cups', 'syrups', 'sweeteners', 'drinks', 'other'];
+                    expectedCategories.forEach(cat => {
+                        if (stock[cat] && stock[cat].length > 0) {
+                            html += `<div>✅ ${cat}: ${stock[cat].length} items</div>`;
+                        } else {
+                            html += `<div class="error">❌ ${cat}: EMPTY!</div>`;
+                            allGood = false;
+                        }
+                    });
+                    
+                    html += '</div>';
+                }
+            }
+            
+            if (allGood) {
+                html += '<div class="success">🎉 All categories are properly set up!</div>';
+            } else {
+                html += '<div class="error">⚠️ Some categories are still empty. Try running steps 2 and 3 again.</div>';
+            }
+            
+            document.getElementById('results').innerHTML = html;
+        }
+
+        function nuclearReset() {
+            if (!confirm('This will completely reset all inventory data. Are you sure?')) {
+                return;
+            }
+            
+            // Clear everything
+            const keysToRemove = [
+                'event_inventory',
+                'station_inventory_configs',
+                'station_inventory_quantities'
+            ];
+            
+            // Clear all station stock
+            for (let i = 1; i <= 10; i++) {
+                keysToRemove.push(`coffee_stock_station_${i}`);
+            }
+            
+            keysToRemove.forEach(key => localStorage.removeItem(key));
+            
+            // Now set up everything correctly
+            setupCorrectInventory();
+            setTimeout(() => {
+                fixStockCategories();
+            }, 100);
+            
+            document.getElementById('results').innerHTML = 
+                '<div class="success">🔄 Complete reset done! Inventory rebuilt from scratch.</div>';
+        }
+
+        // Auto-analyze on load
+        window.onload = () => {
+            document.getElementById('status').innerHTML = 
+                '<div class="warning">⚠️ Ready to fix inventory categories. Click "1. Analyze Current State" to begin.</div>';
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coffee Cue Auth Fix</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            max-width: 600px;
+            width: 100%;
+            padding: 30px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #8B4513;
+            margin-top: 0;
+            font-size: 24px;
+        }
+        p {
+            line-height: 1.6;
+            margin-bottom: 16px;
+        }
+        .status-container {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            background-color: #fff8e1;
+            border-left: 4px solid #ffb300;
+        }
+        #status-text {
+            margin: 0;
+            font-weight: 500;
+        }
+        .buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        button {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+        .primary-button {
+            background-color: #8B4513;
+            color: white;
+        }
+        .primary-button:hover {
+            background-color: #704214;
+        }
+        .secondary-button {
+            background-color: #e0e0e0;
+            color: #333;
+        }
+        .secondary-button:hover {
+            background-color: #d0d0d0;
+        }
+        .feature-list {
+            margin-top: 20px;
+            padding-left: 20px;
+        }
+        .feature-list li {
+            margin-bottom: 8px;
+        }
+        .logs {
+            margin-top: 20px;
+            height: 150px;
+            overflow-y: auto;
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        
+        /* Progress indicator */
+        .progress-container {
+            width: 100%;
+            height: 8px;
+            background-color: #e0e0e0;
+            border-radius: 4px;
+            margin: 20px 0;
+            overflow: hidden;
+        }
+        .progress-bar {
+            height: 100%;
+            background-color: #8B4513;
+            width: 0%;
+            transition: width 0.5s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Coffee Cue Authentication Fix</h1>
+        
+        <p>This tool automatically fixes authentication issues that can occur with the Coffee Cue system, including:</p>
+        
+        <ul class="feature-list">
+            <li>JWT token validation errors (e.g., "Subject must be a string")</li>
+            <li>Token expiration issues</li>
+            <li>Backend connectivity problems</li>
+            <li>Automatic fallback to demo mode when needed</li>
+        </ul>
+        
+        <div class="progress-container">
+            <div class="progress-bar" id="progress-bar"></div>
+        </div>
+        
+        <div class="status-container">
+            <p id="status-text">Initializing authentication fix...</p>
+        </div>
+        
+        <div class="buttons">
+            <button id="fix-button" class="primary-button">Fix Authentication</button>
+            <button id="force-demo-button" class="secondary-button">Force Demo Mode</button>
+            <button id="continue-button" class="primary-button" style="display: none;">Continue to App</button>
+        </div>
+        
+        <div class="logs" id="logs">
+            <!-- Logs will be displayed here -->
+        </div>
+    </div>
+    
+    <script src="auth-fix.js"></script>
+    <script>
+        // DOM elements
+        const statusText = document.getElementById('status-text');
+        const fixButton = document.getElementById('fix-button');
+        const forceDemoButton = document.getElementById('force-demo-button');
+        const continueButton = document.getElementById('continue-button');
+        const logsContainer = document.getElementById('logs');
+        const progressBar = document.getElementById('progress-bar');
+        
+        // Override console.log to also display in our logs container
+        const originalConsoleLog = console.log;
+        console.log = function() {
+            // Call original console.log
+            originalConsoleLog.apply(console, arguments);
+            
+            // Add to our logs container
+            const logEntry = document.createElement('div');
+            logEntry.textContent = Array.from(arguments).join(' ');
+            logsContainer.appendChild(logEntry);
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+        };
+        
+        // Update progress bar
+        function updateProgress(percent) {
+            progressBar.style.width = `${percent}%`;
+        }
+        
+        // Fix button handler
+        fixButton.addEventListener('click', async () => {
+            statusText.textContent = 'Running authentication fix...';
+            fixButton.disabled = true;
+            updateProgress(10);
+            
+            // Check if auth fix process is already running
+            if (window.coffeeAuthFix && window.coffeeAuthFix.promise) {
+                try {
+                    updateProgress(50);
+                    const result = await window.coffeeAuthFix.promise;
+                    handleFixResult(result);
+                } catch (error) {
+                    console.error('Error in authentication fix:', error);
+                    statusText.textContent = 'Authentication fix failed.';
+                    fixButton.disabled = false;
+                    updateProgress(0);
+                }
+            } else {
+                // Load auth-fix.js if not already loaded
+                const script = document.createElement('script');
+                script.src = 'auth-fix.js';
+                script.onload = async () => {
+                    try {
+                        updateProgress(50);
+                        const result = await window.coffeeAuthFix.promise;
+                        handleFixResult(result);
+                    } catch (error) {
+                        console.error('Error in authentication fix:', error);
+                        statusText.textContent = 'Authentication fix failed.';
+                        fixButton.disabled = false;
+                        updateProgress(0);
+                    }
+                };
+                document.head.appendChild(script);
+            }
+        });
+        
+        // Force demo mode button handler
+        forceDemoButton.addEventListener('click', () => {
+            if (window.coffeeAuthFix && window.coffeeAuthFix.enableDemoMode) {
+                updateProgress(10);
+                statusText.textContent = 'Enabling demo mode...';
+                window.coffeeAuthFix.enableDemoMode();
+                updateProgress(100);
+                statusText.textContent = 'Demo mode enabled successfully!';
+                fixButton.style.display = 'none';
+                forceDemoButton.style.display = 'none';
+                continueButton.style.display = 'block';
+            } else {
+                console.log('Loading auth-fix.js for demo mode...');
+                const script = document.createElement('script');
+                script.src = 'auth-fix.js';
+                script.onload = () => {
+                    updateProgress(10);
+                    statusText.textContent = 'Enabling demo mode...';
+                    window.coffeeAuthFix.enableDemoMode();
+                    updateProgress(100);
+                    statusText.textContent = 'Demo mode enabled successfully!';
+                    fixButton.style.display = 'none';
+                    forceDemoButton.style.display = 'none';
+                    continueButton.style.display = 'block';
+                };
+                document.head.appendChild(script);
+            }
+        });
+        
+        // Continue button handler
+        continueButton.addEventListener('click', () => {
+            window.location.href = '/';
+        });
+        
+        // Handle fix result
+        function handleFixResult(result) {
+            updateProgress(100);
+            if (result.success) {
+                statusText.textContent = result.demoMode 
+                    ? 'Demo mode enabled successfully! You can now use the app offline.' 
+                    : 'Authentication fixed successfully! You are now connected to the backend.';
+                fixButton.style.display = 'none';
+                forceDemoButton.style.display = 'none';
+                continueButton.style.display = 'block';
+            } else {
+                statusText.textContent = 'Authentication fix failed: ' + result.message;
+                fixButton.disabled = false;
+                updateProgress(0);
+            }
+        }
+        
+        // Auto-start if a URL parameter is present
+        if (window.location.search.includes('autostart')) {
+            fixButton.click();
+        }
+    </script>
+</body>
+</html>

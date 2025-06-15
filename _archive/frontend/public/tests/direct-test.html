@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Expresso API Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .card {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h1, h2 {
+      color: #8B4513;
+    }
+    button {
+      background-color: #8B4513;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-right: 10px;
+      margin-bottom: 10px;
+    }
+    button:hover {
+      background-color: #704214;
+    }
+    pre {
+      background-color: #f5f5f5;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .success {
+      color: green;
+      font-weight: bold;
+    }
+    .error {
+      color: red;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>Expresso API Direct Test</h1>
+  <p>This page tests direct API connections to the backend server.</p>
+  
+  <div class="card">
+    <h2>1. Basic API Test</h2>
+    <p>Tests the /api/test endpoint without authentication</p>
+    <button onclick="testApi()">Test API</button>
+    <pre id="test-result">Results will appear here...</pre>
+  </div>
+  
+  <div class="card">
+    <h2>2. Authentication</h2>
+    <p>Log in to get a JWT token</p>
+    <button onclick="loginTest()">Login</button>
+    <pre id="login-result">Results will appear here...</pre>
+  </div>
+  
+  <div class="card">
+    <h2>3. Protected API Test</h2>
+    <p>Test authenticated API access</p>
+    <button onclick="testOrders()">Test Orders API</button>
+    <button onclick="testStations()">Test Stations API</button>
+    <pre id="protected-result">Results will appear here...</pre>
+  </div>
+  
+  <div class="card">
+    <h2>4. Browser Storage</h2>
+    <p>Check localStorage for tokens</p>
+    <button onclick="checkStorage()">Check Storage</button>
+    <pre id="storage-result">Results will appear here...</pre>
+  </div>
+  
+  <div class="card">
+    <h2>5. Status</h2>
+    <div id="status"></div>
+  </div>
+  
+  <script>
+    // API test function
+    function testApi() {
+      const resultElement = document.getElementById('test-result');
+      resultElement.textContent = "Testing API connection...";
+      
+      fetch('http://localhost:5001/api/test')
+        .then(response => {
+          const status = `Status: ${response.status} ${response.statusText}`;
+          return response.json().then(data => ({ status, data }));
+        })
+        .then(({ status, data }) => {
+          resultElement.innerHTML = `<span class="success">Success!</span>\n${status}\n\n${JSON.stringify(data, null, 2)}`;
+          updateStatus('API server is running');
+        })
+        .catch(error => {
+          resultElement.innerHTML = `<span class="error">Error!</span>\n${error.message}`;
+          updateStatus('API server connection failed', false);
+        });
+    }
+    
+    // Login test function
+    function loginTest() {
+      const resultElement = document.getElementById('login-result');
+      resultElement.textContent = "Logging in...";
+      
+      fetch('http://localhost:5001/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          username: 'admin',
+          password: 'adminpassword'
+        })
+      })
+        .then(response => {
+          const status = `Status: ${response.status} ${response.statusText}`;
+          return response.json().then(data => ({ status, data }));
+        })
+        .then(({ status, data }) => {
+          // Save token to localStorage
+          if (data.token) {
+            localStorage.setItem('coffee_system_token', data.token);
+            if (data.user) {
+              localStorage.setItem('coffee_system_user', JSON.stringify(data.user));
+            }
+            resultElement.innerHTML = `<span class="success">Login successful!</span>\n${status}\n\nToken: ${data.token.substring(0, 20)}...\n\nFull response:\n${JSON.stringify(data, null, 2)}`;
+            updateStatus('Authentication successful');
+          } else {
+            resultElement.innerHTML = `<span class="error">No token in response!</span>\n${status}\n\n${JSON.stringify(data, null, 2)}`;
+            updateStatus('Authentication failed - no token', false);
+          }
+        })
+        .catch(error => {
+          resultElement.innerHTML = `<span class="error">Login failed!</span>\n${error.message}`;
+          updateStatus('Authentication failed', false);
+        });
+    }
+    
+    // Test orders API
+    function testOrders() {
+      const resultElement = document.getElementById('protected-result');
+      resultElement.textContent = "Testing orders API...";
+      
+      // Get token from localStorage
+      const token = localStorage.getItem('coffee_system_token');
+      if (!token) {
+        resultElement.innerHTML = `<span class="error">No token found!</span>\nPlease log in first`;
+        return;
+      }
+      
+      fetch('http://localhost:5001/api/orders/pending', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+        .then(response => {
+          const status = `Status: ${response.status} ${response.statusText}`;
+          return response.json().then(data => ({ status, data }));
+        })
+        .then(({ status, data }) => {
+          resultElement.innerHTML = `<span class="success">Orders API successful!</span>\n${status}\n\n${JSON.stringify(data, null, 2)}`;
+          updateStatus('Protected API access working');
+        })
+        .catch(error => {
+          resultElement.innerHTML = `<span class="error">Orders API failed!</span>\n${error.message}`;
+          updateStatus('Protected API access failed', false);
+        });
+    }
+    
+    // Test stations API
+    function testStations() {
+      const resultElement = document.getElementById('protected-result');
+      resultElement.textContent = "Testing stations API...";
+      
+      // Get token from localStorage
+      const token = localStorage.getItem('coffee_system_token');
+      if (!token) {
+        resultElement.innerHTML = `<span class="error">No token found!</span>\nPlease log in first`;
+        return;
+      }
+      
+      fetch('http://localhost:5001/api/stations', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+        .then(response => {
+          const status = `Status: ${response.status} ${response.statusText}`;
+          return response.json().then(data => ({ status, data }));
+        })
+        .then(({ status, data }) => {
+          resultElement.innerHTML = `<span class="success">Stations API successful!</span>\n${status}\n\n${JSON.stringify(data, null, 2)}`;
+          updateStatus('Protected API access working');
+        })
+        .catch(error => {
+          resultElement.innerHTML = `<span class="error">Stations API failed!</span>\n${error.message}`;
+          updateStatus('Protected API access failed', false);
+        });
+    }
+    
+    // Check localStorage
+    function checkStorage() {
+      const resultElement = document.getElementById('storage-result');
+      
+      // Get values from localStorage
+      const token = localStorage.getItem('coffee_system_token');
+      const userStr = localStorage.getItem('coffee_system_user');
+      
+      let user = null;
+      if (userStr) {
+        try {
+          user = JSON.parse(userStr);
+        } catch (e) {
+          user = { error: `Error parsing user JSON: ${e.message}` };
+        }
+      }
+      
+      if (token) {
+        const tokenPreview = token.substring(0, 20) + '...';
+        resultElement.innerHTML = `<span class="success">Token found!</span>\nToken: ${tokenPreview}\nLength: ${token.length}\n\nUser: ${JSON.stringify(user, null, 2)}`;
+      } else {
+        resultElement.innerHTML = `<span class="error">No token found in localStorage!</span>\n\nUser: ${JSON.stringify(user, null, 2)}`;
+      }
+    }
+    
+    // Update status section
+    function updateStatus(message, success = true) {
+      const statusElement = document.getElementById('status');
+      statusElement.innerHTML += `<p class="${success ? 'success' : 'error'}">${new Date().toLocaleTimeString()}: ${message}</p>`;
+    }
+    
+    // Run tests on page load
+    window.onload = function() {
+      updateStatus('Page loaded');
+      checkStorage();
+      // Auto-run tests if token exists
+      if (localStorage.getItem('coffee_system_token')) {
+        setTimeout(testApi, 500);
+      }
+    };
+  </script>
+</body>
+</html>

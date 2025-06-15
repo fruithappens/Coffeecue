@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Manual Fix Sweeteners</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; }
+        button { padding: 20px 40px; margin: 10px; background: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 18px; font-weight: bold; }
+        button:hover { background: #c82333; }
+        .success { color: green; font-weight: bold; margin: 20px 0; font-size: 18px; }
+        .info { background: #f0f8ff; padding: 20px; border-radius: 5px; margin: 20px 0; }
+        .steps { background: #fff3cd; padding: 20px; border-radius: 5px; margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <h1>🔧 Manual Fix: Move Sweeteners</h1>
+    
+    <div class="info">
+        <strong>This will manually fix the sweeteners category issue</strong><br>
+        Click the button, then refresh your Barista interface.
+    </div>
+    
+    <button onclick="manualFix()">🚀 FIX SWEETENERS NOW</button>
+    
+    <div class="steps">
+        <strong>After clicking the button:</strong>
+        <ol>
+            <li>Go back to your Barista interface</li>
+            <li>Do a HARD refresh: <strong>Cmd+Shift+R</strong> (Mac) or <strong>Ctrl+Shift+F5</strong> (Windows)</li>
+            <li>Check the Sweeteners tab - it should now have the items</li>
+            <li>Check the Other tab - sweeteners should be gone</li>
+        </ol>
+    </div>
+    
+    <div id="result"></div>
+
+    <script>
+        function manualFix() {
+            const result = document.getElementById('result');
+            result.innerHTML = '<h2>Fixing now...</h2>';
+            
+            // Get Station 1 stock
+            const stockData = localStorage.getItem('coffee_stock_station_1');
+            if (!stockData) {
+                result.innerHTML = '<p class="error">No stock data found for Station 1</p>';
+                return;
+            }
+            
+            const stock = JSON.parse(stockData);
+            
+            // Ensure sweeteners category exists
+            if (!stock.sweeteners) stock.sweeteners = [];
+            
+            // Move ALL sweetener items from other to sweeteners
+            if (stock.other) {
+                const sweetenerItems = [];
+                const nonSweetenerItems = [];
+                
+                stock.other.forEach(item => {
+                    const name = item.name.toLowerCase();
+                    if (name.includes('sugar') || name.includes('honey') || name.includes('stevia') || name.includes('sweetener')) {
+                        sweetenerItems.push(item);
+                        result.innerHTML += `<p>Moving: ${item.name}</p>`;
+                    } else {
+                        nonSweetenerItems.push(item);
+                    }
+                });
+                
+                // Update categories
+                stock.sweeteners = sweetenerItems;
+                stock.other = nonSweetenerItems;
+                
+                // Save
+                localStorage.setItem('coffee_stock_station_1', JSON.stringify(stock));
+                
+                result.innerHTML += `<div class="success">
+                    ✅ SUCCESS! 
+                    <br>Moved ${sweetenerItems.length} sweetener items to Sweeteners category
+                    <br>Left ${nonSweetenerItems.length} items in Other category
+                    <br><br>Now go refresh your Barista interface!
+                </div>`;
+            } else {
+                result.innerHTML += '<p>No "other" category found</p>';
+            }
+        }
+    </script>
+</body>
+</html>

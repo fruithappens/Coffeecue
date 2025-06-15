@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test New Features</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+        .container { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
+        button { padding: 10px 15px; margin: 5px; background: #007cba; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #005a87; }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+        .info { background: #f0f8ff; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        .warning { background: #fff3cd; padding: 15px; border-radius: 5px; margin: 10px 0; color: #856404; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 5px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Test New Features</h1>
+    
+    <div class="info">
+        <strong>New Features Added:</strong><br>
+        1. Sweeteners and Drinks tabs in stock management<br>
+        2. Station default settings for walk-in orders<br>
+        3. Fixed search orders functionality<br>
+        4. Fixed "this week" orders functionality
+    </div>
+    
+    <div class="container">
+        <h2>1. Reset Stock Categories</h2>
+        <p>Clear old stock data to see new Sweeteners and Drinks tabs</p>
+        <button onclick="resetStockCategories()">Reset Stock Categories</button>
+        <button onclick="showStockCategories()">Show Current Stock Categories</button>
+    </div>
+    
+    <div class="container">
+        <h2>2. Test Station Defaults</h2>
+        <p>Create sample station defaults for walk-in orders</p>
+        <button onclick="createSampleDefaults()">Create Sample Station Defaults</button>
+        <button onclick="showStationDefaults()">Show Current Station Defaults</button>
+        <button onclick="clearStationDefaults()">Clear Station Defaults</button>
+    </div>
+    
+    <div class="container">
+        <h2>3. Test Search & History</h2>
+        <p>Test the search orders and this week orders functionality</p>
+        <button onclick="testSearchAPI()">Test Search API</button>
+        <button onclick="testThisWeekAPI()">Test This Week API</button>
+    </div>
+    
+    <div class="container">
+        <h2>4. Complete Reset</h2>
+        <div class="warning">
+            <strong>Warning:</strong> This will clear ALL custom data and reset to defaults
+        </div>
+        <button onclick="completeReset()" style="background: #dc3545;">Complete Reset (Clear All Data)</button>
+    </div>
+    
+    <div id="output"></div>
+
+    <script>
+        function log(message, type = 'info') {
+            const output = document.getElementById('output');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : '';
+            output.innerHTML += `<p class="${className}">[${timestamp}] ${message}</p>`;
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function resetStockCategories() {
+            try {
+                const keysToReset = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key && key.startsWith('coffee_stock_station_')) {
+                        keysToReset.push(key);
+                    }
+                }
+                
+                keysToReset.forEach(key => {
+                    localStorage.removeItem(key);
+                });
+                
+                log(`✅ Reset ${keysToReset.length} station stock entries. Refresh barista interface to see new categories.`, 'success');
+            } catch (error) {
+                log(`❌ Error resetting stock: ${error.message}`, 'error');
+            }
+        }
+
+        function showStockCategories() {
+            try {
+                const stockKeys = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key && key.startsWith('coffee_stock_station_')) {
+                        const data = JSON.parse(localStorage.getItem(key));
+                        stockKeys.push({
+                            key: key,
+                            categories: Object.keys(data)
+                        });
+                    }
+                }
+                
+                if (stockKeys.length === 0) {
+                    log('📦 No station stock data found. Stock categories will use defaults.', 'info');
+                } else {
+                    stockKeys.forEach(stock => {
+                        log(`📦 ${stock.key}: [${stock.categories.join(', ')}]`, 'info');
+                    });
+                }
+            } catch (error) {
+                log(`❌ Error showing stock: ${error.message}`, 'error');
+            }
+        }
+
+        function createSampleDefaults() {
+            try {
+                const sampleDefaults = {
+                    1: {
+                        coffeeType: 'Flat White',
+                        size: 'Regular Cup',
+                        milkType: 'full_cream',
+                        sweetenerType: 'White Sugar',
+                        sweetenerQuantity: '1',
+                        shots: '2',
+                        beanType: 'House Blend'
+                    },
+                    2: {
+                        coffeeType: 'Cappuccino',
+                        size: 'Large Cup',
+                        milkType: 'oat',
+                        sweetenerType: 'None',
+                        sweetenerQuantity: '0',
+                        shots: '1',
+                        beanType: 'Dark Roast'
+                    }
+                };
+                
+                localStorage.setItem('stationDefaults', JSON.stringify(sampleDefaults));
+                log('✅ Created sample station defaults for stations 1 and 2', 'success');
+                log('Station 1: Flat White, Regular Cup, Full Cream Milk, 1 White Sugar, Double Shot', 'info');
+                log('Station 2: Cappuccino, Large Cup, Oat Milk, No Sugar, Single Shot', 'info');
+            } catch (error) {
+                log(`❌ Error creating defaults: ${error.message}`, 'error');
+            }
+        }
+
+        function showStationDefaults() {
+            try {
+                const defaults = localStorage.getItem('stationDefaults');
+                if (defaults) {
+                    const data = JSON.parse(defaults);
+                    log('📋 Current Station Defaults:', 'info');
+                    Object.entries(data).forEach(([stationId, config]) => {
+                        log(`Station ${stationId}: ${config.coffeeType}, ${config.size}, ${config.milkType}, ${config.sweetenerType}`, 'info');
+                    });
+                } else {
+                    log('📋 No station defaults configured', 'info');
+                }
+            } catch (error) {
+                log(`❌ Error showing defaults: ${error.message}`, 'error');
+            }
+        }
+
+        function clearStationDefaults() {
+            try {
+                localStorage.removeItem('stationDefaults');
+                log('✅ Cleared all station defaults', 'success');
+            } catch (error) {
+                log(`❌ Error clearing defaults: ${error.message}`, 'error');
+            }
+        }
+
+        async function testSearchAPI() {
+            try {
+                log('🔍 Testing search API...', 'info');
+                const token = localStorage.getItem('access_token');
+                if (!token) {
+                    log('❌ No access token found. Please login first.', 'error');
+                    return;
+                }
+                
+                const response = await fetch('http://localhost:5001/api/orders/search?q=test&station_id=1', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`✅ Search API works! Found ${data.data?.length || 0} results`, 'success');
+                } else {
+                    log(`⚠️ Search API returned ${response.status}: ${response.statusText}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Search API error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testThisWeekAPI() {
+            try {
+                log('📅 Testing this week API...', 'info');
+                const token = localStorage.getItem('access_token');
+                if (!token) {
+                    log('❌ No access token found. Please login first.', 'error');
+                    return;
+                }
+                
+                const response = await fetch('http://localhost:5001/api/orders?station_id=1&date=week', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`✅ This Week API works! Found ${data.data?.length || 0} orders`, 'success');
+                } else {
+                    log(`⚠️ This Week API returned ${response.status}: ${response.statusText}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ This Week API error: ${error.message}`, 'error');
+            }
+        }
+
+        function completeReset() {
+            if (confirm('This will clear ALL app data. Are you sure?')) {
+                try {
+                    // Clear all coffee-related localStorage
+                    const keysToRemove = [];
+                    for (let i = 0; i < localStorage.length; i++) {
+                        const key = localStorage.key(i);
+                        if (key && (
+                            key.startsWith('coffee_') ||
+                            key.startsWith('station') ||
+                            key.includes('stock') ||
+                            key.includes('defaults') ||
+                            key.includes('inventory')
+                        )) {
+                            keysToRemove.push(key);
+                        }
+                    }
+                    
+                    keysToRemove.forEach(key => localStorage.removeItem(key));
+                    
+                    log(`✅ Complete reset done! Removed ${keysToRemove.length} items. Refresh the app.`, 'success');
+                } catch (error) {
+                    log(`❌ Reset error: ${error.message}`, 'error');
+                }
+            }
+        }
+
+        // Show initial status
+        window.addEventListener('load', () => {
+            log('🚀 Test page loaded. Use the buttons above to test new features.', 'info');
+        });
+    </script>
+</body>
+</html>

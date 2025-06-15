@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fix Category Mapping - No Hardcoding</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .success { color: green; }
+        .error { color: red; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Fix Category Mapping Issue</h1>
+    
+    <div id="status"></div>
+    
+    <button onclick="fixCategoryMapping()">Fix Category Mapping</button>
+    
+    <script>
+        function fixCategoryMapping() {
+            const statusDiv = document.getElementById('status');
+            let html = '<h2>Fixing category mappings...</h2>';
+            
+            // Get current station
+            const currentStation = localStorage.getItem('coffee_barista_station_id') || '1';
+            
+            // Fix stock for all stations
+            for (let stationId = 1; stationId <= 10; stationId++) {
+                const stockKey = `coffee_stock_station_${stationId}`;
+                const stockData = localStorage.getItem(stockKey);
+                
+                if (stockData) {
+                    try {
+                        const stock = JSON.parse(stockData);
+                        
+                        // Initialize missing categories
+                        if (!stock.sweeteners) stock.sweeteners = [];
+                        if (!stock.drinks) stock.drinks = [];
+                        
+                        // Move items from other to correct categories
+                        if (stock.other && stock.other.length > 0) {
+                            const newOther = [];
+                            
+                            stock.other.forEach(item => {
+                                // Determine correct category based on item properties
+                                let moved = false;
+                                
+                                // Check if it's a sweetener
+                                if (item.category === 'sweeteners' || 
+                                    item.id?.includes('sweetener') ||
+                                    ['Sugar', 'Honey', 'Stevia', 'Sweetener'].some(s => item.name?.includes(s))) {
+                                    
+                                    // Update the category property to match
+                                    item.category = 'sweeteners';
+                                    stock.sweeteners.push(item);
+                                    moved = true;
+                                    html += `<div>Moved ${item.name} to sweeteners (Station ${stationId})</div>`;
+                                }
+                                // Check if it's a drink
+                                else if (item.category === 'drinks' || 
+                                         item.id?.includes('drink') ||
+                                         ['Hot Chocolate', 'Chai', 'Matcha', 'Tea', 'Juice', 'Lemonade'].some(d => item.name?.includes(d))) {
+                                    
+                                    // Update the category property to match
+                                    item.category = 'drinks';
+                                    stock.drinks.push(item);
+                                    moved = true;
+                                    html += `<div>Moved ${item.name} to drinks (Station ${stationId})</div>`;
+                                }
+                                
+                                // If not moved, keep in other
+                                if (!moved) {
+                                    newOther.push(item);
+                                }
+                            });
+                            
+                            stock.other = newOther;
+                        }
+                        
+                        // Save the fixed stock
+                        localStorage.setItem(stockKey, JSON.stringify(stock));
+                        html += `<div class="success">✅ Fixed Station ${stationId}</div>`;
+                        
+                    } catch (e) {
+                        html += `<div class="error">Error fixing station ${stationId}: ${e.message}</div>`;
+                    }
+                }
+            }
+            
+            // Clear caches
+            localStorage.removeItem('coffee_stock_cache');
+            localStorage.removeItem('stockService_lastFetch');
+            
+            // Also fix the event inventory if it exists
+            const eventInventory = localStorage.getItem('event_inventory');
+            if (eventInventory) {
+                try {
+                    const inventory = JSON.parse(eventInventory);
+                    
+                    // Make sure sweeteners and drinks categories exist
+                    if (!inventory.sweeteners) inventory.sweeteners = [];
+                    if (!inventory.drinks) inventory.drinks = [];
+                    
+                    // Move any misplaced items from extras
+                    if (inventory.extras) {
+                        const newExtras = [];
+                        
+                        inventory.extras.forEach(item => {
+                            if (item.category === 'sweeteners' || 
+                                ['Sugar', 'Honey', 'Stevia', 'Sweetener'].some(s => item.name?.includes(s))) {
+                                item.category = 'sweeteners';
+                                inventory.sweeteners.push(item);
+                            } else if (item.category === 'drinks' || 
+                                      ['Hot Chocolate', 'Chai', 'Matcha', 'Tea', 'Juice'].some(d => item.name?.includes(d))) {
+                                item.category = 'drinks';
+                                inventory.drinks.push(item);
+                            } else {
+                                newExtras.push(item);
+                            }
+                        });
+                        
+                        inventory.extras = newExtras;
+                    }
+                    
+                    localStorage.setItem('event_inventory', JSON.stringify(inventory));
+                    html += '<div class="success">✅ Fixed event inventory categories</div>';
+                    
+                } catch (e) {
+                    html += `<div class="error">Error fixing event inventory: ${e.message}</div>`;
+                }
+            }
+            
+            html += '<div class="success"><h3>✅ Category mapping fixed! Please refresh the Barista interface.</h3></div>';
+            statusDiv.innerHTML = html;
+        }
+        
+        // Auto-run on load
+        window.onload = () => {
+            document.getElementById('status').innerHTML = 
+                '<p>This will fix the category mapping issue without changing your inventory data.</p>' +
+                '<p>It will move sweeteners and drinks from "other" to their proper categories.</p>';
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,363 @@
+{
+  "startTime": 1748060811830,
+  "cycles": [
+    {
+      "number": 1,
+      "startTime": 1748060811844,
+      "tests": [
+        {
+          "name": "Login with barista credentials",
+          "passed": true,
+          "error": null,
+          "data": {
+            "hasToken": true
+          }
+        },
+        {
+          "name": "Orders API endpoint",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "Stations API endpoint",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "Inventory API endpoint",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "Settings API endpoint",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "Frontend HTML loads",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "React root element present",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "React scripts included",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "CORS preflight request",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "CORS Allow-Origin header",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "Create test order",
+          "passed": false,
+          "error": "Status 400"
+        }
+      ],
+      "issues": [],
+      "fixes": [],
+      "status": "failed",
+      "failedCount": 1,
+      "passedCount": 10,
+      "endTime": 1748060811923,
+      "duration": 79
+    },
+    {
+      "number": 2,
+      "startTime": 1748060811923,
+      "tests": [
+        {
+          "name": "Login with barista credentials",
+          "passed": true,
+          "error": null,
+          "data": {
+            "hasToken": true
+          }
+        },
+        {
+          "name": "Orders API endpoint",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "Stations API endpoint",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "Inventory API endpoint",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "Settings API endpoint",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "Frontend HTML loads",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "React root element present",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "React scripts included",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "CORS preflight request",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "CORS Allow-Origin header",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "Create test order",
+          "passed": false,
+          "error": "Status 400"
+        }
+      ],
+      "issues": [],
+      "fixes": [],
+      "status": "failed",
+      "failedCount": 1,
+      "passedCount": 10,
+      "endTime": 1748060812002,
+      "duration": 79
+    },
+    {
+      "number": 3,
+      "startTime": 1748060812002,
+      "tests": [
+        {
+          "name": "Login with barista credentials",
+          "passed": true,
+          "error": null,
+          "data": {
+            "hasToken": true
+          }
+        },
+        {
+          "name": "Orders API endpoint",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "Stations API endpoint",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "Inventory API endpoint",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "Settings API endpoint",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "Frontend HTML loads",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "React root element present",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "React scripts included",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "CORS preflight request",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "CORS Allow-Origin header",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "Create test order",
+          "passed": false,
+          "error": "Status 400"
+        }
+      ],
+      "issues": [],
+      "fixes": [],
+      "status": "failed",
+      "failedCount": 1,
+      "passedCount": 10,
+      "endTime": 1748060812076,
+      "duration": 74
+    },
+    {
+      "number": 4,
+      "startTime": 1748060812076,
+      "tests": [
+        {
+          "name": "Login with barista credentials",
+          "passed": true,
+          "error": null,
+          "data": {
+            "hasToken": true
+          }
+        },
+        {
+          "name": "Orders API endpoint",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "Stations API endpoint",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "Inventory API endpoint",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "Settings API endpoint",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "Frontend HTML loads",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "React root element present",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "React scripts included",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "CORS preflight request",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "CORS Allow-Origin header",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "Create test order",
+          "passed": false,
+          "error": "Status 400"
+        }
+      ],
+      "issues": [],
+      "fixes": [],
+      "status": "failed",
+      "failedCount": 1,
+      "passedCount": 10,
+      "endTime": 1748060812155,
+      "duration": 79
+    },
+    {
+      "number": 5,
+      "startTime": 1748060812155,
+      "tests": [
+        {
+          "name": "Login with barista credentials",
+          "passed": true,
+          "error": null,
+          "data": {
+            "hasToken": true
+          }
+        },
+        {
+          "name": "Orders API endpoint",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "Stations API endpoint",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "Inventory API endpoint",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "Settings API endpoint",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "Frontend HTML loads",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "React root element present",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "React scripts included",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "CORS preflight request",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "CORS Allow-Origin header",
+          "passed": true,
+          "error": null
+        },
+        {
+          "name": "Create test order",
+          "passed": false,
+          "error": "Status 400"
+        }
+      ],
+      "issues": [],
+      "fixes": [],
+      "status": "failed",
+      "failedCount": 1,
+      "passedCount": 10,
+      "endTime": 1748060812227,
+      "duration": 72
+    }
+  ],
+  "allIssues": [],
+  "allFixes": [],
+  "finalStatus": "FAILED"
+}

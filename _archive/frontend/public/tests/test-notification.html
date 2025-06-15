@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Notification System Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    h1 {
+      color: #d97706;
+      margin-bottom: 20px;
+    }
+    .card {
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+    .card h2 {
+      margin-top: 0;
+      color: #1f2937;
+    }
+    pre {
+      background-color: #f3f4f6;
+      padding: 12px;
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+    button {
+      background-color: #d97706;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-right: 8px;
+      margin-bottom: 8px;
+    }
+    button:hover {
+      background-color: #b45309;
+    }
+    input {
+      padding: 8px;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      margin-right: 8px;
+    }
+    #status {
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 4px;
+    }
+    .success {
+      background-color: #d1fae5;
+      color: #065f46;
+    }
+    .error {
+      background-color: #fee2e2;
+      color: #b91c1c;
+    }
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>Notification System Test</h1>
+  
+  <div class="card">
+    <h2>Description</h2>
+    <p>This page allows you to test the notification system for the Coffee Cue app. It provides options to test different notification methods and fallback mechanisms.</p>
+  </div>
+  
+  <div class="card">
+    <h2>Sample Order</h2>
+    <pre id="sample-order"></pre>
+  </div>
+  
+  <div class="card">
+    <h2>Test Options</h2>
+    <button id="test-all">Test Complete Notification Process</button>
+    <button id="test-order-service">Test OrderDataService Only</button>
+    <button id="test-message-service">Test MessageService Only</button>
+    <br>
+    <label for="phone-number">Test with custom phone number:</label>
+    <input type="text" id="phone-number" placeholder="+61412345678">
+    <button id="test-custom-phone">Test</button>
+  </div>
+  
+  <div id="status" class="hidden"></div>
+  
+  <div class="card">
+    <h2>Console Output</h2>
+    <p>Check the browser console (F12) for detailed logs of the notification process.</p>
+  </div>
+  
+  <script src="test-notification.js"></script>
+  <script>
+    // Initialize the page
+    document.addEventListener('DOMContentLoaded', () => {
+      // Display sample order
+      document.getElementById('sample-order').textContent = JSON.stringify(window.SAMPLE_ORDER, null, 2);
+      
+      // Set up event listeners
+      document.getElementById('test-all').addEventListener('click', () => {
+        showStatus('Running complete notification test...', 'info');
+        window.testOrderCompleteNotification()
+          .then(() => showStatus('Test completed. Check console for results.', 'success'))
+          .catch(error => showStatus(`Test failed: ${error.message}`, 'error'));
+      });
+      
+      document.getElementById('test-order-service').addEventListener('click', async () => {
+        showStatus('Testing OrderDataService...', 'info');
+        try {
+          const orderService = window.OrderDataService || (await import('/src/services/OrderDataService.js')).default;
+          const result = await orderService.sendReadyNotification(window.SAMPLE_ORDER);
+          console.log('OrderDataService result:', result);
+          showStatus(`OrderDataService test: ${result.success ? 'Success' : 'Failed'}`, result.success ? 'success' : 'error');
+        } catch (error) {
+          console.error('OrderDataService test error:', error);
+          showStatus(`OrderDataService test failed: ${error.message}`, 'error');
+        }
+      });
+      
+      document.getElementById('test-message-service').addEventListener('click', async () => {
+        showStatus('Testing MessageService...', 'info');
+        try {
+          const messageService = window.MessageService || (await import('/src/services/MessageService.js')).default;
+          const result = await messageService.sendReadyNotification(window.SAMPLE_ORDER);
+          console.log('MessageService result:', result);
+          showStatus(`MessageService test: ${result.success ? 'Success' : 'Failed'}`, result.success ? 'success' : 'error');
+        } catch (error) {
+          console.error('MessageService test error:', error);
+          showStatus(`MessageService test failed: ${error.message}`, 'error');
+        }
+      });
+      
+      document.getElementById('test-custom-phone').addEventListener('click', () => {
+        const phoneNumber = document.getElementById('phone-number').value.trim();
+        if (!phoneNumber) {
+          showStatus('Please enter a phone number', 'error');
+          return;
+        }
+        showStatus(`Testing with phone number: ${phoneNumber}...`, 'info');
+        window.testWithPhoneNumber(phoneNumber)
+          .then(() => showStatus('Test completed. Check console for results.', 'success'))
+          .catch(error => showStatus(`Test failed: ${error.message}`, 'error'));
+      });
+    });
+    
+    // Show status message
+    function showStatus(message, type) {
+      const statusElement = document.getElementById('status');
+      statusElement.textContent = message;
+      statusElement.className = type;
+      statusElement.classList.remove('hidden');
+    }
+  </script>
+</body>
+</html>

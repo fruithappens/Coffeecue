@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Minimal Fix</title>
+  <style>
+    body { font-family: sans-serif; max-width: 600px; margin: 20px auto; padding: 20px; line-height: 1.6; }
+    button { background: #4CAF50; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; margin: 5px; }
+    .log { background: #f8f8f8; border: 1px solid #ddd; padding: 10px; height: 200px; overflow: auto; margin: 15px 0; font-family: monospace; }
+    h1 { color: #2c3e50; }
+    .success { background-color: #e7f9e7; border: 1px solid #a3d39c; padding: 10px; border-radius: 4px; margin-top: 15px; }
+  </style>
+</head>
+<body>
+  <h1>Minimal Fix</h1>
+  <p>This page implements the absolute minimum necessary to make the app work with fallback data.</p>
+  
+  <div>
+    <button onclick="applyMinimalFix()">Apply Minimal Fix</button>
+    <button onclick="clearEverything()" style="background: #e74c3c;">Clear Everything</button>
+    <button onclick="goToApp()" style="background: #3498db;">Go To App</button>
+    <button onclick="goToLogin()" style="background: #f39c12;">Go To Login</button>
+  </div>
+  
+  <div id="success" style="display: none;" class="success">
+    <p style="font-weight: bold;">✅ Fix applied successfully!</p>
+    <p>The app should now work in offline mode with sample data.</p>
+  </div>
+  
+  <div class="log" id="log"></div>
+  
+  <script>
+    // Helper function to log messages
+    function log(message) {
+      const logElement = document.getElementById('log');
+      logElement.innerHTML += `${message}<br>`;
+      logElement.scrollTop = logElement.scrollHeight;
+    }
+    
+    // Apply the most minimal fix possible
+    function applyMinimalFix() {
+      log('Applying minimal fix...');
+      
+      try {
+        // Essential settings for minimal mode
+        localStorage.setItem('use_minimal_interface', 'true');
+        localStorage.setItem('use_fallback_data', 'true');
+        localStorage.setItem('force_offline_mode', 'true');
+        localStorage.setItem('api_mode', 'fallback');
+        localStorage.setItem('coffee_auto_refresh_enabled', 'false');
+        localStorage.setItem('coffee_auto_refresh_interval', '3600');
+        localStorage.setItem('disable_console_capture', 'true');
+        localStorage.setItem('coffee_connection_status', 'fallback');
+        localStorage.setItem('coffee_connection_timestamp', Date.now().toString());
+        localStorage.setItem('disable_all_refresh', 'true');
+        localStorage.setItem('quiet_console', 'true');
+        
+        log('✅ Applied basic settings');
+        
+        // Create minimal sample data directly
+        const sampleOrders = [
+          {
+            id: 'simple_1',
+            orderNumber: 'SP001',
+            customerName: 'John Smith',
+            coffeeType: 'Cappuccino',
+            milkType: 'Regular milk',
+            status: 'pending'
+          }
+        ];
+        
+        const sampleStations = [
+          { id: 1, name: 'Station 1', status: 'active' }
+        ];
+        
+        localStorage.setItem('fallback_pending_orders', JSON.stringify(sampleOrders));
+        localStorage.setItem('fallback_in_progress_orders', JSON.stringify([]));
+        localStorage.setItem('fallback_completed_orders', JSON.stringify([]));
+        localStorage.setItem('fallback_stations', JSON.stringify(sampleStations));
+        localStorage.setItem('fallback_data_available', 'true');
+        
+        log('✅ Created sample data');
+        
+        // Authentication bypass
+        localStorage.setItem('bypass_authentication', 'true');
+        localStorage.setItem('coffee_auth_token', 'sample-jwt-token');
+        
+        log('✅ Set authentication bypass');
+        log('✅ Minimal fix applied successfully!');
+        
+        // Show success message
+        document.getElementById('success').style.display = 'block';
+      } catch (error) {
+        log(`❌ ERROR: ${error.message}`);
+      }
+    }
+    
+    // Clear everything
+    function clearEverything() {
+      log('Clearing all data...');
+      
+      try {
+        localStorage.clear();
+        sessionStorage.clear();
+        
+        log('✅ All data cleared');
+        
+        // Hide success message
+        document.getElementById('success').style.display = 'none';
+      } catch (error) {
+        log(`❌ ERROR: ${error.message}`);
+      }
+    }
+    
+    // Go to the main app
+    function goToApp() {
+      log('Redirecting to main app...');
+      window.location.href = '/?minimal=true';
+    }
+    
+    // Go to login
+    function goToLogin() {
+      log('Redirecting to login page...');
+      window.location.href = '/login?minimal=true';
+    }
+    
+    // Initialize
+    log('Minimal Fix page loaded');
+    log('Click "Apply Minimal Fix" to prepare the app');
+  </script>
+</body>
+</html>

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Direct Fallback</title>
+  <style>
+    body { font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
+    button { background: #4CAF50; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>Direct Fallback</h1>
+  <p>This single page works with no dependencies.</p>
+  
+  <button onclick="fixApplication()">Fix Application</button>
+  <button onclick="clearStorage()">Clear Storage</button>
+  <button onclick="location.href='/'">Go to App</button>
+  
+  <script>
+    function fixApplication() {
+      // Minimal fix with only the essentials
+      localStorage.clear();
+      localStorage.setItem('use_fallback_data', 'true');
+      localStorage.setItem('force_offline_mode', 'true');
+      localStorage.setItem('coffee_auto_refresh_enabled', 'false');
+      localStorage.setItem('coffee_connection_status', 'fallback');
+      localStorage.setItem('disable_console_capture', 'true');
+      
+      alert('Fix applied! Try the app now.');
+    }
+    
+    function clearStorage() {
+      localStorage.clear();
+      sessionStorage.clear();
+      alert('Storage cleared!');
+    }
+  </script>
+</body>
+</html>

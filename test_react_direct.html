@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>React App Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 10px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .loading { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        pre {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        iframe {
+            width: 100%;
+            height: 400px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Coffee Cue React App Diagnostic</h1>
+    
+    <div class="test-section">
+        <h2>📊 Port Status Check</h2>
+        <div id="port-status"></div>
+        <button onclick="checkPorts()">🔍 Check All Ports</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>🌐 Direct React App Test</h2>
+        <p>Testing if React app loads in iframe:</p>
+        <button onclick="loadReactApp()">📱 Load React App</button>
+        <div id="react-status"></div>
+        <iframe id="react-iframe" style="display:none;" src="about:blank"></iframe>
+    </div>
+    
+    <div class="test-section">
+        <h2>🔧 Backend API Test</h2>
+        <div id="api-status"></div>
+        <button onclick="testBackendAPI()">🚀 Test Backend</button>
+        <button onclick="testMigrationAPI()">📦 Test Migration API</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>📋 Console Logs</h2>
+        <div id="console-logs"></div>
+        <button onclick="clearLogs()">🗑️ Clear Logs</button>
+    </div>
+
+    <script>
+        let logs = [];
+        
+        function addLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            logs.push(`[${timestamp}] ${message}`);
+            updateLogDisplay();
+        }
+        
+        function updateLogDisplay() {
+            const logDiv = document.getElementById('console-logs');
+            logDiv.innerHTML = `<pre>${logs.join('\n')}</pre>`;
+        }
+        
+        function clearLogs() {
+            logs = [];
+            updateLogDisplay();
+        }
+        
+        async function checkPorts() {
+            const statusDiv = document.getElementById('port-status');
+            statusDiv.innerHTML = '<div class="status loading">🔄 Checking ports...</div>';
+            
+            const ports = [
+                { port: 3000, name: 'React Frontend', url: 'http://localhost:3000' },
+                { port: 5001, name: 'Backend API', url: 'http://localhost:5001' },
+                { port: 4040, name: 'ngrok Admin', url: 'http://localhost:4040' }
+            ];
+            
+            let results = '';
+            
+            for (const {port, name, url} of ports) {
+                try {
+                    addLog(`Testing ${name} at ${url}...`);
+                    const response = await fetch(url, { 
+                        method: 'GET',
+                        mode: 'no-cors'  // Avoid CORS issues for this test
+                    });
+                    results += `<div class="status success">✅ ${name} (${port}): Responding</div>`;
+                    addLog(`✅ ${name} is responding`);
+                } catch (error) {
+                    results += `<div class="status error">❌ ${name} (${port}): Not responding - ${error.message}</div>`;
+                    addLog(`❌ ${name} failed: ${error.message}`);
+                }
+            }
+            
+            statusDiv.innerHTML = results;
+        }
+        
+        function loadReactApp() {
+            const iframe = document.getElementById('react-iframe');
+            const statusDiv = document.getElementById('react-status');
+            
+            statusDiv.innerHTML = '<div class="status loading">🔄 Loading React app...</div>';
+            iframe.style.display = 'block';
+            
+            // Set up iframe load handlers
+            iframe.onload = function() {
+                addLog('✅ React app iframe loaded successfully');
+                statusDiv.innerHTML = '<div class="status success">✅ React app loaded in iframe</div>';
+            };
+            
+            iframe.onerror = function() {
+                addLog('❌ React app iframe failed to load');
+                statusDiv.innerHTML = '<div class="status error">❌ React app failed to load</div>';
+            };
+            
+            // Load the React app
+            iframe.src = 'http://localhost:3000';
+            
+            // Also try to open in new window
+            setTimeout(() => {
+                addLog('🔗 Opening React app in new window...');
+                window.open('http://localhost:3000', '_blank');
+            }, 2000);
+        }
+        
+        async function testBackendAPI() {
+            const statusDiv = document.getElementById('api-status');
+            statusDiv.innerHTML = '<div class="status loading">🔄 Testing backend API...</div>';
+            
+            try {
+                addLog('Testing backend API...');
+                const response = await fetch('http://localhost:5001/api/health', {
+                    method: 'GET'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    statusDiv.innerHTML = `<div class="status success">✅ Backend API working</div><pre>${JSON.stringify(data, null, 2)}</pre>`;
+                    addLog('✅ Backend API is working');
+                } else {
+                    statusDiv.innerHTML = `<div class="status error">❌ Backend API error: ${response.status}</div>`;
+                    addLog(`❌ Backend API error: ${response.status}`);
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="status error">❌ Backend API failed: ${error.message}</div>`;
+                addLog(`❌ Backend API failed: ${error.message}`);
+            }
+        }
+        
+        async function testMigrationAPI() {
+            const statusDiv = document.getElementById('api-status');
+            
+            try {
+                addLog('Testing migration API...');
+                const response = await fetch('http://localhost:5001/api/migration/backup-status', {
+                    method: 'GET'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    statusDiv.innerHTML += `<div class="status success">✅ Migration API working</div><pre>${JSON.stringify(data, null, 2)}</pre>`;
+                    addLog('✅ Migration API is working');
+                } else {
+                    statusDiv.innerHTML += `<div class="status error">❌ Migration API error: ${response.status}</div>`;
+                    addLog(`❌ Migration API error: ${response.status}`);
+                }
+            } catch (error) {
+                statusDiv.innerHTML += `<div class="status error">❌ Migration API failed: ${error.message}</div>`;
+                addLog(`❌ Migration API failed: ${error.message}`);
+            }
+        }
+        
+        // Auto-start some tests
+        window.onload = function() {
+            addLog('🚀 React App Diagnostic Tool started');
+            addLog('Click the buttons above to run tests');
+            
+            // Auto-check ports after 1 second
+            setTimeout(checkPorts, 1000);
+        };
+    </script>
+</body>
+</html>

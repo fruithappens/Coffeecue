@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Picked Up Orders</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .order {
+            background: #f5f5f5;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 3px;
+        }
+        .success { color: green; }
+        .error { color: red; }
+        button {
+            padding: 10px 15px;
+            margin: 5px;
+            cursor: pointer;
+        }
+        pre {
+            background: #eee;
+            padding: 10px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Debug Picked Up Orders</h1>
+    
+    <div class="section">
+        <h2>Order Cache Analysis</h2>
+        <button onclick="analyzeOrderCache()">Analyze Order Cache</button>
+        <div id="cacheAnalysis"></div>
+    </div>
+    
+    <div class="section">
+        <h2>Check API Response</h2>
+        <button onclick="checkApiOrders()">Check API Orders</button>
+        <div id="apiResponse"></div>
+    </div>
+    
+    <div class="section">
+        <h2>localStorage Data</h2>
+        <button onclick="checkLocalStorage()">Check localStorage</button>
+        <div id="localStorageData"></div>
+    </div>
+    
+    <div class="section">
+        <h2>Test Mark Order as Picked Up</h2>
+        <label>Order ID: <input type="text" id="orderId" placeholder="Enter order ID"></label>
+        <button onclick="testMarkPickedUp()">Test Mark as Picked Up</button>
+        <div id="testResult"></div>
+    </div>
+
+    <script>
+        // Check if user is logged in
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+            document.body.innerHTML = '<h1>Please log in first</h1><p>Go to the main app and log in as a barista.</p>';
+        }
+
+        async function analyzeOrderCache() {
+            const output = document.getElementById('cacheAnalysis');
+            output.innerHTML = '<p>Analyzing order cache...</p>';
+            
+            try {
+                // Get station ID
+                const stationId = localStorage.getItem('coffee_cue_selected_station') || '1';
+                
+                // Check all order caches
+                const cacheKey = `orders_cache_station_${stationId}`;
+                const cache = localStorage.getItem(cacheKey);
+                
+                if (cache) {
+                    const parsed = JSON.parse(cache);
+                    let html = `<h3>Station ${stationId} Order Cache</h3>`;
+                    html += `<p>Cache timestamp: ${new Date(parsed.timestamp).toLocaleString()}</p>`;
+                    
+                    // Analyze completed orders
+                    html += '<h4>Completed Orders (Ready for Pickup):</h4>';
+                    if (parsed.completedOrders && parsed.completedOrders.length > 0) {
+                        html += '<div class="order">';
+                        parsed.completedOrders.forEach(order => {
+                            html += `<p>Order #${order.orderNumber} - ${order.customerName} - Status: ${order.status} - PickedUpAt: ${order.pickedUpAt || 'Not set'}</p>`;
+                        });
+                        html += '</div>';
+                    } else {
+                        html += '<p>No completed orders</p>';
+                    }
+                    
+                    // Analyze previous orders
+                    html += '<h4>Previous Orders (Picked Up):</h4>';
+                    if (parsed.previousOrders && parsed.previousOrders.length > 0) {
+                        html += '<div class="order">';
+                        parsed.previousOrders.forEach(order => {
+                            html += `<p>Order #${order.orderNumber} - ${order.customerName} - Status: ${order.status} - PickedUpAt: ${order.pickedUpAt || 'Not set'}</p>`;
+                        });
+                        html += '</div>';
+                    } else {
+                        html += '<p class="error">No previous orders found!</p>';
+                    }
+                    
+                    // Check fallback data
+                    const fallbackPrevious = localStorage.getItem('fallback_previous_orders');
+                    if (fallbackPrevious) {
+                        const fallbackParsed = JSON.parse(fallbackPrevious);
+                        html += '<h4>Fallback Previous Orders:</h4>';
+                        html += `<p>Count: ${fallbackParsed.length}</p>`;
+                        if (fallbackParsed.length > 0) {
+                            html += '<div class="order">';
+                            fallbackParsed.forEach(order => {
+                                html += `<p>Order #${order.orderNumber} - ${order.customerName}</p>`;
+                            });
+                            html += '</div>';
+                        }
+                    }
+                    
+                    output.innerHTML = html;
+                } else {
+                    output.innerHTML = '<p class="error">No order cache found for station ' + stationId + '</p>';
+                }
+            } catch (error) {
+                output.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+            }
+        }
+        
+        async function checkApiOrders() {
+            const output = document.getElementById('apiResponse');
+            output.innerHTML = '<p>Fetching orders from API...</p>';
+            
+            try {
+                const response = await fetch('http://localhost:5001/api/orders', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                let html = '<h3>API Response</h3>';
+                html += `<p>Status: ${data.status}</p>`;
+                
+                if (data.data) {
+                    const orders = data.data;
+                    
+                    // Count by status
+                    const statusCounts = {};
+                    orders.forEach(order => {
+                        statusCounts[order.status] = (statusCounts[order.status] || 0) + 1;
+                    });
+                    
+                    html += '<h4>Order Status Counts:</h4>';
+                    html += '<ul>';
+                    for (const [status, count] of Object.entries(statusCounts)) {
+                        html += `<li>${status}: ${count} orders</li>`;
+                    }
+                    html += '</ul>';
+                    
+                    // Show picked_up orders
+                    const pickedUpOrders = orders.filter(o => o.status === 'picked_up');
+                    html += `<h4>Picked Up Orders (${pickedUpOrders.length}):</h4>`;
+                    if (pickedUpOrders.length > 0) {
+                        html += '<div class="order">';
+                        pickedUpOrders.forEach(order => {
+                            html += `<p>Order #${order.order_number} - ${order.customer_name} - Updated: ${order.updated_at}</p>`;
+                        });
+                        html += '</div>';
+                    } else {
+                        html += '<p>No picked up orders from API</p>';
+                    }
+                }
+                
+                output.innerHTML = html;
+            } catch (error) {
+                output.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+            }
+        }
+        
+        function checkLocalStorage() {
+            const output = document.getElementById('localStorageData');
+            let html = '<h3>localStorage Keys Related to Orders</h3>';
+            
+            const relevantKeys = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key.includes('order') || key.includes('fallback')) {
+                    relevantKeys.push(key);
+                }
+            }
+            
+            html += '<ul>';
+            relevantKeys.forEach(key => {
+                const value = localStorage.getItem(key);
+                let preview = value;
+                try {
+                    const parsed = JSON.parse(value);
+                    if (Array.isArray(parsed)) {
+                        preview = `Array with ${parsed.length} items`;
+                    } else if (typeof parsed === 'object') {
+                        preview = 'Object: ' + JSON.stringify(parsed).substring(0, 100) + '...';
+                    }
+                } catch (e) {
+                    // Not JSON
+                    if (value.length > 100) {
+                        preview = value.substring(0, 100) + '...';
+                    }
+                }
+                html += `<li><strong>${key}:</strong> ${preview}</li>`;
+            });
+            html += '</ul>';
+            
+            output.innerHTML = html;
+        }
+        
+        async function testMarkPickedUp() {
+            const orderId = document.getElementById('orderId').value;
+            const output = document.getElementById('testResult');
+            
+            if (!orderId) {
+                output.innerHTML = '<p class="error">Please enter an order ID</p>';
+                return;
+            }
+            
+            output.innerHTML = '<p>Testing mark as picked up...</p>';
+            
+            try {
+                const response = await fetch(`http://localhost:5001/api/orders/${orderId}/status`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ status: 'picked_up' })
+                });
+                
+                const data = await response.json();
+                
+                let html = '<h3>Test Result</h3>';
+                html += `<p>Response status: ${response.status}</p>`;
+                html += '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                
+                if (data.status === 'success') {
+                    html += '<p class="success">✓ Order marked as picked up successfully</p>';
+                    
+                    // Now check if it appears in the cache
+                    setTimeout(() => {
+                        analyzeOrderCache();
+                    }, 1000);
+                } else {
+                    html += '<p class="error">✗ Failed to mark order as picked up</p>';
+                }
+                
+                output.innerHTML = html;
+            } catch (error) {
+                output.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+            }
+        }
+        
+        // Auto-run analysis on load
+        window.addEventListener('load', () => {
+            if (token) {
+                analyzeOrderCache();
+            }
+        });
+    </script>
+</body>
+</html>

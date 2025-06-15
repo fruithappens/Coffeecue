@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fix Modern Barista Stock</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; }
+        button { padding: 20px 40px; margin: 10px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 18px; font-weight: bold; }
+        button:hover { background: #218838; }
+        .debug-btn { background: #007cba; }
+        .debug-btn:hover { background: #005a87; }
+        .success { color: green; font-weight: bold; margin: 20px 0; font-size: 16px; }
+        .error { color: red; font-weight: bold; }
+        .info { background: #f0f8ff; padding: 20px; border-radius: 5px; margin: 20px 0; }
+        .warning { background: #fff3cd; padding: 20px; border-radius: 5px; margin: 20px 0; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 5px; overflow-x: auto; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <h1>🔧 Fix Modern Barista Stock Categories</h1>
+    
+    <div class="warning">
+        <strong>For ModernBaristaInterface v2.3 with Volume Support</strong><br>
+        This targets the specific stock system used by the Modern interface.
+    </div>
+    
+    <button onclick="debugModernStock()" class="debug-btn">🔍 Debug Modern Stock Data</button>
+    <button onclick="fixModernStock()">🚀 Fix Modern Stock Categories</button>
+    <button onclick="clearModernCache()" class="debug-btn">🗑️ Clear Modern Cache</button>
+    
+    <div id="output"></div>
+
+    <script>
+        function debugModernStock() {
+            const output = document.getElementById('output');
+            output.innerHTML = '<h2>Debugging Modern Barista Stock System...</h2>';
+            
+            // Check all possible localStorage keys that might be used by Modern interface
+            const possibleKeys = [
+                'coffee_stock_station_1',
+                'barista_stock_station_1', 
+                'modern_stock_station_1',
+                'station_1_stock',
+                'stock_data_1',
+                'inventory_station_1'
+            ];
+            
+            let foundData = false;
+            
+            possibleKeys.forEach(key => {
+                const data = localStorage.getItem(key);
+                if (data) {
+                    foundData = true;
+                    output.innerHTML += `<h3>Found data in key: ${key}</h3>`;
+                    try {
+                        const parsed = JSON.parse(data);
+                        output.innerHTML += `<pre>${JSON.stringify(parsed, null, 2)}</pre>`;
+                        
+                        // Check categories
+                        if (typeof parsed === 'object') {
+                            const categories = Object.keys(parsed);
+                            output.innerHTML += `<p><strong>Categories found:</strong> ${categories.join(', ')}</p>`;
+                            
+                            // Check for sweeteners in wrong place
+                            if (parsed.other) {
+                                const sweetenersInOther = parsed.other.filter(item => 
+                                    item.name && (
+                                        item.name.toLowerCase().includes('sugar') ||
+                                        item.name.toLowerCase().includes('honey') ||
+                                        item.name.toLowerCase().includes('stevia')
+                                    )
+                                );
+                                if (sweetenersInOther.length > 0) {
+                                    output.innerHTML += `<p class="error">❌ Found ${sweetenersInOther.length} sweeteners in "other" category</p>`;
+                                    sweetenersInOther.forEach(item => {
+                                        output.innerHTML += `<p>  • ${item.name}</p>`;
+                                    });
+                                }
+                            }
+                            
+                            if (parsed.sweeteners) {
+                                output.innerHTML += `<p class="success">✅ Sweeteners category has ${parsed.sweeteners.length} items</p>`;
+                            }
+                        }
+                    } catch (e) {
+                        output.innerHTML += `<p class="error">Error parsing data: ${e.message}</p>`;
+                    }
+                }
+            });
+            
+            if (!foundData) {
+                output.innerHTML += '<p class="error">No stock data found in any of the expected localStorage keys!</p>';
+            }
+        }
+        
+        function fixModernStock() {
+            const output = document.getElementById('output');
+            output.innerHTML = '<h2>Fixing Modern Barista Stock Categories...</h2>';
+            
+            // Try all possible stock keys
+            const stockKeys = [
+                'coffee_stock_station_1',
+                'barista_stock_station_1', 
+                'modern_stock_station_1',
+                'station_1_stock',
+                'stock_data_1',
+                'inventory_station_1'
+            ];
+            
+            let fixedSomething = false;
+            
+            stockKeys.forEach(key => {
+                const stockData = localStorage.getItem(key);
+                if (stockData) {
+                    try {
+                        const stock = JSON.parse(stockData);
+                        
+                        // Initialize categories if they don't exist
+                        if (!stock.sweeteners) stock.sweeteners = [];
+                        if (!stock.other) stock.other = [];
+                        
+                        // Find sweeteners in other category
+                        const sweetenersToMove = stock.other.filter(item => 
+                            item.name && (
+                                item.name.toLowerCase().includes('sugar') ||
+                                item.name.toLowerCase().includes('honey') ||
+                                item.name.toLowerCase().includes('stevia') ||
+                                item.name.toLowerCase().includes('sweetener')
+                            )
+                        );
+                        
+                        if (sweetenersToMove.length > 0) {
+                            output.innerHTML += `<p>Moving ${sweetenersToMove.length} items from key: ${key}</p>`;
+                            
+                            // Move each sweetener
+                            sweetenersToMove.forEach(item => {
+                                stock.sweeteners.push(item);
+                                output.innerHTML += `<p>  ✅ Moved: ${item.name}</p>`;
+                            });
+                            
+                            // Remove from other
+                            stock.other = stock.other.filter(item => 
+                                !item.name || (
+                                    !item.name.toLowerCase().includes('sugar') &&
+                                    !item.name.toLowerCase().includes('honey') &&
+                                    !item.name.toLowerCase().includes('stevia') &&
+                                    !item.name.toLowerCase().includes('sweetener')
+                                )
+                            );
+                            
+                            // Save back
+                            localStorage.setItem(key, JSON.stringify(stock));
+                            fixedSomething = true;
+                        }
+                    } catch (e) {
+                        output.innerHTML += `<p class="error">Error processing ${key}: ${e.message}</p>`;
+                    }
+                }
+            });
+            
+            if (fixedSomething) {
+                output.innerHTML += `<div class="success">
+                    <h3>✅ Fixed Modern Barista Stock!</h3>
+                    <p>Now do a HARD refresh on your Modern Barista interface:</p>
+                    <ul>
+                        <li><strong>Cmd+Shift+R</strong> (Mac)</li>
+                        <li><strong>Ctrl+Shift+F5</strong> (Windows)</li>
+                    </ul>
+                </div>`;
+            } else {
+                output.innerHTML += '<p class="warning">No sweeteners found to move, or data structure is different than expected.</p>';
+            }
+        }
+        
+        function clearModernCache() {
+            const output = document.getElementById('output');
+            
+            if (confirm('This will clear ALL cached stock data to force a fresh reload. Continue?')) {
+                output.innerHTML = '<h2>Clearing Modern Barista Cache...</h2>';
+                
+                // Clear all possible stock-related cache
+                const keysToRemove = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key && (
+                        key.includes('stock') ||
+                        key.includes('inventory') ||
+                        key.includes('cache') ||
+                        key.includes('modern')
+                    )) {
+                        keysToRemove.push(key);
+                    }
+                }
+                
+                keysToRemove.forEach(key => {
+                    localStorage.removeItem(key);
+                    output.innerHTML += `<p>Removed: ${key}</p>`;
+                });
+                
+                output.innerHTML += `<div class="success">
+                    <h3>✅ Cleared ${keysToRemove.length} cache entries</h3>
+                    <p>Hard refresh your Modern Barista interface to reload fresh data.</p>
+                </div>`;
+            }
+        }
+    </script>
+</body>
+</html>

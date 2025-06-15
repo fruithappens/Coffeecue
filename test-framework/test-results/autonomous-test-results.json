@@ -1,0 +1,20 @@
+{
+  "startTime": 1748060194734,
+  "cycles": [
+    {
+      "number": 1,
+      "startTime": 1748060194762,
+      "testResults": null,
+      "issues": [],
+      "fixes": [],
+      "status": "error",
+      "error": "Failed to initialize test runner",
+      "endTime": 1748060195468,
+      "duration": 706
+    }
+  ],
+  "totalTests": 0,
+  "finalStatus": "failed",
+  "endTime": 1748060195468,
+  "totalDuration": 734
+}

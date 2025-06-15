@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Check Frontend Auth</title>
+</head>
+<body>
+    <h1>Frontend Auth Check</h1>
+    <pre id="output"></pre>
+    
+    <script>
+        const output = document.getElementById('output');
+        
+        // Check localStorage for auth tokens
+        const authToken = localStorage.getItem('authToken');
+        const accessToken = localStorage.getItem('access_token');
+        const refreshToken = localStorage.getItem('refresh_token');
+        const currentUser = localStorage.getItem('currentUser');
+        const userRole = localStorage.getItem('userRole');
+        
+        let report = 'LocalStorage Auth Data:\n';
+        report += '=====================\n';
+        report += `authToken: ${authToken ? authToken.substring(0, 50) + '...' : 'NOT FOUND'}\n`;
+        report += `access_token: ${accessToken ? accessToken.substring(0, 50) + '...' : 'NOT FOUND'}\n`;
+        report += `refresh_token: ${refreshToken ? refreshToken.substring(0, 50) + '...' : 'NOT FOUND'}\n`;
+        report += `currentUser: ${currentUser}\n`;
+        report += `userRole: ${userRole}\n`;
+        
+        // Check all localStorage keys
+        report += '\nAll localStorage keys:\n';
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            const value = localStorage.getItem(key);
+            if (value && value.length > 100) {
+                report += `  ${key}: ${value.substring(0, 50)}...\n`;
+            } else {
+                report += `  ${key}: ${value}\n`;
+            }
+        }
+        
+        output.textContent = report;
+        
+        // Also log to console
+        console.log(report);
+    </script>
+</body>
+</html>

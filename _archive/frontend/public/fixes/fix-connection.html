@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fix Connection Issues</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+            line-height: 1.6;
+        }
+        h1, h2 {
+            color: #333;
+            text-align: center;
+        }
+        .card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .button-danger {
+            background-color: #f44336;
+        }
+        .button-danger:hover {
+            background-color: #d32f2f;
+        }
+        .status {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 8px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .controls-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        .status-container {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            min-height: 100px;
+        }
+        .status-item {
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        pre {
+            background-color: #f8f8f8;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Expresso Connection Troubleshooter</h1>
+    
+    <div class="card">
+        <h2>Connection Status</h2>
+        <div id="connection-status" class="status-container">
+            <p>Click "Check Connections" to see the connection status for all services.</p>
+        </div>
+        
+        <div class="controls-container">
+            <button id="check-connections">Check Connections</button>
+            <button id="fix-connections" class="button-danger">Fix Connection Issues</button>
+        </div>
+    </div>
+    
+    <div class="card">
+        <h2>Cached Connection States</h2>
+        <div id="cached-states" class="status-container">
+            <p>Click "View Cached States" to see all connection-related data in localStorage and sessionStorage.</p>
+        </div>
+        
+        <div class="controls-container">
+            <button id="view-cached">View Cached States</button>
+            <button id="clear-cached" class="button-danger">Clear Cached States</button>
+        </div>
+    </div>
+    
+    <div class="card">
+        <h2>Auto-Refresh Settings</h2>
+        <div id="refresh-status" class="status-container">
+            <p>Current settings will be shown here.</p>
+        </div>
+        
+        <div class="controls-container">
+            <button id="check-refresh">Check Settings</button>
+            <button id="optimize-refresh">Optimize Settings</button>
+        </div>
+        
+        <div style="margin-top: 15px;">
+            <label for="interval-input">New refresh interval (seconds):</label>
+            <input type="number" id="interval-input" min="15" value="30" style="width: 80px; padding: 5px;">
+            <button id="update-interval">Update Interval</button>
+        </div>
+    </div>
+    
+    <script>
+        // Get DOM elements
+        const connectionStatus = document.getElementById('connection-status');
+        const cachedStates = document.getElementById('cached-states');
+        const refreshStatus = document.getElementById('refresh-status');
+        const checkConnectionsBtn = document.getElementById('check-connections');
+        const fixConnectionsBtn = document.getElementById('fix-connections');
+        const viewCachedBtn = document.getElementById('view-cached');
+        const clearCachedBtn = document.getElementById('clear-cached');
+        const checkRefreshBtn = document.getElementById('check-refresh');
+        const optimizeRefreshBtn = document.getElementById('optimize-refresh');
+        const intervalInput = document.getElementById('interval-input');
+        const updateIntervalBtn = document.getElementById('update-interval');
+        
+        // Function to add status message
+        function addStatusMessage(container, message, type = 'success') {
+            const statusItem = document.createElement('div');
+            statusItem.className = `status-item ${type}`;
+            statusItem.innerHTML = message;
+            container.appendChild(statusItem);
+        }
+        
+        // Function to clear status container
+        function clearStatusContainer(container) {
+            container.innerHTML = '';
+        }
+        
+        // Check backend connection
+        async function checkBackendConnection() {
+            try {
+                const response = await fetch('http://localhost:5001/api/test', {
+                    mode: 'cors',
+                    headers: { 'Accept': 'application/json' }
+                });
+                
+                return response.status >= 200 && response.status < 300;
+            } catch (error) {
+                console.error('Backend connection error:', error);
+                return false;
+            }
+        }
+        
+        // Check all connections
+        async function checkAllConnections() {
+            clearStatusContainer(connectionStatus);
+            
+            // Check backend
+            const backendConnected = await checkBackendConnection();
+            
+            if (backendConnected) {
+                addStatusMessage(connectionStatus, '✅ Backend service is connected and responding', 'success');
+            } else {
+                addStatusMessage(connectionStatus, '❌ Backend service is NOT connected', 'error');
+                addStatusMessage(connectionStatus, 'Make sure the backend server is running at http://localhost:5001', 'warning');
+            }
+            
+            // Check cached connection status
+            const cachedStatus = localStorage.getItem('coffee_connection_status');
+            const cachedTimestamp = localStorage.getItem('coffee_connection_timestamp');
+            
+            if (cachedStatus) {
+                const timestamp = new Date(parseInt(cachedTimestamp)).toLocaleTimeString();
+                const statusMessage = cachedStatus === 'online' ? '✅ Cached status: ONLINE' : '❌ Cached status: OFFLINE';
+                addStatusMessage(
+                    connectionStatus, 
+                    `${statusMessage} (Last updated: ${timestamp})`,
+                    cachedStatus === 'online' ? 'success' : 'error'
+                );
+                
+                // Check if cached status is wrong
+                if ((cachedStatus === 'online' && !backendConnected) || 
+                    (cachedStatus === 'offline' && backendConnected)) {
+                    addStatusMessage(
+                        connectionStatus,
+                        '⚠️ Cached connection status is incorrect! Click "Fix Connection Issues" to correct it.',
+                        'warning'
+                    );
+                }
+            } else {
+                addStatusMessage(connectionStatus, 'No cached connection status found', 'warning');
+            }
+        }
+        
+        // Fix connection issues
+        async function fixConnectionIssues() {
+            clearStatusContainer(connectionStatus);
+            
+            // Check actual connection
+            const backendConnected = await checkBackendConnection();
+            
+            // Update cached status to match reality
+            localStorage.setItem('coffee_connection_status', backendConnected ? 'online' : 'offline');
+            localStorage.setItem('coffee_connection_timestamp', Date.now().toString());
+            
+            // Also update the session storage timestamp
+            sessionStorage.setItem('last_connection_check_time', Date.now().toString());
+            
+            const statusType = backendConnected ? 'success' : 'error';
+            const statusMessage = backendConnected
+                ? '✅ Connection status fixed - Backend is ONLINE'
+                : '❌ Connection status fixed - Backend is OFFLINE';
+                
+            addStatusMessage(connectionStatus, statusMessage, statusType);
+            
+            if (!backendConnected) {
+                addStatusMessage(
+                    connectionStatus,
+                    '⚠️ The backend server is not responding. Please start the backend server before using the application.',
+                    'warning'
+                );
+            } else {
+                addStatusMessage(
+                    connectionStatus,
+                    '✅ Connection cache updated successfully. Refresh the main application to see the changes.',
+                    'success'
+                );
+            }
+        }
+        
+        // View cached connection states
+        function viewCachedStates() {
+            clearStatusContainer(cachedStates);
+            
+            // Look for all connection-related values in storage
+            const connectionKeys = [
+                'coffee_connection_status',
+                'coffee_connection_timestamp',
+                'last_connection_check_time',
+                'backend_connection_status',
+                'backend_connection_timestamp',
+                'coffee_online_status'
+            ];
+            
+            let found = false;
+            
+            // Check localStorage
+            addStatusMessage(cachedStates, '<strong>LocalStorage:</strong>', 'info');
+            for (const key of connectionKeys) {
+                const value = localStorage.getItem(key);
+                if (value) {
+                    found = true;
+                    const formattedValue = key.includes('timestamp')
+                        ? `${value} (${new Date(parseInt(value)).toLocaleTimeString()})`
+                        : value;
+                    addStatusMessage(cachedStates, `${key}: ${formattedValue}`);
+                }
+            }
+            
+            // Check sessionStorage
+            addStatusMessage(cachedStates, '<strong>SessionStorage:</strong>', 'info');
+            for (const key of connectionKeys) {
+                const value = sessionStorage.getItem(key);
+                if (value) {
+                    found = true;
+                    const formattedValue = key.includes('timestamp')
+                        ? `${value} (${new Date(parseInt(value)).toLocaleTimeString()})`
+                        : value;
+                    addStatusMessage(cachedStates, `${key}: ${formattedValue}`);
+                }
+            }
+            
+            if (!found) {
+                addStatusMessage(cachedStates, 'No connection-related cache entries found', 'warning');
+            }
+        }
+        
+        // Clear cached connection states
+        function clearCachedStates() {
+            clearStatusContainer(cachedStates);
+            
+            // Connection keys to clear
+            const connectionKeys = [
+                'coffee_connection_status',
+                'coffee_connection_timestamp',
+                'backend_connection_status',
+                'backend_connection_timestamp',
+                'coffee_online_status'
+            ];
+            
+            // Clear from localStorage
+            for (const key of connectionKeys) {
+                localStorage.removeItem(key);
+            }
+            
+            // Clear from sessionStorage
+            sessionStorage.removeItem('last_connection_check_time');
+            
+            addStatusMessage(
+                cachedStates,
+                '✅ All connection cache entries cleared successfully. Refresh the main application.',
+                'success'
+            );
+        }
+        
+        // Check auto-refresh settings
+        function checkRefreshSettings() {
+            clearStatusContainer(refreshStatus);
+            
+            // Get current settings
+            const enabled = localStorage.getItem('coffee_auto_refresh_enabled');
+            const interval = localStorage.getItem('coffee_auto_refresh_interval');
+            
+            if (enabled !== null) {
+                const isEnabled = enabled === 'true';
+                addStatusMessage(
+                    refreshStatus,
+                    `Auto-refresh is ${isEnabled ? 'ENABLED' : 'DISABLED'}`,
+                    isEnabled ? 'success' : 'warning'
+                );
+            } else {
+                addStatusMessage(refreshStatus, 'Auto-refresh setting not found', 'warning');
+            }
+            
+            if (interval) {
+                const intervalValue = parseInt(interval);
+                let messageType = 'success';
+                let recommendation = '';
+                
+                if (intervalValue < 15) {
+                    messageType = 'error';
+                    recommendation = ' - Too low! Should be at least 15 seconds to prevent flickering';
+                } else if (intervalValue < 30) {
+                    messageType = 'warning';
+                    recommendation = ' - Consider increasing to 30+ seconds for better performance';
+                }
+                
+                addStatusMessage(
+                    refreshStatus,
+                    `Refresh interval: ${interval} seconds${recommendation}`,
+                    messageType
+                );
+            } else {
+                addStatusMessage(refreshStatus, 'Refresh interval not found', 'warning');
+            }
+        }
+        
+        // Optimize auto-refresh settings
+        function optimizeRefreshSettings() {
+            clearStatusContainer(refreshStatus);
+            
+            // Set optimal values
+            localStorage.setItem('coffee_auto_refresh_enabled', 'true');
+            localStorage.setItem('coffee_auto_refresh_interval', '30');
+            
+            addStatusMessage(
+                refreshStatus,
+                '✅ Auto-refresh settings optimized: ENABLED with 30 second interval',
+                'success'
+            );
+            
+            addStatusMessage(
+                refreshStatus,
+                'Changes will take effect when you refresh the main application',
+                'info'
+            );
+        }
+        
+        // Update auto-refresh interval
+        function updateRefreshInterval() {
+            const newInterval = parseInt(intervalInput.value);
+            
+            if (isNaN(newInterval) || newInterval < 15) {
+                alert('Please enter a valid interval of at least 15 seconds');
+                return;
+            }
+            
+            localStorage.setItem('coffee_auto_refresh_interval', newInterval.toString());
+            
+            clearStatusContainer(refreshStatus);
+            addStatusMessage(
+                refreshStatus,
+                `✅ Auto-refresh interval updated to ${newInterval} seconds`,
+                'success'
+            );
+        }
+        
+        // Event listeners
+        checkConnectionsBtn.addEventListener('click', checkAllConnections);
+        fixConnectionsBtn.addEventListener('click', fixConnectionIssues);
+        viewCachedBtn.addEventListener('click', viewCachedStates);
+        clearCachedBtn.addEventListener('click', clearCachedStates);
+        checkRefreshBtn.addEventListener('click', checkRefreshSettings);
+        optimizeRefreshBtn.addEventListener('click', optimizeRefreshSettings);
+        updateIntervalBtn.addEventListener('click', updateRefreshInterval);
+        
+        // Run initial connection check
+        checkAllConnections();
+        checkRefreshSettings();
+    </script>
+</body>
+</html>

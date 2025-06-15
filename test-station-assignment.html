@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Station Assignment Fix</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-result { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .success { background-color: #d4edda; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; border: 1px solid #f5c6cb; }
+        .info { background-color: #d1ecf1; border: 1px solid #bee5eb; }
+        button { margin: 5px; padding: 10px; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 5px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Station Assignment Test</h1>
+    <div id="results"></div>
+    
+    <h2>Test Walk-in Order Assignment</h2>
+    <button onclick="clearStorage()">Clear Storage</button>
+    <button onclick="testStationAssignment()">Test Station Assignment</button>
+    <button onclick="checkOrderLocations()">Check Order Locations</button>
+    
+    <script>
+        function addResult(message, type = 'info') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `test-result ${type}`;
+            div.innerHTML = message;
+            results.appendChild(div);
+        }
+
+        function clearStorage() {
+            localStorage.clear();
+            sessionStorage.clear();
+            addResult('Cleared all storage', 'info');
+        }
+
+        function testStationAssignment() {
+            addResult('Testing station assignment logic...', 'info');
+            
+            // Test the logic that was causing the issue
+            const currentStationId = 1;
+            
+            // Simulate order details from BaristaInterface with station 2 selected
+            const orderDetails = {
+                customerName: 'Test Customer',
+                coffeeType: 'Latte',
+                stationId: 2,
+                station_id: 2,
+                assignedStation: 2
+            };
+            
+            // OLD LOGIC (what was causing the bug)
+            const oldOrderWithStation = {
+                ...orderDetails,
+                station_id: currentStationId,  // This was overriding the correct station!
+                assigned_to_station: currentStationId
+            };
+            
+            // NEW LOGIC (fixed)
+            const newOrderWithStation = {
+                ...orderDetails,
+                station_id: orderDetails.station_id || orderDetails.stationId || currentStationId,
+                assigned_to_station: orderDetails.assigned_to_station || orderDetails.assignedStation || orderDetails.stationId || currentStationId
+            };
+            
+            addResult(`<strong>Test Results:</strong><br>
+                Order assigned to station: ${orderDetails.stationId}<br>
+                Current station: ${currentStationId}<br>
+                <br>
+                <strong>OLD (buggy) logic result:</strong><br>
+                station_id: ${oldOrderWithStation.station_id} ❌<br>
+                assigned_to_station: ${oldOrderWithStation.assigned_to_station} ❌<br>
+                <br>
+                <strong>NEW (fixed) logic result:</strong><br>
+                station_id: ${newOrderWithStation.station_id} ✅<br>
+                assigned_to_station: ${newOrderWithStation.assigned_to_station} ✅
+            `, newOrderWithStation.station_id === 2 ? 'success' : 'error');
+        }
+
+        function checkOrderLocations() {
+            addResult('Checking order cache locations...', 'info');
+            
+            let foundOrders = [];
+            
+            // Check all station caches
+            for (let stationId = 1; stationId <= 5; stationId++) {
+                const cacheKey = `orders_cache_station_${stationId}`;
+                const localOrdersKey = `local_orders_station_${stationId}`;
+                
+                try {
+                    const cache = localStorage.getItem(cacheKey);
+                    const localOrders = localStorage.getItem(localOrdersKey);
+                    
+                    if (cache) {
+                        const cacheData = JSON.parse(cache);
+                        if (cacheData.pendingOrders && cacheData.pendingOrders.length > 0) {
+                            foundOrders.push({
+                                station: stationId,
+                                type: 'cache',
+                                orders: cacheData.pendingOrders.length,
+                                details: cacheData.pendingOrders.map(o => ({
+                                    id: o.id,
+                                    customer: o.customerName,
+                                    stationId: o.stationId,
+                                    station_id: o.station_id
+                                }))
+                            });
+                        }
+                    }
+                    
+                    if (localOrders) {
+                        const localData = JSON.parse(localOrders);
+                        if (localData.length > 0) {
+                            foundOrders.push({
+                                station: stationId,
+                                type: 'local',
+                                orders: localData.length,
+                                details: localData.map(o => ({
+                                    id: o.id,
+                                    customer: o.customerName,
+                                    stationId: o.stationId,
+                                    station_id: o.station_id
+                                }))
+                            });
+                        }
+                    }
+                } catch (e) {
+                    console.error(`Error checking station ${stationId}:`, e);
+                }
+            }
+            
+            if (foundOrders.length === 0) {
+                addResult('No orders found in storage', 'info');
+            } else {
+                let resultHtml = '<strong>Orders found:</strong><br>';
+                foundOrders.forEach(station => {
+                    resultHtml += `<br><strong>Station ${station.station} (${station.type}):</strong> ${station.orders} orders<br>`;
+                    station.details.forEach(order => {
+                        resultHtml += `&nbsp;&nbsp;• ${order.id} - ${order.customer} (stationId: ${order.stationId}, station_id: ${order.station_id})<br>`;
+                    });
+                });
+                addResult(resultHtml, 'info');
+            }
+        }
+
+        // Run initial test
+        addResult('Station Assignment Fix Test Loaded', 'success');
+    </script>
+</body>
+</html>

@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Persistence Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-section h2 {
+            margin-top: 0;
+            color: #6b4423;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .code {
+            background-color: #f4f4f4;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            overflow-x: auto;
+        }
+        button {
+            background-color: #6b4423;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #8b5a33;
+        }
+        .test-results {
+            margin-top: 20px;
+        }
+        .test-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .test-item:last-child {
+            border-bottom: none;
+        }
+        .pass {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .fail {
+            color: #dc3545;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>Order Persistence Test</h1>
+        
+        <div class="test-section">
+            <h2>Test Instructions</h2>
+            <p>This test verifies that orders persist correctly when switching between tabs and stations.</p>
+            <ol>
+                <li>Open the Barista Interface in another tab</li>
+                <li>Create or view some orders at a station</li>
+                <li>Click "Test Tab Switching" to simulate tab changes</li>
+                <li>Click "Test Station Switching" to simulate station changes</li>
+                <li>Check if orders are still visible in the Barista Interface</li>
+            </ol>
+        </div>
+
+        <div class="test-section">
+            <h2>Test Controls</h2>
+            <button onclick="testTabSwitching()">Test Tab Switching</button>
+            <button onclick="testStationSwitching()">Test Station Switching</button>
+            <button onclick="checkOrderCache()">Check Order Cache</button>
+            <button onclick="clearAllCaches()">Clear All Caches</button>
+        </div>
+
+        <div class="test-section">
+            <h2>Test Results</h2>
+            <div id="results" class="test-results"></div>
+        </div>
+    </div>
+
+    <script>
+        function addResult(message, type = 'info') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `status ${type}`;
+            div.textContent = message;
+            results.appendChild(div);
+        }
+
+        function testTabSwitching() {
+            addResult('Testing tab switching...', 'warning');
+            
+            // Simulate tab switching by triggering visibility change events
+            try {
+                // Hide tab
+                Object.defineProperty(document, 'visibilityState', {
+                    configurable: true,
+                    get: function() { return 'hidden'; }
+                });
+                document.dispatchEvent(new Event('visibilitychange'));
+                
+                setTimeout(() => {
+                    // Show tab
+                    Object.defineProperty(document, 'visibilityState', {
+                        configurable: true,
+                        get: function() { return 'visible'; }
+                    });
+                    document.dispatchEvent(new Event('visibilitychange'));
+                    
+                    addResult('Tab switching simulation completed', 'success');
+                    addResult('Check the Barista Interface to see if orders are still visible', 'warning');
+                }, 1000);
+            } catch (error) {
+                addResult(`Error simulating tab switch: ${error.message}`, 'error');
+            }
+        }
+
+        function testStationSwitching() {
+            addResult('Testing station switching...', 'warning');
+            
+            try {
+                // Get current station
+                const currentStation = localStorage.getItem('coffee_cue_selected_station');
+                if (!currentStation) {
+                    addResult('No station currently selected', 'error');
+                    return;
+                }
+                
+                addResult(`Current station: ${currentStation}`, 'info');
+                
+                // Simulate switching to a different station
+                const newStation = currentStation === '1' ? '2' : '1';
+                
+                // Trigger a custom event that the app might listen to
+                window.dispatchEvent(new CustomEvent('app:stationChanged', { 
+                    detail: { 
+                        from: currentStation, 
+                        to: newStation 
+                    } 
+                }));
+                
+                addResult(`Simulated switch from station ${currentStation} to station ${newStation}`, 'success');
+                addResult('Check the Barista Interface to see if orders updated correctly', 'warning');
+            } catch (error) {
+                addResult(`Error simulating station switch: ${error.message}`, 'error');
+            }
+        }
+
+        function checkOrderCache() {
+            addResult('Checking order cache...', 'warning');
+            
+            try {
+                // Check all station caches
+                const stations = ['1', '2', '3', '4', '5'];
+                let foundCache = false;
+                
+                stations.forEach(stationId => {
+                    const cacheKey = `orders_cache_station_${stationId}`;
+                    const cache = localStorage.getItem(cacheKey);
+                    
+                    if (cache) {
+                        try {
+                            const data = JSON.parse(cache);
+                            const orderCounts = {
+                                pending: data.pendingOrders?.length || 0,
+                                inProgress: data.inProgressOrders?.length || 0,
+                                completed: data.completedOrders?.length || 0,
+                                previous: data.previousOrders?.length || 0
+                            };
+                            
+                            addResult(`Station ${stationId}: ${orderCounts.pending} pending, ${orderCounts.inProgress} in progress, ${orderCounts.completed} completed`, 'success');
+                            foundCache = true;
+                            
+                            // Also check backup
+                            const backup = localStorage.getItem(`${cacheKey}_backup`);
+                            if (backup) {
+                                addResult(`Station ${stationId} has backup cache`, 'info');
+                            }
+                        } catch (e) {
+                            addResult(`Station ${stationId}: Invalid cache data`, 'error');
+                        }
+                    }
+                });
+                
+                if (!foundCache) {
+                    addResult('No order caches found', 'warning');
+                }
+                
+                // Check for temp variables that shouldn't exist
+                const tempVars = [
+                    '_tempOnlineStatus',
+                    '_tempQueueCount', 
+                    '_tempLastUpdated',
+                    '_tempPendingOrders',
+                    '_tempInProgressOrders',
+                    '_tempCompletedOrders',
+                    '_tempPreviousOrders',
+                    '_tempError',
+                    '_tempCachedOrderData'
+                ];
+                
+                let foundTempVars = false;
+                tempVars.forEach(varName => {
+                    if (window[varName] !== undefined) {
+                        addResult(`WARNING: Found lingering temp variable: ${varName}`, 'error');
+                        foundTempVars = true;
+                    }
+                });
+                
+                if (!foundTempVars) {
+                    addResult('No lingering temp variables found (good!)', 'success');
+                }
+                
+            } catch (error) {
+                addResult(`Error checking cache: ${error.message}`, 'error');
+            }
+        }
+
+        function clearAllCaches() {
+            if (!confirm('This will clear all order caches. Are you sure?')) {
+                return;
+            }
+            
+            addResult('Clearing all caches...', 'warning');
+            
+            try {
+                // Clear order caches
+                const stations = ['1', '2', '3', '4', '5'];
+                stations.forEach(stationId => {
+                    const cacheKey = `orders_cache_station_${stationId}`;
+                    localStorage.removeItem(cacheKey);
+                    localStorage.removeItem(`${cacheKey}_backup`);
+                    localStorage.removeItem(`${cacheKey}_backup_time`);
+                    sessionStorage.removeItem(cacheKey);
+                });
+                
+                // Clear temp variables
+                const tempVars = [
+                    '_tempOnlineStatus',
+                    '_tempQueueCount', 
+                    '_tempLastUpdated',
+                    '_tempPendingOrders',
+                    '_tempInProgressOrders',
+                    '_tempCompletedOrders',
+                    '_tempPreviousOrders',
+                    '_tempError',
+                    '_tempCachedOrderData'
+                ];
+                
+                tempVars.forEach(varName => {
+                    if (window[varName] !== undefined) {
+                        delete window[varName];
+                    }
+                });
+                
+                addResult('All caches cleared successfully', 'success');
+                addResult('Refresh the Barista Interface to reload fresh data', 'warning');
+            } catch (error) {
+                addResult(`Error clearing caches: ${error.message}`, 'error');
+            }
+        }
+
+        // Check initial state on load
+        window.addEventListener('load', () => {
+            checkOrderCache();
+        });
+    </script>
+</body>
+</html>

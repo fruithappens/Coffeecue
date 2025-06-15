@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Fix Resource Issues</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      color: #333;
+    }
+    .card {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #0066cc;
+      margin-top: 0;
+    }
+    h2 {
+      margin-top: 0;
+      color: #444;
+    }
+    button {
+      background-color: #0066cc;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-right: 10px;
+      margin-bottom: 10px;
+    }
+    button:hover {
+      background-color: #0055aa;
+    }
+    button.danger {
+      background-color: #cc3300;
+    }
+    button.danger:hover {
+      background-color: #aa2200;
+    }
+    button.success {
+      background-color: #00aa55;
+    }
+    button.success:hover {
+      background-color: #008844;
+    }
+    .result {
+      margin-top: 15px;
+      padding: 15px;
+      background-color: #f5f5f5;
+      border-radius: 4px;
+      display: none;
+    }
+    .status {
+      font-weight: bold;
+      margin-top: 10px;
+      padding: 5px;
+      border-radius: 3px;
+    }
+    .success-msg {
+      background-color: #e6f7ee;
+      color: #00aa55;
+    }
+    .warning-msg {
+      background-color: #fff8e6;
+      color: #f5a623;
+    }
+  </style>
+</head>
+<body>
+  <h1>Resource Issue Fix Tool</h1>
+  <p>This tool will help fix resource exhaustion issues caused by excessive logging, JWT errors, and rapid refresh cycles.</p>
+  
+  <div class="card">
+    <h2>1. Disable Console Capture</h2>
+    <p>The console capture script was overwhelming the browser with network requests. You can:</p>
+    <button id="disableLogging">Disable All Console Logging</button>
+    <button id="enableThrottledLogging" class="success">Enable Throttled Logging</button>
+    <div id="loggingStatus" class="status"></div>
+  </div>
+  
+  <div class="card">
+    <h2>2. Fix Auto-Refresh Issues</h2>
+    <p>Control the auto-refresh behavior that's causing flickering:</p>
+    <button id="disableAutoRefresh">Disable Auto-Refresh</button>
+    <button id="slowAutoRefresh" class="success">Set 60s Auto-Refresh</button>
+    <div id="refreshStatus" class="status"></div>
+  </div>
+  
+  <div class="card">
+    <h2>3. Reset Connection Status</h2>
+    <p>Force a stable connection status to prevent flickering:</p>
+    <button id="forceOnline" class="success">Force Online Status</button>
+    <button id="forceOffline">Force Offline Status</button>
+    <div id="connectionStatus" class="status"></div>
+  </div>
+  
+  <div class="card">
+    <h2>4. Clear Cached JWT Errors</h2>
+    <p>Clear any saved JWT errors to allow requests to flow again:</p>
+    <button id="clearJwtErrors" class="success">Clear JWT Error Cache</button>
+    <div id="jwtStatus" class="status"></div>
+  </div>
+  
+  <div class="card">
+    <h2>5. Apply Complete Fix</h2>
+    <p>Apply all recommended fixes at once:</p>
+    <button id="applyAllFixes" class="success">Apply All Fixes</button>
+    <div id="allFixStatus" class="status"></div>
+  </div>
+  
+  <div class="result" id="result">
+    <h3>Changes Applied:</h3>
+    <pre id="resultContent"></pre>
+    <a href="/" style="display: inline-block; padding: 10px 15px; background: #0066cc; color: white; text-decoration: none; border-radius: 5px; margin-top: 15px;">Return to App</a>
+  </div>
+  
+  <script>
+    // Utility to update status
+    function updateStatus(elementId, message, isSuccess) {
+      const element = document.getElementById(elementId);
+      element.textContent = message;
+      element.className = isSuccess ? 'status success-msg' : 'status warning-msg';
+    }
+    
+    // Show result
+    function showResult(content) {
+      document.getElementById('resultContent').textContent = content;
+      document.getElementById('result').style.display = 'block';
+    }
+    
+    // Disable console logging completely
+    document.getElementById('disableLogging').addEventListener('click', function() {
+      localStorage.setItem('disable_console_capture', 'true');
+      
+      // Try to call the toggle function if it exists
+      if (window.toggleConsoleCapture) {
+        window.toggleConsoleCapture(false);
+      }
+      
+      updateStatus('loggingStatus', '✅ Console logging disabled', true);
+      showResult('Console logging has been completely disabled.');
+    });
+    
+    // Enable throttled logging
+    document.getElementById('enableThrottledLogging').addEventListener('click', function() {
+      localStorage.setItem('disable_console_capture', 'false');
+      localStorage.setItem('use_throttled_logging', 'true');
+      
+      // Reload page to apply the throttled logger
+      const currentScriptTags = document.querySelectorAll('script[src*="console-capture.js"]');
+      if (currentScriptTags.length) {
+        updateStatus('loggingStatus', '✅ Throttled logging enabled. Reload page to apply.', true);
+      } else {
+        updateStatus('loggingStatus', '✅ Throttled logging will be enabled on next app load', true);
+      }
+      
+      showResult('Throttled console logging has been enabled. This will batch logs and significantly reduce network requests.');
+    });
+    
+    // Disable auto-refresh
+    document.getElementById('disableAutoRefresh').addEventListener('click', function() {
+      localStorage.setItem('coffee_auto_refresh_enabled', 'false');
+      updateStatus('refreshStatus', '✅ Auto-refresh disabled', true);
+      showResult('Auto-refresh has been disabled. Use the manual refresh button instead.');
+    });
+    
+    // Set slow auto-refresh
+    document.getElementById('slowAutoRefresh').addEventListener('click', function() {
+      localStorage.setItem('coffee_auto_refresh_enabled', 'true');
+      localStorage.setItem('coffee_auto_refresh_interval', '60');
+      updateStatus('refreshStatus', '✅ Auto-refresh set to 60 seconds', true);
+      showResult('Auto-refresh interval set to 60 seconds. This is much less resource-intensive.');
+    });
+    
+    // Force online status
+    document.getElementById('forceOnline').addEventListener('click', function() {
+      localStorage.setItem('coffee_connection_status', 'online');
+      localStorage.setItem('coffee_connection_timestamp', Date.now().toString());
+      updateStatus('connectionStatus', '✅ Connection status set to online', true);
+      showResult('Connection status has been forced to online. This should prevent the flickering connection warning.');
+    });
+    
+    // Force offline status
+    document.getElementById('forceOffline').addEventListener('click', function() {
+      localStorage.setItem('coffee_connection_status', 'offline');
+      localStorage.setItem('coffee_connection_timestamp', Date.now().toString());
+      updateStatus('connectionStatus', '✅ Connection status set to offline (fallback data mode)', true);
+      showResult('Connection status has been forced to offline. The app will use fallback data instead of making API calls.');
+    });
+    
+    // Clear JWT errors
+    document.getElementById('clearJwtErrors').addEventListener('click', function() {
+      localStorage.setItem('jwt_error_endpoints', '{}');
+      updateStatus('jwtStatus', '✅ JWT error cache cleared', true);
+      showResult('JWT error cache has been cleared. This will allow API requests to proceed again.');
+    });
+    
+    // Apply all recommended fixes
+    document.getElementById('applyAllFixes').addEventListener('click', function() {
+      // Disable old console capture
+      localStorage.setItem('disable_console_capture', 'true');
+      
+      // Enable throttled logging
+      localStorage.setItem('use_throttled_logging', 'true');
+      
+      // Set auto-refresh to 60 seconds but disable by default
+      localStorage.setItem('coffee_auto_refresh_enabled', 'false');
+      localStorage.setItem('coffee_auto_refresh_interval', '60');
+      
+      // Force online status
+      localStorage.setItem('coffee_connection_status', 'online');
+      localStorage.setItem('coffee_connection_timestamp', Date.now().toString());
+      
+      // Clear JWT errors
+      localStorage.setItem('jwt_error_endpoints', '{}');
+      
+      // Set debug mode off
+      localStorage.setItem('debug_mode', 'false');
+      
+      updateStatus('allFixStatus', '✅ All recommended fixes applied', true);
+      updateStatus('loggingStatus', '✅ Throttled logging enabled', true);
+      updateStatus('refreshStatus', '✅ Auto-refresh optimized', true);
+      updateStatus('connectionStatus', '✅ Connection status stabilized', true);
+      updateStatus('jwtStatus', '✅ JWT error cache cleared', true);
+      
+      showResult(`All recommended fixes have been applied:
+- Console capture replaced with throttled version
+- Auto-refresh disabled (can be enabled with 60s interval)
+- Connection status set to stable "online"
+- JWT error cache cleared
+- Debug mode disabled
+
+The application should now work without resource exhaustion errors.`);
+    });
+  </script>
+</body>
+</html>

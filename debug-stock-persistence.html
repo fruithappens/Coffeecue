@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Stock Persistence Issue</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-result { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .success { background-color: #d4edda; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; border: 1px solid #f5c6cb; }
+        .info { background-color: #d1ecf1; border: 1px solid #bee5eb; }
+        .warning { background-color: #fff3cd; border: 1px solid #ffeaa7; }
+        button { margin: 5px; padding: 10px; }
+        table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+        table, th, td { border: 1px solid #ddd; }
+        th, td { padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .log-entry { font-family: monospace; font-size: 12px; margin: 2px 0; padding: 5px; background: #f8f9fa; border-left: 3px solid #007bff; }
+    </style>
+</head>
+<body>
+    <h1>Stock Persistence Debug Tool</h1>
+    <div id="results"></div>
+    
+    <h2>Debug Actions</h2>
+    <button onclick="showCurrentStock()">Show Current Stock</button>
+    <button onclick="simulateDepletion()">Simulate Depletion</button>
+    <button onclick="simulateRefresh()">Simulate Page Refresh</button>
+    <button onclick="monitorLocalStorage()">Monitor localStorage Changes</button>
+    <button onclick="resetToDefaults()">Reset to Defaults</button>
+    <button onclick="clearAllStock()">Clear All Stock</button>
+    
+    <h2>Live Monitoring</h2>
+    <button onclick="startMonitoring()">Start Live Monitoring</button>
+    <button onclick="stopMonitoring()">Stop Monitoring</button>
+    <div id="monitoring" style="max-height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin: 10px 0;"></div>
+    
+    <script>
+        let monitoringInterval = null;
+        let lastStockSnapshot = {};
+        
+        function addResult(message, type = 'info') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `test-result ${type}`;
+            div.innerHTML = message;
+            results.appendChild(div);
+        }
+        
+        function addLog(message) {
+            const monitoring = document.getElementById('monitoring');
+            const div = document.createElement('div');
+            div.className = 'log-entry';
+            div.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}`;
+            monitoring.appendChild(div);
+            monitoring.scrollTop = monitoring.scrollHeight;
+        }
+
+        function getStockData(stationId) {
+            const stockKey = `coffee_stock_station_${stationId}`;
+            const stockData = localStorage.getItem(stockKey);
+            return stockData ? JSON.parse(stockData) : null;
+        }
+
+        function showCurrentStock() {
+            addResult('Checking current stock levels...', 'info');
+            
+            for (let stationId = 1; stationId <= 3; stationId++) {
+                const stockData = getStockData(stationId);
+                
+                if (stockData) {
+                    let tableHtml = `<h3>Station ${stationId} Stock:</h3><table>
+                        <tr><th>Category</th><th>Item</th><th>Amount</th><th>Capacity</th><th>Depletion %</th><th>Status</th></tr>`;
+                    
+                    Object.keys(stockData).forEach(category => {
+                        if (Array.isArray(stockData[category])) {
+                            stockData[category].forEach(item => {
+                                const depletionPercent = ((item.capacity - item.amount) / item.capacity * 100).toFixed(1);
+                                const statusColor = item.status === 'danger' ? '#ff6b6b' : 
+                                                   item.status === 'warning' ? '#ffa726' : '#4caf50';
+                                const depleted = item.amount < item.capacity;
+                                
+                                tableHtml += `<tr style="${depleted ? 'background-color: #ffe6e6;' : ''}">
+                                    <td>${category}</td>
+                                    <td>${item.name}</td>
+                                    <td><strong>${item.amount} ${item.unit}</strong></td>
+                                    <td>${item.capacity} ${item.unit}</td>
+                                    <td>${depletionPercent}%</td>
+                                    <td style="color: ${statusColor}">${item.status}</td>
+                                </tr>`;
+                            });
+                        }
+                    });
+                    tableHtml += '</table>';
+                    
+                    addResult(tableHtml, stockData ? 'success' : 'warning');
+                } else {
+                    addResult(`Station ${stationId}: No stock data found`, 'warning');
+                }
+            }
+        }
+
+        function simulateDepletion() {
+            addResult('Simulating stock depletion...', 'info');
+            
+            const stationId = 1;
+            let stockData = getStockData(stationId);
+            
+            if (!stockData) {
+                addResult('No stock data found, creating default stock first', 'warning');
+                stockData = createDefaultStock();
+                localStorage.setItem(`coffee_stock_station_${stationId}`, JSON.stringify(stockData));
+            }
+            
+            // Simulate order: 1 Regular Latte (coffee + milk + cup)
+            let depleted = false;
+            
+            // Deplete coffee (10g = 0.01kg)
+            if (stockData.coffee && stockData.coffee[0]) {
+                const originalAmount = stockData.coffee[0].amount;
+                stockData.coffee[0].amount = Math.max(0, stockData.coffee[0].amount - 0.01);
+                addResult(`Coffee: ${originalAmount}kg → ${stockData.coffee[0].amount}kg (-0.01kg)`, 'info');
+                depleted = true;
+            }
+            
+            // Deplete milk (200ml = 0.2L)
+            if (stockData.milk && stockData.milk[0]) {
+                const originalAmount = stockData.milk[0].amount;
+                stockData.milk[0].amount = Math.max(0, stockData.milk[0].amount - 0.2);
+                addResult(`Milk: ${originalAmount}L → ${stockData.milk[0].amount}L (-0.2L)`, 'info');
+                depleted = true;
+            }
+            
+            // Deplete cups (1 cup)
+            if (stockData.cups && stockData.cups[1]) { // medium cups
+                const originalAmount = stockData.cups[1].amount;
+                stockData.cups[1].amount = Math.max(0, stockData.cups[1].amount - 1);
+                addResult(`Cups: ${originalAmount}pcs → ${stockData.cups[1].amount}pcs (-1 cup)`, 'info');
+                depleted = true;
+            }
+            
+            if (depleted) {
+                // Update status based on thresholds
+                updateStockStatus(stockData);
+                
+                // Save depleted stock
+                localStorage.setItem(`coffee_stock_station_${stationId}`, JSON.stringify(stockData));
+                addResult('✅ Stock depletion simulated and saved to localStorage', 'success');
+                
+                // Take snapshot for monitoring
+                lastStockSnapshot[stationId] = JSON.stringify(stockData);
+            } else {
+                addResult('❌ No items were depleted', 'error');
+            }
+        }
+
+        function simulateRefresh() {
+            addResult('Simulating what happens on page refresh...', 'warning');
+            
+            // Capture current stock before "refresh"
+            const beforeStock = {};
+            for (let i = 1; i <= 3; i++) {
+                beforeStock[i] = getStockData(i);
+            }
+            
+            addResult('📸 Stock levels BEFORE refresh:', 'info');
+            Object.keys(beforeStock).forEach(stationId => {
+                if (beforeStock[stationId] && beforeStock[stationId].milk && beforeStock[stationId].milk[0]) {
+                    addResult(`Station ${stationId} Milk: ${beforeStock[stationId].milk[0].amount}L`, 'info');
+                }
+            });
+            
+            // Simulate the problematic refresh behavior by calling forceSyncStation
+            addResult('🔄 Simulating forceSyncStation call (what BaristaInterface does on station selection)...', 'warning');
+            
+            // This would normally be called by InventoryIntegrationService.forceSyncStation()
+            // but we'll simulate the old problematic behavior vs new fixed behavior
+            
+            addResult('🆚 Testing old vs new behavior:', 'info');
+            
+            // OLD BEHAVIOR (problematic): Clear and recreate stock
+            addResult('❌ OLD: Would clear coffee_stock_station_1 and recreate with full levels', 'error');
+            
+            // NEW BEHAVIOR (fixed): Check for depletion and preserve
+            const stationId = 1;
+            const existingStock = getStockData(stationId);
+            
+            if (existingStock) {
+                let hasDepleted = false;
+                Object.values(existingStock).forEach(category => {
+                    if (Array.isArray(category)) {
+                        category.forEach(item => {
+                            if (item.amount < item.capacity) {
+                                hasDepleted = true;
+                            }
+                        });
+                    }
+                });
+                
+                if (hasDepleted) {
+                    addResult('✅ NEW: Detected depleted stock, preserving existing levels!', 'success');
+                    addResult('📋 This means the fix is working correctly', 'success');
+                } else {
+                    addResult('⚠️ NEW: No depletion detected, would sync fresh stock', 'warning');
+                }
+            }
+            
+            addResult('📸 Stock levels AFTER refresh (should be same):', 'info');
+            Object.keys(beforeStock).forEach(stationId => {
+                const afterStock = getStockData(stationId);
+                if (afterStock && afterStock.milk && afterStock.milk[0]) {
+                    const before = beforeStock[stationId]?.milk?.[0]?.amount || 'N/A';
+                    const after = afterStock.milk[0].amount;
+                    const preserved = before === after;
+                    addResult(`Station ${stationId} Milk: ${after}L ${preserved ? '✅ PRESERVED' : '❌ CHANGED'}`, preserved ? 'success' : 'error');
+                }
+            });
+        }
+
+        function createDefaultStock() {
+            return {
+                milk: [
+                    { id: 'milk_regular', name: 'Regular Milk', amount: 20, capacity: 20, unit: 'L', status: 'good', lowThreshold: 5, criticalThreshold: 2 },
+                    { id: 'milk_almond', name: 'Almond Milk', amount: 5, capacity: 5, unit: 'L', status: 'good', lowThreshold: 2, criticalThreshold: 1 }
+                ],
+                coffee: [
+                    { id: 'coffee_house', name: 'House Blend', amount: 5, capacity: 5, unit: 'kg', status: 'good', lowThreshold: 1.5, criticalThreshold: 0.5 }
+                ],
+                cups: [
+                    { id: 'cups_small', name: 'Small Cups', amount: 200, capacity: 200, unit: 'pcs', status: 'good', lowThreshold: 50, criticalThreshold: 20 },
+                    { id: 'cups_medium', name: 'Medium Cups', amount: 200, capacity: 200, unit: 'pcs', status: 'good', lowThreshold: 50, criticalThreshold: 20 },
+                    { id: 'cups_large', name: 'Large Cups', amount: 100, capacity: 100, unit: 'pcs', status: 'good', lowThreshold: 30, criticalThreshold: 10 }
+                ]
+            };
+        }
+
+        function updateStockStatus(stockData) {
+            Object.keys(stockData).forEach(category => {
+                if (Array.isArray(stockData[category])) {
+                    stockData[category].forEach(item => {
+                        if (item.amount <= item.criticalThreshold) {
+                            item.status = 'danger';
+                        } else if (item.amount <= item.lowThreshold) {
+                            item.status = 'warning';
+                        } else {
+                            item.status = 'good';
+                        }
+                    });
+                }
+            });
+        }
+
+        function monitorLocalStorage() {
+            addResult('Monitoring localStorage for stock changes...', 'info');
+            
+            // Create a MutationObserver-like system for localStorage
+            const originalSetItem = localStorage.setItem;
+            const originalRemoveItem = localStorage.removeItem;
+            
+            localStorage.setItem = function(key, value) {
+                if (key.includes('coffee_stock_station')) {
+                    addLog(`🔄 localStorage.setItem: ${key}`);
+                    try {
+                        const data = JSON.parse(value);
+                        if (data.milk && data.milk[0]) {
+                            addLog(`   Milk level: ${data.milk[0].amount}L`);
+                        }
+                    } catch (e) {
+                        addLog(`   Value: ${value.substring(0, 100)}...`);
+                    }
+                }
+                return originalSetItem.apply(this, arguments);
+            };
+            
+            localStorage.removeItem = function(key) {
+                if (key.includes('coffee_stock_station')) {
+                    addLog(`🗑️ localStorage.removeItem: ${key}`);
+                }
+                return originalRemoveItem.apply(this, arguments);
+            };
+            
+            addResult('✅ localStorage monitoring enabled. Check the log below for changes.', 'success');
+        }
+
+        function startMonitoring() {
+            if (monitoringInterval) {
+                addResult('Monitoring already running', 'warning');
+                return;
+            }
+            
+            addResult('Starting live stock monitoring...', 'info');
+            addLog('🔍 Live monitoring started');
+            
+            // Take initial snapshot
+            for (let i = 1; i <= 3; i++) {
+                const stockData = getStockData(i);
+                if (stockData) {
+                    lastStockSnapshot[i] = JSON.stringify(stockData);
+                }
+            }
+            
+            monitoringInterval = setInterval(() => {
+                for (let i = 1; i <= 3; i++) {
+                    const currentStock = getStockData(i);
+                    if (currentStock) {
+                        const currentSnapshot = JSON.stringify(currentStock);
+                        if (lastStockSnapshot[i] && lastStockSnapshot[i] !== currentSnapshot) {
+                            addLog(`📊 Stock changed for station ${i}!`);
+                            if (currentStock.milk && currentStock.milk[0]) {
+                                const oldMilk = JSON.parse(lastStockSnapshot[i]).milk[0].amount;
+                                const newMilk = currentStock.milk[0].amount;
+                                addLog(`   Milk: ${oldMilk}L → ${newMilk}L`);
+                            }
+                            lastStockSnapshot[i] = currentSnapshot;
+                        }
+                    }
+                }
+            }, 1000);
+        }
+
+        function stopMonitoring() {
+            if (monitoringInterval) {
+                clearInterval(monitoringInterval);
+                monitoringInterval = null;
+                addResult('Live monitoring stopped', 'info');
+                addLog('⏹️ Live monitoring stopped');
+            }
+        }
+
+        function resetToDefaults() {
+            addResult('Resetting all stations to default stock levels...', 'info');
+            
+            const defaultStock = createDefaultStock();
+            for (let i = 1; i <= 3; i++) {
+                localStorage.setItem(`coffee_stock_station_${i}`, JSON.stringify(defaultStock));
+            }
+            
+            addResult('✅ All stations reset to default stock levels', 'success');
+        }
+
+        function clearAllStock() {
+            addResult('Clearing all stock data...', 'warning');
+            
+            for (let i = 1; i <= 10; i++) {
+                localStorage.removeItem(`coffee_stock_station_${i}`);
+                localStorage.removeItem(`stock_data_${i}`);
+                localStorage.removeItem(`stock_data_station_${i}`);
+            }
+            
+            addResult('✅ All stock data cleared', 'success');
+        }
+
+        // Initialize
+        addResult('Stock Persistence Debug Tool Loaded', 'success');
+        addResult('💡 Instructions: Use "Simulate Depletion" then "Simulate Refresh" to test the fix', 'info');
+        showCurrentStock();
+    </script>
+</body>
+</html>

@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real Data Test Launcher</title>
+    <!-- Apply auth fixes immediately -->
+    <script src="/auth-fix-standalone.js"></script>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #2196f3;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+        .card {
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .button {
+            display: inline-block;
+            background-color: #2196f3;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 4px;
+            text-decoration: none;
+            margin-right: 10px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            border: none;
+            font-size: 16px;
+        }
+        .button.error {
+            background-color: #f44336;
+        }
+        .button.success {
+            background-color: #4caf50;
+        }
+        .button.warning {
+            background-color: #ff9800;
+        }
+        code {
+            background-color: #f1f1f1;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        pre {
+            background-color: #f1f1f1;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .step {
+            margin-bottom: 15px;
+        }
+        .step-number {
+            display: inline-block;
+            background-color: #2196f3;
+            color: white;
+            width: 24px;
+            height: 24px;
+            text-align: center;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        .message {
+            padding: 10px 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+            border-left: 4px solid #2196f3;
+            background-color: #e3f2fd;
+        }
+        .message.error {
+            border-left-color: #f44336;
+            background-color: #ffebee;
+        }
+        .message.warning {
+            border-left-color: #ff9800;
+            background-color: #fff3e0;
+        }
+        .message.success {
+            border-left-color: #4caf50;
+            background-color: #e8f5e9;
+        }
+        #status-message {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>Real Application Data Test Launcher</h1>
+    
+    <div id="status-message" class="message">
+        Ready to test your application
+    </div>
+    
+    <div class="card">
+        <h2>What This Does</h2>
+        <p>This tool tests if your Coffee Ordering System is using real API data or fallback data. 
+           It will automatically:</p>
+        <ul>
+            <li>Fix the "this.refreshToken is not a function" error</li>
+            <li>Try to login with provided credentials (barista/coffee123)</li>
+            <li>Navigate to the Barista interface</li>
+            <li>Check for API calls with 200 status</li>
+            <li>Verify order data is from API, not localStorage</li>
+            <li>Check for proper JWT token authentication</li>
+        </ul>
+    </div>
+
+    <div class="card">
+        <h2>Options</h2>
+        <button class="button" id="btnLaunchApp">Launch App</button>
+        <button class="button" id="btnRunTest">Run Test</button>
+        <button class="button warning" id="btnFixRefreshToken">Fix refreshToken</button>
+        <button class="button error" id="btnResetApp">Reset App State</button>
+        <button class="button success" id="btnClearFallback">Clear Fallback Data</button>
+    </div>
+
+    <div class="card">
+        <h2>Manual Launch Instructions</h2>
+        <div class="step">
+            <span class="step-number">1</span>
+            <span>Navigate to your app at <code>http://localhost:3000</code></span>
+        </div>
+        <div class="step">
+            <span class="step-number">2</span>
+            <span>Open your browser's developer console (F12 or Ctrl+Shift+J)</span>
+        </div>
+        <div class="step">
+            <span class="step-number">3</span>
+            <span>First, fix the refreshToken error by pasting and running:</span>
+        </div>
+        <pre>const authFixScript = document.createElement('script');
+authFixScript.src = '/auth-fix-standalone.js';
+document.head.appendChild(authFixScript);</pre>
+        <div class="step">
+            <span class="step-number">4</span>
+            <span>Then, load the test script by pasting and running:</span>
+        </div>
+        <pre>const testScript = document.createElement('script');
+testScript.src = '/real-app-test.js';
+document.head.appendChild(testScript);</pre>
+        <div class="step">
+            <span class="step-number">5</span>
+            <span>A testing panel will appear in the top right corner of your app</span>
+        </div>
+    </div>
+
+    <script>
+        // Show status message
+        function showStatus(message, type = 'info') {
+            const statusEl = document.getElementById('status-message');
+            statusEl.textContent = message;
+            statusEl.style.display = 'block';
+            
+            // Remove all classes
+            statusEl.className = 'message';
+            
+            // Add class based on type
+            if (type === 'error') {
+                statusEl.classList.add('error');
+            } else if (type === 'warning') {
+                statusEl.classList.add('warning');
+            } else if (type === 'success') {
+                statusEl.classList.add('success');
+            }
+        }
+
+        // Launch app button
+        document.getElementById('btnLaunchApp').addEventListener('click', function() {
+            // Store the auth fix script in sessionStorage so it's applied early
+            const authFixScript = `
+                // Create a script element for the standalone auth fix
+                const authFixScript = document.createElement('script');
+                authFixScript.src = '/auth-fix-standalone.js';
+                document.head.appendChild(authFixScript);
+            `;
+            
+            sessionStorage.setItem('indexHtmlFixScript', authFixScript);
+            showStatus('Launching app with auth fixes...', 'info');
+            
+            // Redirect to the main app
+            setTimeout(() => {
+                window.location.href = 'http://localhost:3000';
+            }, 500);
+        });
+
+        // Run test button
+        document.getElementById('btnRunTest').addEventListener('click', function() {
+            // Create script elements for fixes and tests
+            const authFixScript = document.createElement('script');
+            authFixScript.src = '/auth-fix-standalone.js';
+            
+            const testScript = document.createElement('script');
+            testScript.src = '/real-app-test.js';
+            
+            // First apply auth fix, then run test
+            authFixScript.onload = function() {
+                document.head.appendChild(testScript);
+                showStatus('Test running...', 'success');
+            };
+            
+            // Apply auth fix first
+            document.head.appendChild(authFixScript);
+            showStatus('Applying auth fixes...', 'info');
+        });
+        
+        // Fix refreshToken button
+        document.getElementById('btnFixRefreshToken').addEventListener('click', function() {
+            // Load auth fix script
+            const script = document.createElement('script');
+            script.src = '/auth-fix-standalone.js';
+            document.head.appendChild(script);
+            
+            // Store the fix in sessionStorage
+            const authFixScript = `
+                // Create a script element for the standalone auth fix
+                const authFixScript = document.createElement('script');
+                authFixScript.src = '/auth-fix-standalone.js';
+                document.head.appendChild(authFixScript);
+            `;
+            
+            sessionStorage.setItem('indexHtmlFixScript', authFixScript);
+            showStatus('Auth fixes applied!', 'success');
+        });
+
+        // Reset app state button
+        document.getElementById('btnResetApp').addEventListener('click', function() {
+            // Clear authentication
+            localStorage.removeItem('coffee_auth_token');
+            localStorage.removeItem('authenticated');
+            localStorage.removeItem('user_role');
+            localStorage.removeItem('user_name');
+            
+            // Clear fallback flags
+            localStorage.removeItem('use_fallback_data');
+            localStorage.removeItem('force_offline_mode');
+            localStorage.setItem('coffee_connection_status', 'online');
+            localStorage.setItem('api_mode', 'online');
+            localStorage.removeItem('use_sample_data');
+            localStorage.removeItem('use_offline_mode');
+            localStorage.removeItem('force_demo_mode');
+            
+            // Clear sessionStorage fixes
+            sessionStorage.removeItem('indexHtmlFixScript');
+            sessionStorage.removeItem('refreshTokenFixScript');
+            sessionStorage.removeItem('directFix');
+
+            showStatus('App state has been reset. Authentication and fallback flags have been cleared.', 'success');
+        });
+
+        // Clear fallback data button
+        document.getElementById('btnClearFallback').addEventListener('click', function() {
+            // Known fallback data keys
+            const fallbackKeys = [
+                'fallback_pending_orders',
+                'fallback_in_progress_orders',
+                'fallback_completed_orders',
+                'sample_orders',
+                'demo_orders',
+                'coffee_fallback_data'
+            ];
+
+            // Remove all fallback data
+            fallbackKeys.forEach(key => {
+                localStorage.removeItem(key);
+            });
+
+            showStatus('Fallback data has been cleared from localStorage.', 'success');
+        });
+
+        // Check if we should auto-run the test (from query param)
+        window.addEventListener('load', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('autotest') === 'true') {
+                // Load the auth fix script
+                const authFixScript = document.createElement('script');
+                authFixScript.src = '/auth-fix-standalone.js';
+                
+                const testScript = document.createElement('script');
+                testScript.src = '/real-app-test.js';
+                
+                // First apply auth fix, then run test
+                authFixScript.onload = function() {
+                    document.head.appendChild(testScript);
+                };
+                
+                // Apply auth fix first
+                document.head.appendChild(authFixScript);
+                showStatus('Auto-running tests...', 'info');
+            }
+        });
+    </script>
+</body>
+</html>

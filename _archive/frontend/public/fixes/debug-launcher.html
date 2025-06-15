@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Barista Interface Debugger</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+      line-height: 1.6;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+    h1, h2 {
+      color: #333;
+    }
+    .card {
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .btn {
+      background-color: #0066cc;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      text-decoration: none;
+      display: inline-block;
+      margin-right: 10px;
+      margin-bottom: 10px;
+    }
+    .btn:hover {
+      background-color: #0055aa;
+    }
+    .btn-danger {
+      background-color: #cc3300;
+    }
+    .btn-danger:hover {
+      background-color: #aa2200;
+    }
+    .btn-success {
+      background-color: #00aa55;
+    }
+    .btn-success:hover {
+      background-color: #008844;
+    }
+    .btn-warning {
+      background-color: #f5a623;
+    }
+    .btn-warning:hover {
+      background-color: #e09612;
+    }
+    .log-container {
+      background-color: #333;
+      color: #f0f0f0;
+      padding: 15px;
+      border-radius: 4px;
+      font-family: monospace;
+      height: 200px;
+      overflow-y: auto;
+      margin-top: 10px;
+    }
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid #ddd;
+      margin-bottom: 15px;
+    }
+    .tab {
+      padding: 8px 15px;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+    }
+    .tab.active {
+      border-bottom-color: #0066cc;
+      font-weight: bold;
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    .checkbox-container {
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Barista Interface Debugger</h1>
+  <p>This tool helps diagnose and fix issues with the Barista Interface.</p>
+  
+  <div class="tabs">
+    <div class="tab active" data-tab="diagnostics">Diagnostics</div>
+    <div class="tab" data-tab="tools">Fix Tools</div>
+    <div class="tab" data-tab="monitor">Live Monitor</div>
+    <div class="tab" data-tab="settings">Settings</div>
+  </div>
+  
+  <div id="diagnostics" class="tab-content active">
+    <div class="card">
+      <h2>Quick Diagnostics</h2>
+      <p>Check for common issues and display current status</p>
+      <button id="run-diagnostics" class="btn">Run Diagnostics</button>
+      <div id="diagnostics-results" class="log-container"></div>
+    </div>
+    
+    <div class="card">
+      <h2>Component State</h2>
+      <p>Inspect the current state of key components</p>
+      <div>
+        <button id="check-station-chat" class="btn">Check StationChat</button>
+        <button id="check-barista-interface" class="btn">Check BaristaInterface</button>
+      </div>
+      <div id="component-results" class="log-container"></div>
+    </div>
+  </div>
+  
+  <div id="tools" class="tab-content">
+    <div class="card">
+      <h2>Fix Infinite Updates</h2>
+      <p>Fix components that are causing "Maximum update depth exceeded" errors</p>
+      <div>
+        <button id="fix-station-chat" class="btn btn-danger">Fix StationChat Component</button>
+        <button id="fix-barista-interface" class="btn btn-danger">Fix BaristaInterface Component</button>
+      </div>
+      <div id="fix-results" class="log-container"></div>
+    </div>
+    
+    <div class="card">
+      <h2>Fix API Issues</h2>
+      <p>Fix API-related problems like blocked endpoints and anti-flicker issues</p>
+      <button id="fix-api-blocks" class="btn btn-warning">Clear API Blocks</button>
+      <button id="disable-anti-flicker" class="btn btn-warning">Disable Anti-Flicker</button>
+      <div id="api-results" class="log-container"></div>
+    </div>
+    
+    <div class="card">
+      <h2>Launch Fixed App</h2>
+      <p>Start the app with component fixes applied</p>
+      <a href="/" id="launch-fixed-app" class="btn btn-success">Launch With Fixes</a>
+    </div>
+  </div>
+  
+  <div id="monitor" class="tab-content">
+    <div class="card">
+      <h2>Live Component Monitor</h2>
+      <p>Monitor component rendering and API calls in real-time</p>
+      <p>Open this in a separate window and then launch the main app to see detailed component activity</p>
+      <a href="/" id="launch-with-monitor" class="btn btn-success">Launch App With Monitoring</a>
+      <div id="monitor-results" class="log-container">
+        <div>Ready to monitor component activity...</div>
+      </div>
+    </div>
+  </div>
+  
+  <div id="settings" class="tab-content">
+    <div class="card">
+      <h2>Debug Settings</h2>
+      <p>Configure how the debug tools work</p>
+      
+      <div class="checkbox-container">
+        <input type="checkbox" id="use-component-fixes" checked>
+        <label for="use-component-fixes">Use component fixes</label>
+      </div>
+      
+      <div class="checkbox-container">
+        <input type="checkbox" id="use-react-debugger" checked>
+        <label for="use-react-debugger">Use React debugger</label>
+      </div>
+      
+      <div class="checkbox-container">
+        <input type="checkbox" id="disable-console-capture">
+        <label for="disable-console-capture">Disable console capture</label>
+      </div>
+      
+      <div class="checkbox-container">
+        <input type="checkbox" id="force-offline-mode">
+        <label for="force-offline-mode">Force offline mode (use fallback data)</label>
+      </div>
+      
+      <button id="save-settings" class="btn">Save Settings</button>
+      <div id="settings-results" class="log-container"></div>
+    </div>
+  </div>
+  
+  <script>
+    // Tab switching
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', function() {
+        // Remove active class from all tabs
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        
+        // Add active class to clicked tab
+        this.classList.add('active');
+        const tabId = this.getAttribute('data-tab');
+        document.getElementById(tabId).classList.add('active');
+      });
+    });
+    
+    // Helper to log messages
+    function logMessage(containerId, message, type = 'info') {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+      
+      const entry = document.createElement('div');
+      const time = new Date().toLocaleTimeString();
+      
+      // Style based on message type
+      let color = '#fff';
+      switch (type) {
+        case 'error':
+          color = '#ff6666';
+          break;
+        case 'warning':
+          color = '#ffcc00';
+          break;
+        case 'success':
+          color = '#66ff66';
+          break;
+      }
+      
+      entry.innerHTML = `<span style="color: #999;">[${time}]</span> <span style="color: ${color};">${message}</span>`;
+      container.appendChild(entry);
+      container.scrollTop = container.scrollHeight;
+    }
+    
+    // Run diagnostics
+    document.getElementById('run-diagnostics').addEventListener('click', function() {
+      const resultsContainer = document.getElementById('diagnostics-results');
+      resultsContainer.innerHTML = '';
+      
+      logMessage('diagnostics-results', 'Running diagnostics...', 'info');
+      
+      // Check for infinite update issues
+      const maxUpdateErrors = localStorage.getItem('max_update_errors') || '0';
+      if (parseInt(maxUpdateErrors) > 0) {
+        logMessage('diagnostics-results', `Found ${maxUpdateErrors} maximum update depth errors`, 'error');
+      } else {
+        logMessage('diagnostics-results', 'No maximum update depth errors detected', 'success');
+      }
+      
+      // Check for API blocks
+      const apiBlocks = localStorage.getItem('jwt_error_endpoints');
+      if (apiBlocks) {
+        try {
+          const blocks = JSON.parse(apiBlocks);
+          const blockCount = Object.keys(blocks).length;
+          logMessage('diagnostics-results', `Found ${blockCount} blocked API endpoints`, 'warning');
+          
+          // List the blocked endpoints
+          Object.keys(blocks).forEach(endpoint => {
+            logMessage('diagnostics-results', `Blocked: ${endpoint}`, 'warning');
+          });
+        } catch (e) {
+          logMessage('diagnostics-results', `Invalid API blocks data: ${e.message}`, 'error');
+        }
+      } else {
+        logMessage('diagnostics-results', 'No API blocks detected', 'success');
+      }
+      
+      // Check connection status
+      const connectionStatus = localStorage.getItem('coffee_connection_status');
+      logMessage('diagnostics-results', `Connection status: ${connectionStatus || 'unknown'}`, connectionStatus === 'online' ? 'success' : 'warning');
+      
+      // Check auto-refresh settings
+      const autoRefreshEnabled = localStorage.getItem('coffee_auto_refresh_enabled') === 'true';
+      const autoRefreshInterval = parseInt(localStorage.getItem('coffee_auto_refresh_interval') || '30');
+      logMessage('diagnostics-results', `Auto-refresh: ${autoRefreshEnabled ? 'Enabled' : 'Disabled'}, Interval: ${autoRefreshInterval}s`, autoRefreshEnabled ? 'warning' : 'success');
+      
+      // Check console capture
+      const consoleCapture = localStorage.getItem('disable_console_capture') !== 'true';
+      logMessage('diagnostics-results', `Console capture: ${consoleCapture ? 'Enabled' : 'Disabled'}`, consoleCapture ? 'warning' : 'success');
+      
+      // Summary
+      logMessage('diagnostics-results', 'Diagnostics complete', 'info');
+    });
+    
+    // Fix StationChat
+    document.getElementById('fix-station-chat').addEventListener('click', function() {
+      logMessage('fix-results', 'Applying fix for StationChat component...', 'info');
+      
+      // Store flag to indicate fix should be applied
+      localStorage.setItem('fix_station_chat', 'true');
+      localStorage.setItem('fix_applied_time', Date.now().toString());
+      
+      logMessage('fix-results', 'Fix will be applied when you launch the app', 'success');
+      
+      // Update launch URL
+      document.getElementById('launch-fixed-app').href = `/?fix=stationchat&t=${Date.now()}`;
+    });
+    
+    // Fix BaristaInterface
+    document.getElementById('fix-barista-interface').addEventListener('click', function() {
+      logMessage('fix-results', 'Applying fix for BaristaInterface component...', 'info');
+      
+      // Store flag to indicate fix should be applied
+      localStorage.setItem('fix_barista_interface', 'true');
+      localStorage.setItem('fix_applied_time', Date.now().toString());
+      
+      logMessage('fix-results', 'Fix will be applied when you launch the app', 'success');
+      
+      // Update launch URL
+      document.getElementById('launch-fixed-app').href = `/?fix=baristainterface&t=${Date.now()}`;
+    });
+    
+    // Fix API blocks
+    document.getElementById('fix-api-blocks').addEventListener('click', function() {
+      logMessage('api-results', 'Clearing API blocks...', 'info');
+      
+      // Remove any stored API blocks
+      localStorage.removeItem('jwt_error_endpoints');
+      localStorage.setItem('reset_api_block', 'true');
+      
+      logMessage('api-results', 'API blocks cleared successfully', 'success');
+    });
+    
+    // Disable anti-flicker
+    document.getElementById('disable-anti-flicker').addEventListener('click', function() {
+      logMessage('api-results', 'Disabling anti-flicker protection...', 'info');
+      
+      // Set flags to disable anti-flicker
+      localStorage.setItem('disable_anti_flicker', 'true');
+      
+      logMessage('api-results', 'Anti-flicker protection disabled', 'success');
+      
+      // Update launch URL
+      document.getElementById('launch-fixed-app').href = `/?noflicker=true&t=${Date.now()}`;
+    });
+    
+    // Save settings
+    document.getElementById('save-settings').addEventListener('click', function() {
+      // Get settings values
+      const useComponentFixes = document.getElementById('use-component-fixes').checked;
+      const useReactDebugger = document.getElementById('use-react-debugger').checked;
+      const disableConsoleCapture = document.getElementById('disable-console-capture').checked;
+      const forceOfflineMode = document.getElementById('force-offline-mode').checked;
+      
+      // Save settings to localStorage
+      localStorage.setItem('use_component_fixes', useComponentFixes.toString());
+      localStorage.setItem('use_react_debugger', useReactDebugger.toString());
+      localStorage.setItem('disable_console_capture', disableConsoleCapture.toString());
+      
+      // Handle offline mode
+      if (forceOfflineMode) {
+        localStorage.setItem('coffee_connection_status', 'offline');
+        localStorage.setItem('coffee_connection_timestamp', Date.now().toString());
+        localStorage.setItem('use_fallback_data', 'true');
+      } else {
+        localStorage.setItem('coffee_connection_status', 'online');
+        localStorage.setItem('coffee_connection_timestamp', Date.now().toString());
+        localStorage.removeItem('use_fallback_data');
+      }
+      
+      logMessage('settings-results', 'Settings saved successfully', 'success');
+      
+      // Update launch URLs
+      const queryParams = [];
+      if (useComponentFixes) queryParams.push('fixes=true');
+      if (useReactDebugger) queryParams.push('debug=true');
+      if (disableConsoleCapture) queryParams.push('noconsole=true');
+      if (forceOfflineMode) queryParams.push('offline=true');
+      
+      const queryString = queryParams.length > 0 ? `?${queryParams.join('&')}&t=${Date.now()}` : `?t=${Date.now()}`;
+      document.getElementById('launch-fixed-app').href = `/${queryString}`;
+      document.getElementById('launch-with-monitor').href = `/${queryString}`;
+    });
+    
+    // Initialize UI based on current settings
+    window.addEventListener('DOMContentLoaded', function() {
+      // Load existing settings
+      document.getElementById('use-component-fixes').checked = localStorage.getItem('use_component_fixes') !== 'false';
+      document.getElementById('use-react-debugger').checked = localStorage.getItem('use_react_debugger') !== 'false';
+      document.getElementById('disable-console-capture').checked = localStorage.getItem('disable_console_capture') === 'true';
+      document.getElementById('force-offline-mode').checked = localStorage.getItem('coffee_connection_status') === 'offline';
+      
+      // Run diagnostics on load
+      document.getElementById('run-diagnostics').click();
+    });
+    
+    // Launch with monitoring
+    document.getElementById('launch-with-monitor').addEventListener('click', function(e) {
+      e.preventDefault();
+      
+      // Save current settings
+      localStorage.setItem('use_react_debugger', 'true');
+      
+      // Open a new window with the app and monitor enabled
+      window.open(this.href, '_blank');
+      
+      // Start monitoring
+      logMessage('monitor-results', 'Monitoring started. Launch the app in the new window.', 'info');
+      
+      // Setup window message listener for monitoring
+      window.addEventListener('message', function(event) {
+        if (event.data && event.data.type === 'component-monitor') {
+          logMessage('monitor-results', event.data.message, event.data.messageType || 'info');
+        }
+      });
+    });
+  </script>
+</body>
+</html>

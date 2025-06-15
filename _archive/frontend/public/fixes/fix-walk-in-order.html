@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fix Walk-in Order Milk Types</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        h2 {
+            color: #333;
+            margin-top: 0;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        .button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        .button:hover {
+            background-color: #45a049;
+        }
+        .button-warning {
+            background-color: #ff9800;
+        }
+        .button-warning:hover {
+            background-color: #e68a00;
+        }
+        .button-danger {
+            background-color: #f44336;
+        }
+        .button-danger:hover {
+            background-color: #d32f2f;
+        }
+        .info {
+            background-color: #e7f3fe;
+            border-left: 6px solid #2196F3;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .warning {
+            background-color: #fffbdd;
+            border-left: 6px solid #ffeb3b;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .code {
+            background-color: #f8f8f8;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            padding: 15px;
+            font-family: monospace;
+            overflow-x: auto;
+            max-height: 300px;
+        }
+        .center {
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fix Walk-in Order Milk Types</h1>
+    
+    <div class="card">
+        <h2>Issue</h2>
+        <p>The walk-in order dialog is showing all milk types instead of just the ones available in your station's inventory.</p>
+        <div class="info">
+            <p><strong>Problem:</strong> The stock tab correctly shows station inventory, but the walk-in order dialog doesn't use the same inventory data when displaying milk options.</p>
+        </div>
+    </div>
+    
+    <div class="card">
+        <h2>How This Fix Works</h2>
+        <p>This tool does the following:</p>
+        <ol>
+            <li>Reads your station's actual inventory from localStorage</li>
+            <li>Extracts milk types that have inventory quantity > 0</li>
+            <li>Injects a patch to override the StockService method that provides milk types</li>
+            <li>Forces the walk-in order dialog to use ONLY milk types available in your station's inventory</li>
+        </ol>
+        <div class="warning">
+            <p><strong>Note:</strong> This is a temporary fix that runs only in your current browser session. You'll need to run it again if you refresh the page.</p>
+        </div>
+    </div>
+    
+    <div class="card">
+        <h2>Run the Fix</h2>
+        <p>Click the button below to inject the fix. Then try opening the walk-in order dialog to verify it works.</p>
+        <div class="center">
+            <button id="fix-button" class="button">Inject Walk-in Milk Fix</button>
+        </div>
+    </div>
+    
+    <div class="card">
+        <h2>Alternative Fixes</h2>
+        <p>If the above fix doesn't work, try these alternatives:</p>
+        <div class="center">
+            <button id="debug-stations" class="button button-warning">Diagnose Station Issues</button>
+            <button id="reset-stations" class="button button-danger">Reset All Station Data</button>
+        </div>
+    </div>
+    
+    <script>
+        document.getElementById('fix-button').addEventListener('click', function() {
+            // Load and run the fix script
+            const script = document.createElement('script');
+            script.src = 'fix-walk-in-milk.js';
+            document.body.appendChild(script);
+            
+            // Remove script after execution
+            setTimeout(() => {
+                document.body.removeChild(script);
+            }, 1000);
+        });
+        
+        document.getElementById('debug-stations').addEventListener('click', function() {
+            window.open('debug-stations.html', '_blank');
+        });
+        
+        document.getElementById('reset-stations').addEventListener('click', function() {
+            if (confirm('WARNING: This will reset ALL station data to defaults. Are you sure you want to continue?')) {
+                // Clear all station data
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key && (
+                        key.includes('coffee_stock_station_') || 
+                        key === 'coffee_cue_stations' ||
+                        key === 'coffee_cue_selected_station' ||
+                        key === 'last_used_station_id' || 
+                        key.includes('coffee_station_name_')
+                    )) {
+                        localStorage.removeItem(key);
+                    }
+                }
+                
+                // Create default station data
+                const defaultStation = {
+                    id: 1,
+                    name: 'Coffee Station 1',
+                    status: 'active',
+                    currentLoad: 0
+                };
+                
+                // Create default inventory
+                const defaultInventory = {
+                    milk: [
+                        { id: 'milk_regular', name: 'Regular Milk', amount: 20, capacity: 20, unit: 'L', status: 'good', lowThreshold: 5, criticalThreshold: 2 },
+                        { id: 'milk_skim', name: 'Skim Milk', amount: 10, capacity: 10, unit: 'L', status: 'good', lowThreshold: 3, criticalThreshold: 1 },
+                        { id: 'milk_almond', name: 'Almond Milk', amount: 5, capacity: 5, unit: 'L', status: 'good', lowThreshold: 2, criticalThreshold: 1 },
+                        { id: 'milk_soy', name: 'Soy Milk', amount: 5, capacity: 5, unit: 'L', status: 'good', lowThreshold: 2, criticalThreshold: 1 }
+                    ],
+                    coffee: [
+                        { id: 'coffee_house', name: 'House Blend', amount: 5, capacity: 5, unit: 'kg', status: 'good', lowThreshold: 1.5, criticalThreshold: 0.5 },
+                        { id: 'coffee_dark', name: 'Dark Roast', amount: 3, capacity: 3, unit: 'kg', status: 'good', lowThreshold: 1, criticalThreshold: 0.3 },
+                        { id: 'coffee_decaf', name: 'Decaf Blend', amount: 2, capacity: 2, unit: 'kg', status: 'good', lowThreshold: 0.5, criticalThreshold: 0.2 }
+                    ],
+                    cups: [
+                        { id: 'cups_small', name: 'Small Cups', amount: 200, capacity: 200, unit: 'pcs', status: 'good', lowThreshold: 50, criticalThreshold: 20 },
+                        { id: 'cups_medium', name: 'Medium Cups', amount: 200, capacity: 200, unit: 'pcs', status: 'good', lowThreshold: 50, criticalThreshold: 20 },
+                        { id: 'cups_large', name: 'Large Cups', amount: 100, capacity: 100, unit: 'pcs', status: 'good', lowThreshold: 30, criticalThreshold: 10 }
+                    ]
+                };
+                
+                // Save to localStorage
+                localStorage.setItem('coffee_cue_stations', JSON.stringify([defaultStation]));
+                localStorage.setItem('coffee_cue_selected_station', '1');
+                localStorage.setItem('last_used_station_id', '1');
+                localStorage.setItem('coffee_stock_station_1', JSON.stringify(defaultInventory));
+                
+                alert('Station data has been reset. Please refresh the app to see changes.');
+            }
+        });
+    </script>
+</body>
+</html>

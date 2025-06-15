@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Diagnostics Tool</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.5;
+        }
+        h1 {
+            color: #444;
+            margin-bottom: 5px;
+        }
+        h2 {
+            color: #666;
+            font-size: 1.2em;
+            margin-top: 30px;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-top: 0;
+            margin-bottom: 30px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        .status-bar {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 20px 0;
+            display: flex;
+            justify-content: space-between;
+        }
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        li {
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #e8f5e9;
+            border-left: 5px solid #4CAF50;
+        }
+        .error {
+            background-color: #ffebee;
+            border-left: 5px solid #f44336;
+        }
+        .error-details {
+            color: #d32f2f;
+            display: block;
+            margin-top: 5px;
+            font-family: monospace;
+        }
+        pre {
+            background: #f8f8f8;
+            padding: 10px;
+            border-radius: 4px;
+            overflow: auto;
+            font-size: 14px;
+        }
+        #cors-fix {
+            display: none;
+            margin-top: 30px;
+            padding: 20px;
+            background: #fff9c4;
+            border-radius: 4px;
+            border-left: 5px solid #fbc02d;
+        }
+        code {
+            background: #f5f5f5;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>API Diagnostics Tool</h1>
+    <p class="subtitle">Diagnose API connectivity and CORS issues</p>
+    
+    <button id="run-tests">Run Tests</button>
+    <button id="copy-results">Copy Results</button>
+    
+    <div class="status-bar">
+        <span><strong>Status:</strong> <span id="status">Ready</span></span>
+        <span><strong>Current Test:</strong> <span id="current-test"></span></span>
+    </div>
+    
+    <h2>Test Results</h2>
+    <p id="summary"></p>
+    <ul id="results"></ul>
+    
+    <div id="cors-fix">
+        <h2>CORS Issues Detected</h2>
+        <p>Your application is experiencing Cross-Origin Resource Sharing (CORS) issues. Here are some potential fixes:</p>
+        
+        <h3>Backend (Flask) Fixes:</h3>
+        <p>Make sure your Flask app has CORS properly configured:</p>
+        <pre><code>from flask_cors import CORS
+
+app = Flask(__name__)
+CORS(app, resources={r"/*": {"origins": ["http://localhost:3001"], "supports_credentials": True}})</code></pre>
+        
+        <h3>Verify Your Environment:</h3>
+        <ul>
+            <li>Backend server is running on port 5001</li>
+            <li>Frontend is running on port 3001</li>
+            <li>Frontend is trying to connect to http://localhost:5001/api</li>
+            <li>Try running only one API server instance to avoid port conflicts</li>
+        </ul>
+        
+        <h3>Try This Fix:</h3>
+        <p>Create or edit <code>/Users/stevewf/expresso/fix-cors-and-restart.sh</code> with:</p>
+        <pre><code>#!/bin/bash
+
+# Stop all running servers
+echo "Stopping all running servers..."
+pkill -f "run_server.py"
+sleep 2
+
+# Create CORS fix
+cat > /Users/stevewf/expresso/fix_app_cors.py << 'EOL'
+#!/usr/bin/env python3
+import re
+
+def fix_cors():
+    # Path to app.py file
+    app_py_path = '/Users/stevewf/expresso/app.py'
+    
+    # Read the content of app.py
+    with open(app_py_path, 'r') as file:
+        content = file.read()
+
+    # Make a backup
+    with open(f"{app_py_path}.bak.cors.{int(time.time())}", 'w') as file:
+        file.write(content)
+    
+    # Add or update CORS configuration
+    cors_pattern = r"CORS\(app,.*?\)"
+    cors_replacement = "CORS(app, resources={r\"/*\": {\"origins\": [\"http://localhost:3001\", \"http://localhost:3000\", \"http://localhost:3002\"], \"supports_credentials\": True}})"
+    
+    if re.search(cors_pattern, content):
+        # Update existing CORS config
+        content = re.sub(cors_pattern, cors_replacement, content)
+    else:
+        # Add CORS config after app initialization if not already there
+        app_init_pattern = r"app = Flask\(__name__\)(.*?)app\.secret_key"
+        content = re.sub(app_init_pattern, f"app = Flask(__name__)\\1\n# Initialize CORS\n{cors_replacement}\n\napp.secret_key", content)
+    
+    # Write back the modified content
+    with open(app_py_path, 'w') as file:
+        file.write(content)
+    
+    print(f"CORS configuration updated in {app_py_path}")
+
+if __name__ == "__main__":
+    import time
+    fix_cors()
+EOL
+
+# Make the script executable
+chmod +x /Users/stevewf/expresso/fix_app_cors.py
+
+# Run the CORS fix
+echo "Applying CORS fix..."
+python3 /Users/stevewf/expresso/fix_app_cors.py
+
+# Start the server
+echo "Starting the server..."
+cd /Users/stevewf/expresso
+python3 run_server.py
+</code></pre>
+        
+        <p>Then run this fix with:</p>
+        <pre><code>chmod +x /Users/stevewf/expresso/fix-cors-and-restart.sh
+/Users/stevewf/expresso/fix-cors-and-restart.sh</code></pre>
+    </div>
+    
+    <script src="api-diagnostics.js"></script>
+</body>
+</html>

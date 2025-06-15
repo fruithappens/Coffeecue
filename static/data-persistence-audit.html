@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Data Persistence Audit</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            padding: 40px;
+            max-width: 1400px;
+            margin: 0 auto;
+            background-color: #f5f5f5;
+        }
+        h1 { color: #333; }
+        .section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .success { 
+            background-color: #e8f5e9;
+            color: #2e7d32;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .error { 
+            background-color: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .warning {
+            background-color: #fff3e0;
+            color: #e65100;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .info {
+            background-color: #e3f2fd;
+            color: #1565c0;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .critical {
+            background-color: #f3e5f5;
+            color: #4a148c;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+            border: 2px solid #9c27b0;
+        }
+        button {
+            background: #1a73e8;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #1557b0;
+        }
+        .audit-button {
+            background: #d32f2f;
+            font-weight: bold;
+            font-size: 18px;
+            padding: 20px 30px;
+        }
+        .audit-button:hover {
+            background: #b71c1c;
+        }
+        .backup-button {
+            background: #4CAF50;
+            font-weight: bold;
+        }
+        .backup-button:hover {
+            background: #45a049;
+        }
+        pre {
+            background: #f0f8ff;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .data-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .data-panel {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+        }
+        .data-panel h4 {
+            margin-top: 0;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Data Persistence Audit</h1>
+    
+    <div class="section">
+        <h2>Critical Data Loss Issue</h2>
+        <div class="critical">
+            <p><strong>Issue:</strong> After a week away, Organiser → Station Management → Event Stock data appears to be lost/reset</p>
+            <p><strong>Concern:</strong> Data persistence for production deployment to Amazon/cloud</p>
+            <p><strong>Need:</strong> Ensure all event inventory data is properly saved and not wiped out</p>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>🔍 Comprehensive Data Audit</h2>
+        <button class="audit-button" onclick="performFullAudit()">🔍 PERFORM FULL DATA AUDIT</button>
+        <button class="backup-button" onclick="createDataBackup()">💾 CREATE DATA BACKUP</button>
+        <button onclick="restoreFromBackup()">🔄 RESTORE FROM BACKUP</button>
+    </div>
+    
+    <div class="section">
+        <h2>📊 Data Storage Analysis</h2>
+        <div id="storage-analysis"></div>
+    </div>
+    
+    <div class="section">
+        <h2>🗄️ Database vs localStorage Comparison</h2>
+        <div id="data-comparison"></div>
+    </div>
+    
+    <div class="section">
+        <h2>📋 Full Audit Results</h2>
+        <div id="audit-results"></div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:5001/api';
+        let authToken = null;
+
+        function getAuthToken() {
+            if (authToken) return authToken;
+            
+            authToken = localStorage.getItem('accessToken') || 
+                       localStorage.getItem('token') || 
+                       sessionStorage.getItem('accessToken') ||
+                       sessionStorage.getItem('token');
+            
+            return authToken;
+        }
+
+        async function makeApiRequest(endpoint, options = {}) {
+            const token = getAuthToken();
+            if (!token) {
+                throw new Error('No auth token found. Please login first.');
+            }
+
+            const url = `${API_BASE_URL}${endpoint}`;
+            const defaultOptions = {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            };
+
+            const response = await fetch(url, { ...defaultOptions, ...options });
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(`API Error ${response.status}: ${data.error || data.message || 'Unknown error'}`);
+            }
+            
+            return data;
+        }
+
+        async function performFullAudit() {
+            const resultsDiv = document.getElementById('audit-results');
+            let html = '<h3>🔍 Full Data Persistence Audit</h3>';
+            
+            try {
+                // Check localStorage data
+                html += '<div class="info">📱 Checking localStorage data...</div>';
+                const localStorageData = {};
+                
+                const criticalKeys = [
+                    'event_inventory',
+                    'event_stock_levels', 
+                    'station_inventory_configs',
+                    'station_inventory_quantities',
+                    'coffee_cue_stations',
+                    'coffee_cue_selected_station',
+                    'coffee_cue_app_mode'
+                ];
+                
+                criticalKeys.forEach(key => {
+                    const value = localStorage.getItem(key);
+                    localStorageData[key] = value ? {
+                        exists: true,
+                        size: value.length,
+                        preview: value.substring(0, 100) + (value.length > 100 ? '...' : ''),
+                        lastModified: 'Unknown'
+                    } : { exists: false };
+                });
+                
+                html += '<div class="data-grid">';
+                Object.keys(localStorageData).forEach(key => {
+                    const data = localStorageData[key];
+                    const statusClass = data.exists ? 'success' : 'error';
+                    html += `
+                        <div class="data-panel ${statusClass}">
+                            <h4>${key}</h4>
+                            <p><strong>Status:</strong> ${data.exists ? '✅ Exists' : '❌ Missing'}</p>
+                            ${data.exists ? `
+                                <p><strong>Size:</strong> ${data.size} characters</p>
+                                <p><strong>Preview:</strong> ${data.preview}</p>
+                            ` : ''}
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                
+                // Check database data
+                html += '<div class="info">🗄️ Checking database data...</div>';
+                
+                const databaseData = {};
+                
+                // Check stations
+                try {
+                    const stationsResponse = await makeApiRequest('/stations');
+                    databaseData.stations = {
+                        exists: true,
+                        count: stationsResponse.stations?.length || 0,
+                        data: stationsResponse.stations
+                    };
+                } catch (e) {
+                    databaseData.stations = { exists: false, error: e.message };
+                }
+                
+                // Check orders
+                try {
+                    const ordersResponse = await makeApiRequest('/orders');
+                    databaseData.orders = {
+                        exists: true,
+                        count: ordersResponse.data?.length || 0,
+                        data: ordersResponse.data
+                    };
+                } catch (e) {
+                    databaseData.orders = { exists: false, error: e.message };
+                }
+                
+                // Check inventory (if endpoint exists)
+                try {
+                    const inventoryResponse = await makeApiRequest('/inventory');
+                    databaseData.inventory = {
+                        exists: true,
+                        count: inventoryResponse.data?.length || 0,
+                        data: inventoryResponse.data
+                    };
+                } catch (e) {
+                    databaseData.inventory = { exists: false, error: e.message };
+                }
+                
+                // Check settings
+                try {
+                    const settingsResponse = await makeApiRequest('/settings');
+                    databaseData.settings = {
+                        exists: true,
+                        data: settingsResponse
+                    };
+                } catch (e) {
+                    databaseData.settings = { exists: false, error: e.message };
+                }
+                
+                html += '<div class="data-grid">';
+                Object.keys(databaseData).forEach(key => {
+                    const data = databaseData[key];
+                    const statusClass = data.exists ? 'success' : 'error';
+                    html += `
+                        <div class="data-panel ${statusClass}">
+                            <h4>Database: ${key}</h4>
+                            <p><strong>Status:</strong> ${data.exists ? '✅ Exists' : '❌ Missing/Error'}</p>
+                            ${data.exists ? `
+                                ${data.count !== undefined ? `<p><strong>Count:</strong> ${data.count} records</p>` : ''}
+                            ` : `
+                                <p><strong>Error:</strong> ${data.error}</p>
+                            `}
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                
+                // Data persistence analysis
+                html += '<div class="critical">';
+                html += '<h3>🚨 Data Persistence Analysis</h3>';
+                
+                // Check for data loss patterns
+                const eventInventory = localStorage.getItem('event_inventory');
+                const eventStock = localStorage.getItem('event_stock_levels');
+                const stationConfigs = localStorage.getItem('station_inventory_configs');
+                
+                if (!eventInventory || eventInventory === '{}' || eventInventory === '[]') {
+                    html += '<div class="error">❌ CRITICAL: Event Inventory is missing or empty</div>';
+                } else {
+                    html += '<div class="success">✅ Event Inventory data found in localStorage</div>';
+                }
+                
+                if (!eventStock || eventStock === '{}' || eventStock === '[]') {
+                    html += '<div class="error">❌ CRITICAL: Event Stock Levels are missing or empty</div>';
+                } else {
+                    html += '<div class="success">✅ Event Stock Levels data found in localStorage</div>';
+                }
+                
+                if (!stationConfigs || stationConfigs === '{}' || stationConfigs === '[]') {
+                    html += '<div class="error">❌ CRITICAL: Station Inventory Configs are missing or empty</div>';
+                } else {
+                    html += '<div class="success">✅ Station Inventory Configs data found in localStorage</div>';
+                }
+                
+                // Check database backup situation
+                if (databaseData.stations.exists && databaseData.stations.count > 0) {
+                    html += '<div class="success">✅ Stations data exists in database</div>';
+                } else {
+                    html += '<div class="error">❌ CRITICAL: No stations data in database</div>';
+                }
+                
+                if (databaseData.orders.exists && databaseData.orders.count > 0) {
+                    html += '<div class="success">✅ Orders data exists in database (you mentioned this persisted)</div>';
+                } else {
+                    html += '<div class="warning">⚠️ No orders data in database</div>';
+                }
+                
+                html += '</div>';
+                
+                // Recommendations
+                html += '<div class="info">';
+                html += '<h3>📋 Recommendations</h3>';
+                html += '<ol>';
+                
+                if (!eventInventory || !eventStock) {
+                    html += '<li><strong>URGENT:</strong> Event inventory data is lost. Need to restore from backup or recreate.</li>';
+                }
+                
+                html += '<li><strong>Implement database storage:</strong> Move inventory data from localStorage to database</li>';
+                html += '<li><strong>Create automatic backups:</strong> Schedule regular data exports</li>';
+                html += '<li><strong>Add data validation:</strong> Prevent accidental data loss</li>';
+                html += '<li><strong>Cloud persistence:</strong> Ensure all critical data survives server restarts</li>';
+                html += '</ol>';
+                html += '</div>';
+                
+            } catch (error) {
+                html += `<div class="error">❌ Audit failed: ${error.message}</div>`;
+                console.error('Audit error:', error);
+            }
+            
+            resultsDiv.innerHTML = html;
+            
+            // Also update storage analysis
+            updateStorageAnalysis();
+        }
+        
+        function updateStorageAnalysis() {
+            const analysisDiv = document.getElementById('storage-analysis');
+            
+            let html = '<h3>💾 Current Storage State</h3>';
+            
+            // Calculate localStorage usage
+            let totalSize = 0;
+            let itemCount = 0;
+            
+            for (let key in localStorage) {
+                if (localStorage.hasOwnProperty(key)) {
+                    totalSize += localStorage[key].length;
+                    itemCount++;
+                }
+            }
+            
+            html += `<div class="info">`;
+            html += `<p><strong>localStorage Usage:</strong> ${itemCount} items, ${(totalSize / 1024).toFixed(2)} KB total</p>`;
+            html += `<p><strong>Browser Storage Limit:</strong> ~5-10 MB (varies by browser)</p>`;
+            html += `<p><strong>Usage:</strong> ${((totalSize / (5 * 1024 * 1024)) * 100).toFixed(2)}% of estimated limit</p>`;
+            html += `</div>`;
+            
+            // Show critical data status
+            const criticalKeys = [
+                'event_inventory',
+                'event_stock_levels',
+                'station_inventory_configs',
+                'coffee_cue_stations'
+            ];
+            
+            html += '<div class="warning">';
+            html += '<h4>🚨 Critical Data Status:</h4>';
+            
+            criticalKeys.forEach(key => {
+                const value = localStorage.getItem(key);
+                if (value && value !== '{}' && value !== '[]') {
+                    html += `<div class="success">✅ ${key}: ${(value.length / 1024).toFixed(2)} KB</div>`;
+                } else {
+                    html += `<div class="error">❌ ${key}: Missing or empty</div>`;
+                }
+            });
+            
+            html += '</div>';
+            
+            analysisDiv.innerHTML = html;
+        }
+        
+        function createDataBackup() {
+            try {
+                const backupData = {
+                    timestamp: new Date().toISOString(),
+                    localStorage: {},
+                    metadata: {
+                        userAgent: navigator.userAgent,
+                        url: window.location.href,
+                        appMode: localStorage.getItem('coffee_cue_app_mode')
+                    }
+                };
+                
+                // Backup all localStorage data
+                for (let key in localStorage) {
+                    if (localStorage.hasOwnProperty(key)) {
+                        backupData.localStorage[key] = localStorage[key];
+                    }
+                }
+                
+                // Create downloadable backup
+                const backupJson = JSON.stringify(backupData, null, 2);
+                const blob = new Blob([backupJson], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `coffee-cue-backup-${new Date().toISOString().slice(0,10)}.json`;
+                a.click();
+                
+                URL.revokeObjectURL(url);
+                
+                alert('✅ Backup created and downloaded!');
+                
+            } catch (error) {
+                alert('❌ Backup failed: ' + error.message);
+            }
+        }
+        
+        function restoreFromBackup() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            
+            input.onchange = function(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const backupData = JSON.parse(e.target.result);
+                        
+                        if (!backupData.localStorage) {
+                            alert('❌ Invalid backup file format');
+                            return;
+                        }
+                        
+                        // Confirm restore
+                        if (confirm(`Restore backup from ${backupData.timestamp}?\nThis will overwrite current localStorage data.`)) {
+                            // Clear current localStorage
+                            localStorage.clear();
+                            
+                            // Restore from backup
+                            Object.keys(backupData.localStorage).forEach(key => {
+                                localStorage.setItem(key, backupData.localStorage[key]);
+                            });
+                            
+                            alert('✅ Backup restored successfully!\nPlease refresh the page.');
+                        }
+                        
+                    } catch (error) {
+                        alert('❌ Failed to restore backup: ' + error.message);
+                    }
+                };
+                
+                reader.readAsText(file);
+            };
+            
+            input.click();
+        }
+        
+        // Auto-run storage analysis on load
+        window.onload = () => {
+            const token = getAuthToken();
+            const resultsDiv = document.getElementById('audit-results');
+            
+            if (token) {
+                resultsDiv.innerHTML = '<div class="success">✅ Auth token found. Ready to perform data audit.</div>';
+            } else {
+                resultsDiv.innerHTML = '<div class="error">❌ No auth token found. Please login to the Organiser interface first, then refresh this page.</div>';
+            }
+            
+            updateStorageAnalysis();
+        };
+    </script>
+</body>
+</html>

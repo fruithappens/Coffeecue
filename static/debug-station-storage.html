@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Station Storage</title>
+    <style>
+        body { font-family: monospace; padding: 20px; }
+        .storage-item { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
+        button { margin: 5px; padding: 5px 10px; }
+        pre { background: #f0f0f0; padding: 10px; overflow: auto; }
+    </style>
+</head>
+<body>
+    <h1>Station Storage Debug</h1>
+    
+    <button onclick="checkStorage()">Check Storage</button>
+    <button onclick="clearStationStorage()">Clear Station Storage</button>
+    <button onclick="clearEventStorage()">Clear Event Storage</button>
+    <button onclick="clearAllStorage()">Clear All Storage</button>
+    
+    <div id="output"></div>
+    
+    <script>
+        function checkStorage() {
+            const output = document.getElementById('output');
+            output.innerHTML = '<h2>Storage Contents:</h2>';
+            
+            // Check event inventory
+            const eventInventory = localStorage.getItem('event_inventory');
+            if (eventInventory) {
+                const div = document.createElement('div');
+                div.className = 'storage-item';
+                div.innerHTML = `
+                    <h3>Event Inventory (persistent)</h3>
+                    <pre>${JSON.stringify(JSON.parse(eventInventory), null, 2)}</pre>
+                `;
+                output.appendChild(div);
+            }
+            
+            // Check station configs
+            const stationConfigs = localStorage.getItem('station_inventory_configs');
+            if (stationConfigs) {
+                const div = document.createElement('div');
+                div.className = 'storage-item';
+                div.innerHTML = `
+                    <h3>Station Inventory Configs (checkboxes)</h3>
+                    <pre>${JSON.stringify(JSON.parse(stationConfigs), null, 2)}</pre>
+                `;
+                output.appendChild(div);
+            } else {
+                const div = document.createElement('div');
+                div.className = 'storage-item';
+                div.innerHTML = '<h3>Station Inventory Configs: NOT FOUND</h3>';
+                output.appendChild(div);
+            }
+            
+            // Check station quantities
+            const stationQuantities = localStorage.getItem('station_inventory_quantities');
+            if (stationQuantities) {
+                const div = document.createElement('div');
+                div.className = 'storage-item';
+                div.innerHTML = `
+                    <h3>Station Inventory Quantities</h3>
+                    <pre>${JSON.stringify(JSON.parse(stationQuantities), null, 2)}</pre>
+                `;
+                output.appendChild(div);
+            } else {
+                const div = document.createElement('div');
+                div.className = 'storage-item';
+                div.innerHTML = '<h3>Station Inventory Quantities: NOT FOUND</h3>';
+                output.appendChild(div);
+            }
+            
+            // Show all localStorage keys
+            const allKeys = Object.keys(localStorage).filter(key => 
+                key.includes('inventory') || key.includes('station')
+            );
+            const div = document.createElement('div');
+            div.className = 'storage-item';
+            div.innerHTML = `
+                <h3>All Inventory/Station Keys:</h3>
+                <pre>${JSON.stringify(allKeys, null, 2)}</pre>
+            `;
+            output.appendChild(div);
+        }
+        
+        function clearStationStorage() {
+            localStorage.removeItem('station_inventory_configs');
+            localStorage.removeItem('station_inventory_quantities');
+            alert('Station storage cleared');
+            checkStorage();
+        }
+        
+        function clearEventStorage() {
+            localStorage.removeItem('event_inventory');
+            alert('Event storage cleared');
+            checkStorage();
+        }
+        
+        function clearAllStorage() {
+            const keys = Object.keys(localStorage).filter(key => 
+                key.includes('inventory') || key.includes('station')
+            );
+            keys.forEach(key => localStorage.removeItem(key));
+            alert('All inventory storage cleared');
+            checkStorage();
+        }
+        
+        // Auto-run on load
+        checkStorage();
+    </script>
+</body>
+</html>

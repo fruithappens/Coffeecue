@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Order Location</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .station { margin: 20px 0; padding: 15px; border: 2px solid #ddd; border-radius: 5px; }
+        .station h3 { margin-top: 0; }
+        .order { background: #f0f0f0; padding: 10px; margin: 5px 0; border-radius: 3px; }
+        .found { background: #d4edda; border-color: #c3e6cb; }
+        .empty { color: #999; }
+        button { padding: 10px; margin: 5px; }
+        .log { background: #f8f9fa; padding: 10px; margin: 10px 0; font-family: monospace; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <h1>Debug Order Location</h1>
+    <p>This tool shows where orders are stored across all stations.</p>
+    
+    <button onclick="checkAllStations()">Check All Stations</button>
+    <button onclick="findRecentWalkIn()">Find Recent Walk-in Order</button>
+    <button onclick="clearAllOrders()">Clear All Orders</button>
+    
+    <div id="results"></div>
+    
+    <script>
+        function log(message, element) {
+            const div = document.createElement('div');
+            div.className = 'log';
+            div.textContent = message;
+            element.appendChild(div);
+        }
+
+        function checkAllStations() {
+            const results = document.getElementById('results');
+            results.innerHTML = '<h2>Order Distribution Across Stations</h2>';
+            
+            for (let stationId = 1; stationId <= 5; stationId++) {
+                const stationDiv = document.createElement('div');
+                stationDiv.className = 'station';
+                
+                const title = document.createElement('h3');
+                title.textContent = `Station ${stationId}`;
+                stationDiv.appendChild(title);
+                
+                // Check local orders
+                const localOrdersKey = `local_orders_station_${stationId}`;
+                const localOrders = JSON.parse(localStorage.getItem(localOrdersKey) || '[]');
+                
+                // Check orders cache
+                const cacheKey = `orders_cache_station_${stationId}`;
+                const cache = JSON.parse(localStorage.getItem(cacheKey) || '{}');
+                const pendingOrders = cache.pendingOrders || [];
+                
+                // Display local orders
+                const localDiv = document.createElement('div');
+                localDiv.innerHTML = `<strong>Local Orders (${localOrders.length}):</strong>`;
+                if (localOrders.length > 0) {
+                    localOrders.forEach(order => {
+                        const orderDiv = document.createElement('div');
+                        orderDiv.className = 'order';
+                        orderDiv.innerHTML = `
+                            ID: ${order.id}<br>
+                            Customer: ${order.customerName || order.customer_name || 'Unknown'}<br>
+                            Coffee: ${order.coffeeType || order.coffee_type}<br>
+                            Station ID: ${order.stationId || order.station_id}<br>
+                            Created: ${new Date(order.createdAt).toLocaleTimeString()}
+                        `;
+                        localDiv.appendChild(orderDiv);
+                    });
+                } else {
+                    localDiv.innerHTML += ' <span class="empty">None</span>';
+                }
+                stationDiv.appendChild(localDiv);
+                
+                // Display cached pending orders
+                const cacheDiv = document.createElement('div');
+                cacheDiv.innerHTML = `<strong>Cached Pending Orders (${pendingOrders.length}):</strong>`;
+                if (pendingOrders.length > 0) {
+                    pendingOrders.forEach(order => {
+                        const orderDiv = document.createElement('div');
+                        orderDiv.className = 'order';
+                        orderDiv.innerHTML = `
+                            ID: ${order.id}<br>
+                            Customer: ${order.customerName || order.customer_name || 'Unknown'}<br>
+                            Coffee: ${order.coffeeType || order.coffee_type}<br>
+                            Station ID: ${order.stationId || order.station_id}<br>
+                            Is Local: ${order.isLocalOrder ? 'Yes' : 'No'}
+                        `;
+                        cacheDiv.appendChild(orderDiv);
+                    });
+                } else {
+                    cacheDiv.innerHTML += ' <span class="empty">None</span>';
+                }
+                stationDiv.appendChild(cacheDiv);
+                
+                results.appendChild(stationDiv);
+            }
+        }
+
+        function findRecentWalkIn() {
+            const results = document.getElementById('results');
+            results.innerHTML = '<h2>Finding Most Recent Walk-in Order</h2>';
+            
+            let mostRecent = null;
+            let foundAtStation = null;
+            let foundIn = null;
+            
+            for (let stationId = 1; stationId <= 5; stationId++) {
+                // Check local orders
+                const localOrdersKey = `local_orders_station_${stationId}`;
+                const localOrders = JSON.parse(localStorage.getItem(localOrdersKey) || '[]');
+                
+                localOrders.forEach(order => {
+                    if (order.isLocalOrder || order.id.startsWith('local_order_')) {
+                        const orderTime = new Date(order.createdAt).getTime();
+                        if (!mostRecent || orderTime > new Date(mostRecent.createdAt).getTime()) {
+                            mostRecent = order;
+                            foundAtStation = stationId;
+                            foundIn = 'local_orders';
+                        }
+                    }
+                });
+                
+                // Check orders cache
+                const cacheKey = `orders_cache_station_${stationId}`;
+                const cache = JSON.parse(localStorage.getItem(cacheKey) || '{}');
+                const pendingOrders = cache.pendingOrders || [];
+                
+                pendingOrders.forEach(order => {
+                    if (order.isLocalOrder || order.id.startsWith('local_order_')) {
+                        const orderTime = new Date(order.createdAt).getTime();
+                        if (!mostRecent || orderTime > new Date(mostRecent.createdAt).getTime()) {
+                            mostRecent = order;
+                            foundAtStation = stationId;
+                            foundIn = 'orders_cache';
+                        }
+                    }
+                });
+            }
+            
+            if (mostRecent) {
+                const resultDiv = document.createElement('div');
+                resultDiv.className = 'station found';
+                resultDiv.innerHTML = `
+                    <h3>Found Most Recent Walk-in Order!</h3>
+                    <strong>Located at Station ${foundAtStation} (in ${foundIn})</strong>
+                    <div class="order">
+                        ID: ${mostRecent.id}<br>
+                        Customer: ${mostRecent.customerName || mostRecent.customer_name || 'Unknown'}<br>
+                        Coffee: ${mostRecent.coffeeType || mostRecent.coffee_type}<br>
+                        Station ID field: ${mostRecent.stationId || mostRecent.station_id}<br>
+                        Assigned Station: ${mostRecent.assignedStation || mostRecent.assigned_to_station}<br>
+                        Collection Station: ${mostRecent.collectionStation || mostRecent.collection_station}<br>
+                        Created: ${new Date(mostRecent.createdAt).toLocaleString()}<br>
+                        <br>
+                        <strong>All station fields:</strong><br>
+                        stationId: ${mostRecent.stationId}<br>
+                        station_id: ${mostRecent.station_id}<br>
+                        assignedStation: ${mostRecent.assignedStation}<br>
+                        assigned_to_station: ${mostRecent.assigned_to_station}<br>
+                        collectionStation: ${mostRecent.collectionStation}<br>
+                        collection_station: ${mostRecent.collection_station}
+                    </div>
+                `;
+                results.appendChild(resultDiv);
+                
+                // Log full order details
+                log('Full order details: ' + JSON.stringify(mostRecent, null, 2), results);
+            } else {
+                results.innerHTML += '<p>No walk-in orders found!</p>';
+            }
+        }
+
+        function clearAllOrders() {
+            if (!confirm('Are you sure you want to clear all orders from localStorage?')) return;
+            
+            let cleared = 0;
+            for (let stationId = 1; stationId <= 10; stationId++) {
+                const keys = [
+                    `local_orders_station_${stationId}`,
+                    `orders_cache_station_${stationId}`,
+                    `orders_cache_station_${stationId}_backup`
+                ];
+                
+                keys.forEach(key => {
+                    if (localStorage.getItem(key)) {
+                        localStorage.removeItem(key);
+                        cleared++;
+                    }
+                });
+            }
+            
+            alert(`Cleared ${cleared} order-related localStorage keys`);
+            checkAllStations();
+        }
+
+        // Initial check
+        checkAllStations();
+    </script>
+</body>
+</html>

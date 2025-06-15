@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Menu Toggle Visibility</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-box { border: 2px solid #007bff; padding: 15px; margin: 10px 0; }
+        .instructions { background: #f8f9fa; padding: 15px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>Menu Toggle Visibility Test</h1>
+    
+    <div class="instructions">
+        <h3>Where to look for the Menu Toggle:</h3>
+        <ol>
+            <li><strong>Go to:</strong> Organiser Interface → Stations → Menu Items</li>
+            <li><strong>Look for:</strong> A blue box titled "Station Menu Configuration"</li>
+            <li><strong>Should contain:</strong> A toggle switch with globe icon</li>
+            <li><strong>Location:</strong> After search filters, before drink categories</li>
+        </ol>
+    </div>
+
+    <div class="test-box">
+        <h4>🔍 What you should see:</h4>
+        <p><strong>Blue Section Title:</strong> "Station Menu Configuration" with 🌐 globe icon</p>
+        <p><strong>Toggle Switch:</strong> "All menu items are available at all stations"</p>
+        <p><strong>When OFF:</strong> Shows station checkboxes for each drink</p>
+    </div>
+
+    <div class="test-box">
+        <h4>🐛 If you don't see it:</h4>
+        <ol>
+            <li>Try refreshing the page (Cmd+R)</li>
+            <li>Check if you're logged in as admin or organizer</li>
+            <li>Try logging out and back in</li>
+            <li>Clear browser cache</li>
+        </ol>
+    </div>
+
+    <div class="test-box">
+        <h4>🔧 Debug Steps:</h4>
+        <ol>
+            <li>Open browser developer tools (F12)</li>
+            <li>Go to Console tab</li>
+            <li>Look for any JavaScript errors</li>
+            <li>Check if "MenuManagement" component is loading</li>
+        </ol>
+    </div>
+
+    <script>
+        // Check if we can access localStorage to verify app state
+        console.log('=== MENU TOGGLE DEBUG INFO ===');
+        console.log('Current URL:', window.location.href);
+        console.log('LocalStorage keys:', Object.keys(localStorage));
+        console.log('Auth token exists:', !!localStorage.getItem('coffee_auth_token'));
+        console.log('Global menu setting:', localStorage.getItem('global_menu_enabled'));
+        console.log('Event menu exists:', !!localStorage.getItem('event_menu'));
+        console.log('==============================');
+    </script>
+
+    <button onclick="window.close()">Close</button>
+    <button onclick="window.location.href='http://localhost:5001'">Go to App</button>
+</body>
+</html>

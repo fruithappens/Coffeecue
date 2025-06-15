@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clean Barista Interface</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+            text-align: left;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        
+        input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+        
+        .btn:hover {
+            background-color: #45a049;
+        }
+        
+        .status {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 4px;
+            display: none;
+        }
+        
+        .success {
+            background-color: #dff0d8;
+            color: #3c763d;
+            border: 1px solid #d6e9c6;
+        }
+        
+        .error {
+            background-color: #f2dede;
+            color: #a94442;
+            border: 1px solid #ebccd1;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
+        
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left: 4px solid #4CAF50;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        #app {
+            display: none;
+            margin-top: 20px;
+        }
+        
+        .order {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 15px;
+            text-align: left;
+            background-color: #f9f9f9;
+        }
+        
+        .order-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .order-id {
+            font-weight: bold;
+        }
+        
+        .order-status {
+            padding: 3px 8px;
+            border-radius: 10px;
+            font-size: 12px;
+        }
+        
+        .status-pending {
+            background-color: #fcf8e3;
+            color: #8a6d3b;
+        }
+        
+        .status-in-progress {
+            background-color: #d9edf7;
+            color: #31708f;
+        }
+        
+        .status-completed {
+            background-color: #dff0d8;
+            color: #3c763d;
+        }
+        
+        .order-details {
+            margin-bottom: 10px;
+        }
+        
+        .order-actions {
+            display: flex;
+            justify-content: flex-end;
+        }
+        
+        .action-btn {
+            padding: 5px 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-left: 5px;
+            font-size: 14px;
+        }
+        
+        .start-btn {
+            background-color: #5bc0de;
+            color: white;
+        }
+        
+        .complete-btn {
+            background-color: #5cb85c;
+            color: white;
+        }
+        
+        .milk-type {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 3px;
+            margin-left: 5px;
+            font-size: 12px;
+            background-color: #f0f0f0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Coffee Cue Barista Interface</h1>
+        
+        <div id="loginForm">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" value="barista" placeholder="Enter username">
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" value="password123" placeholder="Enter password">
+            </div>
+            
+            <button id="loginBtn" class="btn">Login</button>
+            <button id="bypassBtn" class="btn">Bypass Login</button>
+        </div>
+        
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Loading...</p>
+        </div>
+        
+        <div id="status" class="status"></div>
+        
+        <div id="app">
+            <h2>Pending Orders</h2>
+            <div id="orders"></div>
+            
+            <button id="refreshBtn" class="btn">Refresh Orders</button>
+            <button id="addTestOrderBtn" class="btn">Add Test Order</button>
+        </div>
+    </div>
+
+    <script>
+        // Store DOM elements
+        const elements = {
+            loginForm: document.getElementById('loginForm'),
+            username: document.getElementById('username'),
+            password: document.getElementById('password'),
+            loginBtn: document.getElementById('loginBtn'),
+            bypassBtn: document.getElementById('bypassBtn'),
+            loading: document.getElementById('loading'),
+            status: document.getElementById('status'),
+            app: document.getElementById('app'),
+            orders: document.getElementById('orders'),
+            refreshBtn: document.getElementById('refreshBtn'),
+            addTestOrderBtn: document.getElementById('addTestOrderBtn')
+        };
+        
+        // API endpoints
+        const API = {
+            login: '/api/auth/login',
+            orders: '/api/orders',
+            pendingOrders: '/api/orders/pending',
+            updateOrder: (id) => `/api/orders/${id}`
+        };
+        
+        // Store token and user info
+        let auth = {
+            token: localStorage.getItem('token') || null,
+            user: JSON.parse(localStorage.getItem('user') || 'null')
+        };
+        
+        // Show status message
+        function showStatus(message, isSuccess = true) {
+            elements.status.textContent = message;
+            elements.status.className = isSuccess ? 'status success' : 'status error';
+            elements.status.style.display = 'block';
+            
+            // Hide status after 5 seconds
+            setTimeout(() => {
+                elements.status.style.display = 'none';
+            }, 5000);
+        }
+        
+        // Show loading
+        function showLoading() {
+            elements.loading.style.display = 'block';
+        }
+        
+        // Hide loading
+        function hideLoading() {
+            elements.loading.style.display = 'none';
+        }
+        
+        // Login handler
+        async function login() {
+            const username = elements.username.value.trim();
+            const password = elements.password.value.trim();
+            
+            if (!username || !password) {
+                showStatus('Please enter both username and password', false);
+                return;
+            }
+            
+            showLoading();
+            
+            try {
+                // Try to login with the API
+                const response = await fetch(API.login, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    // Store auth data
+                    auth.token = data.token;
+                    auth.user = data.user;
+                    
+                    // Save to localStorage
+                    localStorage.setItem('token', auth.token);
+                    localStorage.setItem('user', JSON.stringify(auth.user));
+                    localStorage.setItem('isAuthenticated', 'true');
+                    
+                    showStatus('Login successful!');
+                    showApp();
+                    loadOrders();
+                } else {
+                    // Try to read error message
+                    try {
+                        const errorData = await response.json();
+                        showStatus(`Login failed: ${errorData.message || 'Unknown error'}`, false);
+                    } catch (e) {
+                        showStatus(`Login failed with status: ${response.status}`, false);
+                    }
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                showStatus(`Login error: ${error.message}`, false);
+                
+                // Try bypass login as fallback
+                bypassLogin();
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        // Bypass login (force authentication)
+        function bypassLogin() {
+            showLoading();
+            
+            try {
+                // Create a fake token
+                const createToken = function() {
+                    const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+                    const payload = btoa(JSON.stringify({
+                        sub: 'bypass_user',
+                        name: 'Bypass User',
+                        role: 'barista',
+                        exp: Math.floor(Date.now() / 1000) + 86400
+                    }));
+                    const signature = btoa('bypass_signature_' + Date.now());
+                    return `${header}.${payload}.${signature}`;
+                };
+                
+                // Create token and user
+                auth.token = createToken();
+                auth.user = {
+                    id: 'bypass_user',
+                    name: 'Bypass User',
+                    role: 'barista'
+                };
+                
+                // Save to localStorage
+                localStorage.setItem('token', auth.token);
+                localStorage.setItem('user', JSON.stringify(auth.user));
+                localStorage.setItem('isAuthenticated', 'true');
+                
+                showStatus('Bypassed login successfully!');
+                showApp();
+                loadOrders();
+            } catch (error) {
+                console.error('Bypass login error:', error);
+                showStatus(`Bypass login error: ${error.message}`, false);
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        // Show the app interface
+        function showApp() {
+            elements.loginForm.style.display = 'none';
+            elements.app.style.display = 'block';
+        }
+        
+        // Load orders from API
+        async function loadOrders() {
+            showLoading();
+            
+            try {
+                // First try to get pending orders
+                try {
+                    const response = await fetch(API.pendingOrders, {
+                        headers: {
+                            'Authorization': `Bearer ${auth.token}`
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const orders = await response.json();
+                        displayOrders(orders);
+                        return;
+                    }
+                } catch (e) {
+                    console.error('Error fetching pending orders:', e);
+                }
+                
+                // If that fails, try the general orders endpoint
+                try {
+                    const response = await fetch(API.orders, {
+                        headers: {
+                            'Authorization': `Bearer ${auth.token}`
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const orders = await response.json();
+                        // Filter for pending orders only
+                        const pendingOrders = orders.filter(order => order.status === 'pending');
+                        displayOrders(pendingOrders);
+                        return;
+                    }
+                } catch (e) {
+                    console.error('Error fetching all orders:', e);
+                }
+                
+                // If both API calls fail, use sample data
+                useSampleData();
+                
+            } catch (error) {
+                console.error('Load orders error:', error);
+                showStatus(`Error loading orders: ${error.message}`, false);
+                
+                // Fall back to sample data
+                useSampleData();
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        // Use sample data when API fails
+        function useSampleData() {
+            const sampleOrders = [
+                {
+                    id: 'order1',
+                    orderNumber: 'ORD001',
+                    customerName: 'John Smith',
+                    coffeeType: 'Cappuccino',
+                    milkType: 'Regular',
+                    sugar: 'No sugar',
+                    status: 'pending',
+                    createdAt: new Date(Date.now() - 1000 * 60 * 15).toISOString()
+                },
+                {
+                    id: 'order2',
+                    orderNumber: 'ORD002',
+                    customerName: 'Jane Doe',
+                    coffeeType: 'Latte',
+                    milkType: 'Almond',
+                    sugar: '1 sugar',
+                    status: 'pending',
+                    createdAt: new Date(Date.now() - 1000 * 60 * 10).toISOString()
+                },
+                {
+                    id: 'order3',
+                    orderNumber: 'ORD003',
+                    customerName: 'Michael Johnson',
+                    coffeeType: 'Flat White',
+                    milkType: 'Oat',
+                    sugar: '2 sugars',
+                    status: 'pending',
+                    createdAt: new Date(Date.now() - 1000 * 60 * 5).toISOString()
+                }
+            ];
+            
+            displayOrders(sampleOrders);
+            showStatus('Using sample data (API unavailable)', false);
+        }
+        
+        // Display orders in the UI
+        function displayOrders(orders) {
+            if (!orders || !Array.isArray(orders) || orders.length === 0) {
+                elements.orders.innerHTML = '<p>No pending orders</p>';
+                return;
+            }
+            
+            // Sort orders by creation date (newest first)
+            orders.sort((a, b) => {
+                const dateA = new Date(a.createdAt || Date.now());
+                const dateB = new Date(b.createdAt || Date.now());
+                return dateB - dateA;
+            });
+            
+            // Clear existing orders
+            elements.orders.innerHTML = '';
+            
+            // Add each order to the UI
+            orders.forEach(order => {
+                const orderEl = document.createElement('div');
+                orderEl.className = 'order';
+                orderEl.dataset.id = order.id;
+                
+                // Get status class
+                let statusClass = 'status-pending';
+                if (order.status === 'in-progress') statusClass = 'status-in-progress';
+                if (order.status === 'completed') statusClass = 'status-completed';
+                
+                // Format creation time
+                const createdAt = order.createdAt ? new Date(order.createdAt) : new Date();
+                const timeString = createdAt.toLocaleTimeString();
+                
+                // Create order HTML
+                orderEl.innerHTML = `
+                    <div class="order-header">
+                        <span class="order-id">${order.orderNumber || `Order #${order.id}`}</span>
+                        <span class="order-status ${statusClass}">${order.status || 'pending'}</span>
+                    </div>
+                    <div class="order-details">
+                        <p><strong>Customer:</strong> ${order.customerName || 'Anonymous'}</p>
+                        <p><strong>Coffee:</strong> ${order.coffeeType || 'Standard Coffee'}</p>
+                        <p><strong>Milk:</strong> ${order.milkType || 'Regular'} <span class="milk-type">${order.milkType || 'Regular'}</span></p>
+                        <p><strong>Sugar:</strong> ${order.sugar || 'No sugar'}</p>
+                        <p><strong>Time:</strong> ${timeString}</p>
+                    </div>
+                    <div class="order-actions">
+                        <button class="action-btn start-btn" data-action="start">Start Order</button>
+                        <button class="action-btn complete-btn" data-action="complete">Complete</button>
+                    </div>
+                `;
+                
+                // Add the order to the container
+                elements.orders.appendChild(orderEl);
+            });
+            
+            // Add event listeners to action buttons
+            document.querySelectorAll('.action-btn').forEach(button => {
+                button.addEventListener('click', handleOrderAction);
+            });
+            
+            showStatus(`Loaded ${orders.length} orders`);
+        }
+        
+        // Handle order actions (start, complete)
+        async function handleOrderAction(event) {
+            const button = event.target;
+            const action = button.dataset.action;
+            const orderEl = button.closest('.order');
+            const orderId = orderEl.dataset.id;
+            
+            showLoading();
+            
+            try {
+                // Determine new status based on action
+                const newStatus = action === 'start' ? 'in-progress' : 'completed';
+                
+                // Try to update via API
+                try {
+                    const response = await fetch(API.updateOrder(orderId), {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${auth.token}`
+                        },
+                        body: JSON.stringify({ status: newStatus })
+                    });
+                    
+                    if (response.ok) {
+                        updateOrderUI(orderEl, newStatus);
+                        showStatus(`Order ${action === 'start' ? 'started' : 'completed'} successfully`);
+                        return;
+                    }
+                } catch (e) {
+                    console.error(`Error updating order ${orderId}:`, e);
+                }
+                
+                // If API fails, just update the UI
+                updateOrderUI(orderEl, newStatus);
+                showStatus(`Order ${action === 'start' ? 'started' : 'completed'} (offline mode)`);
+                
+            } catch (error) {
+                console.error('Order action error:', error);
+                showStatus(`Error updating order: ${error.message}`, false);
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        // Update order UI with new status
+        function updateOrderUI(orderEl, newStatus) {
+            // Update status text
+            const statusEl = orderEl.querySelector('.order-status');
+            statusEl.textContent = newStatus;
+            
+            // Update status class
+            statusEl.className = 'order-status';
+            if (newStatus === 'in-progress') statusEl.classList.add('status-in-progress');
+            if (newStatus === 'completed') statusEl.classList.add('status-completed');
+            if (newStatus === 'pending') statusEl.classList.add('status-pending');
+            
+            // If completed, move to bottom and fade
+            if (newStatus === 'completed') {
+                orderEl.style.opacity = '0.6';
+                elements.orders.appendChild(orderEl); // Move to bottom
+            }
+        }
+        
+        // Add a test order
+        function addTestOrder() {
+            const coffeeTypes = ['Cappuccino', 'Latte', 'Flat White', 'Espresso', 'Mocha', 'Long Black'];
+            const milkTypes = ['Regular', 'Skim', 'Almond', 'Oat', 'Soy', 'Lactose Free'];
+            const sugarOptions = ['No sugar', '1 sugar', '2 sugars', '3 sugars'];
+            const names = ['John Smith', 'Jane Doe', 'Michael Johnson', 'Sarah Williams', 'David Brown', 'Emily Davis'];
+            
+            // Generate random order
+            const newOrder = {
+                id: 'test-' + Date.now(),
+                orderNumber: 'ORD' + Math.floor(Math.random() * 900 + 100),
+                customerName: names[Math.floor(Math.random() * names.length)],
+                coffeeType: coffeeTypes[Math.floor(Math.random() * coffeeTypes.length)],
+                milkType: milkTypes[Math.floor(Math.random() * milkTypes.length)],
+                sugar: sugarOptions[Math.floor(Math.random() * sugarOptions.length)],
+                status: 'pending',
+                createdAt: new Date().toISOString()
+            };
+            
+            // Get current orders
+            const currentOrders = Array.from(elements.orders.querySelectorAll('.order')).map(orderEl => {
+                const id = orderEl.dataset.id;
+                const status = orderEl.querySelector('.order-status').textContent;
+                const orderNumber = orderEl.querySelector('.order-id').textContent;
+                const customerName = orderEl.querySelector('p:nth-child(1)').textContent.replace('Customer:', '').trim();
+                const coffeeType = orderEl.querySelector('p:nth-child(2)').textContent.replace('Coffee:', '').trim();
+                const milkType = orderEl.querySelector('p:nth-child(3)').textContent.replace('Milk:', '').trim().split(' ')[0];
+                const sugar = orderEl.querySelector('p:nth-child(4)').textContent.replace('Sugar:', '').trim();
+                
+                return {
+                    id,
+                    orderNumber,
+                    customerName,
+                    coffeeType,
+                    milkType,
+                    sugar,
+                    status
+                };
+            });
+            
+            // Add new order
+            currentOrders.unshift(newOrder);
+            
+            // Display updated orders
+            displayOrders(currentOrders);
+            showStatus('Test order added successfully');
+        }
+        
+        // Check if already logged in
+        function checkAuth() {
+            if (auth.token && auth.user) {
+                showApp();
+                loadOrders();
+            }
+        }
+        
+        // Event listeners
+        elements.loginBtn.addEventListener('click', login);
+        elements.bypassBtn.addEventListener('click', bypassLogin);
+        elements.refreshBtn.addEventListener('click', loadOrders);
+        elements.addTestOrderBtn.addEventListener('click', addTestOrder);
+        
+        // Initialize
+        checkAuth();
+    </script>
+</body>
+</html>

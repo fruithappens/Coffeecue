@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Direct Database Station Fix</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            padding: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #f5f5f5;
+        }
+        h1 { color: #333; }
+        .section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .success { 
+            background-color: #e8f5e9;
+            color: #2e7d32;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .error { 
+            background-color: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .warning {
+            background-color: #fff3e0;
+            color: #e65100;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .info {
+            background-color: #e3f2fd;
+            color: #1565c0;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .critical {
+            background-color: #f3e5f5;
+            color: #4a148c;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+            border: 2px solid #9c27b0;
+        }
+        button {
+            background: #1a73e8;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #1557b0;
+        }
+        .fix-button {
+            background: #d32f2f;
+            font-weight: bold;
+            font-size: 18px;
+            padding: 20px 30px;
+        }
+        .fix-button:hover {
+            background: #b71c1c;
+        }
+        .test-button {
+            background: #4CAF50;
+            font-weight: bold;
+        }
+        .test-button:hover {
+            background: #45a049;
+        }
+        pre {
+            background: #f0f8ff;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .station-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        select, input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Direct Database Station Fix</h1>
+    
+    <div class="section">
+        <h2>Problem Analysis</h2>
+        <div class="error">
+            <p><strong>Issue:</strong> All injection methods failed. The React app isn't cooperating with station persistence.</p>
+            <p><strong>New Approach:</strong> Let's bypass React entirely and work directly with the database through the backend API.</p>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>🔍 Diagnose Current State</h2>
+        <button onclick="diagnoseStations()">1. Diagnose Current Stations</button>
+        <button onclick="testDirectAPI()">2. Test Direct API</button>
+        <button onclick="checkDatabase()">3. Check Database State</button>
+    </div>
+    
+    <div class="section">
+        <h2>🎯 Direct Station Control</h2>
+        <div class="critical">
+            <p><strong>Manual Station Control:</strong> Directly update station status in the database, bypassing React entirely.</p>
+        </div>
+        
+        <div id="station-controls"></div>
+        
+        <button class="fix-button" onclick="loadStationControls()">🔧 LOAD STATION CONTROLS</button>
+    </div>
+    
+    <div class="section">
+        <h2>📋 Results</h2>
+        <div id="results"></div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:5001/api';
+        let authToken = null;
+        let currentStations = [];
+
+        function getAuthToken() {
+            if (authToken) return authToken;
+            
+            authToken = localStorage.getItem('accessToken') || 
+                       localStorage.getItem('token') || 
+                       sessionStorage.getItem('accessToken') ||
+                       sessionStorage.getItem('token');
+            
+            return authToken;
+        }
+
+        async function makeApiRequest(endpoint, options = {}) {
+            const token = getAuthToken();
+            if (!token) {
+                throw new Error('No auth token found. Please login first.');
+            }
+
+            const url = `${API_BASE_URL}${endpoint}`;
+            const defaultOptions = {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            };
+
+            const response = await fetch(url, { ...defaultOptions, ...options });
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(`API Error ${response.status}: ${data.error || data.message || 'Unknown error'}`);
+            }
+            
+            return data;
+        }
+
+        async function diagnoseStations() {
+            const results = document.getElementById('results');
+            let html = '<h3>🔍 Diagnosing Current Station State...</h3>';
+            
+            try {
+                // Get stations from API
+                html += '<div class="info">Fetching stations from backend API...</div>';
+                const response = await makeApiRequest('/stations');
+                
+                if (response.success && response.stations) {
+                    currentStations = response.stations;
+                    html += `<div class="success">✅ Found ${response.stations.length} stations in database</div>`;
+                    
+                    html += '<div class="info"><strong>Current Database State:</strong></div>';
+                    response.stations.forEach(station => {
+                        const statusColor = station.status === 'active' ? 'success' : 
+                                          station.status === 'inactive' ? 'warning' : 'error';
+                        html += `<div class="${statusColor}">Station ${station.id}: ${station.name || 'Unnamed'} - Status: ${station.status}</div>`;
+                    });
+                    
+                    // Check localStorage
+                    html += '<div class="info"><strong>localStorage State:</strong></div>';
+                    const localStations = localStorage.getItem('coffee_cue_stations');
+                    if (localStations) {
+                        try {
+                            const parsed = JSON.parse(localStations);
+                            html += `<div class="info">Found ${parsed.length} stations in localStorage</div>`;
+                            
+                            // Compare with database
+                            let mismatchFound = false;
+                            parsed.forEach(localStation => {
+                                const dbStation = response.stations.find(s => s.id == localStation.id);
+                                if (dbStation && dbStation.status !== localStation.status) {
+                                    mismatchFound = true;
+                                    html += `<div class="error">❌ MISMATCH: Station ${localStation.id} - localStorage: ${localStation.status}, Database: ${dbStation.status}</div>`;
+                                }
+                            });
+                            
+                            if (!mismatchFound) {
+                                html += '<div class="success">✅ localStorage and database are in sync</div>';
+                            }
+                        } catch (e) {
+                            html += '<div class="error">❌ Error parsing localStorage stations</div>';
+                        }
+                    } else {
+                        html += '<div class="warning">⚠️ No stations found in localStorage</div>';
+                    }
+                } else {
+                    html += '<div class="error">❌ Failed to get stations from API</div>';
+                }
+                
+            } catch (error) {
+                html += `<div class="error">❌ Diagnosis failed: ${error.message}</div>`;
+                console.error('Diagnosis error:', error);
+            }
+            
+            results.innerHTML = html;
+        }
+
+        async function testDirectAPI() {
+            const results = document.getElementById('results');
+            let html = '<h3>🧪 Testing Direct API Calls...</h3>';
+            
+            try {
+                // Test GET
+                html += '<div class="info">Testing GET /api/stations...</div>';
+                const getResponse = await makeApiRequest('/stations');
+                
+                if (getResponse.success) {
+                    html += '<div class="success">✅ GET /api/stations works</div>';
+                    
+                    if (getResponse.stations && getResponse.stations.length > 0) {
+                        const testStation = getResponse.stations[0];
+                        const originalStatus = testStation.status;
+                        const newStatus = originalStatus === 'active' ? 'inactive' : 'active';
+                        
+                        html += `<div class="info">Testing PATCH with Station ${testStation.id}: ${originalStatus} → ${newStatus}</div>`;
+                        
+                        // Test PATCH
+                        const patchResponse = await makeApiRequest(`/stations/${testStation.id}`, {
+                            method: 'PATCH',
+                            body: JSON.stringify({ status: newStatus })
+                        });
+                        
+                        if (patchResponse.success) {
+                            html += '<div class="success">✅ PATCH /api/stations works</div>';
+                            
+                            // Verify the change
+                            const verifyResponse = await makeApiRequest('/stations');
+                            const updatedStation = verifyResponse.stations.find(s => s.id == testStation.id);
+                            
+                            if (updatedStation && updatedStation.status === newStatus) {
+                                html += '<div class="success">✅ Status change verified in database</div>';
+                                
+                                // Restore original status
+                                await makeApiRequest(`/stations/${testStation.id}`, {
+                                    method: 'PATCH',
+                                    body: JSON.stringify({ status: originalStatus })
+                                });
+                                html += '<div class="info">Status restored to original value</div>';
+                            } else {
+                                html += '<div class="error">❌ Status change not found in database</div>';
+                            }
+                        } else {
+                            html += '<div class="error">❌ PATCH failed</div>';
+                        }
+                    }
+                } else {
+                    html += '<div class="error">❌ GET failed</div>';
+                }
+                
+            } catch (error) {
+                html += `<div class="error">❌ API test failed: ${error.message}</div>`;
+                console.error('API test error:', error);
+            }
+            
+            results.innerHTML = html;
+        }
+
+        async function checkDatabase() {
+            const results = document.getElementById('results');
+            let html = '<h3>🗄️ Checking Database State...</h3>';
+            
+            try {
+                const response = await makeApiRequest('/stations');
+                
+                if (response.success && response.stations) {
+                    html += '<div class="success">✅ Database connection working</div>';
+                    html += `<div class="info">Stations in database: ${response.stations.length}</div>`;
+                    
+                    html += '<div class="info"><strong>Full Database State:</strong></div>';
+                    html += '<pre>' + JSON.stringify(response.stations, null, 2) + '</pre>';
+                    
+                    // Check for any obvious issues
+                    const issues = [];
+                    response.stations.forEach(station => {
+                        if (!station.id) issues.push(`Station missing ID: ${JSON.stringify(station)}`);
+                        if (!station.status) issues.push(`Station ${station.id} missing status`);
+                        if (!['active', 'inactive', 'maintenance'].includes(station.status)) {
+                            issues.push(`Station ${station.id} has invalid status: ${station.status}`);
+                        }
+                    });
+                    
+                    if (issues.length > 0) {
+                        html += '<div class="error"><strong>Database Issues Found:</strong></div>';
+                        issues.forEach(issue => {
+                            html += `<div class="error">❌ ${issue}</div>`;
+                        });
+                    } else {
+                        html += '<div class="success">✅ No database issues found</div>';
+                    }
+                } else {
+                    html += '<div class="error">❌ Database check failed</div>';
+                }
+                
+            } catch (error) {
+                html += `<div class="error">❌ Database check failed: ${error.message}</div>`;
+                console.error('Database check error:', error);
+            }
+            
+            results.innerHTML = html;
+        }
+
+        async function loadStationControls() {
+            const controlsDiv = document.getElementById('station-controls');
+            let html = '<h4>🎛️ Manual Station Controls</h4>';
+            
+            try {
+                const response = await makeApiRequest('/stations');
+                
+                if (response.success && response.stations) {
+                    response.stations.forEach(station => {
+                        html += `
+                            <div class="station-control">
+                                <strong>Station ${station.id}:</strong>
+                                <span>${station.name || 'Unnamed'}</span>
+                                <select id="status-${station.id}">
+                                    <option value="active" ${station.status === 'active' ? 'selected' : ''}>Active</option>
+                                    <option value="inactive" ${station.status === 'inactive' ? 'selected' : ''}>Inactive</option>
+                                    <option value="maintenance" ${station.status === 'maintenance' ? 'selected' : ''}>Maintenance</option>
+                                </select>
+                                <button class="test-button" onclick="updateStationDirect(${station.id})">Update</button>
+                                <span id="result-${station.id}"></span>
+                            </div>
+                        `;
+                    });
+                    
+                    html += '<div class="critical">';
+                    html += '<p><strong>Instructions:</strong></p>';
+                    html += '<ol>';
+                    html += '<li>Change the status dropdown for any station</li>';
+                    html += '<li>Click "Update" to save directly to database</li>';
+                    html += '<li>Refresh the Organiser interface to see the change</li>';
+                    html += '</ol>';
+                    html += '</div>';
+                } else {
+                    html += '<div class="error">❌ Could not load stations</div>';
+                }
+                
+            } catch (error) {
+                html += `<div class="error">❌ Failed to load controls: ${error.message}</div>`;
+            }
+            
+            controlsDiv.innerHTML = html;
+        }
+
+        async function updateStationDirect(stationId) {
+            const statusSelect = document.getElementById(`status-${stationId}`);
+            const resultSpan = document.getElementById(`result-${stationId}`);
+            const newStatus = statusSelect.value;
+            
+            resultSpan.innerHTML = '⏳ Updating...';
+            
+            try {
+                const response = await makeApiRequest(`/stations/${stationId}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ status: newStatus })
+                });
+                
+                if (response.success) {
+                    resultSpan.innerHTML = '<span style="color: green;">✅ Updated!</span>';
+                    
+                    // Also update localStorage to keep UI in sync
+                    try {
+                        const localStations = JSON.parse(localStorage.getItem('coffee_cue_stations') || '[]');
+                        const stationIndex = localStations.findIndex(s => s.id == stationId);
+                        if (stationIndex !== -1) {
+                            localStations[stationIndex].status = newStatus;
+                            localStorage.setItem('coffee_cue_stations', JSON.stringify(localStations));
+                        }
+                    } catch (e) {
+                        console.error('Error updating localStorage:', e);
+                    }
+                    
+                    setTimeout(() => {
+                        resultSpan.innerHTML = '';
+                    }, 3000);
+                } else {
+                    resultSpan.innerHTML = '<span style="color: red;">❌ Failed</span>';
+                }
+                
+            } catch (error) {
+                resultSpan.innerHTML = '<span style="color: red;">❌ Error</span>';
+                console.error('Update error:', error);
+            }
+        }
+
+        // Auto-check auth on load
+        window.onload = () => {
+            const results = document.getElementById('results');
+            const token = getAuthToken();
+            
+            if (token) {
+                results.innerHTML = '<div class="success">✅ Auth token found. Ready to diagnose and fix station persistence.</div>';
+            } else {
+                results.innerHTML = '<div class="error">❌ No auth token found. Please login to the Organiser interface first, then refresh this page.</div>';
+            }
+        };
+    </script>
+</body>
+</html>

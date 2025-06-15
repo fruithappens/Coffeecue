@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fix API Proxy Issues</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #2196f3;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+        .card {
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .warning {
+            background-color: #fff3e0;
+            border-left: 4px solid #ff9800;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .info {
+            background-color: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .button {
+            display: inline-block;
+            background-color: #2196f3;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 4px;
+            text-decoration: none;
+            margin-right: 10px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            border: none;
+            font-size: 16px;
+        }
+        .button.green {
+            background-color: #4caf50;
+        }
+        .button.orange {
+            background-color: #ff9800;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-family: monospace;
+        }
+        #status {
+            font-weight: bold;
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 4px;
+            background-color: #e3f2fd;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fix API Proxy Issues</h1>
+    
+    <div class="warning">
+        <strong>Issue Detected:</strong> Your API requests are going directly to the backend server (localhost:5001) 
+        instead of being proxied through the React development server as intended.
+    </div>
+    
+    <div class="card">
+        <h2>The Solution</h2>
+        <p>This tool will fix the API proxying issue by:</p>
+        <ol>
+            <li>Ensuring all API requests use relative URLs (starting with <code>/api</code>)</li>
+            <li>Redirecting any direct API calls to go through the React development server's proxy</li>
+            <li>Removing any API blocking code from previous fix attempts</li>
+            <li>Setting up proper authentication tokens</li>
+        </ol>
+        <button id="fix-button" class="button green">Apply Fix</button>
+        <button id="test-button" class="button">Test API</button>
+        <button id="app-button" class="button orange">Go to App</button>
+        
+        <div id="status">Ready to apply fix</div>
+    </div>
+    
+    <div class="info">
+        <h3>Understanding the Problem</h3>
+        <p>When your frontend React app makes API requests, they should be:</p>
+        <ul>
+            <li>Sent to <code>/api/...</code> (a relative URL) from your frontend code</li>
+            <li>Automatically proxied to <code>http://localhost:5001/api/...</code> by the React development server</li>
+        </ul>
+        <p>However, your application is sending requests directly to <code>http://localhost:5001/api/...</code>, 
+        bypassing the proxy and causing the "This would serve the React app in production" message.</p>
+    </div>
+    
+    <div class="card">
+        <h2>Manual Instructions</h2>
+        <p>If you need to manually fix this issue in your code:</p>
+        <ol>
+            <li>Make sure all API requests in your code use <code>/api/...</code> (relative URLs)</li>
+            <li>Avoid using absolute URLs like <code>http://localhost:5001/api/...</code></li>
+            <li>Verify the proxy is correctly set up in <code>setupProxy.js</code></li>
+        </ol>
+        <p>Add this script to your app to automatically fix API proxy issues:</p>
+        <pre>const script = document.createElement('script');
+script.src = '/proxy-fixer.js';
+document.head.appendChild(script);</pre>
+    </div>
+    
+    <script>
+        // Elements
+        const fixButton = document.getElementById('fix-button');
+        const testButton = document.getElementById('test-button');
+        const appButton = document.getElementById('app-button');
+        const statusEl = document.getElementById('status');
+        
+        // Apply fix
+        function applyFix() {
+            statusEl.textContent = 'Applying fix...';
+            statusEl.style.backgroundColor = '#fff3e0';
+            
+            // Load the proxy fixer script
+            const script = document.createElement('script');
+            script.src = '/proxy-fixer.js';
+            
+            script.onload = function() {
+                statusEl.textContent = 'Fix applied successfully!';
+                statusEl.style.backgroundColor = '#e8f5e9';
+            };
+            
+            script.onerror = function() {
+                statusEl.textContent = 'Error loading fix script';
+                statusEl.style.backgroundColor = '#ffebee';
+            };
+            
+            document.head.appendChild(script);
+        }
+        
+        // Test API
+        async function testAPI() {
+            statusEl.textContent = 'Testing API connection...';
+            statusEl.style.backgroundColor = '#fff3e0';
+            
+            try {
+                // Test with relative URL
+                const response = await fetch('/api/auth/status');
+                const data = await response.json();
+                
+                statusEl.textContent = `API test successful! Response: ${JSON.stringify(data).substring(0, 100)}`;
+                statusEl.style.backgroundColor = '#e8f5e9';
+            } catch(error) {
+                statusEl.textContent = `API test failed: ${error.message}`;
+                statusEl.style.backgroundColor = '#ffebee';
+            }
+        }
+        
+        // Event listeners
+        fixButton.addEventListener('click', applyFix);
+        testButton.addEventListener('click', testAPI);
+        appButton.addEventListener('click', function() {
+            window.location.href = '/';
+        });
+        
+        // Auto-apply fix if URL parameter is present
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('autofix') === 'true') {
+            applyFix();
+        }
+    </script>
+</body>
+</html>

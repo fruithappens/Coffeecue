@@ -1,0 +1,380 @@
+{% extends "base.html" %}
+
+{% block title %}Barista Dashboard - Expresso Coffee System{% endblock %}
+
+{% block content %}
+<div class="container-fluid pb-3">
+    <!-- Top navbar -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm mb-4">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Expresso" height="40" class="d-inline-block align-text-top me-2">
+                <span class="d-none d-md-inline">Expresso</span>
+            </a>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent" aria-controls="navbarContent" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarContent">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item">
+                        <span class="nav-link ms-2">
+                            <strong>{{ event_name }}</strong>
+                        </span>
+                    </li>
+                </ul>
+                
+                <div class="d-flex align-items-center">
+                    <!-- Station selection dropdown -->
+                    <div class="dropdown me-3">
+                        <button class="btn btn-outline-primary dropdown-toggle" type="button" id="stationDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            Station {{ station_id }}
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="stationDropdown">
+                            {% for station in stations %}
+                            <li>
+                                <a class="dropdown-item {% if station.station_id|string == station_id|string %}active{% endif %}" href="?station={{ station.station_id }}">
+                                    Station {{ station.station_id }} - {{ station.barista_name or 'Unassigned' }}
+                                </a>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    
+                    <!-- User dropdown -->
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-person-circle me-1"></i>
+                            {{ g.user.full_name or g.user.username }}
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                            <li>
+                                <div class="dropdown-item text-muted small">Logged in as <strong>{{ g.user.role }}</strong></div>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}"><i class="bi bi-box-arrow-right me-1"></i> Logout</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- Station info and stats -->
+    <div class="row g-3 mb-4">
+        <!-- Station ID and Barista info -->
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-center">
+                        <div class="bg-primary rounded p-3 me-3 text-white">
+                            <i class="bi bi-cup-hot fs-3"></i>
+                        </div>
+                        <div>
+                            <h5 class="mb-0">Station #{{ station_id }}</h5>
+                            <div class="text-muted" id="barista-name">{{ barista_name }}</div>
+                            <input type="hidden" id="station-id" value="{{ station_id }}">
+                            <input type="hidden" id="barista-id" value="{{ barista_id }}">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Connection status and current time -->
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-center">
+                        <div class="status-indicator me-3">
+                            <div class="status-dot online"></div>
+                        </div>
+                        <div>
+                            <h5 class="mb-0 status-text">Online</h5>
+                            <div class="text-muted" id="current-time">{{ current_time }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Wait time -->
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100 wait-time-display" title="Click to adjust wait time">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-center">
+                        <div class="bg-warning rounded p-3 me-3 text-dark">
+                            <i class="bi bi-stopwatch fs-3"></i>
+                        </div>
+                        <div>
+                            <h5 class="mb-0">Current Wait Time</h5>
+                            <div class="fs-4 fw-bold wait-time">5 min</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Main content -->
+    <div class="row g-3">
+        <!-- Order lists column -->
+        <div class="col-lg-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white p-3">
+                    <ul class="nav nav-tabs card-header-tabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" data-tab-target="pending-tab" type="button" role="tab">
+                                <i class="bi bi-hourglass-split me-1"></i>
+                                Pending <span class="badge bg-primary pending-count">{{ pending_orders|length }}</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" data-tab-target="in-progress-tab" type="button" role="tab">
+                                <i class="bi bi-arrow-repeat me-1"></i>
+                                In Progress <span class="badge bg-primary in-progress-count">{{ in_progress_orders|length }}</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" data-tab-target="completed-tab" type="button" role="tab">
+                                <i class="bi bi-check-circle me-1"></i>
+                                Completed <span class="badge bg-primary completed-count">{{ completed_orders|length }}</span>
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+                
+                <div class="card-body">
+                    <div class="tab-content">
+                        <!-- Pending Orders Tab -->
+                        <div class="tab-pane fade show active" id="pending-tab" role="tabpanel">
+                            <div class="pending-orders">
+                                <div class="orders-list">
+                                    {% for order in pending_orders %}
+                                    <div class="order-card" data-order-id="{{ order.id }}" data-coffee-type="{{ order.coffee_type }}" data-phone-last-digits="{{ order.phone[-4:] }}">
+                                        <div class="order-header">
+                                            <div class="order-number">#{{ order.order_number }}</div>
+                                            {% if order.is_vip %}
+                                            <span class="vip-badge"><i class="bi bi-star-fill"></i> VIP</span>
+                                            {% endif %}
+                                        </div>
+                                        <div class="order-body">
+                                            <div class="order-details">
+                                                <div class="coffee-name">{{ order.coffee_type }}</div>
+                                                <div class="order-specs">
+                                                    <span class="coffee-size">{{ order.size }}</span>
+                                                    <span class="milk-type">{{ order.milk_type }}</span>
+                                                    {% if order.sugar %}
+                                                    <span class="sugar-amount">{{ order.sugar }} sugar</span>
+                                                    {% endif %}
+                                                </div>
+                                                {% if order.special_instructions %}
+                                                <div class="special-instructions">{{ order.special_instructions }}</div>
+                                                {% endif %}
+                                                <div class="customer-info">
+                                                    <span class="customer-name">{{ order.customer_name }}</span>
+                                                </div>
+                                            </div>
+                                            <div class="temperature-indicator temp-cool"></div>
+                                        </div>
+                                        <div class="order-footer">
+                                            <div class="order-time" data-timestamp="{{ order.created_at }}">
+                                                Just now
+                                            </div>
+                                            <div class="order-actions">
+                                                <button class="btn btn-sm btn-primary btn-start-order">Start</button>
+                                                <button class="btn btn-sm btn-outline-secondary btn-message-customer">
+                                                    <i class="bi bi-chat-dots"></i>
+                                                </button>
+                                                <button class="btn btn-sm btn-outline-secondary recipe-btn" data-coffee-type="{{ order.coffee_type }}">
+                                                    <i class="bi bi-book"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- In Progress Tab -->
+                        <div class="tab-pane fade" id="in-progress-tab" role="tabpanel">
+                            <div class="in-progress-orders">
+                                <div class="orders-list">
+                                    {% for order in in_progress_orders %}
+                                    <div class="order-card" data-order-id="{{ order.id }}" data-coffee-type="{{ order.coffee_type }}" data-phone-last-digits="{{ order.phone[-4:] }}">
+                                        <div class="order-header">
+                                            <div class="order-number">#{{ order.order_number }}</div>
+                                            {% if order.is_vip %}
+                                            <span class="vip-badge"><i class="bi bi-star-fill"></i> VIP</span>
+                                            {% endif %}
+                                        </div>
+                                        <div class="order-body">
+                                            <div class="order-details">
+                                                <div class="coffee-name">{{ order.coffee_type }}</div>
+                                                <div class="order-specs">
+                                                    <span class="coffee-size">{{ order.size }}</span>
+                                                    <span class="milk-type">{{ order.milk_type }}</span>
+                                                    {% if order.sugar %}
+                                                    <span class="sugar-amount">{{ order.sugar }} sugar</span>
+                                                    {% endif %}
+                                                </div>
+                                                {% if order.special_instructions %}
+                                                <div class="special-instructions">{{ order.special_instructions }}</div>
+                                                {% endif %}
+                                                <div class="customer-info">
+                                                    <span class="customer-name">{{ order.customer_name }}</span>
+                                                </div>
+                                            </div>
+                                            <div class="progress-container">
+                                                <div class="progress">
+                                                    <div class="progress-bar bg-success" style="width: 0%" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                                                </div>
+                                                <div class="order-timer" data-start-time="{{ order.started_at }}">0m</div>
+                                            </div>
+                                        </div>
+                                        <div class="order-footer">
+                                            <div class="order-time" data-timestamp="{{ order.created_at }}">
+                                                {{ order.created_time }}
+                                            </div>
+                                            <div class="order-actions">
+                                                <button class="btn btn-sm btn-success btn-complete-order">Complete</button>
+                                                <button class="btn btn-sm btn-outline-secondary btn-message-customer">
+                                                    <i class="bi bi-chat-dots"></i>
+                                                </button>
+                                                <button class="btn btn-sm btn-outline-secondary recipe-btn" data-coffee-type="{{ order.coffee_type }}">
+                                                    <i class="bi bi-book"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Completed Tab -->
+                        <div class="tab-pane fade" id="completed-tab" role="tabpanel">
+                            <div class="completed-orders">
+                                <div class="orders-list">
+                                    {% for order in completed_orders %}
+                                    <div class="order-card" data-order-id="{{ order.id }}" data-coffee-type="{{ order.coffee_type }}" data-phone-last-digits="{{ order.phone[-4:] }}">
+                                        <div class="order-header">
+                                            <div class="order-number">#{{ order.order_number }}</div>
+                                            {% if order.is_vip %}
+                                            <span class="vip-badge"><i class="bi bi-star-fill"></i> VIP</span>
+                                            {% endif %}
+                                        </div>
+                                        <div class="order-body">
+                                            <div class="order-details">
+                                                <div class="coffee-name">{{ order.coffee_type }}</div>
+                                                <div class="order-specs">
+                                                    <span class="coffee-size">{{ order.size }}</span>
+                                                    <span class="milk-type">{{ order.milk_type }}</span>
+                                                    {% if order.sugar %}
+                                                    <span class="sugar-amount">{{ order.sugar }} sugar</span>
+                                                    {% endif %}
+                                                </div>
+                                                {% if order.special_instructions %}
+                                                <div class="special-instructions">{{ order.special_instructions }}</div>
+                                                {% endif %}
+                                                <div class="customer-info">
+                                                    <span class="customer-name">{{ order.customer_name }}</span>
+                                                </div>
+                                            </div>
+                                            <div class="pickup-timer-container">
+                                                <div class="pickup-badge">
+                                                    <i class="bi bi-bell"></i> Awaiting pickup
+                                                </div>
+                                                <div class="pickup-timer" data-complete-time="{{ order.completed_at }}">0m</div>
+                                            </div>
+                                        </div>
+                                        <div class="order-footer">
+                                            <div class="order-time" data-timestamp="{{ order.created_at }}">
+                                                {{ order.created_time }}
+                                            </div>
+                                            <div class="order-actions">
+                                                <button class="btn btn-sm btn-info btn-pickup-order">Picked Up</button>
+                                                <button class="btn btn-sm btn-outline-warning btn-send-reminder">
+                                                    <i class="bi bi-bell"></i> Remind
+                                                </button>
+                                                <button class="btn btn-sm btn-outline-secondary btn-print-label">
+                                                    <i class="bi bi-printer"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Order template (hidden, used for JS cloning) -->
+<template id="order-card-template">
+    <div class="order-card">
+        <div class="order-header">
+            <div class="order-number"></div>
+        </div>
+        <div class="order-body">
+            <div class="order-details">
+                <div class="coffee-name"></div>
+                <div class="order-specs">
+                    <span class="coffee-size"></span>
+                    <span class="milk-type"></span>
+                    <span class="sugar-amount"></span>
+                </div>
+                <div class="special-instructions"></div>
+                <div class="customer-info">
+                    <span class="customer-name"></span>
+                </div>
+            </div>
+            <div class="temperature-indicator"></div>
+        </div>
+        <div class="order-footer">
+            <div class="order-time"></div>
+            <div class="order-actions">
+                <button class="btn btn-sm btn-primary btn-start-order">Start</button>
+                <button class="btn btn-sm btn-outline-secondary btn-message-customer">
+                    <i class="bi bi-chat-dots"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-secondary recipe-btn">
+                    <i class="bi bi-book"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</template>
+
+{% block modals %}
+<!-- Order details modal (simplified) -->
+<div class="modal fade" id="order-details-modal" tabindex="-1" aria-labelledby="orderDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="orderDetailsModalLabel">Order Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="order-details-content"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Initialize Socket.IO and Barista UI -->
+<script src="https://cdn.socket.io/4.4.1/socket.io.min.js"></script>
+<script src="{{ url_for('static', filename='js/barista.js') }}"></script>
+<script src="{{ url_for('static', filename='js/offline-manager.js') }}"></script>
+{% endblock %}

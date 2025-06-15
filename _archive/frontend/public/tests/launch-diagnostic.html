@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coffee Cue Diagnostic Launcher</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f2f5;
+        }
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            padding: 32px;
+            text-align: center;
+            max-width: 600px;
+            width: 90%;
+        }
+        h1 {
+            color: #1a73e8;
+            margin-top: 0;
+        }
+        .button-group {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin-top: 24px;
+        }
+        .btn {
+            background-color: #1a73e8;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 12px 24px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn:hover {
+            background-color: #1558b7;
+        }
+        .btn-green {
+            background-color: #0f9d58;
+        }
+        .btn-green:hover {
+            background-color: #0b8043;
+        }
+        .btn-danger {
+            background-color: #ea4335;
+        }
+        .btn-danger:hover {
+            background-color: #d93025;
+        }
+        p {
+            color: #5f6368;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Coffee Cue Diagnostic Launcher</h1>
+        <p>This tool will help diagnose and fix authentication issues with the Coffee Cue application.</p>
+        
+        <div class="button-group">
+            <a href="auto-test.html" class="btn btn-green">Launch Auto-Diagnostic Tool</a>
+            <a href="direct-fix.html" class="btn">Quick Fix Only</a>
+            <a href="/" class="btn">Go to Main Application</a>
+            <button id="resetBtn" class="btn btn-danger">Reset Storage & Cache</button>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('resetBtn').addEventListener('click', function() {
+            // Clear storage
+            localStorage.clear();
+            sessionStorage.clear();
+            
+            // Clear cache if possible
+            if (window.caches) {
+                caches.keys().then(function(cacheNames) {
+                    return Promise.all(
+                        cacheNames.map(function(cacheName) {
+                            return caches.delete(cacheName);
+                        })
+                    );
+                });
+            }
+            
+            alert('Storage and cache cleared successfully!');
+        });
+    </script>
+</body>
+</html>

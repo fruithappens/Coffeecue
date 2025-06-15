@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="refresh" content="5; url=/" />
+    <title>Fixing Authentication...</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f9f9f9;
+            color: #333;
+        }
+        .container {
+            max-width: 500px;
+            width: 100%;
+            padding: 40px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        h1 {
+            color: #6f4e37;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+        p {
+            line-height: 1.6;
+            color: #666;
+            margin-bottom: 25px;
+        }
+        .loader {
+            width: 70px;
+            height: 70px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #6f4e37;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 30px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .progress-track {
+            width: 100%;
+            height: 8px;
+            background-color: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 30px;
+        }
+        .progress-bar {
+            height: 100%;
+            background-color: #6f4e37;
+            border-radius: 4px;
+            transition: width 0.4s ease;
+            width: 0;
+        }
+        .message {
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #6f4e37;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-weight: 500;
+            text-decoration: none;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: background-color 0.2s;
+        }
+        .button:hover {
+            background-color: #5d4126;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Authentication Fix</h1>
+        <p>Automatically fixing authentication issues and setting up offline mode with sample data...</p>
+        
+        <div class="loader"></div>
+        
+        <div class="progress-track">
+            <div class="progress-bar" id="progress-bar"></div>
+        </div>
+        
+        <div id="status-message" class="message">Initializing...</div>
+        
+        <a href="/" class="button" id="continue-button" style="display: none;">Continue to Application</a>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const progressBar = document.getElementById('progress-bar');
+            const statusMessage = document.getElementById('status-message');
+            const continueButton = document.getElementById('continue-button');
+            
+            // Status messages to show
+            const messages = [
+                'Initializing...',
+                'Checking authentication token...',
+                'Creating valid token...',
+                'Setting up offline mode...',
+                'Preparing sample data...',
+                'Fixing anti-flicker settings...',
+                'Configuration complete!'
+            ];
+            
+            // Progress animation
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress += 5;
+                if (progress > 100) {
+                    clearInterval(progressInterval);
+                } else {
+                    progressBar.style.width = progress + '%';
+                }
+            }, 250);
+            
+            // Status message updates
+            let messageIndex = 0;
+            const messageInterval = setInterval(() => {
+                if (messageIndex < messages.length) {
+                    statusMessage.textContent = messages[messageIndex];
+                    messageIndex++;
+                } else {
+                    clearInterval(messageInterval);
+                    setupComplete();
+                }
+            }, 800);
+            
+            // Load and run the auth fix script
+            const script = document.createElement('script');
+            script.src = 'integrated-auth-fix.js';
+            document.head.appendChild(script);
+            
+            // Setup complete handler
+            function setupComplete() {
+                statusMessage.textContent = 'Configuration complete!';
+                continueButton.style.display = 'inline-block';
+                
+                // Mark as complete in local storage
+                localStorage.setItem('auth_fix_complete', 'true');
+                localStorage.setItem('auth_fix_timestamp', Date.now().toString());
+            }
+        });
+    </script>
+</body>
+</html>

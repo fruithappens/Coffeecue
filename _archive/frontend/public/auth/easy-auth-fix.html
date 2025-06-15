@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Easy Authentication Fix for Coffee Cue</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            max-width: 500px;
+            width: 100%;
+            padding: 40px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        h1 {
+            color: #6f4e37;
+            margin-top: 0;
+            margin-bottom: 20px;
+        }
+        p {
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-direction: column;
+            margin-top: 30px;
+        }
+        .button {
+            padding: 15px 20px;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .primary {
+            background-color: #6f4e37;
+            color: white;
+        }
+        .primary:hover {
+            background-color: #5d4126;
+        }
+        .secondary {
+            background-color: #e0e0e0;
+            color: #333;
+        }
+        .secondary:hover {
+            background-color: #d0d0d0;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+            text-align: left;
+            display: none;
+        }
+        .success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-top: 4px solid #6f4e37;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+            display: none;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Coffee Cue Authentication Fix</h1>
+        
+        <p>Choose an option to resolve authentication issues and get your application working:</p>
+        
+        <div class="button-group">
+            <button id="automatic-fix" class="button primary">🔄 Automatic Fix (Recommended)</button>
+            <button id="use-demo-mode" class="button secondary">🔌 Use Demo Mode Only</button>
+            <button id="comprehensive-tool" class="button secondary">🛠️ Advanced Options</button>
+        </div>
+        
+        <div class="spinner" id="spinner"></div>
+        
+        <div class="status" id="status-message"></div>
+    </div>
+    
+    <script>
+        // DOM elements
+        const automaticFixButton = document.getElementById('automatic-fix');
+        const useDemoModeButton = document.getElementById('use-demo-mode');
+        const comprehensiveToolButton = document.getElementById('comprehensive-tool');
+        const spinner = document.getElementById('spinner');
+        const statusMessage = document.getElementById('status-message');
+        
+        // Start automatic fix process
+        automaticFixButton.addEventListener('click', function() {
+            spinner.style.display = 'block';
+            statusMessage.style.display = 'none';
+            disableButtons();
+            
+            // Load and run the unified auth solution script
+            const script = document.createElement('script');
+            script.src = 'unified-auth-solution.js';
+            
+            // Listen for completion events
+            window.addEventListener('auth-fix-completed', function(event) {
+                showSuccessAndRedirect('Authentication fixed successfully! Redirecting to application...');
+            });
+            
+            window.addEventListener('auth-fix-failed', function(event) {
+                showError('Could not automatically fix authentication. Try using Demo Mode instead.');
+                enableButtons();
+            });
+            
+            document.head.appendChild(script);
+        });
+        
+        // Enable demo mode only
+        useDemoModeButton.addEventListener('click', function() {
+            spinner.style.display = 'block';
+            statusMessage.style.display = 'none';
+            disableButtons();
+            
+            // Redirect to demo mode page
+            window.location.href = 'demo-mode-redirect.html';
+        });
+        
+        // Open comprehensive tool
+        comprehensiveToolButton.addEventListener('click', function() {
+            window.location.href = 'auth-fix-index.html';
+        });
+        
+        // Helper functions
+        function disableButtons() {
+            automaticFixButton.disabled = true;
+            useDemoModeButton.disabled = true;
+            comprehensiveToolButton.disabled = true;
+        }
+        
+        function enableButtons() {
+            automaticFixButton.disabled = false;
+            useDemoModeButton.disabled = false;
+            comprehensiveToolButton.disabled = false;
+        }
+        
+        function showSuccess(message) {
+            spinner.style.display = 'none';
+            statusMessage.style.display = 'block';
+            statusMessage.className = 'status success';
+            statusMessage.textContent = message;
+        }
+        
+        function showError(message) {
+            spinner.style.display = 'none';
+            statusMessage.style.display = 'block';
+            statusMessage.className = 'status error';
+            statusMessage.textContent = message;
+        }
+        
+        function showSuccessAndRedirect(message) {
+            showSuccess(message);
+            
+            // Add redirect button
+            const redirectButton = document.createElement('button');
+            redirectButton.textContent = 'Go to Application';
+            redirectButton.className = 'button primary';
+            redirectButton.style.marginTop = '15px';
+            redirectButton.style.width = '100%';
+            redirectButton.addEventListener('click', function() {
+                window.location.href = '/';
+            });
+            
+            statusMessage.appendChild(document.createElement('br'));
+            statusMessage.appendChild(document.createElement('br'));
+            statusMessage.appendChild(redirectButton);
+            
+            // Auto-redirect after delay
+            setTimeout(function() {
+                window.location.href = '/';
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

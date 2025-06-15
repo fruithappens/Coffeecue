@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Direct Barista Access</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            padding: 2rem;
+            text-align: center;
+            max-width: 500px;
+            width: 90%;
+        }
+        h1 {
+            color: #1e88e5;
+            margin-top: 0;
+        }
+        .btn {
+            background-color: #1e88e5;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 12px 24px;
+            font-size: 1rem;
+            cursor: pointer;
+            margin: 0.5rem;
+            transition: background-color 0.3s;
+        }
+        .btn:hover {
+            background-color: #1565c0;
+        }
+        .loading {
+            display: none;
+            margin-top: 1rem;
+        }
+        .spinner {
+            border: 4px solid rgba(0,0,0,0.1);
+            border-radius: 50%;
+            border-top: 4px solid #1e88e5;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .message {
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: 4px;
+            display: none;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Direct Barista Access</h1>
+        <p>This tool will bypass authentication and take you directly to the Barista interface.</p>
+        
+        <button id="accessBtn" class="btn">ACCESS BARISTA INTERFACE</button>
+        <button id="resetBtn" class="btn">RESET STORAGE</button>
+        
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Setting up direct access...</p>
+        </div>
+        
+        <div id="message" class="message"></div>
+    </div>
+
+    <script>
+        document.getElementById('accessBtn').addEventListener('click', function() {
+            // Show loading
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('message').style.display = 'none';
+            
+            try {
+                // Clear previous storage
+                localStorage.clear();
+                sessionStorage.clear();
+                
+                // Create a JWT token
+                const createToken = function() {
+                    const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+                    const payload = btoa(JSON.stringify({
+                        sub: 'direct_barista_user',
+                        name: 'Barista User',
+                        role: 'barista',
+                        exp: Math.floor(Date.now() / 1000) + 86400 // 24 hours
+                    }));
+                    const signature = btoa('direct_barista_signature_' + Date.now());
+                    return `${header}.${payload}.${signature}`;
+                };
+                
+                // Create token and user data
+                const token = createToken();
+                const user = {
+                    id: 'direct_barista_user',
+                    name: 'Barista User',
+                    role: 'barista'
+                };
+                
+                // Set auth data
+                console.log('Setting authentication data...');
+                localStorage.setItem('token', token);
+                localStorage.setItem('jwt_token', token);
+                localStorage.setItem('auth_token', token);
+                localStorage.setItem('user', JSON.stringify(user));
+                localStorage.setItem('currentUser', JSON.stringify(user));
+                localStorage.setItem('isAuthenticated', 'true');
+                localStorage.setItem('loggedIn', 'true');
+                localStorage.setItem('userRole', 'barista');
+                
+                // Set in sessionStorage too
+                sessionStorage.setItem('token', token);
+                sessionStorage.setItem('user', JSON.stringify(user));
+                sessionStorage.setItem('isAuthenticated', 'true');
+                
+                // Disable refresh
+                localStorage.setItem('coffee_auto_refresh_enabled', 'false');
+                localStorage.setItem('autoRefreshEnabled', 'false');
+                localStorage.setItem('refreshDisabled', 'true');
+                
+                // Force real data
+                localStorage.setItem('useFallbackData', 'false');
+                localStorage.setItem('use_demo_mode', 'false');
+                localStorage.setItem('useOfflineMode', 'false');
+                
+                // Create fix scripts for the app
+                console.log('Creating fix scripts...');
+                
+                // Script to fix authentication
+                const authFix = `
+                    // Override AuthService methods
+                    if (window.AuthService) {
+                        console.log('Patching AuthService...');
+                        
+                        // Add refreshToken if it doesn't exist
+                        if (!window.AuthService.prototype.refreshToken) {
+                            window.AuthService.prototype.refreshToken = function() {
+                                console.log('Direct Barista refreshToken called');
+                                return Promise.resolve({
+                                    token: '${token}',
+                                    user: ${JSON.stringify(user)}
+                                });
+                            };
+                        }
+                        
+                        // Override isAuthenticated
+                        window.AuthService.prototype.isAuthenticated = function() {
+                            return true;
+                        };
+                        
+                        // Override handleAuthentication
+                        const originalHandleAuthentication = window.AuthService.prototype.handleAuthentication;
+                        window.AuthService.prototype.handleAuthentication = function() {
+                            console.log('Safe handleAuthentication called');
+                            try {
+                                return Promise.resolve();
+                            } catch (error) {
+                                console.error('Error in handleAuthentication:', error);
+                                return Promise.resolve();
+                            }
+                        };
+                    }
+                    
+                    // Make sure API calls aren't blocked
+                    window.blockAPI = false;
+                    window.isAPIBlocked = false;
+                    
+                    // Force barista interface
+                    window.location.href = '/barista';
+                `;
+                
+                // Store in sessionStorage for the app to use
+                sessionStorage.setItem('directBaristaAccess', authFix);
+                
+                // Create a launcher script
+                const script = document.createElement('script');
+                script.textContent = `
+                    // Store all fixes in sessionStorage
+                    sessionStorage.setItem('refreshTokenFixScript', ${JSON.stringify(authFix)});
+                    sessionStorage.setItem('indexHtmlFixScript', ${JSON.stringify(authFix)});
+                    sessionStorage.setItem('directFix', ${JSON.stringify(authFix)});
+                    
+                    // Wait a moment before redirecting
+                    setTimeout(function() {
+                        // Navigate to barista interface or root
+                        window.location.href = '/barista';
+                    }, 1000);
+                `;
+                document.head.appendChild(script);
+                
+                // Show success message
+                const messageEl = document.getElementById('message');
+                messageEl.className = 'message success';
+                messageEl.textContent = 'Access configured successfully! Redirecting to Barista interface...';
+                messageEl.style.display = 'block';
+                
+            } catch (error) {
+                console.error('Error:', error);
+                
+                // Show error message
+                const messageEl = document.getElementById('message');
+                messageEl.className = 'message error';
+                messageEl.textContent = 'Error: ' + error.message;
+                messageEl.style.display = 'block';
+                
+                // Hide loading
+                document.getElementById('loading').style.display = 'none';
+            }
+        });
+        
+        document.getElementById('resetBtn').addEventListener('click', function() {
+            try {
+                // Clear all storage
+                localStorage.clear();
+                sessionStorage.clear();
+                
+                // Clear cookies
+                document.cookie.split(';').forEach(cookie => {
+                    document.cookie = cookie.trim().split('=')[0] + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT';
+                });
+                
+                // Show success message
+                const messageEl = document.getElementById('message');
+                messageEl.className = 'message success';
+                messageEl.textContent = 'All storage has been reset successfully.';
+                messageEl.style.display = 'block';
+                
+            } catch (error) {
+                console.error('Error:', error);
+                
+                // Show error message
+                const messageEl = document.getElementById('message');
+                messageEl.className = 'message error';
+                messageEl.textContent = 'Error: ' + error.message;
+                messageEl.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>

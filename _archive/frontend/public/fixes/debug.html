@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Debug Barista Interface</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    h1, h2 {
+      color: #333;
+    }
+    .card {
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    button {
+      background-color: #0066cc;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 5px;
+    }
+    button:hover {
+      background-color: #0055aa;
+    }
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .settings-display {
+      background-color: #f5f5f5;
+      border-left: 4px solid #0066cc;
+      padding: 15px;
+      margin: 15px 0;
+      font-family: monospace;
+      white-space: pre-wrap;
+    }
+    #console-output {
+      background-color: #333;
+      color: #f0f0f0;
+      padding: 15px;
+      border-radius: 4px;
+      font-family: monospace;
+      margin: 15px 0;
+      max-height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+    .error {
+      color: #ff6b6b;
+    }
+    .warning {
+      color: #ffcc5c;
+    }
+    .success {
+      color: #88cc88;
+    }
+    .info {
+      color: #88ccff;
+    }
+  </style>
+</head>
+<body>
+  <h1>Debug Barista Interface</h1>
+  
+  <div class="card">
+    <h2>Current Settings</h2>
+    <div class="settings-display" id="current-settings">Loading...</div>
+    
+    <h3>Actions</h3>
+    <div class="actions">
+      <button onclick="disableAutoRefresh()">Disable Auto Refresh</button>
+      <button onclick="enableAutoRefresh(60)">Enable 60s Refresh</button>
+      <button onclick="resetConnectionStatus()">Reset Connection Status</button>
+      <button onclick="forceOfflineMode()">Force Offline Mode</button>
+      <button onclick="forceOnlineMode()">Force Online Mode</button>
+      <button onclick="clearAllStorage()">Clear All Storage</button>
+      <button onclick="goToApp()">Go To App</button>
+    </div>
+  </div>
+  
+  <div class="card">
+    <h2>Diagnosis Tools</h2>
+    <p>Add instrumentation to help diagnose the issue:</p>
+    
+    <div class="actions">
+      <button onclick="addDebugScript()">Add Debug Script</button>
+      <button onclick="captureConsoleOutput()">Capture Console Output</button>
+      <button onclick="disableAllIntervals()">Disable All Intervals</button>
+      <button onclick="triggerManualRefresh()">Trigger Manual Refresh</button>
+    </div>
+    
+    <h3>Console Output</h3>
+    <div id="console-output">Console output will appear here...</div>
+  </div>
+  
+  <script>
+    // Display current settings
+    function updateSettingsDisplay() {
+      const settings = {};
+      
+      // Get refresh settings
+      settings.autoRefreshEnabled = localStorage.getItem('coffee_auto_refresh_enabled');
+      settings.autoRefreshInterval = localStorage.getItem('coffee_auto_refresh_interval');
+      
+      // Get connection settings
+      settings.connectionStatus = localStorage.getItem('coffee_connection_status');
+      settings.connectionTimestamp = localStorage.getItem('coffee_connection_timestamp');
+      settings.lastConnectionCheck = sessionStorage.getItem('last_connection_check_time');
+      
+      // Get fallback settings
+      settings.useFallbackData = localStorage.getItem('use_fallback_data');
+      settings.fallbackDataAvailable = localStorage.getItem('fallback_data_available');
+      
+      // Get timestamps
+      settings.now = Date.now();
+      if (settings.connectionTimestamp) {
+        settings.secondsSinceConnection = Math.round((settings.now - settings.connectionTimestamp) / 1000);
+      }
+      if (settings.lastConnectionCheck) {
+        settings.secondsSinceLastCheck = Math.round((settings.now - settings.lastConnectionCheck) / 1000);
+      }
+      
+      // Format display
+      const formattedSettings = JSON.stringify(settings, null, 2);
+      document.getElementById('current-settings').textContent = formattedSettings;
+    }
+    
+    function log(message, type = 'info') {
+      const consoleOutput = document.getElementById('console-output');
+      const timestamp = new Date().toLocaleTimeString();
+      
+      const logEntry = document.createElement('div');
+      logEntry.className = type;
+      logEntry.textContent = `[${timestamp}] ${message}`;
+      
+      consoleOutput.appendChild(logEntry);
+      consoleOutput.scrollTop = consoleOutput.scrollHeight;
+    }
+    
+    // Actions
+    function disableAutoRefresh() {
+      localStorage.setItem('coffee_auto_refresh_enabled', 'false');
+      log('Auto-refresh disabled', 'success');
+      updateSettingsDisplay();
+    }
+    
+    function enableAutoRefresh(seconds) {
+      localStorage.setItem('coffee_auto_refresh_enabled', 'true');
+      localStorage.setItem('coffee_auto_refresh_interval', seconds.toString());
+      log(`Auto-refresh enabled with ${seconds}s interval`, 'warning');
+      updateSettingsDisplay();
+    }
+    
+    function resetConnectionStatus() {
+      localStorage.setItem('coffee_connection_status', 'online');
+      localStorage.setItem('coffee_connection_timestamp', Date.now().toString());
+      sessionStorage.setItem('last_connection_check_time', Date.now().toString());
+      log('Connection status reset to online', 'success');
+      updateSettingsDisplay();
+    }
+    
+    function forceOfflineMode() {
+      localStorage.setItem('coffee_connection_status', 'offline');
+      localStorage.setItem('coffee_connection_timestamp', Date.now().toString());
+      localStorage.setItem('use_fallback_data', 'true');
+      localStorage.setItem('fallback_data_available', 'true');
+      log('Forced offline mode with fallback data', 'warning');
+      updateSettingsDisplay();
+    }
+    
+    function forceOnlineMode() {
+      localStorage.setItem('coffee_connection_status', 'online');
+      localStorage.setItem('coffee_connection_timestamp', Date.now().toString());
+      localStorage.setItem('use_fallback_data', 'false');
+      log('Forced online mode', 'info');
+      updateSettingsDisplay();
+    }
+    
+    function clearAllStorage() {
+      if (confirm('Are you sure you want to clear all storage? This will reset all settings.')) {
+        localStorage.clear();
+        sessionStorage.clear();
+        log('All storage cleared', 'warning');
+        updateSettingsDisplay();
+      }
+    }
+    
+    function goToApp() {
+      window.location.href = '/?debug=' + Date.now();
+    }
+    
+    // Diagnosis tools
+    function addDebugScript() {
+      const script = document.createElement('script');
+      script.src = '/debug-refresh.js';
+      document.head.appendChild(script);
+      
+      // Store that debug has been added
+      localStorage.setItem('debug_refresh_enabled', 'true');
+      
+      log('Debug script added. It will be loaded when you return to the app.', 'success');
+    }
+    
+    function captureConsoleOutput() {
+      localStorage.setItem('capture_console_output', 'true');
+      log('Console output capture enabled for main app', 'success');
+    }
+    
+    function disableAllIntervals() {
+      localStorage.setItem('disable_all_intervals', 'true');
+      log('All intervals will be disabled in the main app', 'warning');
+    }
+    
+    function triggerManualRefresh() {
+      localStorage.setItem('trigger_manual_refresh', Date.now().toString());
+      log('Manual refresh event will be triggered when you return to the app', 'info');
+    }
+    
+    // Initialize
+    window.onload = function() {
+      updateSettingsDisplay();
+      
+      // Set up periodic updates
+      setInterval(updateSettingsDisplay, 5000);
+      
+      log('Debug page loaded. Use these tools to diagnose and fix the Barista Interface refresh issue.', 'info');
+    };
+  </script>
+</body>
+</html>

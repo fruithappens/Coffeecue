@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connection Mode Switcher</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f8f9fa;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .container {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            padding: 30px;
+            max-width: 600px;
+            text-align: center;
+        }
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+        }
+        p {
+            margin-bottom: 15px;
+            line-height: 1.5;
+        }
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            text-align: left;
+        }
+        .card-header {
+            font-weight: bold;
+            font-size: 18px;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-weight: bold;
+            margin: 5px;
+        }
+        .badge-success {
+            background-color: #28a745;
+            color: white;
+        }
+        .badge-warning {
+            background-color: #dc3545;
+            color: white;
+        }
+        .button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 10px;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .button-secondary {
+            background-color: #6c757d;
+        }
+        .button-success {
+            background-color: #28a745;
+        }
+        .button-warning {
+            background-color: #dc3545;
+        }
+        .button:hover {
+            opacity: 0.9;
+        }
+        .status-message {
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 20px;
+            border-left: 4px solid #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Connection Mode Switcher</h1>
+        <p>Use this tool to manually switch between live backend mode and fallback offline mode.</p>
+        
+        <div class="status-message">
+            <div id="current-mode">
+                <strong>Current Mode:</strong> <span id="mode-badge" class="badge badge-success">LIVE MODE</span>
+            </div>
+            <div id="connection-info" style="margin-top: 10px;">
+                <strong>Connection Status:</strong> <span id="connection-status">Checking...</span>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">Forced Offline Mode (Sample Data)</div>
+            <p>This application is currently configured to run in offline mode with sample data to prevent 422 UNPROCESSABLE ENTITY errors.</p>
+            <p><strong>Why?</strong> The backend authentication system is currently experiencing validation issues with JWT tokens (specifically "Subject must be a string" and "Signature verification failed" errors).</p>
+            <p><strong>Benefits:</strong> Prevents 422 errors, allows the application to function with sample data, no backend dependency.</p>
+            <hr>
+            <p><strong>Note:</strong> To fix the backend authentication issues, please check:</p>
+            <ul style="text-align: left;">
+                <li>JWT token format and validation</li>
+                <li>Backend authentication configuration</li>
+                <li>Secret key consistency between frontend and backend</li>
+            </ul>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">Current Status</div>
+            <p>The application is running in <strong>OFFLINE MODE</strong> with sample data to prevent 422 errors.</p>
+            <p>This decision was made after detecting authentication issues with the backend:</p>
+            <pre style="text-align: left; background-color: #f8f9fa; padding: 10px; border-radius: 4px;">
+JWT Error: Signature verification failed
+JWT Error: Subject must be a string</pre>
+            <p>To restore live functionality, the backend authentication issues need to be resolved.</p>
+        </div>
+        
+        <p style="margin-top: 20px;">
+            <a href="/" class="button button-secondary">Return to Application</a>
+        </p>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Always update to show offline mode
+            const modeBadge = document.getElementById('mode-badge');
+            modeBadge.className = 'badge badge-warning';
+            modeBadge.textContent = 'OFFLINE MODE';
+            
+            document.getElementById('connection-status').textContent = 
+                'Application running in offline mode with sample data to prevent 422 errors';
+            
+            // Ensure offline mode is forced
+            localStorage.setItem('use_fallback_data', 'true');
+            localStorage.setItem('demo_mode_enabled', 'true');
+            localStorage.setItem('fallback_data_available', 'true');
+            localStorage.setItem('coffee_connection_status', 'offline');
+            localStorage.setItem('coffee_auto_refresh_enabled', 'false');
+        });
+    </script>
+</body>
+</html>

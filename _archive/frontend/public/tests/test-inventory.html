@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Inventory Tools</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        h2 {
+            color: #333;
+            margin-top: 0;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        .button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+            min-width: 200px;
+        }
+        .button:hover {
+            background-color: #45a049;
+        }
+        .button-warning {
+            background-color: #ff9800;
+        }
+        .button-warning:hover {
+            background-color: #e68a00;
+        }
+        .button-danger {
+            background-color: #f44336;
+        }
+        .button-danger:hover {
+            background-color: #d32f2f;
+        }
+        .info {
+            background-color: #e7f3fe;
+            border-left: 6px solid #2196F3;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .warning {
+            background-color: #fffbdd;
+            border-left: 6px solid #ffeb3b;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .test-item {
+            margin-bottom: 15px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+        }
+        .center {
+            text-align: center;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        .full-width {
+            grid-column: 1 / 3;
+        }
+        @media (max-width: 600px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+            .full-width {
+                grid-column: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Inventory Tools</h1>
+    
+    <div class="card">
+        <h2>Station Inventory Tests</h2>
+        <div class="info">
+            <p><strong>Test if inventory changes appear in the walk-in order dialog.</strong> These tools help verify that inventory updates are properly reflected in the UI.</p>
+        </div>
+        
+        <div class="grid">
+            <div class="test-item">
+                <h3>Add Test Milk</h3>
+                <p>Adds a "TEST MILK" to the current station's inventory to verify if it appears in the walk-in order dialog.</p>
+                <div class="center">
+                    <button id="add-test-milk" class="button">Add TEST MILK to Station</button>
+                </div>
+            </div>
+            
+            <div class="test-item">
+                <h3>Remove Test Milk</h3>
+                <p>Removes the "TEST MILK" from the current station's inventory.</p>
+                <div class="center">
+                    <button id="remove-test-milk" class="button button-warning">Remove TEST MILK</button>
+                </div>
+            </div>
+            
+            <div class="test-item full-width">
+                <h3>Current Inventory</h3>
+                <p>View the current milk inventory for your station.</p>
+                <div class="center">
+                    <button id="show-inventory" class="button">Show Current Milk Inventory</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card">
+        <h2>Debug Tools</h2>
+        <div class="grid">
+            <div class="test-item">
+                <h3>Station Debugging</h3>
+                <p>Open the comprehensive station debugger to fix issues with stations and inventory.</p>
+                <div class="center">
+                    <button id="debug-stations" class="button">Debug Stations</button>
+                </div>
+            </div>
+            
+            <div class="test-item">
+                <h3>Reset All</h3>
+                <p>Reset all station data to defaults. Use this if you're having persistent issues.</p>
+                <div class="center">
+                    <button id="reset-all" class="button button-danger">Reset All Station Data</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card">
+        <h2>Implementation Issues</h2>
+        <div class="warning">
+            <p><strong>If tests don't work:</strong> It's possible that you need to rebuild and restart the application for the code changes to take effect. Some React applications use bundling that requires a rebuild.</p>
+            <p>Try running:</p>
+            <code>cd /Users/stevewf/expresso/Barista\ Front\ End && npm run build</code><br>
+            <code>cd /Users/stevewf/expresso && npm start</code>
+        </div>
+    </div>
+    
+    <script>
+        function showCurrentInventory() {
+            try {
+                // Get selected station
+                const selectedStation = localStorage.getItem('coffee_cue_selected_station');
+                if (!selectedStation) {
+                    alert('No station selected.');
+                    return;
+                }
+                
+                // Get inventory
+                const stockKey = `coffee_stock_station_${selectedStation}`;
+                const savedStock = localStorage.getItem(stockKey);
+                
+                if (!savedStock) {
+                    alert(`No inventory found for station ${selectedStation}`);
+                    return;
+                }
+                
+                const inventory = JSON.parse(savedStock);
+                
+                // Display milk inventory
+                if (!inventory.milk || !Array.isArray(inventory.milk) || inventory.milk.length === 0) {
+                    alert('No milk inventory found for this station.');
+                    return;
+                }
+                
+                // Create formatted display of milk inventory
+                const milkInventory = inventory.milk.map(milk => 
+                    `${milk.name} (ID: ${milk.id}): ${milk.amount} ${milk.unit}`
+                ).join('\n');
+                
+                alert(`Milk inventory for station ${selectedStation}:\n\n${milkInventory}`);
+                
+            } catch (e) {
+                alert(`Error showing inventory: ${e.message}`);
+            }
+        }
+        
+        function removeTestMilk() {
+            try {
+                // Get selected station
+                const selectedStation = localStorage.getItem('coffee_cue_selected_station');
+                if (!selectedStation) {
+                    alert('No station selected.');
+                    return;
+                }
+                
+                // Get inventory
+                const stockKey = `coffee_stock_station_${selectedStation}`;
+                const savedStock = localStorage.getItem(stockKey);
+                
+                if (!savedStock) {
+                    alert(`No inventory found for station ${selectedStation}`);
+                    return;
+                }
+                
+                const inventory = JSON.parse(savedStock);
+                
+                // Check if milk inventory exists
+                if (!inventory.milk || !Array.isArray(inventory.milk)) {
+                    alert('No milk inventory found for this station.');
+                    return;
+                }
+                
+                // Find and remove TEST MILK
+                const testMilkIndex = inventory.milk.findIndex(m => 
+                    m.id === 'milk_test' || m.name === 'TEST MILK'
+                );
+                
+                if (testMilkIndex === -1) {
+                    alert('TEST MILK not found in inventory.');
+                    return;
+                }
+                
+                // Remove the test milk
+                inventory.milk.splice(testMilkIndex, 1);
+                
+                // Save updated inventory
+                localStorage.setItem(stockKey, JSON.stringify(inventory));
+                
+                alert('TEST MILK removed from inventory. Refresh the page and check the walk-in order dialog.');
+                
+            } catch (e) {
+                alert(`Error removing TEST MILK: ${e.message}`);
+            }
+        }
+        
+        function resetAllStationData() {
+            if (!confirm('WARNING: This will reset ALL station data to defaults. Are you sure?')) {
+                return;
+            }
+            
+            try {
+                // Clear all station-related data
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key && (
+                        key.includes('coffee_stock_station_') || 
+                        key === 'coffee_cue_stations' ||
+                        key === 'coffee_cue_selected_station' ||
+                        key === 'last_used_station_id' || 
+                        key.includes('coffee_station_name_')
+                    )) {
+                        localStorage.removeItem(key);
+                    }
+                }
+                
+                // Create default station
+                const defaultStation = {
+                    id: 1,
+                    name: 'Coffee Station 1',
+                    status: 'active',
+                    currentLoad: 0
+                };
+                
+                localStorage.setItem('coffee_cue_stations', JSON.stringify([defaultStation]));
+                localStorage.setItem('coffee_cue_selected_station', '1');
+                localStorage.setItem('last_used_station_id', '1');
+                
+                // Create default inventory
+                const defaultInventory = {
+                    milk: [
+                        { id: 'milk_regular', name: 'Regular Milk', amount: 20, capacity: 20, unit: 'L', status: 'good', lowThreshold: 5, criticalThreshold: 2 },
+                        { id: 'milk_skim', name: 'Skim Milk', amount: 10, capacity: 10, unit: 'L', status: 'good', lowThreshold: 3, criticalThreshold: 1 },
+                        { id: 'milk_almond', name: 'Almond Milk', amount: 5, capacity: 5, unit: 'L', status: 'good', lowThreshold: 2, criticalThreshold: 1 },
+                        { id: 'milk_soy', name: 'Soy Milk', amount: 5, capacity: 5, unit: 'L', status: 'good', lowThreshold: 2, criticalThreshold: 1 }
+                    ],
+                    coffee: [
+                        { id: 'coffee_house', name: 'House Blend', amount: 5, capacity: 5, unit: 'kg', status: 'good', lowThreshold: 1.5, criticalThreshold: 0.5 },
+                        { id: 'coffee_dark', name: 'Dark Roast', amount: 3, capacity: 3, unit: 'kg', status: 'good', lowThreshold: 1, criticalThreshold: 0.3 },
+                        { id: 'coffee_decaf', name: 'Decaf Blend', amount: 2, capacity: 2, unit: 'kg', status: 'good', lowThreshold: 0.5, criticalThreshold: 0.2 }
+                    ],
+                    cups: [
+                        { id: 'cups_small', name: 'Small Cups', amount: 200, capacity: 200, unit: 'pcs', status: 'good', lowThreshold: 50, criticalThreshold: 20 },
+                        { id: 'cups_medium', name: 'Medium Cups', amount: 200, capacity: 200, unit: 'pcs', status: 'good', lowThreshold: 50, criticalThreshold: 20 },
+                        { id: 'cups_large', name: 'Large Cups', amount: 100, capacity: 100, unit: 'pcs', status: 'good', lowThreshold: 30, criticalThreshold: 10 }
+                    ]
+                };
+                
+                localStorage.setItem('coffee_stock_station_1', JSON.stringify(defaultInventory));
+                
+                alert('All station data has been reset to defaults. Please refresh the page to see changes.');
+            } catch (e) {
+                alert(`Error resetting data: ${e.message}`);
+            }
+        }
+        
+        // Event listeners
+        document.getElementById('add-test-milk').addEventListener('click', function() {
+            const script = document.createElement('script');
+            script.src = 'add-test-milk.js';
+            document.body.appendChild(script);
+            
+            setTimeout(() => {
+                document.body.removeChild(script);
+            }, 1000);
+        });
+        
+        document.getElementById('remove-test-milk').addEventListener('click', removeTestMilk);
+        document.getElementById('show-inventory').addEventListener('click', showCurrentInventory);
+        document.getElementById('debug-stations').addEventListener('click', function() {
+            window.open('debug-stations.html', '_blank');
+        });
+        document.getElementById('reset-all').addEventListener('click', resetAllStationData);
+    </script>
+</body>
+</html>

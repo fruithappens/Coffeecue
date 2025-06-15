@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backend Connection Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        h2 {
+            color: #333;
+            margin-top: 0;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .button-danger {
+            background-color: #f44336;
+        }
+        .button-danger:hover {
+            background-color: #d32f2f;
+        }
+        .button-warning {
+            background-color: #ff9800;
+        }
+        .button-warning:hover {
+            background-color: #e68a00;
+        }
+        .status {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #e7f3fe;
+            border-left: 6px solid #2196F3;
+        }
+        .warning {
+            background-color: #fffbdd;
+            border-left: 6px solid #ffeb3b;
+        }
+        .error {
+            background-color: #ffdddd;
+            border-left: 6px solid #f44336;
+        }
+        pre {
+            background-color: #f8f8f8;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 14px;
+        }
+        #connectionStatus {
+            font-size: 18px;
+            text-align: center;
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 6px;
+        }
+        .online {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .offline {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .connection-monitor {
+            margin-top: 20px;
+            border: 1px solid #ccc;
+            padding: 10px;
+            height: 200px;
+            overflow-y: auto;
+            background-color: #f9f9f9;
+        }
+        .log-item {
+            padding: 5px;
+            border-bottom: 1px solid #eee;
+        }
+        .log-item.success {
+            background-color: #d4edda;
+        }
+        .log-item.error {
+            background-color: #f8d7da;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        .status-online {
+            background-color: #28a745;
+        }
+        .status-offline {
+            background-color: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <h1>Backend Connection Test</h1>
+    
+    <div id="connectionStatus"></div>
+    
+    <div class="card">
+        <h2>Backend Connection Tester</h2>
+        <p>This tool helps diagnose the flickering connection warning in the BaristaInterface. It will continuously check the backend connection status.</p>
+        
+        <div class="controls">
+            <button id="startMonitoring" class="button-warning">Start Connection Monitor</button>
+            <button id="stopMonitoring" class="button-danger" disabled>Stop Monitoring</button>
+            <button id="checkOnce">Check Connection Once</button>
+        </div>
+        
+        <div>
+            <label for="checkInterval">Check interval (ms):</label>
+            <input type="number" id="checkInterval" value="1000" min="100" step="100">
+        </div>
+        
+        <div class="connection-monitor" id="connectionLog">
+            <div class="log-item">Connection log will appear here...</div>
+        </div>
+    </div>
+    
+    <div class="card">
+        <h2>Connection Settings</h2>
+        <p>These options affect how the connection check works.</p>
+        
+        <div>
+            <label for="backendUrl">Backend URL:</label>
+            <input type="text" id="backendUrl" value="http://localhost:5001/api/test" style="width: 300px;">
+        </div>
+        
+        <div>
+            <label for="timeout">Timeout (ms):</label>
+            <input type="number" id="timeout" value="5000" min="1000" step="1000">
+        </div>
+        
+        <button id="testSettings">Test These Settings</button>
+    </div>
+    
+    <div class="card">
+        <h2>Fix Common Issues</h2>
+        <div>
+            <button id="fixCachedStatus" class="button-warning">Reset Cached Connection Status</button>
+            <div id="fixStatus" class="status"></div>
+        </div>
+    </div>
+    
+    <script>
+        // Elements
+        const connectionStatus = document.getElementById('connectionStatus');
+        const connectionLog = document.getElementById('connectionLog');
+        const startMonitoringBtn = document.getElementById('startMonitoring');
+        const stopMonitoringBtn = document.getElementById('stopMonitoring');
+        const checkOnceBtn = document.getElementById('checkOnce');
+        const checkIntervalInput = document.getElementById('checkInterval');
+        const backendUrlInput = document.getElementById('backendUrl');
+        const timeoutInput = document.getElementById('timeout');
+        const testSettingsBtn = document.getElementById('testSettings');
+        const fixCachedStatusBtn = document.getElementById('fixCachedStatus');
+        const fixStatus = document.getElementById('fixStatus');
+        
+        // State
+        let monitoringInterval = null;
+        let connectionChecks = 0;
+        let successCount = 0;
+        let failureCount = 0;
+        
+        // Show connection status
+        function updateConnectionStatus(isConnected) {
+            connectionStatus.className = isConnected ? 'online' : 'offline';
+            connectionStatus.innerHTML = isConnected ? 
+                '<span class="status-indicator status-online"></span>Backend is ONLINE' : 
+                '<span class="status-indicator status-offline"></span>Backend is OFFLINE';
+        }
+        
+        // Add log entry
+        function addLogEntry(message, isSuccess = true) {
+            const logItem = document.createElement('div');
+            logItem.className = `log-item ${isSuccess ? 'success' : 'error'}`;
+            logItem.innerText = `${new Date().toLocaleTimeString()}: ${message}`;
+            connectionLog.appendChild(logItem);
+            connectionLog.scrollTop = connectionLog.scrollHeight;
+        }
+        
+        // Check connection
+        async function checkConnection(url = backendUrlInput.value, timeoutMs = parseInt(timeoutInput.value)) {
+            try {
+                connectionChecks++;
+                
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+                
+                const response = await fetch(url, {
+                    signal: controller.signal,
+                    mode: 'cors',
+                    headers: { 'Accept': 'application/json' }
+                });
+                
+                clearTimeout(timeoutId);
+                
+                const isConnected = response.status >= 200 && response.status < 300;
+                updateConnectionStatus(isConnected);
+                
+                if (isConnected) {
+                    successCount++;
+                    addLogEntry(`Connection successful (${successCount}/${connectionChecks})`);
+                    // Set online status in localStorage
+                    localStorage.setItem('backend_connection_status', 'online');
+                    // Also set timestamp for when we last checked
+                    localStorage.setItem('backend_connection_timestamp', Date.now().toString());
+                    return true;
+                } else {
+                    failureCount++;
+                    addLogEntry(`Connection failed with status: ${response.status} (${failureCount}/${connectionChecks})`, false);
+                    // Set offline status in localStorage
+                    localStorage.setItem('backend_connection_status', 'offline');
+                    localStorage.setItem('backend_connection_timestamp', Date.now().toString());
+                    return false;
+                }
+            } catch (error) {
+                failureCount++;
+                updateConnectionStatus(false);
+                addLogEntry(`Connection error: ${error.message} (${failureCount}/${connectionChecks})`, false);
+                // Set offline status in localStorage
+                localStorage.setItem('backend_connection_status', 'offline');
+                localStorage.setItem('backend_connection_timestamp', Date.now().toString());
+                return false;
+            }
+        }
+        
+        // Start monitoring
+        function startMonitoring() {
+            const interval = parseInt(checkIntervalInput.value);
+            
+            if (monitoringInterval) {
+                clearInterval(monitoringInterval);
+            }
+            
+            monitoringInterval = setInterval(() => {
+                checkConnection();
+            }, interval);
+            
+            startMonitoringBtn.disabled = true;
+            stopMonitoringBtn.disabled = false;
+            addLogEntry(`Started monitoring at ${interval}ms intervals`, true);
+        }
+        
+        // Stop monitoring
+        function stopMonitoring() {
+            if (monitoringInterval) {
+                clearInterval(monitoringInterval);
+                monitoringInterval = null;
+            }
+            
+            startMonitoringBtn.disabled = false;
+            stopMonitoringBtn.disabled = true;
+            addLogEntry('Stopped monitoring', true);
+        }
+        
+        // Fix cached status
+        function fixCachedStatus() {
+            localStorage.removeItem('backend_connection_status');
+            localStorage.removeItem('backend_connection_timestamp');
+            localStorage.removeItem('coffee_online_status');
+            localStorage.removeItem('coffee_connection_timestamp');
+            
+            fixStatus.className = 'status success';
+            fixStatus.innerText = 'Connection status cache cleared. Please refresh the main application.';
+        }
+        
+        // Event listeners
+        startMonitoringBtn.addEventListener('click', startMonitoring);
+        stopMonitoringBtn.addEventListener('click', stopMonitoring);
+        checkOnceBtn.addEventListener('click', () => checkConnection());
+        testSettingsBtn.addEventListener('click', () => {
+            const url = backendUrlInput.value;
+            const timeout = parseInt(timeoutInput.value);
+            addLogEntry(`Testing connection to ${url} with timeout ${timeout}ms`, true);
+            checkConnection(url, timeout);
+        });
+        fixCachedStatusBtn.addEventListener('click', fixCachedStatus);
+        
+        // Initial connection check
+        checkConnection();
+    </script>
+</body>
+</html>

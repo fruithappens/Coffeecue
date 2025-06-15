@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventory Filtering Check</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        h2 {
+            color: #333;
+            margin-top: 0;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .button-danger {
+            background-color: #f44336;
+        }
+        .button-danger:hover {
+            background-color: #d32f2f;
+        }
+        .button-warning {
+            background-color: #ff9800;
+        }
+        .button-warning:hover {
+            background-color: #e68a00;
+        }
+        .status {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #e7f3fe;
+            border-left: 6px solid #2196F3;
+        }
+        .warning {
+            background-color: #fffbdd;
+            border-left: 6px solid #ffeb3b;
+        }
+        .error {
+            background-color: #ffdddd;
+            border-left: 6px solid #f44336;
+        }
+        pre {
+            background-color: #f8f8f8;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Inventory Filtering Check</h1>
+    
+    <div class="card">
+        <h2>Current Station and Inventory</h2>
+        <p>This tool checks your current station setup and inventory to diagnose filtering issues in the walk-in dialog.</p>
+        <button id="check-inventory">Check Current Station Inventory</button>
+        <div id="inventory-status" class="status"></div>
+    </div>
+    
+    <div class="card">
+        <h2>Test Milk Options</h2>
+        <div class="status warning">
+            <p><strong>Instructions:</strong></p>
+            <ol>
+                <li>Click "Add TEST MILK" to add a special milk for testing</li>
+                <li>Click "Set Cashew Milk to Zero" to test filtering of zero-quantity items</li>
+                <li>Then open the walk-in order dialog and check if:
+                    <ul>
+                        <li>✅ TEST MILK appears in the options</li>
+                        <li>❌ Cashew Milk does NOT appear in the options</li>
+                    </ul>
+                </li>
+            </ol>
+        </div>
+        <button id="add-test-milk">Add TEST MILK</button>
+        <button id="set-cashew-zero" class="button-warning">Set Cashew Milk to Zero</button>
+        <button id="remove-test-milk" class="button-danger">Remove Test Configuration</button>
+        <div id="test-status" class="status"></div>
+    </div>
+    
+    <div class="card">
+        <h2>Fix Common Issues</h2>
+        <button id="fix-inventory">Reset Station Inventory</button>
+        <button id="rebuild-front" class="button-warning">Rebuild Frontend</button>
+        <div id="fix-status" class="status"></div>
+    </div>
+    
+    <script>
+        document.getElementById('check-inventory').addEventListener('click', function() {
+            const statusEl = document.getElementById('inventory-status');
+            statusEl.innerHTML = 'Checking inventory...';
+            statusEl.className = 'status';
+            
+            try {
+                // Get current station
+                const selectedStation = localStorage.getItem('coffee_cue_selected_station');
+                if (!selectedStation) {
+                    statusEl.innerHTML = '❌ No station selected. Please select a station first.';
+                    statusEl.className = 'status error';
+                    return;
+                }
+                
+                // Get inventory for this station
+                const stockKey = `coffee_stock_station_${selectedStation}`;
+                const savedStock = localStorage.getItem(stockKey);
+                if (!savedStock) {
+                    statusEl.innerHTML = `❌ No inventory found for station ${selectedStation}`;
+                    statusEl.className = 'status error';
+                    return;
+                }
+                
+                // Parse inventory
+                const inventory = JSON.parse(savedStock);
+                
+                // Format output
+                let output = `<h3>Current Station: ${selectedStation}</h3>`;
+                
+                // Check if milk array exists
+                if (!inventory.milk || !Array.isArray(inventory.milk)) {
+                    output += '<p>❌ No milk inventory found for this station!</p>';
+                } else {
+                    const availableMilk = inventory.milk.filter(item => item.amount > 0);
+                    const zeroMilk = inventory.milk.filter(item => item.amount <= 0);
+                    
+                    output += `<h4>Available Milk Types (${availableMilk.length})</h4>`;
+                    if (availableMilk.length > 0) {
+                        output += '<pre>' + JSON.stringify(availableMilk.map(m => ({
+                            id: m.id,
+                            name: m.name,
+                            amount: m.amount
+                        })), null, 2) + '</pre>';
+                    } else {
+                        output += '<p>No milk types with quantity > 0</p>';
+                    }
+                    
+                    output += `<h4>Zero-Quantity Milk Types (${zeroMilk.length})</h4>`;
+                    if (zeroMilk.length > 0) {
+                        output += '<pre>' + JSON.stringify(zeroMilk.map(m => ({
+                            id: m.id,
+                            name: m.name,
+                            amount: m.amount
+                        })), null, 2) + '</pre>';
+                    } else {
+                        output += '<p>No milk types with quantity = 0</p>';
+                    }
+                }
+                
+                // Check if TEST MILK exists
+                const hasTestMilk = inventory.milk && inventory.milk.some(m => 
+                    m.id === 'milk_test' || m.name === 'TEST MILK'
+                );
+                
+                if (hasTestMilk) {
+                    const testMilk = inventory.milk.find(m => 
+                        m.id === 'milk_test' || m.name === 'TEST MILK'
+                    );
+                    output += `<h4>TEST MILK Status</h4>`;
+                    output += `<p>✅ TEST MILK found with quantity: ${testMilk.amount}</p>`;
+                    output += `<p>This should ${testMilk.amount > 0 ? 'APPEAR' : 'NOT APPEAR'} in the walk-in dialog.</p>`;
+                } else {
+                    output += `<h4>TEST MILK Status</h4>`;
+                    output += `<p>❌ TEST MILK not found in inventory</p>`;
+                }
+                
+                // Check if Cashew Milk exists
+                const hasCashewMilk = inventory.milk && inventory.milk.some(m => 
+                    m.id === 'milk_cashew' || m.id === 'cashew' || 
+                    (m.name && m.name.toLowerCase().includes('cashew'))
+                );
+                
+                if (hasCashewMilk) {
+                    const cashewMilk = inventory.milk.find(m => 
+                        m.id === 'milk_cashew' || m.id === 'cashew' || 
+                        (m.name && m.name.toLowerCase().includes('cashew'))
+                    );
+                    output += `<h4>Cashew Milk Status</h4>`;
+                    output += `<p>${cashewMilk.amount > 0 ? '✅' : '❌'} Cashew Milk found with quantity: ${cashewMilk.amount}</p>`;
+                    output += `<p>This should ${cashewMilk.amount > 0 ? 'APPEAR' : 'NOT APPEAR'} in the walk-in dialog.</p>`;
+                } else {
+                    output += `<h4>Cashew Milk Status</h4>`;
+                    output += `<p>❌ Cashew Milk not found in inventory</p>`;
+                }
+                
+                statusEl.innerHTML = output;
+                statusEl.className = 'status success';
+            } catch (e) {
+                statusEl.innerHTML = `❌ Error checking inventory: ${e.message}`;
+                statusEl.className = 'status error';
+            }
+        });
+        
+        document.getElementById('add-test-milk').addEventListener('click', function() {
+            const statusEl = document.getElementById('test-status');
+            statusEl.innerHTML = 'Adding TEST MILK...';
+            statusEl.className = 'status';
+            
+            try {
+                // Get selected station
+                const selectedStation = localStorage.getItem('coffee_cue_selected_station');
+                if (!selectedStation) {
+                    statusEl.innerHTML = '❌ No station selected. Please select a station first.';
+                    statusEl.className = 'status error';
+                    return;
+                }
+                
+                // Get inventory for this station
+                const stockKey = `coffee_stock_station_${selectedStation}`;
+                const savedStock = localStorage.getItem(stockKey);
+                if (!savedStock) {
+                    statusEl.innerHTML = `❌ No inventory found for station ${selectedStation}`;
+                    statusEl.className = 'status error';
+                    return;
+                }
+                
+                // Parse inventory
+                let inventory = JSON.parse(savedStock);
+                
+                // Make sure we have a milk array
+                if (!inventory.milk) {
+                    inventory.milk = [];
+                }
+                
+                // Create TEST MILK
+                const testMilk = {
+                    id: 'milk_test',
+                    name: 'TEST MILK',
+                    amount: 10,
+                    capacity: 10,
+                    unit: 'L',
+                    status: 'good',
+                    lowThreshold: 3,
+                    criticalThreshold: 1
+                };
+                
+                // Check if TEST MILK already exists
+                const existingIndex = inventory.milk.findIndex(m => m.id === 'milk_test');
+                if (existingIndex >= 0) {
+                    // Update existing test milk
+                    inventory.milk[existingIndex] = testMilk;
+                } else {
+                    // Add new test milk
+                    inventory.milk.push(testMilk);
+                }
+                
+                // Save updated inventory
+                localStorage.setItem(stockKey, JSON.stringify(inventory));
+                
+                statusEl.innerHTML = '✅ TEST MILK has been added to inventory with quantity 10.<br>This should now appear in the walk-in dialog.';
+                statusEl.className = 'status success';
+                
+                // Refresh inventory display if it's currently shown
+                if (document.getElementById('inventory-status').innerHTML !== '') {
+                    document.getElementById('check-inventory').click();
+                }
+            } catch (e) {
+                statusEl.innerHTML = `❌ Error adding TEST MILK: ${e.message}`;
+                statusEl.className = 'status error';
+            }
+        });
+        
+        document.getElementById('set-cashew-zero').addEventListener('click', function() {
+            const statusEl = document.getElementById('test-status');
+            statusEl.innerHTML = 'Setting Cashew Milk to zero...';
+            statusEl.className = 'status';
+            
+            try {
+                // Get selected station
+                const selectedStation = localStorage.getItem('coffee_cue_selected_station');
+                if (!selectedStation) {
+                    statusEl.innerHTML = '❌ No station selected. Please select a station first.';
+                    statusEl.className = 'status error';
+                    return;
+                }
+                
+                // Get inventory for this station
+                const stockKey = `coffee_stock_station_${selectedStation}`;
+                const savedStock = localStorage.getItem(stockKey);
+                if (!savedStock) {
+                    statusEl.innerHTML = `❌ No inventory found for station ${selectedStation}`;
+                    statusEl.className = 'status error';
+                    return;
+                }
+                
+                // Parse inventory
+                let inventory = JSON.parse(savedStock);
+                
+                // Make sure we have a milk array
+                if (!inventory.milk) {
+                    inventory.milk = [];
+                }
+                
+                // Try to find cashew milk with various ID formats
+                let cashewFound = false;
+                const cashewMilkIds = ['cashew', 'milk_cashew', 'cashew_milk'];
+                
+                for (const id of cashewMilkIds) {
+                    const cashewIndex = inventory.milk.findIndex(m => 
+                        m.id === id || 
+                        (m.name && m.name.toLowerCase().includes('cashew'))
+                    );
+                    
+                    if (cashewIndex >= 0) {
+                        // Set cashew milk amount to 0
+                        inventory.milk[cashewIndex].amount = 0;
+                        cashewFound = true;
+                        break;
+                    }
+                }
+                
+                // If no cashew milk found, add it with 0 amount
+                if (!cashewFound) {
+                    const cashewMilk = {
+                        id: 'milk_cashew',
+                        name: 'Cashew Milk',
+                        amount: 0,
+                        capacity: 5,
+                        unit: 'L',
+                        status: 'danger',
+                        lowThreshold: 2,
+                        criticalThreshold: 1
+                    };
+                    inventory.milk.push(cashewMilk);
+                }
+                
+                // Save updated inventory
+                localStorage.setItem(stockKey, JSON.stringify(inventory));
+                
+                statusEl.innerHTML = '✅ Cashew Milk has been set to quantity 0.<br>This should now NOT appear in the walk-in dialog.';
+                statusEl.className = 'status success';
+                
+                // Refresh inventory display if it's currently shown
+                if (document.getElementById('inventory-status').innerHTML !== '') {
+                    document.getElementById('check-inventory').click();
+                }
+            } catch (e) {
+                statusEl.innerHTML = `❌ Error setting Cashew Milk: ${e.message}`;
+                statusEl.className = 'status error';
+            }
+        });
+        
+        document.getElementById('remove-test-milk').addEventListener('click', function() {
+            const statusEl = document.getElementById('test-status');
+            statusEl.innerHTML = 'Removing test configuration...';
+            statusEl.className = 'status';
+            
+            try {
+                // Get selected station
+                const selectedStation = localStorage.getItem('coffee_cue_selected_station');
+                if (!selectedStation) {
+                    statusEl.innerHTML = '❌ No station selected. Please select a station first.';
+                    statusEl.className = 'status error';
+                    return;
+                }
+                
+                // Get inventory for this station
+                const stockKey = `coffee_stock_station_${selectedStation}`;
+                const savedStock = localStorage.getItem(stockKey);
+                if (!savedStock) {
+                    statusEl.innerHTML = `❌ No inventory found for station ${selectedStation}`;
+                    statusEl.className = 'status error';
+                    return;
+                }
+                
+                // Parse inventory
+                let inventory = JSON.parse(savedStock);
+                
+                // Make sure we have a milk array
+                if (!inventory.milk) {
+                    inventory.milk = [];
+                }
+                
+                // Remove TEST MILK
+                inventory.milk = inventory.milk.filter(m => m.id !== 'milk_test' && m.name !== 'TEST MILK');
+                
+                // Reset Cashew Milk (if it exists)
+                const cashewIndex = inventory.milk.findIndex(m => 
+                    m.id === 'milk_cashew' || m.id === 'cashew' || 
+                    (m.name && m.name.toLowerCase().includes('cashew'))
+                );
+                
+                if (cashewIndex >= 0) {
+                    inventory.milk[cashewIndex].amount = 5;
+                }
+                
+                // Save updated inventory
+                localStorage.setItem(stockKey, JSON.stringify(inventory));
+                
+                statusEl.innerHTML = '✅ Test configuration has been removed.<br>TEST MILK has been removed and Cashew Milk quantity has been reset.';
+                statusEl.className = 'status success';
+                
+                // Refresh inventory display if it's currently shown
+                if (document.getElementById('inventory-status').innerHTML !== '') {
+                    document.getElementById('check-inventory').click();
+                }
+            } catch (e) {
+                statusEl.innerHTML = `❌ Error removing test configuration: ${e.message}`;
+                statusEl.className = 'status error';
+            }
+        });
+        
+        document.getElementById('fix-inventory').addEventListener('click', function() {
+            const statusEl = document.getElementById('fix-status');
+            statusEl.innerHTML = 'Resetting station inventory...';
+            statusEl.className = 'status';
+            
+            try {
+                // Get selected station
+                const selectedStation = localStorage.getItem('coffee_cue_selected_station');
+                if (!selectedStation) {
+                    statusEl.innerHTML = '❌ No station selected. Please select a station first.';
+                    statusEl.className = 'status error';
+                    return;
+                }
+                
+                // Create default inventory
+                const defaultInventory = {
+                    milk: [
+                        { id: 'milk_regular', name: 'Regular Milk', amount: 20, capacity: 20, unit: 'L', status: 'good', lowThreshold: 5, criticalThreshold: 2 },
+                        { id: 'milk_skim', name: 'Skim Milk', amount: 10, capacity: 10, unit: 'L', status: 'good', lowThreshold: 3, criticalThreshold: 1 },
+                        { id: 'milk_almond', name: 'Almond Milk', amount: 5, capacity: 5, unit: 'L', status: 'good', lowThreshold: 2, criticalThreshold: 1 },
+                        { id: 'milk_soy', name: 'Soy Milk', amount: 5, capacity: 5, unit: 'L', status: 'good', lowThreshold: 2, criticalThreshold: 1 },
+                        { id: 'milk_cashew', name: 'Cashew Milk', amount: 5, capacity: 5, unit: 'L', status: 'good', lowThreshold: 2, criticalThreshold: 1 }
+                    ],
+                    coffee: [
+                        { id: 'coffee_house', name: 'House Blend', amount: 5, capacity: 5, unit: 'kg', status: 'good', lowThreshold: 1.5, criticalThreshold: 0.5 },
+                        { id: 'coffee_dark', name: 'Dark Roast', amount: 3, capacity: 3, unit: 'kg', status: 'good', lowThreshold: 1, criticalThreshold: 0.3 },
+                        { id: 'coffee_decaf', name: 'Decaf Blend', amount: 2, capacity: 2, unit: 'kg', status: 'good', lowThreshold: 0.5, criticalThreshold: 0.2 }
+                    ],
+                    cups: [
+                        { id: 'cups_small', name: 'Small Cups', amount: 200, capacity: 200, unit: 'pcs', status: 'good', lowThreshold: 50, criticalThreshold: 20 },
+                        { id: 'cups_medium', name: 'Medium Cups', amount: 200, capacity: 200, unit: 'pcs', status: 'good', lowThreshold: 50, criticalThreshold: 20 },
+                        { id: 'cups_large', name: 'Large Cups', amount: 100, capacity: 100, unit: 'pcs', status: 'good', lowThreshold: 30, criticalThreshold: 10 }
+                    ]
+                };
+                
+                // Save to localStorage
+                const stockKey = `coffee_stock_station_${selectedStation}`;
+                localStorage.setItem(stockKey, JSON.stringify(defaultInventory));
+                
+                statusEl.innerHTML = '✅ Station inventory has been reset to defaults.';
+                statusEl.className = 'status success';
+                
+                // Refresh inventory display if it's currently shown
+                if (document.getElementById('inventory-status').innerHTML !== '') {
+                    document.getElementById('check-inventory').click();
+                }
+            } catch (e) {
+                statusEl.innerHTML = `❌ Error resetting inventory: ${e.message}`;
+                statusEl.className = 'status error';
+            }
+        });
+        
+        document.getElementById('rebuild-front').addEventListener('click', function() {
+            const statusEl = document.getElementById('fix-status');
+            statusEl.innerHTML = 'This button would trigger a frontend rebuild if possible.<br>In a real environment, you would need to run:<br><code>cd "/Users/stevewf/expresso/Barista Front End" && npm run build</code>';
+            statusEl.className = 'status warning';
+        });
+        
+        // Automatically check inventory on load
+        window.addEventListener('load', function() {
+            document.getElementById('check-inventory').click();
+        });
+    </script>
+</body>
+</html>

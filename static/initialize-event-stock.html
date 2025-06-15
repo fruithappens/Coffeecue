@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Initialize Event Stock</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            padding: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #f5f5f5;
+        }
+        h1 { color: #333; }
+        .section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .error { 
+            background-color: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .success { 
+            background-color: #e8f5e9;
+            color: #2e7d32;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .warning {
+            background-color: #fff3e0;
+            color: #e65100;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .info {
+            background-color: #e3f2fd;
+            color: #1565c0;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .critical {
+            background-color: #f3e5f5;
+            color: #4a148c;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+            border: 2px solid #9c27b0;
+        }
+        button {
+            background: #1a73e8;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #1557b0;
+        }
+        .init-button {
+            background: #4CAF50;
+            font-weight: bold;
+        }
+        .init-button:hover {
+            background: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <h1>🚀 Initialize Event Stock</h1>
+    
+    <div class="section">
+        <h2>🔍 Problem Identified</h2>
+        <div class="critical">
+            <p><strong>Root Cause Found:</strong> The EventStockManagement component has never loaded, so no event stock levels exist!</p>
+            <p>Your station quantities are saved correctly, but there's no event stock to allocate them to.</p>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>✅ Your Current Data</h2>
+        <div id="current-data"></div>
+    </div>
+    
+    <div class="section">
+        <h2>🔧 Initialize Event Stock</h2>
+        <button class="init-button" onclick="initializeEventStock()">Initialize Event Stock Levels</button>
+        <div id="results"></div>
+    </div>
+
+    <script>
+        function showCurrentData() {
+            const dataDiv = document.getElementById('current-data');
+            let html = '';
+            
+            // Check station quantities
+            const stationQuantities = localStorage.getItem('station_inventory_quantities');
+            if (stationQuantities) {
+                const quantities = JSON.parse(stationQuantities);
+                html += '<div class="success">✅ Station quantities found:</div>';
+                
+                Object.keys(quantities).forEach(stationId => {
+                    const stationData = quantities[stationId];
+                    html += `<div><strong>Station ${stationId}:</strong></div>`;
+                    Object.keys(stationData).forEach(category => {
+                        const categoryData = stationData[category];
+                        Object.keys(categoryData).forEach(itemId => {
+                            const item = categoryData[itemId];
+                            if (item.quantity > 0) {
+                                html += `<div>&nbsp;&nbsp;${itemId}: ${item.quantity} ${item.unit || 'units'}</div>`;
+                            }
+                        });
+                    });
+                });
+            } else {
+                html += '<div class="error">❌ No station quantities found</div>';
+            }
+            
+            // Check event inventory
+            const eventInventory = localStorage.getItem('event_inventory');
+            if (eventInventory) {
+                const inventory = JSON.parse(eventInventory);
+                html += '<div class="success">✅ Event inventory found:</div>';
+                Object.keys(inventory).forEach(category => {
+                    html += `<div>${category}: ${inventory[category].length} items</div>`;
+                });
+            } else {
+                html += '<div class="error">❌ No event inventory found</div>';
+            }
+            
+            // Check event stock levels
+            const eventStock = localStorage.getItem('event_stock_levels');
+            if (eventStock) {
+                html += '<div class="warning">⚠️ Event stock levels already exist</div>';
+            } else {
+                html += '<div class="error">❌ No event stock levels found - this is why allocated amounts are empty!</div>';
+            }
+            
+            dataDiv.innerHTML = html;
+        }
+        
+        function initializeEventStock() {
+            const results = document.getElementById('results');
+            let html = '<h3>🔧 Initializing Event Stock...</h3>';
+            
+            try {
+                // Get event inventory and station quantities
+                const eventInventory = localStorage.getItem('event_inventory');
+                const stationQuantities = localStorage.getItem('station_inventory_quantities');
+                
+                if (!eventInventory) {
+                    html += '<div class="error">❌ No event inventory found. Need to set up inventory first.</div>';
+                    results.innerHTML = html;
+                    return;
+                }
+                
+                const inventory = JSON.parse(eventInventory);
+                const quantities = stationQuantities ? JSON.parse(stationQuantities) : {};
+                
+                // Create event stock levels based on inventory
+                const eventStock = {};
+                
+                // Category units mapping
+                const categoryUnits = {
+                    milk: { unit: 'L', defaultQuantity: 100 },
+                    coffee: { unit: 'kg', defaultQuantity: 5 },
+                    cups: { unit: 'units', defaultQuantity: 100 },
+                    syrups: { unit: 'bottles', defaultQuantity: 5 },
+                    sweeteners: { unit: 'units', defaultQuantity: 100 },
+                    extras: { unit: 'units', defaultQuantity: 50 }
+                };
+                
+                Object.keys(inventory).forEach(category => {
+                    const items = inventory[category] || [];
+                    eventStock[category] = {};
+                    
+                    items.forEach(item => {
+                        if (item.enabled) {
+                            // Calculate allocated amount from station quantities
+                            let totalAllocated = 0;
+                            Object.keys(quantities).forEach(stationId => {
+                                const stationData = quantities[stationId];
+                                if (stationData[category] && stationData[category][item.id]) {
+                                    totalAllocated += stationData[category][item.id].quantity || 0;
+                                }
+                            });
+                            
+                            const defaultQty = categoryUnits[category]?.defaultQuantity || 10;
+                            const unit = categoryUnits[category]?.unit || 'units';
+                            
+                            eventStock[category][item.id] = {
+                                quantity: Math.max(defaultQty, totalAllocated * 2), // Ensure enough stock
+                                unit: unit,
+                                allocated: totalAllocated,
+                                available: Math.max(defaultQty - totalAllocated, 0)
+                            };
+                            
+                            if (totalAllocated > 0) {
+                                html += `<div>✅ ${item.name}: ${totalAllocated} ${unit} allocated</div>`;
+                            }
+                        }
+                    });
+                });
+                
+                // Save event stock levels
+                localStorage.setItem('event_stock_levels', JSON.stringify(eventStock));
+                
+                html += '<div class="success">✅ Event stock levels initialized with calculated allocated amounts!</div>';
+                html += '<div class="critical">🎯 Now go to Organiser → Stations → Event Stock tab to see the allocated amounts!</div>';
+                
+            } catch (e) {
+                html += '<div class="error">❌ Error initializing event stock: ' + e.message + '</div>';
+            }
+            
+            results.innerHTML = html;
+        }
+        
+        // Auto-show current data on load
+        window.onload = () => {
+            showCurrentData();
+        };
+    </script>
+</body>
+</html>

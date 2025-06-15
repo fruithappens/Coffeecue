@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Setup Test Menu Configuration</title>
+    <meta charset="UTF-8">
+</head>
+<body>
+    <h1>Setting up test menu configuration...</h1>
+    <pre id="output"></pre>
+    
+    <script>
+        const output = document.getElementById('output');
+        
+        // Create a test coffee menu
+        const testCoffeeMenu = {
+            "espresso": {
+                id: "espresso",
+                name: "Espresso",
+                category: "espresso-based",
+                enabled: true,
+                requiresMilk: false,
+                customizable: { decaf: true }
+            },
+            "long-black": {
+                id: "long-black",
+                name: "Long Black",
+                category: "espresso-based",
+                enabled: true,
+                requiresMilk: false,
+                customizable: { decaf: true }
+            },
+            "flat-white": {
+                id: "flat-white",
+                name: "Flat White",
+                category: "espresso-based",
+                enabled: true,
+                requiresMilk: true,
+                customizable: { decaf: true }
+            },
+            "cappuccino": {
+                id: "cappuccino",
+                name: "Cappuccino",
+                category: "espresso-based",
+                enabled: true,
+                requiresMilk: true,
+                customizable: { decaf: true }
+            },
+            "latte": {
+                id: "latte",
+                name: "Latte",
+                category: "milk-based",
+                enabled: true,
+                requiresMilk: true,
+                customizable: { decaf: true }
+            },
+            "mocha": {
+                id: "mocha",
+                name: "Mocha",
+                category: "milk-based",
+                enabled: true,
+                requiresMilk: true,
+                customizable: { decaf: false }
+            },
+            "hot-chocolate": {
+                id: "hot-chocolate",
+                name: "Hot Chocolate",
+                category: "non-coffee",
+                enabled: true,
+                requiresMilk: true,
+                customizable: { decaf: false }
+            },
+            "chai-latte": {
+                id: "chai-latte",
+                name: "Chai Latte",
+                category: "non-coffee",
+                enabled: true,
+                requiresMilk: true,
+                customizable: { decaf: false }
+            },
+            "matcha-latte": {
+                id: "matcha-latte",
+                name: "Matcha Latte",
+                category: "non-coffee",
+                enabled: true,
+                requiresMilk: true,
+                customizable: { decaf: false }
+            },
+            "english-breakfast-tea": {
+                id: "english-breakfast-tea",
+                name: "English Breakfast Tea",
+                category: "tea",
+                enabled: true,
+                requiresMilk: false,
+                customizable: { decaf: false }
+            },
+            "earl-grey-tea": {
+                id: "earl-grey-tea",
+                name: "Earl Grey Tea",
+                category: "tea",
+                enabled: true,
+                requiresMilk: false,
+                customizable: { decaf: false }
+            },
+            "green-tea": {
+                id: "green-tea",
+                name: "Green Tea",
+                category: "tea",
+                enabled: true,
+                requiresMilk: false,
+                customizable: { decaf: false }
+            }
+        };
+        
+        // Create station-specific menu assignments
+        const testStationAssignments = {
+            "1": {
+                // Station 1 - Full menu
+                "espresso": { enabled: true },
+                "long-black": { enabled: true },
+                "flat-white": { enabled: true },
+                "cappuccino": { enabled: true },
+                "latte": { enabled: true },
+                "mocha": { enabled: true },
+                "hot-chocolate": { enabled: true },
+                "chai-latte": { enabled: true },
+                "matcha-latte": { enabled: true },
+                "english-breakfast-tea": { enabled: true },
+                "earl-grey-tea": { enabled: true },
+                "green-tea": { enabled: true }
+            },
+            "2": {
+                // Station 2 - Limited menu (no specialty drinks)
+                "espresso": { enabled: true },
+                "long-black": { enabled: true },
+                "flat-white": { enabled: true },
+                "cappuccino": { enabled: true },
+                "latte": { enabled: true },
+                "mocha": { enabled: false },
+                "hot-chocolate": { enabled: true },
+                "chai-latte": { enabled: true },
+                "matcha-latte": { enabled: false },
+                "english-breakfast-tea": { enabled: false },
+                "earl-grey-tea": { enabled: false },
+                "green-tea": { enabled: false }
+            },
+            "3": {
+                // Station 3 - Coffee focus (no non-coffee except tea)
+                "espresso": { enabled: true },
+                "long-black": { enabled: true },
+                "flat-white": { enabled: true },
+                "cappuccino": { enabled: true },
+                "latte": { enabled: true },
+                "mocha": { enabled: true },
+                "hot-chocolate": { enabled: false },
+                "chai-latte": { enabled: false },
+                "matcha-latte": { enabled: true },
+                "english-breakfast-tea": { enabled: true },
+                "earl-grey-tea": { enabled: true },
+                "green-tea": { enabled: true }
+            }
+        };
+        
+        // Save to localStorage
+        localStorage.setItem('coffeeMenu', JSON.stringify(testCoffeeMenu));
+        localStorage.setItem('stationMenuAssignments', JSON.stringify(testStationAssignments));
+        
+        output.textContent = 'Test menu configuration saved!\n\n';
+        output.textContent += 'Coffee Menu Items:\n';
+        Object.values(testCoffeeMenu).forEach(item => {
+            output.textContent += `  - ${item.name} (${item.category})\n`;
+        });
+        
+        output.textContent += '\n\nStation Assignments:\n';
+        Object.entries(testStationAssignments).forEach(([stationId, items]) => {
+            const enabledCount = Object.values(items).filter(i => i.enabled).length;
+            output.textContent += `  Station ${stationId}: ${enabledCount} drinks enabled\n`;
+        });
+        
+        output.textContent += '\n\nYou can now close this page and test the walk-in order form.';
+    </script>
+</body>
+</html>

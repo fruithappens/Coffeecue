@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Login - Expresso Coffee System{% endblock %}
+
+{% block styles %}
+<style>
+    .login-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 80vh;
+    }
+    
+    .login-card {
+        width: 100%;
+        max-width: 400px;
+        padding: 30px;
+        background-color: white;
+        border-radius: 10px;
+        box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+    }
+    
+    .login-header {
+        text-align: center;
+        margin-bottom: 25px;
+    }
+    
+    .login-header h2 {
+        color: #2c3e50;
+        margin-bottom: 5px;
+    }
+    
+    .login-header .coffee-icon {
+        font-size: 3rem;
+        color: #e67e22;
+        margin-bottom: 15px;
+    }
+    
+    .login-form .form-group {
+        margin-bottom: 20px;
+    }
+    
+    .login-form label {
+        font-weight: 500;
+    }
+    
+    .login-btn {
+        width: 100%;
+        padding: 10px;
+        font-weight: 600;
+        background-color: #e67e22;
+        border-color: #e67e22;
+    }
+    
+    .login-btn:hover {
+        background-color: #d35400;
+        border-color: #d35400;
+    }
+    
+    .login-footer {
+        text-align: center;
+        margin-top: 20px;
+        font-size: 0.9rem;
+        color: #7f8c8d;
+    }
+    
+    .login-footer a {
+        color: #e67e22;
+        text-decoration: none;
+    }
+    
+    .login-footer a:hover {
+        text-decoration: underline;
+    }
+    
+    .forgot-password {
+        text-align: right;
+        margin-top: -15px;
+        margin-bottom: 20px;
+        font-size: 0.9rem;
+    }
+    
+    .forgot-password a {
+        color: #e67e22;
+        text-decoration: none;
+    }
+    
+    .forgot-password a:hover {
+        text-decoration: underline;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="login-container">
+    <div class="login-card">
+        <div class="login-header">
+            <div class="coffee-icon">
+                <i class="bi bi-cup-hot"></i>
+            </div>
+            <h2>Admin Login</h2>
+            <p>{{ event_name }}</p>
+        </div>
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        <form class="login-form" method="POST">
+            <!-- CSRF token input provided by Flask-WTF -->
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            
+            <div class="form-group">
+                <label for="username">Username or Email</label>
+                <input type="text" class="form-control" id="username" name="username" required autocomplete="username">
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" class="form-control" id="password" name="password" required autocomplete="current-password">
+            </div>
+            
+            <div class="form-check mb-3">
+                <input type="checkbox" class="form-check-input" id="remember" name="remember">
+                <label class="form-check-label" for="remember">Remember me</label>
+            </div>
+            
+            <div class="forgot-password">
+                <a href="{{ url_for('auth.forgot_password') }}">Forgot password?</a>
+            </div>
+            
+            <button type="submit" class="btn btn-primary login-btn">
+                <i class="bi bi-box-arrow-in-right"></i> Login
+            </button>
+        </form>
+        
+        <div class="login-footer">
+            <p>Return to <a href="/">Home Page</a></p>
+        </div>
+    </div>
+</div>
+{% endblock %}

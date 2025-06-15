@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JWT Diagnosis Tool</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            margin-top: 0;
+        }
+        h2 {
+            color: #3498db;
+            margin-top: 30px;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            border: 1px solid #ddd;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .success {
+            color: #27ae60;
+            font-weight: bold;
+        }
+        .error {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+        .panel {
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: monospace;
+            height: 150px;
+            margin-bottom: 10px;
+        }
+        .results {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            border-left: 4px solid #3498db;
+            margin-top: 20px;
+        }
+        .code {
+            font-family: monospace;
+            background-color: #f5f5f5;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔒 JWT Diagnosis Tool</h1>
+        <p>This tool helps diagnose JWT token issues with the backend API.</p>
+        
+        <div class="panel">
+            <h2>📝 Current Stored Tokens</h2>
+            <div id="current-tokens">Loading...</div>
+            
+            <button id="show-parsed">Show Parsed Token Contents</button>
+        </div>
+        
+        <div class="panel">
+            <h2>🔍 Test Connection</h2>
+            <button id="test-api">Test API Connection</button>
+            <button id="test-stations">Test Stations Endpoint</button>
+            <button id="test-orders">Test Orders Endpoint</button>
+            <div id="connection-results" class="results" style="display: none;"></div>
+        </div>
+        
+        <div class="panel">
+            <h2>🔑 Create Custom Token</h2>
+            <p>Enter new JWT token payload (will be base64 encoded):</p>
+            <textarea id="token-payload">{"sub": "demo_user", "name": "Demo User", "role": "barista", "id": "demo_user", "username": "demo", "stations": [1, 2, 3]}</textarea>
+            <button id="create-token">Create & Store Token</button>
+            <div id="token-results" class="results" style="display: none;"></div>
+        </div>
+        
+        <div class="panel">
+            <h2>🧪 Try Predefined Tokens</h2>
+            <button id="token-fixed1">Try Token 1 (String ID)</button>
+            <button id="token-fixed2">Try Token 2 (Number ID)</button>
+            <button id="token-fixed3">Try Token 3 (Minimal)</button>
+            <button id="token-blank">Try Empty Token</button>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Display current tokens
+            function displayCurrentTokens() {
+                const tokenKeys = ['coffee_system_token', 'auth_token', 'coffee_auth_token', 'jwt_token'];
+                const tokenDisplay = document.getElementById('current-tokens');
+                
+                let html = '<h3>Stored Tokens:</h3>';
+                
+                tokenKeys.forEach(key => {
+                    const token = localStorage.getItem(key);
+                    if (token) {
+                        html += `<p><strong>${key}:</strong> <code>${token.substring(0, 20)}...${token.substring(token.length - 10)}</code> (${token.length} chars)</p>`;
+                    } else {
+                        html += `<p><strong>${key}:</strong> <span class="error">Not set</span></p>`;
+                    }
+                });
+                
+                const user = localStorage.getItem('coffee_system_user');
+                if (user) {
+                    html += `<h3>User Object:</h3><pre>${JSON.stringify(JSON.parse(user), null, 2)}</pre>`;
+                }
+                
+                tokenDisplay.innerHTML = html;
+            }
+            
+            // Parse JWT token
+            function parseJwt(token) {
+                try {
+                    const base64Url = token.split('.')[1];
+                    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+                        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                    }).join(''));
+                    
+                    return JSON.parse(jsonPayload);
+                } catch (e) {
+                    console.error('Error parsing token:', e);
+                    return { error: 'Invalid token format' };
+                }
+            }
+            
+            // Create and store a custom token
+            function createAndStoreToken(payload) {
+                // Create token parts
+                const header = {
+                    alg: 'HS256',
+                    typ: 'JWT'
+                };
+                
+                // Encode token parts
+                const headerB64 = btoa(JSON.stringify(header)).replace(/=+$/, '');
+                const payloadB64 = btoa(JSON.stringify(payload)).replace(/=+$/, '');
+                const signature = 'test_signature'; // Non-verifiable signature
+                
+                // Create token
+                const token = `${headerB64}.${payloadB64}.${signature}`;
+                
+                // Store token
+                const tokenKeys = ['coffee_system_token', 'auth_token', 'coffee_auth_token', 'jwt_token'];
+                tokenKeys.forEach(key => localStorage.setItem(key, token));
+                
+                // Also update user object
+                const user = {
+                    id: payload.id || payload.sub,
+                    username: payload.username || 'demo',
+                    name: payload.name || 'Demo User',
+                    role: payload.role || 'barista',
+                    stations: payload.stations || [1, 2, 3]
+                };
+                localStorage.setItem('coffee_system_user', JSON.stringify(user));
+                
+                return token;
+            }
+            
+            // Test API connection
+            async function testApiConnection(endpoint = '/api/test') {
+                const resultsDiv = document.getElementById('connection-results');
+                resultsDiv.style.display = 'block';
+                resultsDiv.innerHTML = '<p>Testing connection to ' + endpoint + '...</p>';
+                
+                try {
+                    const token = localStorage.getItem('coffee_system_token');
+                    
+                    const response = await fetch(endpoint, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Accept': 'application/json'
+                        }
+                    });
+                    
+                    let responseText = '';
+                    try {
+                        const data = await response.json();
+                        responseText = JSON.stringify(data, null, 2);
+                    } catch (e) {
+                        responseText = await response.text();
+                    }
+                    
+                    if (response.ok) {
+                        resultsDiv.innerHTML += `<p class="success">✅ Connection successful!</p>`;
+                    } else {
+                        resultsDiv.innerHTML += `<p class="error">❌ Connection failed with status: ${response.status}</p>`;
+                    }
+                    
+                    resultsDiv.innerHTML += `<p>Response:</p><pre>${responseText}</pre>`;
+                    
+                    // Show request details
+                    resultsDiv.innerHTML += `<p>Request details:</p>`;
+                    resultsDiv.innerHTML += `<pre>GET ${endpoint}\nAuthorization: Bearer ${token}</pre>`;
+                    
+                } catch (error) {
+                    resultsDiv.innerHTML += `<p class="error">❌ Error: ${error.message}</p>`;
+                }
+            }
+            
+            // Button event handlers
+            document.getElementById('show-parsed').addEventListener('click', function() {
+                const token = localStorage.getItem('coffee_system_token');
+                if (!token) {
+                    alert('No token found in localStorage');
+                    return;
+                }
+                
+                const parsed = parseJwt(token);
+                const currentTokens = document.getElementById('current-tokens');
+                currentTokens.innerHTML += `<h3>Parsed Token:</h3><pre>${JSON.stringify(parsed, null, 2)}</pre>`;
+                
+                // Check subject type
+                if (parsed.sub) {
+                    currentTokens.innerHTML += `<p>Subject type: <code>${typeof parsed.sub}</code> (${parsed.sub})</p>`;
+                    if (typeof parsed.sub !== 'string') {
+                        currentTokens.innerHTML += `<p class="error">⚠️ Warning: Subject is not a string!</p>`;
+                    }
+                }
+            });
+            
+            document.getElementById('test-api').addEventListener('click', function() {
+                testApiConnection('/api/test');
+            });
+            
+            document.getElementById('test-stations').addEventListener('click', function() {
+                testApiConnection('/api/stations');
+            });
+            
+            document.getElementById('test-orders').addEventListener('click', function() {
+                testApiConnection('/api/orders/pending');
+            });
+            
+            document.getElementById('create-token').addEventListener('click', function() {
+                const payloadText = document.getElementById('token-payload').value;
+                try {
+                    const payload = JSON.parse(payloadText);
+                    const token = createAndStoreToken(payload);
+                    
+                    const resultsDiv = document.getElementById('token-results');
+                    resultsDiv.style.display = 'block';
+                    resultsDiv.innerHTML = `<p class="success">Token created and stored!</p>`;
+                    resultsDiv.innerHTML += `<p>Token: <code>${token.substring(0, 20)}...${token.substring(token.length - 10)}</code></p>`;
+                    
+                    // Refresh token display
+                    displayCurrentTokens();
+                } catch (e) {
+                    alert('Error parsing JSON: ' + e.message);
+                }
+            });
+            
+            // Predefined tokens
+            document.getElementById('token-fixed1').addEventListener('click', function() {
+                const payload = {
+                    "sub": "demo_user",
+                    "name": "Demo User",
+                    "role": "barista",
+                    "id": "demo_user", 
+                    "username": "demo",
+                    "stations": [1, 2, 3]
+                };
+                createAndStoreToken(payload);
+                displayCurrentTokens();
+                alert('Token 1 (String ID) stored!');
+            });
+            
+            document.getElementById('token-fixed2').addEventListener('click', function() {
+                const payload = {
+                    "sub": 1,
+                    "name": "Demo User",
+                    "role": "barista",
+                    "id": 1,
+                    "username": "demo",
+                    "stations": [1, 2, 3]
+                };
+                createAndStoreToken(payload);
+                displayCurrentTokens();
+                alert('Token 2 (Number ID) stored!');
+            });
+            
+            document.getElementById('token-fixed3').addEventListener('click', function() {
+                const payload = {
+                    "sub": "1"
+                };
+                createAndStoreToken(payload);
+                displayCurrentTokens();
+                alert('Token 3 (Minimal) stored!');
+            });
+            
+            document.getElementById('token-blank').addEventListener('click', function() {
+                localStorage.removeItem('coffee_system_token');
+                localStorage.removeItem('auth_token');
+                localStorage.removeItem('coffee_auth_token');
+                localStorage.removeItem('jwt_token');
+                displayCurrentTokens();
+                alert('All tokens removed!');
+            });
+            
+            // Initialize
+            displayCurrentTokens();
+        });
+    </script>
+</body>
+</html>

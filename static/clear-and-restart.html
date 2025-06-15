@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear and Restart</title>
+</head>
+<body>
+    <h1>Clearing browser data and restarting...</h1>
+    <script>
+        // Clear all localStorage
+        localStorage.clear();
+        sessionStorage.clear();
+        
+        // Clear IndexedDB if it exists
+        if (window.indexedDB) {
+            indexedDB.databases().then(databases => {
+                databases.forEach(db => {
+                    indexedDB.deleteDatabase(db.name);
+                });
+            }).catch(err => console.error('Error clearing IndexedDB:', err));
+        }
+        
+        console.log('All browser storage cleared');
+        
+        // Redirect to main page after a short delay
+        setTimeout(() => {
+            window.location.href = 'http://localhost:5001';
+        }, 1000);
+    </script>
+</body>
+</html>

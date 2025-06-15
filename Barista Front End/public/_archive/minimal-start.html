@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="refresh" content="10;url=http://localhost:3000">
+  <title>Minimal Barista Interface Startup</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+      text-align: center;
+      padding: 20px;
+      background-color: #f0f0f0;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #333;
+    }
+    .progress {
+      margin: 20px 0;
+      height: 20px;
+      background-color: #f0f0f0;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .progress-bar {
+      height: 100%;
+      background-color: #4CAF50;
+      width: 0%;
+      transition: width 10s linear;
+    }
+    .countdown {
+      font-size: 18px;
+      font-weight: bold;
+      margin: 20px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Minimal Barista Interface</h1>
+    <p>This page will set up a minimal configuration and then redirect you to the main interface.</p>
+    
+    <div class="progress">
+      <div class="progress-bar" id="progress-bar"></div>
+    </div>
+    
+    <div class="countdown" id="countdown">Redirecting in 10 seconds...</div>
+    
+    <p>The interface will load with minimal settings to avoid resource issues.</p>
+  </div>
+  
+  <script>
+    // Configure minimal settings
+    localStorage.setItem('coffee_auto_refresh_enabled', 'false');
+    localStorage.setItem('coffee_connection_status', 'online');
+    localStorage.setItem('coffee_connection_timestamp', Date.now().toString());
+    localStorage.setItem('disable_console_capture', 'true');
+    localStorage.setItem('use_minimal_interface', 'true');
+    localStorage.setItem('block_extra_scripts', 'true');
+    localStorage.setItem('refreshing_data', 'false');
+    localStorage.setItem('active_request_count', '0');
+    
+    // Force a clean state
+    localStorage.removeItem('barista_interface_state');
+    localStorage.removeItem('api_error_state');
+    localStorage.removeItem('loading_state');
+    localStorage.setItem('force_data_reload', 'true');
+    
+    // Display countdown
+    let seconds = 10;
+    const countdownEl = document.getElementById('countdown');
+    const progressBar = document.getElementById('progress-bar');
+    
+    // Start progress bar animation
+    progressBar.style.width = '100%';
+    
+    const timer = setInterval(() => {
+      seconds--;
+      countdownEl.textContent = `Redirecting in ${seconds} seconds...`;
+      
+      if (seconds <= 0) {
+        clearInterval(timer);
+        window.location.href = `http://localhost:3000?minimal=${Date.now()}`;
+      }
+    }, 1000);
+  </script>
+</body>
+</html>

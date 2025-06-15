@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Station Persistence</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            padding: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #f5f5f5;
+        }
+        h1 { color: #333; }
+        .section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .success { 
+            background-color: #e8f5e9;
+            color: #2e7d32;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .error { 
+            background-color: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .info {
+            background-color: #e3f2fd;
+            color: #1565c0;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        button {
+            background: #1a73e8;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #1557b0;
+        }
+        .test-button {
+            background: #4CAF50;
+        }
+        .test-button:hover {
+            background: #45a049;
+        }
+        .critical-button {
+            background: #d32f2f;
+        }
+        .critical-button:hover {
+            background: #b71c1c;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test Station Persistence</h1>
+    
+    <div class="section">
+        <h2>Current Issue</h2>
+        <p>Station status changes (active/inactive) are being saved to the console but not persisting in the database.</p>
+        <p>This tool will test the station update API endpoints directly.</p>
+    </div>
+    
+    <div class="section">
+        <h2>🔧 Test Station API</h2>
+        <button class="test-button" onclick="testGetStations()">1. Test Get Stations</button>
+        <button class="test-button" onclick="testUpdateStationStatus()">2. Test Update Station Status</button>
+        <button class="test-button" onclick="testUpdateStationDetails()">3. Test Update Station Details</button>
+        <button class="critical-button" onclick="testFullWorkflow()">4. Test Full Workflow</button>
+    </div>
+    
+    <div class="section">
+        <h2>📋 Results</h2>
+        <div id="results"></div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:5001/api';
+        let authToken = null;
+
+        // Get auth token from localStorage or session
+        function getAuthToken() {
+            if (authToken) return authToken;
+            
+            authToken = localStorage.getItem('accessToken') || 
+                       localStorage.getItem('token') || 
+                       sessionStorage.getItem('accessToken') ||
+                       sessionStorage.getItem('token');
+            
+            return authToken;
+        }
+
+        async function makeApiRequest(endpoint, options = {}) {
+            const token = getAuthToken();
+            if (!token) {
+                throw new Error('No auth token found. Please login first.');
+            }
+
+            const url = `${API_BASE_URL}${endpoint}`;
+            const defaultOptions = {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            };
+
+            const response = await fetch(url, { ...defaultOptions, ...options });
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(`API Error ${response.status}: ${data.error || data.message || 'Unknown error'}`);
+            }
+            
+            return data;
+        }
+
+        async function testGetStations() {
+            const results = document.getElementById('results');
+            let html = '<h3>🔍 Testing Get Stations...</h3>';
+            
+            try {
+                const response = await makeApiRequest('/stations');
+                
+                html += '<div class="success">✅ Successfully retrieved stations</div>';
+                html += `<div class="info">Found ${response.stations?.length || 0} stations:</div>`;
+                
+                if (response.stations) {
+                    response.stations.forEach(station => {
+                        html += `<div>• Station ${station.id}: ${station.name || 'Unnamed'} (Status: ${station.status || 'unknown'})</div>`;
+                    });
+                }
+                
+                html += '<div class="info">Raw response:</div>';
+                html += `<pre style="background: #f0f0f0; padding: 10px; border-radius: 4px; font-size: 12px; overflow-x: auto;">${JSON.stringify(response, null, 2)}</pre>`;
+                
+            } catch (error) {
+                html += `<div class="error">❌ Error: ${error.message}</div>`;
+                console.error('Get stations error:', error);
+            }
+            
+            results.innerHTML = html;
+        }
+
+        async function testUpdateStationStatus() {
+            const results = document.getElementById('results');
+            let html = '<h3>🔄 Testing Update Station Status...</h3>';
+            
+            try {
+                // First get stations to find one to update
+                const getResponse = await makeApiRequest('/stations');
+                
+                if (!getResponse.stations || getResponse.stations.length === 0) {
+                    html += '<div class="error">❌ No stations found to test with</div>';
+                    results.innerHTML = html;
+                    return;
+                }
+                
+                const station = getResponse.stations[0];
+                const newStatus = station.status === 'active' ? 'inactive' : 'active';
+                
+                html += `<div class="info">Testing with Station ${station.id}, changing status from "${station.status}" to "${newStatus}"</div>`;
+                
+                // Update the station status
+                const updateResponse = await makeApiRequest(`/stations/${station.id}/status`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ status: newStatus })
+                });
+                
+                html += '<div class="success">✅ Status update succeeded</div>';
+                html += `<div class="info">Server response: ${updateResponse.message}</div>`;
+                
+                // Verify the change persisted
+                html += '<div class="info">Verifying change persisted...</div>';
+                const verifyResponse = await makeApiRequest('/stations');
+                const updatedStation = verifyResponse.stations.find(s => s.id == station.id);
+                
+                if (updatedStation && updatedStation.status === newStatus) {
+                    html += '<div class="success">✅ Status change persisted correctly!</div>';
+                    html += `<div>Station ${station.id} status is now: ${updatedStation.status}</div>`;
+                } else {
+                    html += '<div class="error">❌ Status change did not persist</div>';
+                    html += `<div>Expected: ${newStatus}, Got: ${updatedStation?.status || 'undefined'}</div>`;
+                }
+                
+            } catch (error) {
+                html += `<div class="error">❌ Error: ${error.message}</div>`;
+                console.error('Update station status error:', error);
+            }
+            
+            results.innerHTML = html;
+        }
+
+        async function testUpdateStationDetails() {
+            const results = document.getElementById('results');
+            let html = '<h3>📝 Testing Update Station Details...</h3>';
+            
+            try {
+                // First get stations to find one to update
+                const getResponse = await makeApiRequest('/stations');
+                
+                if (!getResponse.stations || getResponse.stations.length === 0) {
+                    html += '<div class="error">❌ No stations found to test with</div>';
+                    results.innerHTML = html;
+                    return;
+                }
+                
+                const station = getResponse.stations[0];
+                const testName = `Test Station ${Date.now()}`;
+                const testLocation = `Test Location ${Date.now()}`;
+                
+                html += `<div class="info">Testing with Station ${station.id}, updating name and location</div>`;
+                
+                // Update the station details
+                const updateResponse = await makeApiRequest(`/stations/${station.id}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ 
+                        name: testName,
+                        location: testLocation,
+                        description: 'Test description',
+                        maxConcurrentOrders: 5
+                    })
+                });
+                
+                html += '<div class="success">✅ Station details update succeeded</div>';
+                html += `<div class="info">Server response: ${updateResponse.message}</div>`;
+                
+                // Verify the change persisted
+                html += '<div class="info">Verifying changes persisted...</div>';
+                const verifyResponse = await makeApiRequest('/stations');
+                const updatedStation = verifyResponse.stations.find(s => s.id == station.id);
+                
+                if (updatedStation) {
+                    html += '<div class="success">✅ Station details updated</div>';
+                    html += `<div>Station ${station.id}:</div>`;
+                    html += `<div>• Name: ${updatedStation.name}</div>`;
+                    html += `<div>• Location: ${updatedStation.location}</div>`;
+                    html += `<div>• Status: ${updatedStation.status}</div>`;
+                } else {
+                    html += '<div class="error">❌ Could not find updated station</div>';
+                }
+                
+            } catch (error) {
+                html += `<div class="error">❌ Error: ${error.message}</div>`;
+                console.error('Update station details error:', error);
+            }
+            
+            results.innerHTML = html;
+        }
+
+        async function testFullWorkflow() {
+            const results = document.getElementById('results');
+            let html = '<h3>🎯 Testing Full Station Workflow...</h3>';
+            
+            try {
+                // Step 1: Get current stations
+                html += '<div class="info">Step 1: Getting current stations...</div>';
+                const getResponse = await makeApiRequest('/stations');
+                html += `<div>Found ${getResponse.stations?.length || 0} stations</div>`;
+                
+                if (!getResponse.stations || getResponse.stations.length === 0) {
+                    html += '<div class="error">❌ No stations found to test with</div>';
+                    results.innerHTML = html;
+                    return;
+                }
+                
+                const station = getResponse.stations[0];
+                const originalStatus = station.status;
+                
+                // Step 2: Change status to inactive
+                html += '<div class="info">Step 2: Setting station to inactive...</div>';
+                await makeApiRequest(`/stations/${station.id}/status`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ status: 'inactive' })
+                });
+                html += '<div class="success">✅ Set to inactive</div>';
+                
+                // Step 3: Verify inactive status
+                html += '<div class="info">Step 3: Verifying inactive status...</div>';
+                const verifyInactive = await makeApiRequest('/stations');
+                const inactiveStation = verifyInactive.stations.find(s => s.id == station.id);
+                
+                if (inactiveStation.status === 'inactive') {
+                    html += '<div class="success">✅ Status is inactive</div>';
+                } else {
+                    html += '<div class="error">❌ Status is not inactive</div>';
+                }
+                
+                // Step 4: Change status to active
+                html += '<div class="info">Step 4: Setting station to active...</div>';
+                await makeApiRequest(`/stations/${station.id}/status`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ status: 'active' })
+                });
+                html += '<div class="success">✅ Set to active</div>';
+                
+                // Step 5: Verify active status
+                html += '<div class="info">Step 5: Verifying active status...</div>';
+                const verifyActive = await makeApiRequest('/stations');
+                const activeStation = verifyActive.stations.find(s => s.id == station.id);
+                
+                if (activeStation.status === 'active') {
+                    html += '<div class="success">✅ Status is active</div>';
+                } else {
+                    html += '<div class="error">❌ Status is not active</div>';
+                }
+                
+                // Step 6: Restore original status
+                html += '<div class="info">Step 6: Restoring original status...</div>';
+                await makeApiRequest(`/stations/${station.id}/status`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ status: originalStatus })
+                });
+                html += `<div class="success">✅ Restored to ${originalStatus}</div>`;
+                
+                html += '<div class="success">🎉 Full workflow test completed successfully!</div>';
+                
+            } catch (error) {
+                html += `<div class="error">❌ Workflow failed: ${error.message}</div>`;
+                console.error('Full workflow error:', error);
+            }
+            
+            results.innerHTML = html;
+        }
+
+        // Auto-check auth token on page load
+        window.onload = () => {
+            const results = document.getElementById('results');
+            const token = getAuthToken();
+            
+            if (token) {
+                results.innerHTML = '<div class="success">✅ Auth token found. Ready to test station persistence.</div>';
+            } else {
+                results.innerHTML = '<div class="error">❌ No auth token found. Please login to the Organiser interface first, then refresh this page.</div>';
+            }
+        };
+    </script>
+</body>
+</html>

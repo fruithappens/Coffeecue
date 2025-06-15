@@ -1,0 +1,11 @@
+{
+  "build": {
+    "builder": "heroku/buildpacks:20"
+  },
+  "deploy": {
+    "startCommand": "python run_server.py",
+    "healthcheckPath": "/api/health",
+    "healthcheckTimeout": 100,
+    "restartPolicyType": "always"
+  }
+}

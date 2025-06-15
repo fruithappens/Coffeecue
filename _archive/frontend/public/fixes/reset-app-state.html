@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reset Application State</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .card {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            padding: 20px;
+        }
+        h1, h2 {
+            color: #2d3748;
+        }
+        button {
+            background-color: #4299e1;
+            border: none;
+            border-radius: 4px;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+            padding: 8px 16px;
+        }
+        button:hover {
+            background-color: #3182ce;
+        }
+        button.danger {
+            background-color: #f56565;
+        }
+        button.danger:hover {
+            background-color: #e53e3e;
+        }
+        button.warning {
+            background-color: #ed8936;
+        }
+        button.warning:hover {
+            background-color: #dd6b20;
+        }
+        button.success {
+            background-color: #48bb78;
+        }
+        button.success:hover {
+            background-color: #38a169;
+        }
+        .status {
+            background-color: #e2e8f0;
+            border-radius: 4px;
+            margin-top: 10px;
+            padding: 10px;
+        }
+        .success-status {
+            background-color: #c6f6d5;
+            border: 1px solid #68d391;
+        }
+        .error-status {
+            background-color: #fed7d7;
+            border: 1px solid #fc8181;
+        }
+        pre {
+            background-color: #f1f1f1;
+            border-radius: 4px;
+            max-height: 200px;
+            overflow-y: auto;
+            padding: 10px;
+            white-space: pre-wrap;
+        }
+        .storage-item {
+            background-color: #f8f9fa;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            margin-bottom: 5px;
+            padding: 5px 10px;
+        }
+        .key {
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>Reset Application State</h1>
+    <p>This page helps you reset various parts of the application state to fix issues.</p>
+    
+    <div class="card">
+        <h2>Current LocalStorage</h2>
+        <div id="localStorage-display"></div>
+        <button id="refreshStorage">Refresh Storage View</button>
+    </div>
+    
+    <div class="card">
+        <h2>Auth Reset</h2>
+        <p>Reset authentication tokens and related state.</p>
+        <button id="resetAuth">Reset Auth Tokens</button>
+        <button id="createDemoToken" class="success">Create Demo Token</button>
+        <div id="authStatus" class="status"></div>
+    </div>
+    
+    <div class="card">
+        <h2>Connection Status Reset</h2>
+        <p>Reset the cached connection status.</p>
+        <button id="resetConnection">Reset Connection Status</button>
+        <button id="forceOnlineStatus" class="success">Force Online Status</button>
+        <button id="forceOfflineStatus" class="warning">Force Offline Status</button>
+        <div id="connectionStatus" class="status"></div>
+    </div>
+    
+    <div class="card">
+        <h2>Fallback Data</h2>
+        <p>Manage fallback data settings.</p>
+        <button id="enableFallback" class="success">Enable Fallback Data</button>
+        <button id="disableFallback" class="warning">Disable Fallback Data</button>
+        <button id="resetFallback">Reset Fallback Settings</button>
+        <div id="fallbackStatus" class="status"></div>
+    </div>
+    
+    <div class="card">
+        <h2>Complete System Reset</h2>
+        <p>Warning: This will clear all application data from localStorage.</p>
+        <button id="completeReset" class="danger">Complete System Reset</button>
+        <div id="resetStatus" class="status"></div>
+    </div>
+    
+    <div class="card">
+        <h2>Common Issues</h2>
+        <div>
+            <h3>Connection Flickering</h3>
+            <p>If the connection status is flickering (constantly switching between online and offline):</p>
+            <ol>
+                <li>Click "Reset Connection Status"</li>
+                <li>Click "Force Online Status"</li>
+                <li>Enable fallback data with "Enable Fallback Data"</li>
+            </ol>
+            <button id="fixFlickeringIssue" class="success">Fix Flickering Issue</button>
+        </div>
+        
+        <div style="margin-top: 20px;">
+            <h3>Authentication Issues</h3>
+            <p>If you're seeing "Subject must be a string" errors:</p>
+            <ol>
+                <li>Click "Reset Auth Tokens"</li>
+                <li>Click "Create Demo Token"</li>
+                <li>Enable fallback data with "Enable Fallback Data"</li>
+            </ol>
+            <button id="fixAuthIssue" class="success">Fix Auth Issue</button>
+        </div>
+        
+        <div style="margin-top: 20px;">
+            <h3>No Data Displayed</h3>
+            <p>If no orders are being displayed even though connection appears online:</p>
+            <ol>
+                <li>Enable fallback data with "Enable Fallback Data"</li>
+                <li>Make sure connection status is set to online</li>
+            </ol>
+            <button id="fixNoDataIssue" class="success">Fix No Data Issue</button>
+        </div>
+    </div>
+    
+    <div class="card">
+        <h2>Restart Application</h2>
+        <p>After making changes, click the button below to restart the application.</p>
+        <button id="restartApp" class="success">Restart Application</button>
+    </div>
+    
+    <script>
+        // Display localStorage contents
+        function displayLocalStorage() {
+            const container = document.getElementById('localStorage-display');
+            container.innerHTML = '';
+            
+            if (localStorage.length === 0) {
+                container.innerHTML = '<div class="status">No items in localStorage</div>';
+                return;
+            }
+            
+            // Group items by category
+            const categories = {
+                auth: [],
+                connection: [],
+                fallback: [],
+                data: [],
+                other: []
+            };
+            
+            // Categorize items
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                let value = localStorage.getItem(key);
+                
+                // Try to parse JSON values
+                try {
+                    if (value.startsWith('{') || value.startsWith('[')) {
+                        const parsed = JSON.parse(value);
+                        value = JSON.stringify(parsed, null, 2);
+                    }
+                } catch (e) {
+                    // Not JSON, keep as string
+                }
+                
+                // Truncate long values
+                if (typeof value === 'string' && value.length > 100) {
+                    value = value.substring(0, 100) + '... (truncated)';
+                }
+                
+                // Categorize by key prefix
+                if (key.includes('token') || key.includes('auth')) {
+                    categories.auth.push({ key, value });
+                } else if (key.includes('connection') || key.includes('online')) {
+                    categories.connection.push({ key, value });
+                } else if (key.includes('fallback')) {
+                    categories.fallback.push({ key, value });
+                } else if (key.includes('orders') || key.includes('settings') || key.includes('schedule')) {
+                    categories.data.push({ key, value });
+                } else {
+                    categories.other.push({ key, value });
+                }
+            }
+            
+            // Create category sections
+            for (const [category, items] of Object.entries(categories)) {
+                if (items.length === 0) continue;
+                
+                const section = document.createElement('div');
+                section.innerHTML = `<h3>${category.charAt(0).toUpperCase() + category.slice(1)} Items</h3>`;
+                
+                for (const { key, value } of items) {
+                    const item = document.createElement('div');
+                    item.className = 'storage-item';
+                    item.innerHTML = `<span class="key">${key}:</span> <span class="value">${value}</span>`;
+                    section.appendChild(item);
+                }
+                
+                container.appendChild(section);
+            }
+        }
+        
+        // Auth reset function
+        function resetAuth() {
+            const authKeys = ['coffee_system_token', 'coffee_auth_token', 'auth_token', 'jwt_token'];
+            
+            authKeys.forEach(key => localStorage.removeItem(key));
+            
+            const status = document.getElementById('authStatus');
+            status.innerHTML = 'Auth tokens reset successfully';
+            status.className = 'status success-status';
+            
+            displayLocalStorage();
+        }
+        
+        // Create demo token
+        function createDemoToken() {
+            // Create a proper JWT token
+            const header = {
+                alg: 'HS256', 
+                typ: 'JWT'
+            };
+            
+            // Current timestamp and expiration
+            const now = Math.floor(Date.now() / 1000);
+            const exp = now + 24 * 60 * 60; // 24 hours
+            
+            // Payload with proper 'sub' field
+            const payload = {
+                sub: 'demo_user', // String value for subject
+                name: 'Demo User',
+                role: 'barista',
+                stations: [1, 2, 3],
+                iat: now,
+                exp: exp
+            };
+            
+            // Base64 encode the header and payload
+            const headerB64 = btoa(JSON.stringify(header));
+            const payloadB64 = btoa(JSON.stringify(payload));
+            
+            // Dummy signature
+            const signature = 'dummy_signature';
+            
+            // Create the token
+            const token = `${headerB64}.${payloadB64}.${signature}`;
+            
+            // Save to localStorage
+            localStorage.setItem('coffee_system_token', token);
+            
+            const status = document.getElementById('authStatus');
+            status.innerHTML = 'Demo token created successfully';
+            status.className = 'status success-status';
+            
+            displayLocalStorage();
+        }
+        
+        // Reset connection status
+        function resetConnection() {
+            localStorage.removeItem('coffee_connection_status');
+            localStorage.removeItem('coffee_connection_timestamp');
+            
+            const status = document.getElementById('connectionStatus');
+            status.innerHTML = 'Connection status reset successfully';
+            status.className = 'status success-status';
+            
+            displayLocalStorage();
+        }
+        
+        // Force online status
+        function forceOnlineStatus() {
+            localStorage.setItem('coffee_connection_status', 'online');
+            localStorage.setItem('coffee_connection_timestamp', Date.now().toString());
+            
+            const status = document.getElementById('connectionStatus');
+            status.innerHTML = 'Connection status set to ONLINE';
+            status.className = 'status success-status';
+            
+            displayLocalStorage();
+        }
+        
+        // Force offline status
+        function forceOfflineStatus() {
+            localStorage.setItem('coffee_connection_status', 'offline');
+            localStorage.setItem('coffee_connection_timestamp', Date.now().toString());
+            
+            const status = document.getElementById('connectionStatus');
+            status.innerHTML = 'Connection status set to OFFLINE';
+            status.className = 'status success-status';
+            
+            displayLocalStorage();
+        }
+        
+        // Enable fallback data
+        function enableFallback() {
+            localStorage.setItem('use_fallback_data', 'true');
+            localStorage.setItem('fallback_data_available', 'true');
+            
+            const status = document.getElementById('fallbackStatus');
+            status.innerHTML = 'Fallback data enabled';
+            status.className = 'status success-status';
+            
+            displayLocalStorage();
+        }
+        
+        // Disable fallback data
+        function disableFallback() {
+            localStorage.removeItem('use_fallback_data');
+            
+            const status = document.getElementById('fallbackStatus');
+            status.innerHTML = 'Fallback data disabled (but still available if needed)';
+            status.className = 'status success-status';
+            
+            displayLocalStorage();
+        }
+        
+        // Reset fallback settings
+        function resetFallback() {
+            localStorage.removeItem('use_fallback_data');
+            localStorage.removeItem('fallback_data_available');
+            localStorage.removeItem('fallback_pending_orders');
+            localStorage.removeItem('fallback_in_progress_orders');
+            localStorage.removeItem('fallback_completed_orders');
+            localStorage.removeItem('fallback_settings');
+            
+            const status = document.getElementById('fallbackStatus');
+            status.innerHTML = 'Fallback settings and data reset';
+            status.className = 'status success-status';
+            
+            displayLocalStorage();
+        }
+        
+        // Complete system reset
+        function completeReset() {
+            localStorage.clear();
+            
+            const status = document.getElementById('resetStatus');
+            status.innerHTML = 'Complete system reset successful. All data cleared.';
+            status.className = 'status success-status';
+            
+            displayLocalStorage();
+        }
+        
+        // Fix flickering issue
+        function fixFlickeringIssue() {
+            resetConnection();
+            forceOnlineStatus();
+            enableFallback();
+            
+            const status = document.getElementById('resetStatus');
+            status.innerHTML = 'Flickering issue fix applied. Connection status set to online and fallback data enabled.';
+            status.className = 'status success-status';
+        }
+        
+        // Fix auth issue
+        function fixAuthIssue() {
+            resetAuth();
+            createDemoToken();
+            enableFallback();
+            
+            const status = document.getElementById('resetStatus');
+            status.innerHTML = 'Auth issue fix applied. New token created and fallback data enabled.';
+            status.className = 'status success-status';
+        }
+        
+        // Fix no data issue
+        function fixNoDataIssue() {
+            enableFallback();
+            forceOnlineStatus();
+            
+            const status = document.getElementById('resetStatus');
+            status.innerHTML = 'No data issue fix applied. Fallback data enabled and connection set to online.';
+            status.className = 'status success-status';
+        }
+        
+        // Restart application
+        function restartApp() {
+            window.location.href = '/';
+        }
+        
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', () => {
+            // Display localStorage contents
+            displayLocalStorage();
+            
+            // Add event listeners
+            document.getElementById('refreshStorage').addEventListener('click', displayLocalStorage);
+            document.getElementById('resetAuth').addEventListener('click', resetAuth);
+            document.getElementById('createDemoToken').addEventListener('click', createDemoToken);
+            document.getElementById('resetConnection').addEventListener('click', resetConnection);
+            document.getElementById('forceOnlineStatus').addEventListener('click', forceOnlineStatus);
+            document.getElementById('forceOfflineStatus').addEventListener('click', forceOfflineStatus);
+            document.getElementById('enableFallback').addEventListener('click', enableFallback);
+            document.getElementById('disableFallback').addEventListener('click', disableFallback);
+            document.getElementById('resetFallback').addEventListener('click', resetFallback);
+            document.getElementById('completeReset').addEventListener('click', completeReset);
+            document.getElementById('fixFlickeringIssue').addEventListener('click', fixFlickeringIssue);
+            document.getElementById('fixAuthIssue').addEventListener('click', fixAuthIssue);
+            document.getElementById('fixNoDataIssue').addEventListener('click', fixNoDataIssue);
+            document.getElementById('restartApp').addEventListener('click', restartApp);
+        });
+    </script>
+</body>
+</html>

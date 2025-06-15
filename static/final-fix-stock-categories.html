@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Final Fix: Stock Categories</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 700px; margin: 0 auto; }
+        button { padding: 20px 40px; margin: 10px; background: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 18px; font-weight: bold; }
+        button:hover { background: #c82333; }
+        .success { color: green; font-weight: bold; margin: 20px 0; font-size: 16px; }
+        .error { color: red; font-weight: bold; }
+        .info { background: #f0f8ff; padding: 20px; border-radius: 5px; margin: 20px 0; }
+        .steps { background: #d4edda; padding: 20px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #28a745; }
+    </style>
+</head>
+<body>
+    <h1>🎯 Final Fix: Stock Categories</h1>
+    
+    <div class="info">
+        <strong>For BaristaInterface.js with useStock hook (7 categories)</strong><br>
+        This will definitively move sweeteners from "Other" to "Sweeteners" tab.
+    </div>
+    
+    <button onclick="finalFix()">🚀 FINAL FIX - MOVE SWEETENERS</button>
+    
+    <div class="steps">
+        <h3>✅ After clicking the button:</h3>
+        <ol>
+            <li><strong>Close</strong> your Barista interface tab completely</li>
+            <li><strong>Clear browser cache</strong>: Cmd+Shift+Delete (Mac) or Ctrl+Shift+Delete (Windows)</li>
+            <li><strong>Reopen</strong> http://localhost:5001 and login again</li>
+            <li><strong>Go to Stock tab</strong> and check both "Sweeteners" and "Other"</li>
+        </ol>
+    </div>
+    
+    <div id="result"></div>
+
+    <script>
+        function finalFix() {
+            const result = document.getElementById('result');
+            result.innerHTML = '<h2>🔧 Executing Final Fix...</h2>';
+            
+            // Target the exact localStorage key used by BaristaInterface + useStock
+            const stockKey = 'coffee_stock_station_1';
+            const stockData = localStorage.getItem(stockKey);
+            
+            if (!stockData) {
+                result.innerHTML += '<p class="error">❌ No stock data found for Station 1</p>';
+                return;
+            }
+            
+            try {
+                const stock = JSON.parse(stockData);
+                result.innerHTML += '<h3>Current stock structure:</h3>';
+                result.innerHTML += `<p>Categories: ${Object.keys(stock).join(', ')}</p>`;
+                
+                // Show current state
+                if (stock.other) {
+                    result.innerHTML += `<p>Items in "other": ${stock.other.length}</p>`;
+                }
+                if (stock.sweeteners) {
+                    result.innerHTML += `<p>Items in "sweeteners": ${stock.sweeteners.length}</p>`;
+                }
+                
+                // Ensure sweeteners category exists
+                if (!stock.sweeteners) {
+                    stock.sweeteners = [];
+                    result.innerHTML += '<p>✅ Created sweeteners category</p>';
+                }
+                
+                // Move ALL sweetener-related items from other to sweeteners
+                if (stock.other && stock.other.length > 0) {
+                    const movedItems = [];
+                    const remainingItems = [];
+                    
+                    stock.other.forEach(item => {
+                        if (item.name) {
+                            const name = item.name.toLowerCase();
+                            const isSweetener = name.includes('sugar') || 
+                                              name.includes('honey') || 
+                                              name.includes('stevia') || 
+                                              name.includes('sweetener') ||
+                                              name.includes('syrup'); // Sometimes syrups are misplaced too
+                            
+                            if (isSweetener) {
+                                movedItems.push(item);
+                                stock.sweeteners.push(item);
+                                result.innerHTML += `<p>✅ Moved "${item.name}" to sweeteners</p>`;
+                            } else {
+                                remainingItems.push(item);
+                            }
+                        } else {
+                            remainingItems.push(item);
+                        }
+                    });
+                    
+                    // Update the other category
+                    stock.other = remainingItems;
+                    
+                    result.innerHTML += `<h3>Results:</h3>`;
+                    result.innerHTML += `<p>Moved ${movedItems.length} items to sweeteners category</p>`;
+                    result.innerHTML += `<p>Left ${remainingItems.length} items in other category</p>`;
+                } else {
+                    result.innerHTML += '<p>No items found in "other" category</p>';
+                }
+                
+                // Save the updated stock
+                localStorage.setItem(stockKey, JSON.stringify(stock));
+                
+                // Also trigger StockService refresh events
+                window.dispatchEvent(new CustomEvent('stock:updated', { 
+                    detail: { stationId: 1, stockData: stock } 
+                }));
+                
+                // Force localStorage to be written immediately
+                localStorage.setItem('stock_fix_timestamp', new Date().toISOString());
+                
+                result.innerHTML += `<div class="success">
+                    <h2>🎉 SUCCESS!</h2>
+                    <p><strong>Final stock state:</strong></p>
+                    <ul>
+                        <li>Sweeteners category: ${stock.sweeteners.length} items</li>
+                        <li>Other category: ${stock.other.length} items</li>
+                    </ul>
+                    <p><strong>NOW: Follow the steps above to clear cache and reload!</strong></p>
+                </div>`;
+                
+            } catch (error) {
+                result.innerHTML += `<p class="error">❌ Error: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

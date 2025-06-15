@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fix Demo Mode</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f7f7f7;
+      line-height: 1.6;
+    }
+    h1 {
+      color: #0066cc;
+      margin-bottom: 20px;
+    }
+    .card {
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    button {
+      background-color: #0066cc;
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-right: 10px;
+      margin-bottom: 10px;
+      font-weight: bold;
+    }
+    button:hover {
+      background-color: #0055aa;
+    }
+    .danger {
+      background-color: #cc3300;
+    }
+    .danger:hover {
+      background-color: #aa2200;
+    }
+    .success {
+      background-color: #00aa55;
+    }
+    .success:hover {
+      background-color: #008844;
+    }
+    pre {
+      background-color: #333;
+      color: white;
+      padding: 15px;
+      border-radius: 4px;
+      overflow-x: auto;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .settings-panel {
+      background-color: #f5f5f5;
+      padding: 15px;
+      border-radius: 4px;
+      margin-bottom: 15px;
+    }
+    .status {
+      padding: 10px;
+      margin-top: 10px;
+      border-radius: 4px;
+    }
+    .error {
+      background-color: #ffe0e0;
+      color: #cc3300;
+    }
+    .success-msg {
+      background-color: #e6f7ee;
+      color: #00aa55;
+    }
+  </style>
+</head>
+<body>
+  <h1>Fix Demo/Fallback Mode</h1>
+  
+  <div class="card">
+    <h2>Current Status</h2>
+    <div class="settings-panel" id="current-settings">
+      Loading current settings...
+    </div>
+    
+    <button id="refresh-status" class="success">Refresh Status</button>
+  </div>
+  
+  <div class="card">
+    <h2>Fix Fallback Data Issue</h2>
+    <p>The app is stuck using sample/fallback data instead of connecting to the backend. This tool will disable fallback mode and force a connection to the real backend.</p>
+    
+    <button id="disable-fallback" class="danger">Disable Fallback Data</button>
+    <button id="enable-live-data" class="success">Enable Live Data Mode</button>
+    
+    <div class="status" id="fallback-status"></div>
+  </div>
+  
+  <div class="card">
+    <h2>Backend API Connection</h2>
+    <p>Test the connection to the backend API server and ensure it's accessible.</p>
+    
+    <button id="test-backend" class="success">Test Backend Connection</button>
+    <div class="status" id="backend-status"></div>
+    
+    <h3>API Configuration</h3>
+    <div id="api-config">Loading API configuration...</div>
+  </div>
+  
+  <div class="card">
+    <h2>Reset App and Restart</h2>
+    <p>Apply all fixes and restart the application with a clean state.</p>
+    
+    <button id="fix-and-restart" class="danger">Apply Fixes and Restart</button>
+    <div class="status" id="restart-status"></div>
+  </div>
+  
+  <div class="card">
+    <h2>Advanced: Modify Local Storage</h2>
+    <pre id="localStorage-data"></pre>
+    <button id="clear-specific" class="danger">Clear Fallback Data Keys</button>
+  </div>
+  
+  <script>
+    // Function to update the current settings display
+    function updateCurrentSettings() {
+      const settingsPanel = document.getElementById('current-settings');
+      
+      // Check fallback data settings
+      const useFallbackData = localStorage.getItem('use_fallback_data') === 'true';
+      const fallbackDataAvailable = localStorage.getItem('fallback_data_available') === 'true';
+      const connectionStatus = localStorage.getItem('coffee_connection_status');
+      const demoMode = localStorage.getItem('demo_mode') === 'true';
+      const apiBase = localStorage.getItem('api_base_url');
+      
+      // Format the settings display
+      settingsPanel.innerHTML = `
+        <div><strong>Using Fallback Data:</strong> ${useFallbackData ? '✓ YES (Problem)' : '✗ No'}</div>
+        <div><strong>Fallback Data Available:</strong> ${fallbackDataAvailable ? '✓ Yes (Problem)' : '✗ No'}</div>
+        <div><strong>Connection Status:</strong> ${connectionStatus || 'Not set'}</div>
+        <div><strong>Demo Mode:</strong> ${demoMode ? '✓ YES (Problem)' : '✗ No'}</div>
+        <div><strong>API Base URL:</strong> ${apiBase || 'Default (http://localhost:5001)'}</div>
+      `;
+      
+      // Add warning if in fallback/demo mode
+      if (useFallbackData || fallbackDataAvailable || demoMode) {
+        settingsPanel.innerHTML += `
+          <div style="margin-top: 10px; color: #cc3300; font-weight: bold;">
+            ⚠️ App is using demo/sample data instead of connecting to the backend!
+          </div>
+        `;
+      }
+      
+      // Update localStorage display
+      updateLocalStorage();
+    }
+    
+    // Update localStorage display
+    function updateLocalStorage() {
+      const localStorageData = document.getElementById('localStorage-data');
+      
+      // Get all localStorage keys and filter for relevant ones
+      const relevantKeys = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key.includes('fallback') || key.includes('demo') || 
+            key.includes('connection') || key.includes('sample') ||
+            key.includes('api') || key.includes('offline')) {
+          relevantKeys.push(key);
+        }
+      }
+      
+      // Format the display
+      if (relevantKeys.length > 0) {
+        let output = '';
+        relevantKeys.forEach(key => {
+          output += `${key}: ${localStorage.getItem(key)}\n`;
+        });
+        localStorageData.textContent = output;
+      } else {
+        localStorageData.textContent = 'No relevant localStorage keys found.';
+      }
+    }
+    
+    // Function to test backend connection
+    function testBackendConnection() {
+      const backendStatus = document.getElementById('backend-status');
+      backendStatus.textContent = 'Testing connection to backend...';
+      backendStatus.className = 'status';
+      
+      // Use fetch to test connection to backend API
+      fetch('http://localhost:5001/api/status', {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      })
+      .then(response => {
+        if (response.ok) {
+          return response.json().then(data => {
+            backendStatus.textContent = `✅ Successfully connected to backend! Status: ${data.status || 'OK'}`;
+            backendStatus.className = 'status success-msg';
+          });
+        } else {
+          backendStatus.textContent = `❌ Backend returned error: ${response.status} ${response.statusText}`;
+          backendStatus.className = 'status error';
+        }
+      })
+      .catch(error => {
+        backendStatus.textContent = `❌ Failed to connect to backend: ${error.message}`;
+        backendStatus.className = 'status error';
+      });
+      
+      // Also fetch API configuration
+      const apiConfig = document.getElementById('api-config');
+      fetch('http://localhost:5001/api/config', {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      })
+      .then(response => {
+        if (response.ok) {
+          return response.json().then(data => {
+            apiConfig.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+          });
+        } else {
+          apiConfig.textContent = `Could not fetch API configuration: ${response.status} ${response.statusText}`;
+        }
+      })
+      .catch(error => {
+        apiConfig.textContent = `Could not fetch API configuration: ${error.message}`;
+      });
+    }
+    
+    // Function to disable fallback data
+    function disableFallbackData() {
+      const fallbackStatus = document.getElementById('fallback-status');
+      
+      // Remove fallback data flags
+      localStorage.removeItem('use_fallback_data');
+      localStorage.removeItem('fallback_data_available');
+      localStorage.removeItem('demo_mode');
+      
+      // Set connection status to online
+      localStorage.setItem('coffee_connection_status', 'online');
+      localStorage.setItem('coffee_connection_timestamp', Date.now().toString());
+      
+      // Remove any cached orders
+      localStorage.removeItem('cached_pending_orders');
+      localStorage.removeItem('cached_in_progress_orders');
+      localStorage.removeItem('cached_completed_orders');
+      sessionStorage.removeItem('cached_pending_orders');
+      sessionStorage.removeItem('cached_in_progress_orders');
+      sessionStorage.removeItem('cached_completed_orders');
+      
+      fallbackStatus.textContent = '✅ Fallback data mode has been disabled. The app will now attempt to use live data.';
+      fallbackStatus.className = 'status success-msg';
+      
+      // Update settings display
+      updateCurrentSettings();
+    }
+    
+    // Function to enable live data mode
+    function enableLiveDataMode() {
+      const fallbackStatus = document.getElementById('fallback-status');
+      
+      // Remove fallback data flags
+      localStorage.removeItem('use_fallback_data');
+      localStorage.removeItem('fallback_data_available');
+      localStorage.removeItem('demo_mode');
+      
+      // Set connection status to online
+      localStorage.setItem('coffee_connection_status', 'online');
+      localStorage.setItem('coffee_connection_timestamp', Date.now().toString());
+      
+      // Remove any cached orders
+      localStorage.removeItem('cached_pending_orders');
+      localStorage.removeItem('cached_in_progress_orders');
+      localStorage.removeItem('cached_completed_orders');
+      sessionStorage.removeItem('cached_pending_orders');
+      sessionStorage.removeItem('cached_in_progress_orders');
+      sessionStorage.removeItem('cached_completed_orders');
+      
+      // Force data refresh
+      localStorage.setItem('force_data_reload', 'true');
+      localStorage.setItem('force_api_refresh', Date.now().toString());
+      
+      // Set API base URL explicitly
+      localStorage.setItem('api_base_url', 'http://localhost:5001');
+      
+      fallbackStatus.textContent = '✅ Live data mode enabled. The app will now connect to the real backend API.';
+      fallbackStatus.className = 'status success-msg';
+      
+      // Update settings display
+      updateCurrentSettings();
+    }
+    
+    // Function to clear specific localStorage keys
+    function clearFallbackDataKeys() {
+      // Keys related to fallback and demo data
+      const keysToRemove = [
+        'use_fallback_data',
+        'fallback_data_available',
+        'demo_mode',
+        'cached_pending_orders',
+        'cached_in_progress_orders',
+        'cached_completed_orders',
+        'orders_cache',
+        'sample_data_loaded',
+        'force_offline',
+        'offline_mode'
+      ];
+      
+      keysToRemove.forEach(key => {
+        localStorage.removeItem(key);
+        sessionStorage.removeItem(key);
+      });
+      
+      updateCurrentSettings();
+      
+      const fallbackStatus = document.getElementById('fallback-status');
+      fallbackStatus.textContent = `✅ Cleared ${keysToRemove.length} fallback/demo data related keys.`;
+      fallbackStatus.className = 'status success-msg';
+    }
+    
+    // Function to apply all fixes and restart
+    function fixAndRestart() {
+      const restartStatus = document.getElementById('restart-status');
+      
+      // Apply all fixes
+      disableFallbackData();
+      enableLiveDataMode();
+      
+      // Clear other problematic localStorage keys
+      localStorage.removeItem('jwt_error_endpoints');
+      localStorage.removeItem('connection_cache_expiry');
+      localStorage.removeItem('api_error');
+      localStorage.removeItem('api_error_time');
+      
+      // Set flags for a clean restart
+      localStorage.setItem('clean_restart', 'true');
+      localStorage.setItem('restart_timestamp', Date.now().toString());
+      
+      restartStatus.textContent = '✅ All fixes applied! Redirecting to app in 3 seconds...';
+      restartStatus.className = 'status success-msg';
+      
+      // Redirect back to app with query params to force reload
+      setTimeout(() => {
+        window.location.href = `/?clean=true&t=${Date.now()}`;
+      }, 3000);
+    }
+    
+    // Set up event listeners
+    document.addEventListener('DOMContentLoaded', function() {
+      // Initialize
+      updateCurrentSettings();
+      
+      // Refresh status button
+      document.getElementById('refresh-status').addEventListener('click', updateCurrentSettings);
+      
+      // Disable fallback data button
+      document.getElementById('disable-fallback').addEventListener('click', disableFallbackData);
+      
+      // Enable live data button
+      document.getElementById('enable-live-data').addEventListener('click', enableLiveDataMode);
+      
+      // Test backend button
+      document.getElementById('test-backend').addEventListener('click', testBackendConnection);
+      
+      // Clear specific localStorage keys button
+      document.getElementById('clear-specific').addEventListener('click', clearFallbackDataKeys);
+      
+      // Fix and restart button
+      document.getElementById('fix-and-restart').addEventListener('click', fixAndRestart);
+    });
+  </script>
+</body>
+</html>

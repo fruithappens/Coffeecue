@@ -1,0 +1,199 @@
+/* Base Variables */
+:root {
+  /* Brand Colors */
+  --brand-primary: #6f4e37;  /* Coffee brown */
+  --brand-secondary: #20c997; /* Mint green */
+  --brand-accent: #fd7e14;   /* Orange */
+  
+  /* UI Colors */
+  --ui-primary: #4c6ef5;     /* Blue */
+  --ui-success: #20c997;     /* Green */
+  --ui-warning: #fd7e14;     /* Orange */
+  --ui-danger: #fa5252;      /* Red */
+  --ui-info: #4dabf7;        /* Light blue */
+  
+  /* Neutrals */
+  --neutral-50: #f8f9fa;
+  --neutral-100: #f1f3f5;
+  --neutral-200: #e9ecef;
+  --neutral-300: #dee2e6;
+  --neutral-400: #ced4da;
+  --neutral-500: #adb5bd;
+  --neutral-600: #6c757d;
+  --neutral-700: #495057;
+  --neutral-800: #343a40;
+  --neutral-900: #212529;
+  
+  /* Font sizes */
+  --font-xs: 0.75rem;   /* 12px */
+  --font-sm: 0.875rem;  /* 14px */
+  --font-md: 1rem;      /* 16px */
+  --font-lg: 1.125rem;  /* 18px */
+  --font-xl: 1.25rem;   /* 20px */
+  --font-2xl: 1.5rem;   /* 24px */
+  --font-3xl: 1.875rem; /* 30px */
+  --font-4xl: 2.25rem;  /* 36px */
+  
+  /* Spacing */
+  --space-1: 0.25rem;  /* 4px */
+  --space-2: 0.5rem;   /* 8px */
+  --space-3: 0.75rem;  /* 12px */
+  --space-4: 1rem;     /* 16px */
+  --space-5: 1.5rem;   /* 24px */
+  --space-6: 2rem;     /* 32px */
+  --space-8: 3rem;     /* 48px */
+  --space-10: 4rem;    /* 64px */
+  
+  /* Border radius */
+  --radius-sm: 0.25rem;  /* 4px */
+  --radius-md: 0.5rem;   /* 8px */
+  --radius-lg: 1rem;     /* 16px */
+  --radius-xl: 2rem;     /* 32px */
+  --radius-full: 9999px; /* For circles/pills */
+}
+
+/* Base elements */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+  color: var(--neutral-900);
+  background-color: var(--neutral-100);
+  line-height: 1.5;
+  font-size: var(--font-md);
+}
+
+a {
+  color: var(--ui-primary);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* Utility classes */
+.text-primary { color: var(--ui-primary) !important; }
+.text-success { color: var(--ui-success) !important; }
+.text-warning { color: var(--ui-warning) !important; }
+.text-danger { color: var(--ui-danger) !important; }
+.text-info { color: var(--ui-info) !important; }
+
+.bg-primary { background-color: var(--ui-primary) !important; }
+.bg-success { background-color: var(--ui-success) !important; }
+.bg-warning { background-color: var(--ui-warning) !important; }
+.bg-danger { background-color: var(--ui-danger) !important; }
+.bg-info { background-color: var(--ui-info) !important; }
+
+/* Skip to content (accessibility) */
+.skip-to-content {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--ui-primary);
+  color: white;
+  padding: var(--space-2);
+  z-index: 1000;
+  transition: top 0.3s;
+}
+
+.skip-to-content:focus {
+  top: 0;
+}
+
+/* Offline indicator */
+.offline-indicator {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background-color: var(--ui-warning);
+  color: white;
+  text-align: center;
+  padding: var(--space-2);
+  z-index: 1000;
+  font-weight: bold;
+}
+
+/* Flash messages */
+.flash-messages {
+  position: fixed;
+  top: var(--space-4);
+  right: var(--space-4);
+  z-index: 1000;
+  max-width: 400px;
+}
+
+/* Connection status indicator */
+.status-indicator {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: var(--space-2);
+}
+
+.status-online {
+  background-color: var(--ui-success);
+}
+
+.status-offline {
+  background-color: var(--ui-danger);
+}
+
+/* Toast notifications */
+.toast-container {
+  z-index: 1050;
+}
+
+/* QR scanner */
+#qr-scanner-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.9);
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+#qr-video-container {
+  position: relative;
+  width: 100%;
+  height: 80vh;
+  overflow: hidden;
+}
+
+#qr-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+#qr-scan-region {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 250px;
+  height: 250px;
+  border: 2px solid white;
+  border-radius: 20px;
+  box-shadow: 0 0 0 5000px rgba(0, 0, 0, 0.5);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  :root {
+    --font-md: 0.875rem; /* 14px */
+  }
+  
+  .flash-messages {
+    max-width: 100%;
+    top: 0;
+    right: 0;
+    left: 0;
+  }
+}

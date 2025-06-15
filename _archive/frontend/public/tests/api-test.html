@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Coffee System API Test</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    h1 {
+      color: #333;
+      border-bottom: 2px solid #ccc;
+      padding-bottom: 10px;
+    }
+    h2 {
+      color: #444;
+      margin-top: 30px;
+    }
+    pre {
+      background-color: #f4f4f4;
+      padding: 15px;
+      border-radius: 4px;
+      overflow: auto;
+      border: 1px solid #ddd;
+    }
+    button {
+      background-color: #4CAF50;
+      color: white;
+      padding: 10px 15px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 5px;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    .red {
+      color: red;
+    }
+    .green {
+      color: green;
+    }
+    .button-row {
+      margin: 20px 0;
+    }
+    #console {
+      height: 500px;
+      overflow: auto;
+      background-color: #f8f8f8;
+      border: 1px solid #ddd;
+      padding: 10px;
+      font-family: 'Courier New', monospace;
+    }
+  </style>
+</head>
+<body>
+  <h1>Coffee System API Test</h1>
+  
+  <div class="button-row">
+    <button id="runTests">Run API Tests</button>
+    <button id="checkToken">Check Token</button>
+    <button id="clearStorage">Clear localStorage</button>
+    <button id="loginAdmin">Login as Admin</button>
+    <button id="clearConsole">Clear Console</button>
+  </div>
+  
+  <h2>Console Output</h2>
+  <div id="console"></div>
+
+  <script>
+    // Console output handling
+    const consoleElement = document.getElementById('console');
+    
+    // Override console methods to capture output
+    const originalConsole = {
+      log: console.log,
+      error: console.error,
+      warn: console.warn,
+      info: console.info
+    };
+    
+    // Function to add message to console element
+    function addToConsole(message, type = 'log') {
+      const line = document.createElement('div');
+      
+      // Format objects and arrays
+      if (typeof message === 'object' && message !== null) {
+        try {
+          message = JSON.stringify(message, null, 2);
+        } catch(e) {
+          message = message.toString();
+        }
+      }
+      
+      // Add color class based on message type
+      if (type === 'error') {
+        line.classList.add('red');
+      } else if (type === 'success') {
+        line.classList.add('green');
+      }
+      
+      // Add timestamp
+      const timestamp = new Date().toLocaleTimeString();
+      line.textContent = `[${timestamp}] ${message}`;
+      
+      consoleElement.appendChild(line);
+      
+      // Auto-scroll to bottom
+      consoleElement.scrollTop = consoleElement.scrollHeight;
+      
+      // Also log to actual console
+      if (type === 'error') {
+        originalConsole.error(message);
+      } else {
+        originalConsole.log(message);
+      }
+    }
+    
+    // Override console methods
+    console.log = function() {
+      const args = Array.from(arguments);
+      addToConsole(args.join(' '));
+    };
+    
+    console.error = function() {
+      const args = Array.from(arguments);
+      addToConsole(args.join(' '), 'error');
+    };
+    
+    console.warn = function() {
+      const args = Array.from(arguments);
+      addToConsole(args.join(' '));
+    };
+    
+    console.info = function() {
+      const args = Array.from(arguments);
+      addToConsole(args.join(' '));
+    };
+    
+    // Button event handlers
+    document.getElementById('runTests').addEventListener('click', function() {
+      addToConsole('Loading API tests...', 'success');
+      const script = document.createElement('script');
+      script.src = 'api-test.js?' + new Date().getTime();  // Cache buster
+      document.body.appendChild(script);
+    });
+    
+    document.getElementById('checkToken').addEventListener('click', function() {
+      addToConsole('Loading token checker...', 'success');
+      const script = document.createElement('script');
+      script.src = 'check-token.js?' + new Date().getTime();  // Cache buster
+      document.body.appendChild(script);
+    });
+    
+    document.getElementById('clearStorage').addEventListener('click', function() {
+      localStorage.clear();
+      addToConsole('localStorage cleared', 'success');
+    });
+    
+    document.getElementById('loginAdmin').addEventListener('click', async function() {
+      addToConsole('Attempting login with admin/adminpassword...', 'success');
+      
+      try {
+        const loginResponse = await fetch('http://localhost:5001/api/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            username: 'admin',
+            password: 'adminpassword'
+          })
+        });
+        
+        if (!loginResponse.ok) {
+          addToConsole(`Login failed with status: ${loginResponse.status}`, 'error');
+          addToConsole(await loginResponse.text(), 'error');
+          return;
+        }
+        
+        const loginData = await loginResponse.json();
+        addToConsole('Login successful!', 'success');
+        addToConsole(JSON.stringify(loginData, null, 2));
+        
+        if (loginData.token) {
+          localStorage.setItem('coffee_system_token', loginData.token);
+          addToConsole('Token saved to localStorage', 'success');
+          
+          // Also save user data if available
+          if (loginData.user) {
+            localStorage.setItem('coffee_system_user', JSON.stringify(loginData.user));
+            addToConsole('User data saved to localStorage', 'success');
+          }
+        } else {
+          addToConsole('No token in login response', 'error');
+        }
+      } catch (error) {
+        addToConsole(`Login error: ${error.message}`, 'error');
+      }
+    });
+    
+    document.getElementById('clearConsole').addEventListener('click', function() {
+      consoleElement.innerHTML = '';
+      addToConsole('Console cleared', 'success');
+    });
+    
+    // Initial message
+    addToConsole('API Test Page Loaded', 'success');
+    addToConsole('Click "Run API Tests" to test direct API connections', 'success');
+    addToConsole('Click "Check Token" to verify stored authentication token', 'success');
+  </script>
+</body>
+</html>

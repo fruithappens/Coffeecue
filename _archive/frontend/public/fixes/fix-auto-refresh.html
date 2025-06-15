@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fix Auto-Refresh Settings</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f7f7f7;
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 30px;
+    }
+    .card {
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    button {
+      background-color: #0066cc;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-right: 10px;
+      margin-bottom: 10px;
+    }
+    button:hover {
+      background-color: #0055aa;
+    }
+    .success {
+      background-color: #4CAF50;
+      color: white;
+      padding: 10px;
+      border-radius: 4px;
+      margin-top: 10px;
+      display: none;
+    }
+    .settings-info {
+      background-color: #f5f5f5;
+      border-left: 4px solid #0066cc;
+      padding: 15px;
+      margin: 15px 0;
+      font-size: 15px;
+    }
+    .warning {
+      background-color: #ffe0e0;
+      border: 1px solid #ff9999;
+      padding: 10px 15px;
+      border-radius: 4px;
+      margin: 15px 0;
+    }
+    .status {
+      font-size: 18px;
+      margin-top: 15px;
+      font-weight: bold;
+    }
+    code {
+      font-family: monospace;
+      background-color: #f0f0f0;
+      padding: 2px 5px;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Coffee Cue Auto-Refresh Fix</h1>
+  
+  <div class="card">
+    <h2>Current Auto-Refresh Settings</h2>
+    <div class="settings-info" id="current-settings">Loading...</div>
+    
+    <h3>Connection Status</h3>
+    <div class="settings-info" id="connection-settings">Loading...</div>
+    
+    <div class="warning">
+      <strong>Problem:</strong> The auto-refresh interval is too short, causing the UI to flicker and refresh too frequently.
+    </div>
+    
+    <h3>Fix Auto-Refresh Settings</h3>
+    <p>Choose a safe interval to prevent UI flickering:</p>
+    <button onclick="fixAutoRefresh(60)">Set to 60 seconds (Recommended)</button>
+    <button onclick="fixAutoRefresh(90)">Set to 90 seconds</button>
+    <button onclick="fixAutoRefresh(120)">Set to 2 minutes</button>
+    <button onclick="toggleAutoRefresh()">Toggle Auto-Refresh</button>
+    
+    <div class="success" id="success-message">Settings updated successfully!</div>
+    
+    <div class="status" id="status"></div>
+  </div>
+  
+  <div class="card">
+    <h2>Connection Status Fix</h2>
+    <p>These settings control how often the app checks backend connection:</p>
+    
+    <button onclick="fixConnectionCache(60)">Set Connection Cache to 60 seconds</button>
+    <button onclick="fixConnectionCache(120)">Set Connection Cache to 2 minutes</button>
+    <button onclick="toggleFallbackMode()">Toggle Fallback Mode</button>
+    <button onclick="resetLocalStorage()">Reset All Settings</button>
+  </div>
+  
+  <div class="card">
+    <h2>Return to App</h2>
+    <p>After applying fixes, return to the main app:</p>
+    <button onclick="location.href='/'">Go to Main App</button>
+  </div>
+
+  <script>
+    // Display current settings
+    function updateDisplay() {
+      const autoRefreshEnabled = localStorage.getItem('coffee_auto_refresh_enabled') === 'true';
+      const autoRefreshInterval = parseInt(localStorage.getItem('coffee_auto_refresh_interval') || '30');
+      const connectionStatus = localStorage.getItem('coffee_connection_status') || 'unknown';
+      const connectionTimestamp = parseInt(localStorage.getItem('coffee_connection_timestamp') || '0');
+      const useFallbackData = localStorage.getItem('use_fallback_data') === 'true';
+      
+      const timeSinceLastConnectionCheck = Date.now() - connectionTimestamp;
+      const connectionAge = Math.round(timeSinceLastConnectionCheck / 1000);
+      
+      document.getElementById('current-settings').innerHTML = `
+        <strong>Auto-Refresh Enabled:</strong> ${autoRefreshEnabled ? 'Yes' : 'No'}<br>
+        <strong>Auto-Refresh Interval:</strong> ${autoRefreshInterval} seconds<br>
+        <strong>Using Fallback Data:</strong> ${useFallbackData ? 'Yes' : 'No'}
+      `;
+      
+      document.getElementById('connection-settings').innerHTML = `
+        <strong>Connection Status:</strong> ${connectionStatus}<br>
+        <strong>Last Connection Check:</strong> ${connectionAge} seconds ago<br>
+        <strong>Connection Timestamp:</strong> ${new Date(connectionTimestamp).toLocaleTimeString()}
+      `;
+      
+      document.getElementById('status').textContent = 
+        `Current Status: Auto-refresh is ${autoRefreshEnabled ? 'ENABLED' : 'DISABLED'} 
+         with ${autoRefreshInterval} second interval. 
+         Connection is ${connectionStatus.toUpperCase()}.`;
+    }
+    
+    // Fix auto-refresh settings
+    function fixAutoRefresh(seconds) {
+      localStorage.setItem('coffee_auto_refresh_interval', seconds);
+      localStorage.setItem('coffee_auto_refresh_enabled', 'true');
+      
+      const successMsg = document.getElementById('success-message');
+      successMsg.style.display = 'block';
+      successMsg.textContent = `Auto-refresh interval set to ${seconds} seconds and enabled.`;
+      
+      setTimeout(() => {
+        successMsg.style.display = 'none';
+      }, 3000);
+      
+      updateDisplay();
+    }
+    
+    // Toggle auto-refresh
+    function toggleAutoRefresh() {
+      const currentValue = localStorage.getItem('coffee_auto_refresh_enabled') === 'true';
+      const newValue = !currentValue;
+      
+      localStorage.setItem('coffee_auto_refresh_enabled', newValue);
+      
+      const successMsg = document.getElementById('success-message');
+      successMsg.style.display = 'block';
+      successMsg.textContent = `Auto-refresh ${newValue ? 'enabled' : 'disabled'}.`;
+      
+      setTimeout(() => {
+        successMsg.style.display = 'none';
+      }, 3000);
+      
+      updateDisplay();
+    }
+    
+    // Fix connection cache settings
+    function fixConnectionCache(seconds) {
+      const cacheExpiryTime = seconds * 1000;
+      localStorage.setItem('connection_cache_expiry', cacheExpiryTime);
+      
+      // Store current status with new timestamp to extend cache
+      const currentStatus = localStorage.getItem('coffee_connection_status') || 'online';
+      localStorage.setItem('coffee_connection_status', currentStatus);
+      localStorage.setItem('coffee_connection_timestamp', Date.now().toString());
+      
+      // Set in session storage too
+      sessionStorage.setItem('last_connection_check', Date.now().toString());
+      
+      const successMsg = document.getElementById('success-message');
+      successMsg.style.display = 'block';
+      successMsg.textContent = `Connection cache set to ${seconds} seconds.`;
+      
+      setTimeout(() => {
+        successMsg.style.display = 'none';
+      }, 3000);
+      
+      updateDisplay();
+    }
+    
+    // Toggle fallback mode
+    function toggleFallbackMode() {
+      const currentValue = localStorage.getItem('use_fallback_data') === 'true';
+      const newValue = !currentValue;
+      
+      localStorage.setItem('use_fallback_data', newValue);
+      localStorage.setItem('fallback_data_available', newValue);
+      
+      const successMsg = document.getElementById('success-message');
+      successMsg.style.display = 'block';
+      successMsg.textContent = `Fallback data mode ${newValue ? 'enabled' : 'disabled'}.`;
+      
+      setTimeout(() => {
+        successMsg.style.display = 'none';
+      }, 3000);
+      
+      updateDisplay();
+    }
+    
+    // Reset all local storage settings
+    function resetLocalStorage() {
+      if (confirm('This will reset all auto-refresh and connection settings. Continue?')) {
+        localStorage.removeItem('coffee_auto_refresh_enabled');
+        localStorage.removeItem('coffee_auto_refresh_interval');
+        localStorage.removeItem('coffee_connection_status');
+        localStorage.removeItem('coffee_connection_timestamp');
+        localStorage.removeItem('connection_cache_expiry');
+        localStorage.removeItem('use_fallback_data');
+        localStorage.removeItem('fallback_data_available');
+        
+        sessionStorage.removeItem('last_connection_check');
+        
+        const successMsg = document.getElementById('success-message');
+        successMsg.style.display = 'block';
+        successMsg.textContent = 'All settings have been reset.';
+        
+        setTimeout(() => {
+          successMsg.style.display = 'none';
+        }, 3000);
+        
+        // Set default safe values
+        localStorage.setItem('coffee_auto_refresh_interval', '60');
+        localStorage.setItem('coffee_auto_refresh_enabled', 'true');
+        
+        updateDisplay();
+      }
+    }
+    
+    // Initial display update
+    updateDisplay();
+    
+    // Refresh display every 5 seconds
+    setInterval(updateDisplay, 5000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Milk Options Debug</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .danger {
+            background-color: #f44336;
+        }
+        .danger:hover {
+            background-color: #d32f2f;
+        }
+        .warning {
+            background-color: #ff9800;
+        }
+        .warning:hover {
+            background-color: #f57c00;
+        }
+        .info {
+            background-color: #2196F3;
+        }
+        .info:hover {
+            background-color: #1976D2;
+        }
+        .option-group {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h3 {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        .output {
+            background-color: #333;
+            color: #fff;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            margin-top: 20px;
+            overflow: auto;
+            max-height: 500px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Milk Options Debug Tool</h1>
+    
+    <div class="option-group">
+        <h3>Display Station Milk Data</h3>
+        <button onclick="showMilkOptions()">Show All Milk Inventory Data</button>
+        <button onclick="saveDefaults()" class="warning">Reset All Milks to Defaults</button>
+    </div>
+    
+    <div class="option-group">
+        <h3>Modify Settings</h3>
+        <button onclick="enableAllMilks()" class="info">Enable All Milk Types in Settings</button>
+        <button onclick="clearMilkSettings()" class="danger">Clear All Milk Settings</button>
+    </div>
+    
+    <div class="option-group">
+        <h3>Station Modifications</h3>
+        <button onclick="addOatMilk()" class="info">Add Oat Milk to Inventory</button>
+        <button onclick="removeAllButRegularMilk()" class="warning">Keep Only Regular Milk</button>
+    </div>
+    
+    <div id="output" class="output">Results will appear here...</div>
+
+    <script>
+        function logOutput(message) {
+            const output = document.getElementById('output');
+            output.textContent = message;
+        }
+        
+        function getStationData() {
+            let allData = {};
+            
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.includes('coffee_stock_station')) {
+                    try {
+                        allData[key] = JSON.parse(localStorage.getItem(key));
+                    } catch (e) {
+                        allData[key] = `Error parsing: ${e.message}`;
+                    }
+                }
+            }
+            
+            return allData;
+        }
+        
+        function showMilkOptions() {
+            // Execute the debug script
+            const script = document.createElement('script');
+            script.src = 'show-milk-options.js';
+            document.body.appendChild(script);
+            
+            // Remove the script after it executes
+            setTimeout(() => {
+                document.body.removeChild(script);
+            }, 1000);
+        }
+        
+        function saveDefaults() {
+            try {
+                const stationData = getStationData();
+                
+                Object.keys(stationData).forEach(key => {
+                    const station = stationData[key];
+                    
+                    // Reset milk to defaults
+                    if (station && typeof station === 'object') {
+                        station.milk = [
+                            { id: 'milk_regular', name: 'Regular Milk', amount: 20, capacity: 20, unit: 'L', status: 'good', lowThreshold: 5, criticalThreshold: 2 },
+                            { id: 'milk_skim', name: 'Skim Milk', amount: 10, capacity: 10, unit: 'L', status: 'good', lowThreshold: 3, criticalThreshold: 1 },
+                            { id: 'milk_almond', name: 'Almond Milk', amount: 5, capacity: 5, unit: 'L', status: 'good', lowThreshold: 2, criticalThreshold: 1 },
+                            { id: 'milk_soy', name: 'Soy Milk', amount: 5, capacity: 5, unit: 'L', status: 'good', lowThreshold: 2, criticalThreshold: 1 }
+                        ];
+                        
+                        // Save updated data
+                        localStorage.setItem(key, JSON.stringify(station));
+                    }
+                });
+                
+                logOutput('Successfully reset all stations to default milk inventory.');
+            } catch (e) {
+                logOutput(`Error resetting defaults: ${e.message}`);
+            }
+        }
+        
+        function enableAllMilks() {
+            try {
+                // Get current settings
+                let settings = {};
+                try {
+                    const savedSettings = localStorage.getItem('coffee_settings');
+                    if (savedSettings) {
+                        settings = JSON.parse(savedSettings);
+                    }
+                } catch (e) {
+                    console.error('Error parsing settings:', e);
+                }
+                
+                // Make sure availableMilks exists
+                if (!settings.availableMilks) {
+                    settings.availableMilks = {};
+                }
+                
+                // Enable all milk types
+                const allMilkTypes = [
+                    'full_cream', 'skim', 'reduced_fat', 'lactose_free',
+                    'soy', 'oat', 'almond', 'coconut', 'macadamia',
+                    'rice', 'hemp', 'cashew', 'pea'
+                ];
+                
+                allMilkTypes.forEach(milkId => {
+                    settings.availableMilks[milkId] = true;
+                });
+                
+                // Save updated settings
+                localStorage.setItem('coffee_settings', JSON.stringify(settings));
+                
+                logOutput(`Enabled all milk types in settings:\n${JSON.stringify(settings.availableMilks, null, 2)}`);
+            } catch (e) {
+                logOutput(`Error enabling all milks: ${e.message}`);
+            }
+        }
+        
+        function clearMilkSettings() {
+            try {
+                // Get current settings
+                let settings = {};
+                try {
+                    const savedSettings = localStorage.getItem('coffee_settings');
+                    if (savedSettings) {
+                        settings = JSON.parse(savedSettings);
+                    }
+                } catch (e) {
+                    console.error('Error parsing settings:', e);
+                }
+                
+                // Remove all milk settings
+                if (settings.availableMilks) {
+                    delete settings.availableMilks;
+                }
+                
+                // Save updated settings
+                localStorage.setItem('coffee_settings', JSON.stringify(settings));
+                
+                logOutput('Cleared all milk settings.');
+            } catch (e) {
+                logOutput(`Error clearing milk settings: ${e.message}`);
+            }
+        }
+        
+        function addOatMilk() {
+            try {
+                const stationData = getStationData();
+                
+                Object.keys(stationData).forEach(key => {
+                    const station = stationData[key];
+                    
+                    // Add oat milk to each station
+                    if (station && typeof station === 'object' && Array.isArray(station.milk)) {
+                        // Check if oat milk already exists
+                        const oatMilkIndex = station.milk.findIndex(m => 
+                            m.id === 'milk_oat' || m.id === 'oat');
+                        
+                        if (oatMilkIndex >= 0) {
+                            // Update existing oat milk
+                            station.milk[oatMilkIndex].amount = 5;
+                            station.milk[oatMilkIndex].status = 'good';
+                        } else {
+                            // Add new oat milk
+                            station.milk.push({
+                                id: 'milk_oat',
+                                name: 'Oat Milk',
+                                amount: 5,
+                                capacity: 5,
+                                unit: 'L',
+                                status: 'good',
+                                lowThreshold: 2,
+                                criticalThreshold: 1
+                            });
+                        }
+                        
+                        // Save updated data
+                        localStorage.setItem(key, JSON.stringify(station));
+                    }
+                });
+                
+                logOutput('Added Oat Milk to all station inventories.');
+            } catch (e) {
+                logOutput(`Error adding oat milk: ${e.message}`);
+            }
+        }
+        
+        function removeAllButRegularMilk() {
+            try {
+                const stationData = getStationData();
+                
+                Object.keys(stationData).forEach(key => {
+                    const station = stationData[key];
+                    
+                    // Remove all milks except regular
+                    if (station && typeof station === 'object' && Array.isArray(station.milk)) {
+                        // Keep only regular milk
+                        station.milk = station.milk.filter(m => 
+                            m.id === 'milk_regular' || m.id === 'regular' || m.id === 'full_cream');
+                        
+                        // If no regular milk, add it
+                        if (station.milk.length === 0) {
+                            station.milk.push({
+                                id: 'milk_regular',
+                                name: 'Regular Milk',
+                                amount: 20,
+                                capacity: 20,
+                                unit: 'L',
+                                status: 'good',
+                                lowThreshold: 5,
+                                criticalThreshold: 2
+                            });
+                        }
+                        
+                        // Save updated data
+                        localStorage.setItem(key, JSON.stringify(station));
+                    }
+                });
+                
+                logOutput('Removed all milk types except Regular Milk from all stations.');
+            } catch (e) {
+                logOutput(`Error removing milks: ${e.message}`);
+            }
+        }
+    </script>
+</body>
+</html>

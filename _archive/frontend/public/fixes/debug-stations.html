@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Station Debugger</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Ubuntu, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .danger {
+            background-color: #f44336;
+        }
+        .danger:hover {
+            background-color: #d32f2f;
+        }
+        .warning {
+            background-color: #ff9800;
+        }
+        .warning:hover {
+            background-color: #f57c00;
+        }
+        .info {
+            background-color: #2196F3;
+        }
+        .info:hover {
+            background-color: #1976D2;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h3 {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        .output {
+            background-color: #f5f5f5;
+            color: #333;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            margin-top: 20px;
+            overflow: auto;
+            max-height: 500px;
+            border: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+    <h1>Coffee Cue Station Debugger</h1>
+    
+    <div class="section">
+        <h3>Station Information</h3>
+        <button onclick="showStationInfo()">Show Station Info</button>
+        <button onclick="fixStations()" class="warning">Fix Station Issues</button>
+        <button onclick="refreshPage()" class="info">Refresh Page</button>
+    </div>
+    
+    <div class="section">
+        <h3>Manage Stations</h3>
+        <button onclick="resetStations()" class="danger">Reset All Station Data</button>
+        <button onclick="createDefaultStation()" class="info">Create Default Station</button>
+        <button onclick="syncStationInventory()" class="warning">Sync Station Inventory</button>
+    </div>
+    
+    <div class="section">
+        <h3>Milk Types by Station</h3>
+        <div class="station-buttons" id="station-buttons">
+            <!-- Dynamically filled -->
+            <div class="output">Loading station data...</div>
+        </div>
+    </div>
+    
+    <div id="output" class="output">Results will appear here...</div>
+
+    <script>
+        function logOutput(message) {
+            const output = document.getElementById('output');
+            output.textContent = typeof message === 'string' ? message : JSON.stringify(message, null, 2);
+        }
+        
+        // Load stations and display buttons
+        function loadStations() {
+            const stationButtons = document.getElementById('station-buttons');
+            stationButtons.innerHTML = '';
+            
+            try {
+                // Get stations from localStorage
+                const savedStations = localStorage.getItem('coffee_cue_stations');
+                if (savedStations) {
+                    const stations = JSON.parse(savedStations);
+                    if (Array.isArray(stations) && stations.length > 0) {
+                        stations.forEach(station => {
+                            const button = document.createElement('button');
+                            
+                            // Get custom name if exists
+                            const customName = localStorage.getItem(`coffee_station_name_${station.id}`);
+                            const displayName = customName || station.name;
+                            
+                            button.textContent = `${displayName} (ID: ${station.id})`;
+                            button.className = 'info';
+                            button.onclick = () => showStationMilkTypes(station.id, displayName);
+                            stationButtons.appendChild(button);
+                        });
+                        return;
+                    }
+                }
+                
+                // If no stations found
+                stationButtons.innerHTML = '<p>No stations found in localStorage.</p>';
+            } catch (e) {
+                stationButtons.innerHTML = `<p>Error loading stations: ${e.message}</p>`;
+            }
+        }
+        
+        // Show milk types for a specific station
+        function showStationMilkTypes(stationId, stationName) {
+            try {
+                const stockKey = `coffee_stock_station_${stationId}`;
+                const savedStock = localStorage.getItem(stockKey);
+                
+                if (savedStock) {
+                    const inventory = JSON.parse(savedStock);
+                    const milkInventory = inventory.milk || [];
+                    
+                    logOutput(`Milk Types for ${stationName} (ID: ${stationId}):\n\n${JSON.stringify(milkInventory, null, 2)}`);
+                } else {
+                    logOutput(`No inventory found for station ${stationName} (ID: ${stationId})`);
+                }
+            } catch (e) {
+                logOutput(`Error showing milk types: ${e.message}`);
+            }
+        }
+        
+        // Show detailed station information
+        function showStationInfo() {
+            const script = document.createElement('script');
+            script.src = 'debug-station-info.js';
+            document.body.appendChild(script);
+            
+            // Remove the script after it executes
+            setTimeout(() => {
+                document.body.removeChild(script);
+            }, 1000);
+        }
+        
+        // Reset all station data
+        function resetStations() {
+            if (!confirm('This will reset ALL station data! Are you sure?')) {
+                return;
+            }
+            
+            try {
+                // Clear station-related data
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key && (
+                        key.includes('coffee_stock_station_') || 
+                        key === 'coffee_cue_stations' ||
+                        key === 'coffee_cue_selected_station' ||
+                        key === 'last_used_station_id' || 
+                        key.includes('coffee_station_name_')
+                    )) {
+                        localStorage.removeItem(key);
+                    }
+                }
+                
+                // Create default station
+                createDefaultStation();
+                
+                // Reload page to reflect changes
+                alert('All station data has been reset. The page will now refresh.');
+                location.reload();
+            } catch (e) {
+                logOutput(`Error resetting stations: ${e.message}`);
+            }
+        }
+        
+        // Create a default station
+        function createDefaultStation() {
+            try {
+                // Create default station
+                const defaultStation = {
+                    id: 1,
+                    name: 'Coffee Station 1',
+                    status: 'active',
+                    currentLoad: 0
+                };
+                
+                // Save to localStorage
+                localStorage.setItem('coffee_cue_stations', JSON.stringify([defaultStation]));
+                localStorage.setItem('coffee_cue_selected_station', '1');
+                localStorage.setItem('last_used_station_id', '1');
+                
+                // Create default inventory
+                const defaultInventory = {
+                    milk: [
+                        { id: 'milk_regular', name: 'Regular Milk', amount: 20, capacity: 20, unit: 'L', status: 'good', lowThreshold: 5, criticalThreshold: 2 },
+                        { id: 'milk_skim', name: 'Skim Milk', amount: 10, capacity: 10, unit: 'L', status: 'good', lowThreshold: 3, criticalThreshold: 1 },
+                        { id: 'milk_almond', name: 'Almond Milk', amount: 5, capacity: 5, unit: 'L', status: 'good', lowThreshold: 2, criticalThreshold: 1 },
+                        { id: 'milk_soy', name: 'Soy Milk', amount: 5, capacity: 5, unit: 'L', status: 'good', lowThreshold: 2, criticalThreshold: 1 }
+                    ],
+                    coffee: [
+                        { id: 'coffee_house', name: 'House Blend', amount: 5, capacity: 5, unit: 'kg', status: 'good', lowThreshold: 1.5, criticalThreshold: 0.5 },
+                        { id: 'coffee_dark', name: 'Dark Roast', amount: 3, capacity: 3, unit: 'kg', status: 'good', lowThreshold: 1, criticalThreshold: 0.3 },
+                        { id: 'coffee_decaf', name: 'Decaf Blend', amount: 2, capacity: 2, unit: 'kg', status: 'good', lowThreshold: 0.5, criticalThreshold: 0.2 }
+                    ],
+                    cups: [
+                        { id: 'cups_small', name: 'Small Cups', amount: 200, capacity: 200, unit: 'pcs', status: 'good', lowThreshold: 50, criticalThreshold: 20 },
+                        { id: 'cups_medium', name: 'Medium Cups', amount: 200, capacity: 200, unit: 'pcs', status: 'good', lowThreshold: 50, criticalThreshold: 20 },
+                        { id: 'cups_large', name: 'Large Cups', amount: 100, capacity: 100, unit: 'pcs', status: 'good', lowThreshold: 30, criticalThreshold: 10 }
+                    ]
+                };
+                
+                localStorage.setItem('coffee_stock_station_1', JSON.stringify(defaultInventory));
+                
+                // Update the UI
+                loadStations();
+                logOutput('Default station created successfully!');
+            } catch (e) {
+                logOutput(`Error creating default station: ${e.message}`);
+            }
+        }
+        
+        // Fix station issues
+        function fixStations() {
+            try {
+                // Get station data
+                let stations = [];
+                try {
+                    const savedStations = localStorage.getItem('coffee_cue_stations');
+                    if (savedStations) {
+                        stations = JSON.parse(savedStations);
+                    }
+                } catch (e) {
+                    console.error('Error parsing stations:', e);
+                }
+                
+                // If no stations, create default
+                if (!Array.isArray(stations) || stations.length === 0) {
+                    createDefaultStation();
+                    return;
+                }
+                
+                // Ensure each station has inventory
+                stations.forEach(station => {
+                    const stockKey = `coffee_stock_station_${station.id}`;
+                    const savedStock = localStorage.getItem(stockKey);
+                    
+                    if (!savedStock) {
+                        // Create default inventory for this station
+                        const defaultInventory = {
+                            milk: [
+                                { id: 'milk_regular', name: 'Regular Milk', amount: 20, capacity: 20, unit: 'L', status: 'good', lowThreshold: 5, criticalThreshold: 2 },
+                                { id: 'milk_skim', name: 'Skim Milk', amount: 10, capacity: 10, unit: 'L', status: 'good', lowThreshold: 3, criticalThreshold: 1 },
+                                { id: 'milk_almond', name: 'Almond Milk', amount: 5, capacity: 5, unit: 'L', status: 'good', lowThreshold: 2, criticalThreshold: 1 },
+                                { id: 'milk_soy', name: 'Soy Milk', amount: 5, capacity: 5, unit: 'L', status: 'good', lowThreshold: 2, criticalThreshold: 1 }
+                            ],
+                            coffee: [
+                                { id: 'coffee_house', name: 'House Blend', amount: 5, capacity: 5, unit: 'kg', status: 'good', lowThreshold: 1.5, criticalThreshold: 0.5 },
+                                { id: 'coffee_dark', name: 'Dark Roast', amount: 3, capacity: 3, unit: 'kg', status: 'good', lowThreshold: 1, criticalThreshold: 0.3 },
+                                { id: 'coffee_decaf', name: 'Decaf Blend', amount: 2, capacity: 2, unit: 'kg', status: 'good', lowThreshold: 0.5, criticalThreshold: 0.2 }
+                            ],
+                            cups: [
+                                { id: 'cups_small', name: 'Small Cups', amount: 200, capacity: 200, unit: 'pcs', status: 'good', lowThreshold: 50, criticalThreshold: 20 },
+                                { id: 'cups_medium', name: 'Medium Cups', amount: 200, capacity: 200, unit: 'pcs', status: 'good', lowThreshold: 50, criticalThreshold: 20 },
+                                { id: 'cups_large', name: 'Large Cups', amount: 100, capacity: 100, unit: 'pcs', status: 'good', lowThreshold: 30, criticalThreshold: 10 }
+                            ]
+                        };
+                        
+                        localStorage.setItem(stockKey, JSON.stringify(defaultInventory));
+                    }
+                });
+                
+                // Ensure selected station is valid
+                const selectedStation = localStorage.getItem('coffee_cue_selected_station');
+                const stationIds = stations.map(s => s.id.toString());
+                
+                if (!selectedStation || !stationIds.includes(selectedStation)) {
+                    localStorage.setItem('coffee_cue_selected_station', stationIds[0]);
+                    localStorage.setItem('last_used_station_id', stationIds[0]);
+                }
+                
+                // Update UI
+                loadStations();
+                logOutput('Fixed station issues successfully!');
+            } catch (e) {
+                logOutput(`Error fixing stations: ${e.message}`);
+            }
+        }
+        
+        // Sync inventory for all stations
+        function syncStationInventory() {
+            try {
+                // Get station data
+                let stations = [];
+                try {
+                    const savedStations = localStorage.getItem('coffee_cue_stations');
+                    if (savedStations) {
+                        stations = JSON.parse(savedStations);
+                    }
+                } catch (e) {
+                    console.error('Error parsing stations:', e);
+                }
+                
+                // If no stations, create default
+                if (!Array.isArray(stations) || stations.length === 0) {
+                    createDefaultStation();
+                    return;
+                }
+                
+                // Get first station inventory as template
+                const firstStationKey = `coffee_stock_station_${stations[0].id}`;
+                const firstStationInventory = localStorage.getItem(firstStationKey);
+                
+                if (!firstStationInventory) {
+                    logOutput('First station has no inventory to sync from');
+                    return;
+                }
+                
+                const inventory = JSON.parse(firstStationInventory);
+                
+                // Apply to all stations (except first)
+                stations.slice(1).forEach(station => {
+                    const stockKey = `coffee_stock_station_${station.id}`;
+                    localStorage.setItem(stockKey, JSON.stringify(inventory));
+                });
+                
+                // Update UI
+                loadStations();
+                logOutput('Synchronized inventory across all stations!');
+            } catch (e) {
+                logOutput(`Error syncing inventory: ${e.message}`);
+            }
+        }
+        
+        // Refresh page
+        function refreshPage() {
+            location.reload();
+        }
+        
+        // Initialize on load
+        window.onload = loadStations;
+    </script>
+</body>
+</html>

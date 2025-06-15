@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+
+{% block title %}Sponsor and Payment Settings{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <h1 class="mt-4">Sponsor & Payment Settings</h1>
+    <ol class="breadcrumb mb-4">
+        <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
+        <li class="breadcrumb-item active">Sponsor & Payment Settings</li>
+    </ol>
+    
+    {% for message in get_flashed_messages() %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endfor %}
+    
+    <div class="row">
+        <div class="col-xl-12">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fas fa-money-bill me-1"></i>
+                    Payment Configuration
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('admin.sponsor_settings') }}">
+                        <input type="hidden" name="action" value="update_sponsor_settings">
+                        
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="payment_enabled" 
+                                   name="payment_enabled" value="true" {% if payment_enabled %}checked{% endif %}>
+                            <label class="form-check-label" for="payment_enabled">
+                                <strong>Enable Payment for Coffee Orders</strong>
+                            </label>
+                            <div class="form-text">
+                                When disabled, customers will not be charged for coffee and sponsor information will be displayed.
+                            </div>
+                        </div>
+                        
+                        <hr class="my-4">
+                        
+                        <div id="sponsor_section" class="{% if payment_enabled %}d-none{% endif %}">
+                            <h4>Sponsor Information</h4>
+                            <p class="text-muted">These settings apply when payment is disabled.</p>
+                            
+                            <div class="mb-3">
+                                <label for="sponsor_name" class="form-label">Sponsor Name</label>
+                                <input type="text" class="form-control" id="sponsor_name" name="sponsor_name"
+                                       value="{{ sponsor_name }}" placeholder="e.g., ANZCA ASM 2025 Cairns">
+                                <div class="form-text">
+                                    The name of the organization or event sponsoring the coffee service.
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="sponsor_message" class="form-label">Sponsor Message Template</label>
+                                <input type="text" class="form-control" id="sponsor_message" name="sponsor_message"
+                                       value="{{ sponsor_message }}" placeholder="Coffee service proudly sponsored by {sponsor}">
+                                <div class="form-text">
+                                    Message template for acknowledging sponsors. Use {sponsor} where the sponsor name should appear.
+                                </div>
+                            </div>
+                            
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="sponsor_display_enabled" 
+                                       name="sponsor_display_enabled" value="true" {% if sponsor_display_enabled %}checked{% endif %}>
+                                <label class="form-check-label" for="sponsor_display_enabled">
+                                    Show Sponsor Message
+                                </label>
+                                <div class="form-text">
+                                    When enabled, the sponsor message will be shown in order confirmations.
+                                </div>
+                            </div>
+                            
+                            <div class="card bg-light mb-3">
+                                <div class="card-header">Message Preview</div>
+                                <div class="card-body">
+                                    <p class="card-text" id="sponsor_preview">
+                                        {% if sponsor_name and sponsor_message and sponsor_display_enabled %}
+                                            {{ sponsor_message.replace('{sponsor}', sponsor_name) }}
+                                        {% else %}
+                                            <em>No sponsor message will be displayed</em>
+                                        {% endif %}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">Save Settings</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-xl-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fas fa-credit-card me-1"></i>
+                    When Payment is Enabled
+                </div>
+                <div class="card-body">
+                    <ul class="list-group">
+                        <li class="list-group-item">
+                            <i class="fas fa-check text-success me-2"></i>
+                            Customers see price in order confirmations
+                        </li>
+                        <li class="list-group-item">
+                            <i class="fas fa-check text-success me-2"></i>
+                            Orders tracked with pending payment status
+                        </li>
+                        <li class="list-group-item">
+                            <i class="fas fa-check text-success me-2"></i>
+                            Baristas can mark orders as paid upon collection
+                        </li>
+                        <li class="list-group-item">
+                            <i class="fas fa-check text-success me-2"></i>
+                            Reports include revenue analytics
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-xl-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fas fa-handshake me-1"></i>
+                    When Payment is Disabled
+                </div>
+                <div class="card-body">
+                    <ul class="list-group">
+                        <li class="list-group-item">
+                            <i class="fas fa-check text-success me-2"></i>
+                            No prices shown to customers
+                        </li>
+                        <li class="list-group-item">
+                            <i class="fas fa-check text-success me-2"></i>
+                            Sponsor message displayed in confirmations
+                        </li>
+                        <li class="list-group-item">
+                            <i class="fas fa-check text-success me-2"></i>
+                            Orders automatically marked as "sponsored"
+                        </li>
+                        <li class="list-group-item">
+                            <i class="fas fa-check text-success me-2"></i>
+                            Reports track sponsored orders separately
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Toggle sponsor section visibility
+    const paymentToggle = document.getElementById('payment_enabled');
+    const sponsorSection = document.getElementById('sponsor_section');
+    
+    paymentToggle.addEventListener('change', function() {
+        if (this.checked) {
+            sponsorSection.classList.add('d-none');
+        } else {
+            sponsorSection.classList.remove('d-none');
+        }
+    });
+    
+    // Live preview of sponsor message
+    const sponsorName = document.getElementById('sponsor_name');
+    const sponsorMessage = document.getElementById('sponsor_message');
+    const sponsorDisplay = document.getElementById('sponsor_display_enabled');
+    const previewElement = document.getElementById('sponsor_preview');
+    
+    function updatePreview() {
+        if (sponsorName.value && sponsorMessage.value && sponsorDisplay.checked) {
+            const message = sponsorMessage.value.replace('{sponsor}', sponsorName.value);
+            previewElement.textContent = message;
+        } else {
+            previewElement.innerHTML = '<em>No sponsor message will be displayed</em>';
+        }
+    }
+    
+    sponsorName.addEventListener('input', updatePreview);
+    sponsorMessage.addEventListener('input', updatePreview);
+    sponsorDisplay.addEventListener('change', updatePreview);
+});
+</script>
+{% endblock %}

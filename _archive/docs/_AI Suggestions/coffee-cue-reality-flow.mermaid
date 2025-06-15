@@ -1,0 +1,96 @@
+flowchart TD
+    %% Main Entry Points 
+    Customer([Customer]) --> SMS[SMS Interface]
+    Customer --> WebCustomer[Web Customer Interface]
+    Barista([Barista]) --> BaristaInterface[Barista Interface]
+    Admin([Admin/Organizer]) --> OrganiserInterface[Organiser Interface]
+    PublicUser([Public User]) --> DisplayScreen[Display Screen]
+    
+    %% Authentication Flow
+    Login[Login Page] --> |"/api/auth/login"| AuthService
+    AuthService --> |JWT Token| AppRouter
+    AppRouter --> |Role Check| BaristaInterface
+    AppRouter --> |Role Check| OrganiserInterface
+    AppRouter --> |Role Check| SupportInterface[Support Interface]
+    
+    %% SMS Order Flow
+    SMS --> OrderViaSMS[Place Order via SMS]
+    OrderViaSMS --> AwaitName{Awaiting Name?}
+    AwaitName -->|Yes| GetName[Collect Name]
+    AwaitName -->|No| GetCoffeeType[Collect Coffee Type]
+    GetName --> GetCoffeeType
+    GetCoffeeType --> GetMilk[Collect Milk Type]
+    GetMilk --> GetSize[Collect Size]
+    GetSize --> GetSugar[Collect Sugar Preference]
+    GetSugar --> OrderConfirmation{Confirm Order?}
+    OrderConfirmation -->|Yes| OrderCreated[Order Created]
+    OrderConfirmation -->|No| CancelOrder[Cancel Order]
+    OrderCreated --> |"/api/sms/send"| SMSNotifications[SMS Notifications]
+    OrderCreated --> |Adds to| PendingOrders[Pending Orders Queue]
+    
+    subgraph GlobalSystem[Global System - Shared Across All Stations]
+        PendingOrders
+        GlobalInventory[Global Inventory]
+        SettingsService[Settings Service]
+        SystemSettings[System Settings]
+        ScheduleManagement[Schedule Management]
+    end
+    
+    subgraph Station1[Station 1 - Unique Instance]
+        StationInterface1[Barista Interface - Station 1]
+        StationDisplay1[Display Screen - Station 1]
+        LocalInventory1[Local Station Inventory]
+    end
+    
+    subgraph Station2[Station 2 - Unique Instance]
+        StationInterface2[Barista Interface - Station 2]
+        StationDisplay2[Display Screen - Station 2]
+        LocalInventory2[Local Station Inventory]
+    end
+    
+    %% Barista Interface Connections to Global/Local
+    BaristaInterface --> |Determines which station| StationAllocation{Station Assignment}
+    StationAllocation --> StationInterface1
+    StationAllocation --> StationInterface2
+    
+    StationInterface1 --> |Views| LocalInventory1
+    StationInterface2 --> |Views| LocalInventory2
+    
+    %% Each Station gets own Display
+    StationInterface1 --> |Controls| StationDisplay1
+    StationInterface2 --> |Controls| StationDisplay2
+    
+    %% Global Inventory Management
+    GlobalInventory --> |Distributes to| LocalInventory1
+    GlobalInventory --> |Distributes to| LocalInventory2
+    OrganiserInterface --> |Manages| GlobalInventory
+    
+    %% Each station gets global orders filtered by station
+    PendingOrders --> |Station-filtered| StationInterface1
+    PendingOrders --> |Station-filtered| StationInterface2
+    
+    %% Order Processing
+    StationInterface1 --> |"/api/orders/:id/complete"| UpdateOrders1[Complete Orders - Station 1]
+    StationInterface2 --> |"/api/orders/:id/complete"| UpdateOrders2[Complete Orders - Station 2]
+    UpdateOrders1 --> |Updates| StationDisplay1
+    UpdateOrders2 --> |Updates| StationDisplay2
+    
+    %% Settings apply globally
+    SettingsService --> SystemSettings
+    SystemSettings --> |Applies to all| StationInterface1
+    SystemSettings --> |Applies to all| StationInterface2
+    
+    %% Inter-station Communication
+    StationInterface1 --> |"/api/chat/messages"| StationChat[Station Chat - Shared]
+    StationInterface2 --> |"/api/chat/messages"| StationChat
+    StationChat --> StationInterface1
+    StationChat --> StationInterface2
+    
+    %% Admin Management
+    OrganiserInterface --> |Manages all stations| StationManagementPanel[Station Management Panel]
+    OrganiserInterface --> ScheduleManagement
+    
+    class Station1,Station2 station
+    class GlobalSystem global
+    classDef station fill:#e6f7ff,stroke:#0066cc
+    classDef global fill:#f5f5f5,stroke:#333333

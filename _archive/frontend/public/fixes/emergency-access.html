@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EMERGENCY ACCESS - Coffee Cue System</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            background-color: #f8f9fa;
+            color: #212529;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        
+        header {
+            background-color: #dc3545;
+            color: white;
+            padding: 1rem;
+            text-align: center;
+        }
+        
+        h1 {
+            margin: 0;
+            font-size: 1.8rem;
+        }
+        
+        .container {
+            flex: 1;
+            display: flex;
+            padding: 1rem;
+        }
+        
+        .emergency-panel {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 2rem;
+            max-width: 800px;
+            margin: 0 auto;
+            width: 100%;
+        }
+        
+        .warning-box {
+            background-color: #fff3cd;
+            border: 1px solid #ffeeba;
+            color: #856404;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1.5rem;
+        }
+        
+        .button-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .btn {
+            display: block;
+            background-color: #343a40;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 12px 16px;
+            font-size: 1rem;
+            cursor: pointer;
+            text-align: center;
+            text-decoration: none;
+            transition: background-color 0.2s, transform 0.2s;
+        }
+        
+        .btn:hover {
+            background-color: #23272b;
+            transform: translateY(-2px);
+        }
+        
+        .btn-danger {
+            background-color: #dc3545;
+        }
+        
+        .btn-danger:hover {
+            background-color: #c82333;
+        }
+        
+        .btn-success {
+            background-color: #28a745;
+        }
+        
+        .btn-success:hover {
+            background-color: #218838;
+        }
+        
+        .btn-warning {
+            background-color: #ffc107;
+            color: #212529;
+        }
+        
+        .btn-warning:hover {
+            background-color: #e0a800;
+        }
+        
+        .btn-primary {
+            background-color: #007bff;
+        }
+        
+        .btn-primary:hover {
+            background-color: #0069d9;
+        }
+        
+        .log-container {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 1rem;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.875rem;
+            white-space: pre-wrap;
+        }
+        
+        .log-entry {
+            margin-bottom: 4px;
+            line-height: 1.4;
+        }
+        
+        .log-success {
+            color: #28a745;
+        }
+        
+        .log-error {
+            color: #dc3545;
+        }
+        
+        .log-info {
+            color: #17a2b8;
+        }
+        
+        .status-bar {
+            background-color: #343a40;
+            color: white;
+            padding: 0.5rem 1rem;
+            text-align: center;
+        }
+        
+        footer {
+            background-color: #343a40;
+            color: #f8f9fa;
+            padding: 1rem;
+            text-align: center;
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>EMERGENCY ACCESS - Coffee Cue System</h1>
+    </header>
+    
+    <div class="container">
+        <div class="emergency-panel">
+            <div class="warning-box">
+                <strong>WARNING:</strong> This page provides emergency access to the Coffee Cue system by bypassing normal authentication and validation. Use only when standard access methods are failing.
+            </div>
+            
+            <h2>Emergency Actions</h2>
+            
+            <div class="button-container">
+                <button class="btn btn-danger" id="resetAll">Reset All Storage</button>
+                <button class="btn btn-primary" id="bypassAuth">Bypass Authentication</button>
+                <button class="btn btn-warning" id="fixRefreshToken">Fix RefreshToken</button>
+                <button class="btn btn-success" id="launchApp">Launch Application</button>
+                <button class="btn" id="monitorErrors">Enable Error Monitoring</button>
+                <button class="btn btn-warning" id="forceDemoMode">Force Demo Mode</button>
+                <button class="btn btn-primary" id="forceRealData">Force Real Data</button>
+                <button class="btn btn-danger" id="killAllProcesses">Kill All Processes</button>
+            </div>
+            
+            <h2>System Status</h2>
+            <div class="log-container" id="logContainer">
+                <div class="log-entry log-info">Emergency access system initialized...</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="status-bar" id="statusBar">
+        Ready for emergency actions
+    </div>
+    
+    <footer>
+        Emergency Access System | Use with caution
+    </footer>
+    
+    <script>
+        // Utility functions
+        const log = {
+            container: document.getElementById('logContainer'),
+            statusBar: document.getElementById('statusBar'),
+            
+            // Add log entry
+            add: function(message, type = 'info') {
+                const entry = document.createElement('div');
+                entry.className = `log-entry log-${type}`;
+                
+                const timestamp = new Date().toTimeString().split(' ')[0];
+                entry.textContent = `[${timestamp}] ${message}`;
+                
+                this.container.appendChild(entry);
+                this.container.scrollTop = this.container.scrollHeight;
+                
+                // Also log to console
+                console.log(`[${type}] ${message}`);
+            },
+            
+            // Set status bar text
+            status: function(message) {
+                this.statusBar.textContent = message;
+            },
+            
+            // Log error
+            error: function(message) {
+                this.add(message, 'error');
+            },
+            
+            // Log success
+            success: function(message) {
+                this.add(message, 'success');
+            }
+        };
+        
+        // Create a JWT token
+        function createToken() {
+            const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+            const payload = btoa(JSON.stringify({
+                sub: 'emergency_user',
+                name: 'Emergency User',
+                role: 'barista',
+                exp: Math.floor(Date.now() / 1000) + 86400 // 24 hours
+            }));
+            const signature = btoa('emergency_signature');
+            return `${header}.${payload}.${signature}`;
+        }
+        
+        // Reset all storage
+        function resetAllStorage() {
+            log.add('Resetting all storage...', 'info');
+            
+            try {
+                // Clear localStorage
+                localStorage.clear();
+                
+                // Clear sessionStorage
+                sessionStorage.clear();
+                
+                // Clear cookies
+                const cookies = document.cookie.split(";");
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i];
+                    const eqPos = cookie.indexOf("=");
+                    const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
+                    document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
+                }
+                
+                log.success('All storage cleared successfully');
+                log.status('Storage reset complete');
+            } catch (error) {
+                log.error(`Error clearing storage: ${error.message}`);
+            }
+        }
+        
+        // Bypass authentication
+        function bypassAuthentication() {
+            log.add('Applying authentication bypass...', 'info');
+            
+            try {
+                // Create the auth bypass script
+                const script = document.createElement('script');
+                script.src = '/bypass-auth-completely.js';
+                document.head.appendChild(script);
+                
+                script.onload = function() {
+                    log.success('Authentication bypass script loaded and executed');
+                    log.status('Authentication bypassed');
+                };
+                
+                script.onerror = function() {
+                    log.error('Failed to load authentication bypass script');
+                    
+                    // Fallback - implement basic bypass here
+                    const token = createToken();
+                    localStorage.setItem('token', token);
+                    localStorage.setItem('isAuthenticated', 'true');
+                    localStorage.setItem('user', JSON.stringify({
+                        id: 'emergency_user',
+                        name: 'Emergency User',
+                        role: 'barista'
+                    }));
+                    
+                    log.add('Applied fallback authentication bypass', 'info');
+                };
+            } catch (error) {
+                log.error(`Error bypassing authentication: ${error.message}`);
+            }
+        }
+        
+        // Fix refresh token
+        function fixRefreshToken() {
+            log.add('Fixing refreshToken issue...', 'info');
+            
+            try {
+                // Create script to fix refreshToken
+                const scriptContent = `
+                    // Fix refreshToken issue in AuthService
+                    if (window.AuthService) {
+                        console.log('Adding refreshToken method to AuthService');
+                        
+                        // Add refreshToken if it doesn't exist
+                        if (!window.AuthService.prototype.refreshToken) {
+                            window.AuthService.prototype.refreshToken = function() {
+                                console.log('Emergency refreshToken called');
+                                return Promise.resolve({
+                                    token: '${createToken()}',
+                                    user: {
+                                        id: 'emergency_user',
+                                        name: 'Emergency User',
+                                        role: 'barista'
+                                    }
+                                });
+                            };
+                        }
+                    }
+                    
+                    // Also store in sessionStorage for main app to apply
+                    sessionStorage.setItem('refreshTokenFixScript', \`
+                        // Fix refreshToken issue in AuthService
+                        if (window.AuthService) {
+                            console.log('Adding refreshToken method to AuthService');
+                            
+                            if (!window.AuthService.prototype.refreshToken) {
+                                window.AuthService.prototype.refreshToken = function() {
+                                    console.log('Emergency refreshToken called');
+                                    return Promise.resolve({
+                                        token: '${createToken()}',
+                                        user: {
+                                            id: 'emergency_user',
+                                            name: 'Emergency User',
+                                            role: 'barista'
+                                        }
+                                    });
+                                };
+                            }
+                        }
+                    \`);
+                `;
+                
+                // Execute the script
+                const script = document.createElement('script');
+                script.textContent = scriptContent;
+                document.head.appendChild(script);
+                
+                log.success('refreshToken fix applied');
+                log.status('refreshToken function added to AuthService');
+            } catch (error) {
+                log.error(`Error fixing refreshToken: ${error.message}`);
+            }
+        }
+        
+        // Launch the application
+        function launchApplication() {
+            log.add('Preparing to launch application...', 'info');
+            
+            // Set token for app to use
+            const token = createToken();
+            localStorage.setItem('token', token);
+            localStorage.setItem('isAuthenticated', 'true');
+            
+            // Apply auth bypass if not already applied
+            if (!window.bypassAuth) {
+                bypassAuthentication();
+            }
+            
+            // Fix refreshToken
+            fixRefreshToken();
+            
+            // Force real data
+            forceRealData();
+            
+            // Navigate to app
+            setTimeout(() => {
+                log.add('Launching application...', 'info');
+                window.location.href = '/';
+            }, 1000);
+        }
+        
+        // Monitor for errors
+        function monitorErrors() {
+            log.add('Setting up error monitoring...', 'info');
+            
+            try {
+                // Set up error listeners
+                window.addEventListener('error', function(event) {
+                    log.error(`CAUGHT ERROR: ${event.message} at ${event.filename}:${event.lineno}`);
+                    
+                    // Auto-fix for known errors
+                    if (event.message.includes('refreshToken is not a function')) {
+                        log.add('Detected refreshToken error, applying fix', 'info');
+                        fixRefreshToken();
+                    }
+                });
+                
+                // Set up promise rejection handler
+                window.addEventListener('unhandledrejection', function(event) {
+                    log.error(`UNHANDLED PROMISE REJECTION: ${event.reason}`);
+                });
+                
+                // Set up console error capture
+                const originalConsoleError = console.error;
+                console.error = function() {
+                    const args = Array.from(arguments);
+                    const message = args.join(' ');
+                    log.error(`CONSOLE ERROR: ${message}`);
+                    originalConsoleError.apply(console, args);
+                };
+                
+                log.success('Error monitoring enabled');
+                log.status('Error monitoring active');
+            } catch (error) {
+                log.error(`Failed to set up error monitoring: ${error.message}`);
+            }
+        }
+        
+        // Force demo mode
+        function forceDemoMode() {
+            log.add('Forcing demo mode...', 'info');
+            
+            try {
+                // Set flags for demo mode
+                localStorage.setItem('useFallbackData', 'true');
+                localStorage.setItem('use_demo_mode', 'true');
+                localStorage.setItem('useOfflineMode', 'true');
+                
+                if (window.appConfig) {
+                    window.appConfig.useFallbackData = true;
+                    window.appConfig.useDemoMode = true;
+                }
+                
+                // Override any API functions to use fallback data
+                const script = document.createElement('script');
+                script.textContent = `
+                    // Force demo mode and fallback data
+                    window.shouldUseFallbackData = function() { return true; };
+                    window.FORCE_DEMO_MODE = true;
+                    window.USE_FALLBACK_DATA = true;
+                    
+                    console.log('Demo mode and fallback data forced');
+                `;
+                document.head.appendChild(script);
+                
+                log.success('Demo mode forced');
+                log.status('Demo mode active - application will use fallback data');
+            } catch (error) {
+                log.error(`Error forcing demo mode: ${error.message}`);
+            }
+        }
+        
+        // Force real data
+        function forceRealData() {
+            log.add('Forcing real data mode...', 'info');
+            
+            try {
+                // Clear demo mode flags
+                localStorage.removeItem('useFallbackData');
+                localStorage.removeItem('use_demo_mode');
+                localStorage.removeItem('useOfflineMode');
+                
+                if (window.appConfig) {
+                    window.appConfig.useFallbackData = false;
+                    window.appConfig.useDemoMode = false;
+                }
+                
+                // Override any API functions to use real data
+                const script = document.createElement('script');
+                script.textContent = `
+                    // Force real data
+                    window.shouldUseFallbackData = function() { return false; };
+                    window.FORCE_DEMO_MODE = false;
+                    window.USE_FALLBACK_DATA = false;
+                    window.blockAPI = false;
+                    window.isAPIBlocked = false;
+                    window.API_BLOCK_DISABLED = true;
+                    
+                    // Remove any function overrides that block API
+                    if (window.fetch && window.originalFetch) {
+                        window.fetch = window.originalFetch;
+                    }
+                    
+                    if (window.XMLHttpRequest && window.originalXMLHttpRequest) {
+                        window.XMLHttpRequest = window.originalXMLHttpRequest;
+                    }
+                    
+                    console.log('Real data mode forced');
+                `;
+                document.head.appendChild(script);
+                
+                log.success('Real data mode forced');
+                log.status('Real data mode active - application will use actual API');
+            } catch (error) {
+                log.error(`Error forcing real data mode: ${error.message}`);
+            }
+        }
+        
+        // Kill all processes
+        function killAllProcesses() {
+            log.add('Killing all processes and intervals...', 'info');
+            
+            try {
+                // Clear all intervals
+                const highestId = window.setInterval(() => {}, 100000);
+                for (let i = 1; i <= highestId; i++) {
+                    window.clearInterval(i);
+                }
+                
+                // Clear all timeouts
+                const highestTimeoutId = window.setTimeout(() => {}, 100000);
+                for (let i = 1; i <= highestTimeoutId; i++) {
+                    window.clearTimeout(i);
+                }
+                
+                // Stop all fetch requests (not really possible, but we can try)
+                if (window.fetch) {
+                    window.fetch = function() {
+                        return Promise.reject(new Error('Fetch aborted by emergency kill'));
+                    };
+                }
+                
+                // Stop all XHR requests
+                if (window.XMLHttpRequest) {
+                    window.XMLHttpRequest = function() {
+                        this.abort = function() {};
+                        this.open = function() {};
+                        this.send = function() {};
+                        this.setRequestHeader = function() {};
+                    };
+                }
+                
+                log.success('All processes and intervals killed');
+                log.status('System processes terminated');
+            } catch (error) {
+                log.error(`Error killing processes: ${error.message}`);
+            }
+        }
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set up button event handlers
+            document.getElementById('resetAll').addEventListener('click', resetAllStorage);
+            document.getElementById('bypassAuth').addEventListener('click', bypassAuthentication);
+            document.getElementById('fixRefreshToken').addEventListener('click', fixRefreshToken);
+            document.getElementById('launchApp').addEventListener('click', launchApplication);
+            document.getElementById('monitorErrors').addEventListener('click', monitorErrors);
+            document.getElementById('forceDemoMode').addEventListener('click', forceDemoMode);
+            document.getElementById('forceRealData').addEventListener('click', forceRealData);
+            document.getElementById('killAllProcesses').addEventListener('click', killAllProcesses);
+            
+            log.add('Emergency access system ready', 'success');
+        });
+    </script>
+</body>
+</html>

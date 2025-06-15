@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear Storage</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        button {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px 0;
+        }
+        button:hover {
+            background: #218838;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 10px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+        }
+    </style>
+</head>
+<body>
+    <h1>Clear Browser Storage</h1>
+    <p>Click the button below to clear all browser storage and start fresh:</p>
+    
+    <button onclick="clearAll()">Clear All Storage</button>
+    
+    <div class="status" id="status"></div>
+    
+    <button onclick="goToApp()">Go to Application</button>
+    
+    <script>
+        function clearAll() {
+            const status = document.getElementById('status');
+            
+            // Clear localStorage
+            localStorage.clear();
+            status.innerHTML = 'localStorage cleared<br>';
+            
+            // Clear sessionStorage
+            sessionStorage.clear();
+            status.innerHTML += 'sessionStorage cleared<br>';
+            
+            // Clear cookies
+            document.cookie.split(";").forEach(function(c) { 
+                document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+            });
+            status.innerHTML += 'Cookies cleared<br>';
+            
+            // Clear IndexedDB
+            if (window.indexedDB) {
+                indexedDB.databases().then(databases => {
+                    databases.forEach(db => {
+                        indexedDB.deleteDatabase(db.name);
+                    });
+                    status.innerHTML += 'IndexedDB cleared<br>';
+                }).catch(err => {
+                    status.innerHTML += 'Error clearing IndexedDB: ' + err + '<br>';
+                });
+            }
+            
+            status.innerHTML += '<br><strong>All storage cleared! You can now go to the application.</strong>';
+        }
+        
+        function goToApp() {
+            window.location.href = 'http://localhost:5001';
+        }
+    </script>
+</body>
+</html>

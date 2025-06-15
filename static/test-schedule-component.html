@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Schedule Component</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .log-entry {
+            padding: 5px;
+            margin: 2px 0;
+            background-color: #f8f9fa;
+            border-left: 3px solid #dee2e6;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 12px;
+        }
+        .test-button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>Test Schedule Component</h1>
+        
+        <div id="status-container"></div>
+        
+        <div style="margin: 20px 0;">
+            <button class="test-button" onclick="testScheduleComponent()">Test Schedule Component</button>
+            <button class="test-button" onclick="checkComponentFiles()">Check Component Files</button>
+            <button class="test-button" onclick="testLocalStorage()">Test LocalStorage</button>
+            <button class="test-button" onclick="clearAndReload()">Clear Cache & Reload</button>
+        </div>
+        
+        <div id="log-container" style="margin-top: 20px;">
+            <h3>Test Log:</h3>
+            <div id="log-content"></div>
+        </div>
+    </div>
+
+    <script>
+        const logContainer = document.getElementById('log-content');
+        const statusContainer = document.getElementById('status-container');
+        
+        function log(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.style.borderLeftColor = type === 'error' ? '#dc3545' : type === 'success' ? '#28a745' : '#17a2b8';
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logContainer.appendChild(entry);
+            console.log(message);
+        }
+        
+        function showStatus(message, type = 'info') {
+            const status = document.createElement('div');
+            status.className = `status ${type}`;
+            status.textContent = message;
+            statusContainer.appendChild(status);
+        }
+        
+        async function testScheduleComponent() {
+            log('Starting Schedule Component test...');
+            
+            try {
+                // Check if React app is loaded
+                const reactRoot = document.getElementById('root');
+                if (!reactRoot) {
+                    log('React root element not found on main page', 'error');
+                    showStatus('React app not loaded. Make sure the development server is running.', 'error');
+                    return;
+                }
+                
+                // Check localStorage for schedule data
+                const eventSessions = localStorage.getItem('event_sessions');
+                const sessionStatuses = localStorage.getItem('session_statuses');
+                const stationLocks = localStorage.getItem('station_locks');
+                
+                log(`Event sessions in localStorage: ${eventSessions ? 'Found' : 'Not found'}`);
+                log(`Session statuses in localStorage: ${sessionStatuses ? 'Found' : 'Not found'}`);
+                log(`Station locks in localStorage: ${stationLocks ? 'Found' : 'Not found'}`);
+                
+                // Try to navigate to the schedule section
+                log('Attempting to navigate to Schedule section...');
+                
+                // Look for the Schedule button in the sidebar
+                const scheduleButton = Array.from(document.querySelectorAll('button')).find(
+                    btn => btn.textContent.includes('Schedule')
+                );
+                
+                if (scheduleButton) {
+                    log('Found Schedule button, clicking it...');
+                    scheduleButton.click();
+                    
+                    // Wait a bit for the component to render
+                    setTimeout(() => {
+                        // Check if the component rendered
+                        const scheduleHeader = document.querySelector('h2')?.textContent;
+                        if (scheduleHeader && scheduleHeader.includes('Schedule')) {
+                            log('Schedule component appears to be rendered', 'success');
+                            showStatus('Schedule component loaded successfully!', 'success');
+                            
+                            // Check for key elements
+                            const timeline = document.querySelector('[ref="timelineRef"]');
+                            const tabs = document.querySelectorAll('button[class*="pb-2"]');
+                            
+                            log(`Timeline element: ${timeline ? 'Found' : 'Not found'}`);
+                            log(`Tab buttons found: ${tabs.length}`);
+                        } else {
+                            log('Schedule component did not render properly', 'error');
+                            showStatus('Schedule component failed to render', 'error');
+                        }
+                    }, 1000);
+                } else {
+                    log('Schedule button not found in sidebar', 'error');
+                    showStatus('Could not find Schedule button. Make sure you are on the Organiser Interface.', 'error');
+                }
+                
+            } catch (error) {
+                log(`Error during test: ${error.message}`, 'error');
+                showStatus(`Test failed: ${error.message}`, 'error');
+            }
+        }
+        
+        async function checkComponentFiles() {
+            log('Checking component files...');
+            
+            const filesToCheck = [
+                '/src/components/EnhancedScheduleManagement.js',
+                '/src/services/ScheduleService.js',
+                '/src/services/StationsService.js',
+                '/src/services/MessageService.js'
+            ];
+            
+            for (const file of filesToCheck) {
+                try {
+                    // This won't actually work due to CORS, but we can check if the files are being loaded by the build
+                    log(`Checking ${file}...`);
+                    
+                    // Check if the module is loaded in webpack
+                    if (window.__webpack_modules__) {
+                        const hasModule = Object.keys(window.__webpack_modules__).some(key => 
+                            key.includes(file.replace('/src/', ''))
+                        );
+                        log(`${file}: ${hasModule ? 'Loaded' : 'Not found'}`, hasModule ? 'success' : 'error');
+                    }
+                } catch (error) {
+                    log(`Could not check ${file}: ${error.message}`, 'error');
+                }
+            }
+            
+            showStatus('Component file check complete. Check the log for details.', 'info');
+        }
+        
+        function testLocalStorage() {
+            log('Testing localStorage for schedule-related data...');
+            
+            const keysToCheck = [
+                'event_sessions',
+                'session_statuses',
+                'station_locks',
+                'coffee_cue_stations',
+                'coffee_system_users',
+                'coffee_cue_local_schedule'
+            ];
+            
+            let foundAny = false;
+            
+            keysToCheck.forEach(key => {
+                const value = localStorage.getItem(key);
+                if (value) {
+                    foundAny = true;
+                    try {
+                        const parsed = JSON.parse(value);
+                        const count = Array.isArray(parsed) ? parsed.length : Object.keys(parsed).length;
+                        log(`${key}: Found (${count} items)`, 'success');
+                    } catch (e) {
+                        log(`${key}: Found (invalid JSON)`, 'error');
+                    }
+                } else {
+                    log(`${key}: Not found`);
+                }
+            });
+            
+            if (!foundAny) {
+                log('No schedule data found in localStorage', 'error');
+                showStatus('No schedule data found. You may need to create some test data.', 'error');
+                
+                // Initialize empty data
+                log('Initializing empty schedule data...');
+                localStorage.setItem('event_sessions', JSON.stringify([]));
+                localStorage.setItem('session_statuses', JSON.stringify({}));
+                localStorage.setItem('station_locks', JSON.stringify({}));
+                log('Empty schedule data initialized', 'success');
+            } else {
+                showStatus('Schedule data found in localStorage', 'success');
+            }
+        }
+        
+        function clearAndReload() {
+            if (confirm('This will clear the browser cache and reload the page. Continue?')) {
+                log('Clearing cache and reloading...');
+                
+                // Clear service worker cache if exists
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.getRegistrations().then(registrations => {
+                        registrations.forEach(registration => {
+                            registration.unregister();
+                        });
+                    });
+                }
+                
+                // Clear caches
+                if ('caches' in window) {
+                    caches.keys().then(names => {
+                        names.forEach(name => {
+                            caches.delete(name);
+                        });
+                    });
+                }
+                
+                // Hard reload
+                setTimeout(() => {
+                    window.location.reload(true);
+                }, 500);
+            }
+        }
+        
+        // Auto-run basic check on load
+        window.addEventListener('load', () => {
+            log('Page loaded. Ready to test Schedule component.');
+            showStatus('Test page loaded. Click the buttons above to run tests.', 'info');
+        });
+    </script>
+</body>
+</html>

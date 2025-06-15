@@ -1,0 +1,166 @@
+{% extends "layout.html" %}
+
+{% block title %}Order Details{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h3>Order #{{ order.order_number }}</h3>
+            <span class="badge bg-{% if order.status == 'pending' %}warning{% elif order.status == 'in-progress' %}info{% elif order.status == 'completed' %}success{% else %}danger{% endif %}">
+                {{ order.status|capitalize }}
+            </span>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-8">
+                    <h5>Order Details</h5>
+                    <p class="lead">{{ formatted_details }}</p>
+                    
+                    <div class="row mt-4">
+                        <div class="col-md-6">
+                            <p><strong>Station:</strong> {{ order.station_id }}</p>
+                            <p><strong>Order Time:</strong> {{ order.created_at }}</p>
+                            {% if order.scheduled_for %}
+                            <p><strong>Scheduled For:</strong> {{ order.scheduled_for }}</p>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Payment Status:</strong> {{ order.payment_status|capitalize }}</p>
+                            {% if order.price %}
+                            <p><strong>Price:</strong> ${{ order.price }}</p>
+                            {% endif %}
+                            {% if customer %}
+                            <p><strong>Customer:</strong> {{ customer.name }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <h5>Actions</h5>
+                        <div class="btn-group">
+                            {% if order.status == 'pending' %}
+                            <button class="btn btn-primary update-status" data-order-id="{{ order.id }}" data-status="in-progress">
+                                Start Order
+                            </button>
+                            {% elif order.status == 'in-progress' %}
+                            <button class="btn btn-success update-status" data-order-id="{{ order.id }}" data-status="completed">
+                                Mark as Completed
+                            </button>
+                            {% endif %}
+                            
+                            {% if order.payment_status == 'pending' %}
+                            <button class="btn btn-outline-success mark-payment" data-order-id="{{ order.id }}">
+                                Mark as Paid
+                            </button>
+                            {% endif %}
+                            
+                            <a href="{{ url_for('barista.edit_order', order_id=order.id) }}" class="btn btn-outline-primary">
+                                Edit Order
+                            </a>
+                            
+                            {% if order.status != 'cancelled' and order.status != 'completed' %}
+                            <button class="btn btn-outline-danger update-status" data-order-id="{{ order.id }}" data-status="cancelled">
+                                Cancel Order
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-4">
+                    {% if order.qr_code_url %}
+                    <div class="text-center mb-3">
+                        <h5>Order QR Code</h5>
+                        <img src="{{ order.qr_code_url }}" alt="Order QR Code" class="img-fluid mb-2" style="max-width: 100%;">
+                    </div>
+                    {% endif %}
+                    
+                    {% if customer %}
+                    <div class="card mt-3">
+                        <div class="card-header">Customer Info</div>
+                        <div class="card-body">
+                            <p><strong>Name:</strong> {{ customer.name }}</p>
+                            <p><strong>Phone:</strong> {{ order.phone }}</p>
+                            <p><strong>Total Orders:</strong> {{ customer.total_orders }}</p>
+                            {% if customer.loyalty_points %}
+                            <p><strong>Loyalty Points:</strong> {{ customer.loyalty_points }}</p>
+                            {% endif %}
+                            {% if customer.allergies %}
+                            <p><strong>Allergies:</strong> {{ customer.allergies }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="mt-4 text-center">
+                <a href="{{ url_for('barista.barista_view') }}" class="btn btn-secondary">Back to Orders</a>
+                <a href="{{ url_for('barista.scan_code') }}" class="btn btn-primary">Scan Another</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Update status buttons
+        document.querySelectorAll('.update-status').forEach(button => {
+            button.addEventListener('click', function() {
+                const orderId = this.dataset.orderId;
+                const status = this.dataset.status;
+                
+                if (confirm(`Are you sure you want to mark this order as ${status}?`)) {
+                    // Send request to update status
+                    fetch(`{{ url_for('barista.update_status', order_id=0, status='x') }}`.replace('0', orderId).replace('x', status), {
+                        method: 'POST'
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert(`Order marked as ${status}`);
+                            location.reload();
+                        } else {
+                            alert(`Error: ${data.message}`);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('An error occurred. Please try again.');
+                    });
+                }
+            });
+        });
+        
+        // Mark payment buttons
+        document.querySelectorAll('.mark-payment').forEach(button => {
+            button.addEventListener('click', function() {
+                const orderId = this.dataset.orderId;
+                
+                if (confirm('Are you sure you want to mark this order as paid?')) {
+                    // Send request to mark as paid
+                    fetch(`{{ url_for('barista.mark_payment', order_id=0) }}`.replace('0', orderId), {
+                        method: 'POST'
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert('Order marked as paid');
+                            location.reload();
+                        } else {
+                            alert(`Error: ${data.message}`);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('An error occurred. Please try again.');
+                    });
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}

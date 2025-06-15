@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fix Category Consistency</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .section {
+            background-color: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button.danger {
+            background-color: #f44336;
+        }
+        button.danger:hover {
+            background-color: #da190b;
+        }
+        button.warning {
+            background-color: #ff9800;
+        }
+        button.warning:hover {
+            background-color: #e68900;
+        }
+        .log {
+            background-color: #f0f0f0;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .error {
+            color: #f44336;
+            font-weight: bold;
+        }
+        .success {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        .warning {
+            color: #ff9800;
+            font-weight: bold;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .status.error {
+            background-color: #ffebee;
+            color: #c62828;
+        }
+        .status.success {
+            background-color: #e8f5e9;
+            color: #2e7d32;
+        }
+        .status.warning {
+            background-color: #fff3e0;
+            color: #e65100;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fix Category Consistency</h1>
+    
+    <div class="section">
+        <h2>Current Status</h2>
+        <div id="status-display"></div>
+    </div>
+    
+    <div class="section">
+        <h2>Actions</h2>
+        <button onclick="analyzeCurrentState()">1. Analyze Current State</button>
+        <button onclick="fixSweetenersCategory()">2. Fix Sweeteners in Wrong Category</button>
+        <button onclick="ensureDrinksCategory()">3. Ensure Drinks Category Exists</button>
+        <button onclick="syncAllStations()" class="warning">4. Sync All Stations</button>
+        <button onclick="clearAndRebuild()" class="danger">5. Clear All & Rebuild (DANGER)</button>
+    </div>
+    
+    <div class="section">
+        <h2>Analysis Log</h2>
+        <div id="log" class="log"></div>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : '';
+            logDiv.innerHTML += `[${timestamp}] <span class="${className}">${message}</span>\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status-display');
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        async function analyzeCurrentState() {
+            log('Analyzing current state...', 'info');
+            
+            // Check event inventory
+            const eventInventory = localStorage.getItem('event_inventory');
+            if (eventInventory) {
+                const inventory = JSON.parse(eventInventory);
+                log('Event Inventory Categories:', 'info');
+                Object.keys(inventory).forEach(category => {
+                    const items = inventory[category];
+                    log(`  - ${category}: ${items.length} items`, 'info');
+                });
+                
+                // Check if sweeteners exist
+                if (inventory.sweeteners) {
+                    log(`✅ Sweeteners category exists with ${inventory.sweeteners.length} items`, 'success');
+                } else {
+                    log('❌ Sweeteners category missing in event inventory!', 'error');
+                }
+                
+                // Check if drinks exist
+                if (inventory.drinks) {
+                    log(`✅ Drinks category exists with ${inventory.drinks.length} items`, 'success');
+                } else {
+                    log('⚠️ Drinks category missing in event inventory (will be added)', 'warning');
+                }
+            } else {
+                log('❌ No event inventory found!', 'error');
+            }
+            
+            // Check station stock
+            log('\nChecking station stock...', 'info');
+            for (let i = 1; i <= 10; i++) {
+                const stockKey = `coffee_stock_station_${i}`;
+                const stockData = localStorage.getItem(stockKey);
+                if (stockData) {
+                    const stock = JSON.parse(stockData);
+                    log(`\nStation ${i} stock categories:`, 'info');
+                    Object.keys(stock).forEach(category => {
+                        if (Array.isArray(stock[category])) {
+                            log(`  - ${category}: ${stock[category].length} items`, 'info');
+                            
+                            // Check for misplaced sweeteners
+                            if (category === 'other') {
+                                const sweetenerItems = stock[category].filter(item => 
+                                    item.name.toLowerCase().includes('sugar') ||
+                                    item.name.toLowerCase().includes('honey') ||
+                                    item.name.toLowerCase().includes('stevia') ||
+                                    item.name.toLowerCase().includes('sweetener') ||
+                                    item.name.toLowerCase().includes('agave')
+                                );
+                                if (sweetenerItems.length > 0) {
+                                    log(`    ⚠️ Found ${sweetenerItems.length} sweetener items in 'other' category!`, 'warning');
+                                    sweetenerItems.forEach(item => {
+                                        log(`      - ${item.name}`, 'warning');
+                                    });
+                                }
+                            }
+                        }
+                    });
+                    
+                    if (!stock.sweeteners || stock.sweeteners.length === 0) {
+                        log(`  ❌ No sweeteners category or empty!`, 'error');
+                    }
+                    if (!stock.drinks || stock.drinks.length === 0) {
+                        log(`  ⚠️ No drinks category or empty!`, 'warning');
+                    }
+                }
+            }
+            
+            updateStatus('Analysis complete - check log for details', 'success');
+        }
+
+        async function fixSweetenersCategory() {
+            log('Fixing sweeteners in wrong category...', 'info');
+            
+            let fixedCount = 0;
+            
+            // Fix each station's stock
+            for (let i = 1; i <= 10; i++) {
+                const stockKey = `coffee_stock_station_${i}`;
+                const stockData = localStorage.getItem(stockKey);
+                if (stockData) {
+                    const stock = JSON.parse(stockData);
+                    
+                    // Initialize sweeteners array if it doesn't exist
+                    if (!stock.sweeteners) {
+                        stock.sweeteners = [];
+                    }
+                    
+                    // Check if there are items in 'other' that should be in 'sweeteners'
+                    if (stock.other && Array.isArray(stock.other)) {
+                        const sweetenerItems = [];
+                        const remainingOther = [];
+                        
+                        stock.other.forEach(item => {
+                            const nameL = item.name.toLowerCase();
+                            if (nameL.includes('sugar') || 
+                                nameL.includes('honey') || 
+                                nameL.includes('stevia') || 
+                                nameL.includes('sweetener') ||
+                                nameL.includes('agave') ||
+                                nameL.includes('maple syrup')) {
+                                // This is a sweetener
+                                sweetenerItems.push(item);
+                                fixedCount++;
+                            } else {
+                                // Keep in other
+                                remainingOther.push(item);
+                            }
+                        });
+                        
+                        if (sweetenerItems.length > 0) {
+                            log(`Station ${i}: Moving ${sweetenerItems.length} sweetener items from 'other' to 'sweeteners'`, 'success');
+                            sweetenerItems.forEach(item => {
+                                log(`  - ${item.name}`, 'info');
+                            });
+                            
+                            // Update arrays
+                            stock.sweeteners = [...stock.sweeteners, ...sweetenerItems];
+                            stock.other = remainingOther;
+                            
+                            // Save updated stock
+                            localStorage.setItem(stockKey, JSON.stringify(stock));
+                        }
+                    }
+                }
+            }
+            
+            if (fixedCount > 0) {
+                updateStatus(`Fixed ${fixedCount} sweetener items across all stations`, 'success');
+            } else {
+                updateStatus('No sweetener items found in wrong categories', 'info');
+            }
+        }
+
+        async function ensureDrinksCategory() {
+            log('Ensuring drinks category exists...', 'info');
+            
+            // First, ensure drinks exist in event inventory
+            const eventInventoryStr = localStorage.getItem('event_inventory');
+            if (eventInventoryStr) {
+                const inventory = JSON.parse(eventInventoryStr);
+                if (!inventory.drinks) {
+                    log('Adding drinks category to event inventory...', 'info');
+                    inventory.drinks = [
+                        { id: 'drinks_1', name: 'Hot Chocolate', description: 'Rich chocolate drink', enabled: true, category: 'drinks' },
+                        { id: 'drinks_2', name: 'Chai Latte', description: 'Spiced tea with milk', enabled: true, category: 'drinks' },
+                        { id: 'drinks_3', name: 'Matcha Latte', description: 'Green tea latte', enabled: true, category: 'drinks' },
+                        { id: 'drinks_4', name: 'Golden Latte', description: 'Turmeric-based latte', enabled: true, category: 'drinks' },
+                        { id: 'drinks_5', name: 'Hot Tea', description: 'Selection of hot teas', enabled: true, category: 'drinks' },
+                        { id: 'drinks_6', name: 'Iced Tea', description: 'Refreshing cold tea', enabled: true, category: 'drinks' },
+                        { id: 'drinks_7', name: 'Fresh Juice', description: 'Freshly squeezed juice', enabled: true, category: 'drinks' },
+                        { id: 'drinks_8', name: 'Smoothie', description: 'Blended fruit drink', enabled: true, category: 'drinks' }
+                    ];
+                    localStorage.setItem('event_inventory', JSON.stringify(inventory));
+                    log('✅ Added drinks category to event inventory', 'success');
+                }
+            }
+            
+            // Then ensure drinks exist in station stock
+            let addedCount = 0;
+            for (let i = 1; i <= 10; i++) {
+                const stockKey = `coffee_stock_station_${i}`;
+                const stockData = localStorage.getItem(stockKey);
+                if (stockData) {
+                    const stock = JSON.parse(stockData);
+                    
+                    if (!stock.drinks || stock.drinks.length === 0) {
+                        log(`Adding drinks to station ${i}...`, 'info');
+                        stock.drinks = [
+                            { id: 'drinks_1', name: 'Hot Chocolate', amount: 50, capacity: 50, unit: 'servings', status: 'good' },
+                            { id: 'drinks_2', name: 'Chai Latte', amount: 30, capacity: 50, unit: 'servings', status: 'good' },
+                            { id: 'drinks_3', name: 'Matcha Latte', amount: 30, capacity: 50, unit: 'servings', status: 'good' }
+                        ];
+                        localStorage.setItem(stockKey, JSON.stringify(stock));
+                        addedCount++;
+                    }
+                }
+            }
+            
+            if (addedCount > 0) {
+                updateStatus(`Added drinks category to ${addedCount} stations`, 'success');
+            } else {
+                updateStatus('Drinks category already exists in all stations', 'info');
+            }
+        }
+
+        async function syncAllStations() {
+            log('Syncing all stations from organiser inventory...', 'info');
+            
+            try {
+                // Load the integration service approach
+                const eventInventory = localStorage.getItem('event_inventory');
+                const stationConfigs = localStorage.getItem('station_inventory_configs');
+                const stationQuantities = localStorage.getItem('station_inventory_quantities');
+                
+                if (!eventInventory) {
+                    log('❌ No event inventory found! Please set up inventory in Organiser first.', 'error');
+                    updateStatus('Cannot sync - no event inventory', 'error');
+                    return;
+                }
+                
+                // Call the integration service sync
+                log('Triggering inventory sync...', 'info');
+                window.dispatchEvent(new CustomEvent('inventory:updated'));
+                
+                updateStatus('Sync triggered - inventory will update in a moment', 'success');
+                
+                // Wait a bit and re-analyze
+                setTimeout(() => {
+                    log('Sync should be complete, re-analyzing...', 'info');
+                    analyzeCurrentState();
+                }, 1000);
+                
+            } catch (error) {
+                log(`Error during sync: ${error.message}`, 'error');
+                updateStatus('Sync failed - see log', 'error');
+            }
+        }
+
+        async function clearAndRebuild() {
+            if (!confirm('⚠️ WARNING: This will clear ALL stock data and rebuild from organiser inventory. Are you sure?')) {
+                return;
+            }
+            
+            log('Clearing all stock data...', 'warning');
+            
+            // Clear all station stock data
+            for (let i = 1; i <= 10; i++) {
+                const stockKey = `coffee_stock_station_${i}`;
+                if (localStorage.getItem(stockKey)) {
+                    localStorage.removeItem(stockKey);
+                    log(`Cleared stock for station ${i}`, 'info');
+                }
+            }
+            
+            log('All stock data cleared. Triggering rebuild...', 'warning');
+            
+            // Trigger sync to rebuild
+            window.dispatchEvent(new CustomEvent('inventory:updated'));
+            
+            updateStatus('Stock cleared and rebuild triggered', 'success');
+            
+            // Wait and re-analyze
+            setTimeout(() => {
+                log('Rebuild should be complete, re-analyzing...', 'info');
+                analyzeCurrentState();
+            }, 1500);
+        }
+
+        // Run initial analysis on load
+        window.onload = () => {
+            analyzeCurrentState();
+        };
+    </script>
+</body>
+</html>

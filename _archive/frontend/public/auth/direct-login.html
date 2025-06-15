@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Direct Login</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 500px; margin: 40px auto; padding: 20px; background-color: #f5f5f5; }
+    .card { background-color: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 20px; }
+    h1 { color: #2c3e50; margin-top: 0; }
+    button { background-color: #3498db; color: white; border: none; padding: 12px 15px; border-radius: 4px; cursor: pointer; font-size: 16px; width: 100%; margin-top: 10px; }
+    button.primary { background-color: #2ecc71; }
+    .result { background-color: #e7f9e7; border: 1px solid #a3d39c; padding: 12px; border-radius: 4px; margin-top: 15px; display: none; }
+    p { line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Direct Login</h1>
+    <p>This page will allow you to bypass the token errors and sign in with a demo account.</p>
+    
+    <button class="primary" onclick="loginAsDemoUser()">Login as Demo User</button>
+    <button onclick="loginAsAdmin()">Login as Admin</button>
+    <button onclick="resetAndLogin()">Reset Everything & Login</button>
+    
+    <div id="result" class="result"></div>
+  </div>
+  
+  <script>
+    // Helper to show result message
+    function showResult(message, success = true) {
+      const result = document.getElementById('result');
+      result.style.display = 'block';
+      result.style.backgroundColor = success ? '#e7f9e7' : '#f9e7e7';
+      result.style.borderColor = success ? '#a3d39c' : '#d39ca3';
+      result.innerHTML = message;
+    }
+    
+    // Login as demo user (barista role)
+    function loginAsDemoUser() {
+      try {
+        // Set authentication values
+        localStorage.setItem('authenticated', 'true');
+        localStorage.setItem('coffee_auth_token', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwicm9sZSI6ImJhcmlzdGEiLCJpYXQiOjE1MTYyMzkwMjJ9.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c');
+        localStorage.setItem('user_role', 'barista');
+        localStorage.setItem('user_name', 'Demo User');
+        
+        // Set app to use fallback data
+        localStorage.setItem('use_fallback_data', 'true');
+        localStorage.setItem('force_offline_mode', 'true');
+        localStorage.setItem('api_mode', 'fallback');
+        
+        // Disable console capture and auto-refresh
+        localStorage.setItem('disable_console_capture', 'true');
+        localStorage.setItem('coffee_auto_refresh_enabled', 'false');
+        localStorage.setItem('coffee_connection_status', 'fallback');
+        
+        // Set a flag that we're using bypass
+        sessionStorage.setItem('login_bypass_applied', 'true');
+        
+        showResult(`
+          <strong>✅ Login successful!</strong><br>
+          You are now authenticated as a Demo User with barista role.<br><br>
+          <a href="/">Go to Main App</a>
+        `);
+      } catch (error) {
+        showResult(`<strong>❌ Error:</strong> ${error.message}`, false);
+      }
+    }
+    
+    // Login as admin
+    function loginAsAdmin() {
+      try {
+        // Set authentication values for admin
+        localStorage.setItem('authenticated', 'true');
+        localStorage.setItem('coffee_auth_token', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsIm5hbWUiOiJBZG1pbiBVc2VyIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNTE2MjM5MDIyfQ.KkKFGTyGgHFrKfcDpuhI_xdYHCGSbHHnNo0AhKRIGKs');
+        localStorage.setItem('user_role', 'admin');
+        localStorage.setItem('user_name', 'Admin User');
+        
+        // Set app to use fallback data
+        localStorage.setItem('use_fallback_data', 'true');
+        localStorage.setItem('force_offline_mode', 'true');
+        localStorage.setItem('api_mode', 'fallback');
+        
+        // Disable console capture and auto-refresh
+        localStorage.setItem('disable_console_capture', 'true');
+        localStorage.setItem('coffee_auto_refresh_enabled', 'false');
+        localStorage.setItem('coffee_connection_status', 'fallback');
+        
+        // Set a flag that we're using bypass
+        sessionStorage.setItem('login_bypass_applied', 'true');
+        
+        showResult(`
+          <strong>✅ Login successful!</strong><br>
+          You are now authenticated as an Admin User with admin role.<br><br>
+          <a href="/">Go to Main App</a>
+        `);
+      } catch (error) {
+        showResult(`<strong>❌ Error:</strong> ${error.message}`, false);
+      }
+    }
+    
+    // Reset everything and login
+    function resetAndLogin() {
+      try {
+        // Clear everything first
+        localStorage.clear();
+        sessionStorage.clear();
+        
+        // Set authentication values
+        localStorage.setItem('authenticated', 'true');
+        localStorage.setItem('coffee_auth_token', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwicm9sZSI6ImJhcmlzdGEiLCJpYXQiOjE1MTYyMzkwMjJ9.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c');
+        localStorage.setItem('user_role', 'barista');
+        localStorage.setItem('user_name', 'Demo User');
+        
+        // Set app to use fallback data in minimal mode
+        localStorage.setItem('use_fallback_data', 'true');
+        localStorage.setItem('force_offline_mode', 'true');
+        localStorage.setItem('api_mode', 'fallback');
+        localStorage.setItem('use_minimal_interface', 'true');
+        localStorage.setItem('fallback_data_available', 'true');
+        
+        // Disable all potentially problematic features
+        localStorage.setItem('disable_console_capture', 'true');
+        localStorage.setItem('coffee_auto_refresh_enabled', 'false');
+        localStorage.setItem('coffee_auto_refresh_interval', '3600');
+        localStorage.setItem('coffee_connection_status', 'fallback');
+        localStorage.setItem('disable_all_refresh', 'true');
+        localStorage.setItem('quiet_console', 'true');
+        
+        // Set a flag that we're using bypass
+        sessionStorage.setItem('login_bypass_applied', 'true');
+        
+        showResult(`
+          <strong>✅ Complete reset successful!</strong><br>
+          All storage has been cleared and you are now authenticated as a Demo User with minimal interface.<br><br>
+          <a href="/?minimal=true">Go to Main App</a>
+        `);
+      } catch (error) {
+        showResult(`<strong>❌ Error:</strong> ${error.message}`, false);
+      }
+    }
+  </script>
+</body>
+</html>

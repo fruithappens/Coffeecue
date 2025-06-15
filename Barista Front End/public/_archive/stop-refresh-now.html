@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STOP AUTO-REFRESH - Coffee Cue System</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            background-color: #f8f9fa;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+        h1 {
+            color: #dc3545;
+            margin-top: 0;
+        }
+        .btn {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        .btn:hover {
+            background-color: #c82333;
+        }
+        .btn-success {
+            background-color: #28a745;
+        }
+        .btn-success:hover {
+            background-color: #218838;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+        }
+        .status-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .log {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>STOP AUTO-REFRESH</h1>
+        <p>This tool will forcefully stop all auto-refresh functionality and blinking in the Coffee Cue app.</p>
+        
+        <div>
+            <button id="stopRefreshBtn" class="btn">Stop All Refresh & Blinking</button>
+            <button id="forceLoginBtn" class="btn">Force Login</button>
+            <button id="resetStorageBtn" class="btn">Reset Storage</button>
+            <button id="launchFixedBtn" class="btn btn-success">Launch Fixed App</button>
+        </div>
+        
+        <div id="status" class="status status-success" style="display: none;"></div>
+        
+        <div id="log" class="log"></div>
+    </div>
+
+    <script>
+        // Utility functions
+        function log(message) {
+            const logElement = document.getElementById('log');
+            const time = new Date().toTimeString().split(' ')[0];
+            logElement.innerHTML += `[${time}] ${message}<br>`;
+            logElement.scrollTop = logElement.scrollHeight;
+            console.log(`[${time}] ${message}`);
+        }
+        
+        function setStatus(message, isSuccess = true) {
+            const statusElement = document.getElementById('status');
+            statusElement.className = isSuccess ? 'status status-success' : 'status status-error';
+            statusElement.textContent = message;
+            statusElement.style.display = 'block';
+        }
+        
+        // Create kill-refresh script
+        function createKillRefreshScript() {
+            return `
+                // Kill all intervals - this stops auto-refresh
+                log('Killing all intervals...');
+                const maxId = window.setInterval(function(){}, 9999);
+                for (let i = 1; i <= maxId; i++) {
+                    window.clearInterval(i);
+                }
+                
+                // Disable all refresh functions
+                log('Disabling refresh functions...');
+                if (window.refreshData) window.refreshData = function() { return false; };
+                if (window.autoRefresh) window.autoRefresh = function() { return false; };
+                if (window.refreshOrders) window.refreshOrders = function() { return false; };
+                if (window.refreshInterval) window.clearInterval(window.refreshInterval);
+                
+                // Set all refresh flags to disabled
+                log('Setting refresh flags to disabled...');
+                localStorage.setItem('coffee_auto_refresh_enabled', 'false');
+                localStorage.setItem('autoRefreshEnabled', 'false');
+                localStorage.setItem('refreshDisabled', 'true');
+                sessionStorage.setItem('refreshDisabled', 'true');
+                
+                // Override setInterval to prevent new refresh intervals
+                log('Overriding setInterval...');
+                window.originalSetInterval = window.setInterval;
+                window.setInterval = function(callback, delay, ...args) {
+                    // Block any intervals with short delays (likely refresh)
+                    if (delay < 10000) {
+                        console.log('Blocked interval with delay:', delay);
+                        return 0;
+                    }
+                    return window.originalSetInterval(callback, delay, ...args);
+                };
+                
+                // Block any functions with "refresh" in the name
+                log('Blocking refresh functions...');
+                const functionNames = Object.getOwnPropertyNames(window).filter(
+                    name => typeof window[name] === 'function' && 
+                    name.toLowerCase().includes('refresh')
+                );
+                
+                functionNames.forEach(name => {
+                    const original = window[name];
+                    window[name] = function() {
+                        console.log('Blocked refresh function:', name);
+                        return null;
+                    };
+                    console.log('Blocked function:', name);
+                });
+                
+                // Stop blinking by finding and modifying animation-related CSS
+                log('Stopping blinking animations...');
+                const styleSheets = document.styleSheets;
+                for (let i = 0; i < styleSheets.length; i++) {
+                    try {
+                        const rules = styleSheets[i].cssRules || styleSheets[i].rules;
+                        if (!rules) continue;
+                        
+                        for (let j = 0; j < rules.length; j++) {
+                            const rule = rules[j];
+                            
+                            // Look for animation or blinking related rules
+                            if (rule.type === CSSRule.KEYFRAMES_RULE || 
+                                (rule.type === CSSRule.STYLE_RULE && 
+                                (rule.selectorText && rule.selectorText.includes('blink') || 
+                                rule.style && (rule.style.animation || rule.style.animationName)))) {
+                                
+                                // Remove or disable the rule if possible
+                                try {
+                                    styleSheets[i].deleteRule(j);
+                                    j--;
+                                    console.log('Removed animation rule');
+                                } catch (e) {
+                                    console.log('Could not remove rule:', e);
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.log('Error accessing stylesheet:', e);
+                    }
+                }
+                
+                // Add style to override all animations
+                const style = document.createElement('style');
+                style.textContent = \`
+                    * {
+                        animation: none !important;
+                        transition: none !important;
+                        -webkit-animation: none !important;
+                        -webkit-transition: none !important;
+                    }
+                \`;
+                document.head.appendChild(style);
+                
+                log('All refresh and blinking disabled');
+            `;
+        }
+        
+        // Stop all refresh & blinking
+        function stopAllRefresh() {
+            log('Stopping all refresh and blinking...');
+            
+            try {
+                // Create script to stop refresh
+                const script = document.createElement('script');
+                script.textContent = `
+                    function log(message) {
+                        const event = new CustomEvent('log-message', { detail: message });
+                        document.dispatchEvent(event);
+                    }
+                    
+                    ${createKillRefreshScript()}
+                `;
+                document.head.appendChild(script);
+                
+                // Store in session storage for main app
+                sessionStorage.setItem('killRefreshScript', createKillRefreshScript());
+                
+                setStatus('All refresh and blinking has been stopped!');
+                
+            } catch (error) {
+                log(`Error: ${error.message}`);
+                setStatus('Error stopping refresh: ' + error.message, false);
+            }
+        }
+        
+        // Force login with auto-refresh disabled
+        function forceLogin() {
+            log('Forcing login with refresh disabled...');
+            
+            try {
+                // Create a token
+                const createToken = function() {
+                    const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+                    const payload = btoa(JSON.stringify({
+                        sub: 'force_login_user',
+                        name: 'Force Login User',
+                        role: 'barista',
+                        exp: Math.floor(Date.now() / 1000) + 86400
+                    }));
+                    const signature = btoa('force_login_signature');
+                    return `${header}.${payload}.${signature}`;
+                };
+                
+                // Generate token and user
+                const token = createToken();
+                const user = {
+                    id: 'force_login_user',
+                    name: 'Force Login User',
+                    role: 'barista'
+                };
+                
+                // Clear existing storage
+                localStorage.clear();
+                sessionStorage.clear();
+                
+                // Set auth data
+                localStorage.setItem('token', token);
+                localStorage.setItem('user', JSON.stringify(user));
+                localStorage.setItem('isAuthenticated', 'true');
+                
+                // Disable refresh
+                localStorage.setItem('coffee_auto_refresh_enabled', 'false');
+                localStorage.setItem('autoRefreshEnabled', 'false');
+                localStorage.setItem('refreshDisabled', 'true');
+                
+                // Store refresh killer in session storage
+                sessionStorage.setItem('killRefreshScript', createKillRefreshScript());
+                
+                // Add refreshToken fix
+                const fixScript = `
+                    if (window.AuthService) {
+                        window.AuthService.prototype.refreshToken = function() {
+                            console.log('Force login refreshToken called');
+                            return Promise.resolve({
+                                token: '${token}',
+                                user: ${JSON.stringify(user)}
+                            });
+                        };
+                    }
+                `;
+                sessionStorage.setItem('refreshTokenFixScript', fixScript);
+                
+                log('Login forced and refresh disabled');
+                setStatus('Login forced successfully! Refresh has been disabled.');
+                
+            } catch (error) {
+                log(`Error: ${error.message}`);
+                setStatus('Error forcing login: ' + error.message, false);
+            }
+        }
+        
+        // Reset storage
+        function resetStorage() {
+            log('Resetting all storage...');
+            
+            try {
+                localStorage.clear();
+                sessionStorage.clear();
+                
+                // Clear cookies
+                const cookies = document.cookie.split(";");
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i];
+                    const eqPos = cookie.indexOf("=");
+                    const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
+                    document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
+                }
+                
+                log('All storage reset successfully');
+                setStatus('Storage has been reset');
+                
+            } catch (error) {
+                log(`Error: ${error.message}`);
+                setStatus('Error resetting storage: ' + error.message, false);
+            }
+        }
+        
+        // Launch fixed app
+        function launchFixedApp() {
+            log('Preparing to launch fixed app...');
+            
+            // Create a script to inject into main app
+            const script = `
+                // Add event listener to run as soon as possible
+                document.addEventListener('DOMContentLoaded', function() {
+                    console.log('REFRESH KILLER: Initializing...');
+                    
+                    // Define logging function
+                    function log(message) {
+                        console.log('REFRESH KILLER:', message);
+                    }
+                    
+                    // Run kill script immediately
+                    ${createKillRefreshScript()}
+                    
+                    // Also add a delayed check to catch any that start later
+                    setTimeout(function() {
+                        log('Running delayed refresh killer...');
+                        ${createKillRefreshScript()}
+                    }, 1000);
+                    
+                    // And add one more check after everything has loaded
+                    window.addEventListener('load', function() {
+                        log('Running post-load refresh killer...');
+                        ${createKillRefreshScript()}
+                    });
+                });
+            `;
+            
+            // Store in sessionStorage for main app
+            sessionStorage.setItem('killRefreshScript', script);
+            
+            // Create a launcher script element
+            const launcherScript = document.createElement('script');
+            launcherScript.textContent = `
+                // Store kill script for index.html
+                sessionStorage.setItem('indexHtmlFixScript', ${JSON.stringify(script)});
+                
+                // Create authservice fix if needed
+                if (!sessionStorage.getItem('refreshTokenFixScript')) {
+                    // Create a token
+                    const createToken = function() {
+                        const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+                        const payload = btoa(JSON.stringify({
+                            sub: 'no_refresh_user',
+                            name: 'No Refresh User',
+                            role: 'barista',
+                            exp: Math.floor(Date.now() / 1000) + 86400
+                        }));
+                        const signature = btoa('no_refresh_signature');
+                        return \`\${header}.\${payload}.\${signature}\`;
+                    };
+                    
+                    const fixScript = \`
+                        if (window.AuthService) {
+                            window.AuthService.prototype.refreshToken = function() {
+                                console.log('No refresh refreshToken called');
+                                return Promise.resolve({
+                                    token: '\${createToken()}',
+                                    user: {
+                                        id: 'no_refresh_user',
+                                        name: 'No Refresh User',
+                                        role: 'barista'
+                                    }
+                                });
+                            };
+                        }
+                    \`;
+                    sessionStorage.setItem('refreshTokenFixScript', fixScript);
+                }
+                
+                // Redirect to main app
+                setTimeout(function() {
+                    window.location.href = '/';
+                }, 1000);
+            `;
+            document.head.appendChild(launcherScript);
+            
+            log('Launching fixed app...');
+            setStatus('Launching fixed app. Redirecting in 1 second...');
+        }
+        
+        // Listen for log messages from injected scripts
+        document.addEventListener('log-message', function(e) {
+            log(e.detail);
+        });
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set up button event handlers
+            document.getElementById('stopRefreshBtn').addEventListener('click', stopAllRefresh);
+            document.getElementById('forceLoginBtn').addEventListener('click', forceLogin);
+            document.getElementById('resetStorageBtn').addEventListener('click', resetStorage);
+            document.getElementById('launchFixedBtn').addEventListener('click', launchFixedApp);
+            
+            log('Stop Refresh tool initialized');
+        });
+    </script>
+</body>
+</html>

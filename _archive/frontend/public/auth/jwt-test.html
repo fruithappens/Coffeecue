@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JWT Token Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .token-container {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        pre {
+            background-color: #f1f1f1;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        button {
+            background-color: #4299e1;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background-color: #3182ce;
+        }
+        .warning {
+            background-color: #fed7d7;
+            border: 1px solid #fc8181;
+            color: #c53030;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+        .success {
+            background-color: #c6f6d5;
+            border: 1px solid #68d391;
+            color: #2f855a;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+        .test-results {
+            margin-top: 20px;
+            border: 1px solid #cbd5e0;
+            border-radius: 5px;
+            padding: 15px;
+        }
+        h2 {
+            margin-top: 30px;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 10px;
+        }
+    </style>
+    <script src="proper-jwt-fix.js"></script>
+</head>
+<body>
+    <h1>JWT Token Test</h1>
+    <p>This page helps diagnose and fix JWT token issues.</p>
+    
+    <div class="token-container">
+        <h2>Current JWT Token</h2>
+        <div id="current-token">Loading...</div>
+    </div>
+    
+    <h2>Token Management</h2>
+    <button id="createToken">Create New Token</button>
+    <button id="clearToken">Clear Token</button>
+    
+    <h2>API Tests with Token</h2>
+    <button id="testApi">Test API with Token</button>
+    <div id="api-test-results" class="test-results">Results will appear here</div>
+    
+    <script>
+        // Helper function to decode JWT token
+        function decodeJwt(token) {
+            try {
+                const parts = token.split('.');
+                if (parts.length !== 3) {
+                    return { error: 'Invalid token format' };
+                }
+                
+                const header = JSON.parse(atob(parts[0]));
+                const payload = JSON.parse(atob(parts[1]));
+                
+                return {
+                    header,
+                    payload,
+                    signature: parts[2]
+                };
+            } catch (error) {
+                return { error: `Error decoding token: ${error.message}` };
+            }
+        }
+        
+        // Display current token
+        function displayCurrentToken() {
+            const tokenElement = document.getElementById('current-token');
+            const token = localStorage.getItem('coffee_system_token');
+            
+            if (!token) {
+                tokenElement.innerHTML = '<div class="warning">No token found in localStorage</div>';
+                return;
+            }
+            
+            const decoded = decodeJwt(token);
+            
+            if (decoded.error) {
+                tokenElement.innerHTML = `<div class="warning">${decoded.error}</div>`;
+                return;
+            }
+            
+            // Check if token has proper subject field
+            const hasProperSub = typeof decoded.payload.sub === 'string';
+            
+            // Check if token is expired
+            const now = Math.floor(Date.now() / 1000);
+            const isExpired = decoded.payload.exp < now;
+            
+            // Create status message
+            let statusHtml = '';
+            if (hasProperSub && !isExpired) {
+                statusHtml = '<div class="success">Valid token with proper subject field</div>';
+            } else if (!hasProperSub) {
+                statusHtml = '<div class="warning">Invalid token: subject field is not a string</div>';
+            } else if (isExpired) {
+                statusHtml = '<div class="warning">Token is expired</div>';
+            }
+            
+            // Calculate expiration info
+            let expirationInfo = '';
+            if (decoded.payload.exp) {
+                const expDate = new Date(decoded.payload.exp * 1000);
+                const timeLeft = decoded.payload.exp - now;
+                
+                if (timeLeft > 0) {
+                    expirationInfo = `<p>Expires: ${expDate.toLocaleString()} (in ${Math.floor(timeLeft / 60)} minutes)</p>`;
+                } else {
+                    expirationInfo = `<p>Expired: ${expDate.toLocaleString()} (${Math.floor(Math.abs(timeLeft) / 60)} minutes ago)</p>`;
+                }
+            }
+            
+            // Display token information
+            tokenElement.innerHTML = `
+                ${statusHtml}
+                <p><strong>Header:</strong></p>
+                <pre>${JSON.stringify(decoded.header, null, 2)}</pre>
+                <p><strong>Payload:</strong></p>
+                <pre>${JSON.stringify(decoded.payload, null, 2)}</pre>
+                ${expirationInfo}
+                <p><strong>Raw Token:</strong></p>
+                <pre style="word-break: break-all;">${token}</pre>
+            `;
+        }
+        
+        // Create a new token with proper format
+        function createNewToken() {
+            // Create a proper JWT token that the backend will accept
+            function createProperJwt() {
+                // Use a format that the backend will accept with a proper 'sub' field
+                const header = {
+                    alg: 'HS256', 
+                    typ: 'JWT'
+                };
+                
+                // Current timestamp and expiration
+                const now = Math.floor(Date.now() / 1000);
+                const exp = now + 24 * 60 * 60; // 24 hours
+                
+                // Payload with proper 'sub' field
+                const payload = {
+                    sub: 'demo_user', // String value for subject
+                    name: 'Demo User',
+                    role: 'barista',
+                    stations: [1, 2, 3],
+                    iat: now,
+                    exp: exp
+                };
+                
+                // Base64 encode the header and payload
+                const headerB64 = btoa(JSON.stringify(header));
+                const payloadB64 = btoa(JSON.stringify(payload));
+                
+                // Dummy signature
+                const signature = 'dummy_signature';
+                
+                // Create the token
+                return `${headerB64}.${payloadB64}.${signature}`;
+            }
+            
+            const newToken = createProperJwt();
+            localStorage.setItem('coffee_system_token', newToken);
+            alert('New JWT token created and stored!');
+            displayCurrentToken();
+        }
+        
+        // Clear the token
+        function clearToken() {
+            localStorage.removeItem('coffee_system_token');
+            alert('JWT token cleared!');
+            displayCurrentToken();
+        }
+        
+        // Test API with token
+        async function testApiWithToken() {
+            const resultsElement = document.getElementById('api-test-results');
+            resultsElement.innerHTML = 'Testing API...';
+            
+            const token = localStorage.getItem('coffee_system_token');
+            if (!token) {
+                resultsElement.innerHTML = '<div class="warning">No token found. Please create a token first.</div>';
+                return;
+            }
+            
+            // List of endpoints to test
+            const endpoints = [
+                { name: 'Test Endpoint', url: 'http://localhost:5001/api/test' },
+                { name: 'Settings', url: 'http://localhost:5001/api/settings' },
+                { name: 'Pending Orders', url: 'http://localhost:5001/api/orders/pending' },
+                { name: 'In-Progress Orders', url: 'http://localhost:5001/api/orders/in-progress' },
+                { name: 'Completed Orders', url: 'http://localhost:5001/api/orders/completed' }
+            ];
+            
+            // Results HTML
+            let resultsHtml = '<h3>API Test Results</h3>';
+            
+            // Test each endpoint
+            for (const endpoint of endpoints) {
+                resultsHtml += `<h4>${endpoint.name}</h4>`;
+                
+                try {
+                    const response = await fetch(endpoint.url, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Accept': 'application/json'
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        resultsHtml += `
+                            <div class="success">Success (${response.status})</div>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        `;
+                    } else {
+                        let errorData;
+                        try {
+                            errorData = await response.json();
+                        } catch {
+                            errorData = { error: 'Could not parse error response' };
+                        }
+                        
+                        resultsHtml += `
+                            <div class="warning">Error: HTTP ${response.status}</div>
+                            <pre>${JSON.stringify(errorData, null, 2)}</pre>
+                        `;
+                    }
+                } catch (error) {
+                    resultsHtml += `
+                        <div class="warning">Network Error: ${error.message}</div>
+                    `;
+                }
+            }
+            
+            resultsElement.innerHTML = resultsHtml;
+        }
+        
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', () => {
+            displayCurrentToken();
+            
+            // Add event listeners
+            document.getElementById('createToken').addEventListener('click', createNewToken);
+            document.getElementById('clearToken').addEventListener('click', clearToken);
+            document.getElementById('testApi').addEventListener('click', testApiWithToken);
+        });
+    </script>
+</body>
+</html>

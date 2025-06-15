@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connection Test Standalone</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .card {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .connection-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .connected {
+            background-color: #48bb78;
+        }
+        .disconnected {
+            background-color: #f56565;
+        }
+        .checking {
+            background-color: #ecc94b;
+        }
+        .unknown {
+            background-color: #a0aec0;
+        }
+        .log-container {
+            max-height: 300px;
+            overflow-y: auto;
+            background-color: #f7fafc;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #e2e8f0;
+            margin-top: 10px;
+        }
+        .log {
+            margin: 5px 0;
+            font-family: monospace;
+        }
+        .log.info {
+            color: #2b6cb0;
+        }
+        .log.success {
+            color: #2f855a;
+        }
+        .log.error {
+            color: #c53030;
+        }
+        .log.warning {
+            color: #c05621;
+        }
+        button {
+            background-color: #4299e1;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background-color: #3182ce;
+        }
+        button.secondary {
+            background-color: #718096;
+        }
+        button.secondary:hover {
+            background-color: #4a5568;
+        }
+        button.success {
+            background-color: #48bb78;
+        }
+        button.success:hover {
+            background-color: #38a169;
+        }
+        button.warning {
+            background-color: #ecc94b;
+        }
+        button.warning:hover {
+            background-color: #d69e2e;
+        }
+        button.danger {
+            background-color: #f56565;
+        }
+        button.danger:hover {
+            background-color: #e53e3e;
+        }
+        #connectionStatus {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        #connectionStatus.connected {
+            background-color: #c6f6d5;
+            border: 1px solid #68d391;
+        }
+        #connectionStatus.disconnected {
+            background-color: #fed7d7; 
+            border: 1px solid #fc8181;
+        }
+        #connectionStatus.checking {
+            background-color: #fefcbf;
+            border: 1px solid #f6e05e;
+        }
+        #cachedStatusDisplay {
+            background-color: #e2e8f0;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        pre {
+            background-color: #f8f8f8;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+    <script>
+        // Initialize authentication token for API testing
+        function initAuth() {
+            console.log('Initializing auth token...');
+            
+            // Check if token exists
+            const token = localStorage.getItem('coffee_system_token');
+            
+            if (!token) {
+                console.log('No token found, creating demo token');
+                
+                // Create a demo token that will last for 24 hours
+                const now = Math.floor(Date.now() / 1000);
+                const exp = now + (24 * 60 * 60); // 24 hours from now
+                
+                // Demo token payload
+                const payload = {
+                    sub: 'demo_user',
+                    name: 'Demo User',
+                    role: 'barista',
+                    iat: now,
+                    exp: exp
+                };
+                
+                // Create base64 encoded parts
+                const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+                const payloadBase64 = btoa(JSON.stringify(payload));
+                const signature = 'demo_signature_not_valid_for_real_auth';
+                
+                // Create the token
+                const token = `${header}.${payloadBase64}.${signature}`;
+                
+                // Save to localStorage
+                localStorage.setItem('coffee_system_token', token);
+                log('info', 'Demo token created and saved to localStorage');
+                
+                return token;
+            } else {
+                log('info', 'Existing auth token found');
+                return token;
+            }
+        }
+        
+        // Check connection to backend
+        async function checkConnection() {
+            // Update UI
+            const status = document.getElementById('connectionStatus');
+            const indicator = document.getElementById('connectionIndicator');
+            
+            status.className = 'checking';
+            status.textContent = 'Checking connection...';
+            indicator.className = 'connection-indicator checking';
+            
+            log('info', 'Checking API connection...');
+            
+            // Check for a cached status first
+            const cachedStatus = localStorage.getItem('coffee_connection_status');
+            const cachedTimestamp = localStorage.getItem('coffee_connection_timestamp');
+            const cacheExpiryTime = 15000; // 15 seconds
+            
+            if (cachedStatus && cachedTimestamp) {
+                const elapsed = Date.now() - parseInt(cachedTimestamp);
+                
+                // Update cached status display
+                updateCachedStatusDisplay();
+                
+                // If we checked recently, use the cached status
+                if (elapsed < cacheExpiryTime) {
+                    log('info', `Using cached connection status (${cachedStatus}) from ${elapsed}ms ago`);
+                    
+                    if (cachedStatus === 'online') {
+                        status.className = 'connected';
+                        status.textContent = 'Connected to backend (cached)';
+                        indicator.className = 'connection-indicator connected';
+                        return true;
+                    } else {
+                        status.className = 'disconnected';
+                        status.textContent = 'Disconnected from backend (cached)';
+                        indicator.className = 'connection-indicator disconnected';
+                        return false;
+                    }
+                }
+            }
+            
+            // Track connection state changes to avoid unnecessary flicker
+            const lastKnownState = localStorage.getItem('coffee_connection_status') || 'unknown';
+            
+            try {
+                // Direct URL for reliability
+                const directUrl = 'http://localhost:5001/api/test';
+                log('info', `Testing connection to: ${directUrl}`);
+                
+                const token = localStorage.getItem('coffee_system_token');
+                const headers = {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                };
+                
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+                
+                const response = await fetch(directUrl, {
+                    headers: headers,
+                    timeout: 5000
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log('success', `API connection successful: ${JSON.stringify(data)}`);
+                    
+                    // Cache the successful result
+                    if (lastKnownState !== 'online') {
+                        log('info', 'Connection state changed: offline -> online');
+                    }
+                    localStorage.setItem('coffee_connection_status', 'online');
+                    localStorage.setItem('coffee_connection_timestamp', Date.now().toString());
+                    
+                    // Update UI
+                    status.className = 'connected';
+                    status.textContent = 'Connected to backend';
+                    indicator.className = 'connection-indicator connected';
+                    
+                    // Update cached status display
+                    updateCachedStatusDisplay();
+                    
+                    return true;
+                } else {
+                    log('error', `API connection failed with status: ${response.status}`);
+                    
+                    // Only update state if we've changed from online to offline (avoid flicker)
+                    if (lastKnownState === 'online') {
+                        log('info', 'Connection state changed: online -> offline');
+                        localStorage.setItem('coffee_connection_status', 'offline');
+                        localStorage.setItem('coffee_connection_timestamp', Date.now().toString());
+                    } else if (lastKnownState === 'unknown') {
+                        // First time checking, so set the state
+                        localStorage.setItem('coffee_connection_status', 'offline');
+                        localStorage.setItem('coffee_connection_timestamp', Date.now().toString());
+                    }
+                    
+                    // Update UI
+                    status.className = 'disconnected';
+                    status.textContent = `Disconnected from backend (HTTP ${response.status})`;
+                    indicator.className = 'connection-indicator disconnected';
+                    
+                    // Update cached status display
+                    updateCachedStatusDisplay();
+                    
+                    return false;
+                }
+            } catch (error) {
+                log('error', `API connection error: ${error.message}`);
+                
+                // Only cache failures if state is changing from online to offline
+                if (lastKnownState === 'online') {
+                    log('info', 'Connection state changed: online -> offline (error)');
+                    localStorage.setItem('coffee_connection_status', 'offline');
+                    localStorage.setItem('coffee_connection_timestamp', Date.now().toString());
+                }
+                
+                // Update UI
+                status.className = 'disconnected';
+                status.textContent = `Disconnected from backend (${error.message})`;
+                indicator.className = 'connection-indicator disconnected';
+                
+                // Update cached status display
+                updateCachedStatusDisplay();
+                
+                return false;
+            }
+        }
+        
+        // Test API with token
+        async function testApiWithToken() {
+            log('info', 'Testing API with auth token...');
+            
+            const token = localStorage.getItem('coffee_system_token');
+            if (!token) {
+                log('error', 'No auth token found. Please initialize auth first.');
+                return;
+            }
+            
+            const endpoints = [
+                { url: 'http://localhost:5001/api/test', name: 'Test Endpoint' },
+                { url: 'http://localhost:5001/api/orders/pending', name: 'Pending Orders' },
+                { url: 'http://localhost:5001/api/orders/in-progress', name: 'In-Progress Orders' },
+                { url: 'http://localhost:5001/api/orders/completed', name: 'Completed Orders' },
+                { url: 'http://localhost:5001/api/settings', name: 'System Settings' }
+            ];
+            
+            const resultsContainer = document.getElementById('apiTestResults');
+            resultsContainer.innerHTML = '<h3>API Test Results</h3>';
+            
+            for (const endpoint of endpoints) {
+                log('info', `Testing endpoint: ${endpoint.name} (${endpoint.url})`);
+                
+                try {
+                    const response = await fetch(endpoint.url, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Accept': 'application/json'
+                        }
+                    });
+                    
+                    let resultHtml = `<div class="endpoint-result">
+                        <h4>${endpoint.name}</h4>
+                        <div>Status: ${response.status} ${response.statusText}</div>`;
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        log('success', `${endpoint.name} response: ${JSON.stringify(data).substring(0, 100)}...`);
+                        resultHtml += `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                    } else {
+                        let errorText = await response.text();
+                        log('error', `${endpoint.name} error: ${errorText}`);
+                        resultHtml += `<div class="error">Error: ${errorText}</div>`;
+                    }
+                    
+                    resultHtml += '</div>';
+                    resultsContainer.innerHTML += resultHtml;
+                } catch (error) {
+                    log('error', `${endpoint.name} exception: ${error.message}`);
+                    resultsContainer.innerHTML += `
+                        <div class="endpoint-result">
+                            <h4>${endpoint.name}</h4>
+                            <div class="error">Exception: ${error.message}</div>
+                        </div>
+                    `;
+                }
+            }
+        }
+        
+        // Get cached connection status
+        function getCachedConnectionInfo() {
+            const status = localStorage.getItem('coffee_connection_status');
+            const timestamp = localStorage.getItem('coffee_connection_timestamp');
+            
+            return {
+                status: status || 'unknown',
+                timestamp: timestamp ? parseInt(timestamp) : null,
+                age: timestamp ? (Date.now() - parseInt(timestamp)) : null
+            };
+        }
+        
+        // Update the cached status display
+        function updateCachedStatusDisplay() {
+            const cachedInfo = getCachedConnectionInfo();
+            const display = document.getElementById('cachedStatusDisplay');
+            
+            if (cachedInfo.status === 'unknown') {
+                display.innerHTML = '<strong>Cached Status:</strong> None';
+                return;
+            }
+            
+            const statusLabel = cachedInfo.status === 'online' ? 
+                '<span style="color: green">Online</span>' : 
+                '<span style="color: red">Offline</span>';
+            
+            const ageSeconds = cachedInfo.age ? Math.round(cachedInfo.age / 1000) : 'unknown';
+            const timestampStr = cachedInfo.timestamp ? 
+                new Date(cachedInfo.timestamp).toLocaleTimeString() : 'unknown';
+            
+            display.innerHTML = `
+                <strong>Cached Status:</strong> ${statusLabel}<br>
+                <strong>Timestamp:</strong> ${timestampStr}<br>
+                <strong>Age:</strong> ${ageSeconds} seconds
+            `;
+        }
+        
+        // Clear cached connection status
+        function clearCachedStatus() {
+            localStorage.removeItem('coffee_connection_status');
+            localStorage.removeItem('coffee_connection_timestamp');
+            log('info', 'Cleared cached connection status');
+            updateCachedStatusDisplay();
+            
+            // Update UI
+            const status = document.getElementById('connectionStatus');
+            const indicator = document.getElementById('connectionIndicator');
+            
+            status.className = '';
+            status.textContent = 'Connection status unknown (cache cleared)';
+            indicator.className = 'connection-indicator unknown';
+        }
+        
+        // Add a log message
+        function log(level, message) {
+            const logContainer = document.getElementById('logContainer');
+            const logEntry = document.createElement('div');
+            logEntry.className = `log ${level}`;
+            
+            const timestamp = new Date().toLocaleTimeString();
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+            
+            console.log(`[${level}] ${message}`);
+        }
+        
+        // Initialize auto-refresh
+        let autoRefreshInterval;
+        
+        function startAutoRefresh() {
+            // Clear any existing interval
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+            }
+            
+            // Get refresh interval from input
+            const refreshInterval = parseInt(document.getElementById('refreshInterval').value) * 1000;
+            if (isNaN(refreshInterval) || refreshInterval < 1000) {
+                log('error', 'Invalid refresh interval');
+                return;
+            }
+            
+            // Start auto-refresh
+            log('info', `Starting auto-refresh every ${refreshInterval/1000} seconds`);
+            
+            autoRefreshInterval = setInterval(() => {
+                log('info', 'Auto-refresh checking connection...');
+                checkConnection();
+            }, refreshInterval);
+            
+            // Update UI
+            document.getElementById('startAutoRefresh').disabled = true;
+            document.getElementById('stopAutoRefresh').disabled = false;
+        }
+        
+        function stopAutoRefresh() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+                
+                log('info', 'Auto-refresh stopped');
+                
+                // Update UI
+                document.getElementById('startAutoRefresh').disabled = false;
+                document.getElementById('stopAutoRefresh').disabled = true;
+            }
+        }
+        
+        // Initialize on page load
+        window.addEventListener('load', () => {
+            log('info', 'Page loaded');
+            
+            // Initialize auth
+            initAuth();
+            
+            // Update cached status display
+            updateCachedStatusDisplay();
+            
+            // Initial connection check
+            checkConnection();
+            
+            // Set default refresh interval to 5 seconds
+            document.getElementById('refreshInterval').value = 5;
+        });
+    </script>
+</head>
+<body>
+    <h1>Backend Connection Test Tool</h1>
+    <p>This page tests the connection to the backend server and diagnoses any issues.</p>
+    
+    <div class="card">
+        <h2>Connection Status</h2>
+        <div>
+            <span id="connectionIndicator" class="connection-indicator unknown"></span>
+            <strong>Status:</strong> <span id="connectionStatus">Unknown</span>
+        </div>
+        
+        <div id="cachedStatusDisplay">
+            <strong>Cached Status:</strong> None
+        </div>
+        
+        <div style="margin-top: 15px;">
+            <button onclick="checkConnection()">Check Connection Now</button>
+            <button class="warning" onclick="clearCachedStatus()">Clear Cached Status</button>
+        </div>
+    </div>
+    
+    <div class="card">
+        <h2>Auto-Refresh Options</h2>
+        <div>
+            <label for="refreshInterval">Refresh Interval (seconds):</label>
+            <input type="number" id="refreshInterval" min="1" max="60" value="5" style="width: 60px; margin-right: 10px;">
+            
+            <button id="startAutoRefresh" class="success" onclick="startAutoRefresh()">Start Auto-Refresh</button>
+            <button id="stopAutoRefresh" disabled onclick="stopAutoRefresh()">Stop Auto-Refresh</button>
+        </div>
+    </div>
+    
+    <div class="card">
+        <h2>API Testing</h2>
+        <div>
+            <button onclick="testApiWithToken()">Test All API Endpoints</button>
+        </div>
+        <div id="apiTestResults"></div>
+    </div>
+    
+    <div class="card">
+        <h2>Log Messages</h2>
+        <div class="log-container" id="logContainer"></div>
+    </div>
+    
+    <div class="card">
+        <h2>Helpful Links</h2>
+        <ul>
+            <li><a href="http://localhost:3000/api-test" target="_blank">API Test Page</a></li>
+            <li><a href="direct-connection-test.html" target="_blank">Direct Connection Test</a></li>
+            <li><a href="auth-helper.html" target="_blank">Authentication Helper</a></li>
+        </ul>
+    </div>
+</body>
+</html>

@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Trace Inventory Data Flow</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; line-height: 1.6; }
+        .section { 
+            margin: 20px 0; 
+            padding: 15px; 
+            border: 1px solid #ddd; 
+            border-radius: 5px;
+            background: #f9f9f9;
+        }
+        .category { 
+            margin: 10px 0;
+            padding: 10px;
+            background: white;
+            border-radius: 3px;
+        }
+        .item {
+            margin-left: 20px;
+            padding: 2px 0;
+        }
+        .missing { color: red; font-weight: bold; }
+        .present { color: green; }
+        .warning { color: orange; }
+        button { 
+            padding: 10px 20px; 
+            margin: 5px; 
+            cursor: pointer;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        button:hover { background: #0056b3; }
+        pre {
+            background: #f4f4f4;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Trace Inventory Data Flow</h1>
+    
+    <button onclick="traceDataFlow()">Trace Complete Data Flow</button>
+    <button onclick="showRawData()">Show Raw localStorage Data</button>
+    <button onclick="syncFromOrganiser()">Sync from Organiser Inventory</button>
+    
+    <div id="results"></div>
+
+    <script>
+        function traceDataFlow() {
+            const results = document.getElementById('results');
+            let html = '<h2>Data Flow Analysis:</h2>';
+            
+            // 1. Check Event Inventory (Organiser level)
+            html += '<div class="section"><h3>1️⃣ Event Inventory (Organiser → Event Setup → Inventory Management)</h3>';
+            const eventInventory = localStorage.getItem('event_inventory');
+            if (eventInventory) {
+                try {
+                    const inventory = JSON.parse(eventInventory);
+                    html += '<div class="present">✅ Event inventory exists</div>';
+                    
+                    Object.keys(inventory).forEach(category => {
+                        const items = inventory[category] || [];
+                        html += `<div class="category"><strong>${category}:</strong> ${items.length} items`;
+                        
+                        if (category === 'sweeteners' || category === 'drinks') {
+                            html += '<div class="item">';
+                            items.forEach(item => {
+                                html += `${item.name} (${item.id})<br>`;
+                            });
+                            html += '</div>';
+                        }
+                        html += '</div>';
+                    });
+                    
+                    // Check for missing categories
+                    if (!inventory.sweeteners) {
+                        html += '<div class="missing">❌ Sweeteners category missing in event inventory!</div>';
+                    }
+                    if (!inventory.drinks) {
+                        html += '<div class="missing">❌ Drinks category missing in event inventory!</div>';
+                    }
+                } catch (e) {
+                    html += '<div class="missing">❌ Event inventory is corrupted</div>';
+                }
+            } else {
+                html += '<div class="missing">❌ No event inventory found!</div>';
+            }
+            html += '</div>';
+            
+            // 2. Check Station Configurations
+            html += '<div class="section"><h3>2️⃣ Station Inventory Configs (Organiser → Stations → Station Inventory)</h3>';
+            const stationConfigs = localStorage.getItem('station_inventory_configs');
+            if (stationConfigs) {
+                try {
+                    const configs = JSON.parse(stationConfigs);
+                    const currentStation = localStorage.getItem('coffee_barista_station_id') || '1';
+                    html += `<div class="present">✅ Station configs exist (Current station: ${currentStation})</div>`;
+                    
+                    if (configs[currentStation]) {
+                        const stationConfig = configs[currentStation];
+                        html += `<div class="category"><strong>Station ${currentStation} Configuration:</strong>`;
+                        
+                        ['sweeteners', 'drinks'].forEach(category => {
+                            if (stationConfig[category]) {
+                                const enabledCount = Object.values(stationConfig[category]).filter(v => v).length;
+                                html += `<div>${category}: ${enabledCount} items enabled</div>`;
+                            } else {
+                                html += `<div class="missing">${category}: NOT CONFIGURED</div>`;
+                            }
+                        });
+                        html += '</div>';
+                    } else {
+                        html += `<div class="missing">❌ No configuration for station ${currentStation}</div>`;
+                    }
+                } catch (e) {
+                    html += '<div class="missing">❌ Station configs corrupted</div>';
+                }
+            } else {
+                html += '<div class="missing">❌ No station configurations found!</div>';
+            }
+            html += '</div>';
+            
+            // 3. Check Barista Stock
+            html += '<div class="section"><h3>3️⃣ Barista Stock (What Barista sees)</h3>';
+            const currentStation = localStorage.getItem('coffee_barista_station_id') || '1';
+            const stockKey = `coffee_stock_station_${currentStation}`;
+            const stockData = localStorage.getItem(stockKey);
+            
+            if (stockData) {
+                try {
+                    const stock = JSON.parse(stockData);
+                    html += `<div class="present">✅ Stock data exists for station ${currentStation}</div>`;
+                    
+                    ['sweeteners', 'drinks'].forEach(category => {
+                        if (stock[category]) {
+                            html += `<div class="category"><strong>${category}:</strong> ${stock[category].length} items`;
+                            if (stock[category].length > 0) {
+                                html += '<div class="item">';
+                                stock[category].forEach(item => {
+                                    html += `${item.name} - ${item.amount}${item.unit}<br>`;
+                                });
+                                html += '</div>';
+                            }
+                            html += '</div>';
+                        } else {
+                            html += `<div class="missing">❌ ${category} category missing in stock!</div>`;
+                        }
+                    });
+                    
+                    // Check if items are in wrong category
+                    if (stock.other && stock.other.length > 0) {
+                        const misplaced = stock.other.filter(item => 
+                            item.name?.match(/Sugar|Honey|Stevia|Sweetener|Hot Chocolate|Chai|Matcha|Tea|Juice/i)
+                        );
+                        if (misplaced.length > 0) {
+                            html += '<div class="warning">⚠️ Found items in wrong category (other):</div>';
+                            html += '<div class="item">';
+                            misplaced.forEach(item => {
+                                html += `${item.name} (should be in ${item.category || 'unknown'})<br>`;
+                            });
+                            html += '</div>';
+                        }
+                    }
+                } catch (e) {
+                    html += '<div class="missing">❌ Stock data corrupted</div>';
+                }
+            } else {
+                html += '<div class="missing">❌ No stock data for current station!</div>';
+            }
+            html += '</div>';
+            
+            results.innerHTML = html;
+        }
+        
+        function showRawData() {
+            const results = document.getElementById('results');
+            let html = '<h2>Raw localStorage Data:</h2>';
+            
+            const keys = [
+                'event_inventory',
+                'station_inventory_configs',
+                `coffee_stock_station_${localStorage.getItem('coffee_barista_station_id') || '1'}`
+            ];
+            
+            keys.forEach(key => {
+                const data = localStorage.getItem(key);
+                if (data) {
+                    html += `<div class="section">`;
+                    html += `<h3>${key}:</h3>`;
+                    try {
+                        const parsed = JSON.parse(data);
+                        html += `<pre>${JSON.stringify(parsed, null, 2)}</pre>`;
+                    } catch (e) {
+                        html += `<div class="missing">Invalid JSON</div>`;
+                    }
+                    html += `</div>`;
+                }
+            });
+            
+            results.innerHTML = html;
+        }
+        
+        function syncFromOrganiser() {
+            const results = document.getElementById('results');
+            const currentStation = localStorage.getItem('coffee_barista_station_id') || '1';
+            
+            // Check if we have the source data
+            const eventInventory = localStorage.getItem('event_inventory');
+            const stationConfigs = localStorage.getItem('station_inventory_configs');
+            
+            if (!eventInventory || !stationConfigs) {
+                results.innerHTML = '<div class="missing">❌ Missing event inventory or station configs. Set these up in Organiser interface first!</div>';
+                return;
+            }
+            
+            try {
+                const inventory = JSON.parse(eventInventory);
+                const configs = JSON.parse(stationConfigs);
+                const stationConfig = configs[currentStation] || {};
+                
+                // Get existing stock or create new
+                const stockKey = `coffee_stock_station_${currentStation}`;
+                let stock = {};
+                
+                const existingStock = localStorage.getItem(stockKey);
+                if (existingStock) {
+                    stock = JSON.parse(existingStock);
+                }
+                
+                // Ensure all categories exist
+                const categories = ['milk', 'coffee', 'cups', 'syrups', 'sweeteners', 'drinks', 'other'];
+                categories.forEach(cat => {
+                    if (!stock[cat]) stock[cat] = [];
+                });
+                
+                // Process each category from event inventory
+                let syncLog = '<h3>Sync Results:</h3>';
+                
+                Object.keys(inventory).forEach(invCategory => {
+                    const items = inventory[invCategory] || [];
+                    
+                    // Determine target category in stock
+                    let targetCategory = invCategory;
+                    if (invCategory === 'extras') targetCategory = 'other';
+                    
+                    // Only process if this category is configured for this station
+                    if (stationConfig[invCategory]) {
+                        items.forEach(item => {
+                            if (item.enabled && stationConfig[invCategory][item.id]) {
+                                // Check if item already exists in stock
+                                const existingIndex = stock[targetCategory].findIndex(s => s.id === item.id);
+                                
+                                if (existingIndex === -1) {
+                                    // Add new item
+                                    const stockItem = {
+                                        id: item.id,
+                                        name: item.name,
+                                        amount: 10, // Default amount
+                                        capacity: 10,
+                                        unit: 'unit',
+                                        status: 'good',
+                                        lowThreshold: 2.5,
+                                        criticalThreshold: 1,
+                                        description: item.description,
+                                        category: invCategory,
+                                        enabled: true
+                                    };
+                                    
+                                    stock[targetCategory].push(stockItem);
+                                    syncLog += `<div class="present">✅ Added ${item.name} to ${targetCategory}</div>`;
+                                }
+                            }
+                        });
+                    }
+                });
+                
+                // Save updated stock
+                localStorage.setItem(stockKey, JSON.stringify(stock));
+                
+                // Clear cache
+                localStorage.removeItem('coffee_stock_cache');
+                
+                results.innerHTML = syncLog + '<div class="present"><br>✅ Sync complete! Refresh Barista interface to see changes.</div>';
+                
+            } catch (e) {
+                results.innerHTML = `<div class="missing">❌ Error during sync: ${e.message}</div>`;
+            }
+        }
+        
+        // Auto-trace on load
+        window.onload = () => traceDataFlow();
+    </script>
+</body>
+</html>

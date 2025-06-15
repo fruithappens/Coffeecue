@@ -1,0 +1,487 @@
+# COFFEE CUE SYSTEM DOCUMENTATION
+
+## Overview
+
+The "Coffee Cue" app is a comprehensive coffee ordering and management system designed for events and conferences. It allows customers to place coffee orders, receive notifications, and track their orders. Baristas can manage incoming orders, prepare coffees, and communicate with customers. The system also includes administrative features for managing stations, inventory, and settings.
+
+## System Architecture
+
+### Backend (Flask)
+
+The system uses a Flask backend (Python) with a PostgreSQL database. Key components:
+
+1. **RESTful API**: All operations are performed via standardized API endpoints
+2. **JWT Authentication**: Secure role-based access control
+3. **Database Models**: Structured database for orders, users, inventory, etc.
+4. **SMS Integration**: Twilio for customer notifications
+5. **WebSocket Support**: Real-time updates via SocketIO
+
+### Frontend (React)
+
+The frontend is built with React and includes:
+
+1. **Barista Interface**: For handling orders, managing inventory, and staff communication
+2. **Display Screen**: Public-facing order status displays
+3. **Admin Interface**: For system configuration and management
+4. **Customer Interface**: Order placement and tracking
+
+## File Structure
+
+### Backend Structure
+```
+/expresso/
+├── app.py                 # Main application entry point
+├── auth.py                # Authentication logic
+├── config.py              # Configuration settings
+├── middleware.py          # Request processing middleware
+├── run_server.py          # Server startup script
+├── models/                # Database models
+│   ├── __init__.py
+│   ├── inventory.py       # Inventory management
+│   ├── orders.py          # Order processing
+│   ├── settings.py        # System settings
+│   ├── stations.py        # Coffee stations
+│   └── users.py           # User accounts
+├── routes/                # API routes
+│   ├── __init__.py
+│   ├── admin_routes.py    # Admin panel routes
+│   ├── api_routes.py      # Core API endpoints
+│   ├── auth_routes.py     # Authentication endpoints
+│   ├── barista_routes.py  # Barista interface routes
+│   ├── chat_api_routes.py # Station chat functionality
+│   ├── consolidated_api_routes.py # Standardized API
+│   ├── customer_routes.py # Customer-facing routes
+│   ├── display_api_routes.py # Display screen API
+│   ├── inventory_routes.py # Inventory management
+│   ├── settings_api_routes.py # System settings API
+│   ├── sms_routes.py      # SMS notification handling
+│   ├── station_api_routes.py # Station management
+│   └── track_routes.py    # Order tracking
+├── services/              # Business logic services
+│   ├── __init__.py
+│   ├── advanced_nlp.py    # Natural language processing
+│   ├── coffee_system.py   # Core ordering system functionality
+│   ├── config.py          # Service configuration
+│   ├── loyalty.py         # Customer loyalty program
+│   ├── messaging.py       # SMS and notification handling
+│   ├── middleware.py      # Service middleware
+│   ├── nlp.py             # Basic NLP processing
+│   ├── stock_management.py # Inventory management
+│   └── websocket.py       # Real-time communications
+├── static/                # Static assets
+│   ├── audio/             # Notification sounds
+│   ├── css/               # Stylesheets
+│   ├── images/            # System images
+│   └── js/                # JavaScript files
+├── templates/             # HTML templates
+│   ├── auth/              # Authentication pages
+│   ├── barista/           # Barista interface
+│   ├── Customer/          # Customer-facing pages
+│   └── track/             # Order tracking
+└── utils/                 # Utility functions
+    ├── __init__.py
+    ├── database.py        # Database connections
+    └── helpers.py         # Helper functions
+```
+
+### Frontend Structure (React)
+```
+/Barista Front End/
+├── public/               # Static assets and HTML
+│   ├── api-test.html     # API testing page
+│   ├── api-test.js       # API testing script
+│   ├── api-tester.js     # API testing utilities
+│   ├── auth-fix.js       # Authentication fix script
+│   ├── check-token.js    # JWT token validation
+│   ├── direct-test.html  # Direct API testing
+│   └── index.html        # Main HTML entry point
+├── src/                  # React source code
+│   ├── App.js            # Main application component
+│   ├── AppContext.js     # Application state context
+│   ├── AppRouter.js      # Application routing
+│   ├── components/       # UI components
+│   │   ├── ApiDebugPanel.js       # API debugging interface
+│   │   ├── ApiNotificationBanner.js # API status notifications
+│   │   ├── ApiTestComponent.js    # API testing component
+│   │   ├── AppModeSelector.js     # Demo/production mode toggle
+│   │   ├── BaristaInterface.js    # Main barista dashboard
+│   │   ├── BatchGroupsList.js     # Batch order management
+│   │   ├── CurrentOrderSection.js # Current order display
+│   │   ├── DisplayScreen.js       # Customer-facing display
+│   │   ├── InProgressOrder.js     # In-progress order component
+│   │   ├── MessageHistory.js      # Customer communication history
+│   │   ├── NotificationSystem.js  # Notification management
+│   │   ├── OrderNotificationHandler.js # Order notifications
+│   │   ├── Organiser.js           # Order organization
+│   │   ├── PendingOrdersSection.js # Pending orders list
+│   │   ├── RegularOrdersList.js   # Regular order list
+│   │   ├── StationChat.js         # Inter-station communication
+│   │   ├── StockManagementSection.js # Inventory management
+│   │   ├── SupportInterface.js    # Support dashboard
+│   │   ├── VipOrdersList.js       # VIP orders display
+│   │   └── dialogs/               # Modal dialogs
+│   │       ├── HelpDialog.js      # Help information
+│   │       ├── MessageDialog.js   # Customer messaging
+│   │       ├── WaitTimeDialog.js  # Adjust wait times
+│   │       └── WalkInOrderDialog.js # Create walk-in orders
+│   ├── config/                    # Configuration
+│   │   └── apiConfig.js           # API endpoints configuration
+│   ├── context/                   # React contexts
+│   │   └── AppContext.js          # Application context
+│   ├── data/                      # Sample data
+│   │   ├── SampleStockData.js     # Demo inventory data
+│   │   └── sampleOrders.js        # Demo order data
+│   ├── hooks/                     # Custom React hooks
+│   │   ├── useAuth.js             # Authentication hook
+│   │   ├── useMessages.js         # Messaging hook
+│   │   ├── useOrders.js           # Order management hook
+│   │   ├── useSchedule.js         # Staff scheduling hook
+│   │   ├── useSettings.js         # System settings hook
+│   │   ├── useStations.js         # Station management hook
+│   │   └── useStock.js            # Inventory management hook
+│   ├── pages/                     # Full page components
+│   │   └── Login.js               # Login page
+│   ├── services/                  # API services
+│   │   ├── ApiService.js          # Base API service
+│   │   ├── AuthService.js         # Authentication service
+│   │   ├── ChatService.js         # Inter-station chat service
+│   │   ├── MessageService.js      # Customer messaging service
+│   │   ├── MockDataService.js     # Demo data service
+│   │   ├── OrderDataService.js    # Order management service
+│   │   ├── ScheduleService.js     # Staff scheduling service
+│   │   ├── ServiceFactory.js      # Service creation factory
+│   │   ├── SettingsService.js     # System settings service
+│   │   ├── StationsService.js     # Station management service
+│   │   └── StockService.js        # Inventory management service
+│   └── utils/                     # Utility functions
+│       ├── frontend-auth.js       # Authentication utilities
+│       └── orderUtils.js          # Order processing utilities
+├── package.json                   # NPM dependencies
+├── craco.config.js                # Create React App configuration
+├── tailwind.config.js             # TailwindCSS configuration
+└── tsconfig.json                  # TypeScript configuration
+```
+
+## Core Functionality
+
+### Order Flow
+
+1. **Order Creation**:
+   - Customer places order via web interface, SMS, or barista creates a walk-in order
+   - Order is assigned a number and enters the queue with 'pending' status
+   - Twilio SMS confirmation is sent to customer
+
+2. **Order Processing**:
+   - Barista sees pending orders in dashboard
+   - Barista starts order (updates to 'in-progress')
+   - Barista prepares the coffee
+   - Barista marks order as 'completed' when ready
+   - System sends "ready for pickup" SMS notification to customer
+
+3. **Order Completion**:
+   - Customer collects order
+   - Barista marks order as "picked up"
+   - Order data is stored for reporting and analytics
+
+### Authentication System
+
+The system uses JWT (JSON Web Token) for authentication with the following roles:
+
+1. **Admin**: Full access to all system functions
+2. **Staff**: Access to order management, reporting, and station configuration
+3. **Barista**: Order processing, customer messaging, and station management
+4. **Customer**: Self-service order placement and tracking
+
+### Station Management
+
+Coffee stations can be configured with:
+- Name and status (active/maintenance)
+- Assigned barista
+- Schedule for shifts and breaks
+- Inventory levels and stock tracking
+- Current workload and queue status
+
+### Messaging System
+
+The system includes:
+- Customer SMS notifications via Twilio
+- Station-to-station communication via internal chat
+- Order-specific messages (delay notices, special instructions)
+- QR code generation for order tracking
+
+### Inventory Management
+
+Station-specific inventory tracking for:
+- Milk varieties (regular, almond, soy, oat)
+- Coffee beans and supplies
+- Cups, lids, and other consumables
+- Low stock warnings and restock requests
+
+## Database Schema
+
+### Main Tables
+
+1. **orders**:
+   - id (PK)
+   - order_number (unique)
+   - status (pending, in-progress, completed)
+   - station_id (FK to stations)
+   - phone (customer phone)
+   - order_details (JSON)
+   - created_at, updated_at, completed_at, picked_up_at
+   - queue_priority (for VIP orders)
+
+2. **users**:
+   - id (PK)
+   - username, email
+   - password_hash
+   - role (admin, staff, barista, customer)
+   - full_name
+   - last_login
+
+3. **stations**:
+   - id (PK)
+   - name
+   - status (active, maintenance)
+   - barista_id (FK to users)
+   - location_info
+
+4. **inventory_items**:
+   - id (PK)
+   - name
+   - category
+   - amount, capacity
+   - unit (L, kg, pcs)
+   - station_id (FK to stations)
+   - low_threshold, critical_threshold
+
+5. **customer_preferences**:
+   - phone (PK)
+   - name
+   - preferred_coffee
+   - preferred_milk
+   - loyalty_points
+   - total_orders
+
+6. **chat_messages**:
+   - id (PK)
+   - sender
+   - content
+   - is_urgent
+   - created_at
+
+7. **settings**:
+   - key (PK)
+   - value
+   - description
+   - updated_at, updated_by
+
+### Relationship Schema
+
+- One station has many orders
+- One station has many inventory items
+- One user (barista) can be assigned to one station
+- One user can create many chat messages
+- One customer phone can have many orders
+- One order can have many messages
+
+## API Endpoints
+
+The system uses a RESTful API structure with standardized endpoints:
+
+### Authentication
+- POST `/api/auth/login` - Login with username/password
+- POST `/api/auth/refresh` - Refresh access token
+- GET `/api/auth/verify` - Verify authentication status
+
+### Orders
+- GET `/api/orders/pending` - Get pending orders
+- GET `/api/orders/in-progress` - Get in-progress orders
+- GET `/api/orders/completed` - Get completed orders
+- GET `/api/orders/lookup/<order_id>` - Look up order details
+- POST `/api/orders/<order_id>/start` - Start an order
+- POST `/api/orders/<order_id>/complete` - Complete an order
+- POST `/api/orders/<order_id>/pickup` - Mark order as picked up
+- POST `/api/orders/batch` - Process multiple orders
+- POST `/api/orders/<order_id>/message` - Send message to customer
+
+### Stations
+- GET `/api/stations` - Get all coffee stations
+- GET `/api/stations/<station_id>` - Get station details
+- PATCH `/api/stations/<station_id>/status` - Update station status
+- GET `/api/stations/<station_id>/stats` - Get station statistics
+- POST `/api/stations` - Create a new station
+- PATCH `/api/stations/<station_id>/barista` - Assign barista to station
+
+### Chat
+- GET `/api/chat/messages` - Get chat messages
+- POST `/api/chat/messages` - Create chat message
+
+### Settings
+- GET `/api/settings` - Get all system settings
+- PATCH `/api/settings` - Update a setting
+- POST `/api/settings/wait-time` - Update estimated wait time
+
+### Inventory
+- GET `/api/inventory` - Get all inventory items
+- POST `/api/inventory/<item_id>/adjust` - Adjust inventory quantity
+- POST `/api/inventory/<item_id>/report-low` - Report item as low in stock
+
+### Schedule
+- GET `/api/schedule/today` - Get today's schedule
+- GET `/api/schedule/date/<date>` - Get schedule for specific date
+- POST `/api/schedule/shifts` - Add new shift
+
+## External Integrations
+
+### Twilio Integration
+The system uses Twilio for SMS communications with customers:
+
+- Order confirmations with estimated wait time
+- "Order ready" notifications
+- Reminder messages for uncollected orders
+- Customer requests via SMS keywords
+
+Configuration is managed via:
+- TWILIO_ACCOUNT_SID
+- TWILIO_AUTH_TOKEN
+- TWILIO_PHONE_NUMBER
+
+### Other Possible Integrations
+The system appears to have support for (or placeholder code for):
+
+- Payment processing (references in the code but not fully implemented)
+- Loyalty program (customer point tracking)
+- QR code generation for order tracking
+
+## Potential Unused Files/Components
+
+1. **Advanced NLP**: `services/advanced_nlp.py` - May be partially implemented
+2. **Track Routes**: `routes/track_routes.py` - Appears to be in early development
+3. **Direct Test Files**: `public/direct-test.html` and similar - Test files that could be cleaned up
+4. **Unused Images**: Many images in `static/_unused/` directory
+5. **Sample Data Files**: Demo data files that may not be needed in production
+
+## Areas for Improvement
+
+1. **API Consistency**: Some API endpoints don't follow the standardized structure
+2. **Error Handling**: More comprehensive error handling needed in some API routes
+3. **Testing**: Add more comprehensive test coverage
+4. **Authentication**: Strengthen security with refresh token rotation
+5. **Documentation**: Complete API documentation for all endpoints
+6. **Frontend/Backend Sync**: Better error handling for API failures
+7. **Performance**: Optimize database queries for large order volumes
+8. **Mobile Responsiveness**: Improve barista interface for mobile devices
+9. **Offline Support**: Add more robust offline capabilities
+10. **Internationalization**: Support for multiple languages
+
+## Development Environment Setup
+
+### Backend Setup
+
+1. Create a Python virtual environment:
+   ```
+   python -m venv venv
+   source venv/bin/activate
+   ```
+
+2. Install dependencies:
+   ```
+   pip install -r requirements.txt
+   ```
+
+3. Set up environment variables in `.env` file:
+   ```
+   DATABASE_URL=postgresql://username:password@localhost:5432/expresso
+   TWILIO_ACCOUNT_SID=your_account_sid
+   TWILIO_AUTH_TOKEN=your_auth_token
+   TWILIO_PHONE_NUMBER=your_twilio_phone
+   ```
+
+4. Create admin user:
+   ```
+   python create_admin.py
+   ```
+
+5. Initialize database with test data:
+   ```
+   python load_test_data.py
+   ```
+
+6. Run the application:
+   ```
+   python run_server.py
+   ```
+
+### Frontend Setup
+
+1. Navigate to Barista Front End directory:
+   ```
+   cd "Barista Front End"
+   ```
+
+2. Install dependencies:
+   ```
+   npm install
+   ```
+
+3. Run development server:
+   ```
+   npm start
+   ```
+
+4. Build for production:
+   ```
+   npm run build
+   ```
+
+## Key System Components Explained
+
+### coffee_system.py
+The central service that manages the coffee ordering process. Handles order creation, processing, and tracking. Interacts with the database and other services.
+
+### messaging.py
+Manages SMS communications via Twilio. Sends order confirmations, ready notifications, and processes customer text commands.
+
+### BaristaInterface.js
+The main React component for the barista dashboard. Shows pending orders, current orders, and completed orders. Provides interface for processing orders and managing inventory.
+
+### OrderDataService.js
+Frontend service that interacts with the order API endpoints. Fetches order data and sends updates to the backend.
+
+### auth.py
+Handles authentication and authorization using JWT tokens. Manages user roles and permissions.
+
+### station_api_routes.py
+API endpoints for station management. Handles station configuration, status updates, and statistics.
+
+### useOrders.js
+React hook that provides order management functionality to components. Fetches orders, handles status updates, and manages order filtering.
+
+## Troubleshooting Common Issues
+
+1. **API Connection Problems**:
+   - Check the backend server is running on port 5001
+   - Verify CORS settings are correct
+   - Check JWT token in localStorage isn't expired
+
+2. **Database Connection Issues**:
+   - Confirm PostgreSQL is running
+   - Verify the DATABASE_URL environment variable
+   - Run `python fix_database_connection.py`
+
+3. **Authentication Failures**:
+   - Reset the admin password using `python reset_admin.py`
+   - Check JWT token configuration in app.py
+   - Clear browser localStorage and try again
+
+4. **SMS Notification Problems**:
+   - Verify Twilio credentials in environment variables
+   - Check TESTING_MODE setting (if true, SMS won't be sent)
+   - Look for errors in expresso.log
+
+## Conclusion
+
+The Coffee Cue system is a comprehensive solution for coffee order management at events and conferences. It features a robust backend API, React frontend, and integration with SMS services. The system is designed with scalability in mind, supporting multiple stations, users with different roles, and various ordering methods.
+
+This documentation should provide a solid starting point for understanding the system's architecture, functionality, and codebase structure.

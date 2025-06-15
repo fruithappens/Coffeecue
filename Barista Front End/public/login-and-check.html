@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login and Check Orders</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .section { margin: 20px 0; padding: 10px; border: 1px solid #ccc; }
+        button { padding: 10px 20px; margin: 5px; }
+        pre { background: #f0f0f0; padding: 10px; overflow: auto; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>Expresso System - Login and Order Check</h1>
+    
+    <div class="section">
+        <h2>Step 1: Login</h2>
+        <p>Username: <input type="text" id="username" value="barista" /></p>
+        <p>Password: <input type="password" id="password" value="barista123" /></p>
+        <button onclick="doLogin()">Login</button>
+        <div id="loginResult"></div>
+    </div>
+    
+    <div class="section">
+        <h2>Step 2: Check Orders</h2>
+        <button onclick="checkOrders()">Check Pending Orders (Station 1)</button>
+        <div id="ordersResult"></div>
+    </div>
+    
+    <div class="section">
+        <h2>Step 3: Go to Barista Interface</h2>
+        <button onclick="goToBarista()">Open Barista Interface</button>
+    </div>
+    
+    <script>
+        async function doLogin() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const resultDiv = document.getElementById('loginResult');
+            
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // Store tokens
+                    if (data.token) localStorage.setItem('authToken', data.token);
+                    if (data.access_token) localStorage.setItem('authToken', data.access_token);
+                    if (data.refreshToken) localStorage.setItem('refreshToken', data.refreshToken);
+                    if (data.refresh_token) localStorage.setItem('refreshToken', data.refresh_token);
+                    if (data.user) {
+                        localStorage.setItem('currentUser', JSON.stringify(data.user));
+                        localStorage.setItem('userRole', data.user.role);
+                    }
+                    
+                    resultDiv.innerHTML = '<p class="success">Login successful! Token stored.</p><pre>' + 
+                        JSON.stringify(data, null, 2) + '</pre>';
+                } else {
+                    resultDiv.innerHTML = '<p class="error">Login failed!</p><pre>' + 
+                        JSON.stringify(data, null, 2) + '</pre>';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = '<p class="error">Error: ' + error.message + '</p>';
+            }
+        }
+        
+        async function checkOrders() {
+            const resultDiv = document.getElementById('ordersResult');
+            const token = localStorage.getItem('authToken');
+            
+            if (!token) {
+                resultDiv.innerHTML = '<p class="error">Please login first!</p>';
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/orders/pending?station_id=1', {
+                    headers: { 
+                        'Authorization': 'Bearer ' + token,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = '<p class="success">Orders retrieved successfully!</p><pre>' + 
+                        JSON.stringify(data, null, 2) + '</pre>';
+                } else {
+                    resultDiv.innerHTML = '<p class="error">Failed to get orders!</p><pre>' + 
+                        JSON.stringify(data, null, 2) + '</pre>';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = '<p class="error">Error: ' + error.message + '</p>';
+            }
+        }
+        
+        function goToBarista() {
+            // Go to the barista interface
+            window.location.href = '/barista';
+        }
+    </script>
+</body>
+</html>

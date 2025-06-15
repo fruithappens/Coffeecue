@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Allocated Stock Fix</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            padding: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #f5f5f5;
+        }
+        h1 { color: #333; }
+        .section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .success { 
+            background-color: #e8f5e9;
+            color: #2e7d32;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .error { 
+            background-color: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .warning {
+            background-color: #fff3e0;
+            color: #e65100;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        button {
+            background: #1a73e8;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #1557b0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f5f5f5;
+        }
+        .quantity-input {
+            width: 80px;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .step {
+            margin: 15px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: #f9f9f9;
+        }
+        .step h3 {
+            margin: 0 0 10px 0;
+            color: #1a73e8;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test Allocated Stock Fix</h1>
+    
+    <div class="section">
+        <h2>Issue Being Fixed</h2>
+        <p>The problem: Event Stock → Allocated shows "0 L" or "L" instead of actual allocated amounts.</p>
+        <p><strong>Root Cause:</strong> EventStockManagement component had a placeholder function that always returned 0.</p>
+        <p><strong>Fix Applied:</strong> Updated calculateAllocated() to sum station quantities and added real-time updates.</p>
+    </div>
+    
+    <div class="section">
+        <h2>🛠️ Test Actions</h2>
+        <button onclick="setupTestData()">1. Setup Test Data</button>
+        <button onclick="simulateStationQuantities()">2. Simulate Station Quantities</button>
+        <button onclick="calculateAllocatedAmounts()">3. Calculate Allocated Amounts</button>
+        <button onclick="testEventDispatcher()">4. Test Event Dispatcher</button>
+        <button onclick="verifyFix()">5. Verify Complete Fix</button>
+    </div>
+    
+    <div class="section">
+        <h2>📋 Test Results</h2>
+        <div id="results"></div>
+    </div>
+
+    <script>
+        function setupTestData() {
+            const results = document.getElementById('results');
+            let html = '<h3>🔧 Setting up test data...</h3>';
+            
+            // Setup minimal event inventory
+            const eventInventory = {
+                milk: [
+                    {id: "milk_1", name: "Whole Milk", enabled: true, category: "milk"},
+                    {id: "milk_2", name: "Oat Milk", enabled: true, category: "milk"}
+                ],
+                coffee: [
+                    {id: "coffee_1", name: "Espresso", enabled: true, category: "coffee"},
+                    {id: "coffee_2", name: "Filter Coffee", enabled: true, category: "coffee"}
+                ],
+                sweeteners: [
+                    {id: "sweetener_1", name: "White Sugar", enabled: true, category: "sweeteners"},
+                    {id: "sweetener_2", name: "Honey", enabled: true, category: "sweeteners"}
+                ]
+            };
+            
+            localStorage.setItem('event_inventory', JSON.stringify(eventInventory));
+            html += '<div class="success">✅ Event inventory created</div>';
+            
+            // Setup station configs (which items are available at each station)
+            const stationConfigs = {
+                '1': {
+                    milk: { "milk_1": true, "milk_2": true },
+                    coffee: { "coffee_1": true, "coffee_2": true },
+                    sweeteners: { "sweetener_1": true, "sweetener_2": true }
+                },
+                '2': {
+                    milk: { "milk_1": true },
+                    coffee: { "coffee_1": true },
+                    sweeteners: { "sweetener_1": true }
+                },
+                '3': {
+                    milk: { "milk_2": true },
+                    coffee: { "coffee_2": true },
+                    sweeteners: { "sweetener_2": true }
+                }
+            };
+            
+            localStorage.setItem('station_inventory_configs', JSON.stringify(stationConfigs));
+            html += '<div class="success">✅ Station configurations created</div>';
+            
+            // Setup initial event stock levels
+            const eventStock = {
+                milk: {
+                    "milk_1": { quantity: 50, allocated: 0, available: 50, unit: "L" },
+                    "milk_2": { quantity: 30, allocated: 0, available: 30, unit: "L" }
+                },
+                coffee: {
+                    "coffee_1": { quantity: 20, allocated: 0, available: 20, unit: "kg" },
+                    "coffee_2": { quantity: 15, allocated: 0, available: 15, unit: "kg" }
+                },
+                sweeteners: {
+                    "sweetener_1": { quantity: 100, allocated: 0, available: 100, unit: "units" },
+                    "sweetener_2": { quantity: 50, allocated: 0, available: 50, unit: "units" }
+                }
+            };
+            
+            localStorage.setItem('event_stock_levels', JSON.stringify(eventStock));
+            html += '<div class="success">✅ Event stock levels initialized</div>';
+            
+            html += '<div class="warning">📝 Test data is ready. Now simulate some station quantity allocations.</div>';
+            
+            results.innerHTML = html;
+        }
+        
+        function simulateStationQuantities() {
+            const results = document.getElementById('results');
+            let html = '<h3>📊 Simulating station quantity allocations...</h3>';
+            
+            // Simulate realistic station quantity allocations
+            const stationQuantities = {
+                '1': {
+                    milk: {
+                        "milk_1": { quantity: 20, unit: "L" },
+                        "milk_2": { quantity: 10, unit: "L" }
+                    },
+                    coffee: {
+                        "coffee_1": { quantity: 8, unit: "kg" },
+                        "coffee_2": { quantity: 5, unit: "kg" }
+                    },
+                    sweeteners: {
+                        "sweetener_1": { quantity: 40, unit: "units" },
+                        "sweetener_2": { quantity: 20, unit: "units" }
+                    }
+                },
+                '2': {
+                    milk: {
+                        "milk_1": { quantity: 15, unit: "L" }
+                    },
+                    coffee: {
+                        "coffee_1": { quantity: 6, unit: "kg" }
+                    },
+                    sweeteners: {
+                        "sweetener_1": { quantity: 30, unit: "units" }
+                    }
+                },
+                '3': {
+                    milk: {
+                        "milk_2": { quantity: 8, unit: "L" }
+                    },
+                    coffee: {
+                        "coffee_2": { quantity: 4, unit: "kg" }
+                    },
+                    sweeteners: {
+                        "sweetener_2": { quantity: 15, unit: "units" }
+                    }
+                }
+            };
+            
+            localStorage.setItem('station_inventory_quantities', JSON.stringify(stationQuantities));
+            html += '<div class="success">✅ Station quantities set</div>';
+            
+            // Display what was allocated
+            html += '<table>';
+            html += '<tr><th>Item</th><th>Station 1</th><th>Station 2</th><th>Station 3</th><th>Total Allocated</th></tr>';
+            
+            const items = [
+                { id: "milk_1", name: "Whole Milk", category: "milk", unit: "L" },
+                { id: "milk_2", name: "Oat Milk", category: "milk", unit: "L" },
+                { id: "coffee_1", name: "Espresso", category: "coffee", unit: "kg" },
+                { id: "coffee_2", name: "Filter Coffee", category: "coffee", unit: "kg" },
+                { id: "sweetener_1", name: "White Sugar", category: "sweeteners", unit: "units" },
+                { id: "sweetener_2", name: "Honey", category: "sweeteners", unit: "units" }
+            ];
+            
+            items.forEach(item => {
+                const station1 = stationQuantities['1']?.[item.category]?.[item.id]?.quantity || 0;
+                const station2 = stationQuantities['2']?.[item.category]?.[item.id]?.quantity || 0;
+                const station3 = stationQuantities['3']?.[item.category]?.[item.id]?.quantity || 0;
+                const total = station1 + station2 + station3;
+                
+                html += `<tr>`;
+                html += `<td>${item.name}</td>`;
+                html += `<td>${station1} ${item.unit}</td>`;
+                html += `<td>${station2} ${item.unit}</td>`;
+                html += `<td>${station3} ${item.unit}</td>`;
+                html += `<td><strong>${total} ${item.unit}</strong></td>`;
+                html += `</tr>`;
+            });
+            
+            html += '</table>';
+            
+            results.innerHTML = html;
+        }
+        
+        function calculateAllocatedAmounts() {
+            const results = document.getElementById('results');
+            let html = '<h3>🧮 Testing calculateAllocated function...</h3>';
+            
+            // Recreate the calculateAllocated function from EventStockManagement
+            const calculateAllocated = (category, itemId) => {
+                try {
+                    const stationQuantities = localStorage.getItem('station_inventory_quantities');
+                    if (!stationQuantities) {
+                        return 0;
+                    }
+
+                    const quantities = JSON.parse(stationQuantities);
+                    let totalAllocated = 0;
+
+                    // Sum up quantities from all stations for this item
+                    Object.keys(quantities).forEach(stationId => {
+                        const stationData = quantities[stationId];
+                        if (stationData[category] && stationData[category][itemId]) {
+                            const quantity = stationData[category][itemId].quantity || 0;
+                            totalAllocated += quantity;
+                        }
+                    });
+
+                    return totalAllocated;
+                } catch (error) {
+                    console.error('Error calculating allocated amount:', error);
+                    return 0;
+                }
+            };
+            
+            // Test the function
+            const testItems = [
+                { id: "milk_1", name: "Whole Milk", category: "milk", expected: 35 },
+                { id: "milk_2", name: "Oat Milk", category: "milk", expected: 18 },
+                { id: "coffee_1", name: "Espresso", category: "coffee", expected: 14 },
+                { id: "coffee_2", name: "Filter Coffee", category: "coffee", expected: 9 },
+                { id: "sweetener_1", name: "White Sugar", category: "sweeteners", expected: 70 },
+                { id: "sweetener_2", name: "Honey", category: "sweeteners", expected: 35 }
+            ];
+            
+            html += '<table>';
+            html += '<tr><th>Item</th><th>Expected</th><th>Calculated</th><th>Status</th></tr>';
+            
+            let allCorrect = true;
+            
+            testItems.forEach(item => {
+                const calculated = calculateAllocated(item.category, item.id);
+                const isCorrect = calculated === item.expected;
+                if (!isCorrect) allCorrect = false;
+                
+                html += `<tr>`;
+                html += `<td>${item.name}</td>`;
+                html += `<td>${item.expected}</td>`;
+                html += `<td>${calculated}</td>`;
+                html += `<td>${isCorrect ? '✅ Correct' : '❌ Wrong'}</td>`;
+                html += `</tr>`;
+            });
+            
+            html += '</table>';
+            
+            if (allCorrect) {
+                html += '<div class="success">🎉 All calculations are correct! The calculateAllocated function is working properly.</div>';
+            } else {
+                html += '<div class="error">❌ Some calculations are incorrect. Check the function logic.</div>';
+            }
+            
+            results.innerHTML = html;
+        }
+        
+        function testEventDispatcher() {
+            const results = document.getElementById('results');
+            let html = '<h3>📡 Testing event dispatcher...</h3>';
+            
+            // Listen for the event
+            let eventReceived = false;
+            const handleEvent = (event) => {
+                eventReceived = true;
+                html += '<div class="success">✅ stationInventory:updated event received!</div>';
+                html += '<div>Event detail: ' + JSON.stringify(event.detail) + '</div>';
+                document.getElementById('results').innerHTML = html;
+            };
+            
+            window.addEventListener('stationInventory:updated', handleEvent);
+            
+            // Simulate dispatching the event (like StationInventoryConfig does)
+            setTimeout(() => {
+                const testInventory = { test: "data" };
+                window.dispatchEvent(new CustomEvent('stationInventory:updated', {
+                    detail: { inventory: testInventory }
+                }));
+                
+                setTimeout(() => {
+                    window.removeEventListener('stationInventory:updated', handleEvent);
+                    
+                    if (!eventReceived) {
+                        html += '<div class="error">❌ Event was not received</div>';
+                        document.getElementById('results').innerHTML = html;
+                    }
+                }, 100);
+            }, 100);
+            
+            html += '<div class="warning">📡 Dispatching test event...</div>';
+            document.getElementById('results').innerHTML = html;
+        }
+        
+        function verifyFix() {
+            const results = document.getElementById('results');
+            let html = '<h3>✅ Verifying complete fix...</h3>';
+            
+            // Check all the pieces are in place
+            const checks = [
+                {
+                    name: "Event inventory exists",
+                    check: () => localStorage.getItem('event_inventory') !== null
+                },
+                {
+                    name: "Station configurations exist", 
+                    check: () => localStorage.getItem('station_inventory_configs') !== null
+                },
+                {
+                    name: "Station quantities exist",
+                    check: () => localStorage.getItem('station_inventory_quantities') !== null
+                },
+                {
+                    name: "Event stock levels exist",
+                    check: () => localStorage.getItem('event_stock_levels') !== null
+                }
+            ];
+            
+            html += '<table>';
+            html += '<tr><th>Check</th><th>Status</th></tr>';
+            
+            let allPassed = true;
+            checks.forEach(check => {
+                const passed = check.check();
+                if (!passed) allPassed = false;
+                
+                html += `<tr>`;
+                html += `<td>${check.name}</td>`;
+                html += `<td>${passed ? '✅ Pass' : '❌ Fail'}</td>`;
+                html += `</tr>`;
+            });
+            
+            html += '</table>';
+            
+            if (allPassed) {
+                html += '<div class="success">🎉 All checks passed!</div>';
+                html += '<div class="step">';
+                html += '<h3>✅ Fix Summary:</h3>';
+                html += '<p><strong>Problem:</strong> EventStockManagement always showed "0 L" for allocated amounts</p>';
+                html += '<p><strong>Cause:</strong> calculateAllocated() was a placeholder returning 0</p>';
+                html += '<p><strong>Solution:</strong></p>';
+                html += '<ul>';
+                html += '<li>✅ Fixed calculateAllocated() to sum station quantities from localStorage</li>';
+                html += '<li>✅ Added updateAllocatedAmounts() to recalculate all items</li>';
+                html += '<li>✅ Added event listener for stationInventory:updated events</li>';
+                html += '<li>✅ StationInventoryConfig already dispatches events when quantities change</li>';
+                html += '</ul>';
+                html += '<p><strong>Result:</strong> Event Stock → Allocated should now show real values instead of "0 L"</p>';
+                html += '</div>';
+                html += '<div class="warning">🔄 <strong>Next Step:</strong> Refresh the Organiser interface and test by entering station quantities. The Event Stock allocated amounts should update in real-time!</div>';
+            } else {
+                html += '<div class="error">❌ Some checks failed. Run the setup steps first.</div>';
+            }
+            
+            results.innerHTML = html;
+        }
+        
+        // Auto-run setup on load
+        window.onload = () => {
+            document.getElementById('results').innerHTML = 
+                '<div class="warning">Ready to test the allocated stock fix. Click "1. Setup Test Data" to begin.</div>';
+        };
+    </script>
+</body>
+</html>

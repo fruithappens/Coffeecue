@@ -1,0 +1,224 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## System Overview
+
+Expresso is a comprehensive coffee ordering system designed for events and conferences, consisting of:
+
+1. **Flask Backend**
+   - RESTful API for all operations
+   - PostgreSQL database
+   - Twilio SMS integration
+   - JWT authentication and role-based access control
+
+2. **React Frontend**
+   - Barista interface for order processing
+   - Organizer interface for event management
+   - Admin interface for configuration
+   - Display screens for order status
+
+3. **Mobile Interface**
+   - QR code scanning for order status
+   - SMS notifications for order updates
+
+## Key Components
+
+### Backend Components
+- `app.py`: Main Flask application factory
+- `run_server.py`: Entry point for backend server
+- `routes/`: API and view routes organized by function
+- `models/`: Database models (Orders, Users, Stations, Inventory)
+- `services/`: Business logic (CoffeeSystem, Messaging, etc.)
+- `utils/`: Utility functions
+- `auth.py`: JWT authentication
+
+### Frontend Components
+- `Barista Front End/src/`: React application source
+- `Barista Front End/src/components/`: UI components
+- `Barista Front End/src/services/`: API clients and services
+- `Barista Front End/src/hooks/`: React hooks for data management
+- `Barista Front End/src/context/`: React context for state management
+
+## Development Commands
+
+### Quick Start (All-in-One)
+```bash
+# Start everything (backend, frontend, ngrok) in one command
+./start_expresso.sh
+```
+
+### Backend Setup
+```bash
+# Create and activate virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Create database (PostgreSQL required)
+python pg_init.py
+
+# Create admin user
+python create_admin.py
+# Force recreate admin user if needed
+python create_admin.py --force
+
+# Load test data
+python load_test_data.py
+# Force reload test data if needed
+python load_test_data.py --force
+
+# Run the backend server
+python run_server.py
+```
+
+### Frontend Setup
+```bash
+# Navigate to frontend directory
+cd "Barista Front End"
+
+# Install dependencies
+npm install
+
+# Run development server
+npm start
+
+# Build for production
+npm run build
+
+# Run tests
+npm test
+```
+
+### Testing Commands
+
+#### Backend API Testing
+```bash
+# Test API connectivity
+python test_api.py
+
+# Test authentication
+python test_login.py
+python test_jwt.py
+python test_jwt_api.py
+python test_jwt_config.py
+
+# Test CORS configuration
+python test_cors.py
+
+# Test inventory endpoints
+python test_inventory_endpoints.py
+python test_inventory_endpoints_auth.py
+
+# Test Twilio integration
+python test_twilio.py
+
+# Test frontend-backend API integration
+python test_frontend_apis.py
+
+# Display all available routes
+python display_routes.py
+```
+
+#### Frontend Testing
+```bash
+# Run in frontend directory
+cd "Barista Front End"
+
+# Run all tests
+npm test
+
+# Run specific test
+npm test -- --testPathPattern=OrderDataService
+
+# Run with coverage report
+npm test -- --coverage
+```
+
+### Troubleshooting Commands
+```bash
+# Check backend server status
+python check_backend_server.py
+
+# Fix database connection issues
+python fix_database_connection.py
+
+# Fix CORS issues and restart server
+./fix-cors-and-restart.sh
+
+# Direct API test using browser
+# Navigate to: http://localhost:3000/api-test.html
+```
+
+## API Architecture
+
+The system follows a well-structured API design:
+
+- All endpoints use the prefix `/api`
+- Authentication using JWT tokens
+- Role-based access control for protected endpoints
+- RESTful naming conventions
+- Standardized response formats
+
+Key API areas:
+- `/api/auth/*`: Authentication and token management
+- `/api/orders/*`: Order processing workflow
+- `/api/stations/*`: Coffee station management
+- `/api/inventory/*`: Stock management
+- `/api/settings/*`: System configuration
+- `/api/chat/*`: Internal messaging
+- `/api/sms/*`: Customer notifications
+- `/api/schedule/*`: Staff scheduling
+- `/api/display/*`: Public display configuration
+
+## Frontend-Backend Integration
+
+The frontend services connect to the backend API via:
+
+- Direct URL pattern: `http://localhost:5001/api/{endpoint}`
+- API client services in `src/services/`:
+  - `ApiService.js`: Base API configuration
+  - `AuthService.js`: Authentication
+  - `OrderDataService.js`: Order management
+  - `StationsService.js`: Station management
+  - `StockService.js`: Inventory management
+  - `SettingsService.js`: System configuration
+  - `MessageService.js`: Messaging
+  - `ScheduleService.js`: Staff scheduling
+
+Connection issues can be diagnosed with:
+- Browser console debugging
+- `http://localhost:3000/api-test.html`
+- Authentication verification at `http://localhost:3000/check-token.js`
+
+## Database Schema
+
+The PostgreSQL database includes these key tables:
+- `users`: Authentication and user data
+- `orders`: Customer orders
+- `stations`: Barista stations
+- `inventory`: Coffee and milk stock
+- `settings`: System configuration
+- `messages`: SMS communication
+
+## Common Development Tasks
+
+When working with this codebase:
+
+1. Always check both frontend and backend when implementing features
+2. Use the JWT authentication system for new API endpoints
+3. Follow existing patterns for route organization
+4. Use the services layer for business logic
+5. Test API endpoints with the provided test scripts
+6. Address CORS issues using the fix-cors-and-restart.sh script
+
+## Debugging Tips
+
+1. Check the browser console for CORS or authentication errors
+2. Verify API URLs in network requests (watch for double slashes)
+3. Ensure proper authentication headers are included in API requests
+4. Check token validity with the token verification tools
+5. Use the API test page for direct endpoint testing
+6. Verify database connection string in case of database errors

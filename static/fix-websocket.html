@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fix WebSocket Issues</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffeeba;
+            color: #856404;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .solution {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 5px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .danger {
+            background: #dc3545;
+        }
+        .danger:hover {
+            background: #c82333;
+        }
+        .success {
+            background: #28a745;
+        }
+        .success:hover {
+            background: #218838;
+        }
+        code {
+            background: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fix WebSocket Connection Issues</h1>
+    
+    <div class="warning">
+        <h3>⚠️ Problem Detected</h3>
+        <p>The WebSocket service is stuck in an authentication loop, causing thousands of connection errors.</p>
+    </div>
+    
+    <div class="solution">
+        <h3>✅ Quick Fix</h3>
+        <p>Click the button below to apply a fix that will stop the WebSocket errors:</p>
+        <button onclick="applyFix()" class="success">Apply WebSocket Fix</button>
+    </div>
+    
+    <h3>Alternative Solutions</h3>
+    
+    <h4>Option 1: Manual Console Fix</h4>
+    <p>Open DevTools (F12), go to Console, and paste this code:</p>
+    <pre>
+// Stop WebSocket connections
+if (window.io) {
+    window.io.sockets.forEach(s => s.disconnect());
+}
+window.WebSocket = class {
+    constructor() { throw new Error('WebSocket disabled'); }
+};
+location.reload();</pre>
+    
+    <h4>Option 2: Complete Reset</h4>
+    <p>This will clear all data and start fresh:</p>
+    <button onclick="completeReset()" class="danger">Complete Reset</button>
+    
+    <hr>
+    
+    <h3>After Fixing</h3>
+    <button onclick="goToApp()">Go to Application</button>
+    
+    <script>
+        function applyFix() {
+            // Set disable flag
+            localStorage.setItem('disable_websocket', 'true');
+            
+            // Override WebSocket globally
+            const script = document.createElement('script');
+            script.textContent = `
+                // Override WebSocket to prevent connections
+                window.WebSocket = class WebSocket {
+                    constructor(url) {
+                        console.log('WebSocket disabled, blocking:', url);
+                        this.readyState = 3; // CLOSED
+                        this.close = () => {};
+                        this.send = () => {};
+                        setTimeout(() => {
+                            if (this.onclose) this.onclose();
+                        }, 0);
+                    }
+                };
+                
+                // Stop any existing connections
+                if (window.io && window.io.sockets) {
+                    window.io.sockets.forEach(socket => {
+                        socket.disconnect();
+                        socket.destroy();
+                    });
+                }
+            `;
+            document.head.appendChild(script);
+            
+            alert('WebSocket fix applied! The page will now reload.');
+            
+            // Redirect to a clean page
+            setTimeout(() => {
+                window.location.href = 'http://localhost:5001/';
+            }, 1000);
+        }
+        
+        function completeReset() {
+            if (confirm('This will clear all local data. Continue?')) {
+                localStorage.clear();
+                sessionStorage.clear();
+                
+                // Delete all cookies
+                document.cookie.split(";").forEach(function(c) { 
+                    document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+                });
+                
+                alert('All data cleared. Redirecting to home page...');
+                window.location.href = 'http://localhost:5001/';
+            }
+        }
+        
+        function goToApp() {
+            window.location.href = 'http://localhost:5001/';
+        }
+    </script>
+</body>
+</html>

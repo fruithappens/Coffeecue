@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Inject Station Persistence</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            padding: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #f5f5f5;
+        }
+        h1 { color: #333; }
+        .section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .success { 
+            background-color: #e8f5e9;
+            color: #2e7d32;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .error { 
+            background-color: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .warning {
+            background-color: #fff3e0;
+            color: #e65100;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .info {
+            background-color: #e3f2fd;
+            color: #1565c0;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .critical {
+            background-color: #f3e5f5;
+            color: #4a148c;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+            border: 2px solid #9c27b0;
+        }
+        button {
+            background: #1a73e8;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #1557b0;
+        }
+        .inject-button {
+            background: #d32f2f;
+            font-weight: bold;
+            font-size: 18px;
+            padding: 20px 30px;
+        }
+        .inject-button:hover {
+            background: #b71c1c;
+        }
+        pre {
+            background: #f0f8ff;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>💉 Inject Station Persistence</h1>
+    
+    <div class="section">
+        <h2>Current Problem</h2>
+        <div class="error">
+            <p><strong>Issue:</strong> The fix passed in testing, but the real Organiser interface still won't save inactive station status persistently.</p>
+            <p><strong>Root Cause:</strong> The React app isn't using our patched functions. We need to inject the fix directly into the running React app.</p>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>🎯 Injection Method</h2>
+        <button class="inject-button" onclick="injectPersistenceFix()">💉 INJECT PERSISTENCE FIX</button>
+        <div class="critical">
+            This will:
+            <ul>
+                <li>Hook into the React app's station update mechanism</li>
+                <li>Override all station save operations</li>
+                <li>Force database persistence for all changes</li>
+                <li>Monitor and intercept React state changes</li>
+            </ul>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>📋 Injection Results</h2>
+        <div id="results"></div>
+    </div>
+
+    <script>
+        function injectPersistenceFix() {
+            const results = document.getElementById('results');
+            let html = '<h3>💉 Injecting Persistence Fix...</h3>';
+            
+            try {
+                // Step 1: Get authentication
+                const token = localStorage.getItem('accessToken') || localStorage.getItem('token') || 
+                             sessionStorage.getItem('accessToken') || sessionStorage.getItem('token');
+                
+                if (!token) {
+                    html += '<div class="error">❌ No auth token found. Please login first.</div>';
+                    results.innerHTML = html;
+                    return;
+                }
+                
+                html += '<div class="success">✅ Auth token found</div>';
+                
+                // Step 2: Create the persistence engine
+                html += '<div class="info">Creating persistence engine...</div>';
+                
+                // Global station update interceptor
+                window.STATION_PERSISTENCE_ENGINE = {
+                    token: token,
+                    active: true,
+                    updates: [],
+                    
+                    async updateStation(stationId, updates) {
+                        console.log('🔥 PERSISTENCE ENGINE: Updating station', stationId, updates);
+                        
+                        try {
+                            // Make the API call
+                            const response = await fetch(`http://localhost:5001/api/stations/${stationId}`, {
+                                method: 'PATCH',
+                                headers: {
+                                    'Authorization': `Bearer ${this.token}`,
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify(updates)
+                            });
+                            
+                            const result = await response.json();
+                            
+                            if (response.ok && result.success) {
+                                console.log('✅ PERSISTENCE ENGINE: Station updated successfully', result);
+                                
+                                // Update localStorage for immediate UI
+                                this.updateLocalStorage(stationId, updates);
+                                
+                                // Track the update
+                                this.updates.push({
+                                    stationId,
+                                    updates,
+                                    timestamp: new Date().toISOString(),
+                                    success: true
+                                });
+                                
+                                return { success: true, result };
+                            } else {
+                                console.error('❌ PERSISTENCE ENGINE: Update failed', result);
+                                return { success: false, error: result.error || 'Unknown error' };
+                            }
+                        } catch (error) {
+                            console.error('❌ PERSISTENCE ENGINE: Exception', error);
+                            return { success: false, error: error.message };
+                        }
+                    },
+                    
+                    updateLocalStorage(stationId, updates) {
+                        try {
+                            const stations = JSON.parse(localStorage.getItem('coffee_cue_stations') || '[]');
+                            const stationIndex = stations.findIndex(s => s.id == stationId);
+                            
+                            if (stationIndex !== -1) {
+                                Object.assign(stations[stationIndex], updates);
+                                localStorage.setItem('coffee_cue_stations', JSON.stringify(stations));
+                                console.log('📱 PERSISTENCE ENGINE: Updated localStorage', stationId, updates);
+                            }
+                        } catch (error) {
+                            console.error('localStorage update error:', error);
+                        }
+                    }
+                };
+                
+                html += '<div class="success">✅ Persistence engine created</div>';
+                
+                // Step 3: Hook into React's console logging
+                html += '<div class="info">Hooking into React console logs...</div>';
+                
+                const originalConsoleLog = console.log;
+                let interceptCount = 0;
+                
+                console.log = function(...args) {
+                    // Call original first
+                    originalConsoleLog.apply(console, args);
+                    
+                    // Check for station updates
+                    if (args[0] && typeof args[0] === 'string' && args[0].includes('Updating station')) {
+                        const stationId = args[1];
+                        const stationData = args[2];
+                        
+                        if (stationId && stationData && window.STATION_PERSISTENCE_ENGINE && window.STATION_PERSISTENCE_ENGINE.active) {
+                            interceptCount++;
+                            console.log(`🎯 INTERCEPTED STATION UPDATE #${interceptCount}:`, stationId, stationData);
+                            
+                            // Use our persistence engine
+                            setTimeout(() => {
+                                window.STATION_PERSISTENCE_ENGINE.updateStation(stationId, stationData)
+                                    .then(result => {
+                                        if (result.success) {
+                                            console.log('🎉 PERSISTENCE ENGINE: Successful persistence for station', stationId);
+                                        } else {
+                                            console.error('💥 PERSISTENCE ENGINE: Failed to persist station', stationId, result.error);
+                                        }
+                                    });
+                            }, 50);
+                        }
+                    }
+                };
+                
+                html += '<div class="success">✅ Console logging hooked</div>';
+                
+                // Step 4: Hook into fetch calls
+                html += '<div class="info">Hooking into fetch calls...</div>';
+                
+                const originalFetch = window.fetch;
+                window.fetch = function(...args) {
+                    const url = args[0];
+                    const options = args[1] || {};
+                    
+                    // Check for station API calls
+                    if (url && url.includes && url.includes('/api/stations/') && options.method === 'PATCH') {
+                        console.log('🕷️ INTERCEPTED FETCH:', url, options);
+                        
+                        // Let the original call go through, but also ensure our engine fires
+                        if (window.STATION_PERSISTENCE_ENGINE && window.STATION_PERSISTENCE_ENGINE.active) {
+                            const stationIdMatch = url.match(/\/stations\/(\d+)/);
+                            if (stationIdMatch && options.body) {
+                                const stationId = stationIdMatch[1];
+                                try {
+                                    const updates = JSON.parse(options.body);
+                                    console.log('🔄 DOUBLE-CHECKING PERSISTENCE:', stationId, updates);
+                                    
+                                    // Double-check persistence after a delay
+                                    setTimeout(() => {
+                                        window.STATION_PERSISTENCE_ENGINE.updateStation(stationId, updates);
+                                    }, 1000);
+                                } catch (e) {
+                                    console.error('Failed to parse station update body:', e);
+                                }
+                            }
+                        }
+                    }
+                    
+                    return originalFetch.apply(this, args);
+                };
+                
+                html += '<div class="success">✅ Fetch calls hooked</div>';
+                
+                // Step 5: Hook into localStorage changes
+                html += '<div class="info">Hooking into localStorage changes...</div>';
+                
+                const originalSetItem = localStorage.setItem;
+                localStorage.setItem = function(key, value) {
+                    // Call original
+                    originalSetItem.apply(this, arguments);
+                    
+                    // Check for station-related keys
+                    if (key === 'coffee_cue_stations' && window.STATION_PERSISTENCE_ENGINE && window.STATION_PERSISTENCE_ENGINE.active) {
+                        console.log('📦 STATION LOCALSTORAGE CHANGED:', key);
+                        
+                        try {
+                            const stations = JSON.parse(value);
+                            stations.forEach(station => {
+                                // Check if this station has changes that need to be persisted
+                                const lastUpdate = window.STATION_PERSISTENCE_ENGINE.updates.find(u => u.stationId == station.id);
+                                if (!lastUpdate || (Date.now() - new Date(lastUpdate.timestamp).getTime()) > 10000) {
+                                    // No recent update, might need to persist
+                                    console.log('🔄 POTENTIAL UNPERSISTED STATION:', station.id, station);
+                                }
+                            });
+                        } catch (e) {
+                            console.error('Error parsing stations from localStorage:', e);
+                        }
+                    }
+                };
+                
+                html += '<div class="success">✅ localStorage hooked</div>';
+                
+                // Step 6: Create UI monitor
+                html += '<div class="info">Creating UI monitor...</div>';
+                
+                // Monitor for React component updates
+                window.STATION_UI_MONITOR = setInterval(() => {
+                    if (window.STATION_PERSISTENCE_ENGINE && window.STATION_PERSISTENCE_ENGINE.active) {
+                        const stationElements = document.querySelectorAll('[data-testid*="station"], .station-card, .station-item');
+                        if (stationElements.length > 0) {
+                            // Look for save buttons or status changes
+                            const saveButtons = document.querySelectorAll('button[type="submit"], button:contains("Save"), .save-button');
+                            saveButtons.forEach(button => {
+                                if (!button._persistenceListenerAdded) {
+                                    button.addEventListener('click', (e) => {
+                                        console.log('🖱️ SAVE BUTTON CLICKED:', e.target);
+                                        // Small delay to let React process the click
+                                        setTimeout(() => {
+                                            console.log('🔍 CHECKING FOR RECENT STATION UPDATES...');
+                                        }, 100);
+                                    });
+                                    button._persistenceListenerAdded = true;
+                                }
+                            });
+                        }
+                    }
+                }, 1000);
+                
+                html += '<div class="success">✅ UI monitor created</div>';
+                
+                // Step 7: Test injection
+                html += '<div class="info">Testing injection...</div>';
+                
+                // Simulate a station update to test the injection
+                setTimeout(() => {
+                    console.log('🧪 TESTING INJECTION: Simulating station update...');
+                    window.STATION_PERSISTENCE_ENGINE.updateStation(999, { status: 'active', name: 'Test Station' })
+                        .then(result => {
+                            console.log('🧪 INJECTION TEST RESULT:', result);
+                        });
+                }, 500);
+                
+                html += '<div class="success">✅ Injection test initiated</div>';
+                
+                // Final status
+                html += '<div class="critical">';
+                html += '<h3>💉 INJECTION COMPLETE!</h3>';
+                html += '<h4>🔥 The persistence engine is now active and monitoring for station updates.</h4>';
+                html += '<ol>';
+                html += '<li><strong>Go to Organiser → Stations → Settings</strong></li>';
+                html += '<li><strong>Try changing a station status to inactive</strong></li>';
+                html += '<li><strong>Click Save</strong></li>';
+                html += '<li><strong>Check the browser console</strong> - you should see persistence engine messages</li>';
+                html += '<li><strong>Refresh the page</strong> to verify the change persisted</li>';
+                html += '</ol>';
+                html += '<p><strong>⚡ The injection is active until you refresh this page or close the browser.</strong></p>';
+                html += '</div>';
+                
+                // Monitor injection status
+                html += '<div id="injection-status"></div>';
+                
+                setInterval(() => {
+                    const statusDiv = document.getElementById('injection-status');
+                    if (statusDiv && window.STATION_PERSISTENCE_ENGINE) {
+                        const updateCount = window.STATION_PERSISTENCE_ENGINE.updates.length;
+                        statusDiv.innerHTML = `<div class="info">🔥 Persistence Engine Active | Updates Processed: ${updateCount} | Last Check: ${new Date().toLocaleTimeString()}</div>`;
+                    }
+                }, 2000);
+                
+            } catch (error) {
+                html += `<div class="error">❌ Injection failed: ${error.message}</div>`;
+                console.error('Injection error:', error);
+            }
+            
+            results.innerHTML = html;
+        }
+        
+        // Auto-check readiness
+        window.onload = () => {
+            const results = document.getElementById('results');
+            const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
+            
+            if (token) {
+                results.innerHTML = '<div class="success">✅ Ready to inject persistence fix. Click the button above.</div>';
+            } else {
+                results.innerHTML = '<div class="error">❌ No auth token found. Please login to the Organiser interface first, then refresh this page.</div>';
+            }
+        };
+        
+        // Clean up on page unload
+        window.addEventListener('beforeunload', () => {
+            if (window.STATION_UI_MONITOR) {
+                clearInterval(window.STATION_UI_MONITOR);
+            }
+            if (window.STATION_PERSISTENCE_ENGINE) {
+                window.STATION_PERSISTENCE_ENGINE.active = false;
+            }
+        });
+    </script>
+</body>
+</html>

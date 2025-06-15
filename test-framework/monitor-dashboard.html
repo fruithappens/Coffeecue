@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Coffee Cue Real-Time Monitor</title>
+  <style>
+    body { 
+      font-family: 'Consolas', 'Monaco', monospace; 
+      margin: 0; 
+      padding: 0;
+      background: #1e1e1e;
+      color: #d4d4d4;
+    }
+    .container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: auto 1fr 1fr;
+      height: 100vh;
+      gap: 10px;
+      padding: 10px;
+    }
+    .panel {
+      background: #252526;
+      border: 1px solid #3e3e42;
+      border-radius: 5px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .panel-header {
+      background: #2d2d30;
+      padding: 10px;
+      font-weight: bold;
+      border-bottom: 1px solid #3e3e42;
+    }
+    .panel-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+      font-size: 12px;
+    }
+    .log-entry {
+      margin: 2px 0;
+      padding: 2px 5px;
+      font-family: monospace;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    .error { color: #f48771; background: rgba(244, 135, 113, 0.1); }
+    .warning { color: #cca700; background: rgba(204, 167, 0, 0.1); }
+    .info { color: #3794ff; }
+    .success { color: #4ec9b0; }
+    .api-call { color: #dcdcaa; }
+    .db-query { color: #c586c0; }
+    .network-error { color: #f44747; font-weight: bold; }
+    
+    .stats {
+      grid-column: 1 / -1;
+      display: flex;
+      gap: 20px;
+      padding: 10px;
+      background: #2d2d30;
+      border-radius: 5px;
+    }
+    .stat {
+      flex: 1;
+      text-align: center;
+      padding: 10px;
+      background: #252526;
+      border-radius: 3px;
+    }
+    .stat-value {
+      font-size: 24px;
+      font-weight: bold;
+    }
+    .stat-label {
+      font-size: 12px;
+      color: #858585;
+    }
+    
+    #console-filter {
+      margin: 10px;
+      padding: 5px;
+      background: #3c3c3c;
+      border: 1px solid #3e3e42;
+      color: #cccccc;
+    }
+    
+    .highlight {
+      animation: flash 2s;
+    }
+    
+    @keyframes flash {
+      0% { background: rgba(255, 255, 0, 0.3); }
+      100% { background: transparent; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-value" id="total-errors">0</div>
+        <div class="stat-label">Console Errors</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="total-warnings">0</div>
+        <div class="stat-label">Warnings</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="total-api-calls">0</div>
+        <div class="stat-label">API Calls</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="total-db-queries">0</div>
+        <div class="stat-label">DB Queries</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="network-failures">0</div>
+        <div class="stat-label">Network Failures</div>
+      </div>
+    </div>
+    
+    <div class="panel">
+      <div class="panel-header">
+        Console Output
+        <input type="text" id="console-filter" placeholder="Filter logs..." />
+      </div>
+      <div class="panel-content" id="console-output"></div>
+    </div>
+    
+    <div class="panel">
+      <div class="panel-header">API & Network Activity</div>
+      <div class="panel-content" id="network-output"></div>
+    </div>
+    
+    <div class="panel">
+      <div class="panel-header">Database Queries</div>
+      <div class="panel-content" id="db-output"></div>
+    </div>
+    
+    <div class="panel">
+      <div class="panel-header">Test Progress</div>
+      <div class="panel-content" id="test-output"></div>
+    </div>
+  </div>
+
+  <script>
+    const stats = {
+      errors: 0,
+      warnings: 0,
+      apiCalls: 0,
+      dbQueries: 0,
+      networkFailures: 0
+    };
+
+    const ws = new WebSocket('ws://localhost:8081');
+    
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      handleLogEntry(data);
+    };
+
+    function handleLogEntry(entry) {
+      switch(entry.type) {
+        case 'console':
+          addConsoleLog(entry.data);
+          break;
+        case 'api':
+          addApiLog(entry.data);
+          break;
+        case 'db_query':
+          addDbLog(entry.data);
+          break;
+        case 'error':
+          addErrorLog(entry.data);
+          break;
+        case 'test':
+          addTestLog(entry.data);
+          break;
+      }
+      updateStats();
+    }
+
+    function addConsoleLog(log) {
+      const output = document.getElementById('console-output');
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${log.type} highlight`;
+      entry.textContent = `[${new Date(log.timestamp).toLocaleTimeString()}] ${log.text}`;
+      output.appendChild(entry);
+      output.scrollTop = output.scrollHeight;
+
+      if (log.type === 'error') stats.errors++;
+      if (log.type === 'warning') stats.warnings++;
+    }
+
+    function addApiLog(log) {
+      const output = document.getElementById('network-output');
+      const entry = document.createElement('div');
+      entry.className = 'log-entry api-call highlight';
+      entry.textContent = `[${new Date(log.timestamp).toLocaleTimeString()}] ${log.method} ${log.url} - Status: ${log.status}`;
+      output.appendChild(entry);
+      output.scrollTop = output.scrollHeight;
+
+      stats.apiCalls++;
+      if (log.status >= 400) stats.networkFailures++;
+    }
+
+    function addDbLog(log) {
+      const output = document.getElementById('db-output');
+      const entry = document.createElement('div');
+      entry.className = 'log-entry db-query highlight';
+      entry.textContent = `[${new Date(log.timestamp).toLocaleTimeString()}] ${log.query}`;
+      output.appendChild(entry);
+      output.scrollTop = output.scrollHeight;
+
+      stats.dbQueries++;
+    }
+
+    function addErrorLog(log) {
+      const output = document.getElementById('console-output');
+      const entry = document.createElement('div');
+      entry.className = 'log-entry error highlight';
+      entry.textContent = `[ERROR] ${log.message}\n${log.stack}`;
+      output.appendChild(entry);
+      output.scrollTop = output.scrollHeight;
+
+      stats.errors++;
+    }
+
+    function addTestLog(log) {
+      const output = document.getElementById('test-output');
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${log.status === 'pass' ? 'success' : 'error'} highlight`;
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${log.message}`;
+      output.appendChild(entry);
+      output.scrollTop = output.scrollHeight;
+    }
+
+    function updateStats() {
+      document.getElementById('total-errors').textContent = stats.errors;
+      document.getElementById('total-warnings').textContent = stats.warnings;
+      document.getElementById('total-api-calls').textContent = stats.apiCalls;
+      document.getElementById('total-db-queries').textContent = stats.dbQueries;
+      document.getElementById('network-failures').textContent = stats.networkFailures;
+    }
+
+    // Console filter
+    document.getElementById('console-filter').addEventListener('input', (e) => {
+      const filter = e.target.value.toLowerCase();
+      const logs = document.querySelectorAll('#console-output .log-entry');
+      logs.forEach(log => {
+        log.style.display = log.textContent.toLowerCase().includes(filter) ? 'block' : 'none';
+      });
+    });
+
+    // Auto-save logs every 30 seconds
+    setInterval(() => {
+      const allLogs = {
+        console: Array.from(document.querySelectorAll('#console-output .log-entry')).map(el => el.textContent),
+        api: Array.from(document.querySelectorAll('#network-output .log-entry')).map(el => el.textContent),
+        db: Array.from(document.querySelectorAll('#db-output .log-entry')).map(el => el.textContent),
+        test: Array.from(document.querySelectorAll('#test-output .log-entry')).map(el => el.textContent),
+        stats: stats,
+        timestamp: new Date().toISOString()
+      };
+      
+      localStorage.setItem('coffee-cue-test-logs', JSON.stringify(allLogs));
+    }, 30000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Verify Stock Categories</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+        button { padding: 10px 15px; margin: 5px; background: #007cba; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #005a87; }
+        .fix-btn { background: #28a745; }
+        .fix-btn:hover { background: #218838; }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+        .warning { color: #ff9800; font-weight: bold; }
+        .info { background: #f0f8ff; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        .category-list { display: flex; gap: 10px; flex-wrap: wrap; margin: 10px 0; }
+        .category-badge { padding: 5px 15px; border-radius: 20px; font-size: 14px; }
+        .category-old { background: #ffcccc; }
+        .category-new { background: #ccffcc; }
+    </style>
+</head>
+<body>
+    <h1>Verify Stock Categories</h1>
+    
+    <div class="info">
+        <strong>This tool verifies if the new stock categories are properly set up</strong><br>
+        Expected: 7 categories (milk, coffee, cups, syrups, sweeteners, drinks, other)<br>
+        Old structure: 5 categories (milk, coffee, cups, syrups, other)
+    </div>
+    
+    <button onclick="verifyCategories()">🔍 Verify Categories</button>
+    <button onclick="fixCategories()" class="fix-btn">🔧 Fix Categories</button>
+    <button onclick="showStockService()">📄 Show StockService Code</button>
+    
+    <div id="output"></div>
+
+    <script>
+        const EXPECTED_CATEGORIES = ['milk', 'coffee', 'cups', 'syrups', 'sweeteners', 'drinks', 'other'];
+        const OLD_CATEGORIES = ['milk', 'coffee', 'cups', 'syrups', 'other'];
+        
+        function verifyCategories() {
+            const output = document.getElementById('output');
+            output.innerHTML = '<h2>Stock Categories Verification</h2>';
+            
+            // Check each station's stock
+            let hasOldStructure = false;
+            let hasNewStructure = false;
+            
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith('coffee_stock_station_')) {
+                    const stationId = key.replace('coffee_stock_station_', '');
+                    const stockData = JSON.parse(localStorage.getItem(key));
+                    const categories = Object.keys(stockData);
+                    
+                    output.innerHTML += `<h3>Station ${stationId} Stock Categories:</h3>`;
+                    output.innerHTML += '<div class="category-list">';
+                    
+                    categories.forEach(cat => {
+                        const isNew = !OLD_CATEGORIES.includes(cat);
+                        const badge = `<span class="category-badge ${isNew ? 'category-new' : 'category-old'}">${cat}</span>`;
+                        output.innerHTML += badge;
+                    });
+                    output.innerHTML += '</div>';
+                    
+                    // Check structure
+                    const hasSweeteners = categories.includes('sweeteners');
+                    const hasDrinks = categories.includes('drinks');
+                    
+                    if (hasSweeteners && hasDrinks) {
+                        output.innerHTML += '<p class="success">✅ Station has NEW category structure (7 categories)</p>';
+                        hasNewStructure = true;
+                    } else {
+                        output.innerHTML += '<p class="error">❌ Station has OLD category structure (5 categories)</p>';
+                        hasOldStructure = true;
+                        
+                        // Check if sweeteners/drinks are in 'other' category
+                        if (stockData.other) {
+                            const sweetenerItems = stockData.other.filter(item => 
+                                item.name.toLowerCase().includes('sugar') || 
+                                item.name.toLowerCase().includes('sweetener') ||
+                                item.name.toLowerCase().includes('honey')
+                            );
+                            const drinkItems = stockData.other.filter(item => 
+                                item.name.toLowerCase().includes('chocolate') || 
+                                item.name.toLowerCase().includes('chai') ||
+                                item.name.toLowerCase().includes('matcha')
+                            );
+                            
+                            if (sweetenerItems.length > 0) {
+                                output.innerHTML += `<p class="warning">⚠️ Found ${sweetenerItems.length} sweetener items in 'other' category</p>`;
+                            }
+                            if (drinkItems.length > 0) {
+                                output.innerHTML += `<p class="warning">⚠️ Found ${drinkItems.length} drink items in 'other' category</p>`;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Summary
+            output.innerHTML += '<h3>Summary:</h3>';
+            if (hasNewStructure && !hasOldStructure) {
+                output.innerHTML += '<p class="success">✅ All stations have the new 7-category structure!</p>';
+            } else if (hasOldStructure && !hasNewStructure) {
+                output.innerHTML += '<p class="error">❌ All stations still have the old 5-category structure</p>';
+                output.innerHTML += '<p>Click "Fix Categories" to upgrade to the new structure</p>';
+            } else if (hasOldStructure && hasNewStructure) {
+                output.innerHTML += '<p class="warning">⚠️ Mixed structure detected - some stations old, some new</p>';
+                output.innerHTML += '<p>Click "Fix Categories" to upgrade all stations</p>';
+            }
+        }
+        
+        function fixCategories() {
+            const output = document.getElementById('output');
+            output.innerHTML = '<h2>Fixing Stock Categories...</h2>';
+            
+            let fixedCount = 0;
+            
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith('coffee_stock_station_')) {
+                    const stockData = JSON.parse(localStorage.getItem(key));
+                    
+                    // Initialize new categories if missing
+                    if (!stockData.sweeteners) {
+                        stockData.sweeteners = [];
+                        
+                        // Move sweetener items from 'other' if they exist
+                        if (stockData.other) {
+                            const sweetenerItems = stockData.other.filter(item => 
+                                item.name.toLowerCase().includes('sugar') || 
+                                item.name.toLowerCase().includes('sweetener') ||
+                                item.name.toLowerCase().includes('honey')
+                            );
+                            
+                            sweetenerItems.forEach(item => {
+                                stockData.sweeteners.push(item);
+                            });
+                            
+                            // Remove from other
+                            stockData.other = stockData.other.filter(item => 
+                                !item.name.toLowerCase().includes('sugar') && 
+                                !item.name.toLowerCase().includes('sweetener') &&
+                                !item.name.toLowerCase().includes('honey')
+                            );
+                        }
+                        
+                        // Add default sweeteners if empty
+                        if (stockData.sweeteners.length === 0) {
+                            stockData.sweeteners = [
+                                { id: 'sugar_white', name: 'White Sugar', amount: 5, capacity: 5, unit: 'kg', status: 'good', lowThreshold: 1, criticalThreshold: 0.5 },
+                                { id: 'sugar_brown', name: 'Brown Sugar', amount: 3, capacity: 3, unit: 'kg', status: 'good', lowThreshold: 0.8, criticalThreshold: 0.3 },
+                                { id: 'sweetener_packets', name: 'Sweetener Packets', amount: 500, capacity: 500, unit: 'pcs', status: 'good', lowThreshold: 100, criticalThreshold: 50 },
+                                { id: 'honey', name: 'Honey', amount: 2, capacity: 2, unit: 'L', status: 'good', lowThreshold: 0.5, criticalThreshold: 0.2 }
+                            ];
+                        }
+                    }
+                    
+                    if (!stockData.drinks) {
+                        stockData.drinks = [];
+                        
+                        // Move drink items from 'other' if they exist
+                        if (stockData.other) {
+                            const drinkItems = stockData.other.filter(item => 
+                                item.name.toLowerCase().includes('chocolate') || 
+                                item.name.toLowerCase().includes('chai') ||
+                                item.name.toLowerCase().includes('matcha')
+                            );
+                            
+                            drinkItems.forEach(item => {
+                                stockData.drinks.push(item);
+                            });
+                            
+                            // Remove from other
+                            stockData.other = stockData.other.filter(item => 
+                                !item.name.toLowerCase().includes('chocolate') && 
+                                !item.name.toLowerCase().includes('chai') &&
+                                !item.name.toLowerCase().includes('matcha')
+                            );
+                        }
+                        
+                        // Add default drinks if empty
+                        if (stockData.drinks.length === 0) {
+                            stockData.drinks = [
+                                { id: 'hot_chocolate_powder', name: 'Hot Chocolate Powder', amount: 3, capacity: 3, unit: 'kg', status: 'good', lowThreshold: 0.8, criticalThreshold: 0.3 },
+                                { id: 'chai_latte_mix', name: 'Chai Latte Mix', amount: 2, capacity: 2, unit: 'kg', status: 'good', lowThreshold: 0.5, criticalThreshold: 0.2 },
+                                { id: 'matcha_powder', name: 'Matcha Powder', amount: 1, capacity: 1, unit: 'kg', status: 'good', lowThreshold: 0.3, criticalThreshold: 0.1 }
+                            ];
+                        }
+                    }
+                    
+                    // Save updated structure
+                    localStorage.setItem(key, JSON.stringify(stockData));
+                    fixedCount++;
+                    output.innerHTML += `<p class="success">✅ Fixed ${key}</p>`;
+                }
+            }
+            
+            output.innerHTML += `<h3 class="success">✅ Fixed ${fixedCount} stations!</h3>`;
+            output.innerHTML += '<p>Please refresh the Barista Interface to see the new categories.</p>';
+        }
+        
+        function showStockService() {
+            const output = document.getElementById('output');
+            output.innerHTML = '<h2>StockService Configuration</h2>';
+            output.innerHTML += '<p>The StockService.js file should have these categories defined:</p>';
+            output.innerHTML += '<pre>const stockCategories = [\'milk\', \'coffee\', \'cups\', \'syrups\', \'sweeteners\', \'drinks\', \'other\'];</pre>';
+            output.innerHTML += '<p>And the defaultStockItems should include:</p>';
+            output.innerHTML += '<pre>sweeteners: [\n  { id: \'sugar_white\', name: \'White Sugar\', ... },\n  { id: \'sugar_brown\', name: \'Brown Sugar\', ... },\n  { id: \'sweetener_packets\', name: \'Sweetener Packets\', ... },\n  { id: \'honey\', name: \'Honey\', ... }\n],\ndrinks: [\n  { id: \'hot_chocolate_powder\', name: \'Hot Chocolate Powder\', ... },\n  { id: \'chai_latte_mix\', name: \'Chai Latte Mix\', ... },\n  { id: \'matcha_powder\', name: \'Matcha Powder\', ... }\n]</pre>';
+        }
+    </script>
+</body>
+</html>

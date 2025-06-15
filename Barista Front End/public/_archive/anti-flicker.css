@@ -1,0 +1,139 @@
+/**
+ * Anti-flicker styles to prevent UI flickering when loading in offline mode
+ */
+
+/* Hide loading spinners globally - extensive selectors to catch all possible spinners */
+.loading-spinner,
+.spinner,
+.loader,
+[class*="spinner"],
+[class*="loader"],
+[role="progressbar"],
+.progress-circular,
+.MuiCircularProgress-root,
+.CircularProgress,
+.rotating,
+.rotating-element,
+.spin,
+.spin-element,
+.loading-icon,
+.circularProgress,
+.circular-progress,
+.circular-loader,
+.loadingCircle,
+.loading-circle,
+.loadingIndicator,
+.loading-indicator,
+.ProgressIndicator,
+.progress-indicator,
+.pendingSpinner,
+.pending-spinner,
+.loadingWheel,
+.loading-wheel,
+.inProgressSpinner,
+.in-progress-spinner,
+.loading-animation,
+.pulse,
+.pulsate,
+.rotate,
+.rotatingElement,
+.spinning,
+.processing-indicator,
+.throbber,
+.preloader,
+.wait-indicator,
+.activity-indicator,
+.busy-indicator,
+.progress-indicator {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  animation: none !important;
+  -webkit-animation: none !important;
+  -moz-animation: none !important;
+  -o-animation: none !important;
+  transition: none !important;
+  -webkit-transition: none !important;
+  -moz-transition: none !important;
+  -o-transition: none !important;
+}
+
+/* Force immediate display of content containers */
+.content-container,
+.main-content,
+.app-container,
+#root > div,
+[role="main"],
+main,
+.main-panel,
+.container,
+.MuiContainer-root {
+  opacity: 1 !important;
+  visibility: visible !important;
+  transition: none !important;
+}
+
+/* Hide any loading overlays */
+.loading-overlay,
+.loading-mask,
+.page-loader,
+.overlay,
+[class*="overlay"],
+[class*="loading"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+}
+
+/* Force immediate display of data tables and lists */
+table,
+.data-table,
+.order-list,
+.list-container,
+.MuiTable-root,
+.list-group {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* Hide error boundaries or error messages */
+.error-boundary,
+.error-container,
+.api-error,
+[class*="error"],
+.error-message {
+  display: none !important;
+}
+
+/* Prevent any fade-in animations */
+* {
+  animation-duration: 0s !important;
+  transition-duration: 0s !important;
+}
+
+/* Add an offline mode badge for clarity */
+body:after {
+  content: "OFFLINE MODE";
+  position: fixed;
+  bottom: 5px;
+  right: 5px;
+  background: #dc3545;
+  color: white;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: bold;
+  z-index: 9999;
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+/* Prevent connection status warnings */
+.connection-warning,
+.api-error-banner,
+.offline-banner,
+.status-banner,
+.connection-status,
+[class*="connection"],
+[class*="notification"] {
+  display: none !important;
+}

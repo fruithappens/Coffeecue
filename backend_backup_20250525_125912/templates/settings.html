@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block title %}System Settings - Expresso Coffee System{% endblock %}
+
+{% block styles %}
+<style>
+    .settings-container {
+        padding: 20px;
+    }
+    
+    .settings-card {
+        margin-bottom: 20px;
+    }
+    
+    .settings-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+    
+    .setting-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .setting-name {
+        font-weight: 500;
+    }
+    
+    .setting-value {
+        display: flex;
+        align-items: center;
+    }
+    
+    .setting-value input {
+        margin-right: 10px;
+    }
+    
+    .setting-description {
+        font-size: 0.85rem;
+        color: #6c757d;
+        margin-top: 5px;
+    }
+    
+    .setting-actions {
+        margin-left: 10px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="settings-container">
+    <div class="settings-header">
+        <h1>System Settings</h1>
+        <a href="{{ url_for('admin.dashboard') }}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Dashboard
+        </a>
+    </div>
+    
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    
+    <div class="card settings-card">
+        <div class="card-header">
+            <h5>General Settings</h5>
+        </div>
+        <div class="card-body">
+            <form method="post" action="{{ url_for('admin.update_settings') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="section" value="general">
+                
+                {% for key, value in settings.items() if key.startswith('general_') or key in ['staff_code', 'vip_code', 'preorder_enabled'] %}
+                <div class="setting-row">
+                    <div>
+                        <div class="setting-name">{{ key|replace('_', ' ')|title }}</div>
+                        {% if key in setting_descriptions %}
+                        <div class="setting-description">{{ setting_descriptions[key] }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="setting-value">
+                        {% if key == 'preorder_enabled' %}
+                            <select name="{{ key }}" class="form-control">
+                                <option value="true" {% if value == 'true' %}selected{% endif %}>Enabled</option>
+                                <option value="false" {% if value == 'false' %}selected{% endif %}>Disabled</option>
+                            </select>
+                        {% else %}
+                            <input type="text" name="{{ key }}" value="{{ value }}" class="form-control">
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+                
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save"></i> Save General Settings
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div class="card settings-card">
+        <div class="card-header">
+            <h5>SMS Message Templates</h5>
+        </div>
+        <div class="card-body">
+            <form method="post" action="{{ url_for('admin.update_settings') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="section" value="messages">
+                
+                {% for key, value in settings.items() if key.endswith('_message') %}
+                <div class="setting-row">
+                    <div>
+                        <div class="setting-name">{{ key|replace('_', ' ')|title }}</div>
+                        {% if key in setting_descriptions %}
+                        <div class="setting-description">{{ setting_descriptions[key] }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="setting-value" style="width: 60%;">
+                        <textarea name="{{ key }}" class="form-control" rows="3">{{ value }}</textarea>
+                    </div>
+                </div>
+                {% endfor %}
+                
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save"></i> Save Message Templates
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div class="card settings-card">
+        <div class="card-header">
+            <h5>Loyalty Program Settings</h5>
+        </div>
+        <div class="card-body">
+            <form method="post" action="{{ url_for('admin.update_settings') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="section" value="loyalty">
+                
+                {% for key, value in settings.items() if key.startswith('loyalty_') and not key.endswith('_message') %}
+                <div class="setting-row">
+                    <div>
+                        <div class="setting-name">{{ key|replace('_', ' ')|title }}</div>
+                        {% if key in setting_descriptions %}
+                        <div class="setting-description">{{ setting_descriptions[key] }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="setting-value">
+                        <input type="number" name="{{ key }}" value="{{ value }}" class="form-control" min="0">
+                    </div>
+                </div>
+                {% endfor %}
+                
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save"></i> Save Loyalty Settings
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

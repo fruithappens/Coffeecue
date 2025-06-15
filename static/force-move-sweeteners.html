@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Force Move Sweeteners</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; }
+        button { padding: 20px 40px; margin: 10px; background: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 18px; }
+        button:hover { background: #c82333; }
+        .success { color: green; font-weight: bold; margin: 20px 0; }
+        .info { background: #f0f8ff; padding: 20px; border-radius: 5px; margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <h1>🔧 Force Move Sweeteners</h1>
+    
+    <div class="info">
+        <strong>This will immediately move all sweeteners from "Other" to "Sweeteners" category</strong><br>
+        Items to move: White Sugar, Brown Sugar, Honey, Stevia
+    </div>
+    
+    <button onclick="forceMoveNow()">🚀 FORCE MOVE SWEETENERS NOW</button>
+    
+    <div id="result"></div>
+
+    <script>
+        function forceMoveNow() {
+            const result = document.getElementById('result');
+            result.innerHTML = '<h2>Moving sweeteners...</h2>';
+            
+            let totalMoved = 0;
+            
+            // Check all possible stations
+            for (let i = 1; i <= 10; i++) {
+                const stockKey = `coffee_stock_station_${i}`;
+                const stockData = localStorage.getItem(stockKey);
+                
+                if (stockData) {
+                    const stock = JSON.parse(stockData);
+                    
+                    // Ensure sweeteners category exists
+                    if (!stock.sweeteners) stock.sweeteners = [];
+                    if (!stock.other) stock.other = [];
+                    
+                    // Find sweeteners in other category
+                    const sweetenersInOther = stock.other.filter(item => 
+                        item.name.toLowerCase().includes('sugar') ||
+                        item.name.toLowerCase().includes('honey') ||
+                        item.name.toLowerCase().includes('stevia') ||
+                        item.name.toLowerCase().includes('sweetener')
+                    );
+                    
+                    if (sweetenersInOther.length > 0) {
+                        result.innerHTML += `<p>Station ${i}: Moving ${sweetenersInOther.length} sweetener items</p>`;
+                        
+                        // Move each sweetener
+                        sweetenersInOther.forEach(item => {
+                            stock.sweeteners.push(item);
+                            result.innerHTML += `<p>  ✅ Moved "${item.name}"</p>`;
+                            totalMoved++;
+                        });
+                        
+                        // Remove from other category
+                        stock.other = stock.other.filter(item => 
+                            !item.name.toLowerCase().includes('sugar') &&
+                            !item.name.toLowerCase().includes('honey') &&
+                            !item.name.toLowerCase().includes('stevia') &&
+                            !item.name.toLowerCase().includes('sweetener')
+                        );
+                        
+                        // Save immediately
+                        localStorage.setItem(stockKey, JSON.stringify(stock));
+                    }
+                }
+            }
+            
+            result.innerHTML += `<div class="success">
+                <h2>✅ COMPLETE!</h2>
+                <p>Moved ${totalMoved} sweetener items total.</p>
+                <p><strong>Now do a HARD REFRESH on the Barista interface:</strong></p>
+                <ul>
+                    <li>Mac: Cmd + Shift + R</li>
+                    <li>Windows: Ctrl + Shift + F5</li>
+                </ul>
+                <p>Sweeteners should now appear in the "Sweeteners" tab, not "Other".</p>
+            </div>`;
+        }
+    </script>
+</body>
+</html>

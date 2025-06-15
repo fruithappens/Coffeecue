@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ system_name|default('Coffee Cue') }} - {{ event_name }}{% endblock %}</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Bootstrap Icons for backward compatibility -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    
+    <!-- Base CSS -->
+    <link href="{{ url_for('static', filename='css/base.css') }}" rel="stylesheet">
+    
+    <!-- SortableJS (for drag and drop functionality) -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    
+    <!-- Page-specific CSS -->
+    {% block styles %}{% endblock %}
+
+    <!-- Custom Tailwind Configuration -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'coffee-primary': '#6B4423',
+                        'coffee-secondary': '#D2691E'
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="h-full bg-gray-50">
+    <!-- Skip to content link for accessibility -->
+    <a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:bg-white focus:p-2 focus:z-50">
+        Skip to content
+    </a>
+    
+    <!-- Offline status bar -->
+    <div id="offline-bar" class="fixed top-0 left-0 right-0 bg-red-500 text-white text-center p-2 z-50" style="display: none;">
+        You are currently offline. Some features may be limited.
+    </div>
+    
+    <!-- Navigation sidebar for admin pages -->
+    {% if request.path.startswith('/admin') and session.get('admin_id') %}
+    <div class="flex min-h-screen">
+        <!-- Sidebar -->
+        <div class="w-64 bg-white border-r shadow-md">
+            <div class="p-4">
+                <h1 class="text-2xl font-bold text-coffee-primary mb-6">{{ system_name }}</h1>
+                <nav>
+                    <ul class="space-y-2">
+                        <li>
+                            <a href="{{ url_for('admin.dashboard') }}" class="flex items-center p-2 text-gray-700 hover:bg-gray-100 rounded-lg {{ 'bg-gray-200' if request.path == url_for('admin.dashboard') else '' }}">
+                                <i class="bi bi-speedometer2 mr-3"></i>
+                                Dashboard
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ url_for('admin.station_management') }}" class="flex items-center p-2 text-gray-700 hover:bg-gray-100 rounded-lg {{ 'bg-gray-200' if '/station' in request.path else '' }}">
+                                <i class="bi bi-cup-hot mr-3"></i>
+                                Stations
+                            </a>
+                        </li>
+                        <!-- Other menu items remain the same as in the original template -->
+                    </ul>
+                </nav>
+            </div>
+        </div>
+        
+        <!-- Main content -->
+        <div class="flex-1 p-6">
+            <!-- Flash messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="space-y-2 mb-4">
+                        {% for category, message in messages %}
+                            <div class="p-4 rounded-lg 
+                                {% if category == 'success' %}bg-green-100 text-green-800{% endif %}
+                                {% if category == 'error' %}bg-red-100 text-red-800{% endif %}
+                                {% if category == 'warning' %}bg-yellow-100 text-yellow-800{% endif %}
+                                {% if category == 'info' %}bg-blue-100 text-blue-800{% endif %}
+                            ">
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+            
+            <!-- Main content -->
+            <main id="main-content">
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+    {% else %}
+    <!-- Non-admin pages -->
+    <div class="container mx-auto px-4">
+        <!-- Flash messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="space-y-2 mb-4">
+                    {% for category, message in messages %}
+                        <div class="p-4 rounded-lg 
+                            {% if category == 'success' %}bg-green-100 text-green-800{% endif %}
+                            {% if category == 'error' %}bg-red-100 text-red-800{% endif %}
+                            {% if category == 'warning' %}bg-yellow-100 text-yellow-800{% endif %}
+                            {% if category == 'info' %}bg-blue-100 text-blue-800{% endif %}
+                        ">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+        
+        <!-- Main content -->
+        <main id="main-content">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+    {% endif %}
+    
+    <!-- Toast container for notifications -->
+    <div id="toast-container" class="fixed bottom-0 right-0 p-4 space-y-2"></div>
+    
+    <!-- Sponsor information (if available) -->
+    {% if sponsor_info %}
+    <div class="fixed bottom-0 left-0 right-0 bg-coffee-primary text-white text-center p-2">
+        {{ sponsor_info.message }}
+    </div>
+    {% endif %}
+    
+    <!-- External JS Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/socket.io/client-dist/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    
+    <!-- Application Specific Scripts -->
+    <script src="{{ url_for('static', filename='js/offline-manager.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/auth-client.js') }}"></script>
+    
+    <!-- Page-specific JS -->
+    {% block scripts %}{% endblock %}
+</body>
+</html>

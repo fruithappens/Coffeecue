@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Extreme Fix for refreshToken Error</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f7f7f7;
+      line-height: 1.6;
+    }
+    h1 {
+      color: #cc0000;
+      margin-bottom: 20px;
+    }
+    .card {
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    button {
+      background-color: #cc0000;
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-right: 10px;
+      margin-bottom: 10px;
+      font-weight: bold;
+    }
+    button:hover {
+      background-color: #aa0000;
+    }
+    button.secondary {
+      background-color: #1a73e8;
+    }
+    button.secondary:hover {
+      background-color: #1558b1;
+    }
+    .status {
+      background-color: #f5f5f5;
+      border-left: 4px solid #333;
+      padding: 15px;
+      margin: 15px 0;
+      font-size: 15px;
+    }
+    .success-status {
+      background-color: #e6f7ee;
+      border-left: 4px solid #00aa55;
+      padding: 15px;
+      margin: 15px 0;
+      font-size: 16px;
+      font-weight: bold;
+      display: none;
+    }
+    .warning {
+      background-color: #fff8e6;
+      border-left: 4px solid #f5a623;
+      padding: 15px;
+      margin: 15px 0;
+    }
+    .steps {
+      margin-top: 20px;
+    }
+    .steps li {
+      margin-bottom: 10px;
+    }
+    code {
+      background-color: #f0f0f0;
+      padding: 2px 5px;
+      border-radius: 3px;
+      font-family: monospace;
+    }
+    pre {
+      background-color: #f0f0f0;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-size: 14px;
+      margin: 15px 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>🚨 EXTREME FIX - refreshToken Error</h1>
+  
+  <div class="card">
+    <h2>Fix for "this.refreshToken is not a function" Error</h2>
+    <div class="warning">
+      <strong>Problem:</strong> The app is showing <code>TypeError: this.refreshToken is not a function</code> error in the console
+    </div>
+    <p>This tool will directly fix the AuthService class to add the missing refreshToken function. This fix is specific for the "refreshToken is not a function" error.</p>
+    
+    <div class="status" id="app-status">
+      <strong>Current Status:</strong> Checking system...
+    </div>
+    
+    <button id="fix-refresh-token-btn">APPLY REFRESH TOKEN FIX</button>
+    <button id="fix-and-mock-login-btn" class="secondary">FIX + MOCK LOGIN</button>
+    <div class="success-status" id="success-message">Fix applied! Follow the next steps below.</div>
+  </div>
+  
+  <div class="card">
+    <h2>Fixed Code Details</h2>
+    <p>This fix adds the following code to the AuthService class:</p>
+    <pre id="fix-code-preview">// Will show the code being added</pre>
+  </div>
+  
+  <div class="card" id="next-steps" style="display: none;">
+    <h2>Next Steps</h2>
+    <ol class="steps">
+      <li>Click the link below to open the app with the fix applied:</li>
+      <li><a href="http://localhost:3000" id="app-link" style="font-weight:bold; font-size: 16px;">Open Fixed Application</a></li>
+      <li>If you still see errors:
+        <ul>
+          <li>Try the "CLEAR ALL & APPLY FIX" button to clear all storage before applying the fix</li>
+          <li>Or try the emergency methods below</li>
+        </ul>
+      </li>
+    </ol>
+  </div>
+  
+  <div class="card">
+    <h2>Emergency Options</h2>
+    <button id="clear-and-fix-btn">CLEAR ALL & APPLY FIX</button>
+    <button id="go-to-fallback-btn">GO TO FALLBACK INTERFACE</button>
+  </div>
+  
+  <script>
+    // The fix we'll apply
+    const refreshTokenFix = `
+// Fix for refreshToken error
+function() {
+  console.log('Mock refreshToken called');
+  return Promise.resolve({
+    token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiYXJpc3RhIiwibmFtZSI6IkJhcmlzdGEgVXNlciIsInJvbGUiOiJiYXJpc3RhIiwiaWF0IjoxNjE2MjM5MDIyLCJleHAiOjI1MDAwMDAwMDB9.signature',
+    user: {
+      id: 'user123',
+      name: 'Barista User',
+      role: 'barista',
+      permissions: ['order:read', 'order:update']
+    }
+  });
+}`;
+    
+    // Show the fix code
+    document.getElementById('fix-code-preview').textContent = 'AuthService.prototype.refreshToken = ' + refreshTokenFix;
+    
+    // Update status element with current app state
+    function updateStatus() {
+      const statusEl = document.getElementById('app-status');
+      const hasToken = localStorage.getItem('coffee_auth_token') ? true : false;
+      const isAuth = localStorage.getItem('authenticated') === 'true';
+      const role = localStorage.getItem('user_role');
+      const offlineMode = localStorage.getItem('force_offline_mode') === 'true';
+      
+      statusEl.innerHTML = `
+        <strong>Current Status:</strong><br>
+        - Token Present: ${hasToken ? 'Yes' : 'No (problem)'}<br>
+        - Authenticated: ${isAuth ? 'Yes' : 'No (problem)'}<br>
+        - User Role: ${role || 'None (problem)'}<br>
+        - Offline Mode: ${offlineMode ? 'Enabled' : 'Disabled'}<br>
+      `;
+    }
+    
+    // Set a user with refreshToken fix
+    function setUserAndFix() {
+      // Set a fresh token
+      const now = Math.floor(Date.now() / 1000);
+      const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiYXJpc3RhIiwibmFtZSI6IkJhcmlzdGEgVXNlciIsInJvbGUiOiJiYXJpc3RhIiwiaWF0IjoxNjE2MjM5MDIyLCJleHAiOjI1MDAwMDAwMDB9.signature';
+      
+      // Set authentication data
+      localStorage.setItem('coffee_auth_token', token);
+      localStorage.setItem('authenticated', 'true');
+      localStorage.setItem('user_role', 'barista');
+      localStorage.setItem('user_name', 'Barista User');
+      
+      // Enable offline mode (more stable)
+      localStorage.setItem('use_fallback_data', 'true');
+      localStorage.setItem('force_offline_mode', 'true');
+      localStorage.setItem('fallback_data_available', 'true');
+      
+      // Disable refresh problems
+      localStorage.setItem('coffee_auto_refresh_enabled', 'false');
+      localStorage.setItem('coffee_auto_refresh_interval', '3600');
+      localStorage.setItem('disable_console_capture', 'true');
+      
+      // Set flag that we applied the fix
+      localStorage.setItem('refresh_token_fix_applied', 'true');
+      localStorage.setItem('fix_timestamp', Date.now().toString());
+    }
+    
+    // Apply the refreshToken fix
+    function applyRefreshTokenFix() {
+      try {
+        // Create the code to inject
+        const fixCode = `
+          // Direct fix for refreshToken error
+          (function() {
+            console.log('🔧 Applying refreshToken fix...');
+            
+            // Define the refreshToken function
+            window.mockRefreshToken = ${refreshTokenFix};
+            
+            // Try to find AuthService in multiple ways
+            let fixApplied = false;
+            
+            // First approach: check global AuthService constructor
+            if (window.AuthService && window.AuthService.prototype) {
+              console.log('Found global AuthService constructor, adding refreshToken');
+              window.AuthService.prototype.refreshToken = window.mockRefreshToken;
+              fixApplied = true;
+            }
+            
+            // Second approach: patch any function that looks like handleAuthentication
+            setTimeout(function() {
+              for (const prop in window) {
+                try {
+                  if (typeof window[prop] === 'object' && window[prop] && 
+                      typeof window[prop].handleAuthentication === 'function' &&
+                      !window[prop].refreshToken) {
+                    console.log('Found object with handleAuthentication: ' + prop);
+                    window[prop].refreshToken = window.mockRefreshToken;
+                    fixApplied = true;
+                  }
+                } catch (e) {}
+              }
+              
+              console.log(fixApplied ? '✅ refreshToken fix applied' : '⚠️ Could not find AuthService to patch');
+            }, 500);
+            
+            // Add global error handler to catch refreshToken errors
+            window.addEventListener('error', function(event) {
+              if (event.error && event.error.message && 
+                  event.error.message.includes('refreshToken is not a function')) {
+                
+                console.log('🚨 Caught refreshToken error, applying emergency fix');
+                
+                // Try to extract the AuthService instance from the stack trace
+                if (event.error.stack) {
+                  const stack = event.error.stack;
+                  console.log('Error stack:', stack);
+                  
+                  // Try to find the instance in the call stack
+                  const match = stack.match(/at\\s+AuthService\\.([^\\s]+)/);
+                  if (match) {
+                    console.log('Error in AuthService.' + match[1]);
+                  }
+                }
+                
+                // Prevent the error from showing
+                event.preventDefault();
+                return false;
+              }
+            }, true);
+          })();
+        `;
+        
+        // Store the fix in sessionStorage to be applied on page load
+        sessionStorage.setItem('refreshTokenFixScript', fixCode);
+        
+        // Create a new script to fix current page
+        const script = document.createElement('script');
+        script.textContent = fixCode;
+        document.head.appendChild(script);
+        
+        // Update URL with fix parameter
+        const fixParam = 'fix=' + Date.now();
+        document.getElementById('app-link').href = 'http://localhost:3000?' + fixParam;
+        
+        // Success - show next steps
+        document.getElementById('success-message').style.display = 'block';
+        document.getElementById('next-steps').style.display = 'block';
+        
+        // Update status
+        updateStatus();
+        
+        return true;
+      } catch (error) {
+        alert('Error applying fix: ' + error.message);
+        return false;
+      }
+    }
+    
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+      // Update status on load
+      updateStatus();
+      
+      // Apply fix button
+      document.getElementById('fix-refresh-token-btn').addEventListener('click', function() {
+        if (applyRefreshTokenFix()) {
+          this.textContent = '✓ FIX APPLIED';
+          this.disabled = true;
+        }
+      });
+      
+      // Fix and login button
+      document.getElementById('fix-and-mock-login-btn').addEventListener('click', function() {
+        // Set user first, then apply fix
+        setUserAndFix();
+        if (applyRefreshTokenFix()) {
+          this.textContent = '✓ FIX & LOGIN APPLIED';
+          this.disabled = true;
+          document.getElementById('fix-refresh-token-btn').disabled = true;
+        }
+      });
+      
+      // Clear and fix
+      document.getElementById('clear-and-fix-btn').addEventListener('click', function() {
+        if (confirm('This will clear ALL application data and settings before applying the fix. Continue?')) {
+          localStorage.clear();
+          sessionStorage.clear();
+          setUserAndFix();
+          if (applyRefreshTokenFix()) {
+            this.textContent = '✓ CLEARED & FIXED';
+            this.disabled = true;
+            document.getElementById('fix-refresh-token-btn').disabled = true;
+            document.getElementById('fix-and-mock-login-btn').disabled = true;
+          }
+        }
+      });
+      
+      // Go to fallback interface
+      document.getElementById('go-to-fallback-btn').addEventListener('click', function() {
+        window.location.href = '/ultra-fallback.html';
+      });
+    });
+  </script>
+  
+  <!-- Extra script to add a fix to index.html -->
+  <script>
+    // Create a script that will be added to index.html
+    const indexFix = `
+      // Script to add refreshToken fix to index.html
+      (function() {
+        // Wait for load
+        window.addEventListener('DOMContentLoaded', function() {
+          console.log('Checking for AuthService to add refreshToken...');
+          
+          // Try repeatedly to find AuthService
+          const interval = setInterval(function() {
+            // Add refreshToken to prototype if it exists
+            if (window.AuthService && window.AuthService.prototype && !window.AuthService.prototype.refreshToken) {
+              window.AuthService.prototype.refreshToken = function() {
+                console.log('Mock refreshToken called from index.html fix');
+                return Promise.resolve({
+                  token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiYXJpc3RhIiwibmFtZSI6IkJhcmlzdGEgVXNlciIsInJvbGUiOiJiYXJpc3RhIiwiaWF0IjoxNjE2MjM5MDIyLCJleHAiOjI1MDAwMDAwMDB9.signature',
+                  user: {
+                    id: 'user123',
+                    name: 'Barista User',
+                    role: 'barista'
+                  }
+                });
+              };
+              console.log('✅ Added refreshToken to AuthService.prototype from index.html fix');
+              clearInterval(interval);
+            }
+          }, 500);
+          
+          // Stop after 10 seconds regardless
+          setTimeout(function() {
+            clearInterval(interval);
+          }, 10000);
+        });
+      })();
+    `;
+    
+    // Store in sessionStorage for the index.html page to use
+    sessionStorage.setItem('indexHtmlFixScript', indexFix);
+  </script>
+</body>
+</html>

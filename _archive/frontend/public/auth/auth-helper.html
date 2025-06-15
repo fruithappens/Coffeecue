@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authentication Helper</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        button {
+            background-color: #4299e1;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background-color: #3182ce;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .status.success {
+            background-color: #c6f6d5;
+            border: 1px solid #68d391;
+        }
+        .status.error {
+            background-color: #fed7d7;
+            border: 1px solid #fc8181;
+        }
+        .token-container {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+        }
+        input[type="text"], input[type="password"] {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #cbd5e0;
+            border-radius: 4px;
+        }
+        .card {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Authentication Helper</h1>
+    <p>This tool helps you create and manage authentication tokens for the API</p>
+    
+    <div class="card">
+        <h2>Current Token Status</h2>
+        <div id="tokenStatus">Checking...</div>
+        <button id="checkToken">Check Token</button>
+        <button id="clearToken">Clear Token</button>
+    </div>
+    
+    <div class="card">
+        <h2>Get Token</h2>
+        <p>Login to get a valid authentication token</p>
+        
+        <form id="loginForm">
+            <div>
+                <label for="username">Username:</label>
+                <input type="text" id="username" value="admin" />
+            </div>
+            <div>
+                <label for="password">Password:</label>
+                <input type="password" id="password" value="admin" />
+            </div>
+            <button type="submit">Login</button>
+        </form>
+        
+        <div id="loginResult"></div>
+    </div>
+    
+    <div class="card">
+        <h2>Create Demo Token</h2>
+        <p>Create a demo token that will work for testing (no backend required)</p>
+        <button id="createDemoToken">Create Demo Token</button>
+        <div id="demoTokenResult"></div>
+    </div>
+    
+    <div class="card">
+        <h2>Test Token with API</h2>
+        <button id="testTokenWithApi">Test Token with API</button>
+        <div id="testTokenResult"></div>
+    </div>
+    
+    <script>
+        // Check token status on page load
+        function updateTokenStatus() {
+            const tokenStatus = document.getElementById('tokenStatus');
+            const token = localStorage.getItem('coffee_system_token');
+            
+            if (token) {
+                // Try to parse the token to get expiration
+                try {
+                    const payload = JSON.parse(atob(token.split('.')[1]));
+                    const expiration = new Date(payload.exp * 1000);
+                    const now = new Date();
+                    
+                    if (expiration > now) {
+                        const timeLeft = Math.floor((expiration - now) / 1000 / 60); // minutes
+                        tokenStatus.innerHTML = `
+                            <div class="status success">
+                                <strong>Valid token found</strong><br>
+                                Subject: ${payload.sub || 'Unknown'}<br>
+                                Expires: ${expiration.toLocaleString()} (in ${timeLeft} minutes)<br>
+                                <details>
+                                    <summary>Show token</summary>
+                                    <pre>${token}</pre>
+                                </details>
+                            </div>
+                        `;
+                    } else {
+                        tokenStatus.innerHTML = `
+                            <div class="status error">
+                                <strong>Expired token found</strong><br>
+                                Subject: ${payload.sub || 'Unknown'}<br>
+                                Expired: ${expiration.toLocaleString()} (${Math.abs(Math.floor((expiration - now) / 1000 / 60))} minutes ago)<br>
+                                <details>
+                                    <summary>Show expired token</summary>
+                                    <pre>${token}</pre>
+                                </details>
+                            </div>
+                        `;
+                    }
+                } catch (error) {
+                    tokenStatus.innerHTML = `
+                        <div class="status error">
+                            <strong>Invalid token format</strong><br>
+                            Error: ${error.message}<br>
+                            <details>
+                                <summary>Show invalid token</summary>
+                                <pre>${token}</pre>
+                            </details>
+                        </div>
+                    `;
+                }
+            } else {
+                tokenStatus.innerHTML = `
+                    <div class="status error">
+                        <strong>No token found</strong><br>
+                        Please login to get a token
+                    </div>
+                `;
+            }
+        }
+        
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', () => {
+            updateTokenStatus();
+            
+            // Check token button
+            document.getElementById('checkToken').addEventListener('click', () => {
+                updateTokenStatus();
+            });
+            
+            // Clear token button
+            document.getElementById('clearToken').addEventListener('click', () => {
+                localStorage.removeItem('coffee_system_token');
+                localStorage.removeItem('coffee_auth_token');
+                updateTokenStatus();
+                
+                const clearResult = document.createElement('div');
+                clearResult.className = 'status success';
+                clearResult.textContent = 'Token cleared successfully';
+                document.getElementById('tokenStatus').appendChild(clearResult);
+            });
+            
+            // Login form
+            document.getElementById('loginForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const loginResult = document.getElementById('loginResult');
+                
+                const username = document.getElementById('username').value;
+                const password = document.getElementById('password').value;
+                
+                loginResult.innerHTML = '<div class="status">Logging in...</div>';
+                
+                try {
+                    const response = await fetch('http://localhost:5001/auth/login', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify({ username, password })
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        
+                        if (data.access_token) {
+                            localStorage.setItem('coffee_system_token', data.access_token);
+                            loginResult.innerHTML = `
+                                <div class="status success">
+                                    <strong>Login successful!</strong><br>
+                                    Token saved to localStorage
+                                </div>
+                            `;
+                            
+                            // Update token status
+                            updateTokenStatus();
+                        } else {
+                            loginResult.innerHTML = `
+                                <div class="status error">
+                                    <strong>Login failed</strong><br>
+                                    No token received in response
+                                </div>
+                            `;
+                        }
+                    } else {
+                        const error = await response.json();
+                        loginResult.innerHTML = `
+                            <div class="status error">
+                                <strong>Login failed</strong><br>
+                                ${error.message || `Status: ${response.status}`}
+                            </div>
+                        `;
+                    }
+                } catch (error) {
+                    loginResult.innerHTML = `
+                        <div class="status error">
+                            <strong>Error logging in</strong><br>
+                            ${error.message}
+                        </div>
+                    `;
+                }
+            });
+            
+            // Create demo token
+            document.getElementById('createDemoToken').addEventListener('click', () => {
+                const demoTokenResult = document.getElementById('demoTokenResult');
+                
+                // Create a demo token that will last for 24 hours
+                const now = Math.floor(Date.now() / 1000);
+                const exp = now + (24 * 60 * 60); // 24 hours from now
+                
+                // Demo token payload
+                const payload = {
+                    sub: 'demo_user',
+                    name: 'Demo User',
+                    role: 'barista',
+                    iat: now,
+                    exp: exp
+                };
+                
+                // Create base64 encoded parts
+                const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+                const payloadBase64 = btoa(JSON.stringify(payload));
+                const signature = 'demo_signature_not_valid_for_real_auth';
+                
+                // Create the token
+                const token = `${header}.${payloadBase64}.${signature}`;
+                
+                // Save to localStorage
+                localStorage.setItem('coffee_system_token', token);
+                
+                // Show success message
+                demoTokenResult.innerHTML = `
+                    <div class="status success">
+                        <strong>Demo token created successfully!</strong><br>
+                        Valid for 24 hours<br>
+                        <details>
+                            <summary>Show token</summary>
+                            <pre>${token}</pre>
+                        </details>
+                    </div>
+                `;
+                
+                // Update token status
+                updateTokenStatus();
+            });
+            
+            // Test token with API
+            document.getElementById('testTokenWithApi').addEventListener('click', async () => {
+                const testTokenResult = document.getElementById('testTokenResult');
+                const token = localStorage.getItem('coffee_system_token');
+                
+                if (!token) {
+                    testTokenResult.innerHTML = `
+                        <div class="status error">
+                            <strong>No token found</strong><br>
+                            Please login or create a demo token first
+                        </div>
+                    `;
+                    return;
+                }
+                
+                testTokenResult.innerHTML = '<div class="status">Testing token...</div>';
+                
+                try {
+                    const response = await fetch('http://localhost:5001/api/orders/pending', {
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Accept': 'application/json'
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        testTokenResult.innerHTML = `
+                            <div class="status success">
+                                <strong>Token works!</strong><br>
+                                Successfully retrieved pending orders<br>
+                                <details>
+                                    <summary>Show API response</summary>
+                                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                                </details>
+                            </div>
+                        `;
+                    } else {
+                        const error = await response.text();
+                        testTokenResult.innerHTML = `
+                            <div class="status error">
+                                <strong>Token authentication failed</strong><br>
+                                Status: ${response.status}<br>
+                                ${error}
+                            </div>
+                        `;
+                    }
+                } catch (error) {
+                    testTokenResult.innerHTML = `
+                        <div class="status error">
+                            <strong>Error testing token</strong><br>
+                            ${error.message}
+                        </div>
+                    `;
+                }
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Populate Drinks Ingredients</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+        button { padding: 15px 30px; margin: 10px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; }
+        button:hover { background: #218838; }
+        .check-btn { background: #007cba; }
+        .check-btn:hover { background: #005a87; }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+        .warning { color: #ff9800; font-weight: bold; }
+        .info { background: #f0f8ff; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        .item { margin: 5px 0; padding: 8px; border: 1px solid #ddd; border-radius: 3px; }
+        .added { background: #d4edda; border-color: #c3e6cb; }
+    </style>
+</head>
+<body>
+    <h1>Populate Drinks Ingredients</h1>
+    
+    <div class="info">
+        <strong>Add Ingredients for Menu Drinks</strong><br>
+        This will populate the "Drinks" category with the actual ingredients needed for your menu items:
+        <ul>
+            <li>Hot Chocolate Powder (for Hot Chocolate & Iced Chocolate)</li>
+            <li>Chai Tea Mix (for Chai Latte)</li>
+            <li>Matcha Powder (for Matcha Latte)</li>
+            <li>Turmeric Powder (for Turmeric Latte)</li>
+        </ul>
+    </div>
+    
+    <button onclick="checkDrinksCategory()" class="check-btn">🔍 Check Current Drinks Category</button>
+    <button onclick="populateDrinksIngredients()">➕ Add Menu-Based Ingredients</button>
+    <button onclick="showMenuMapping()" class="check-btn">📋 Show Menu → Ingredients Mapping</button>
+    
+    <div id="output"></div>
+
+    <script>
+        const menuBasedIngredients = [
+            {
+                name: 'Hot Chocolate Powder',
+                description: 'Premium chocolate powder for hot chocolate and iced chocolate',
+                amount: 3,
+                capacity: 5,
+                unit: 'kg',
+                status: 'good',
+                lowThreshold: 1,
+                criticalThreshold: 0.5,
+                menuItems: ['Hot Chocolate', 'Iced Chocolate']
+            },
+            {
+                name: 'Chai Tea Mix',
+                description: 'Spiced tea blend for chai lattes',
+                amount: 2,
+                capacity: 3,
+                unit: 'kg',
+                status: 'good',
+                lowThreshold: 0.8,
+                criticalThreshold: 0.3,
+                menuItems: ['Chai Latte']
+            },
+            {
+                name: 'Matcha Powder',
+                description: 'Premium green tea powder for matcha lattes',
+                amount: 1,
+                capacity: 2,
+                unit: 'kg',
+                status: 'warning',
+                lowThreshold: 0.5,
+                criticalThreshold: 0.2,
+                menuItems: ['Matcha Latte']
+            },
+            {
+                name: 'Turmeric Powder',
+                description: 'Golden milk turmeric powder for turmeric lattes',
+                amount: 1.5,
+                capacity: 2,
+                unit: 'kg',
+                status: 'good',
+                lowThreshold: 0.5,
+                criticalThreshold: 0.2,
+                menuItems: ['Turmeric Latte']
+            }
+        ];
+        
+        function checkDrinksCategory() {
+            const output = document.getElementById('output');
+            output.innerHTML = '<h2>Current Drinks Category Status</h2>';
+            
+            let foundStations = 0;
+            
+            for (let i = 1; i <= 5; i++) {
+                const stockKey = `coffee_stock_station_${i}`;
+                const stockData = localStorage.getItem(stockKey);
+                
+                if (stockData) {
+                    foundStations++;
+                    const stock = JSON.parse(stockData);
+                    
+                    output.innerHTML += `<h3>Station ${i}:</h3>`;
+                    
+                    if (stock.drinks && stock.drinks.length > 0) {
+                        output.innerHTML += `<div class="success">✅ Has ${stock.drinks.length} drinks ingredients:</div>`;
+                        stock.drinks.forEach(item => {
+                            output.innerHTML += `<div class="item">• ${item.name} (${item.amount} ${item.unit})</div>`;
+                        });
+                    } else {
+                        output.innerHTML += '<div class="warning">❌ Drinks category is empty</div>';
+                    }
+                }
+            }
+            
+            if (foundStations === 0) {
+                output.innerHTML += '<div class="error">❌ No station stock data found!</div>';
+            }
+        }
+        
+        function populateDrinksIngredients() {
+            const output = document.getElementById('output');
+            output.innerHTML = '<h2>Adding Menu-Based Ingredients...</h2>';
+            
+            let updatedStations = 0;
+            
+            for (let i = 1; i <= 5; i++) {
+                const stockKey = `coffee_stock_station_${i}`;
+                const stockData = localStorage.getItem(stockKey);
+                
+                if (stockData) {
+                    const stock = JSON.parse(stockData);
+                    
+                    // Ensure drinks category exists
+                    if (!stock.drinks) {
+                        stock.drinks = [];
+                    }
+                    
+                    output.innerHTML += `<h3>Station ${i}:</h3>`;
+                    
+                    let addedItems = 0;
+                    
+                    menuBasedIngredients.forEach(ingredient => {
+                        // Check if ingredient already exists
+                        const exists = stock.drinks.find(item => 
+                            item.name.toLowerCase() === ingredient.name.toLowerCase()
+                        );
+                        
+                        if (!exists) {
+                            // Add the ingredient
+                            stock.drinks.push({
+                                id: ingredient.name.toLowerCase().replace(/\\s+/g, '_'),
+                                name: ingredient.name,
+                                amount: ingredient.amount,
+                                capacity: ingredient.capacity,
+                                unit: ingredient.unit,
+                                status: ingredient.status,
+                                lowThreshold: ingredient.lowThreshold,
+                                criticalThreshold: ingredient.criticalThreshold
+                            });
+                            
+                            output.innerHTML += `<div class="item added">✅ Added "${ingredient.name}" for ${ingredient.menuItems.join(', ')}</div>`;
+                            addedItems++;
+                        } else {
+                            output.innerHTML += `<div class="item">ℹ️ "${ingredient.name}" already exists</div>`;
+                        }
+                    });
+                    
+                    if (addedItems > 0) {
+                        // Save the updated stock
+                        localStorage.setItem(stockKey, JSON.stringify(stock));
+                        updatedStations++;
+                    }
+                }
+            }
+            
+            output.innerHTML += `<h3 class="success">✅ Updated ${updatedStations} stations with menu-based ingredients!</h3>`;
+            output.innerHTML += '<p>Refresh the Barista interface to see the new drinks ingredients.</p>';
+        }
+        
+        function showMenuMapping() {
+            const output = document.getElementById('output');
+            output.innerHTML = '<h2>Menu → Ingredients Mapping</h2>';
+            
+            output.innerHTML += '<div class="info"><strong>How Menu Items Map to Ingredients:</strong></div>';
+            
+            // Group by menu category
+            const menuCategories = {
+                'Milk Based Variations': [
+                    { drink: 'Hot Chocolate', ingredient: 'Hot Chocolate Powder' },
+                    { drink: 'Chai Latte', ingredient: 'Chai Tea Mix' },
+                    { drink: 'Matcha Latte', ingredient: 'Matcha Powder' },
+                    { drink: 'Turmeric Latte', ingredient: 'Turmeric Powder' },
+                    { drink: 'Babycino', ingredient: 'Milk + Foam (no special ingredient needed)' }
+                ],
+                'Cold Drinks': [
+                    { drink: 'Iced Chocolate', ingredient: 'Hot Chocolate Powder (cold preparation)' },
+                    { drink: 'Iced Latte', ingredient: 'Coffee + Milk (existing ingredients)' },
+                    { drink: 'Iced Cappuccino', ingredient: 'Coffee + Milk (existing ingredients)' },
+                    { drink: 'Iced Mocha', ingredient: 'Coffee + Milk + Hot Chocolate Powder' }
+                ]
+            };
+            
+            Object.entries(menuCategories).forEach(([category, items]) => {
+                output.innerHTML += `<h3>${category}:</h3>`;
+                items.forEach(item => {
+                    output.innerHTML += `<div class="item">📋 <strong>${item.drink}</strong> → ${item.ingredient}</div>`;
+                });
+            });
+            
+            output.innerHTML += '<div class="info"><strong>Note:</strong> Filter Coffee and Cold Brew use existing coffee beans, so no additional ingredients needed in Drinks category.</div>';
+        }
+    </script>
+</body>
+</html>

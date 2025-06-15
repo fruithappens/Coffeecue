@@ -1,0 +1,296 @@
+{% extends "base.html" %}
+
+{% block title %}Staff Dashboard - Expresso Coffee System{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-2">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Staff Menu</h5>
+                </div>
+                <div class="list-group list-group-flush">
+                    <a href="{{ url_for('staff.dashboard') }}" class="list-group-item list-group-item-action active">
+                        <i class="bi bi-speedometer2 me-2"></i> Dashboard
+                    </a>
+                    <a href="{{ url_for('staff.station_management') }}" class="list-group-item list-group-item-action">
+                        <i class="bi bi-cup-hot me-2"></i> Stations
+                    </a>
+                    <a href="{{ url_for('staff.order_management') }}" class="list-group-item list-group-item-action">
+                        <i class="bi bi-card-list me-2"></i> Orders
+                    </a>
+                    <a href="{{ url_for('staff.customer_search') }}" class="list-group-item list-group-item-action">
+                        <i class="bi bi-people me-2"></i> Customers
+                    </a>
+                    <a href="{{ url_for('staff.daily_report') }}" class="list-group-item list-group-item-action">
+                        <i class="bi bi-file-earmark-bar-graph me-2"></i> Reports
+                    </a>
+                </div>
+                <div class="card-footer">
+                    <a href="{{ url_for('auth.logout') }}" class="btn btn-outline-danger btn-sm w-100">
+                        <i class="bi bi-box-arrow-right me-1"></i> Logout
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="col-md-10">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="mb-0">Staff Dashboard</h2>
+                <div class="d-flex align-items-center">
+                    <span class="me-3">Welcome, {{ g.user.full_name or g.user.username }}</span>
+                    <span class="badge bg-success">Staff</span>
+                </div>
+            </div>
+            
+            <!-- Status Cards -->
+            <div class="row mb-4">
+                <div class="col-xl-3 col-md-6 mb-3">
+                    <div class="card border-left-primary h-100 py-2">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                        Active Orders
+                                    </div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800">{{ active_orders }}</div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="bi bi-clipboard-check fa-2x text-gray-300"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-xl-3 col-md-6 mb-3">
+                    <div class="card border-left-success h-100 py-2">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                        Today's Orders
+                                    </div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800">{{ today_orders }}</div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="bi bi-calendar-check fa-2x text-gray-300"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-xl-3 col-md-6 mb-3">
+                    <div class="card border-left-info h-100 py-2">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                        Completed Today
+                                    </div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800">{{ today_completed }}</div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="bi bi-check-circle fa-2x text-gray-300"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-xl-3 col-md-6 mb-3">
+                    <div class="card border-left-warning h-100 py-2">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                        All Time Orders
+                                    </div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_orders }}</div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="bi bi-graph-up fa-2x text-gray-300"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Hourly Breakdown -->
+            <div class="row mb-4">
+                <div class="col-md-8">
+                    <div class="card shadow mb-4">
+                        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                            <h6 class="m-0 font-weight-bold text-primary">Today's Order Volume (By Hour)</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-area">
+                                <canvas id="hourlyChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Popular Drinks -->
+                <div class="col-md-4">
+                    <div class="card shadow mb-4">
+                        <div class="card-header py-3">
+                            <h6 class="m-0 font-weight-bold text-primary">Popular Drinks Today</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-pie pt-4 pb-2">
+                                <canvas id="popularDrinksChart"></canvas>
+                            </div>
+                            <div class="mt-4 text-center small">
+                                {% for drink, count in popular_drinks %}
+                                <span class="mr-2">
+                                    <i class="fas fa-circle" style="color: #{{ '%06x' % ((loop.index * 4371) % 16777215) }}"></i> {{ drink }}
+                                </span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Station Stats -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card shadow mb-4">
+                        <div class="card-header py-3">
+                            <h6 class="m-0 font-weight-bold text-primary">Station Performance</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-bordered" id="stationTable" width="100%" cellspacing="0">
+                                    <thead>
+                                        <tr>
+                                            <th>Station ID</th>
+                                            <th>Barista</th>
+                                            <th>Current Load</th>
+                                            <th>Today's Orders</th>
+                                            <th>Completed</th>
+                                            <th>Efficiency</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for station in station_stats %}
+                                        <tr>
+                                            <td>{{ station[0] }}</td>
+                                            <td>{{ station[1] or 'Unassigned' }}</td>
+                                            <td>{{ station[2] }}</td>
+                                            <td>{{ station[4] or 0 }}</td>
+                                            <td>{{ station[5] or 0 }}</td>
+                                            <td>
+                                                {% if station[4] and station[4] > 0 %}
+                                                {{ ((station[5] or 0) / station[4] * 100) | round(1) }}%
+                                                {% else %}
+                                                0%
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <span class="badge {% if station[3] == 'active' %}bg-success{% elif station[3] == 'inactive' %}bg-secondary{% else %}bg-warning{% endif %}">
+                                                    {{ station[3] }}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Hourly chart
+    const hourlyCtx = document.getElementById('hourlyChart').getContext('2d');
+    const hourlyChart = new Chart(hourlyCtx, {
+        type: 'line',
+        data: {
+            labels: [{% for hour in range(24) %}'{{ "%02d"|format(hour) }}:00'{% if not loop.last %}, {% endif %}{% endfor %}],
+            datasets: [{
+                label: 'Orders',
+                data: [
+                    {% for hour in range(24) %}
+                    {{ hourly_data["%02d"|format(hour)] }}{% if not loop.last %}, {% endif %}
+                    {% endfor %}
+                ],
+                backgroundColor: 'rgba(78, 115, 223, 0.05)',
+                borderColor: 'rgba(78, 115, 223, 1)',
+                pointRadius: 3,
+                pointBackgroundColor: 'rgba(78, 115, 223, 1)',
+                pointBorderColor: 'rgba(78, 115, 223, 1)',
+                pointHoverRadius: 5,
+                pointHoverBackgroundColor: 'rgba(78, 115, 223, 1)',
+                pointHoverBorderColor: 'rgba(78, 115, 223, 1)',
+                pointHitRadius: 10,
+                pointBorderWidth: 2,
+                tension: 0.3
+            }]
+        },
+        options: {
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    grid: {
+                        display: false
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    precision: 0
+                }
+            }
+        }
+    });
+    
+    // Popular drinks chart
+    const popularCtx = document.getElementById('popularDrinksChart').getContext('2d');
+    const popularDrinksChart = new Chart(popularCtx, {
+        type: 'doughnut',
+        data: {
+            labels: [
+                {% for drink, count in popular_drinks %}
+                "{{ drink }}"{% if not loop.last %}, {% endif %}
+                {% endfor %}
+            ],
+            datasets: [{
+                data: [
+                    {% for drink, count in popular_drinks %}
+                    {{ count }}{% if not loop.last %}, {% endif %}
+                    {% endfor %}
+                ],
+                backgroundColor: [
+                    {% for drink, count in popular_drinks %}
+                    '#{{ "%06x"|format((loop.index * 4371) % 16777215) }}'{% if not loop.last %}, {% endif %}
+                    {% endfor %}
+                ],
+                hoverOffset: 4
+            }]
+        },
+        options: {
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            cutout: '70%'
+        }
+    });
+</script>
+{% endblock %}
+{% endblock %}

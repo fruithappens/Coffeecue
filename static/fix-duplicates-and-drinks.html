@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fix Duplicates and Add Drinks</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { color: green; }
+        .warning { color: orange; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Fix Inventory Issues</h1>
+    
+    <div id="status"></div>
+    
+    <button onclick="removeDuplicates()">1. Remove Duplicate Sweeteners from Other</button>
+    <button onclick="showHowToAddDrinks()">2. How to Add Drinks Category</button>
+    
+    <script>
+        function removeDuplicates() {
+            const statusDiv = document.getElementById('status');
+            let html = '<h3>Removing Duplicates:</h3>';
+            
+            // Get current station stock
+            const currentStation = localStorage.getItem('coffee_barista_station_id') || '1';
+            const stockKey = `coffee_stock_station_${currentStation}`;
+            const stockData = localStorage.getItem(stockKey);
+            
+            if (stockData) {
+                try {
+                    const stock = JSON.parse(stockData);
+                    
+                    if (stock.other && stock.other.length > 0) {
+                        // Filter out sweeteners from other category
+                        const originalLength = stock.other.length;
+                        stock.other = stock.other.filter(item => {
+                            // Remove items that are sweeteners
+                            if (item.name === 'White Sugar' || 
+                                item.name === 'Brown Sugar' || 
+                                item.name === 'Honey' || 
+                                item.name === 'Stevia') {
+                                html += `<div>Removed duplicate: ${item.name}</div>`;
+                                return false;
+                            }
+                            return true;
+                        });
+                        
+                        const removed = originalLength - stock.other.length;
+                        html += `<div class="success">✅ Removed ${removed} duplicate sweeteners from "other" category</div>`;
+                        
+                        // Save the cleaned stock
+                        localStorage.setItem(stockKey, JSON.stringify(stock));
+                        
+                        // Clear cache
+                        localStorage.removeItem('coffee_stock_cache');
+                        
+                        html += '<div class="success">✅ Stock cleaned! Refresh the Barista interface.</div>';
+                    } else {
+                        html += '<div>No items in "other" category to clean.</div>';
+                    }
+                    
+                } catch (e) {
+                    html += `<div class="error">Error: ${e.message}</div>`;
+                }
+            }
+            
+            statusDiv.innerHTML = html;
+        }
+        
+        function showHowToAddDrinks() {
+            const statusDiv = document.getElementById('status');
+            
+            const html = `
+                <div class="section">
+                    <h3>📝 How to Add Drinks Category in Organiser Interface:</h3>
+                    
+                    <p><strong>Since drinks category doesn't exist in your Event Inventory, you need to add it:</strong></p>
+                    
+                    <ol>
+                        <li>Go to <strong>Organiser Interface</strong></li>
+                        <li>Navigate to <strong>Event Setup → Inventory Management</strong></li>
+                        <li>Look for a <strong>"Non-Coffee Drinks"</strong> or <strong>"Drinks"</strong> category</li>
+                        <li>If it doesn't exist, check if there's an "Add Category" option</li>
+                        <li>Add drinks like:
+                            <ul>
+                                <li>Hot Chocolate</li>
+                                <li>Chai Latte</li>
+                                <li>Matcha Latte</li>
+                                <li>Iced Tea</li>
+                                <li>Lemonade</li>
+                            </ul>
+                        </li>
+                        <li>After adding drinks to Event Inventory, go to <strong>Stations → Station Inventory</strong></li>
+                        <li>Enable the drinks for your station</li>
+                        <li>Come back here and click "Sync from Organiser Inventory" in the trace tool</li>
+                    </ol>
+                    
+                    <div class="warning">
+                        ⚠️ Note: The items currently in "other" (Hot Chocolate Powder, Chai Tea Mix, Matcha Powder) 
+                        are ingredients/extras, not finished drinks. You need to create actual drink items in the 
+                        drinks category.
+                    </div>
+                </div>
+            `;
+            
+            statusDiv.innerHTML = html;
+        }
+        
+        window.onload = () => {
+            document.getElementById('status').innerHTML = 
+                '<p>Good news! Your sweeteners ARE working correctly - they\'re showing in the right category.</p>' +
+                '<p>Issues to fix:</p>' +
+                '<ul>' +
+                '<li>There are duplicate sweeteners in the "other" category that need to be removed</li>' +
+                '<li>Drinks category doesn\'t exist in your Event Inventory (needs to be added in Organiser)</li>' +
+                '</ul>';
+        };
+    </script>
+</body>
+</html>

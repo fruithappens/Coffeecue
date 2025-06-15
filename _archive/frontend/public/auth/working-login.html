@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coffee Cue System Login</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #f5f5f5;
+        }
+        .login-container {
+            width: 100%;
+            max-width: 400px;
+            padding: 30px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            color: #8B4513;
+            margin: 0;
+            margin-bottom: 10px;
+        }
+        .header p {
+            color: #666;
+            margin: 0;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #333;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        input:focus {
+            border-color: #8B4513;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(139, 69, 19, 0.1);
+        }
+        .login-button {
+            width: 100%;
+            padding: 12px;
+            background-color: #8B4513;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        .login-button:hover {
+            background-color: #704214;
+        }
+        .login-button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .status {
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .demo-mode {
+            margin-top: 20px;
+            text-align: center;
+        }
+        .demo-button {
+            background-color: transparent;
+            color: #8B4513;
+            border: 1px solid #8B4513;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .demo-button:hover {
+            background-color: rgba(139, 69, 19, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="header">
+            <h1>Coffee Cue System</h1>
+            <p>Enter your credentials to continue</p>
+        </div>
+        
+        <form id="login-form">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" placeholder="Enter your username" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" placeholder="Enter your password" required>
+            </div>
+            
+            <button type="submit" class="login-button" id="login-button">Log In</button>
+        </form>
+        
+        <div id="status-message"></div>
+        
+        <div class="demo-mode">
+            <p>No account? Use demo mode instead</p>
+            <button id="demo-button" class="demo-button">Continue with Demo Mode</button>
+        </div>
+    </div>
+
+    <script>
+        // Helper function to create a valid demo token
+        function createValidDemoToken() {
+            // Create header part
+            const header = {
+                alg: 'HS256',
+                typ: 'JWT'
+            };
+            
+            // Create payload with proper sub field as string
+            const now = Math.floor(Date.now() / 1000);
+            const payload = {
+                sub: 'demo_user', // Must be a string to avoid "Subject must be a string" validation error
+                name: 'Demo User',
+                role: 'barista',
+                stations: [1, 2, 3],
+                iat: now,
+                exp: now + (24 * 60 * 60), // 24 hours from now
+                permissions: ['manage_orders', 'view_stations'],
+                username: 'demo'
+            };
+            
+            // Base64 encode parts (with padding removed)
+            const headerB64 = btoa(JSON.stringify(header)).replace(/=/g, '');
+            const payloadB64 = btoa(JSON.stringify(payload)).replace(/=/g, '');
+            
+            // Create a dummy signature
+            const signature = 'valid_signature_for_demo_mode';
+            
+            // Return the token
+            return `${headerB64}.${payloadB64}.${signature}`;
+        }
+        
+        // Create sample data for demo mode
+        function createSampleData() {
+            // Sample pending orders
+            const samplePendingOrders = [
+                {
+                    id: 'sample_p1',
+                    orderNumber: 'SP001',
+                    customerName: 'Emma Davis',
+                    coffeeType: 'Large Latte',
+                    milkType: 'Soy milk',
+                    sugar: '1 sugar',
+                    priority: false,
+                    createdAt: new Date(Date.now() - 8 * 60000).toISOString(),
+                    waitTime: 8,
+                    promisedTime: 15,
+                    batchGroup: 'latte-soy'
+                },
+                {
+                    id: 'sample_p2',
+                    orderNumber: 'SP002',
+                    customerName: 'Thomas Brown',
+                    coffeeType: 'Medium Cappuccino',
+                    milkType: 'Full Cream',
+                    sugar: '0 sugar',
+                    priority: false,
+                    createdAt: new Date(Date.now() - 9 * 60000).toISOString(),
+                    waitTime: 9,
+                    promisedTime: 15,
+                    batchGroup: 'cappuccino-regular'
+                },
+                {
+                    id: 'sample_p3',
+                    orderNumber: 'SP003',
+                    customerName: 'Sarah Johnson',
+                    coffeeType: 'Small Flat White',
+                    milkType: 'Almond milk',
+                    sugar: '2 sugar',
+                    priority: true,
+                    createdAt: new Date(Date.now() - 5 * 60000).toISOString(),
+                    waitTime: 5,
+                    promisedTime: 12,
+                    batchGroup: 'flatwhite-almond'
+                }
+            ];
+
+            // Sample in-progress orders
+            const sampleInProgressOrders = [
+                {
+                    id: 'sample_i1',
+                    orderNumber: 'SI001',
+                    customerName: 'Michael Johnson',
+                    phoneNumber: '+61 423 555 789',
+                    coffeeType: 'Large Cappuccino',
+                    milkType: 'Oat milk',
+                    sugar: '1 sugar',
+                    extraHot: true,
+                    priority: true,
+                    createdAt: new Date(Date.now() - 3 * 60000).toISOString(),
+                    startedAt: new Date().toISOString(),
+                    waitTime: 3,
+                    promisedTime: 15
+                },
+                {
+                    id: 'sample_i2',
+                    orderNumber: 'SI002',
+                    customerName: 'Jennifer Wilson',
+                    phoneNumber: '+61 412 345 678',
+                    coffeeType: 'Medium Long Black',
+                    milkType: 'No milk',
+                    sugar: '0 sugar',
+                    priority: false,
+                    createdAt: new Date(Date.now() - 6 * 60000).toISOString(),
+                    startedAt: new Date(Date.now() - 1 * 60000).toISOString(),
+                    waitTime: 6,
+                    promisedTime: 15
+                }
+            ];
+
+            // Sample completed orders
+            const sampleCompletedOrders = [
+                {
+                    id: 'sample_c1',
+                    orderNumber: 'SC001',
+                    customerName: 'Emma Johnson',
+                    phoneNumber: '+61 423 456 789',
+                    coffeeType: 'Large Flat White',
+                    milkType: 'Almond milk',
+                    sugar: '0 sugar',
+                    createdAt: new Date(Date.now() - 20 * 60000).toISOString(),
+                    completedAt: new Date(Date.now() - 10 * 60000).toISOString()
+                },
+                {
+                    id: 'sample_c2',
+                    orderNumber: 'SC002',
+                    customerName: 'David Smith',
+                    phoneNumber: '+61 434 567 890',
+                    coffeeType: 'Small Latte',
+                    milkType: 'Full Cream',
+                    sugar: '1 sugar',
+                    createdAt: new Date(Date.now() - 25 * 60000).toISOString(),
+                    completedAt: new Date(Date.now() - 15 * 60000).toISOString()
+                },
+                {
+                    id: 'sample_c3',
+                    orderNumber: 'SC003',
+                    customerName: 'Jessica Williams',
+                    phoneNumber: '+61 445 678 901',
+                    coffeeType: 'Medium Mocha',
+                    milkType: 'Soy milk',
+                    sugar: '2 sugar',
+                    createdAt: new Date(Date.now() - 30 * 60000).toISOString(),
+                    completedAt: new Date(Date.now() - 20 * 60000).toISOString()
+                }
+            ];
+
+            // Sample stations
+            const sampleStations = [
+                {
+                    id: 1,
+                    name: 'Station 1',
+                    status: 'active',
+                    barista: 'John Barista',
+                    queue_length: 2,
+                    last_activity: new Date(Date.now() - 5 * 60000).toISOString()
+                },
+                {
+                    id: 2,
+                    name: 'Station 2',
+                    status: 'active',
+                    barista: 'Sarah Barista',
+                    queue_length: 1,
+                    last_activity: new Date(Date.now() - 3 * 60000).toISOString()
+                }
+            ];
+
+            // Store sample data in localStorage
+            localStorage.setItem('fallback_pending_orders', JSON.stringify(samplePendingOrders));
+            localStorage.setItem('fallback_in_progress_orders', JSON.stringify(sampleInProgressOrders));
+            localStorage.setItem('fallback_completed_orders', JSON.stringify(sampleCompletedOrders));
+            localStorage.setItem('fallback_stations', JSON.stringify(sampleStations));
+            localStorage.setItem('fallback_data_available', 'true');
+            
+            console.log('Sample data created for demo mode');
+        }
+        
+        // Enable demo mode
+        function enableDemoMode() {
+            try {
+                // Create and store valid token
+                const token = createValidDemoToken();
+                localStorage.setItem('coffee_system_token', token);
+                
+                // Store in alternate locations for compatibility
+                localStorage.setItem('coffee_auth_token', token);
+                localStorage.setItem('jwt_token', token);
+                localStorage.setItem('auth_token', token);
+                
+                // Create user data
+                const userData = {
+                    id: 'demo_user',
+                    username: 'demo',
+                    role: 'barista',
+                    name: 'Demo User'
+                };
+                localStorage.setItem('coffee_system_user', JSON.stringify(userData));
+                
+                // Create sample data
+                createSampleData();
+                
+                // Set fallback mode flags
+                localStorage.setItem('use_fallback_data', 'true');
+                localStorage.setItem('auth_error_refresh_needed', 'true');
+                localStorage.setItem('demo_mode_enabled', 'true');
+                
+                // Set connection status to indicate offline mode
+                localStorage.setItem('coffee_connection_status', 'offline');
+                
+                // Reset error counters
+                localStorage.removeItem('auth_error_count');
+                
+                console.log('Demo mode enabled successfully');
+                
+                // Show success message
+                const statusMessage = document.getElementById('status-message');
+                statusMessage.innerHTML = '<div class="status success">Demo mode enabled! Redirecting to main app...</div>';
+                
+                // Redirect to main app interface
+                setTimeout(function() {
+                    window.location.href = '/';
+                }, 1500);
+                
+                return true;
+            } catch (error) {
+                console.error('Error enabling demo mode:', error);
+                
+                // Show error message
+                const statusMessage = document.getElementById('status-message');
+                statusMessage.innerHTML = `<div class="status error">Error enabling demo mode: ${error.message}</div>`;
+                
+                return false;
+            }
+        }
+        
+        // Handle login form submission
+        async function handleLogin(event) {
+            event.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const loginButton = document.getElementById('login-button');
+            const statusMessage = document.getElementById('status-message');
+            
+            // Disable login button and show loading state
+            loginButton.disabled = true;
+            loginButton.textContent = 'Logging in...';
+            statusMessage.innerHTML = '';
+            
+            try {
+                // Two approaches:
+                // 1. Try real login with backend
+                // 2. If that fails, use demo login
+                
+                let loginSuccess = false;
+                
+                // First try the real login
+                try {
+                    const response = await fetch('/api/auth/login', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify({ username, password })
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        
+                        if (data.token) {
+                            // Store token in localStorage
+                            localStorage.setItem('coffee_system_token', data.token);
+                            localStorage.setItem('coffee_auth_token', data.token);
+                            localStorage.setItem('auth_token', data.token);
+                            
+                            // Store user data
+                            if (data.user) {
+                                localStorage.setItem('coffee_system_user', JSON.stringify(data.user));
+                            } else {
+                                localStorage.setItem('coffee_system_user', JSON.stringify({
+                                    username,
+                                    role: 'barista',
+                                    id: username
+                                }));
+                            }
+                            
+                            // Clear fallback mode flags
+                            localStorage.removeItem('use_fallback_data');
+                            localStorage.removeItem('auth_error_refresh_needed');
+                            localStorage.removeItem('demo_mode_enabled');
+                            
+                            // Set online connection status
+                            localStorage.setItem('coffee_connection_status', 'online');
+                            
+                            loginSuccess = true;
+                            
+                            // Show success message
+                            statusMessage.innerHTML = '<div class="status success">Login successful! Redirecting to main app...</div>';
+                            
+                            // Redirect to main app interface
+                            setTimeout(function() {
+                                window.location.href = '/';
+                            }, 1500);
+                        } else {
+                            throw new Error('No token received from server');
+                        }
+                    } else {
+                        // Try to get error message from response
+                        try {
+                            const errorData = await response.json();
+                            throw new Error(errorData.message || `Login failed with status ${response.status}`);
+                        } catch (jsonError) {
+                            throw new Error(`Login failed with status ${response.status}`);
+                        }
+                    }
+                } catch (apiError) {
+                    console.warn('Backend login failed:', apiError);
+                    
+                    // If backend login failed, we'll try the demo mode automatically
+                    statusMessage.innerHTML = `<div class="status error">Backend login failed: ${apiError.message}. <br>Falling back to demo mode...</div>`;
+                    
+                    // Short delay before enabling demo mode
+                    setTimeout(function() {
+                        if (enableDemoMode()) {
+                            loginSuccess = true;
+                        }
+                    }, 1500);
+                }
+                
+                if (!loginSuccess) {
+                    // If both approaches failed
+                    statusMessage.innerHTML = '<div class="status error">Login failed. Please try different credentials or use demo mode.</div>';
+                }
+            } finally {
+                // Re-enable login button
+                loginButton.disabled = false;
+                loginButton.textContent = 'Log In';
+            }
+        }
+        
+        // Initialize the page
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if we're already logged in
+            const token = localStorage.getItem('coffee_system_token') || localStorage.getItem('auth_token');
+            if (token) {
+                // Redirect to main app interface
+                window.location.href = '/';
+            }
+            
+            // Set up event listeners
+            document.getElementById('login-form').addEventListener('submit', handleLogin);
+            document.getElementById('demo-button').addEventListener('click', enableDemoMode);
+        });
+    </script>
+</body>
+</html>

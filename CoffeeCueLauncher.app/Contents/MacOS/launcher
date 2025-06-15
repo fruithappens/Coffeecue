@@ -1,0 +1,177 @@
+#!/bin/bash
+
+# Coffee Cue Launcher - Enhanced with Database Migration System
+# Version 2.0 - Now with proper data persistence and automatic backups
+
+# Path to your expresso directory - CHANGE THIS IF NEEDED
+EXPRESSO_PATH="/Users/stevewf/expresso"
+
+# Function to show an error dialog
+show_error() {
+    osascript -e 'display dialog "'"$1"'" buttons {"OK"} default button "OK" with icon stop with title "Coffee Cue Launcher Error"'
+}
+
+# Function to show a notification
+show_notification() {
+    osascript -e 'display notification "'"$2"'" with title "Coffee Cue" subtitle "'"$1"'"'
+}
+
+# Function to show a simple dialog with 3 buttons max
+show_startup_dialog() {
+    osascript -e 'display dialog "'"$1"'" buttons {"Cancel", "Quick Start", "Enhanced Setup"} default button "Enhanced Setup" with icon caution with title "Coffee Cue Launcher v2.0"'
+}
+
+# Function to show migration dialog
+show_migration_dialog() {
+    osascript -e 'display dialog "Database Migration Available!\n\nYour Coffee Cue system has been upgraded with:\n• Persistent database storage\n• Automatic backups every 5 minutes\n• Cloud deployment ready\n\nChoose startup mode:" buttons {"Cancel", "Standard", "Initialize"} default button "Initialize" with icon note with title "Coffee Cue Migration System"'
+}
+
+# Function to check if migration system is needed
+check_migration_status() {
+    # Check if migration tables exist
+    if psql -d expresso -c "SELECT 1 FROM information_schema.tables WHERE table_name = 'event_inventory'" 2>/dev/null | grep -q "1"; then
+        return 1  # Migration system already set up
+    else
+        return 0  # Migration system needed
+    fi
+}
+
+# Function to run migration system setup
+run_migration_setup() {
+    show_notification "Database Migration" "Initializing new database system..."
+    
+    # Launch migration system in Terminal
+    osascript -e 'tell application "Terminal"
+        do script "cd '"$EXPRESSO_PATH"' && echo \"🚀 Initializing Coffee Cue Database Migration System...\" && python3 run_migration_system.py"
+        set custom title of front window to "Coffee Cue - Migration System"
+        activate
+    end tell'
+    
+    # Wait a moment then launch the web interface
+    sleep 3
+    
+    # Launch migration web interface
+    osascript -e 'tell application "Terminal"
+        do script "cd '"$EXPRESSO_PATH"' && echo \"🌐 Starting backend server for migration...\" && python3 run_server.py"
+        set custom title of front window to "Coffee Cue - Backend Server"
+    end tell'
+    
+    sleep 5
+    
+    # Open migration tool in browser
+    open "http://localhost:5001/static/localStorage-to-database-migration.html"
+    
+    show_notification "Migration Ready" "Web interface opened - follow the migration steps!"
+}
+
+# Function to run enhanced startup with migration system
+run_enhanced_startup() {
+    show_notification "Enhanced Startup" "Starting Coffee Cue with database persistence..."
+    
+    # Check if enhanced script exists, use it
+    if [ -f "$EXPRESSO_PATH/start_expresso_enhanced.sh" ]; then
+        osascript -e 'tell application "Terminal"
+            do script "cd '"$EXPRESSO_PATH"' && ./start_expresso_enhanced.sh"
+            set custom title of front window to "Coffee Cue - Enhanced System"
+            activate
+        end tell'
+    else
+        # Fallback to regular startup
+        osascript -e 'tell application "Terminal"
+            do script "cd '"$EXPRESSO_PATH"' && ./start_expresso.sh"
+            set custom title of front window to "Coffee Cue - Main System"
+            activate
+        end tell'
+    fi
+    
+    show_notification "System Started" "Coffee Cue is running with database persistence!"
+}
+
+# Function to run quick start
+run_quick_start() {
+    show_notification "Quick Start" "Launching Coffee Cue..."
+    
+    if [ -f "$EXPRESSO_PATH/start_expresso_fast.sh" ]; then
+        osascript -e 'tell application "Terminal"
+            do script "cd '"$EXPRESSO_PATH"' && ./start_expresso_fast.sh"
+            set custom title of front window to "Coffee Cue - Quick Start"
+            activate
+        end tell'
+    elif [ -f "$EXPRESSO_PATH/start_expresso.sh" ]; then
+        osascript -e 'tell application "Terminal"
+            do script "cd '"$EXPRESSO_PATH"' && ./start_expresso.sh"
+            set custom title of front window to "Coffee Cue - Standard Start"
+            activate
+        end tell'
+    else
+        show_error "Could not find startup script in $EXPRESSO_PATH"
+        exit 1
+    fi
+}
+
+# Check if the directory exists
+if [ ! -d "$EXPRESSO_PATH" ]; then
+    show_error "Could not find Coffee Cue directory at $EXPRESSO_PATH"
+    exit 1
+fi
+
+# Change to the expresso directory
+cd "$EXPRESSO_PATH"
+
+# Check if PostgreSQL is running
+if ! pgrep -x postgres > /dev/null; then
+    show_notification "Database Starting" "Starting PostgreSQL..."
+    brew services start postgresql@15 2>/dev/null || brew services start postgresql 2>/dev/null
+    sleep 3
+fi
+
+# Check if database exists, create if needed
+if ! psql -lqt 2>/dev/null | cut -d \| -f 1 | grep -qw expresso; then
+    show_notification "Database Setup" "Creating Coffee Cue database..."
+    createdb expresso 2>/dev/null
+    python3 pg_init.py 2>/dev/null
+fi
+
+# Check migration status
+MIGRATION_NEEDED=false
+if ! check_migration_status; then
+    MIGRATION_NEEDED=true
+fi
+
+# Determine startup mode
+if [ "$MIGRATION_NEEDED" = true ]; then
+    # Show migration dialog
+    CHOICE=$(show_migration_dialog)
+    
+    case "$CHOICE" in
+        *"Initialize"*)
+            run_migration_setup
+            exit 0
+            ;;
+        *"Standard"*)
+            # Run normal startup
+            run_enhanced_startup
+            exit 0
+            ;;
+        *)
+            # User cancelled
+            exit 0
+            ;;
+    esac
+fi
+
+# Standard startup dialog (3 buttons max)
+CHOICE=$(show_startup_dialog "Coffee Cue Launcher v2.0\n\nEnhanced with Database Persistence:\n✅ Automatic backups every 5 minutes\n✅ No more data loss\n✅ Cloud deployment ready\n\nChoose startup mode:")
+
+case "$CHOICE" in
+    *"Quick Start"*)
+        run_quick_start
+        ;;
+    *"Enhanced Setup"*)
+        run_enhanced_startup
+        ;;
+    *)
+        # User cancelled
+        exit 0
+        ;;
+esac

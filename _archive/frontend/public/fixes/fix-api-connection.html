@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fix API Connection</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+        }
+        
+        h1 {
+            color: #2196f3;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+        
+        .card {
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .warning {
+            background-color: #fff3e0;
+            border-left: 4px solid #ff9800;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .error {
+            background-color: #ffebee;
+            border-left: 4px solid #f44336;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .success {
+            background-color: #e8f5e9;
+            border-left: 4px solid #4caf50;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .button {
+            display: inline-block;
+            background-color: #2196f3;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 4px;
+            text-decoration: none;
+            margin-right: 10px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            border: none;
+            font-size: 16px;
+        }
+        
+        .button.primary {
+            background-color: #4caf50;
+            font-weight: bold;
+        }
+        
+        .button.warning {
+            background-color: #ff9800;
+        }
+        
+        pre {
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-family: monospace;
+        }
+        
+        .test-results {
+            margin-top: 20px;
+        }
+        
+        .test-result {
+            display: flex;
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            background-color: #f0f0f0;
+        }
+        
+        .test-result.success {
+            background-color: #e8f5e9;
+        }
+        
+        .test-result.error {
+            background-color: #ffebee;
+        }
+        
+        .test-endpoint {
+            flex: 1;
+            font-weight: bold;
+        }
+        
+        .test-status {
+            width: 80px;
+            text-align: center;
+        }
+        
+        .test-data {
+            flex: 2;
+            font-family: monospace;
+            font-size: 12px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fix API Connection</h1>
+    
+    <div class="warning">
+        <strong>Important:</strong> This tool will help you diagnose and fix API connection issues between the frontend and backend. It will test the connection to your backend server running on port 5001.
+    </div>
+    
+    <div class="card">
+        <h2>The Problem</h2>
+        <p>Your application is having trouble connecting to the backend API. The backend server appears to be running correctly at http://localhost:5001, but the frontend is not able to make API calls.</p>
+        <p>Possible issues:</p>
+        <ul>
+            <li>The API proxy in the React app is not working correctly</li>
+            <li>API calls are being blocked by fix-auth.js or other scripts</li>
+            <li>Fallback data is being used instead of real API data</li>
+            <li>CORS issues are preventing API calls</li>
+        </ul>
+    </div>
+    
+    <div class="card">
+        <h2>API Connection Test</h2>
+        <p>Click the buttons below to test and fix your API connection:</p>
+        
+        <button id="btn-test" class="button">Test API Connection</button>
+        <button id="btn-fix" class="button warning">Apply All Fixes</button>
+        <button id="btn-goto-app" class="button primary">Go to App</button>
+        
+        <div id="test-status" style="margin-top: 15px; font-weight: bold;"></div>
+        
+        <div id="test-results" class="test-results"></div>
+    </div>
+    
+    <div class="card">
+        <h2>Manual Setup Instructions</h2>
+        <p>If the automatic fixes don't work, you can try these steps manually:</p>
+        
+        <ol>
+            <li>Make sure your backend server is running on port 5001</li>
+            <li>Make sure your React development server is running on port 3000</li>
+            <li>Check that setupProxy.js is correctly configured to proxy /api requests to localhost:5001</li>
+            <li>Clear any localStorage entries that might force fallback mode</li>
+            <li>Add this script to your application to fix API connection issues:</li>
+        </ol>
+        
+        <pre>const script = document.createElement('script');
+script.src = '/api-connection-fix.js';
+document.head.appendChild(script);</pre>
+    </div>
+    
+    <script>
+        // Configuration
+        const config = {
+            apiUrl: 'http://localhost:5001/api',
+            proxyUrl: '/api',
+            useProxy: true,
+            testEndpoints: [
+                '/auth/status',
+                '/auth/login',
+                '/orders',
+                '/stations',
+                '/settings'
+            ],
+            loginCredentials: {
+                username: 'barista',
+                password: 'coffee123'
+            }
+        };
+        
+        // Elements
+        const testStatusEl = document.getElementById('test-status');
+        const testResultsEl = document.getElementById('test-results');
+        const btnTest = document.getElementById('btn-test');
+        const btnFix = document.getElementById('btn-fix');
+        const btnGotoApp = document.getElementById('btn-goto-app');
+        
+        // State
+        const state = {
+            testResults: {},
+            fixesApplied: false
+        };
+        
+        // Functions
+        function updateStatus(message, type = 'info') {
+            testStatusEl.textContent = message;
+            testStatusEl.className = type;
+        }
+        
+        function updateTestResult(endpoint, success, status, data) {
+            // Find or create result element
+            let resultEl = document.getElementById(`test-result-${endpoint.replace(/\//g, '-')}`);
+            
+            if (!resultEl) {
+                resultEl = document.createElement('div');
+                resultEl.id = `test-result-${endpoint.replace(/\//g, '-')}`;
+                resultEl.className = 'test-result';
+                testResultsEl.appendChild(resultEl);
+            }
+            
+            // Update result
+            resultEl.className = `test-result ${success ? 'success' : 'error'}`;
+            resultEl.innerHTML = `
+                <div class="test-endpoint">${endpoint}</div>
+                <div class="test-status">${status}</div>
+                <div class="test-data">${typeof data === 'object' ? JSON.stringify(data).substring(0, 100) : data}${typeof data === 'object' && JSON.stringify(data).length > 100 ? '...' : ''}</div>
+            `;
+        }
+        
+        async function testEndpoint(endpoint) {
+            // Determine full URL
+            const url = config.useProxy ? 
+                `${config.proxyUrl}${endpoint}` : 
+                `${config.apiUrl}${endpoint}`;
+                
+            try {
+                // Create headers
+                const headers = {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                };
+                
+                // Add auth token if available
+                const token = localStorage.getItem('coffee_auth_token');
+                if (token && endpoint !== '/auth/login') {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+                
+                // Prepare request options
+                const options = {
+                    method: endpoint === '/auth/login' ? 'POST' : 'GET',
+                    headers: headers,
+                    credentials: 'include'
+                };
+                
+                // Add body for login request
+                if (endpoint === '/auth/login') {
+                    options.body = JSON.stringify(config.loginCredentials);
+                }
+                
+                // Make request
+                const response = await fetch(url, options);
+                
+                // Try to parse response as JSON
+                let data;
+                try {
+                    data = await response.json();
+                } catch(e) {
+                    data = { error: 'Could not parse response as JSON' };
+                }
+                
+                // Store result
+                state.testResults[endpoint] = {
+                    success: response.ok,
+                    status: response.status,
+                    data: data
+                };
+                
+                // Update UI
+                updateTestResult(endpoint, response.ok, response.status, data);
+                
+                return {
+                    success: response.ok,
+                    status: response.status,
+                    data: data
+                };
+            } catch(error) {
+                // Store result
+                state.testResults[endpoint] = {
+                    success: false,
+                    status: 0,
+                    error: error.message
+                };
+                
+                // Update UI
+                updateTestResult(endpoint, false, 0, error.message);
+                
+                return {
+                    success: false,
+                    status: 0,
+                    error: error.message
+                };
+            }
+        }
+        
+        async function testAllEndpoints() {
+            updateStatus('Testing API connection...', 'warning');
+            
+            // Clear previous results
+            state.testResults = {};
+            testResultsEl.innerHTML = '';
+            
+            // Track success count
+            let successCount = 0;
+            
+            // Test each endpoint
+            for (const endpoint of config.testEndpoints) {
+                const result = await testEndpoint(endpoint);
+                if (result.success) {
+                    successCount++;
+                }
+            }
+            
+            // Update status
+            if (successCount === config.testEndpoints.length) {
+                updateStatus('All API endpoints are accessible!', 'success');
+            } else if (successCount > 0) {
+                updateStatus(`${successCount} of ${config.testEndpoints.length} endpoints accessible`, 'warning');
+            } else {
+                updateStatus('No API endpoints accessible', 'error');
+            }
+            
+            return {
+                success: successCount > 0,
+                successCount,
+                totalCount: config.testEndpoints.length
+            };
+        }
+        
+        function clearLocalStorage() {
+            // Known fallback data keys
+            const fallbackKeys = [
+                'fallback_pending_orders',
+                'fallback_in_progress_orders',
+                'fallback_completed_orders',
+                'sample_orders',
+                'demo_orders',
+                'coffee_fallback_data'
+            ];
+            
+            // Clear fallback data
+            fallbackKeys.forEach(key => {
+                localStorage.removeItem(key);
+            });
+            
+            // Clear fallback flags
+            localStorage.removeItem('use_fallback_data');
+            localStorage.removeItem('force_offline_mode');
+            localStorage.setItem('coffee_connection_status', 'online');
+            localStorage.setItem('api_mode', 'online');
+            localStorage.removeItem('use_sample_data');
+            localStorage.removeItem('use_offline_mode');
+            localStorage.removeItem('force_demo_mode');
+        }
+        
+        function createJwtToken() {
+            // Create token header
+            const header = {
+                alg: 'HS256',
+                typ: 'JWT'
+            };
+            
+            // Create token payload
+            const now = Math.floor(Date.now() / 1000);
+            const payload = {
+                sub: 'barista',
+                name: 'Barista User',
+                role: 'barista',
+                iat: now,
+                exp: now + 86400 * 30,
+                jti: 'fix-' + Math.random().toString(36).substring(2)
+            };
+            
+            // Encode parts
+            const encodeBase64 = (obj) => {
+                return btoa(JSON.stringify(obj))
+                    .replace(/=/g, '')
+                    .replace(/\+/g, '-')
+                    .replace(/\//g, '_');
+            };
+            
+            const headerEncoded = encodeBase64(header);
+            const payloadEncoded = encodeBase64(payload);
+            
+            // Create signature
+            const signature = btoa('signature-placeholder')
+                .replace(/=/g, '')
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_');
+            
+            // Combine to form token
+            const token = `${headerEncoded}.${payloadEncoded}.${signature}`;
+            
+            // Store token
+            localStorage.setItem('coffee_auth_token', token);
+            localStorage.setItem('authenticated', 'true');
+            localStorage.setItem('user_role', 'barista');
+            localStorage.setItem('user_name', 'Barista User');
+            
+            return token;
+        }
+        
+        async function applyFixes() {
+            updateStatus('Applying fixes...', 'warning');
+            
+            // Clear localStorage
+            clearLocalStorage();
+            
+            // Create JWT token
+            createJwtToken();
+            
+            // Load the API connection fix script
+            const script = document.createElement('script');
+            script.src = '/api-connection-fix.js';
+            document.head.appendChild(script);
+            
+            // Wait for script to load
+            await new Promise(resolve => {
+                script.onload = resolve;
+                setTimeout(resolve, 1000); // Fallback timeout
+            });
+            
+            state.fixesApplied = true;
+            updateStatus('Fixes applied, testing API connection...', 'success');
+            
+            // Test API connection
+            setTimeout(() => {
+                testAllEndpoints();
+            }, 500);
+        }
+        
+        // Event listeners
+        btnTest.addEventListener('click', testAllEndpoints);
+        btnFix.addEventListener('click', applyFixes);
+        btnGotoApp.addEventListener('click', () => {
+            window.location.href = '/';
+        });
+        
+        // Init
+        window.addEventListener('load', () => {
+            updateStatus('Ready to test API connection', 'info');
+        });
+    </script>
+</body>
+</html>

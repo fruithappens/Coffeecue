@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Force Allocated Update</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            padding: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #f5f5f5;
+        }
+        h1 { color: #333; }
+        .section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .error { 
+            background-color: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .success { 
+            background-color: #e8f5e9;
+            color: #2e7d32;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .warning {
+            background-color: #fff3e0;
+            color: #e65100;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .info {
+            background-color: #e3f2fd;
+            color: #1565c0;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        button {
+            background: #1a73e8;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #1557b0;
+        }
+        .critical {
+            background: #d32f2f;
+        }
+        .critical:hover {
+            background: #b71c1c;
+        }
+        .data {
+            background: #f0f8ff;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 5px 0;
+            font-family: monospace;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>🚀 Force Allocated Update</h1>
+    
+    <div class="section">
+        <h2>Current Problem</h2>
+        <p>The Event Stock page is showing "Allocated: L" (empty) instead of the actual allocated amounts like "35 L".</p>
+        <p>This means the React component isn't reading the updated localStorage values correctly.</p>
+    </div>
+    
+    <div class="section">
+        <h2>🔧 Force Update Actions</h2>
+        <button onclick="fixAllocatedDisplay()">1. Fix Allocated Display</button>
+        <button onclick="dispatchUpdateEvent()">2. Dispatch Update Event</button>
+        <button onclick="clearAndRecalculate()">3. Clear Cache & Recalculate</button>
+        <button class="critical" onclick="debugReactComponent()">4. Debug React Component</button>
+    </div>
+    
+    <div class="section">
+        <h2>📋 Results</h2>
+        <div id="results"></div>
+    </div>
+
+    <script>
+        function fixAllocatedDisplay() {
+            const results = document.getElementById('results');
+            let html = '<h3>🔧 Fixing Allocated Display...</h3>';
+            
+            try {
+                const stationQuantities = localStorage.getItem('station_inventory_quantities');
+                const eventStockLevels = localStorage.getItem('event_stock_levels');
+                
+                if (!stationQuantities || !eventStockLevels) {
+                    html += '<div class="error">❌ Missing required data</div>';
+                    results.innerHTML = html;
+                    return;
+                }
+                
+                const quantities = JSON.parse(stationQuantities);
+                const eventStock = JSON.parse(eventStockLevels);
+                
+                html += '<div class="info">📊 Current Event Stock Data:</div>';
+                html += '<div class="data">' + JSON.stringify(eventStock, null, 2).substring(0, 500) + '...</div>';
+                
+                // Calculate and fix allocated amounts
+                let updates = [];
+                
+                Object.keys(eventStock).forEach(category => {
+                    Object.keys(eventStock[category]).forEach(itemId => {
+                        // Calculate total allocated from all stations
+                        let totalAllocated = 0;
+                        
+                        Object.keys(quantities).forEach(stationId => {
+                            const stationData = quantities[stationId];
+                            if (stationData[category] && stationData[category][itemId]) {
+                                const quantity = stationData[category][itemId].quantity || 0;
+                                totalAllocated += quantity;
+                            }
+                        });
+                        
+                        // Update the event stock with explicit numeric values
+                        const oldAllocated = eventStock[category][itemId].allocated;
+                        eventStock[category][itemId].allocated = totalAllocated;
+                        eventStock[category][itemId].available = Math.max(0, 
+                            eventStock[category][itemId].quantity - totalAllocated
+                        );
+                        
+                        updates.push({
+                            item: `${category}/${itemId}`,
+                            old: oldAllocated,
+                            new: totalAllocated,
+                            unit: eventStock[category][itemId].unit
+                        });
+                    });
+                });
+                
+                // Save the updated event stock
+                localStorage.setItem('event_stock_levels', JSON.stringify(eventStock));
+                
+                html += '<div class="success">✅ Updated Event Stock with calculated allocated amounts:</div>';
+                updates.forEach(update => {
+                    html += `<div>• ${update.item}: ${update.old} → <strong>${update.new} ${update.unit}</strong></div>`;
+                });
+                
+                html += '<div class="info">🔄 Now try refreshing the Event Stock page</div>';
+                
+            } catch (e) {
+                html += '<div class="error">❌ Error: ' + e.message + '</div>';
+            }
+            
+            results.innerHTML = html;
+        }
+        
+        function dispatchUpdateEvent() {
+            const results = document.getElementById('results');
+            let html = '<h3>📡 Dispatching Update Events...</h3>';
+            
+            // Dispatch multiple events that might trigger React component updates
+            const events = [
+                'eventStock:updated',
+                'stationInventory:updated', 
+                'inventory:updated',
+                'stock:updated'
+            ];
+            
+            events.forEach(eventName => {
+                window.dispatchEvent(new CustomEvent(eventName, {
+                    detail: { 
+                        source: 'manual-fix',
+                        timestamp: new Date().toISOString()
+                    }
+                }));
+                html += `<div class="success">✅ Dispatched ${eventName} event</div>`;
+            });
+            
+            html += '<div class="info">💡 These events should trigger React components to re-read localStorage and update the display</div>';
+            html += '<div class="warning">🔄 Refresh the Event Stock page to see if it picks up the changes</div>';
+            
+            results.innerHTML = html;
+        }
+        
+        function clearAndRecalculate() {
+            const results = document.getElementById('results');
+            let html = '<h3>🧹 Clearing Cache & Recalculating...</h3>';
+            
+            // Clear any React component caches
+            const cacheKeys = [
+                'coffee_stock_cache',
+                'stockService_lastFetch',
+                'eventStock_cache',
+                'inventory_cache'
+            ];
+            
+            cacheKeys.forEach(key => {
+                if (localStorage.getItem(key)) {
+                    localStorage.removeItem(key);
+                    html += `<div>🗑️ Cleared ${key}</div>`;
+                }
+            });
+            
+            // Force recalculate
+            fixAllocatedDisplay();
+            
+            // Dispatch events
+            setTimeout(() => {
+                dispatchUpdateEvent();
+            }, 100);
+            
+            html += '<div class="success">✅ Cache cleared and data recalculated</div>';
+            html += '<div class="critical">🚨 IMPORTANT: Refresh the entire Organiser page (F5 or Cmd+R) to force React to reload</div>';
+            
+            results.innerHTML = html;
+        }
+        
+        function debugReactComponent() {
+            const results = document.getElementById('results');
+            let html = '<h3>🔍 Debugging React Component...</h3>';
+            
+            html += '<div class="info">🔍 Current localStorage values that React should be reading:</div>';
+            
+            // Show current event stock levels
+            const eventStock = localStorage.getItem('event_stock_levels');
+            if (eventStock) {
+                try {
+                    const stock = JSON.parse(eventStock);
+                    html += '<div class="data"><strong>event_stock_levels:</strong>\n' + JSON.stringify(stock, null, 2) + '</div>';
+                    
+                    // Check if allocated values are numbers
+                    let hasNumericAllocated = false;
+                    Object.keys(stock).forEach(category => {
+                        Object.keys(stock[category]).forEach(itemId => {
+                            const allocated = stock[category][itemId].allocated;
+                            if (typeof allocated === 'number' && allocated > 0) {
+                                hasNumericAllocated = true;
+                            }
+                        });
+                    });
+                    
+                    if (hasNumericAllocated) {
+                        html += '<div class="success">✅ localStorage has numeric allocated values</div>';
+                        html += '<div class="error">❌ React component is not displaying these values correctly</div>';
+                        html += '<div class="warning">🔧 This suggests the React component needs to be refreshed or has a rendering bug</div>';
+                    } else {
+                        html += '<div class="error">❌ localStorage allocated values are still 0 or undefined</div>';
+                    }
+                } catch (e) {
+                    html += '<div class="error">❌ Can\'t parse event stock data</div>';
+                }
+            }
+            
+            // Show station quantities
+            const stationQuantities = localStorage.getItem('station_inventory_quantities');
+            if (stationQuantities) {
+                try {
+                    const quantities = JSON.parse(stationQuantities);
+                    html += '<div class="data"><strong>station_inventory_quantities:</strong>\n' + JSON.stringify(quantities, null, 2) + '</div>';
+                } catch (e) {
+                    html += '<div class="error">❌ Can\'t parse station quantities</div>';
+                }
+            }
+            
+            html += '<div class="critical">🚨 If localStorage has the correct values but React isn\'t showing them:</div>';
+            html += '<div>1. The React component might be cached</div>';
+            html += '<div>2. Try a hard refresh (Ctrl+F5 or Cmd+Shift+R)</div>';
+            html += '<div>3. The component might not be re-reading localStorage on mount</div>';
+            html += '<div>4. There might be a state management issue in React</div>';
+            
+            results.innerHTML = html;
+        }
+        
+        // Auto-run the fix on load
+        window.onload = () => {
+            fixAllocatedDisplay();
+        };
+    </script>
+</body>
+</html>

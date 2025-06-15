@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Automated Coffee Cue UI Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .running { background: #fef3c7; }
+        .passed { background: #d1fae5; }
+        .failed { background: #fee2e2; }
+        #testFrame { width: 100%; height: 600px; border: 2px solid #e5e7eb; }
+        .controls { margin: 20px 0; }
+        button { padding: 10px 20px; margin-right: 10px; cursor: pointer; }
+        .log { background: #f3f4f6; padding: 10px; border-radius: 4px; max-height: 300px; overflow-y: auto; }
+        .log-entry { margin: 2px 0; font-family: monospace; font-size: 12px; }
+        .error { color: #dc2626; }
+        .success { color: #059669; }
+    </style>
+</head>
+<body>
+    <h1>🤖 Automated Coffee Cue UI Test</h1>
+    
+    <div class="controls">
+        <button onclick="startTest()">▶️ Start Automated Test</button>
+        <button onclick="stopTest()">⏹️ Stop Test</button>
+        <button onclick="generateReport()">📋 Generate Report</button>
+    </div>
+    
+    <div id="status" class="status">Ready to start testing...</div>
+    
+    <div class="log" id="log">
+        <div class="log-entry">Test log will appear here...</div>
+    </div>
+    
+    <iframe id="testFrame" src="http://localhost:3000"></iframe>
+    
+    <script>
+        let testRunning = false;
+        let testResults = [];
+        let currentTest = null;
+        
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        function updateStatus(message, state = 'running') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${state}`;
+        }
+        
+        async function waitForFrame() {
+            return new Promise((resolve) => {
+                const checkInterval = setInterval(() => {
+                    try {
+                        const frame = document.getElementById('testFrame');
+                        if (frame.contentWindow && frame.contentDocument && frame.contentDocument.readyState === 'complete') {
+                            clearInterval(checkInterval);
+                            resolve(frame);
+                        }
+                    } catch (e) {
+                        // Cross-origin, keep trying
+                    }
+                }, 100);
+            });
+        }
+        
+        async function runTest(name, testFunction) {
+            if (!testRunning) return false;
+            
+            currentTest = { name, startTime: Date.now() };
+            log(`🧪 ${name}...`);
+            
+            try {
+                const result = await testFunction();
+                const duration = Date.now() - currentTest.startTime;
+                
+                testResults.push({
+                    name,
+                    passed: result.success,
+                    message: result.message,
+                    duration
+                });
+                
+                if (result.success) {
+                    log(`✅ ${name}: ${result.message}`, 'success');
+                } else {
+                    log(`❌ ${name}: ${result.message}`, 'error');
+                }
+                
+                return result.success;
+            } catch (error) {
+                testResults.push({
+                    name,
+                    passed: false,
+                    message: error.message,
+                    duration: Date.now() - currentTest.startTime
+                });
+                log(`❌ ${name}: ${error.message}`, 'error');
+                return false;
+            }
+        }
+        
+        async function startTest() {
+            testRunning = true;
+            testResults = [];
+            updateStatus('🚀 Starting automated UI test...', 'running');
+            log('Starting automated UI test suite', 'success');
+            
+            const frame = await waitForFrame();
+            
+            // Test 1: Check if app loaded
+            await runTest('App Load Test', async () => {
+                try {
+                    const doc = frame.contentDocument;
+                    const root = doc.getElementById('root');
+                    if (root && root.children.length > 0) {
+                        return { success: true, message: 'React app loaded successfully' };
+                    }
+                    return { success: false, message: 'React root not found or empty' };
+                } catch (e) {
+                    // Try injecting test script
+                    return await injectAndTest(frame, 'checkAppLoaded');
+                }
+            });
+            
+            // Test 2: Login test
+            await runTest('Login Test', async () => {
+                return await injectAndTest(frame, 'testLogin');
+            });
+            
+            // Test 3: Navigation test
+            await runTest('Navigation Test', async () => {
+                return await injectAndTest(frame, 'testNavigation');
+            });
+            
+            // Test 4: Button click test
+            await runTest('Button Interaction Test', async () => {
+                return await injectAndTest(frame, 'testButtons');
+            });
+            
+            // Test 5: Settings persistence test
+            await runTest('Settings Persistence Test', async () => {
+                return await injectAndTest(frame, 'testSettings');
+            });
+            
+            // Test 6: Audio system test
+            await runTest('Audio System Test', async () => {
+                return await injectAndTest(frame, 'testAudio');
+            });
+            
+            // Test 7: Display tab test
+            await runTest('Display Tab Test', async () => {
+                return await injectAndTest(frame, 'testDisplayTab');
+            });
+            
+            // Complete
+            const passed = testResults.filter(t => t.passed).length;
+            const total = testResults.length;
+            updateStatus(`✅ Test complete: ${passed}/${total} tests passed`, passed === total ? 'passed' : 'failed');
+            log(`Test suite complete: ${passed}/${total} passed`, passed === total ? 'success' : 'error');
+            
+            testRunning = false;
+        }
+        
+        async function injectAndTest(frame, testName) {
+            return new Promise((resolve) => {
+                try {
+                    // Create a script to inject
+                    const script = document.createElement('script');
+                    script.textContent = `
+                        (function() {
+                            window.testResults = window.testResults || {};
+                            
+                            // Define test functions
+                            const tests = {
+                                checkAppLoaded: () => {
+                                    const root = document.getElementById('root');
+                                    return {
+                                        success: root && root.children.length > 0,
+                                        message: root ? 'App loaded' : 'Root element not found'
+                                    };
+                                },
+                                
+                                testLogin: () => {
+                                    const inputs = document.querySelectorAll('input');
+                                    const buttons = document.querySelectorAll('button');
+                                    
+                                    // Look for login form
+                                    let usernameInput = null;
+                                    let passwordInput = null;
+                                    let loginButton = null;
+                                    
+                                    inputs.forEach(input => {
+                                        if (input.type === 'text' || input.placeholder?.toLowerCase().includes('username')) {
+                                            usernameInput = input;
+                                        }
+                                        if (input.type === 'password') {
+                                            passwordInput = input;
+                                        }
+                                    });
+                                    
+                                    buttons.forEach(button => {
+                                        if (button.textContent.toLowerCase().includes('login') || 
+                                            button.textContent.toLowerCase().includes('sign in')) {
+                                            loginButton = button;
+                                        }
+                                    });
+                                    
+                                    if (usernameInput && passwordInput && loginButton) {
+                                        // Fill in credentials
+                                        usernameInput.value = 'barista';
+                                        passwordInput.value = 'barista123';
+                                        
+                                        // Trigger change events
+                                        usernameInput.dispatchEvent(new Event('change', { bubbles: true }));
+                                        passwordInput.dispatchEvent(new Event('change', { bubbles: true }));
+                                        
+                                        // Click login
+                                        loginButton.click();
+                                        
+                                        return { success: true, message: 'Login form filled and submitted' };
+                                    }
+                                    
+                                    // Check if already logged in
+                                    const logoutButton = Array.from(buttons).find(b => 
+                                        b.textContent.toLowerCase().includes('logout')
+                                    );
+                                    
+                                    if (logoutButton) {
+                                        return { success: true, message: 'Already logged in' };
+                                    }
+                                    
+                                    return { success: false, message: 'Login form not found' };
+                                },
+                                
+                                testNavigation: () => {
+                                    const tabs = document.querySelectorAll('[role="tab"], .tab, button[data-tab]');
+                                    if (tabs.length > 0) {
+                                        let clicked = 0;
+                                        tabs.forEach((tab, index) => {
+                                            if (index < 5) { // Click first 5 tabs
+                                                setTimeout(() => tab.click(), index * 200);
+                                                clicked++;
+                                            }
+                                        });
+                                        return { success: true, message: \`Found and clicked \${clicked} tabs\` };
+                                    }
+                                    return { success: false, message: 'No tabs found' };
+                                },
+                                
+                                testButtons: () => {
+                                    const buttons = document.querySelectorAll('button');
+                                    const safeButtons = Array.from(buttons).filter(b => {
+                                        const text = b.textContent.toLowerCase();
+                                        return !text.includes('logout') && 
+                                               !text.includes('delete') && 
+                                               !text.includes('remove');
+                                    });
+                                    
+                                    if (safeButtons.length > 0) {
+                                        let clicked = 0;
+                                        safeButtons.slice(0, 10).forEach((button, index) => {
+                                            setTimeout(() => {
+                                                button.click();
+                                                console.log('Clicked:', button.textContent);
+                                            }, index * 100);
+                                            clicked++;
+                                        });
+                                        return { success: true, message: \`Found and clicked \${clicked} buttons\` };
+                                    }
+                                    return { success: false, message: 'No buttons found' };
+                                },
+                                
+                                testSettings: () => {
+                                    // Find settings toggles
+                                    const toggles = document.querySelectorAll('input[type="checkbox"], button[role="switch"]');
+                                    if (toggles.length > 0) {
+                                        const firstToggle = toggles[0];
+                                        const initialState = firstToggle.checked;
+                                        
+                                        // Toggle it
+                                        firstToggle.click();
+                                        
+                                        // Check localStorage
+                                        const savedSettings = localStorage.getItem('coffee_cue_barista_settings');
+                                        
+                                        return { 
+                                            success: savedSettings !== null, 
+                                            message: savedSettings ? 'Settings saved to localStorage' : 'Settings not persisted' 
+                                        };
+                                    }
+                                    return { success: false, message: 'No settings toggles found' };
+                                },
+                                
+                                testAudio: () => {
+                                    if (window.CoffeeSounds && window.CoffeeSounds.initialized) {
+                                        return { success: true, message: 'Audio system initialized' };
+                                    }
+                                    return { success: false, message: 'Audio system not found' };
+                                },
+                                
+                                testDisplayTab: () => {
+                                    // Look for QR codes or display settings
+                                    const images = document.querySelectorAll('img[src*="qr"], img[alt*="QR"]');
+                                    const displaySettings = document.querySelectorAll('[data-testid*="display"], .display-settings');
+                                    
+                                    if (images.length > 0) {
+                                        return { success: true, message: \`Found \${images.length} QR codes\` };
+                                    }
+                                    if (displaySettings.length > 0) {
+                                        return { success: true, message: 'Display settings found' };
+                                    }
+                                    return { success: false, message: 'Display features not found' };
+                                }
+                            };
+                            
+                            // Run the requested test
+                            try {
+                                window.testResults['${testName}'] = tests['${testName}']();
+                            } catch (e) {
+                                window.testResults['${testName}'] = { success: false, message: e.message };
+                            }
+                        })();
+                    `;
+                    
+                    frame.contentDocument.body.appendChild(script);
+                    
+                    // Wait a bit for test to complete
+                    setTimeout(() => {
+                        try {
+                            const result = frame.contentWindow.testResults[testName];
+                            resolve(result || { success: false, message: 'Test did not complete' });
+                        } catch (e) {
+                            resolve({ success: false, message: 'Cannot access frame: ' + e.message });
+                        }
+                    }, 1000);
+                    
+                } catch (e) {
+                    resolve({ success: false, message: 'Injection failed: ' + e.message });
+                }
+            });
+        }
+        
+        function stopTest() {
+            testRunning = false;
+            updateStatus('Test stopped by user', 'failed');
+            log('Test stopped by user', 'error');
+        }
+        
+        function generateReport() {
+            const report = {
+                timestamp: new Date().toISOString(),
+                results: testResults,
+                summary: {
+                    total: testResults.length,
+                    passed: testResults.filter(t => t.passed).length,
+                    failed: testResults.filter(t => !t.passed).length,
+                    duration: testResults.reduce((sum, t) => sum + (t.duration || 0), 0)
+                }
+            };
+            
+            // Send to backend
+            fetch('http://localhost:5001/api/test-report', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(report)
+            }).catch(() => {
+                console.log('Could not send report to backend');
+            });
+            
+            // Open report in new window
+            const reportWindow = window.open('', '_blank');
+            reportWindow.document.write(`
+                <html>
+                <head><title>Coffee Cue Automated Test Report</title></head>
+                <body style="font-family: Arial, sans-serif; padding: 20px;">
+                    <h1>🤖 Coffee Cue Automated Test Report</h1>
+                    <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
+                    <h2>Summary</h2>
+                    <p>✅ Passed: ${report.summary.passed}</p>
+                    <p>❌ Failed: ${report.summary.failed}</p>
+                    <p>📊 Total: ${report.summary.total}</p>
+                    <p>⏱️ Duration: ${report.summary.duration}ms</p>
+                    <h2>Detailed Results</h2>
+                    ${testResults.map(r => `
+                        <div style="margin: 10px 0; padding: 10px; background: ${r.passed ? '#d1fae5' : '#fee2e2'}; border-radius: 4px;">
+                            ${r.passed ? '✅' : '❌'} <strong>${r.name}</strong><br>
+                            ${r.message}<br>
+                            <small>Duration: ${r.duration}ms</small>
+                        </div>
+                    `).join('')}
+                    <h2>JSON Report</h2>
+                    <pre style="background: #f3f4f6; padding: 10px; border-radius: 4px;">${JSON.stringify(report, null, 2)}</pre>
+                </body>
+                </html>
+            `);
+            
+            log('Report generated', 'success');
+        }
+    </script>
+</body>
+</html>

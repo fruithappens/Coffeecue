@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fix CORS Properly</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+            line-height: 1.6;
+        }
+        h1, h2, h3 {
+            color: #333;
+        }
+        .card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .code-block {
+            background-color: #f8f9fa;
+            border: 1px solid #eaecef;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            overflow-x: auto;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 4px;
+            margin: 15px 0;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .steps {
+            counter-reset: step;
+            margin-left: 0;
+            padding-left: 0;
+        }
+        .step {
+            list-style-type: none;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 4px solid #4CAF50;
+            background-color: #f9f9f9;
+            counter-increment: step;
+            position: relative;
+            padding-left: 50px;
+        }
+        .step::before {
+            content: "Step " counter(step);
+            position: absolute;
+            left: 5px;
+            top: 15px;
+            background: #4CAF50;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .download-box {
+            background-color: #e7f3fe;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fix CORS Properly</h1>
+    
+    <div class="card">
+        <h2>Problem Analysis</h2>
+        <div class="status error">
+            <p>Your app.py has multiple places setting CORS headers, causing conflicts:</p>
+            <ol>
+                <li>Flask-CORS extension initialization</li>
+                <li>Manual header setting in an after_request handler</li>
+                <li>Multiple other places where headers are set directly</li>
+            </ol>
+        </div>
+        
+        <p>This is causing browsers to receive multiple conflicting 'Access-Control-Allow-Origin' headers, which they reject.</p>
+    </div>
+    
+    <div class="card">
+        <h2>Manual Fix Instructions</h2>
+        <p>Follow these steps to fix the CORS issue properly:</p>
+        
+        <ol class="steps">
+            <li class="step">
+                <h3>Edit app.py</h3>
+                <p>Open /Users/stevewf/expresso/app.py in your text editor</p>
+            </li>
+            
+            <li class="step">
+                <h3>Find and Update CORS Initialization</h3>
+                <p>Find this line:</p>
+                <div class="code-block">CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)</div>
+                
+                <p>Leave this line alone (it's the correct way to set up CORS with Flask-CORS).</p>
+            </li>
+            
+            <li class="step">
+                <h3>Remove Manual CORS Headers in after_request</h3>
+                <p>Find this section:</p>
+                <div class="code-block">@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    response.headers.add('Access-Control-Allow-Credentials', 'true')
+    
+    # Only log CORS headers for non-OPTIONS requests to reduce log noise
+    if request.method != 'OPTIONS':
+        logger.info(f"Added CORS headers to response for: {request.path}")
+    return response</div>
+                
+                <p>And change it to:</p>
+                <div class="code-block">@app.after_request
+def after_request(response):
+    # CORS headers are handled by Flask-CORS extension
+    
+    # Only log API requests for non-OPTIONS requests to reduce log noise
+    if request.method != 'OPTIONS':
+        logger.info(f"Processing response for: {request.path}")
+    return response</div>
+            </li>
+            
+            <li class="step">
+                <h3>Similarly, Check Other Manual Headers</h3>
+                <p>Look for and remove any other manual CORS header additions:</p>
+                <div class="code-block"># Replace:
+resp.headers['Access-Control-Allow-Origin'] = '*'
+resp.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
+resp.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+
+# With a comment:
+# CORS headers are handled by Flask-CORS extension</div>
+            </li>
+        </ol>
+    </div>
+    
+    <div class="card">
+        <h2>Automatic Fix Script</h2>
+        <p>I've prepared a new script that will make these specific changes to fix the CORS issue:</p>
+        
+        <div class="download-box">
+            <a href="/fix-cors-properly.py" download>
+                <button>Download CORS Fix Script</button>
+            </a>
+        </div>
+        
+        <p>To use the script:</p>
+        <div class="code-block">cd /Users/stevewf/expresso
+python3 Barista\ Front\ End/public/fix-cors-properly.py</div>
+    </div>
+    
+    <div class="card">
+        <h2>Temporary Workaround</h2>
+        <p>While fixing the CORS issue, you can temporarily disable auto-refresh:</p>
+        
+        <div class="download-box">
+            <a href="/disable-refresh.html">
+                <button>Disable Auto-Refresh</button>
+            </a>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ event_name }} - Order Status</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="refresh" content="30">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Added Socket.IO script -->
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <style>
+        body {
+            background-color: #f8f9fa;
+            padding: 0;
+            margin: 0;
+        }
+        .header {
+            background-color: #343a40;
+            color: white;
+            padding: 15px 0;
+            margin-bottom: 20px;
+        }
+        .station-card {
+            margin-bottom: 20px;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .station-header {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 15px;
+        }
+        .order-row {
+            padding: 10px 15px;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .order-row:last-child {
+            border-bottom: none;
+        }
+        .status-pending {
+            background-color: #f8d7da;
+            border-left: 5px solid #dc3545;
+        }
+        .status-in-progress {
+            background-color: #fff3cd;
+            border-left: 5px solid #ffc107;
+        }
+        .status-completed {
+            background-color: #d1e7dd;
+            border-left: 5px solid #198754;
+        }
+        .order-number {
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+        .order-description {
+            font-size: 1.1rem;
+        }
+        .order-time {
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+        .station-inactive {
+            background-color: #6c757d !important;
+        }
+        .footer {
+            background-color: #f8f9fa;
+            padding: 10px 0;
+            border-top: 1px solid #dee2e6;
+            margin-top: 20px;
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+        @media (min-width: 992px) {
+            .station-container {
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: space-between;
+            }
+            .station-column {
+                width: 48%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header text-center">
+        <h1>{{ event_name }}</h1>
+        <h2>Order Status</h2>
+    </div>
+    
+    <div class="container">
+        {% if sponsor_display and sponsor_message %}
+        <div class="alert alert-primary text-center mb-4">
+            {{ sponsor_message }}
+        </div>
+        {% endif %}
+        
+        <div class="station-container">
+            {% for station in stations %}
+            <div class="station-column">
+                <div class="card station-card">
+                    <div class="station-header {% if station[1] != 'active' %}station-inactive{% endif %}">
+                        <h3>Station {{ station[0] }} 
+                            {% if station[2] %}
+                            <span class="badge bg-light text-dark">Barista: {{ station[2] }}</span>
+                            {% endif %}
+                        </h3>
+                        <div>
+                            Status: 
+                            {% if station[1] == 'active' %}
+                            <span class="badge bg-success">Active</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ station[1]|capitalize }}</span>
+                            {% endif %}
+                            
+                            Load: 
+                            {% if station[3] == 0 %}
+                            <span class="badge bg-success">Low</span>
+                            {% elif station[3] == 1 %}
+                            <span class="badge bg-warning text-dark">Medium</span>
+                            {% elif station[3] == 2 %}
+                            <span class="badge bg-danger">High</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Unknown</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="card-body p-0">
+                        {% set station_orders = orders_by_station.get(station[0], {'pending': [], 'in-progress': [], 'completed': []}) %}
+                        
+                        {% if station_orders['in-progress']|length == 0 and station_orders['pending']|length == 0 and station_orders['completed']|length == 0 %}
+                        <div class="p-4 text-center">
+                            <p>No active orders for this station</p>
+                        </div>
+                        {% endif %}
+                        
+                        {% for order in station_orders['in-progress'] %}
+                        <div class="order-row status-in-progress">
+                            <div class="d-flex justify-content-between">
+                                <div class="order-number">#{{ order.order_number }}</div>
+                                <div class="badge bg-warning text-dark">In Progress</div>
+                            </div>
+                            <div class="order-description">{{ order.description }}</div>
+                            <div class="order-time">{{ order.created_time }} • {{ order.display_phone }}</div>
+                        </div>
+                        {% endfor %}
+                        
+                        {% for order in station_orders['pending'] %}
+                        <div class="order-row status-pending">
+                            <div class="d-flex justify-content-between">
+                                <div class="order-number">#{{ order.order_number }}</div>
+                                <div class="badge bg-danger">Pending</div>
+                            </div>
+                            <div class="order-description">{{ order.description }}</div>
+                            <div class="order-time">{{ order.created_time }} • {{ order.display_phone }}</div>
+                        </div>
+                        {% endfor %}
+                        
+                        {% for order in station_orders['completed'][:3] %}
+                        <div class="order-row status-completed">
+                            <div class="d-flex justify-content-between">
+                                <div class="order-number">#{{ order.order_number }}</div>
+                                <div class="badge bg-success">Ready for pickup</div>
+                            </div>
+                            <div class="order-description">{{ order.description }}</div>
+                            <div class="order-time">{{ order.created_time }} • {{ order.display_phone }}</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <div class="footer text-center">
+        <div class="container">
+            <p>Order status is updated automatically every 30 seconds</p>
+            <p>&copy; {{ event_name }} - Coffee Order Status Board</p>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

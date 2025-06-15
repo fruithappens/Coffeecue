@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Coffee Cue Automated Test Runner</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; }
+        h1 { color: #2563eb; }
+        .step { background: #f3f4f6; padding: 20px; margin: 20px 0; border-radius: 8px; }
+        .step h3 { margin-top: 0; }
+        button { background: #3b82f6; color: white; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; }
+        button:hover { background: #2563eb; }
+        .code { background: #1f2937; color: #fff; padding: 15px; border-radius: 4px; font-family: monospace; margin: 10px 0; }
+        .success { color: #10b981; }
+        .info { color: #3b82f6; }
+        .warning { color: #f59e0b; }
+    </style>
+</head>
+<body>
+    <h1>🤖 Coffee Cue Automated Test Runner</h1>
+    
+    <div class="step">
+        <h3>Step 1: Open Coffee Cue App</h3>
+        <p>Click the button below to open the Coffee Cue app in a new window:</p>
+        <button onclick="openApp()">🚀 Open Coffee Cue App</button>
+    </div>
+    
+    <div class="step">
+        <h3>Step 2: Run Automated Tests</h3>
+        <p>Once the app is loaded and you're logged in, open the browser console (F12) in the Coffee Cue window and run:</p>
+        <div class="code">window.CoffeeAutoTest.runAllTests()</div>
+        <p class="info">💡 The tests will automatically click through the UI and test all features!</p>
+    </div>
+    
+    <div class="step">
+        <h3>Step 3: View Results</h3>
+        <p>After tests complete, view the report by running:</p>
+        <div class="code">window.CoffeeAutoTest.showReport()</div>
+        <p>The results will be displayed in the console with pass/fail status for each test.</p>
+    </div>
+    
+    <div class="step">
+        <h3>Alternative: Auto-Run Tests</h3>
+        <p>To run tests automatically on page load:</p>
+        <button onclick="openWithAutoTest()">🎯 Open App with Auto-Test</button>
+        <p class="warning">⚠️ This will start testing 3 seconds after the page loads</p>
+    </div>
+    
+    <script>
+        function openApp() {
+            window.open('http://localhost:3000', 'coffeeTest', 'width=1200,height=800');
+        }
+        
+        function openWithAutoTest() {
+            window.open('http://localhost:3000?autotest=true', 'coffeeTest', 'width=1200,height=800');
+        }
+    </script>
+</body>
+</html>

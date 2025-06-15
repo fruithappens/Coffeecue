@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Barista Interface</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            height: 100vh;
+            background-color: #f0f0f0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        .iframe-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        .iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        .controls {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 4px;
+            padding: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            display: flex;
+            flex-direction: column;
+        }
+        .btn {
+            padding: 8px 12px;
+            margin: 5px 0;
+            border: none;
+            border-radius: 4px;
+            background-color: #0078d7;
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .btn:hover {
+            background-color: #005a9e;
+        }
+        .btn-danger {
+            background-color: #d9534f;
+        }
+        .btn-danger:hover {
+            background-color: #c9302c;
+        }
+        .btn-success {
+            background-color: #5cb85c;
+        }
+        .btn-success:hover {
+            background-color: #449d44;
+        }
+        .status {
+            padding: 8px;
+            margin-top: 5px;
+            border-radius: 4px;
+            font-size: 12px;
+            text-align: center;
+        }
+        .status-success {
+            background-color: #dff0d8;
+            color: #3c763d;
+        }
+        .status-error {
+            background-color: #f2dede;
+            color: #a94442;
+        }
+    </style>
+    <script>
+        // Create a token for authentication
+        function createToken() {
+            const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+            const payload = btoa(JSON.stringify({
+                sub: 'barista_frame_user',
+                name: 'Barista User',
+                role: 'barista',
+                exp: Math.floor(Date.now() / 1000) + 86400
+            }));
+            const signature = btoa('barista_frame_' + Date.now());
+            return `${header}.${payload}.${signature}`;
+        }
+        
+        // Set authentication in both windows
+        function setAuthentication() {
+            try {
+                // Create token and user
+                const token = createToken();
+                const user = {
+                    id: 'barista_frame_user',
+                    name: 'Barista User',
+                    role: 'barista'
+                };
+                
+                // Set in this window
+                localStorage.setItem('token', token);
+                localStorage.setItem('user', JSON.stringify(user));
+                localStorage.setItem('isAuthenticated', 'true');
+                
+                // Try to set in iframe
+                const iframe = document.getElementById('appFrame');
+                if (iframe && iframe.contentWindow) {
+                    try {
+                        iframe.contentWindow.localStorage.setItem('token', token);
+                        iframe.contentWindow.localStorage.setItem('user', JSON.stringify(user));
+                        iframe.contentWindow.localStorage.setItem('isAuthenticated', 'true');
+                        
+                        // Disable refresh in iframe
+                        iframe.contentWindow.localStorage.setItem('coffee_auto_refresh_enabled', 'false');
+                        iframe.contentWindow.localStorage.setItem('autoRefreshEnabled', 'false');
+                        iframe.contentWindow.localStorage.setItem('refreshDisabled', 'true');
+                        
+                        // Force real data in iframe
+                        iframe.contentWindow.localStorage.setItem('useFallbackData', 'false');
+                        iframe.contentWindow.localStorage.setItem('use_demo_mode', 'false');
+                        
+                        console.log('Set authentication in iframe');
+                        
+                        // Inject script into iframe
+                        try {
+                            const script = iframe.contentWindow.document.createElement('script');
+                            script.textContent = `
+                                // Fix authentication
+                                if (window.AuthService) {
+                                    console.log('Patching AuthService in iframe...');
+                                    
+                                    // Add refreshToken if missing
+                                    if (!window.AuthService.prototype.refreshToken) {
+                                        window.AuthService.prototype.refreshToken = function() {
+                                            console.log('iframe refreshToken called');
+                                            return Promise.resolve({
+                                                token: '${token}',
+                                                user: ${JSON.stringify(user)}
+                                            });
+                                        };
+                                    }
+                                    
+                                    // Override isAuthenticated
+                                    window.AuthService.prototype.isAuthenticated = function() {
+                                        return true;
+                                    };
+                                    
+                                    // Navigate to barista
+                                    setTimeout(function() {
+                                        window.location.href = '/barista';
+                                    }, 500);
+                                }
+                            `;
+                            iframe.contentWindow.document.head.appendChild(script);
+                            console.log('Injected authentication script into iframe');
+                            
+                            return true;
+                        } catch (error) {
+                            console.error('Error injecting script:', error);
+                        }
+                    } catch (error) {
+                        console.error('Error setting localStorage in iframe:', error);
+                    }
+                }
+            } catch (error) {
+                console.error('Error setting authentication:', error);
+                return false;
+            }
+            
+            return true;
+        }
+        
+        // Kill refresh in iframe
+        function killRefresh() {
+            try {
+                const iframe = document.getElementById('appFrame');
+                if (iframe && iframe.contentWindow) {
+                    try {
+                        // Clear intervals
+                        const script = iframe.contentWindow.document.createElement('script');
+                        script.textContent = `
+                            // Kill all intervals
+                            const maxId = window.setInterval(function(){}, 9999);
+                            for (let i = 1; i <= maxId; i++) {
+                                window.clearInterval(i);
+                            }
+                            
+                            // Disable refresh flags
+                            localStorage.setItem('coffee_auto_refresh_enabled', 'false');
+                            localStorage.setItem('autoRefreshEnabled', 'false');
+                            localStorage.setItem('refreshDisabled', 'true');
+                            
+                            // Override setInterval to prevent new refresh
+                            window.originalSetInterval = window.setInterval;
+                            window.setInterval = function(callback, delay, ...args) {
+                                if (delay < 3000) {
+                                    console.log('Blocked interval with delay:', delay);
+                                    return 0;
+                                }
+                                return window.originalSetInterval(callback, delay, ...args);
+                            };
+                            
+                            console.log('Killed all refresh in iframe');
+                        `;
+                        iframe.contentWindow.document.head.appendChild(script);
+                        
+                        setStatus('Refresh stopped in iframe', true);
+                        return true;
+                        
+                    } catch (error) {
+                        console.error('Error killing refresh in iframe:', error);
+                    }
+                }
+            } catch (error) {
+                console.error('Error accessing iframe:', error);
+                return false;
+            }
+            
+            return false;
+        }
+        
+        // Set status message
+        function setStatus(message, isSuccess = true) {
+            const statusEl = document.getElementById('status');
+            if (statusEl) {
+                statusEl.textContent = message;
+                statusEl.className = isSuccess ? 'status status-success' : 'status status-error';
+            }
+        }
+        
+        // Navigate iframe to a specific URL
+        function navigateIframe(url) {
+            const iframe = document.getElementById('appFrame');
+            if (iframe) {
+                iframe.src = url;
+                setStatus(`Navigating to ${url}...`, true);
+            }
+        }
+        
+        // Reset iframe
+        function resetIframe() {
+            navigateIframe('about:blank');
+            
+            setTimeout(() => {
+                navigateIframe('/');
+                setStatus('Iframe reset and reloaded', true);
+            }, 500);
+        }
+        
+        // Document ready handler
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize iframe
+            const iframe = document.getElementById('appFrame');
+            
+            // Set up message listener for communication with iframe
+            window.addEventListener('message', function(event) {
+                if (event.data && event.data.type === 'iframeStatus') {
+                    setStatus(event.data.message, event.data.success);
+                }
+            });
+            
+            // Set up button listeners
+            document.getElementById('authButton').addEventListener('click', function() {
+                if (setAuthentication()) {
+                    setStatus('Authentication set successfully', true);
+                } else {
+                    setStatus('Failed to set authentication', false);
+                }
+            });
+            
+            document.getElementById('refreshButton').addEventListener('click', function() {
+                killRefresh();
+            });
+            
+            document.getElementById('baristaButton').addEventListener('click', function() {
+                navigateIframe('/barista');
+            });
+            
+            document.getElementById('resetButton').addEventListener('click', function() {
+                resetIframe();
+            });
+            
+            // Auto-set authentication when iframe loads
+            iframe.addEventListener('load', function() {
+                // Wait a moment for iframe to fully initialize
+                setTimeout(function() {
+                    setAuthentication();
+                    killRefresh();
+                }, 1000);
+            });
+        });
+    </script>
+</head>
+<body>
+    <div class="iframe-container">
+        <iframe id="appFrame" class="iframe" src="/" allow="fullscreen"></iframe>
+    </div>
+    
+    <div class="controls">
+        <button id="authButton" class="btn">Set Authentication</button>
+        <button id="refreshButton" class="btn">Stop Refresh</button>
+        <button id="baristaButton" class="btn btn-success">Go to Barista</button>
+        <button id="resetButton" class="btn btn-danger">Reset</button>
+        <div id="status" class="status">Ready</div>
+    </div>
+</body>
+</html>

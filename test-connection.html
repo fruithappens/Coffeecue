@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Connection Test - Expresso Barista Interface</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .result { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .success { background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .error { background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        .warning { background-color: #fff3cd; border: 1px solid #ffeeba; color: #856404; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Expresso Connection Test</h1>
+    <p>This simulates the barista interface connection logic to test if the fixes work.</p>
+    
+    <button onclick="testConnection()">Test Connection</button>
+    <button onclick="clearStorage()">Clear Storage</button>
+    <button onclick="testLogin()">Test Login</button>
+    
+    <div id="results"></div>
+
+    <script>
+        const baseUrl = 'http://localhost:5001/api';
+        let currentToken = null;
+
+        function log(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            div.innerHTML = `<strong>${new Date().toLocaleTimeString()}</strong>: ${message}`;
+            document.getElementById('results').appendChild(div);
+            console.log(message);
+        }
+
+        function clearStorage() {
+            localStorage.clear();
+            log('✅ Cleared all localStorage data', 'success');
+        }
+
+        async function testConnection() {
+            log('🔍 Testing connection like OrderDataService does...');
+            
+            try {
+                // Test basic connectivity first
+                const response = await fetch(`${baseUrl}/test`, {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' },
+                    timeout: 5000
+                });
+                
+                if (response.ok) {
+                    log('✅ Basic API connection successful', 'success');
+                    localStorage.setItem('coffee_connection_status', 'online');
+                    localStorage.setItem('use_fallback_data', 'false');
+                } else {
+                    log(`❌ Basic API test failed: ${response.status}`, 'error');
+                    return;
+                }
+
+                // Test auth status if we have a token
+                const token = localStorage.getItem('coffee_auth_token');
+                if (token) {
+                    log('🔐 Testing auth status with stored token...');
+                    const authResponse = await fetch(`${baseUrl}/auth/status`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Accept': 'application/json'
+                        }
+                    });
+                    
+                    if (authResponse.ok) {
+                        log('✅ Authentication status check successful', 'success');
+                    } else {
+                        log(`⚠️ Auth status failed: ${authResponse.status}`, 'warning');
+                    }
+                } else {
+                    log('ℹ️ No auth token found in storage', 'warning');
+                }
+
+                // Test orders endpoint (main barista functionality)
+                if (currentToken) {
+                    log('📋 Testing orders endpoint...');
+                    const ordersResponse = await fetch(`${baseUrl}/orders/pending`, {
+                        headers: {
+                            'Authorization': `Bearer ${currentToken}`,
+                            'Accept': 'application/json'
+                        }
+                    });
+                    
+                    if (ordersResponse.ok) {
+                        const orders = await ordersResponse.json();
+                        log(`✅ Orders fetch successful: ${orders.length || 0} orders`, 'success');
+                    } else {
+                        log(`❌ Orders fetch failed: ${ordersResponse.status}`, 'error');
+                    }
+                }
+
+            } catch (error) {
+                log(`❌ Connection error: ${error.message}`, 'error');
+                localStorage.setItem('coffee_connection_status', 'offline');
+                localStorage.setItem('use_fallback_data', 'true');
+            }
+        }
+
+        async function testLogin() {
+            log('🔐 Testing login flow...');
+            
+            try {
+                const response = await fetch(`${baseUrl}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: 'admin', password: 'coffee123' })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    currentToken = data.token;
+                    localStorage.setItem('coffee_auth_token', currentToken);
+                    log('✅ Login successful, token stored', 'success');
+                    
+                    // Test connection with new token
+                    setTimeout(testConnection, 500);
+                } else {
+                    log(`❌ Login failed: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Login error: ${error.message}`, 'error');
+            }
+        }
+
+        // Show current storage state
+        window.onload = function() {
+            log('📊 Current localStorage state:');
+            log(`- coffee_connection_status: ${localStorage.getItem('coffee_connection_status') || 'not set'}`);
+            log(`- use_fallback_data: ${localStorage.getItem('use_fallback_data') || 'not set'}`);
+            log(`- coffee_auth_token: ${localStorage.getItem('coffee_auth_token') ? 'present' : 'not set'}`);
+        }
+    </script>
+</body>
+</html>

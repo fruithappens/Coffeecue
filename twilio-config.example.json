@@ -1,0 +1,7 @@
+{
+  "comment": "Copy this to twilio-config.json and fill in your values",
+  "account_sid": "your_account_sid_here",
+  "auth_token": "your_auth_token_here",
+  "phone_number_sid": "your_phone_number_sid_here",
+  "phone_number": "+1234567890"
+}

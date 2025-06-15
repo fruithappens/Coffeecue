@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test SMS Improvements</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-result { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .success { background-color: #d4edda; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; border: 1px solid #f5c6cb; }
+        .info { background-color: #d1ecf1; border: 1px solid #bee5eb; }
+        .warning { background-color: #fff3cd; border: 1px solid #ffeaa7; }
+        button { margin: 5px; padding: 10px; }
+        textarea { width: 100%; height: 100px; margin: 5px 0; }
+        input[type="text"], input[type="number"] { width: 200px; margin: 5px; padding: 5px; }
+        .form-group { margin: 10px 0; }
+        .sms-preview { background: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #007bff; margin: 10px 0; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <h1>SMS Improvements Test & Configuration</h1>
+    <div id="results"></div>
+    
+    <h2>SMS Configuration</h2>
+    <div class="form-group">
+        <label>Station Location for Station 1:</label><br>
+        <input type="text" id="stationLocation" placeholder="e.g., Main lobby next to registration desk" value="Main lobby next to registration desk">
+        <button onclick="setStationLocation()">Set Location</button>
+    </div>
+    
+    <div class="form-group">
+        <label>Event Sponsor Name:</label><br>
+        <input type="text" id="sponsorName" placeholder="e.g., ANZCA" value="ANZCA">
+        <button onclick="setSponsor()">Set Sponsor</button>
+    </div>
+    
+    <div class="form-group">
+        <label>Reminder Delay (seconds):</label><br>
+        <input type="number" id="reminderDelay" value="120" min="10" max="300">
+        <button onclick="setReminderDelay()">Set Delay</button>
+    </div>
+    
+    <h2>SMS Preview</h2>
+    <div class="form-group">
+        <label>Customer Name:</label>
+        <input type="text" id="customerName" value="John Smith" onchange="updatePreview()">
+        
+        <label>Coffee Type:</label>
+        <input type="text" id="coffeeType" value="Regular Latte" onchange="updatePreview()">
+        
+        <label>Order Number:</label>
+        <input type="text" id="orderNumber" value="WI123456" onchange="updatePreview()">
+    </div>
+    
+    <button onclick="updatePreview()">Update Preview</button>
+    
+    <h3>Ready Notification SMS:</h3>
+    <div id="readySmsPreview" class="sms-preview">Loading...</div>
+    
+    <h3>Reminder Notification SMS:</h3>
+    <div id="reminderSmsPreview" class="sms-preview">Loading...</div>
+    
+    <h2>Test Actions</h2>
+    <button onclick="testReminderScheduling()">Test Reminder Scheduling</button>
+    <button onclick="testReminderCancellation()">Test Reminder Cancellation</button>
+    <button onclick="checkCurrentSettings()">Check Current Settings</button>
+    <button onclick="clearAllSettings()">Clear All Settings</button>
+    
+    <script>
+        function addResult(message, type = 'info') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `test-result ${type}`;
+            div.innerHTML = message;
+            results.appendChild(div);
+        }
+
+        function setStationLocation() {
+            const location = document.getElementById('stationLocation').value;
+            const stationSettings = {
+                location: location,
+                name: 'Coffee Station 1',
+                capacity: 50
+            };
+            localStorage.setItem('coffee_station_settings_1', JSON.stringify(stationSettings));
+            addResult(`Station location set: "${location}"`, 'success');
+            updatePreview();
+        }
+
+        function setSponsor() {
+            const sponsorName = document.getElementById('sponsorName').value;
+            const eventBranding = {
+                sponsor: sponsorName,
+                eventName: 'ANZCA ASM 2025 Cairns'
+            };
+            localStorage.setItem('coffee_event_branding', JSON.stringify(eventBranding));
+            addResult(`Sponsor set: "${sponsorName}"`, 'success');
+            updatePreview();
+        }
+
+        function setReminderDelay() {
+            const delay = parseInt(document.getElementById('reminderDelay').value);
+            const messageSettings = {
+                reminderDelay: delay,
+                autoSendSmsOnComplete: true,
+                remindAfterDelay: true
+            };
+            // This would normally be set via the MessageService settings
+            localStorage.setItem('coffee_message_settings', JSON.stringify(messageSettings));
+            addResult(`Reminder delay set to ${delay} seconds (${Math.floor(delay/60)} minutes)`, 'success');
+        }
+
+        function generateSMSPreview(order, isReminder = false) {
+            // Simulate the SMS generation logic
+            let message = '';
+            
+            if (isReminder) {
+                const waitMinutes = Math.floor(parseInt(document.getElementById('reminderDelay').value) / 60);
+                message = `⏰ REMINDER: Your order #${order.orderNumber} (${order.coffeeType}) has been ready for ${waitMinutes} minutes at ${order.stationName}. Please collect it soon to enjoy it at its best! ☕`;
+                
+                // Add location
+                try {
+                    const stationSettings = JSON.parse(localStorage.getItem('coffee_station_settings_1') || '{}');
+                    if (stationSettings.location) {
+                        message += ` Location: ${stationSettings.location}.`;
+                    }
+                } catch (e) {}
+                
+                // Add reminder tip
+                const tips = [
+                    ' TIP: Show this SMS to skip the queue next time!',
+                    ' TIP: SMS "Same" to reorder your usual!',
+                    ' TIP: Save this number for quick reorders!'
+                ];
+                message += tips[0]; // Use first tip for consistency
+            } else {
+                message = `🔔 YOUR COFFEE IS READY! Your ${order.coffeeType} is now ready for collection from ${order.stationName}! ☕`;
+                
+                // Add location
+                try {
+                    const stationSettings = JSON.parse(localStorage.getItem('coffee_station_settings_1') || '{}');
+                    if (stationSettings.location) {
+                        message += ` Location: ${stationSettings.location}.`;
+                    }
+                } catch (e) {}
+                
+                // Add tip
+                const tips = [
+                    ' TIP: SMS "Same" to reorder next time!',
+                    ' TIP: Save this number for quick reorders!',
+                    ' TIP: Peak hours are 8-10am - order early!'
+                ];
+                message += tips[0]; // Use first tip for consistency
+                
+                // Add sponsor
+                try {
+                    const eventBranding = JSON.parse(localStorage.getItem('coffee_event_branding') || '{}');
+                    if (eventBranding.sponsor) {
+                        message += ` Thanks to our sponsor ${eventBranding.sponsor}!`;
+                    }
+                } catch (e) {}
+            }
+            
+            return message;
+        }
+
+        function updatePreview() {
+            const order = {
+                customerName: document.getElementById('customerName').value,
+                coffeeType: document.getElementById('coffeeType').value,
+                orderNumber: document.getElementById('orderNumber').value,
+                stationName: 'Coffee Station 1',
+                stationId: 1
+            };
+            
+            // Generate previews
+            const readySms = generateSMSPreview(order, false);
+            const reminderSms = generateSMSPreview(order, true);
+            
+            document.getElementById('readySmsPreview').textContent = readySms;
+            document.getElementById('reminderSmsPreview').textContent = reminderSms;
+            
+            // Show character counts
+            document.getElementById('readySmsPreview').innerHTML += `<br><small style="color: #666;">Length: ${readySms.length} characters</small>`;
+            document.getElementById('reminderSmsPreview').innerHTML += `<br><small style="color: #666;">Length: ${reminderSms.length} characters</small>`;
+        }
+
+        function testReminderScheduling() {
+            addResult('Testing reminder scheduling...', 'info');
+            
+            // Simulate creating a reminder timer
+            const testOrderId = 'test_order_' + Date.now();
+            const delay = parseInt(document.getElementById('reminderDelay').value);
+            
+            addResult(`Reminder would be scheduled for order ${testOrderId} in ${delay} seconds`, 'info');
+            
+            // Show how to check if it's working
+            addResult(`
+                To test in the actual system:
+                1. Complete an order in the Barista Interface
+                2. Wait ${Math.floor(delay/60)} minutes
+                3. Check if reminder SMS is sent
+                4. Try marking the order as picked up before the reminder - it should cancel the reminder
+            `, 'warning');
+        }
+
+        function testReminderCancellation() {
+            addResult('Testing reminder cancellation...', 'info');
+            
+            addResult(`
+                To test reminder cancellation:
+                1. Complete an order (this schedules a reminder)
+                2. Mark the order as "Picked Up" before the reminder time
+                3. The reminder SMS should be cancelled and not sent
+                4. Check browser console for cancellation logs
+            `, 'warning');
+        }
+
+        function checkCurrentSettings() {
+            addResult('Checking current settings...', 'info');
+            
+            // Check station settings
+            try {
+                const stationSettings = JSON.parse(localStorage.getItem('coffee_station_settings_1') || '{}');
+                addResult(`Station 1 Location: ${stationSettings.location || 'Not set'}`, 'info');
+            } catch (e) {
+                addResult('Station settings: Not found', 'warning');
+            }
+            
+            // Check branding
+            try {
+                const eventBranding = JSON.parse(localStorage.getItem('coffee_event_branding') || '{}');
+                addResult(`Event Sponsor: ${eventBranding.sponsor || 'Not set'}`, 'info');
+            } catch (e) {
+                addResult('Event branding: Not found', 'warning');
+            }
+            
+            // Check message settings
+            try {
+                const messageSettings = JSON.parse(localStorage.getItem('coffee_message_settings') || '{}');
+                addResult(`Reminder Delay: ${messageSettings.reminderDelay || 'Default (120)'} seconds`, 'info');
+            } catch (e) {
+                addResult('Message settings: Using defaults', 'info');
+            }
+        }
+
+        function clearAllSettings() {
+            localStorage.removeItem('coffee_station_settings_1');
+            localStorage.removeItem('coffee_event_branding');
+            localStorage.removeItem('coffee_message_settings');
+            addResult('All SMS-related settings cleared', 'success');
+            updatePreview();
+        }
+
+        // Initialize
+        addResult('SMS Improvements Test Loaded', 'success');
+        updatePreview();
+        checkCurrentSettings();
+    </script>
+</body>
+</html>
