@@ -5,13 +5,13 @@ FROM node:18-alpine AS frontend-builder
 WORKDIR /frontend
 
 # Copy frontend package files
-COPY "Barista Front End/package*.json" ./
+COPY ["Barista Front End/package*.json", "./"]
 
 # Install frontend dependencies
 RUN npm ci --only=production
 
 # Copy frontend source code
-COPY "Barista Front End/" ./
+COPY ["Barista Front End/", "./"]
 
 # Build React app for production
 ENV NODE_ENV=production
