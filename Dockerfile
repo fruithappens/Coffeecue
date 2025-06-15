@@ -24,8 +24,7 @@ COPY . .
 # Create static directory for frontend (can be added later)
 RUN mkdir -p static
 
-# Create basic index.html for API access
-RUN echo '<!DOCTYPE html><html><head><title>Expresso Coffee API</title></head><body><h1>Expresso Coffee Ordering System</h1><p>API is running at <a href="/api/health">/api/health</a></p><p><a href="/api/auth/login">Login API</a></p></body></html>' > static/index.html
+# Static files (React build) are copied from local static/ directory
 
 # Create logs directory
 RUN mkdir -p logs
