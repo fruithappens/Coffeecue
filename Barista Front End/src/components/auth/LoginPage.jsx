@@ -5,8 +5,8 @@ import AuthService from '../../services/AuthService';
 import OfflineDataHelper from '../../utils/offlineDataHelper';
 
 const LoginPage = ({ onLoginSuccess }) => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('admin');
+  const [password, setPassword] = useState('coffee123');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showFallbackOption, setShowFallbackOption] = useState(false);
