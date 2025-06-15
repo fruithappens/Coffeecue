@@ -915,6 +915,20 @@ def create_app():
         """Simple API test endpoint"""
         return jsonify({"status": "success", "message": "API is working"})
     
+    @app.route('/debug/static')
+    def debug_static():
+        """Debug endpoint to check static files"""
+        import os
+        static_dir = os.path.join(app.root_path, 'static')
+        files = []
+        if os.path.exists(static_dir):
+            files = os.listdir(static_dir)[:10]  # Show first 10 files
+        return jsonify({
+            "static_directory": static_dir,
+            "files_found": files,
+            "index_exists": os.path.exists(os.path.join(static_dir, 'index.html'))
+        })
+    
     # Special handling for orders endpoints directly
     @app.route('/orders/pending', methods=['GET'])
     def orders_pending():
