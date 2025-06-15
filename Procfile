@@ -1,1 +1,1 @@
-web: python3 run_server.py
+web: /opt/venv/bin/python run_server.py
