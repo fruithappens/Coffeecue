@@ -1,5 +1,6 @@
 [variables]
 NIXPACKS_PYTHON_VERSION = "3.11"
+PATH = "/opt/venv/bin:$PATH"
 
 [phases.setup]
 nixPkgs = ["python311", "python311Packages.pip", "coreutils"]
@@ -16,6 +17,3 @@ cmds = ["echo 'Build complete'"]
 
 [start]
 cmd = "/opt/venv/bin/python run_server.py"
-
-[variables]
-PATH = "/opt/venv/bin:$PATH"
