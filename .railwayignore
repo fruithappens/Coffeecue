@@ -1,0 +1,12 @@
+# Ignore frontend directory during backend deployment
+Barista Front End/
+node_modules/
+*.log
+.git/
+.DS_Store
+__pycache__/
+*.pyc
+.pytest_cache/
+venv/
+.env
+logs/

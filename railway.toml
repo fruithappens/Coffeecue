@@ -1,0 +1,9 @@
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "./start.sh"
+
+[build.nixpacks]
+provider = "python"
+pythonVersion = "3.11"
