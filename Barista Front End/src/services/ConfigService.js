@@ -5,9 +5,24 @@ class ConfigService {
     this.loadConfig();
     
     // Set defaults if not configured
-    // Use relative URL to leverage React's proxy setup
+    // Environment-based API URL configuration
+    const getApiBaseUrl = () => {
+      // Check for explicit environment variable first
+      if (process.env.REACT_APP_API_URL) {
+        return process.env.REACT_APP_API_URL;
+      }
+      
+      // In production, use relative URLs (same domain)
+      if (process.env.NODE_ENV === 'production') {
+        return '/api';
+      }
+      
+      // In development, use localhost
+      return 'http://localhost:5001/api';
+    };
+    
     this.config = {
-      apiBaseUrl: process.env.REACT_APP_API_URL || 'http://localhost:5001/api',
+      apiBaseUrl: getApiBaseUrl(),
       defaultWaitTime: 15,
       notificationTimeout: 30,
       ...this.config

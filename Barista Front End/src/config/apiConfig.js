@@ -1,8 +1,17 @@
 // src/config/apiConfig.js 
 
-// Always use /api prefix for backend calls
-// Point to correct backend port (5001)
-const BASE_URL = 'http://localhost:5001/api';
+// Environment-based API configuration
+const getApiBaseUrl = () => {
+  // In production, use relative URLs (same domain)
+  if (process.env.NODE_ENV === 'production') {
+    return '/api';
+  }
+  
+  // In development, use localhost
+  return 'http://localhost:5001/api';
+};
+
+const BASE_URL = getApiBaseUrl();
 
 // Configuration
 const config = {
