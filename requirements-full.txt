@@ -1,0 +1,60 @@
+# Core Flask dependencies
+flask==2.3.3
+flask-cors==4.0.0
+flask-jwt-extended==4.5.3
+flask-socketio==5.3.6
+flask-limiter==3.3.1
+
+# Database
+psycopg2-binary==2.9.9
+sqlalchemy==2.0.21
+
+# Authentication & Security
+python-dotenv==1.0.0
+passlib==1.7.4
+bleach==6.1.0
+python-magic==0.4.27
+redis==5.0.1
+APScheduler==3.10.4
+
+# Utility
+requests==2.31.0
+python-jose==3.3.0
+python-multipart==0.0.6
+
+# Development and testing
+pytest==7.4.3
+coverage==7.3.2
+black==23.10.1
+isort==5.12.0
+
+# Additional helpful libraries
+python-dateutil==2.8.2
+pytz==2023.3.post1
+gunicorn==21.2.0
+eventlet==0.33.3
+
+# Optional data processing
+pandas==2.1.1
+numpy==1.26.0
+
+# Logging
+structlog==23.1.0
+
+# Optional NLP
+nltk==3.8.1
+
+# Optional image processing
+Pillow==10.1.0
+
+# Optional scientific computing
+scipy==1.11.3
+
+# Optional for QR code generation
+qrcode==7.4.2
+
+# Optional Twilio for SMS
+twilio==8.5.0
+
+# System monitoring
+psutil==5.9.5
