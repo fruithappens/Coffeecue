@@ -1166,21 +1166,48 @@ def create_app():
         return resp
     ''', 501
     
-    # Root route - serve React app from build
+    # Root route - serve our working index.html
     @app.route('/')
     def index():
         try:
-            return app.send_static_file('index.html')
+            # Force serving our updated index.html
+            import os
+            static_dir = os.path.join(app.root_path, 'static')
+            index_path = os.path.join(static_dir, 'index.html')
+            
+            if os.path.exists(index_path):
+                with open(index_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                return content, 200, {'Content-Type': 'text/html; charset=utf-8'}
+            else:
+                return "Index file not found", 404
+                
         except Exception as e:
-            logger.warning(f"Could not serve React app: {e}")
+            logger.error(f"Error serving index: {e}")
             return jsonify({
-                "message": "Coffee Cue Backend API", 
-                "version": "2.0",
-                "status": "running",
-                "react_app": "Please build the React app first",
-                "migration_tool": "http://localhost:5001/static/localStorage-to-database-migration.html",
-                "diagnostic": "http://localhost:5001/static/diagnostic.html"
-            })
+                "error": "Could not serve index page",
+                "message": str(e),
+                "static_dir": app.static_folder
+            }), 500
+    
+    # Ensure login page is served correctly
+    @app.route('/login.html')
+    def login_page():
+        try:
+            import os
+            static_dir = os.path.join(app.root_path, 'static')
+            login_path = os.path.join(static_dir, 'login.html')
+            
+            if os.path.exists(login_path):
+                with open(login_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                return content, 200, {'Content-Type': 'text/html; charset=utf-8'}
+            else:
+                return "Login page not found", 404
+                
+        except Exception as e:
+            logger.error(f"Error serving login page: {e}")
+            return f"Error loading login: {str(e)}", 500
     
     # Handle React build static files - use a different path to avoid Flask conflicts
     @app.route('/assets/<path:filename>')
