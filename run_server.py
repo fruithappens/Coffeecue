@@ -3,7 +3,15 @@
 Script to run the Expresso server - production ready for Railway
 """
 import os
+import sys
 from app import create_app
+
+# Ensure admin user exists before starting server
+try:
+    from ensure_admin_user import main as ensure_admin
+    ensure_admin()
+except Exception as e:
+    print(f"Warning: Could not ensure admin user: {e}")
 
 if __name__ == '__main__':
     app, socketio = create_app()
