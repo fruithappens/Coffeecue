@@ -929,6 +929,35 @@ def create_app():
             "index_exists": os.path.exists(os.path.join(static_dir, 'index.html'))
         })
     
+    @app.route('/debug/users')
+    def debug_users():
+        """Debug endpoint to check what users exist"""
+        try:
+            # Get coffee system from app context
+            coffee_system = current_app.config.get('coffee_system')
+            db = coffee_system.db
+            cursor = db.cursor()
+            
+            # Get all users
+            cursor.execute('SELECT id, username, email, role FROM users')
+            users = []
+            for user in cursor.fetchall():
+                users.append({
+                    'id': user[0],
+                    'username': user[1], 
+                    'email': user[2],
+                    'role': user[3]
+                })
+            
+            return jsonify({
+                "users_count": len(users),
+                "users": users
+            })
+        except Exception as e:
+            return jsonify({
+                "error": str(e)
+            })
+    
     # Special handling for orders endpoints directly
     @app.route('/orders/pending', methods=['GET'])
     def orders_pending():
