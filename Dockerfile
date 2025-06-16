@@ -1,10 +1,31 @@
-# Backend-only deployment for now (skip frontend build to avoid complexity)
+# Multi-stage Dockerfile to build React frontend and Python backend
+FROM node:18-alpine as frontend-builder
+
+# Set working directory for frontend
+WORKDIR /app/frontend
+
+# Copy package files
+COPY "Barista Front End/package*.json" ./
+
+# Install dependencies
+RUN npm ci --only=production
+
+# Copy frontend source
+COPY "Barista Front End/" ./
+
+# Set environment to production
+ENV NODE_ENV=production
+
+# Build React app
+RUN npm run build
+
+# Backend stage
 FROM python:3.11-slim
 
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies with optimizations
+# Install system dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     gcc \
@@ -21,10 +42,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy backend application code
 COPY . .
 
-# Create static directory for frontend (can be added later)
-RUN mkdir -p static
-
-# Static files (React build) are copied from local static/ directory
+# Copy built frontend from the previous stage
+COPY --from=frontend-builder /app/frontend/build ./static
 
 # Create logs directory
 RUN mkdir -p logs
