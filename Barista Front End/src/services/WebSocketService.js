@@ -7,7 +7,10 @@ class WebSocketService {
     this.socket = null;
     this.isConnected = false;
     this.eventHandlers = new Map();
-    this.wsUrl = 'http://localhost:5001';
+    // Environment-aware WebSocket URL
+    this.wsUrl = process.env.NODE_ENV === 'production' 
+      ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}` 
+      : 'http://localhost:5001';
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 3;
   }
