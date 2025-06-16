@@ -22,10 +22,11 @@ class ConfigService {
     };
     
     this.config = {
-      apiBaseUrl: getApiBaseUrl(),
       defaultWaitTime: 15,
       notificationTimeout: 30,
-      ...this.config
+      ...this.config,
+      // Always use environment-aware API URL (override any saved value)
+      apiBaseUrl: getApiBaseUrl()
     };
     
     console.log('ConfigService initialized with base URL:', this.config.apiBaseUrl);
