@@ -16,6 +16,15 @@ bp = Blueprint("sms_routes", __name__)
 # Set up logging
 logger = logging.getLogger("expresso.routes.sms")
 
+@bp.route('/sms/debug', methods=['GET', 'POST'])
+def sms_debug():
+    """Debug endpoint to test SMS webhook delivery"""
+    logger.info("🔍 SMS DEBUG endpoint called!")
+    logger.info(f"Method: {request.method}")
+    logger.info(f"Headers: {dict(request.headers)}")
+    logger.info(f"Form data: {dict(request.form) if request.form else 'None'}")
+    logger.info(f"JSON data: {request.get_json() if request.is_json else 'None'}")
+    return {"status": "SMS debug endpoint working", "method": request.method}, 200
 
 @bp.route('/sms', methods=['POST'])
 def sms_webhook():
@@ -23,6 +32,14 @@ def sms_webhook():
     Handle incoming SMS messages from Twilio
     This is the main webhook that Twilio will POST to when a new SMS is received
     """
+    # FIRST: Log that we received ANY request to this endpoint
+    logger.info("🚨 SMS WEBHOOK CALLED! 🚨")
+    logger.info(f"Request method: {request.method}")
+    logger.info(f"Request URL: {request.url}")
+    logger.info(f"Request headers: {dict(request.headers)}")
+    logger.info(f"Request form data: {dict(request.form)}")
+    logger.info(f"Remote address: {request.remote_addr}")
+    
     try:
         # SECURITY: Validate Twilio webhook signature
         auth_token = os.getenv('TWILIO_AUTH_TOKEN')
