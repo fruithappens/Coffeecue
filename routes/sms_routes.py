@@ -49,16 +49,29 @@ def sms_webhook():
             # Get the signature from headers
             signature = request.headers.get('X-Twilio-Signature', '')
             
-            # Get the full URL (including protocol and domain)
+            # Get the full URL - handle Railway HTTPS proxy correctly
             url = request.url
+            
+            # Railway serves HTTPS externally but shows HTTP internally
+            # Fix the URL for signature validation
+            if 'railway.app' in url and url.startswith('http://'):
+                url = url.replace('http://', 'https://', 1)
+                logger.info(f"Corrected Railway URL for signature validation: {url}")
             
             # Get POST parameters
             params = request.form.to_dict()
             
+            logger.info(f"Validating signature with URL: {url}")
+            logger.info(f"Signature received: {signature[:20]}...")
+            
             # Validate the request
             if not validator.validate(url, params, signature):
                 logger.warning(f"Invalid Twilio webhook signature from {request.remote_addr}")
+                logger.warning(f"URL used for validation: {url}")
+                logger.warning(f"Parameters: {params}")
                 return "Unauthorized", 403
+            else:
+                logger.info("✅ Twilio webhook signature validation successful")
         else:
             logger.warning("Twilio auth token not configured or in test mode, skipping webhook validation")
         # Log all request information for debugging
