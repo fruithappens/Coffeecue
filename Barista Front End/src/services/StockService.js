@@ -11,7 +11,7 @@ class StockService {
   constructor() {
     // Get ApiService singleton instance instead of extending
     this.apiService = new ApiService();
-    this.baseUrl = 'http://localhost:5001/api';
+    this.baseUrl = process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:5001/api';
     this.debugMode = true;
     this.enableFallback = false; // Disabled by default
     

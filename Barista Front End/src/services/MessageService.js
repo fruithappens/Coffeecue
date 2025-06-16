@@ -22,8 +22,8 @@ class MessageService {
       useShortUrls: false // Use URL shortening for tracking links
     };
     
-    // IMPORTANT: Direct absolute URL to backend - bypassing proxy issues
-    this.baseUrl = 'http://localhost:5001/api';
+    // Environment-aware backend URL
+    this.baseUrl = process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:5001/api';
     this.debugMode = true;
     
     // Initialize token from localStorage if available

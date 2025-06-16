@@ -51,7 +51,7 @@ class ApiService {
     console.log('ApiService: Creating new singleton instance');
     console.log('ApiService instance count: CREATING NEW');
     
-    this.baseUrl = 'http://localhost:5001/api';
+    this.baseUrl = process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:5001/api';
     // Try to load token from localStorage on initialization
     this.token = localStorage.getItem('coffee_system_token') || localStorage.getItem('token') || null;
     this.debugMode = true;

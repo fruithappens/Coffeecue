@@ -15,8 +15,8 @@ class StationsService {
   constructor() {
     // Get ApiService singleton instance instead of extending
     this.apiService = new ApiService();
-    // IMPORTANT: Direct absolute URL to backend - bypassing proxy issues
-    this.baseUrl = 'http://localhost:5001/api';
+    // Environment-aware backend URL
+    this.baseUrl = process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:5001/api';
     this.debugMode = true;
     this.enableFallback = false; // Disabled by default
     
@@ -168,7 +168,7 @@ class StationsService {
           console.log(`Server ping response status: ${pingResponse.status}`);
         } catch (pingError) {
           console.error('Server ping test failed:', pingError);
-          throw new Error(`Cannot connect to server. Please ensure backend is running at http://localhost:5001`);
+          throw new Error(`Cannot connect to server. Please ensure backend is running at ${this.baseUrl}`);
         }
       }
       

@@ -9,8 +9,8 @@ class SettingsService {
   constructor() {
     // Get ApiService singleton instance instead of extending
     this.apiService = new ApiService();
-    // IMPORTANT: Direct absolute URL to backend - bypassing proxy issues
-    this.baseUrl = 'http://localhost:5001/api';
+    // Environment-aware backend URL
+    this.baseUrl = process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:5001/api';
     this.debugMode = true;
     this.enableFallback = true; // Enable fallback to prevent endless retries
     this.settingsCache = null;

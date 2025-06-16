@@ -37,7 +37,7 @@ const ApiDebugPanel = ({ className = '' }) => {
       // Use direct absolute URL if testing the API
       let url = endpoint;
       if (endpoint.startsWith('/api/')) {
-        url = `http://localhost:5001${endpoint}`;
+        url = `${process.env.NODE_ENV === 'production' ? '' : 'http://localhost:5001'}${endpoint}`;
         addLog(`Using direct URL: ${url}`, 'info');
       }
       

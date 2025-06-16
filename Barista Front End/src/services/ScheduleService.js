@@ -9,8 +9,8 @@ class ScheduleService {
   constructor() {
     // Get ApiService singleton instance instead of extending
     this.apiService = new ApiService();
-    // TEMPORARY FIX: Use direct backend URL to bypass proxy redirect loop
-    this.baseUrl = 'http://localhost:5001/api';
+    // Environment-aware backend URL
+    this.baseUrl = process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:5001/api';
     this.debugMode = true;
     this.enableFallback = true; // Enable fallback for this service since backend API may not be ready
     
