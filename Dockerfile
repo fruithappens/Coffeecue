@@ -1,5 +1,5 @@
 # Multi-stage Dockerfile to build React frontend and Python backend
-FROM node:18-alpine as frontend-builder
+FROM node:20-alpine as frontend-builder
 
 # Set working directory for frontend
 WORKDIR /app/frontend
@@ -7,8 +7,8 @@ WORKDIR /app/frontend
 # Copy package files
 COPY ["Barista Front End/package*.json", "./"]
 
-# Install dependencies
-RUN npm ci --only=production
+# Install dependencies (use npm install instead of ci to handle lock file issues)
+RUN npm install --omit=dev
 
 # Copy frontend source
 COPY ["Barista Front End/", "./"]
