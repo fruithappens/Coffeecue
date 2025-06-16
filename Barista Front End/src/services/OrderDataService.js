@@ -108,7 +108,10 @@ class OrderDataService {
         return groupedOrders;
       }
     } catch (error) {
-      console.error('Error fetching orders from API:', error);
+      // Don't log abort errors - these are normal during component cleanup
+      if (error.name !== 'AbortError') {
+        console.error('Error fetching orders from API:', error);
+      }
       
       // Fallback to localStorage only if API fails
       return this.getOrdersFromLocalStorage(stationId);

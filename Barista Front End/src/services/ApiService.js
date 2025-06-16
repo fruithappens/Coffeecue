@@ -365,10 +365,19 @@ class ApiService {
       
       return data;
     } catch (error) {
+      // Handle abort errors silently - these are expected when components unmount
+      if (error.name === 'AbortError') {
+        if (this.debugMode) {
+          console.log(`Request aborted for ${endpoint} (this is normal during component cleanup)`);
+        }
+        throw error; // Re-throw to maintain error handling flow
+      }
+      
+      // Log other errors
       console.error(`Error fetching from ${endpoint}:`, error);
       
       // Mark connection as offline if it's a network error
-      if (error.name === 'AbortError' || error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+      if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
         localStorage.setItem('coffee_connection_status', 'offline');
       }
       
