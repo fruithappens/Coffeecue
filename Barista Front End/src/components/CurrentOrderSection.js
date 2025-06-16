@@ -5,7 +5,7 @@ import { getOrderBackgroundColor, getTimeRatioColor, formatTimeSince } from '../
 import { getMilkColorStyle, getMilkDotStyle } from '../utils/milkColorHelper';
 import '../styles/milkColors.css';
 
-const CurrentOrderSection = ({ orders, onCompleteOrder }) => {
+const CurrentOrderSection = ({ orders, onCompleteOrder, onEditOrder }) => {
   return (
     <div className="w-1/2 flex flex-col h-full">
       <div className="bg-green-500 text-white p-2 rounded-t-lg">
@@ -39,7 +39,11 @@ const CurrentOrderSection = ({ orders, onCompleteOrder }) => {
                       PRIORITY
                     </div>
                   )}
-                  <button className="text-gray-600 hover:text-gray-900">
+                  <button 
+                    className="text-gray-600 hover:text-gray-900"
+                    onClick={() => onEditOrder && onEditOrder(order)}
+                    title="Edit order"
+                  >
                     <Edit size={16} />
                   </button>
                 </div>
@@ -95,10 +99,18 @@ const CurrentOrderSection = ({ orders, onCompleteOrder }) => {
                 <div className="flex-grow bg-gray-200 h-2 rounded-full overflow-hidden">
                   <div 
                     className={`h-2 ${getTimeRatioColor(order.waitTime, order.promisedTime)}`} 
-                    style={{ width: `${(order.waitTime / order.promisedTime) * 100}%` }}
+                    style={{ 
+                      width: `${order.waitTime && order.promisedTime && order.promisedTime > 0 
+                        ? Math.min((order.waitTime / order.promisedTime) * 100, 100) 
+                        : 0}%` 
+                    }}
                   ></div>
                 </div>
-                <div className="text-sm">{Math.floor((order.waitTime / order.promisedTime) * 100)}%</div>
+                <div className="text-sm">
+                  {order.waitTime && order.promisedTime && order.promisedTime > 0 
+                    ? Math.floor(Math.min((order.waitTime / order.promisedTime) * 100, 100))
+                    : 0}%
+                </div>
               </div>
             </div>
             );

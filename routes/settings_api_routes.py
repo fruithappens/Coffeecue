@@ -2,15 +2,11 @@
 Settings API Routes
 Handles event settings, station settings, and configuration persistence
 """
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime, timedelta
 import json
 import logging
-
-from models.users import Settings
-from models.stations import Station
-from utils.database import db
 
 logger = logging.getLogger(__name__)
 
@@ -124,6 +120,121 @@ def update_event_settings():
         logger.error(f"Error updating event settings: {e}")
         db.session.rollback()
         return jsonify({'status': 'error', 'message': 'Failed to update settings'}), 500
+
+@settings_api_bp.route('/branding', methods=['GET'])
+@jwt_required()
+def get_branding_settings():
+    """Get branding settings specifically"""
+    try:
+        # Get coffee system from app context
+        coffee_system = current_app.config.get('coffee_system')
+        if not coffee_system:
+            return jsonify({
+                'success': False,
+                'status': 'error',
+                'message': 'Coffee system not available'
+            }), 500
+        
+        db = coffee_system.db
+        cursor = db.cursor()
+        
+        # Get branding settings from database
+        cursor.execute("SELECT value FROM settings WHERE key = 'event_branding'")
+        result = cursor.fetchone()
+        
+        if result:
+            branding_data = json.loads(result[0])
+        else:
+            # Default branding settings
+            branding_data = {
+                'primary_color': '#D97706',
+                'secondary_color': '#92400E', 
+                'logo_url': '',
+                'custom_css': '',
+                'event_name': 'ANZCA ASM 2025 Cairns',
+                'organization_name': 'Coffee Cue'
+            }
+        
+        return jsonify({
+            'success': True,
+            'status': 'success',
+            'settings': branding_data
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error getting branding settings: {e}")
+        return jsonify({
+            'success': False,
+            'status': 'error', 
+            'message': 'Failed to get branding settings'
+        }), 500
+
+@settings_api_bp.route('/branding', methods=['POST', 'PUT'])
+@jwt_required()
+def update_branding_settings():
+    """Update branding settings specifically"""
+    try:
+        current_user_id = get_jwt_identity()
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'status': 'error', 
+                'message': 'No data provided'
+            }), 400
+        
+        # Get coffee system from app context
+        coffee_system = current_app.config.get('coffee_system')
+        if not coffee_system:
+            return jsonify({
+                'success': False,
+                'status': 'error',
+                'message': 'Coffee system not available'
+            }), 500
+        
+        db = coffee_system.db
+        cursor = db.cursor()
+        
+        # Check if branding settings exist
+        cursor.execute("SELECT value FROM settings WHERE key = 'event_branding'")
+        result = cursor.fetchone()
+        
+        if result:
+            # Merge with existing settings
+            existing_data = json.loads(result[0])
+            existing_data.update(data)
+            
+            # Update existing record
+            cursor.execute("""
+                UPDATE settings 
+                SET value = %s, updated_at = CURRENT_TIMESTAMP, updated_by = %s
+                WHERE key = 'event_branding'
+            """, (json.dumps(existing_data), current_user_id))
+        else:
+            # Create new branding settings
+            cursor.execute("""
+                INSERT INTO settings (key, value, description, updated_by)
+                VALUES ('event_branding', %s, 'Event branding and visual settings', %s)
+            """, (json.dumps(data), current_user_id))
+        
+        db.commit()
+        
+        return jsonify({
+            'success': True,
+            'status': 'success',
+            'message': 'Branding settings updated successfully'
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error updating branding settings: {e}")
+        if 'db' in locals():
+            db.rollback()
+        return jsonify({
+            'success': False,
+            'status': 'error', 
+            'message': 'Failed to update branding settings'
+        }), 500
 
 @settings_api_bp.route('/station/<int:station_id>', methods=['GET'])
 @jwt_required()

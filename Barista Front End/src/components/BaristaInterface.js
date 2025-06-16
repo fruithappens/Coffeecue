@@ -968,10 +968,18 @@ const BaristaInterface = () => {
           <div className="flex-grow bg-gray-200 h-2 rounded-full overflow-hidden">
             <div 
               className={`h-2 ${getTimeRatioColor(order.waitTime, order.promisedTime)}`}
-              style={{ width: `${(order.waitTime / order.promisedTime) * 100}%` }}
+              style={{ 
+                width: `${order.waitTime && order.promisedTime && order.promisedTime > 0 
+                  ? Math.min((order.waitTime / order.promisedTime) * 100, 100) 
+                  : 0}%` 
+              }}
             ></div>
           </div>
-          <div className="text-sm">{Math.floor((order.waitTime / order.promisedTime) * 100)}%</div>
+          <div className="text-sm">
+            {order.waitTime && order.promisedTime && order.promisedTime > 0 
+              ? Math.floor(Math.min((order.waitTime / order.promisedTime) * 100, 100))
+              : 0}%
+          </div>
         </div>
       </div>
     );
