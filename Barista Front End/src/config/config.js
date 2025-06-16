@@ -7,7 +7,7 @@ const config = {
   // API configuration
   api: {
     // Base URL for API calls
-    baseUrl: process.env.REACT_APP_API_URL || 'http://localhost:5001/api',
+    baseUrl: process.env.REACT_APP_API_URL || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:5001/api'),
     
     // Timeout for API requests in milliseconds
     timeout: 15000,

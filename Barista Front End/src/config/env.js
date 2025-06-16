@@ -94,7 +94,7 @@ export const urlValidator = (value) => {
 };
 
 // API configuration
-export const API_URL = getEnv('API_URL', 'http://localhost:5001/api', urlValidator);
+export const API_URL = getEnv('API_URL', IS_PROD ? '/api' : 'http://localhost:5001/api');
 export const API_TIMEOUT = getEnv('API_TIMEOUT', 15000, numberValidator);
 export const API_DEBUG = IS_DEV ? getEnv('API_DEBUG', true, boolValidator) : false;
 

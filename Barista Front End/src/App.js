@@ -353,7 +353,7 @@ function App() {
     }
     
     try {
-      const response = await fetch('http://localhost:5001/api/auth/status', { 
+      const response = await fetch('/api/auth/status', { 
         method: 'GET',
         headers: { 
           'Accept': 'application/json',
