@@ -19,12 +19,15 @@ logger = logging.getLogger("expresso.routes.sms")
 @bp.route('/sms/test', methods=['GET', 'POST'])
 def sms_test():
     """Simple test endpoint to verify webhooks are working"""
-    logger.info(f"SMS TEST endpoint called - Method: {request.method}")
-    logger.info(f"SMS TEST - Headers: {dict(request.headers)}")
-    if request.method == 'POST':
-        logger.info(f"SMS TEST - Form data: {request.form}")
-        logger.info(f"SMS TEST - JSON data: {request.get_json()}")
-    return "SMS test endpoint working!", 200
+    try:
+        logger.info(f"SMS TEST endpoint called - Method: {request.method}")
+        logger.info(f"SMS TEST - Headers: {dict(request.headers)}")
+        if request.method == 'POST':
+            logger.info(f"SMS TEST - Form data: {request.form}")
+            logger.info(f"SMS TEST - JSON data: {request.get_json()}")
+        return "SMS test endpoint working!", 200
+    except Exception as e:
+        return f"SMS test error: {str(e)}", 500
 
 @bp.route('/sms', methods=['POST'])
 def sms_webhook():
