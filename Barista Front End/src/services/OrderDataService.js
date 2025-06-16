@@ -572,10 +572,19 @@ class OrderDataService {
   async sendMessageToCustomer(orderId, message) {
     try {
       const response = await this.apiService.post(`/orders/${orderId}/message`, { message });
-      return { success: response.status === 'success' };
+      
+      // Check both response.success and response.status for compatibility
+      const isSuccess = response.success === true || response.status === 'success';
+      
+      if (isSuccess) {
+        return { success: true, data: response };
+      } else {
+        const errorMessage = response.message || response.error || 'Unknown error';
+        return { success: false, message: errorMessage };
+      }
     } catch (error) {
       console.error('Error sending message:', error);
-      return { success: false, error: error.message };
+      return { success: false, message: error.message };
     }
   }
 

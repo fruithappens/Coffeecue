@@ -1368,6 +1368,11 @@ def send_message(order_id):
             logger.error("Coffee system or messaging service not available")
             return jsonify({"success": False, "message": "Service unavailable"})
         
+        # Debug messaging service configuration
+        logger.info(f"Messaging service config - Client: {messaging_service.client is not None}")
+        logger.info(f"Messaging service config - Testing mode: {messaging_service.testing_mode}")
+        logger.info(f"Messaging service config - Phone number: {messaging_service.phone_number}")
+        
         # Get order details to send message
         db = coffee_system.db
         cursor = db.cursor()
@@ -1416,6 +1421,15 @@ def send_message(order_id):
         try:
             result = messaging_service.send_message(phone_number, message)
             logger.info(f"Message sent to {phone_number} for order {clean_id}, result: {result}")
+            logger.info(f"Result type: {type(result)}, Result value: {repr(result)}")
+            
+            # Check if message sending actually succeeded
+            if result is None:
+                logger.error("Messaging service returned None - message sending failed")
+                return jsonify({
+                    "success": False, 
+                    "message": "Failed to send SMS - messaging service returned no result"
+                })
             
             # Log the message in the database
             try:
