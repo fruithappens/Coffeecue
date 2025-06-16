@@ -8,6 +8,7 @@ import DisplaySelector from './components/DisplaySelector';
 import SupportInterface from './components/SupportInterface';
 import LoginPage from './components/auth/LoginPage';
 import AuthService from './services/AuthService';
+import DeploymentService from './services/DeploymentService';
 import { AppProvider } from './context/AppContext';
 import AuthGuard from './components/auth/AuthGuard';
 import UnauthorizedPage from './components/auth/UnauthorizedPage';
@@ -253,6 +254,9 @@ function App() {
   
   // Initialize app with fallback data if needed
   useEffect(() => {
+    // Initialize deployment service for automatic update detection
+    console.log('Initializing deployment service for version:', DeploymentService.getCurrentVersion());
+    
     // Check for fallback mode
     const useFallback = localStorage.getItem('use_fallback_data') === 'true';
     

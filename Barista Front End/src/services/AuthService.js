@@ -342,7 +342,10 @@ class AuthService {
    */
   async refreshToken() {
     const refreshToken = localStorage.getItem(this.refreshKey);
-    if (!refreshToken) return false;
+    if (!refreshToken) {
+      console.log('No refresh token available');
+      return false;
+    }
     
     try {
       // Use ConfigService for API URL
@@ -358,8 +361,14 @@ class AuthService {
       });
       
       if (!response.ok) {
+        // If 401/403, the refresh token is invalid - force logout
+        if (response.status === 401 || response.status === 403) {
+          console.log('Refresh token invalid, forcing logout');
+          this.forceLogoutWithMessage('Your session has expired. Please log in again.');
+          return false;
+        }
         this.incrementAuthError();
-        throw new Error('Token refresh failed');
+        throw new Error(`Token refresh failed with status ${response.status}`);
       }
       
       const data = await response.json();
@@ -372,6 +381,11 @@ class AuthService {
       
       // Save new token
       localStorage.setItem(this.tokenKey, data.token);
+      
+      // Save new refresh token if provided
+      if (data.refreshToken) {
+        localStorage.setItem(this.refreshKey, data.refreshToken);
+      }
       
       // Save token expiry if provided
       if (data.expiresIn) {
@@ -392,6 +406,17 @@ class AuthService {
       return true;
     } catch (error) {
       console.error('Token refresh error:', error);
+      
+      // Check if this is a deployment-related error (version mismatch, etc.)
+      if (error.message.includes('NetworkError') || 
+          error.message.includes('Failed to fetch') ||
+          error.message.includes('502') ||
+          error.message.includes('503') ||
+          error.message.includes('504')) {
+        console.log('Network or deployment error detected, will retry later');
+        return false; // Don't increment error count for network issues
+      }
+      
       this.incrementAuthError();
       return false;
     }
@@ -409,7 +434,6 @@ class AuthService {
       return false;
     }
     
-    // TEMPORARY FIX: Bypass refresh logic for now
     const token = this.getToken();
     const user = this.getCurrentUser();
     
@@ -418,29 +442,44 @@ class AuthService {
       return false;
     }
     
-    // Simple validation - check if token is completely expired
+    // Check token validity and handle deployment scenarios
     try {
       const payload = JSON.parse(atob(token.split('.')[1]));
       const exp = new Date(payload.exp * 1000);
       const now = new Date();
       
-      // Only fail if token is completely expired (not just within refresh window)
+      // Check if token is completely expired
       if (exp <= now) {
-        console.log('Token is completely expired');
-        localStorage.removeItem(this.tokenKey);
-        return false;
+        console.log('Token is completely expired, attempting refresh');
+        const refreshSuccess = await this.refreshToken();
+        if (!refreshSuccess) {
+          console.log('Token refresh failed, forcing logout');
+          this.forceLogoutWithMessage('Your session has expired. Please log in again.');
+          return false;
+        }
+        console.log('Token refreshed successfully');
+        OrderDataService.setToken(this.getToken());
+        return true;
+      }
+      
+      // Check if token is expiring soon (within 5 minutes) and try to refresh
+      const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000);
+      if (exp <= fiveMinutesFromNow) {
+        console.log('Token expiring soon, attempting background refresh');
+        // Try to refresh in background, but don't fail if it doesn't work
+        this.refreshToken().catch(error => {
+          console.warn('Background token refresh failed:', error);
+        });
       }
       
       console.log('✅ Token is valid, user authenticated');
-      
-      // Set token for API requests
       OrderDataService.setToken(token);
-      
       return true;
       
     } catch (error) {
       console.error('Error validating token:', error);
-      localStorage.removeItem(this.tokenKey);
+      // Token is malformed or corrupted, force re-login
+      this.forceLogoutWithMessage('Your session is invalid. Please log in again.');
       return false;
     }
   }
@@ -564,13 +603,75 @@ class AuthService {
   }
 
   /**
+   * Force logout with a user-friendly message
+   * @param {string} message - Message to display to user
+   */
+  forceLogoutWithMessage(message = 'Your session has expired. Please log in again.') {
+    // Store the message for display on login page
+    localStorage.setItem('logout_message', message);
+    
+    // Clear authentication data
+    this.logout();
+  }
+
+  /**
+   * Get and clear any logout message
+   * @returns {string|null} - Logout message if any
+   */
+  getAndClearLogoutMessage() {
+    const message = localStorage.getItem('logout_message');
+    if (message) {
+      localStorage.removeItem('logout_message');
+      return message;
+    }
+    return null;
+  }
+
+  /**
+   * Check if this is a new deployment that might have incompatible tokens
+   * @returns {boolean} - True if deployment change detected
+   */
+  detectDeploymentChange() {
+    const currentVersion = process.env.REACT_APP_VERSION || 'unknown';
+    const storedVersion = localStorage.getItem('app_version');
+    
+    if (storedVersion && storedVersion !== currentVersion) {
+      console.log(`Deployment change detected: ${storedVersion} → ${currentVersion}`);
+      localStorage.setItem('app_version', currentVersion);
+      return true;
+    }
+    
+    if (!storedVersion) {
+      localStorage.setItem('app_version', currentVersion);
+    }
+    
+    return false;
+  }
+
+  /**
+   * Handle deployment changes by clearing potentially incompatible tokens
+   */
+  handleDeploymentChange() {
+    if (this.detectDeploymentChange()) {
+      console.log('Clearing tokens due to deployment change');
+      this.forceLogoutWithMessage('The application has been updated. Please log in again to continue.');
+    }
+  }
+
+  /**
    * Add authorization header to existing headers object
    * @param {Object} headers - The headers object to modify
    * @returns {Object} - The modified headers object with authorization header
    */
   async addAuthorizationHeader(headers = {}) {
+    // Check for deployment changes first
+    this.handleDeploymentChange();
+    
     // Make sure we have a valid token
-    await this.handleAuthentication();
+    const isAuthenticated = await this.handleAuthentication();
+    if (!isAuthenticated) {
+      return headers;
+    }
     
     const token = this.getToken();
     if (token) {

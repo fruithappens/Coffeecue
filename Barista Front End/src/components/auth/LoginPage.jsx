@@ -41,7 +41,18 @@ const LoginPage = ({ onLoginSuccess }) => {
   // Check for existing token errors on mount and load branding settings
   useEffect(() => {
     const checkTokenValidity = async () => {
-      // Only run if we have a token
+      // Check for logout message from forced logout
+      const logoutMessage = AuthService.getAndClearLogoutMessage();
+      if (logoutMessage) {
+        setError(logoutMessage);
+        setShowFallbackOption(false); // Don't show fallback for logout messages
+        return;
+      }
+      
+      // Check for deployment changes
+      AuthService.handleDeploymentChange();
+      
+      // Only run token validation if we have a token
       if (AuthService.getToken()) {
         const validationResult = AuthService.validateToken();
         
