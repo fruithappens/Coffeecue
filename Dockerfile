@@ -5,13 +5,13 @@ FROM node:18-alpine as frontend-builder
 WORKDIR /app/frontend
 
 # Copy package files
-COPY Barista\ Front\ End/package*.json ./
+COPY ["Barista Front End/package*.json", "./"]
 
 # Install dependencies
 RUN npm ci --only=production
 
 # Copy frontend source
-COPY Barista\ Front\ End/ ./
+COPY ["Barista Front End/", "./"]
 
 # Set environment to production
 ENV NODE_ENV=production
