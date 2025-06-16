@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import AuthService from '../../services/AuthService';
 import OfflineDataHelper from '../../utils/offlineDataHelper';
+import SettingsService from '../../services/SettingsService';
 
 const LoginPage = ({ onLoginSuccess }) => {
   const [username, setUsername] = useState('admin');
@@ -11,6 +12,7 @@ const LoginPage = ({ onLoginSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [showFallbackOption, setShowFallbackOption] = useState(false);
   const [tokenError, setTokenError] = useState(null);
+  const [brandingSettings, setBrandingSettings] = useState(null);
   
   const navigate = useNavigate();
   const location = useLocation();
@@ -36,7 +38,7 @@ const LoginPage = ({ onLoginSuccess }) => {
   
   const from = getRedirectPath();
   
-  // Check for existing token errors on mount
+  // Check for existing token errors on mount and load branding settings
   useEffect(() => {
     const checkTokenValidity = async () => {
       // Only run if we have a token
@@ -51,7 +53,23 @@ const LoginPage = ({ onLoginSuccess }) => {
       }
     };
     
+    const loadBrandingSettings = async () => {
+      try {
+        const settings = await SettingsService.getBrandingSettings();
+        setBrandingSettings(settings);
+      } catch (error) {
+        console.error('Failed to load branding settings:', error);
+        // Use default settings if API fails
+        setBrandingSettings({
+          systemName: 'Coffee Cue System',
+          event_name: 'Coffee Event',
+          organization_name: 'Coffee Cue'
+        });
+      }
+    };
+    
     checkTokenValidity();
+    loadBrandingSettings();
   }, []);
   
   // Handle enabling fallback mode
@@ -100,8 +118,8 @@ const LoginPage = ({ onLoginSuccess }) => {
     <div className="login-container">
       <div className="login-card">
         <div className="login-header">
-          <h2>Coffee Cue System</h2>
-          <p>ANZCA ASM 2025 Cairns</p>
+          <h2>{brandingSettings?.systemName || brandingSettings?.organization_name || 'Coffee Cue System'}</h2>
+          <p>{brandingSettings?.event_name || 'Coffee Event'}</p>
         </div>
         
         <div className="login-body">
