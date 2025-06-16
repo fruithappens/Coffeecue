@@ -48,11 +48,7 @@ def sms_webhook():
     try:
         # SECURITY: Validate Twilio webhook signature
         auth_token = os.getenv('TWILIO_AUTH_TOKEN')
-        
-        # TEMPORARY: Bypass signature validation on Railway to debug the issue
-        if 'railway.app' in request.url:
-            logger.warning("⚠️ TEMPORARY: Bypassing Twilio signature validation on Railway deployment")
-        elif auth_token and auth_token != 'test_token':  # Skip validation if using test token
+        if auth_token and auth_token != 'test_token':  # Skip validation if using test token
             validator = RequestValidator(auth_token)
             
             # Get the signature from headers
