@@ -13,8 +13,8 @@ class MessageService {
     
     this.settings = {
       autoSendSmsOnComplete: true, // Changed to true to enable automatic SMS
-      remindAfterDelay: true,
-      reminderDelay: 120, // 2 minutes in seconds (changed from 30)
+      remindAfterDelay: false, // TEMPORARILY DISABLED to fix duplicate messages
+      reminderDelay: 300, // 5 minutes in seconds (increased from 120)
       showNameOnDisplay: true,
       displayDuration: 30, // seconds
       includeQrCode: true, // Include enhanced SMS features
@@ -621,17 +621,28 @@ class MessageService {
     // Cancel any existing reminder for this order
     this.cancelReminderSMS(order.id);
     
+    // Validate reminder delay
+    if (!this.settings.reminderDelay || this.settings.reminderDelay <= 0) {
+      console.warn(`Invalid reminder delay: ${this.settings.reminderDelay}, skipping reminder`);
+      return;
+    }
+    
     console.log(`📅 Scheduling reminder SMS for order ${order.id} in ${this.settings.reminderDelay} seconds`);
     
     const timerId = setTimeout(async () => {
       try {
         // Check if order is still completed (not picked up)
-        // This is a simple check - in a real system you'd query the current order status
         const isStillCompleted = !this.isOrderPickedUp(order.id);
         
         if (isStillCompleted) {
-          const reminderMinutes = Math.floor(this.settings.reminderDelay / 60);
-          await this.sendReminderNotification(order, reminderMinutes);
+          // Calculate actual wait time since completion
+          const completionTime = order.completedAt ? new Date(order.completedAt) : new Date();
+          const now = new Date();
+          const actualWaitMinutes = Math.floor((now - completionTime) / 60000);
+          
+          console.log(`⏰ Sending reminder for order ${order.id} - actual wait time: ${actualWaitMinutes} minutes`);
+          
+          await this.sendReminderNotification(order, actualWaitMinutes);
           console.log(`✅ Reminder SMS sent for order ${order.id}`);
         } else {
           console.log(`⏭️ Order ${order.id} was picked up, skipping reminder`);
@@ -646,6 +657,7 @@ class MessageService {
     
     // Store the timer ID so we can cancel it later
     this.reminderTimers.set(order.id, timerId);
+    console.log(`📅 Reminder timer ${timerId} set for order ${order.id}`);
   }
   
   /**
