@@ -5,6 +5,7 @@ import ApiNotificationBanner from './ApiNotificationBanner';
 import OrderDataService from '../services/OrderDataService';
 import StationsService from '../services/StationsService';
 import SettingsService from '../services/SettingsService';
+import ApiService from '../services/ApiService';
 import { useSettings } from '../hooks/useSettings';
 
 const DisplayScreen = () => {
@@ -22,11 +23,11 @@ const DisplayScreen = () => {
   
   // Get display settings from settings or use defaults
   const displaySettings = settings?.displaySettings || {
-    eventName: 'ANZCA ASM 2025',
-    organizationName: 'Australian and New Zealand College of Anaesthetists',
+    eventName: 'Coffee Event',
+    organizationName: 'Coffee Cue',
     headerColor: '#1e40af',
     customMessage: 'Enjoy your coffee!',
-    smsNumber: '+61 123 456 789',
+    smsNumber: 'Not configured',
     showSponsor: false,
     sponsorName: '',
     sponsorMessage: ''
@@ -54,6 +55,36 @@ const DisplayScreen = () => {
   
   const [connected, setConnected] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [smsPhoneNumber, setSmsPhoneNumber] = useState('Loading...');
+
+  // Fetch SMS number and system settings from backend
+  useEffect(() => {
+    const fetchSystemSettings = async () => {
+      try {
+        // Get display configuration from backend
+        const response = await ApiService.get('/display/config');
+        if (response && response.config) {
+          const backendConfig = response.config;
+          setSmsPhoneNumber(backendConfig.sms_number || 'Not configured');
+          
+          // Update config with backend values
+          setConfig(prev => ({
+            ...prev,
+            system_name: backendConfig.system_name || 'Coffee Cue',
+            event_name: backendConfig.event_name || settings?.displaySettings?.eventName || 'Coffee Event',
+            sms_number: backendConfig.sms_number || 'Not configured',
+            sponsor: backendConfig.sponsor || prev.sponsor
+          }));
+        }
+      } catch (error) {
+        console.log('Could not fetch system settings:', error);
+        // Use fallback values
+        setSmsPhoneNumber(settings?.displaySettings?.smsNumber || 'Not configured');
+      }
+    };
+    
+    fetchSystemSettings();
+  }, []);
 
   // Update config when settings change
   useEffect(() => {
@@ -61,7 +92,7 @@ const DisplayScreen = () => {
       setConfig({
         system_name: 'Coffee Cue',
         event_name: settings.displaySettings.eventName,
-        sms_number: settings.displaySettings.smsNumber,
+        sms_number: smsPhoneNumber || settings.displaySettings.smsNumber,
         sponsor: {
           enabled: settings.displaySettings.showSponsor,
           name: settings.displaySettings.sponsorName,
@@ -72,7 +103,7 @@ const DisplayScreen = () => {
         custom_message: settings.displaySettings.customMessage
       });
     }
-  }, [settings]);
+  }, [settings, smsPhoneNumber]);
 
   // Load stations first
   useEffect(() => {
@@ -163,8 +194,25 @@ const DisplayScreen = () => {
             : currentStation.id;
           
           console.log(`Fetching orders for station ID: ${stationId} (original: ${currentStation.id}, type: ${typeof currentStation.id})`);
-          inProgressOrders = await OrderDataService.getInProgressOrders(stationId);
-          completedOrders = await OrderDataService.getCompletedOrders(stationId);
+          
+          // Get all orders first
+          const allInProgress = await OrderDataService.getInProgressOrders();
+          const allCompleted = await OrderDataService.getCompletedOrders();
+          
+          console.log('All in-progress orders before filtering:', allInProgress);
+          console.log('All completed orders before filtering:', allCompleted);
+          
+          // Filter by station ID
+          inProgressOrders = allInProgress.filter(order => {
+            const orderStationId = order.stationId || order.station_id;
+            console.log(`Order ${order.id} has station ID: ${orderStationId} (comparing with ${stationId})`);
+            return orderStationId === stationId || orderStationId === stationId.toString();
+          });
+          
+          completedOrders = allCompleted.filter(order => {
+            const orderStationId = order.stationId || order.station_id;
+            return orderStationId === stationId || orderStationId === stationId.toString();
+          });
         }
         
         console.log('In-progress orders:', inProgressOrders);
@@ -520,12 +568,13 @@ const DisplayScreen = () => {
               <p className="text-blue-100">Text your order to: {config.sms_number}</p>
             </div>
             <div className="text-center md:text-right">
-              {config.sponsor.enabled ? (
+              {config.sponsor.enabled && config.sponsor.name ? (
                 <div className="text-xl font-bold">{config.sponsor.name}: {config.sponsor.message}</div>
               ) : (
-                <div className="text-xl font-bold">Coffee service proudly provided</div>
+                config.custom_message && (
+                  <div className="text-xl font-bold">{config.custom_message}</div>
+                )
               )}
-              <div className="text-blue-100 text-lg">{config.custom_message || "Enjoy your coffee!"}</div>
             </div>
           </div>
         </div>
