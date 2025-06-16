@@ -214,10 +214,10 @@ def create_app():
         init_jwt_security(app)
         logger.info("JWT security features initialized")
         
-        # Database security and encryption
-        from database_security import init_database_security
-        init_database_security(app)
-        logger.info("Database security initialized")
+        # Database security and encryption - temporarily disabled due to bytes encoding issue
+        # from database_security import init_database_security
+        # init_database_security(app)
+        logger.info("Database security temporarily disabled")
         
         # Secure error handling
         from error_security import init_secure_error_handling
@@ -541,17 +541,6 @@ def create_app():
         # This is now handled in the auth module's load_user_from_jwt function
         # Keep it empty for backward compatibility
         pass
-    
-    # Simple API test endpoint
-    @app.route('/api/test', methods=['GET'])
-    def api_test():
-        """Simple test endpoint to verify API connectivity"""
-        return jsonify({
-            'status': 'success',
-            'message': 'API is working',
-            'timestamp': datetime.now().isoformat(),
-            'environment': 'railway' if os.getenv('RAILWAY_ENVIRONMENT') else 'local'
-        })
     
     # Authentication API endpoints
     @app.route('/api/auth/login', methods=['POST'])
