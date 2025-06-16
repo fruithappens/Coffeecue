@@ -91,6 +91,7 @@ def init_app(app):
                 
                 return user_data
             
+            logger.warning(f"User with ID {identity} not found in database")
             return None
         
         except Exception as e:
@@ -101,6 +102,18 @@ def init_app(app):
                 cursor.close()
             if 'conn' in locals() and conn:
                 close_connection(conn)
+    
+    # Handle user lookup errors
+    @jwt.user_lookup_error_loader
+    def user_lookup_error_callback(_jwt_header, jwt_data):
+        """Handle user lookup errors"""
+        identity = jwt_data["sub"]
+        logger.error(f"Failed to load user {identity}")
+        return jsonify({
+            'success': False,
+            'message': 'User not found or session expired. Please log in again.',
+            'msg': f'User {identity} not found in database'
+        }), 401
     
     # Before request handler to load user from JWT
     @app.before_request
