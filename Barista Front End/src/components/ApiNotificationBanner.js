@@ -14,7 +14,7 @@ const ApiNotificationBanner = () => {
     connectionStatus: 'online'
   });
   
-  // Check status every 5 seconds
+  // Check status every 5 seconds, but wait 3 seconds before first check
   useEffect(() => {
     const checkStatus = () => {
       setStatus({
@@ -24,11 +24,16 @@ const ApiNotificationBanner = () => {
       });
     };
     
-    // Check immediately
-    checkStatus();
-    
-    // Then set up interval
-    const interval = setInterval(checkStatus, 5000);
+    // Wait 3 seconds before first check to avoid showing banners during app startup
+    const initialTimer = setTimeout(() => {
+      checkStatus();
+      
+      // Then set up interval for ongoing checks
+      const interval = setInterval(checkStatus, 5000);
+      
+      // Store interval ID for cleanup
+      window._bannerCheckInterval = interval;
+    }, 3000);
     
     // Listen for auth recovery events
     const handleAuthRecovered = () => {
@@ -48,7 +53,11 @@ const ApiNotificationBanner = () => {
     window.addEventListener('app:refreshOrders', handleRefreshOrders);
     
     return () => {
-      clearInterval(interval);
+      clearTimeout(initialTimer);
+      if (window._bannerCheckInterval) {
+        clearInterval(window._bannerCheckInterval);
+        window._bannerCheckInterval = null;
+      }
       window.removeEventListener('app:authRecovered', handleAuthRecovered);
       window.removeEventListener('app:refreshOrders', handleRefreshOrders);
     };
@@ -60,7 +69,7 @@ const ApiNotificationBanner = () => {
   }
   
   // Handle refresh/reconnect button click
-  const handleRefreshOrReconnect = () => {
+  const handleRefreshOrReconnect = async () => {
     if (status.authErrorRefreshNeeded) {
       // Clear JWT error caches and reset auth error counters
       localStorage.removeItem('jwt_error_endpoints');
@@ -73,8 +82,16 @@ const ApiNotificationBanner = () => {
       // Refresh the page to ensure clean state
       window.location.reload();
     } else {
+      // Clear offline status immediately when user clicks refresh
+      localStorage.setItem('coffee_connection_status', 'online');
+      setStatus(prev => ({
+        ...prev,
+        connectionStatus: 'online'
+      }));
+      
       // Try to reconnect to the server via OrderDataService
-      OrderDataService.checkConnection().then(isConnected => {
+      try {
+        const isConnected = await OrderDataService.checkConnection();
         if (isConnected) {
           // If connection successful, refresh orders
           window.dispatchEvent(new CustomEvent('app:refreshOrders'));
@@ -88,7 +105,10 @@ const ApiNotificationBanner = () => {
             }));
           }
         }
-      });
+      } catch (error) {
+        console.log('Reconnection attempt failed:', error);
+        // Don't immediately set back to offline - let the retry logic handle it
+      }
     }
   };
   

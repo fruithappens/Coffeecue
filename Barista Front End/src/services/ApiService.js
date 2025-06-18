@@ -58,6 +58,11 @@ class ApiService {
     this.enableFallback = false; // Keep fallback disabled to enforce real API usage
     this.connectionTimeout = 10000; // 10 second timeout
     
+    // Initialize connection status as online to prevent early false positives
+    if (!localStorage.getItem('coffee_connection_status')) {
+      localStorage.setItem('coffee_connection_status', 'online');
+    }
+    
     // Monitor for app mode changes
     serviceFactory.addModeChangeListener(this._handleModeChange.bind(this));
     
@@ -373,15 +378,72 @@ class ApiService {
         throw error; // Re-throw to maintain error handling flow
       }
       
-      // Log other errors
-      console.error(`Error fetching from ${endpoint}:`, error);
+      // Log other errors (but not too verbosely)
+      if (this.debugMode) {
+        console.error(`Error fetching from ${endpoint}:`, error);
+      }
       
-      // Mark connection as offline if it's a network error
-      if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-        localStorage.setItem('coffee_connection_status', 'offline');
+      // Only mark as offline for genuine network errors, not auth or server errors
+      if (error.message.includes('Failed to fetch') || 
+          error.message.includes('NetworkError') ||
+          error.message.includes('ERR_NETWORK') ||
+          error.message.includes('ERR_INTERNET_DISCONNECTED')) {
+        
+        // Don't set offline status immediately - wait a moment and retry
+        this.checkConnectionWithRetry(endpoint);
       }
       
       throw error;
+    }
+  }
+
+  /**
+   * Check connection with retry logic to avoid false offline detection
+   * @param {string} originalEndpoint - Original endpoint that failed
+   * @private
+   */
+  async checkConnectionWithRetry(originalEndpoint) {
+    // Prevent multiple concurrent checks
+    if (this._connectionCheckInProgress) {
+      return;
+    }
+    
+    this._connectionCheckInProgress = true;
+    
+    try {
+      // Wait a moment before retrying to avoid immediate false positives
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Try a simple health check endpoint
+      const response = await fetch('/api/health', {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(5000), // 5 second timeout
+        mode: 'cors'
+      });
+      
+      if (response.ok) {
+        // Connection is actually working
+        localStorage.setItem('coffee_connection_status', 'online');
+        console.log('Connection retry successful - API is reachable');
+      } else {
+        // Server error, but connection exists
+        localStorage.setItem('coffee_connection_status', 'online');
+        console.log('Server responding but with error status - keeping online status');
+      }
+    } catch (retryError) {
+      // Only now mark as offline if retry also fails
+      if (retryError.name !== 'AbortError') {
+        console.log('Connection retry failed - marking as offline');
+        localStorage.setItem('coffee_connection_status', 'offline');
+        
+        // Auto-recover: try again in 30 seconds
+        setTimeout(() => {
+          this.checkConnectionWithRetry(originalEndpoint);
+        }, 30000);
+      }
+    } finally {
+      this._connectionCheckInProgress = false;
     }
   }
 
