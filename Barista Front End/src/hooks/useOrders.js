@@ -342,9 +342,10 @@ export default function useOrders(stationId = null) {
           // Check if any of the station IDs match the current station
           const hasStationMatch = orderStationIds.some(id => id === normalizedCurrentStationId);
           
-          // Display debug info for station assignment
-          console.log(`Order ${order.id} station fields:`, orderStationIds, 
-                      `matches current station ${normalizedCurrentStationId}:`, hasStationMatch);
+          // Display debug info for station assignment (only for mismatches)
+          if (!hasStationMatch && orderStationIds.length > 0) {
+            console.warn(`Order ${order.id} assigned to station(s) [${orderStationIds.join(',')}] but current station is ${normalizedCurrentStationId} - will not show`);
+          }
           
           // STRICT FILTERING: Only show orders that are explicitly assigned to this station
           if (hasStationMatch) {
@@ -360,15 +361,9 @@ export default function useOrders(stationId = null) {
             return true;
           }
           
-          // EXCEPTION: Only show unassigned orders on station 1 and only if they are SMS orders
-          // This prevents walk-in orders from appearing on multiple stations
-          if (normalizedCurrentStationId === '1' && orderStationIds.length === 0 && !orderCreatedAtThisStation) {
-            // Check if this looks like an SMS order (has phone number and is NOT a walk-in)
-            if (order.phoneNumber && order.phoneNumber !== 'Walk-in' && order.phoneNumber !== 'Group-Order' && !order.isWalkIn) {
-              console.log(`Order ${order.id} is an unassigned SMS order - showing only at station 1`);
-              return true;
-            }
-          }
+          // REMOVED: Exception for unassigned SMS orders 
+          // All orders should now be properly assigned to stations in the database
+          // If an order has no station assignment, it shouldn't appear anywhere until fixed
           
           return false;
         });
