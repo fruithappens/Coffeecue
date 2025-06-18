@@ -806,32 +806,28 @@ class CoffeeOrderSystem:
     def _handle_menu_command(self):
         """Handle MENU command - show coffee options"""
         try:
-            # Get available menu items from stock
+            # Get available menu items from inventory
             cursor = self.db.cursor()
             
-            # Check if stock_items table exists
+            # Check if inventory_items table exists
             cursor.execute("""
                 SELECT EXISTS (
                     SELECT FROM information_schema.tables 
-                    WHERE table_name = 'stock_items'
+                    WHERE table_name = 'inventory_items'
                 )
             """)
             
-            has_stock_table = cursor.fetchone()[0]
+            has_inventory_table = cursor.fetchone()[0]
             
-            if has_stock_table:
-                # Get coffee types from stock
-                cursor.execute("""
-                    SELECT name FROM stock_items 
-                    WHERE category = 'coffee_type' AND is_active = TRUE
-                    ORDER BY name
-                """)
-                coffee_types = [row[0] for row in cursor.fetchall()]
+            if has_inventory_table:
+                # Get available drink types based on ingredient availability
+                coffee_types = self._get_available_coffee_types()
                 
-                # Get milk types from stock
+                # Get milk types from inventory with stock validation
                 cursor.execute("""
-                    SELECT name FROM stock_items 
-                    WHERE category = 'milk' AND is_active = TRUE
+                    SELECT name FROM inventory_items 
+                    WHERE category = 'milk' 
+                    AND (amount IS NULL OR amount > COALESCE(minimum_threshold, 0))
                     ORDER BY name
                 """)
                 milk_types = [row[0] for row in cursor.fetchall()]
@@ -1077,25 +1073,31 @@ class CoffeeOrderSystem:
             return f"You don't have a saved usual order yet. What type of coffee would you like, {name}?"
     
     def _get_available_coffee_types(self):
-        """Get list of available coffee types from stock management"""
+        """Get list of available coffee drink types based on ingredient availability"""
         try:
             cursor = self.db.cursor()
+            
+            # Check if we have coffee beans available
             cursor.execute("""
-                SELECT name FROM stock_items 
-                WHERE category = 'coffee_type' AND is_active = TRUE
-                ORDER BY name
+                SELECT COUNT(*) FROM inventory_items 
+                WHERE category = 'coffee' 
+                AND (amount IS NULL OR amount > COALESCE(minimum_threshold, 0))
             """)
-            coffee_types = [row[0].lower() for row in cursor.fetchall()]
+            coffee_available = cursor.fetchone()[0] > 0
             
-            # If no coffee types defined, return default list
-            if not coffee_types:
-                return ["latte", "cappuccino", "flat white", "long black", "espresso", "mocha", "hot chocolate", "chai latte"]
+            # Standard drink menu - only return if we have coffee beans
+            if coffee_available:
+                drink_types = ["latte", "cappuccino", "flat white", "long black", "espresso", "mocha"]
+                logger.info(f"Coffee beans available, offering drink types: {drink_types}")
+                return drink_types
+            else:
+                logger.warning("No coffee beans in stock, cannot offer coffee drinks")
+                return []
             
-            return coffee_types
         except Exception as e:
-            logger.error(f"Error getting available coffee types: {str(e)}")
-            # Return default list if there's an error
-            return ["latte", "cappuccino", "flat white", "long black", "espresso", "mocha", "hot chocolate", "chai latte"]
+            logger.error(f"Error checking coffee availability: {str(e)}")
+            # Return basic menu if there's an error
+            return ["latte", "cappuccino", "flat white", "long black", "espresso"]
 
     def _is_valid_coffee_type(self, requested_type, available_types):
         """Check if the requested coffee type is valid"""
@@ -1108,6 +1110,98 @@ class CoffeeOrderSystem:
         # Check for partial matches
         for coffee_type in available_types:
             if coffee_type in requested_type or requested_type in coffee_type:
+                return True
+        
+        return False
+
+    def _get_available_milk_types(self):
+        """Get list of available milk types from inventory management"""
+        try:
+            cursor = self.db.cursor()
+            # Use correct table name and check stock levels
+            cursor.execute("""
+                SELECT name FROM inventory_items 
+                WHERE category = 'milk' 
+                AND (amount IS NULL OR amount > COALESCE(minimum_threshold, 0))
+                ORDER BY name
+            """)
+            milk_types = [row[0].lower() for row in cursor.fetchall()]
+            
+            # If no milk types defined, return basic default list
+            if not milk_types:
+                logger.warning("No milk types found in inventory_items table, using defaults")
+                return ["full cream", "skim"]
+            
+            logger.info(f"Available milk types: {milk_types}")
+            return milk_types
+        except Exception as e:
+            logger.error(f"Error getting available milk types: {str(e)}")
+            # Return basic default list if there's an error
+            return ["full cream", "skim"]
+
+    def _is_valid_milk_type(self, requested_milk, available_milks):
+        """Check if the requested milk type is valid and in stock"""
+        if not requested_milk:
+            return True  # No milk requested is valid
+        
+        requested_milk = requested_milk.lower().replace(' milk', '').strip()
+        
+        # Direct match
+        for available_milk in available_milks:
+            available_clean = available_milk.lower().replace(' milk', '').strip()
+            if requested_milk == available_clean:
+                return True
+            
+            # Check for partial matches (e.g., "oat" matches "oat milk")
+            if requested_milk in available_clean or available_clean in requested_milk:
+                return True
+        
+        return False
+
+    def _get_available_sweeteners(self):
+        """Get list of available sweeteners from inventory management"""
+        try:
+            cursor = self.db.cursor()
+            # Check for both 'sweetener' and 'sugar' categories
+            cursor.execute("""
+                SELECT name, category FROM inventory_items 
+                WHERE category IN ('sweetener', 'sugar', 'artificial_sweetener') 
+                AND (amount IS NULL OR amount > COALESCE(minimum_threshold, 0))
+                ORDER BY category, name
+            """)
+            sweeteners = [(row[0].lower(), row[1]) for row in cursor.fetchall()]
+            
+            # If no sweeteners defined, return basic defaults
+            if not sweeteners:
+                logger.warning("No sweeteners found in inventory_items table, using defaults")
+                return [("sugar", "sugar"), ("no sugar", "sugar")]
+            
+            logger.info(f"Available sweeteners: {sweeteners}")
+            return sweeteners
+        except Exception as e:
+            logger.error(f"Error getting available sweeteners: {str(e)}")
+            # Return basic defaults if there's an error
+            return [("sugar", "sugar"), ("no sugar", "sugar")]
+
+    def _is_valid_sweetener(self, requested_sweetener, available_sweeteners):
+        """Check if the requested sweetener is valid and properly categorized"""
+        if not requested_sweetener:
+            return True  # No sweetener requested is valid
+        
+        requested_sweetener = requested_sweetener.lower().strip()
+        
+        # Check against available sweeteners
+        for sweetener_name, category in available_sweeteners:
+            if requested_sweetener == sweetener_name:
+                return True
+            
+            # Special handling for "Equal" - should be artificial sweetener, not sugar
+            if requested_sweetener == "equal" and category == "sugar":
+                logger.warning("Equal sweetener incorrectly categorized as sugar instead of artificial_sweetener")
+                return False  # Reject if miscategorized
+            
+            # Check for partial matches
+            if requested_sweetener in sweetener_name or sweetener_name in requested_sweetener:
                 return True
         
         return False
@@ -1160,6 +1254,21 @@ class CoffeeOrderSystem:
         # Check if the requested coffee type is available
         if coffee_type and not self._is_valid_coffee_type(coffee_type, available_coffee_types):
             return f"Sorry, we don't offer {coffee_type}. Available options are: {', '.join(available_coffee_types)}. Please select one of these."
+        
+        # Validate milk type if specified
+        milk_type = order_details.get('milk', '')
+        if milk_type:
+            available_milk_types = self._get_available_milk_types()
+            if not self._is_valid_milk_type(milk_type, available_milk_types):
+                return f"Sorry, we don't have {milk_type} milk. Available options are: {', '.join(available_milk_types)}. Please try again."
+        
+        # Validate sweetener if specified
+        sweetener = order_details.get('sugar', '')
+        if sweetener:
+            available_sweeteners = self._get_available_sweeteners()
+            if not self._is_valid_sweetener(sweetener, available_sweeteners):
+                sweetener_names = [s[0] for s in available_sweeteners]
+                return f"Sorry, we don't have {sweetener}. Available options are: {', '.join(sweetener_names)}. Please try again."
         
         # Get customer's name from state
         name = state.get('temp_data', {}).get('name', '')
@@ -2836,6 +2945,30 @@ class CoffeeOrderSystem:
         
         # Check if NLP can parse a complete order
         order_details = self.nlp.parse_order(message)
+        
+        # Validate the order if it contains any specific components
+        if order_details:
+            # Validate coffee type
+            coffee_type = order_details.get('type', '')
+            if coffee_type:
+                available_coffee_types = self._get_available_coffee_types()
+                if not self._is_valid_coffee_type(coffee_type, available_coffee_types):
+                    return f"Sorry, we don't offer {coffee_type}. Available options are: {', '.join(available_coffee_types)}. Please text MENU for full options."
+            
+            # Validate milk type
+            milk_type = order_details.get('milk', '')
+            if milk_type:
+                available_milk_types = self._get_available_milk_types()
+                if not self._is_valid_milk_type(milk_type, available_milk_types):
+                    return f"Sorry, we don't have {milk_type} milk. Available options are: {', '.join(available_milk_types)}. Please text MENU for full options."
+            
+            # Validate sweetener
+            sweetener = order_details.get('sugar', '')
+            if sweetener:
+                available_sweeteners = self._get_available_sweeteners()
+                if not self._is_valid_sweetener(sweetener, available_sweeteners):
+                    sweetener_names = [s[0] for s in available_sweeteners]
+                    return f"Sorry, we don't have {sweetener}. Available options are: {', '.join(sweetener_names)}. Please text MENU for full options."
         
         # Get customer info
         customer = self.get_customer(phone)
