@@ -2969,10 +2969,52 @@ class CoffeeOrderSystem:
                 amount=shots, station_id=station_id,
             )
 
+        # --- sugar / sweeteners -------------------------------------
+        # Sugar is tracked in *sachets* (or grams) — never in
+        # kilograms. We bill 1 sachet per "1 sugar", 2 per "2 sugar",
+        # etc. "no sugar" decrements nothing. The category check is
+        # broad so "sugar" / "sweetener" / "artificial_sweetener" all
+        # match — the inventory data model still mixes these up.
+        sugar = (processed_details.get('sugar') or '').lower()
+        sachets = self._sugar_sachets_from_text(sugar)
+        if sachets > 0:
+            for cat in ('sweetener', 'sugar', 'artificial_sweetener'):
+                if self._decrement_inventory_item(
+                    cursor, db_type, category=cat, name=sugar,
+                    amount=sachets, station_id=station_id,
+                ):
+                    break
+
         conn.commit()
 
+    @staticmethod
+    def _sugar_sachets_from_text(sugar_text):
+        """Translate '1 sugar' / 'two sugar' / '3 sugar' → integer count.
+
+        Returns 0 for 'no sugar' or unparseable values.
+        """
+        if not sugar_text or 'no' in sugar_text or sugar_text == 'none':
+            return 0
+        if 'half' in sugar_text:
+            return 1  # round up — half-sachets aren't a thing
+        import re as _re
+        m = _re.match(r'(\d+)', sugar_text)
+        if m:
+            return max(0, min(10, int(m.group(1))))
+        # Handle "one", "two", "three"
+        words = {'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5}
+        for w, n in words.items():
+            if w in sugar_text:
+                return n
+        return 0
+
     def _decrement_inventory_item(self, cursor, db_type, *, category, name, amount, station_id):
-        """Decrement a single inventory row, preferring station scope."""
+        """Decrement a single inventory row, preferring station scope.
+
+        Returns True if a row was actually updated, False otherwise —
+        callers like sugar/sweetener can use the boolean to try the
+        next category if the first didn't match.
+        """
         ph = '?' if db_type == 'sqlite' else '%s'
         # Station-scoped row first.
         cursor.execute(
@@ -3001,9 +3043,10 @@ class CoffeeOrderSystem:
             rows = cursor.rowcount or 0
         if rows == 0:
             logger.info(
-                f"No inventory row to decrement: category={category} name={name} "
-                f"(item may be sugar/template/untracked)"
+                f"No inventory row to decrement: category={category} name={name}"
             )
+            return False
+        return True
 
     def _get_queue_position(self, station_id, order_number):
         """Return this order's 1-based position in the station queue.

@@ -450,10 +450,23 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
             }
           });
           
-          // If we still don't have any drinks, add basic defaults
-          if (drinkTypes.size === 0) {
-            console.warn('No drink types found in menu or inventory, using defaults');
-            ['Espresso', 'Long Black', 'Flat White', 'Cappuccino', 'Latte', 'Mocha'].forEach(d => drinkTypes.add(d));
+          // Always offer the standard espresso-based drinks whenever
+          // the station has coffee beans in stock. Previously this was
+          // gated on `drinkTypes.size === 0`, so the moment a single
+          // non-coffee item (e.g. chai) showed up in inventory, the
+          // walk-in dialog stopped offering latte/flat-white/etc — the
+          // exact bug the operator hit: "no coffee options, only chai,
+          // hot chocolate, matcha." The standard coffees come from
+          // available coffee beans, not from a per-event drink menu.
+          const hasCoffeeBeansForFallback =
+            inventory.coffee && inventory.coffee.some(c => c.amount > 0);
+          if (hasCoffeeBeansForFallback) {
+            ['Espresso', 'Long Black', 'Flat White', 'Cappuccino', 'Latte', 'Mocha']
+              .forEach(d => drinkTypes.add(d));
+          } else if (drinkTypes.size === 0) {
+            console.warn('No drink types found in menu, inventory, or fallback — offering empty defaults');
+            ['Espresso', 'Long Black', 'Flat White', 'Cappuccino', 'Latte', 'Mocha']
+              .forEach(d => drinkTypes.add(d));
           }
           
           // Convert Set to Array and sort

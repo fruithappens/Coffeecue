@@ -2,7 +2,16 @@
 import AuthService from './AuthService';
 
 /**
- * Service to handle deployment updates and version changes
+ * Service to handle deployment updates and version changes.
+ *
+ * In development the React dev server doesn't serve stable ETags or
+ * Last-Modified headers — every HMR update changes them — so the
+ * "check for new version" logic constantly fires the "Update
+ * Available" banner even when nothing has actually changed. Even
+ * worse, the banner re-appears every 5 / 10 minutes after dismissal.
+ *
+ * We disable the whole version-polling loop in development; the
+ * production build (which has a stable bundle hash) still uses it.
  */
 class DeploymentService {
   constructor() {
@@ -10,17 +19,17 @@ class DeploymentService {
     this.checkInterval = 5 * 60 * 1000; // Check every 5 minutes
     this.intervalId = null;
     this.lastCheckTime = 0;
-    this.versionEndpoint = '/version.json'; // File to check for version info
-    
+    this.versionEndpoint = '/version.json';
+    this.enabled = process.env.NODE_ENV === 'production';
+
+    if (!this.enabled) {
+      console.log('DeploymentService disabled in development (no stable ETag)');
+      return;
+    }
+
     console.log('DeploymentService initialized with version:', this.currentVersion);
-    
-    // Start periodic version checking
     this.startVersionChecking();
-    
-    // Listen for focus events to check version when user returns to tab
     window.addEventListener('focus', () => this.checkForUpdates());
-    
-    // Listen for online events to check version when connection restored
     window.addEventListener('online', () => this.checkForUpdates());
   }
 
@@ -63,9 +72,11 @@ class DeploymentService {
    * Check for application updates
    */
   async checkForUpdates() {
-    // Don't check too frequently
+    // Belt-and-braces: even if this gets called via a stray event
+    // listener that survived the dev-mode disable above, no-op.
+    if (!this.enabled) return;
     const now = Date.now();
-    if (now - this.lastCheckTime < 60000) { // Minimum 1 minute between checks
+    if (now - this.lastCheckTime < 60000) {
       return;
     }
     this.lastCheckTime = now;

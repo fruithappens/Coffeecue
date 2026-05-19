@@ -40,8 +40,8 @@ INSERT INTO inventory_items (category, name, amount, unit, capacity, minimum_thr
   ('milk','full cream',20,'L',30,2), ('milk','skim',15,'L',30,2),
   ('milk','soy',10,'L',20,1), ('milk','almond',10,'L',20,1),
   ('milk','oat',15,'L',20,1), ('milk','lactose free',5,'L',10,1),
-  ('sugar','no sugar',NULL,'units',0,NULL), ('sugar','1 sugar',NULL,'units',0,NULL),
-  ('sugar','2 sugar',NULL,'units',0,NULL), ('sugar','3 sugar',NULL,'units',0,NULL);
+  ('sugar','no sugar',NULL,'sachets',0,NULL), ('sugar','1 sugar',NULL,'sachets',0,NULL),
+  ('sugar','2 sugar',NULL,'sachets',0,NULL), ('sugar','3 sugar',NULL,'sachets',0,NULL);
 SQL
 
 # start backend
