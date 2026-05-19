@@ -293,7 +293,12 @@ def create_tables(conn):
             marketing_consent BOOLEAN DEFAULT FALSE,
             first_order_date TIMESTAMP,
             favorite_time_of_day VARCHAR(20),
-            account_status VARCHAR(20) DEFAULT 'active'
+            account_status VARCHAR(20) DEFAULT 'active',
+            -- is_vip is set when a customer texts a VIP code; the
+            -- column was missing on most installs, which made the
+            -- whole "VIP via SMS" feature silently fail. See
+            -- services/coffee_system.py::_handle_vip_code.
+            is_vip BOOLEAN DEFAULT FALSE
         )
         ''')
         
