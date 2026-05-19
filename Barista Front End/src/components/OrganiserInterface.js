@@ -23,6 +23,7 @@ import StationInventoryConfig from './StationInventoryConfig';
 import EnhancedScheduleManagement from './EnhancedScheduleManagement';
 import MenuManagement from './MenuManagement';
 import StationDefaults from './StationDefaults';
+import QuickSetup from './QuickSetup';
 import InventoryIntegrationService from '../services/InventoryIntegrationService';
 import StationsService from '../services/StationsService';
 import OrderDataService from '../services/OrderDataService';
@@ -93,11 +94,25 @@ const OrganiserInterface = () => {
         
         <nav className="flex-1 px-2 py-4">
           <div className="space-y-1">
+            {/* Quick Setup wizard — discoverable up top so a fresh
+                event configuration takes one click instead of 30. */}
+            <button
+              className={`w-full flex items-center px-3 py-2 rounded-md ${
+                activeSection === 'quickSetup'
+                  ? 'bg-amber-100 text-amber-800'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+              onClick={() => setActiveSection('quickSetup')}
+            >
+              <Zap size={20} className="mr-3" />
+              {sidebarOpen && <span>⚡ Quick Setup</span>}
+            </button>
+
             {/* Live Operations Dashboard */}
             <button
               className={`w-full flex items-center px-3 py-2 rounded-md ${
-                activeSection === 'dashboard' 
-                  ? 'bg-amber-100 text-amber-800' 
+                activeSection === 'dashboard'
+                  ? 'bg-amber-100 text-amber-800'
                   : 'text-gray-700 hover:bg-gray-100'
               }`}
               onClick={() => setActiveSection('dashboard')}
@@ -279,6 +294,7 @@ const OrganiserInterface = () => {
       <div className="flex-1 overflow-auto">
         <header className="bg-white shadow-sm p-4 flex justify-between items-center">
           <h1 className="text-xl font-bold text-gray-800">
+            {activeSection === 'quickSetup' && '⚡ Quick Setup'}
             {activeSection === 'dashboard' && '🚀 Live Operations Command Center'}
             {activeSection === 'stations' && 'Station Management'}
             {activeSection === 'queuePsychology' && 'Queue Psychology & Customer Intelligence'}
@@ -305,6 +321,11 @@ const OrganiserInterface = () => {
         </header>
         
         <main className="p-6">
+          {/* Quick Setup */}
+          {activeSection === 'quickSetup' && (
+            <QuickSetup />
+          )}
+
           {/* Dashboard */}
           {activeSection === 'dashboard' && (
             <EnhancedLiveOperationsDashboard />

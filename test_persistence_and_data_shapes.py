@@ -182,6 +182,72 @@ def scenario_add_station_preserves_name():
     db_query("DELETE FROM station_stats WHERE station_id = 101")
 
 
+def scenario_quick_setup_default_preset():
+    """POST /api/quick-setup with no body → applies the operator's
+    "café style" defaults. inventory_items should be wiped + rebuilt;
+    unlimited_stock_mode setting should be flipped on; event_breaks
+    should be cleared."""
+    token = login()
+    # Pre-seed some junk to make sure the endpoint wipes it.
+    db_query("INSERT INTO inventory_items (category, name, amount, unit, capacity) VALUES ('milk', 'pre-existing junk', 100, 'L', 200)")
+    status, payload = api('POST', '/api/quick-setup', token=token, body={})
+    assert status == 200, f"quick-setup HTTP {status}: {payload}"
+    assert payload.get('success') is True, f"not success: {payload}"
+    applied = payload.get('applied') or []
+    assert any('milk' in s for s in applied), f"no milk summary: {applied}"
+
+    # DB shape: 5 milks + 2 coffee + 1 cup + 3 sweetener, junk gone.
+    rows = db_query("SELECT category, COUNT(*) FROM inventory_items GROUP BY category ORDER BY category")
+    cats = dict(rows or [])
+    assert cats.get('milk') == 5, f"expected 5 milks, got {cats}"
+    assert cats.get('coffee') == 2, f"expected 2 coffee SKUs, got {cats}"
+    assert cats.get('cups') == 1, f"expected 1 cup size, got {cats}"
+    assert cats.get('sugar') == 3, f"expected 3 sweeteners, got {cats}"
+    # Junk row removed
+    junk = db_query("SELECT 1 FROM inventory_items WHERE name = 'pre-existing junk'")
+    assert not junk, "junk row not wiped"
+
+    # unlimited_stock setting written
+    flag = db_query("SELECT value FROM settings WHERE key = 'unlimited_stock_mode'")
+    assert flag and 'true' in str(flag[0][0]).lower(), f"flag not set: {flag}"
+
+    # event_breaks cleared (always-open mode)
+    breaks = db_query("SELECT COUNT(*) FROM event_breaks")
+    assert breaks and breaks[0][0] == 0, f"breaks not cleared: {breaks}"
+
+
+def scenario_quick_setup_custom_preset():
+    """POST with a custom preset (no oat milk, add chai, no always-open).
+    Verify only the requested items appear."""
+    token = login()
+    body = {
+        'preset': {
+            'milks': ['full cream', 'soy'],
+            'sizes': ['small', 'medium'],
+            'sweeteners': ['no sugar'],
+            'drinks': {'espresso_drinks': True, 'chai': True},
+            'unlimited_stock': False,
+            'all_stations_same_capabilities': True,
+            'always_open_schedule': False,
+        }
+    }
+    status, payload = api('POST', '/api/quick-setup', token=token, body=body)
+    assert status == 200 and payload['success'], f"custom preset failed: {payload}"
+    rows = db_query("SELECT category, name FROM inventory_items ORDER BY category, name")
+    by_cat = {}
+    for cat, name in rows or []:
+        by_cat.setdefault(cat, set()).add(name)
+    assert by_cat.get('milk') == {'full cream', 'soy'}, f"milks wrong: {by_cat.get('milk')}"
+    assert by_cat.get('cups') == {'small', 'medium'}, f"sizes wrong: {by_cat.get('cups')}"
+    assert by_cat.get('sugar') == {'no sugar'}, f"sweeteners wrong: {by_cat.get('sugar')}"
+    # chai latte added under drinks category
+    drink_names = by_cat.get('drinks', set())
+    assert any('chai' in n for n in drink_names), f"chai not added: {drink_names}"
+    # unlimited_stock=False → setting written as enabled:false
+    flag = db_query("SELECT value FROM settings WHERE key = 'unlimited_stock_mode'")
+    assert flag and 'false' in str(flag[0][0]).lower(), f"flag should be false: {flag}"
+
+
 def scenario_sms_templates_shape():
     token = login()
     status, payload = api('GET', '/api/sms/templates', token=token)
@@ -234,6 +300,8 @@ def main():
         ('branding settings round trip',    scenario_branding_settings_round_trip),
         ('event-stock round trip',          scenario_event_stock_round_trip),
         ('add station preserves name + location', scenario_add_station_preserves_name),
+        ('quick-setup default preset',      scenario_quick_setup_default_preset),
+        ('quick-setup custom preset',       scenario_quick_setup_custom_preset),
         ('sms/templates returns expected shape', scenario_sms_templates_shape),
         ('pending order has all camelCase aliases', scenario_pending_orders_data_shape),
     ]:
