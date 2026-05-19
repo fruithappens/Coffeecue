@@ -389,7 +389,11 @@ class CoffeeOrderSystem:
             return True
         
         # Check for help commands
-        help_commands = ['help', 'info', 'menu', 'how', 'instructions', '?']
+        # 'menu' deliberately excluded — it's a real command handled
+        # by _handle_options_menu_command, not a greeting. Including
+        # it here caused MENU to fall through to the welcome message
+        # and never show the actual menu.
+        help_commands = ['help', 'info', 'how', 'instructions', '?']
         return any(cmd == message_lower or message_lower.startswith(cmd + ' ') for cmd in help_commands)
     
     def _handle_greeting(self, phone, message, state):
@@ -722,119 +726,132 @@ class CoffeeOrderSystem:
         )
     
     def _handle_options_menu_command(self):
-        """Handle OPTIONS/MENU command - show dynamic coffee menu based on station capabilities"""
+        """MENU / OPTIONS command — return the live, current menu so the
+        customer knows exactly what to order.
+
+        Old version queried a `stations` table that doesn't exist on
+        this schema (capabilities are on station_stats), failed, and
+        fell back to a hardcoded list — so the "menu" customers got
+        had no relationship to what was actually in stock. Now uses
+        the same _get_available_* helpers that the order-validation
+        path uses, so the menu always matches what the bot will
+        actually accept.
+
+        Also surfaces which milks are only at one station (so a
+        customer ordering soy isn't surprised when they're routed
+        somewhere specific) and which non-coffee drinks (chai,
+        matcha, hot chocolate, tea) are stocked for this event.
+        """
         try:
-            cursor = self.db.cursor()
-            
-            # Get active stations and their capabilities
-            cursor.execute("""
-                SELECT id, name, capabilities, current_status
-                FROM stations
-                WHERE current_status IN ('active', 'open')
-            """)
-            active_stations = cursor.fetchall()
-            
-            if not active_stations:
-                return "☕ Sorry, no coffee stations are currently open. Please check back later."
-            
-            # Collect all available options across all stations
-            all_coffee_types = set()
-            all_milk_types = set()
-            milk_station_map = {}  # Track which stations have which milk
-            
-            for station_id, station_name, capabilities, status in active_stations:
-                if capabilities:
-                    try:
-                        import json
-                        cap_data = json.loads(capabilities) if isinstance(capabilities, str) else capabilities
-                        
-                        # Add coffee types
-                        coffee_types = cap_data.get('coffee_types', [])
-                        all_coffee_types.update(coffee_types)
-                        
-                        # Add milk types and track which stations have them
-                        milk_types = cap_data.get('milk_types', [])
-                        for milk in milk_types:
-                            all_milk_types.add(milk)
-                            if milk not in milk_station_map:
-                                milk_station_map[milk] = []
-                            milk_station_map[milk].append((station_id, station_name))
-                            
-                    except (json.JSONDecodeError, TypeError) as e:
-                        logger.error(f"Error parsing station {station_id} capabilities: {str(e)}")
-            
-            # Check event-specific settings
-            cursor.execute("SELECT value FROM settings WHERE key = 'available_coffee_types'")
-            event_coffee_setting = cursor.fetchone()
-            if event_coffee_setting:
-                try:
-                    import json
-                    event_coffees = json.loads(event_coffee_setting[0]) if event_coffee_setting[0] else []
-                    # Filter to only include coffee types that are both in event settings AND station capabilities
-                    all_coffee_types = all_coffee_types.intersection(event_coffees) if event_coffees else all_coffee_types
-                except:
-                    pass
-            
-            cursor.execute("SELECT value FROM settings WHERE key = 'available_milk_types'")
-            event_milk_setting = cursor.fetchone()
-            if event_milk_setting:
-                try:
-                    import json
-                    event_milks = json.loads(event_milk_setting[0]) if event_milk_setting[0] else []
-                    # Filter to only include milk types that are both in event settings AND station capabilities
-                    all_milk_types = all_milk_types.intersection(event_milks) if event_milks else all_milk_types
-                except:
-                    pass
-            
-            # Build the menu message
-            menu_parts = ["☕ Available Options:"]
-            
-            # Coffee types
-            if all_coffee_types:
-                coffee_list = sorted(list(all_coffee_types))
-                menu_parts.append(f"Coffee: {', '.join(coffee_list)}")
+            # Live menu sources — same as order validation
+            available_coffees = self._get_available_coffee_types()
+            available_milks = self._get_available_milk_types()
+            available_sweeteners = self._get_available_sweeteners()
+            sizes = self._get_available_sizes('latte') or ['small', 'medium', 'large']
+
+            # Non-coffee drinks the operator has stocked for this event
+            # (the Quick Setup wizard adds these to the 'drinks' category).
+            extra_drinks = []
+            try:
+                # Reset any aborted-transaction state before this read.
+                self.db.rollback()
+            except Exception:
+                pass
+            try:
+                cursor = self.db.cursor()
+                cursor.execute("""
+                    SELECT name FROM inventory_items
+                    WHERE category = 'drinks'
+                      AND (amount IS NULL OR amount > COALESCE(minimum_threshold, 0))
+                    ORDER BY name
+                """)
+                extra_drinks = [row[0] for row in cursor.fetchall()]
+            except Exception as e:
+                logger.warning(f"Couldn't read extra drinks: {e}")
+
+            # Which milks are only available at one station? Customers
+            # ordering one of those should know they'll be routed.
+            milk_station_map = self._milk_to_stations_map() if not self._is_unlimited_stock_mode() else {}
+            single_station_milks = [m for m, ids in milk_station_map.items() if len(ids) == 1]
+
+            # Build the message
+            lines = ['☕ Menu (current stock):']
+            if available_coffees:
+                lines.append(f"Coffee: {', '.join(sorted(available_coffees))}")
             else:
-                menu_parts.append("Coffee: Latte, Cappuccino, Flat White")
-            
-            # Milk types with availability info
-            if all_milk_types:
-                milk_info = []
-                for milk in sorted(list(all_milk_types)):
-                    if milk in milk_station_map:
-                        stations_with_milk = milk_station_map[milk]
-                        if len(stations_with_milk) == 1:
-                            # Only one station has this milk
-                            station_id, station_name = stations_with_milk[0]
-                            milk_info.append(f"{milk} (Station {station_id} only)")
-                        else:
-                            milk_info.append(milk)
-                menu_parts.append(f"🥛 Milk: {', '.join(milk_info)}")
+                lines.append("Coffee: (none in stock — check back soon)")
+
+            if extra_drinks:
+                lines.append(f"Other drinks: {', '.join(extra_drinks)}")
+
+            if available_milks:
+                lines.append(f"🥛 Milk: {', '.join(sorted(available_milks))}")
             else:
-                menu_parts.append("🥛 Milk: Full Cream, Skim")
-            
-            # Standard options
-            menu_parts.append("🍯 Sugar: None, 1, 2, 3+")
-            menu_parts.append("📏 Size: Small, Medium, Large")
-            
-            # Add note about specialty milk
-            specialty_milks = [milk for milk in all_milk_types if milk in milk_station_map and len(milk_station_map[milk]) == 1]
-            if specialty_milks:
-                menu_parts.append(f"\n💡 Note: {', '.join(specialty_milks)} available at specific stations only")
-            
-            menu_parts.append("\nReply with your choice (e.g., \"large oat latte 1 sugar\")")
-            
-            return '\n'.join(menu_parts)
-            
+                lines.append("🥛 Milk: (none in stock)")
+
+            if available_sweeteners:
+                sweetener_names = [s[0] for s in available_sweeteners]
+                lines.append(f"🍯 Sweetener: {', '.join(sweetener_names)}")
+
+            lines.append(f"📏 Size: {', '.join(sizes)}")
+
+            if single_station_milks:
+                lines.append('')
+                lines.append(
+                    f"💡 Note: {', '.join(single_station_milks)} only at certain stations — "
+                    f"we'll route your order automatically."
+                )
+
+            lines.append('')
+            lines.append("Reply with your order, e.g. 'large oat latte 1 sugar'")
+            return '\n'.join(lines)
+
         except Exception as e:
             logger.error(f"Error building dynamic menu: {str(e)}")
-            # Fallback to simple menu
+            # Static fallback — only used if the helpers themselves crash.
             return (
-                "☕ Coffee: Latte, Cappuccino, Flat White, Long Black, Espresso\n"
+                "☕ Coffee: Latte, Cappuccino, Flat White, Long Black, Espresso, Mocha\n"
                 "🥛 Milk: Full Cream, Skim, Soy, Almond, Oat\n"
-                "🍯 Sugar: None, 1, 2, 3+\n"
+                "🍯 Sugar: None, 1, 2, 3\n"
                 "📏 Size: Small, Medium, Large\n\n"
-                "Reply with your choice (e.g., \"large oat latte 1 sugar\")"
+                "Reply with your choice (e.g., 'large oat latte 1 sugar')"
             )
+
+    def _milk_to_stations_map(self):
+        """Build a {milk_name: [station_ids]} map from station_stats.
+
+        Used by the MENU handler to flag specialty milks that are only
+        carried at one station. Returns {} on error or empty config.
+        """
+        try:
+            self.db.rollback()
+        except Exception:
+            pass
+        try:
+            cursor = self.db.cursor()
+            cursor.execute("""
+                SELECT station_id, COALESCE(capabilities, '{}'::jsonb) AS caps
+                FROM station_stats
+                WHERE COALESCE(status, 'active') IN ('active', 'open')
+            """)
+            mapping = {}
+            for row in cursor.fetchall():
+                station_id = row[0] if not isinstance(row, dict) else row['station_id']
+                caps = row[1] if not isinstance(row, dict) else row['caps']
+                if isinstance(caps, str):
+                    import json as _json
+                    try:
+                        caps = _json.loads(caps)
+                    except (TypeError, ValueError):
+                        caps = {}
+                if not isinstance(caps, dict):
+                    continue
+                for milk in caps.get('milk_types', []) or []:
+                    mapping.setdefault(milk, []).append(station_id)
+            return mapping
+        except Exception as e:
+            logger.warning(f"_milk_to_stations_map failed: {e}")
+            return {}
     
     def _handle_menu_command(self):
         """Handle MENU command - show coffee options"""
@@ -1357,16 +1374,30 @@ class CoffeeOrderSystem:
         order_details = self.nlp.parse_order(message, apply_defaults=False)
         coffee_type = order_details.get('type', '').lower()
 
+        # All three rejection messages below append "Reply MENU for
+        # the full list" — discoverability for customers who don't
+        # know they can ask. Operators reported customers giving up
+        # when they got "we don't have coconut milk" without knowing
+        # what they DO have.
+
         # Check if the requested coffee type is available
         if coffee_type and not self._is_valid_coffee_type(coffee_type, available_coffee_types):
-            return f"Sorry, we don't offer {coffee_type}. Available options are: {', '.join(available_coffee_types)}. Please select one of these."
+            return (
+                f"Sorry, we don't offer {coffee_type}. Available options: "
+                f"{', '.join(available_coffee_types)}.\n"
+                f"Reply MENU for the full list."
+            )
 
         # Validate milk type if specified
         milk_type = order_details.get('milk', '')
         if milk_type:
             available_milk_types = self._get_available_milk_types()
             if not self._is_valid_milk_type(milk_type, available_milk_types):
-                return f"Sorry, we don't have {milk_type} milk. Available options are: {', '.join(available_milk_types)}. Please try again."
+                return (
+                    f"Sorry, we don't have {milk_type} milk. Available milks: "
+                    f"{', '.join(available_milk_types)}.\n"
+                    f"Reply MENU for the full list."
+                )
 
         # Validate sweetener if specified
         sweetener = order_details.get('sugar', '')
@@ -1374,7 +1405,11 @@ class CoffeeOrderSystem:
             available_sweeteners = self._get_available_sweeteners()
             if not self._is_valid_sweetener(sweetener, available_sweeteners):
                 sweetener_names = [s[0] for s in available_sweeteners]
-                return f"Sorry, we don't have {sweetener}. Available options are: {', '.join(sweetener_names)}. Please try again."
+                return (
+                    f"Sorry, we don't have {sweetener}. Available sweeteners: "
+                    f"{', '.join(sweetener_names)}.\n"
+                    f"Reply MENU for the full list."
+                )
 
         # Get customer's name from state
         name = state.get('temp_data', {}).get('name', '')
