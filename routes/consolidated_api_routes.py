@@ -483,10 +483,41 @@ def orders():
             coffee_system = current_app.config.get('coffee_system')
             db = coffee_system.db
             
-            # Generate a unique order number
+            # Generate a unique order number. Steve wanted shorter,
+            # event-prefixed codes ("C1", "C2", …) rather than the old
+            # 9-character timestamp format ("W0544296"). We read an
+            # operator-configurable prefix from settings (default
+            # empty — just digits) and combine with order_number_seq
+            # so SMS and walk-in orders share the same monotonic
+            # sequence and look consistent on the customer display.
             now = datetime.now()
-            prefix = "W" if data.get('order_type') == 'walk-in' else "O"
-            order_number = f"{prefix}{now.strftime('%H%M%S')}{now.microsecond // 10000}"
+            order_number = None
+            order_prefix = ''
+            try:
+                prefix_blob = _kv_get(db, 'order_prefix', default=None)
+                if isinstance(prefix_blob, dict):
+                    order_prefix = (prefix_blob.get('prefix') or '').strip()
+                elif isinstance(prefix_blob, str):
+                    order_prefix = prefix_blob.strip()
+            except Exception:
+                order_prefix = ''
+            try:
+                seq_cur = db.cursor()
+                seq_cur.execute("SELECT nextval('order_number_seq')")
+                seq_row = seq_cur.fetchone()
+                if seq_row:
+                    seq_val = seq_row[0] if not isinstance(seq_row, dict) else list(seq_row.values())[0]
+                    order_number = f"{order_prefix}{int(seq_val)}"
+            except Exception as seq_err:
+                logger.info(f"order_number_seq unavailable, using legacy format: {seq_err}")
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+            if not order_number:
+                # Legacy fallback for un-migrated databases.
+                legacy_prefix = "W" if data.get('order_type') == 'walk-in' else "O"
+                order_number = f"{legacy_prefix}{now.strftime('%H%M%S')}{now.microsecond // 10000}"
             
             # Prepare order details
             order_details = {
@@ -5181,6 +5212,50 @@ def apply_quick_setup():
             current_app.config.get('coffee_system').db.rollback()
         except Exception:
             pass
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/order-prefix', methods=['GET'])
+@jwt_required_with_demo()
+def get_order_prefix():
+    """Event prefix prepended to every order number.
+
+    Customers see this on the display: "C12" for "Cairns event,
+    order 12". Operator sets it once at the start of the event;
+    defaults to empty (just digits).
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        blob = _kv_get(coffee_system.db, 'order_prefix', default=None)
+        prefix = ''
+        if isinstance(blob, dict):
+            prefix = (blob.get('prefix') or '').strip()
+        elif isinstance(blob, str):
+            prefix = blob.strip()
+        return jsonify({'prefix': prefix})
+    except Exception as e:
+        logger.error(f"get_order_prefix error: {e}")
+        return jsonify({'prefix': ''}), 200
+
+
+@bp.route('/order-prefix', methods=['PUT', 'POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def upsert_order_prefix():
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        data = request.get_json() or {}
+        prefix = (data.get('prefix') or '').strip()
+        # Keep it short and reasonable — single letter to 6 chars,
+        # alphanumeric only. Falls back to whatever the operator sent
+        # if it's valid; otherwise rejects.
+        if prefix and not (len(prefix) <= 6 and prefix.replace(' ', '').isalnum()):
+            return jsonify({'success': False,
+                            'error': 'prefix must be alphanumeric, max 6 chars'}), 400
+        _kv_put(coffee_system.db, 'order_prefix', {'prefix': prefix})
+        return jsonify({'success': True, 'prefix': prefix})
+    except Exception as e:
+        logger.error(f"upsert_order_prefix error: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 

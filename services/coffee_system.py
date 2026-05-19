@@ -2202,6 +2202,29 @@ class CoffeeOrderSystem:
             # SQLite test path.
             now = datetime.now()
             order_number = None
+            # Read the operator-configurable event prefix (e.g. "C")
+            # from settings so both SMS and walk-in orders look like
+            # "C1", "C2", … This is a UX request from Steve: long
+            # timestamp-based codes are hard to read out at the bar.
+            event_prefix = ''
+            try:
+                prefix_cur = fresh_conn.cursor()
+                prefix_cur.execute("SELECT value FROM settings WHERE key = 'order_prefix'")
+                prefix_row = prefix_cur.fetchone()
+                prefix_cur.close()
+                if prefix_row and prefix_row[0]:
+                    import json as _json
+                    try:
+                        parsed = _json.loads(prefix_row[0]) if isinstance(prefix_row[0], str) else prefix_row[0]
+                        if isinstance(parsed, dict):
+                            event_prefix = (parsed.get('prefix') or '').strip()
+                        elif isinstance(parsed, str):
+                            event_prefix = parsed.strip()
+                    except Exception:
+                        event_prefix = ''
+            except Exception:
+                event_prefix = ''
+
             if db_type != "sqlite":
                 try:
                     seq_cursor = fresh_conn.cursor()
@@ -2210,7 +2233,7 @@ class CoffeeOrderSystem:
                     seq_cursor.close()
                     if seq_row:
                         seq_val = seq_row[0] if not isinstance(seq_row, dict) else list(seq_row.values())[0]
-                        order_number = str(int(seq_val))
+                        order_number = f"{event_prefix}{int(seq_val)}"
                 except Exception as seq_err:
                     logger.info(f"order_number_seq unavailable, using legacy format: {seq_err}")
                     try:
@@ -2219,8 +2242,9 @@ class CoffeeOrderSystem:
                         pass
 
             if not order_number:
-                prefix = "A" if now.hour < 12 else "P"
-                order_number = f"{prefix}{now.strftime('%H%M%S')}{now.microsecond // 10000}"
+                # Legacy fallback — keeps SQLite test path working.
+                legacy_prefix = "A" if now.hour < 12 else "P"
+                order_number = f"{legacy_prefix}{now.strftime('%H%M%S')}{now.microsecond // 10000}"
             
             # Check for station assignment in the order details
             specified_station = order_details.get('station_id') or order_details.get('stationId')

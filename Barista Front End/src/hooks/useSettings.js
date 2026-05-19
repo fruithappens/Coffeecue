@@ -186,6 +186,42 @@ export function useSettings() {
     loadSettings();
   }, [loadSettings, isDemoMode]);
 
+  // Sibling components (notably BaristaInterface's Settings tab) save
+  // directly into the `coffee_cue_settings` localStorage blob and
+  // then dispatch a 'settings:updated' window event. Without this
+  // listener the customer Display screen kept the stale snapshot
+  // and toggles like "Show name on display" appeared dead until a
+  // full page reload. Re-read on each event.
+  useEffect(() => {
+    const onUpdate = (e) => {
+      try {
+        const saved = localStorage.getItem('coffee_cue_settings');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          setSettings(parsed);
+          setLastUpdated(Date.now());
+        } else if (e?.detail && typeof e.detail === 'object') {
+          setSettings(prev => ({ ...(prev || {}), ...e.detail }));
+          setLastUpdated(Date.now());
+        }
+      } catch (err) {
+        console.warn('[useSettings] could not refresh from settings:updated event:', err);
+      }
+    };
+    window.addEventListener('settings:updated', onUpdate);
+    // Also handle cross-tab updates via the storage event.
+    const onStorage = (e) => {
+      if (e.key === 'coffee_cue_settings' && e.newValue) {
+        try { setSettings(JSON.parse(e.newValue)); setLastUpdated(Date.now()); } catch (_) { /* ignore */ }
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => {
+      window.removeEventListener('settings:updated', onUpdate);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, []);
+
   return {
     // Data - provide empty object as fallback while loading to prevent crashes
     settings: settings || {},
