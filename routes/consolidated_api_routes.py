@@ -613,12 +613,35 @@ def get_pending_orders():
                 'customer_name': order_details.get('name', 'Customer'),
                 'coffee_type': order_details.get('type', 'Coffee'),
                 'milk_type': order_details.get('milk', 'Standard'),
+                'milkType': order_details.get('milk', 'Standard'),  # camelCase
                 'sugar': order_details.get('sugar', 'No sugar'),
                 'status': status,
                 'created_at': created_at,
+                'createdAt': created_at.isoformat() if hasattr(created_at, 'isoformat') else created_at,
                 'wait_time': wait_time,
+                'waitTime': wait_time,  # camelCase
+                # promisedTime is the target completion time for the
+                # order, used by the Time Pressure bar in the barista
+                # UI. The bar previously sat at 0% on every order
+                # because nothing set this field. We use a conservative
+                # 5-minute target — beyond that the bar fills and the
+                # barista sees urgency.
+                'promisedTime': 5,
                 'priority': priority == 1,  # Convert 1/0 to True/False
-                'batch_group': batch_group
+                'vip': priority == 1,  # alias used by some UI filters
+                'batch_group': batch_group,
+                # camelCase alias the Barista UI's PendingOrdersSection
+                # actually reads — without this, batch grouping silently
+                # never triggered. coffee_type / milk_type also had no
+                # camelCase aliases on this endpoint; added above too.
+                'batchGroup': batch_group,
+                # Frontend filter needs a coffee_type field for display.
+                'coffeeType': order_details.get('type', 'Coffee'),
+                'customerName': order_details.get('name', 'Customer'),
+                'phone_number': phone,
+                'phoneNumber': phone,
+                'station_id': station_id,
+                'stationId': station_id,
             })
         
         return jsonify({
@@ -4699,6 +4722,38 @@ def upsert_barista_profile(name):
         return jsonify({'success': True, 'name': name})
     except Exception as e:
         logger.error(f"upsert_barista_profile error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/station-defaults', methods=['GET'])
+@jwt_required_with_demo()
+def get_station_defaults():
+    """Per-station default selections (coffee type, milk, size, etc.).
+
+    Previously stored ONLY in browser localStorage by StationDefaults.js
+    — vanished on a fresh browser or different device. Now persisted to
+    the settings table so it survives across operators and machines.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        defaults = _kv_get(coffee_system.db, 'station_defaults', default={}) or {}
+        return jsonify(defaults)
+    except Exception as e:
+        logger.error(f"get_station_defaults error: {e}")
+        return jsonify({}), 200
+
+
+@bp.route('/station-defaults', methods=['PUT', 'POST'])
+@jwt_required_with_demo()
+def upsert_station_defaults():
+    """Replace the entire station-defaults blob (per-station map)."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        data = request.get_json() or {}
+        _kv_put(coffee_system.db, 'station_defaults', data)
+        return jsonify({'success': True, 'station_count': len(data)})
+    except Exception as e:
+        logger.error(f"upsert_station_defaults error: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
