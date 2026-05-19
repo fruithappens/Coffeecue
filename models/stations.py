@@ -239,31 +239,49 @@ class Station:
         try:
             cursor = conn.cursor()
             
-            # Convert frontend field names to database field names if needed
+            # Convert frontend field names to database field names if needed.
+            # `description` / `maxConcurrentOrders` are sent by the
+            # rename form but have no DB columns in station_stats — we
+            # used to fail the whole UPDATE with "column does not
+            # exist", which made every rename silently break. Now we
+            # filter to the allowlist of known columns and quietly drop
+            # the rest. The dropped fields are still available in the
+            # capabilities JSONB if anyone wants to surface them later.
             field_mapping = {
                 'name': 'notes',
-                'location': 'equipment_notes'
+                'location': 'equipment_notes',
+            }
+            allowed_db_columns = {
+                'notes', 'equipment_notes', 'status', 'barista_name',
+                'current_load', 'avg_completion_time', 'wait_time',
+                'specialist_drinks', 'equipment_status', 'capacity',
             }
 
-            # Build SET clause for SQL query.
-            # Deduplicate by target DB column — a UI that sends both
-            # `name` and `notes` (or both `location` and `equipment_notes`)
-            # would otherwise generate "SET notes = X, notes = Y" which
-            # PostgreSQL rejects with "multiple assignments to same
-            # column". We keep the first occurrence per column, which
-            # for the rename UI happens to be the frontend-friendly
-            # `name`/`location` field.
             set_clauses = []
             params = []
             seen_columns = set()
-
             for key, value in updates.items():
                 db_field = field_mapping.get(key, key)
+                if db_field not in allowed_db_columns:
+                    logger.debug(
+                        f"update_station: dropping unknown field {key!r} "
+                        f"(maps to {db_field!r}, not a station_stats column)"
+                    )
+                    continue
                 if db_field in seen_columns:
                     continue
                 seen_columns.add(db_field)
                 set_clauses.append(f"{db_field} = %s")
                 params.append(value)
+
+            if not set_clauses:
+                # Nothing to update — treat as a no-op success rather
+                # than failing the SQL with empty SET clause.
+                logger.info(
+                    f"update_station({station_id}): nothing to do — "
+                    f"caller sent only unsupported fields {list(updates.keys())}"
+                )
+                return True
             
             # Always update last_updated timestamp
             set_clauses.append("last_updated = %s")
