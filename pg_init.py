@@ -171,7 +171,11 @@ def create_tables(conn):
             failed_login_attempts INTEGER DEFAULT 0,
             account_locked BOOLEAN DEFAULT FALSE,
             account_locked_until TIMESTAMP,
-            last_password_change TIMESTAMP
+            last_password_change TIMESTAMP,
+            -- is_active is used by the User Management UI to enable
+            -- / disable accounts. Missing on legacy DBs caused
+            -- GET /api/users to 500.
+            is_active BOOLEAN DEFAULT TRUE
         )
         ''')
         
