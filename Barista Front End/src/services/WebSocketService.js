@@ -71,7 +71,11 @@ class WebSocketService {
         console.log('[WS] connected:', this.socket.id);
         // Join the "orders" room so all order events come through.
         // Backend's add_websocket_to_coffee_system.py emits to room='orders'.
-        try { this.socket.emit('join_room', { room: 'orders' }); } catch (_) {}
+        try {
+          this.socket.emit('join_room', { room: 'orders' });
+        } catch (_) {
+          // Ignore — handler is fire-and-forget.
+        }
       });
 
       this.socket.on('disconnect', (reason) => {
@@ -145,7 +149,11 @@ class WebSocketService {
 
   disconnect() {
     if (this.socket) {
-      try { this.socket.disconnect(); } catch (_) {}
+      try {
+        this.socket.disconnect();
+      } catch (_) {
+        // Ignore — we're throwing away the socket anyway.
+      }
       this.socket = null;
     }
     this.isConnected = false;
