@@ -161,35 +161,63 @@ class OrderDataService {
    * @returns {Promise<object>} Updated order
    */
   async updateOrderStatus(orderId, status, additionalData = {}) {
+    // The backend exposes per-status endpoints rather than a single
+    // PUT /orders/<id>/status route. Previously this method PUT to
+    // a URL that didn't exist, got a 404 caught silently, and fell
+    // back to a local-only update — which is why "Start" looked
+    // like it worked in the Barista UI but the order never moved
+    // to in-progress on the backend (and customer Display showed it
+    // as still pending). Map status → endpoint here.
+    const statusToEndpoint = {
+      'in_progress': 'start',
+      'in-progress': 'start',
+      'completed':   'complete',
+      'complete':    'complete',
+      'picked_up':   'pickup',
+      'picked-up':   'pickup',
+    };
+    const action = statusToEndpoint[status];
+
     try {
-      const response = await this.apiService.put(`/orders/${orderId}/status`, {
-        status,
-        ...additionalData
-      });
-      
-      if (response.status === 'success') {
-        // Invalidate cache
+      let response;
+      if (action) {
+        // Use the real backend endpoint. Body is unused by the
+        // backend handlers but we send additionalData defensively
+        // for future-compatibility.
+        response = await this.apiService.post(
+          `/orders/${orderId}/${action}`,
+          additionalData,
+        );
+      } else {
+        // Unknown status — try the legacy PUT just in case some
+        // forgotten flow needs it (logged so we can clean up).
+        console.warn(`updateOrderStatus: no endpoint mapping for status='${status}', falling back to PUT /status`);
+        response = await this.apiService.put(`/orders/${orderId}/status`, {
+          status, ...additionalData,
+        });
+      }
+
+      // Both the new endpoints and the legacy one return either
+      // { success: true, ... } or { status: 'success', ... }.
+      const ok = response && (response.success === true || response.status === 'success');
+      if (ok) {
         this.invalidateCache('orders');
-        
-        // Try to emit WebSocket event (optional)
         try {
           this.apiService.sendMessage('order_updated', {
-            order_id: orderId,
-            status,
-            ...additionalData
+            order_id: orderId, status, ...additionalData,
           });
         } catch (error) {
           console.log('WebSocket message send failed (non-critical):', error);
         }
-        
-        return response.data;
+        return response.data || response;
       }
-      
-      throw new Error(response.message || 'Failed to update order');
+
+      throw new Error((response && (response.message || response.error)) || 'Failed to update order');
     } catch (error) {
       console.error('Error updating order:', error);
-      
-      // Fallback: Update locally and queue for sync
+      // Fallback: Update locally and queue for sync. Operator sees
+      // the visual change immediately even if the network is wobbly;
+      // the queue will retry.
       return this.updateOrderLocally(orderId, { status, ...additionalData });
     }
   }

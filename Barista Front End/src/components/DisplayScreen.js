@@ -319,12 +319,13 @@ const DisplayScreen = () => {
     }
   };
 
-  // Combine pending + in-progress into a single "Brewing" column
-  // because most customers only care about two distinctions: "they
-  // got my order" vs "it's ready".
+  // "Brewing" should only contain orders the barista has actually
+  // started — combining pending+in-progress earlier was misleading
+  // (the Barista UI still shows pending under "New Orders" while
+  // the customer Display was showing them as "Brewing").
   const brewing = useMemo(
-    () => [...orders.pending, ...orders.inProgress],
-    [orders.pending, orders.inProgress]
+    () => orders.inProgress,
+    [orders.inProgress]
   );
 
   const isPortrait = orientation === 'portrait';

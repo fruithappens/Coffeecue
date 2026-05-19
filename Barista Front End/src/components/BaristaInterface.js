@@ -410,11 +410,31 @@ const BaristaInterface = () => {
   // Settings state (moved to a SettingsService in a full implementation)
   const [settings, setSettingsState] = useState(loadSettings());
   
-  // Wrapper function to persist settings when they change
+  // Wrapper function to persist settings when they change. We
+  // store under TWO keys because:
+  //   coffee_cue_barista_settings — what this component re-reads on mount
+  //   coffee_cue_settings          — what useSettings (and the
+  //     customer Display screen, plus several other components) reads
+  // Without the mirror, toggling "Show name on display" here saved
+  // to barista-settings but the Display read from coffee_cue_settings
+  // and saw the unchanged old value → the toggle appeared dead.
   const setSettings = (newSettings) => {
     setSettingsState(newSettings);
     try {
       localStorage.setItem('coffee_cue_barista_settings', JSON.stringify(newSettings));
+      // Mirror into useSettings' store so Display + other consumers
+      // see the same values. Merge rather than overwrite so we don't
+      // clobber backend-synced fields the hook also manages.
+      try {
+        const existing = JSON.parse(localStorage.getItem('coffee_cue_settings') || '{}');
+        const merged = { ...existing, ...newSettings };
+        localStorage.setItem('coffee_cue_settings', JSON.stringify(merged));
+      } catch (mirrorErr) {
+        console.warn('Could not mirror settings into coffee_cue_settings:', mirrorErr);
+      }
+      // Tell the hook to refresh its in-memory copy. useSettings
+      // listens for 'settings:updated' (we'll wire that next).
+      window.dispatchEvent(new CustomEvent('settings:updated', { detail: newSettings }));
       console.log('Saved settings to localStorage:', newSettings);
     } catch (error) {
       console.error('Error saving settings to localStorage:', error);
