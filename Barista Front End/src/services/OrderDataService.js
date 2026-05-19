@@ -91,12 +91,20 @@ class OrderDataService {
       
       if (response.status === 'success') {
         const orders = response.data || [];
-        
-        // Group orders by status
+
+        // Group orders by status. CRITICAL: the backend stores the
+        // status as `in-progress` (hyphen) and `picked_up`/`picked-up`
+        // varies by codepath. Previously this filter looked only for
+        // `in_progress` (underscore) — every started order vanished
+        // from the UI because the filter never matched, which is the
+        // "start an order → it disappears → can't even complete it"
+        // bug Steve hit. Normalize both forms here.
+        const isInProgress = (s) => s === 'in-progress' || s === 'in_progress';
+        const isPickedUp   = (s) => s === 'picked_up'   || s === 'picked-up';
         const groupedOrders = {
-          pendingOrders: orders.filter(o => o.status === 'pending'),
-          inProgressOrders: orders.filter(o => o.status === 'in_progress'),
-          completedOrders: orders.filter(o => o.status === 'completed' || o.status === 'picked_up')
+          pendingOrders:    orders.filter(o => o.status === 'pending'),
+          inProgressOrders: orders.filter(o => isInProgress(o.status)),
+          completedOrders:  orders.filter(o => o.status === 'completed' || isPickedUp(o.status)),
         };
 
         // Cache the result

@@ -697,61 +697,81 @@ def get_pending_orders():
 @bp.route('/orders/in-progress', methods=['GET'])
 @jwt_required_with_demo()
 def get_in_progress_orders():
-    """Get all in-progress orders"""
+    """Get all in-progress orders.
+
+    Response format matches /api/orders/pending: every field is also
+    returned in camelCase because the Barista UI + Display screen
+    filter by `stationId` (camelCase). The previous version returned
+    only snake_case AND omitted station_id entirely — so a
+    just-started order vanished from both the Barista in-progress
+    list and the customer Display (both filter by station). That's
+    the "Start an order, it disappears, you can't even complete it"
+    bug Steve flagged.
+    """
     try:
-        # Get coffee system from app context
         coffee_system = current_app.config.get('coffee_system')
         db = coffee_system.db
-        
-        # Query database for in-progress orders
+
         cursor = db.cursor()
         cursor.execute('''
-            SELECT id, order_number, status, station_id, 
+            SELECT id, order_number, status, station_id,
                    created_at, phone, order_details, queue_priority
-            FROM orders 
+            FROM orders
             WHERE status = 'in-progress'
             ORDER BY created_at
         ''')
-        
-        # Process orders
+
         in_progress_orders = []
         for order in cursor.fetchall():
-            # Extract order details
             order_id, order_number, status, station_id, created_at, phone, order_details_json, priority = order
-            
-            # Parse order details
+
             if isinstance(order_details_json, str):
                 order_details = json.loads(order_details_json)
             else:
-                order_details = order_details_json
-            
-            # Calculate wait time
+                order_details = order_details_json or {}
+
             created_dt = datetime.fromisoformat(created_at) if isinstance(created_at, str) else created_at
             wait_time = int((datetime.now() - created_dt).total_seconds() / 60)
-            
-            # Check for extra hot
-            extra_hot = False
-            if 'temp' in order_details and order_details['temp'] == 'extra hot':
-                extra_hot = True
-            # Also check the notes field for "extra hot" text
-            elif 'notes' in order_details and order_details['notes'] and 'extra hot' in order_details['notes'].lower():
-                extra_hot = True
-            
-            # Format order for frontend
+
+            extra_hot = (
+                order_details.get('temp') == 'extra hot'
+                or ('extra hot' in (order_details.get('notes') or '').lower())
+            )
+
+            customer_name = order_details.get('name', 'Customer')
+            coffee_type = order_details.get('type', 'Coffee')
+            milk_type = order_details.get('milk', 'Standard')
+            size = order_details.get('size')
+
             in_progress_orders.append({
-                'id': order_number,  # Use order_number as id for consistency
+                # snake_case (legacy)
+                'id': order_number,
                 'order_number': order_number,
-                'customer_name': order_details.get('name', 'Customer'),
+                'customer_name': customer_name,
                 'phone_number': phone,
-                'coffee_type': order_details.get('type', 'Coffee'),
-                'milk_type': order_details.get('milk', 'Standard'),
+                'coffee_type': coffee_type,
+                'milk_type': milk_type,
                 'sugar': order_details.get('sugar', 'No sugar'),
                 'extra_hot': extra_hot,
                 'priority': priority == 1,
                 'created_at': created_at,
-                'wait_time': wait_time
+                'wait_time': wait_time,
+                'station_id': station_id,
+                'size': size,
+                # camelCase aliases — REQUIRED by the React UI for filtering.
+                'orderNumber': order_number,
+                'customerName': customer_name,
+                'phoneNumber': phone,
+                'coffeeType': coffee_type,
+                'milkType': milk_type,
+                'extraHot': extra_hot,
+                'createdAt': created_at.isoformat() if hasattr(created_at, 'isoformat') else created_at,
+                'waitTime': wait_time,
+                'stationId': station_id,
+                'status': status,
+                'vip': priority == 1,
             })
-        
+
         return jsonify({
             'success': True,
             'orders': in_progress_orders
@@ -788,26 +808,36 @@ def get_completed_orders():
             pass
 
         station_filter = request.args.get('station_id', type=int)
+        # New: optional recency filter so the customer-facing Display
+        # screen can ask for "completed in the last N minutes" rather
+        # than every completion ever (which is why Steve saw 30 stale
+        # test orders sitting on the display forever).
+        recent_minutes = request.args.get('recent_minutes', type=int)
+        # New: filter out picked-up orders by default — Display should
+        # only show "Ready for Pickup" (still waiting), not orders
+        # the customer already collected.
+        include_picked_up = request.args.get('include_picked_up', '0').lower() in ('1', 'true', 'yes')
+        status_filter = ('completed', 'picked_up') if include_picked_up else ('completed',)
+        status_placeholder = ','.join(['%s'] * len(status_filter))
+
         cursor = db.cursor()
+        where = [f"status IN ({status_placeholder})"]
+        params = list(status_filter)
         if station_filter is not None:
-            cursor.execute('''
-                SELECT id, order_number, status, station_id,
-                       created_at, updated_at, phone, order_details, picked_up_at
-                FROM orders
-                WHERE status IN ('completed', 'picked_up')
-                  AND station_id = %s
-                ORDER BY updated_at DESC
-                LIMIT 50
-            ''', (station_filter,))
-        else:
-            cursor.execute('''
-                SELECT id, order_number, status, station_id,
-                       created_at, updated_at, phone, order_details, picked_up_at
-                FROM orders
-                WHERE status IN ('completed', 'picked_up')
-                ORDER BY updated_at DESC
-                LIMIT 50
-            ''')
+            where.append("station_id = %s")
+            params.append(station_filter)
+        if recent_minutes is not None and recent_minutes > 0:
+            where.append("updated_at >= (CURRENT_TIMESTAMP - (%s || ' minutes')::interval)")
+            params.append(str(recent_minutes))
+        sql = f"""
+            SELECT id, order_number, status, station_id,
+                   created_at, updated_at, phone, order_details, picked_up_at
+            FROM orders
+            WHERE {' AND '.join(where)}
+            ORDER BY updated_at DESC
+            LIMIT 50
+        """
+        cursor.execute(sql, params)
 
         completed_orders = []
         for order in cursor.fetchall():
@@ -1669,51 +1699,89 @@ def send_message(order_id):
 
 @bp.route('/display/config', methods=['GET'])
 def get_display_config():
-    """Get display screen configuration including event details, sponsor info, and SMS details"""
+    """Get display screen configuration including event details, sponsor info, and SMS details.
+
+    Previously this read EVENT_NAME from Flask app config (an env
+    var set at boot), so changing the event name via the Branding
+    panel did NOTHING on the Display screen — Steve renamed the
+    event and it didn't update. Now reads from the live branding
+    settings KV (the same row /api/settings/branding writes to).
+    """
     try:
-        # Get config directly from app config for simplicity
         config = current_app.config.get('config', {})
-        
-        # Return simplified display configuration based on app config
+        coffee_system = current_app.config.get('coffee_system')
+
+        # Pull branding from the settings KV — what the Branding
+        # panel actually writes to.
+        branding = {}
+        try:
+            if coffee_system and getattr(coffee_system, 'db', None):
+                branding = _kv_get(coffee_system.db, 'branding_settings', default={}) or {}
+        except Exception as e:
+            logger.warning(f"display/config: could not read branding settings: {e}")
+
+        # Event name precedence: branding setting → env var → static fallback.
+        event_name = (
+            branding.get('eventName')
+            or branding.get('event_name')
+            or branding.get('landingPageTitle')
+            or branding.get('clientName')          # operator's "Client Name" works as a fallback
+            or config.get('EVENT_NAME')
+            or 'Coffee Event'
+        )
+
+        # System/company name — same precedence pattern.
+        system_name = (
+            branding.get('systemName')
+            or branding.get('system_name')
+            or 'Coffee Cue'
+        )
+
+        # Sponsor block — operator may not have set this; default off.
+        sponsor = {
+            "enabled": bool(branding.get('showSponsor') or branding.get('sponsorEnabled')),
+            "name":    branding.get('sponsorName') or '',
+            "message": branding.get('sponsorMessage') or '',
+        }
+
+        # Pull real stations from station_stats so the Display
+        # selector reflects the operator's actual setup rather than
+        # the old hardcoded 1/2/3.
+        stations = []
+        try:
+            if coffee_system and getattr(coffee_system, 'db', None):
+                cur = coffee_system.db.cursor()
+                cur.execute(
+                    "SELECT station_id, COALESCE(name, ''), COALESCE(location, ''), "
+                    "COALESCE(status, 'active'), COALESCE(barista_name, '') "
+                    "FROM station_stats ORDER BY station_id"
+                )
+                for row in cur.fetchall():
+                    sid, name, location, status, barista = row
+                    stations.append({
+                        "id": sid,
+                        "name": name or f"Station #{sid}",
+                        "location": location or 'Main Hall',
+                        "status": status or 'active',
+                        "barista": barista or 'Unassigned',
+                    })
+        except Exception as e:
+            logger.warning(f"display/config: could not enumerate stations: {e}")
+
         return jsonify({
             "success": True,
             "config": {
-                "system_name": "Coffee Cue",
-                "event_name": config.get('EVENT_NAME', 'Coffee Event'),
-                "sms_number": config.get('TWILIO_PHONE_NUMBER', ''),
-                "sponsor": {
-                    "enabled": False,
-                    "name": "",
-                    "message": ""
-                },
-                "wait_time": "10-15",
-                "stations": [
-                    {
-                        "id": 1,
-                        "name": "Station #1",
-                        "location": "Main Hall",
-                        "status": "active",
-                        "barista": "Barista 1"
-                    },
-                    {
-                        "id": 2,
-                        "name": "Station #2",
-                        "location": "Main Hall",
-                        "status": "active",
-                        "barista": "Barista 2"
-                    },
-                    {
-                        "id": 3,
-                        "name": "Station #3",
-                        "location": "Main Hall",
-                        "status": "active",
-                        "barista": "Barista 3"
-                    }
-                ],
-                "app_version": config.get('APP_VERSION', '1.0.0')
+                "system_name": system_name,
+                "event_name": event_name,
+                "sms_number": config.get('TWILIO_PHONE_NUMBER', '') or branding.get('smsNumber', ''),
+                "sponsor": sponsor,
+                "wait_time": branding.get('waitTime', '10-15'),
+                "header_color": branding.get('headerColor') or branding.get('primaryColor') or '#1e40af',
+                "custom_message": branding.get('customMessage') or branding.get('footerText') or '',
+                "stations": stations,
+                "app_version": config.get('APP_VERSION', '1.0.0'),
             }
         })
-    
     except Exception as e:
         logger.error(f"Error getting display config: {str(e)}")
         return jsonify({
