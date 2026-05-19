@@ -3,18 +3,22 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Brain, Zap, Clock, Users, BarChart3, AlertTriangle, CheckCircle, ArrowRight } from 'lucide-react';
 import useStations from '../hooks/useStations';
 import useOrders from '../hooks/useOrders';
+import ApiServiceClass from '../services/ApiService';
+
+const api = new ApiServiceClass();
 
 const QueueIntelligence = () => {
   const { stations, loading: stationsLoading } = useStations();
   const { pendingOrders, inProgressOrders } = useOrders();
-  
-  // Load routing rules from localStorage or use defaults
+
+  // Routing rules are now persisted to the backend (/api/routing-rules)
+  // so the toggles actually drive _assign_station's behavior. We keep
+  // a localStorage mirror so the UI restores instantly on reload even
+  // if the network is slow.
   const loadRoutingRules = () => {
     try {
       const saved = localStorage.getItem('coffee_cue_routing_rules');
-      if (saved) {
-        return JSON.parse(saved);
-      }
+      if (saved) return JSON.parse(saved);
     } catch (error) {
       console.error('Error loading routing rules from localStorage:', error);
     }
@@ -22,20 +26,59 @@ const QueueIntelligence = () => {
       prioritizeEfficiency: true,
       balanceWorkload: true,
       considerCapabilities: true,
-      emergencyMode: false
+      emergencyMode: false,
     };
   };
 
   const [routingRules, setRoutingRules] = useState(loadRoutingRules());
-  
-  // Save routing rules to localStorage whenever they change
+  const [serverSyncStatus, setServerSyncStatus] = useState('idle'); // 'idle' | 'syncing' | 'synced' | 'error'
+
+  // On mount, fetch the server's view and reconcile. Server wins —
+  // it's what _assign_station actually reads.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const resp = await api.request('/routing-rules', { method: 'GET' });
+        if (cancelled || !resp) return;
+        // Treat the response itself as the rules object (matches /event-stock pattern).
+        const serverRules = resp.rules || resp;
+        if (typeof serverRules === 'object') {
+          setRoutingRules(prev => ({ ...prev, ...serverRules }));
+          localStorage.setItem('coffee_cue_routing_rules', JSON.stringify(serverRules));
+          setServerSyncStatus('synced');
+        }
+      } catch (e) {
+        console.warn('Could not fetch routing rules from server:', e);
+        setServerSyncStatus('error');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Save routing rules to BOTH localStorage and backend whenever they change.
+  // Debounced via a 400ms timeout so a slider drag doesn't hammer the API.
   useEffect(() => {
     try {
       localStorage.setItem('coffee_cue_routing_rules', JSON.stringify(routingRules));
-      console.log('Saved routing rules to localStorage:', routingRules);
     } catch (error) {
       console.error('Error saving routing rules to localStorage:', error);
     }
+    const timer = setTimeout(async () => {
+      setServerSyncStatus('syncing');
+      try {
+        await api.request('/routing-rules', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(routingRules),
+        });
+        setServerSyncStatus('synced');
+      } catch (e) {
+        console.warn('Could not save routing rules to server:', e);
+        setServerSyncStatus('error');
+      }
+    }, 400);
+    return () => clearTimeout(timer);
   }, [routingRules]);
   
   const [routingMetrics, setRoutingMetrics] = useState({
@@ -260,10 +303,26 @@ const QueueIntelligence = () => {
 
       {/* Routing Rules */}
       <div className="bg-white p-6 rounded-lg shadow-sm">
-        <h3 className="text-lg font-semibold mb-4 flex items-center">
-          <Zap className="mr-2 text-yellow-600" />
-          Routing Configuration
+        <h3 className="text-lg font-semibold mb-4 flex items-center justify-between">
+          <span className="flex items-center">
+            <Zap className="mr-2 text-yellow-600" />
+            Routing Configuration
+          </span>
+          <span className={`text-xs px-2 py-1 rounded font-medium ${
+              serverSyncStatus === 'synced'  ? 'bg-green-100 text-green-800' :
+              serverSyncStatus === 'syncing' ? 'bg-amber-100 text-amber-800 animate-pulse' :
+              serverSyncStatus === 'error'   ? 'bg-red-100 text-red-800' :
+              'bg-gray-100 text-gray-600'}`}>
+            {serverSyncStatus === 'synced'  ? '● Live — affecting routing'
+             : serverSyncStatus === 'syncing' ? 'Syncing…'
+             : serverSyncStatus === 'error' ? 'Saved locally only — backend offline'
+             : 'Not yet synced'}
+          </span>
         </h3>
+        <p className="text-xs text-gray-500 mb-4">
+          These toggles now drive the backend's <code className="bg-gray-100 px-1 rounded">_assign_station</code> algorithm
+          directly. Changes apply to the next order placed.
+        </p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {Object.entries(routingRules).map(([key, value]) => (
             <label key={key} className="flex items-center space-x-2 cursor-pointer">

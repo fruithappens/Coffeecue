@@ -5105,6 +5105,224 @@ def apply_quick_setup():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+DEFAULT_ROUTING_RULES = {
+    # Mirror the keys QueueIntelligence.js stores in localStorage.
+    # Each toggle nudges _assign_station's behavior:
+    #
+    # prioritizeEfficiency   — prefer high-throughput stations (capacity_weight wins ties)
+    # balanceWorkload        — keep load balanced across stations (default behavior)
+    # considerCapabilities   — refuse to assign a milk an active station can't make
+    # emergencyMode          — ignore capability gating in a pinch
+    'prioritizeEfficiency': True,
+    'balanceWorkload':      True,
+    'considerCapabilities': True,
+    'emergencyMode':        False,
+}
+
+
+@bp.route('/routing-rules', methods=['GET'])
+@jwt_required_with_demo()
+def get_routing_rules():
+    """Load-balancing preferences read by _assign_station.
+
+    The Barista → Queue AI tab edits these in a localStorage-only
+    blob today; persisting them server-side means the toggles
+    actually influence backend routing (and they survive a barista
+    logging in on a different machine).
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        rules = _kv_get(coffee_system.db, 'routing_rules', default=None)
+        merged = {**DEFAULT_ROUTING_RULES, **(rules or {})}
+        return jsonify(merged)
+    except Exception as e:
+        logger.error(f"get_routing_rules error: {e}")
+        return jsonify(DEFAULT_ROUTING_RULES), 200
+
+
+@bp.route('/routing-rules', methods=['PUT', 'POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def upsert_routing_rules():
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        data = request.get_json() or {}
+        merged = {**DEFAULT_ROUTING_RULES, **data}
+        _kv_put(coffee_system.db, 'routing_rules', merged)
+        # Invalidate any cache in coffee_system so the change applies
+        # to the very next order, not 60s later.
+        if hasattr(coffee_system, '_invalidate_routing_rules_cache'):
+            coffee_system._invalidate_routing_rules_cache()
+        return jsonify({'success': True, 'rules': merged})
+    except Exception as e:
+        logger.error(f"upsert_routing_rules error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/inventory/transfer', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def transfer_inventory():
+    """Move stock from one station to another.
+
+    Body: { from_station: int|null, to_station: int|null, name: str,
+            category: str, amount: float }
+
+    A null station_id means the "event-wide" pool (the row with
+    station_id IS NULL). Useful for "I'm taking 5L oat from event
+    reserve to Station 2".
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        data = request.get_json() or {}
+        from_station = data.get('from_station')
+        to_station = data.get('to_station')
+        name = (data.get('name') or '').strip().lower()
+        category = (data.get('category') or '').strip().lower()
+        amount = float(data.get('amount') or 0)
+        if not name or not category or amount <= 0:
+            return jsonify({'success': False, 'error': 'name, category, and a positive amount are required'}), 400
+        if from_station == to_station:
+            return jsonify({'success': False, 'error': 'from_station and to_station must differ'}), 400
+
+        cur = db.cursor()
+        # Decrement from source. We GREATEST(0, …) so we never go
+        # negative — short transfers just zero out the source row.
+        if from_station is None:
+            cur.execute("""
+                UPDATE inventory_items
+                SET amount = GREATEST(0, amount - %s),
+                    last_updated = CURRENT_TIMESTAMP
+                WHERE LOWER(category) = %s AND LOWER(name) = %s AND station_id IS NULL
+                RETURNING amount
+            """, (amount, category, name))
+        else:
+            cur.execute("""
+                UPDATE inventory_items
+                SET amount = GREATEST(0, amount - %s),
+                    last_updated = CURRENT_TIMESTAMP
+                WHERE LOWER(category) = %s AND LOWER(name) = %s AND station_id = %s
+                RETURNING amount
+            """, (amount, category, name, from_station))
+        src_row = cur.fetchone()
+        if not src_row:
+            db.rollback()
+            return jsonify({'success': False,
+                            'error': f'No {category}/{name} row found at source station'}), 404
+
+        # Increment destination. Upsert: if the row doesn't exist
+        # for the destination, create it.
+        if to_station is None:
+            cur.execute("""
+                UPDATE inventory_items
+                SET amount = amount + %s, last_updated = CURRENT_TIMESTAMP
+                WHERE LOWER(category) = %s AND LOWER(name) = %s AND station_id IS NULL
+                RETURNING amount
+            """, (amount, category, name))
+        else:
+            cur.execute("""
+                UPDATE inventory_items
+                SET amount = amount + %s, last_updated = CURRENT_TIMESTAMP
+                WHERE LOWER(category) = %s AND LOWER(name) = %s AND station_id = %s
+                RETURNING amount
+            """, (amount, category, name, to_station))
+        dst_row = cur.fetchone()
+
+        if not dst_row:
+            # Destination station doesn't have a row for this item yet
+            # — insert one. Copy unit/capacity from source if we can.
+            cur.execute("""
+                SELECT unit, capacity, minimum_threshold FROM inventory_items
+                WHERE LOWER(category) = %s AND LOWER(name) = %s
+                LIMIT 1
+            """, (category, name))
+            template = cur.fetchone() or ('units', amount * 2, 0)
+            unit, capacity, min_thr = template
+            cur.execute("""
+                INSERT INTO inventory_items
+                  (category, name, amount, unit, capacity, minimum_threshold, station_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """, (category, name, amount, unit, capacity, min_thr, to_station))
+
+        db.commit()
+        logger.info(f"Inventory transfer: {amount} {category}/{name} from station {from_station} → {to_station}")
+        return jsonify({'success': True,
+                        'source_remaining': float(src_row[0]),
+                        'destination_amount': float(dst_row[0]) if dst_row else amount})
+    except Exception as e:
+        logger.error(f"transfer_inventory error: {e}")
+        try:
+            current_app.config.get('coffee_system').db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/inventory/emergency-restock', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def emergency_restock():
+    """Bump a single inventory_items row up by the requested amount.
+
+    Body: { item: str, type: str (= category), amount: float,
+            station_id?: int|null, priority?: str }
+
+    The "priority" field is accepted for compatibility with the
+    existing UI but isn't persisted — emergency restocks are
+    inherently urgent. Returns the new amount.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        data = request.get_json() or {}
+        name = (data.get('item') or data.get('name') or '').strip().lower()
+        category = (data.get('type') or data.get('category') or '').strip().lower()
+        amount = float(data.get('amount') or 0)
+        station_id = data.get('station_id')  # may be None — event-wide
+        if not name or not category or amount <= 0:
+            return jsonify({'success': False, 'error': 'item, type, and positive amount required'}), 400
+
+        cur = db.cursor()
+        if station_id is None:
+            cur.execute("""
+                UPDATE inventory_items
+                SET amount = amount + %s,
+                    capacity = GREATEST(capacity, amount + %s),
+                    last_updated = CURRENT_TIMESTAMP
+                WHERE LOWER(category) = %s AND LOWER(name) = %s AND station_id IS NULL
+                RETURNING amount
+            """, (amount, amount, category, name))
+        else:
+            cur.execute("""
+                UPDATE inventory_items
+                SET amount = amount + %s,
+                    capacity = GREATEST(capacity, amount + %s),
+                    last_updated = CURRENT_TIMESTAMP
+                WHERE LOWER(category) = %s AND LOWER(name) = %s AND station_id = %s
+                RETURNING amount
+            """, (amount, amount, category, name, station_id))
+        row = cur.fetchone()
+        if not row:
+            # No row exists — create one.
+            cur.execute("""
+                INSERT INTO inventory_items
+                  (category, name, amount, unit, capacity, minimum_threshold, station_id)
+                VALUES (%s, %s, %s, 'units', %s, 0, %s)
+                RETURNING amount
+            """, (category, name, amount, amount * 2, station_id))
+            row = cur.fetchone()
+        db.commit()
+        return jsonify({'success': True, 'amount': float(row[0])})
+    except Exception as e:
+        logger.error(f"emergency_restock error: {e}")
+        try:
+            current_app.config.get('coffee_system').db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @bp.route('/event-stock', methods=['GET'])
 @jwt_required_with_demo()
 def get_event_stock():

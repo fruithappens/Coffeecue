@@ -225,47 +225,83 @@ const MultiLevelInventory = () => {
     return alerts;
   };
 
-  // Handle stock redistribution
+  // Handle stock redistribution — was a placeholder (1s setTimeout).
+  // Now calls /api/inventory/transfer which actually moves the stock
+  // between stations in the inventory_items table.
   const handleRedistribute = async (alert) => {
     try {
-      // In a real implementation, this would call an API to transfer stock
-      console.log('Redistributing:', alert);
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Reload data
+      // The alert carries station NAMES; the API needs IDs. Look them
+      // up from the stations list useStations gave us.
+      const fromS = stations.find(s => s.name === alert.fromStation);
+      const toS   = stations.find(s => s.name === alert.toStation);
+      if (!fromS || !toS) {
+        console.warn('Could not resolve station names to IDs for redistribute:', alert);
+        return;
+      }
+      const amount = alert.suggestedTransfer;
+      if (!amount || amount <= 0) return;
+
+      // The detector currently only flags milk imbalance, so milk is
+      // a safe category default. We pass the lowercased item name to
+      // match the backend's `LOWER(name)` filter.
+      const token = localStorage.getItem('coffee_auth_token')
+                 || localStorage.getItem('coffee_system_token');
+      const response = await fetch('/api/inventory/transfer', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          from_station: fromS.id,
+          to_station:   toS.id,
+          name:         (alert.item || '').toLowerCase(),
+          category:     (alert.itemType || 'milk').toLowerCase(),
+          amount,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.success === false) {
+        throw new Error(data.error || `HTTP ${response.status}`);
+      }
+      console.log('Redistribute OK:', data);
       await loadInventoryData();
-      
     } catch (error) {
       console.error('Redistribution failed:', error);
+      // Surface the error to the operator — silent failure is what
+      // made the old behavior so confusing.
+      if (typeof window !== 'undefined') {
+        // Soft alert so it's visible without blocking the UI thread.
+        window.dispatchEvent(new CustomEvent('inventory:transfer-failed', { detail: { error: error.message } }));
+      }
     }
   };
 
-  // Handle emergency restock
+  // Handle emergency restock — endpoint exists now and accepts the
+  // shape this function was already sending.
   const handleEmergencyRestock = async (item, type, amount) => {
     try {
+      const token = localStorage.getItem('coffee_auth_token')
+                 || localStorage.getItem('coffee_system_token');
       const response = await fetch('/api/inventory/emergency-restock', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('coffee_system_token')}`
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
           item,
           type,
           amount,
-          priority: 'urgent'
-        })
+          priority: 'urgent',
+        }),
       });
-      
-      if (!response.ok) {
-        throw new Error('Restock request failed');
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.success === false) {
+        throw new Error(data.error || 'Restock request failed');
       }
-      
-      // Reload data
+      console.log('Emergency restock OK:', data);
       await loadInventoryData();
-      
     } catch (error) {
       console.error('Emergency restock failed:', error);
     }
