@@ -39,7 +39,12 @@ PORT = int(os.getenv('PORT', 5001))  # Changed from default 5000 to avoid macOS 
 
 # JWT Configuration
 JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', SECRET_KEY)
-JWT_ACCESS_TOKEN_EXPIRES = int(os.getenv('JWT_ACCESS_TOKEN_EXPIRES', 86400))  # 24 hours in seconds
+# 8-hour access tokens cover an event-day shift comfortably. The
+# secure_env_setup.py template still writes 900 (15 min) into the
+# .env file it generates, which caused operators to be kicked back to
+# login every 15 minutes — the audit's worst UX bug. Combined with
+# the auto-refresh-on-401 logic in ApiService, even 8h is generous.
+JWT_ACCESS_TOKEN_EXPIRES = int(os.getenv('JWT_ACCESS_TOKEN_EXPIRES', 28800))  # 8 hours
 JWT_REFRESH_TOKEN_EXPIRES = int(os.getenv('JWT_REFRESH_TOKEN_EXPIRES', 2592000))  # 30 days in seconds
 JWT_COOKIE_SECURE = os.getenv('JWT_COOKIE_SECURE', 'False').lower() == 'true'
 JWT_COOKIE_CSRF_PROTECT = os.getenv('JWT_COOKIE_CSRF_PROTECT', 'False').lower() == 'true'
