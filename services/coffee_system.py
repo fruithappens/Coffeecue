@@ -2577,6 +2577,27 @@ class CoffeeOrderSystem:
                 self._decrement_stock_for_order(
                     fresh_conn, db_type, station_id, processed_details
                 )
+                # Persist the "stock already decremented" flag back to
+                # the orders row so the /complete endpoint (which also
+                # calls _decrement_stock_for_order for walk-in orders)
+                # doesn't double-count this same SMS order when the
+                # barista taps Complete.
+                processed_details['_stock_decremented'] = True
+                try:
+                    upd = fresh_conn.cursor()
+                    if db_type == 'sqlite':
+                        upd.execute(
+                            "UPDATE orders SET order_details = ? WHERE id = ?",
+                            (json.dumps(processed_details), order_id),
+                        )
+                    else:
+                        upd.execute(
+                            "UPDATE orders SET order_details = %s WHERE id = %s",
+                            (json.dumps(processed_details), order_id),
+                        )
+                    fresh_conn.commit()
+                except Exception as upd_err:
+                    logger.warning(f"Could not persist _stock_decremented flag: {upd_err}")
             except Exception as inv_err:
                 # Order must not fail because of inventory accounting.
                 logger.error(f"Stock decrement failed (non-fatal): {inv_err}")
@@ -3153,6 +3174,14 @@ class CoffeeOrderSystem:
         Skips items not in stock so an empty `oat` row doesn't go
         negative on a customer who somehow placed an oat order anyway.
         """
+        # Idempotency guard. The SMS confirmation flow calls this on
+        # order confirm; the new /complete endpoint also calls it for
+        # walk-in orders. If both fire on the same order we'd
+        # double-decrement. Caller is expected to set/check a
+        # `_stock_decremented` flag on processed_details to mark
+        # completion, but as a backstop we no-op here when we see it.
+        if processed_details.get('_stock_decremented'):
+            return
         cursor = conn.cursor()
         size = (processed_details.get('size') or 'medium').lower()
         milk = (processed_details.get('milk') or '').lower()
