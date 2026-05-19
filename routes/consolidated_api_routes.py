@@ -2419,6 +2419,85 @@ def update_station_status(station_id):
             'message': f"Error updating station status: {str(e)}"
         }), 500
 
+@bp.route('/stations/<station_id>/capabilities', methods=['GET', 'POST', 'PUT'])
+@jwt_required_with_demo()
+def station_capabilities(station_id):
+    """GET or update a station's capabilities JSONB blob.
+
+    The Quick Setup wizard already writes `station_stats.capabilities`
+    (milk_types, coffee_types, sizes, capacity, etc.); EnhancedStationCapabilities
+    on the frontend POSTs here to edit it per-station. Without this
+    endpoint the frontend was silently writing to localStorage only.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        cur = db.cursor()
+        try:
+            station_id_int = int(station_id)
+        except (TypeError, ValueError):
+            return jsonify({'success': False, 'message': 'station_id must be an integer'}), 400
+
+        if request.method == 'GET':
+            cur.execute(
+                "SELECT COALESCE(capabilities, '{}'::jsonb) FROM station_stats WHERE station_id = %s",
+                (station_id_int,)
+            )
+            row = cur.fetchone()
+            if not row:
+                return jsonify({'success': False, 'message': f'Station {station_id} not found'}), 404
+            caps = row[0]
+            if isinstance(caps, str):
+                try:
+                    caps = json.loads(caps) if caps else {}
+                except Exception:
+                    caps = {}
+            return jsonify({'success': True, 'capabilities': caps or {}})
+
+        # POST / PUT
+        data = request.get_json() or {}
+        # Accept either {"capabilities": {...}} or the raw capabilities dict.
+        new_caps = data.get('capabilities') if isinstance(data.get('capabilities'), dict) else data
+        if not isinstance(new_caps, dict):
+            return jsonify({'success': False, 'message': 'capabilities must be an object'}), 400
+
+        # Merge with the existing row so callers can PATCH a single key
+        # without wiping everything else (e.g. flipping `vip_service`
+        # while leaving milk_types intact).
+        cur.execute(
+            "SELECT COALESCE(capabilities, '{}'::jsonb) FROM station_stats WHERE station_id = %s",
+            (station_id_int,)
+        )
+        existing = cur.fetchone()
+        if not existing:
+            return jsonify({'success': False, 'message': f'Station {station_id} not found'}), 404
+        existing_caps = existing[0]
+        if isinstance(existing_caps, str):
+            try:
+                existing_caps = json.loads(existing_caps) if existing_caps else {}
+            except Exception:
+                existing_caps = {}
+        if not isinstance(existing_caps, dict):
+            existing_caps = {}
+        merged = {**existing_caps, **new_caps}
+
+        cur.execute(
+            "UPDATE station_stats SET capabilities = %s::jsonb, last_updated = CURRENT_TIMESTAMP "
+            "WHERE station_id = %s",
+            (json.dumps(merged), station_id_int),
+        )
+        db.commit()
+        logger.info(f"Updated capabilities for station {station_id_int}: keys={list(new_caps.keys())}")
+        return jsonify({'success': True, 'station_id': station_id_int, 'capabilities': merged})
+    except Exception as e:
+        logger.error(f"station_capabilities error: {e}")
+        try:
+            current_app.config.get('coffee_system').db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 @bp.route('/stations/<station_id>/stats', methods=['GET'])
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff', 'barista'])
