@@ -3,6 +3,13 @@ import React, { useState, useEffect } from 'react';
 import { Coffee, Settings, Save, AlertTriangle } from 'lucide-react';
 import useStations from '../hooks/useStations';
 import { DEFAULT_MILK_TYPES } from '../utils/milkConfig';
+import ApiServiceClass from '../services/ApiService';
+
+// Backend-backed station defaults — the previous version saved only
+// to localStorage, so defaults vanished when an operator switched
+// browsers or devices. Now /api/station-defaults persists to the
+// settings table.
+const apiService = new ApiServiceClass();
 
 const StationDefaults = () => {
   const { stations } = useStations();
@@ -21,14 +28,29 @@ const StationDefaults = () => {
     loadData();
   }, []);
   
-  const loadData = () => {
+  const loadData = async () => {
     try {
-      // Load existing station defaults
-      const savedDefaults = localStorage.getItem('stationDefaults');
-      if (savedDefaults) {
-        setStationDefaults(JSON.parse(savedDefaults));
+      // Backend first; fall back to localStorage if the API isn't
+      // reachable so the UI still works offline.
+      let defaults = null;
+      try {
+        const resp = await apiService.request('/station-defaults', { method: 'GET' });
+        if (resp && typeof resp === 'object') {
+          defaults = resp;
+        }
+      } catch (apiErr) {
+        console.warn('station-defaults API unavailable, using localStorage:', apiErr.message);
       }
-      
+      if (!defaults) {
+        const savedDefaults = localStorage.getItem('stationDefaults');
+        if (savedDefaults) defaults = JSON.parse(savedDefaults);
+      }
+      if (defaults) {
+        setStationDefaults(defaults);
+        // Mirror to localStorage so the next load is instant.
+        localStorage.setItem('stationDefaults', JSON.stringify(defaults));
+      }
+
       // Load coffee menu
       const menuData = localStorage.getItem('coffeeMenu');
       if (menuData) {
@@ -56,10 +78,27 @@ const StationDefaults = () => {
   
   const saveDefaults = async () => {
     setSaving(true);
+    // Always save to localStorage so reloads on the same browser are
+    // instant even before the API call completes. Then push to the
+    // backend so other devices / operators get the same defaults.
     try {
       localStorage.setItem('stationDefaults', JSON.stringify(stationDefaults));
-      setSaveMessage('Station defaults saved successfully!');
-      setTimeout(() => setSaveMessage(''), 3000);
+      try {
+        const resp = await apiService.request('/station-defaults', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(stationDefaults),
+        });
+        if (resp && resp.success) {
+          setSaveMessage('Station defaults saved (synced to server).');
+        } else {
+          setSaveMessage('Saved locally — server save returned an error.');
+        }
+      } catch (apiErr) {
+        setSaveMessage('Saved locally — server unreachable, will not sync across devices.');
+        console.warn('station-defaults PUT failed:', apiErr.message);
+      }
+      setTimeout(() => setSaveMessage(''), 4000);
     } catch (error) {
       console.error('Error saving station defaults:', error);
       setSaveMessage('Error saving station defaults');

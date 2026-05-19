@@ -206,16 +206,34 @@ const InProgressOrder = ({
         </Tooltip>
       </div>
       
-      {/* Time pressure bar */}
+      {/* Time pressure bar.
+          Previously this divided waitTime by `order.promisedTime`
+          which was never set by the backend — so the calculation
+          was 0 / undefined = NaN, the bar showed 0% on every order,
+          and operators reported "time pressure doesn't seem to be
+          working". Default to a 5-minute promise if missing, and
+          clamp the ratio so the bar never goes negative or NaN. */}
       <div className="mt-3 flex items-center space-x-2">
         <div className="text-sm">Time pressure:</div>
         <div className="flex-grow bg-gray-200 h-2 rounded-full overflow-hidden">
-          <div 
-            className={`h-2 ${getTimeRatioColor(order.waitTime, order.promisedTime)}`}
-            style={{ width: `${Math.min((order.waitTime / order.promisedTime) * 100, 100)}%` }}
+          <div
+            className={`h-2 ${getTimeRatioColor(order.waitTime || 0, order.promisedTime || 5)}`}
+            style={{
+              width: `${Math.min(
+                Math.max(((order.waitTime || 0) / (order.promisedTime || 5)) * 100, 0),
+                100,
+              )}%`,
+            }}
           ></div>
         </div>
-        <div className="text-sm">{Math.floor((order.waitTime / order.promisedTime) * 100)}%</div>
+        <div className="text-sm">
+          {Math.floor(
+            Math.min(
+              Math.max(((order.waitTime || 0) / (order.promisedTime || 5)) * 100, 0),
+              100,
+            )
+          )}%
+        </div>
       </div>
     </div>
   );
