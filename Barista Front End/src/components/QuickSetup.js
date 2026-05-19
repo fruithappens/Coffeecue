@@ -23,8 +23,55 @@ const EXTRA_DRINK_OPTIONS = [
   { key: 'hot_chocolate', label: 'Hot Chocolate' },
   { key: 'chai',          label: 'Chai Latte' },
   { key: 'matcha',        label: 'Matcha Latte' },
-  { key: 'tea',           label: 'Tea' },
+  { key: 'tea',           label: 'Hot Tea (black, green, herbal)' },
 ];
+
+// The InventoryManagement UI uses a different, prettier set of names
+// than the SMS bot. Map between them so a selection here propagates to
+// the localStorage that the UI reads. Anything not in these maps is
+// DISABLED (rather than deleted) in localStorage so the operator can
+// re-enable individual items later from the inventory panel.
+const MILK_NAME_MAP = {
+  'full cream':   'Whole Milk',
+  'skim':         'Skim Milk',
+  'oat':          'Oat Milk',
+  'almond':       'Almond Milk',
+  'soy':          'Soy Milk',
+  'coconut':      'Coconut Milk',
+  'macadamia':    'Macadamia Milk',
+  'lactose free': 'Lactose-Free Milk',  // not in defaults — gets added
+};
+const SIZE_NAME_MAP = {
+  'small':  ['Small (8oz)', 'Takeaway Cup Small'],
+  'medium': ['Medium (12oz)', 'Takeaway Cup Medium', 'Ceramic Mug'],
+  'large':  ['Large (16oz)', 'Takeaway Cup Large'],
+};
+const SWEETENER_NAME_MAP = {
+  'no sugar':    [],                 // "no sugar" needs no inventory row
+  '1 sugar':     ['White Sugar'],
+  '2 sugar':     ['White Sugar'],
+  '3 sugar':     ['White Sugar'],
+  'half sugar':  ['White Sugar'],
+};
+// The four "extra drink" checkboxes map to specific Non-Coffee Drinks
+// entries. Notably: ticking "Tea" enables Hot Tea (the black-tea
+// default) NOT Matcha Latte — operator reported this confusion.
+const EXTRA_DRINK_NAME_MAP = {
+  hot_chocolate: ['Hot Chocolate'],
+  chai:          ['Chai Latte'],
+  matcha:        ['Matcha Latte'],
+  tea:           ['Hot Tea'],
+};
+// Always-keep coffee types (espresso-based drinks the SMS bot supports
+// by default). Cold Brew / Filter / Americano / Macchiato / Cortado /
+// Golden Latte / Iced Tea / Juice / Smoothie are all DISABLED by Quick
+// Setup unless the operator turns them back on individually.
+const KEEP_COFFEE_NAMES = new Set([
+  'Espresso', 'Latte', 'Cappuccino', 'Flat White', 'Mocha',
+  // Long Black isn't in InventoryManagement defaults but is in the
+  // backend menu — included for completeness if the operator adds it.
+  'Long Black',
+]);
 
 const DEFAULT_STATE = {
   milks: ['full cream', 'skim', 'oat', 'almond', 'lactose free'],
@@ -75,10 +122,82 @@ const QuickSetup = () => {
     setConfig(c => ({ ...c, drinks: { ...c.drinks, [key]: !c.drinks[key] } }));
   };
 
+  // Rebuild the localStorage inventory the InventoryManagement panel
+  // reads. Without this, the operator opens that panel after Quick
+  // Setup and sees Rice Milk, Cold Brew, every syrup, every extra
+  // still enabled because they live in a separate store. We
+  // overwrite the whole `event_inventory` blob with: defaults for
+  // every category, but `enabled` set only for items in the
+  // operator's Quick Setup selection.
+  const rebuildLocalInventory = () => {
+    const enabledMilks = new Set(config.milks.map(m => MILK_NAME_MAP[m]).filter(Boolean));
+    const enabledSizes = new Set(config.sizes.flatMap(s => SIZE_NAME_MAP[s] || []));
+    const enabledSweeteners = new Set(config.sweeteners.flatMap(s => SWEETENER_NAME_MAP[s] || []));
+    const enabledDrinks = new Set();
+    if (config.drinks.hot_chocolate) EXTRA_DRINK_NAME_MAP.hot_chocolate.forEach(n => enabledDrinks.add(n));
+    if (config.drinks.chai)          EXTRA_DRINK_NAME_MAP.chai.forEach(n => enabledDrinks.add(n));
+    if (config.drinks.matcha)        EXTRA_DRINK_NAME_MAP.matcha.forEach(n => enabledDrinks.add(n));
+    if (config.drinks.tea)           EXTRA_DRINK_NAME_MAP.tea.forEach(n => enabledDrinks.add(n));
+
+    const categoryFilter = {
+      milk:       enabledMilks,
+      coffee:     KEEP_COFFEE_NAMES,  // espresso drinks; nothing turns off
+      cups:       enabledSizes,
+      sweeteners: enabledSweeteners,
+      drinks:     enabledDrinks,
+      syrups:     new Set(),  // all OFF
+      extras:     new Set(),  // all OFF
+    };
+
+    let existing = {};
+    try {
+      existing = JSON.parse(localStorage.getItem('event_inventory') || '{}');
+    } catch (e) {
+      existing = {};
+    }
+
+    const updated = {};
+    Object.entries(existing).forEach(([catKey, items]) => {
+      const allowed = categoryFilter[catKey];
+      if (!Array.isArray(items)) {
+        updated[catKey] = items;
+        return;
+      }
+      updated[catKey] = items.map(item => {
+        // Don't delete items — toggle `enabled`. Keeps them
+        // discoverable in the inventory panel for re-enable later.
+        const shouldBeOn = allowed ? allowed.has(item.name) : false;
+        return { ...item, enabled: shouldBeOn };
+      });
+    });
+
+    // Lactose-Free is not in InventoryManagement.js defaults but the
+    // Quick Setup defaults include it — add it if missing so it
+    // surfaces in the panel.
+    if (config.milks.includes('lactose free') && updated.milk) {
+      const has = updated.milk.some(m => /lactose/i.test(m.name));
+      if (!has) {
+        updated.milk.push({
+          id: `qs-lactose-${Date.now()}`,
+          name: 'Lactose-Free Milk',
+          description: 'Added by Quick Setup',
+          enabled: true,
+        });
+      }
+    }
+
+    localStorage.setItem('event_inventory', JSON.stringify(updated));
+
+    // Notify any listening components (MilkColorSettings,
+    // EventStockManagement) that inventory changed.
+    window.dispatchEvent(new CustomEvent('inventory:updated', { detail: updated }));
+  };
+
   const apply = async () => {
     if (!window.confirm(
-      'Apply Quick Setup?\n\nThis REPLACES all current inventory items with the ' +
-      'defaults selected here. Existing orders / customers / stations are kept. ' +
+      'Apply Quick Setup?\n\nThis REPLACES the current inventory items with the ' +
+      'defaults selected here AND disables anything you haven\'t ticked in the ' +
+      'Inventory Management panel. Existing orders / customers / stations are kept. ' +
       'Continue?'
     )) return;
     setApplying(true);
@@ -89,6 +208,13 @@ const QuickSetup = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ preset: config }),
       });
+      // Mirror the selections into localStorage so the Inventory
+      // Management UI reflects the same enabled-set.
+      try {
+        rebuildLocalInventory();
+      } catch (e) {
+        console.warn('Could not rebuild localStorage inventory:', e);
+      }
       setResult({
         success: !!resp.success,
         summary: resp.summary || (resp.applied || []).join('; '),
