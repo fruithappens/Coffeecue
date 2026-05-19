@@ -9,14 +9,20 @@ import re
 import bleach
 from functools import wraps
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
-# Initialize rate limiter
+# Initialize rate limiter.
+# TESTING_MODE disables the default per-client limits so end-to-end
+# scripts can place dozens of orders in quick succession without
+# hitting the production 50/hour cap.
+_testing = os.getenv('TESTING_MODE', 'False').lower() == 'true'
 limiter = Limiter(
     key_func=get_remote_address,
-    default_limits=["200 per day", "50 per hour"],
-    storage_uri="memory://"
+    default_limits=[] if _testing else ["200 per day", "50 per hour"],
+    storage_uri="memory://",
+    enabled=not _testing,
 )
 
 def add_security_headers(response):

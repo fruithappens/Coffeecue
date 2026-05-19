@@ -161,73 +161,86 @@ def get_station(station_id):
 @jwt_required()
 @role_required(['admin', 'staff'])
 def create_station():
-    """Create a new coffee station"""
+    """Create a new coffee station.
+
+    If the caller didn't supply a station_id we auto-assign the next
+    available integer — that's almost always what an organiser wants
+    when they click "Add Station" in the UI. The old behaviour
+    rejected the request with "Missing required field: station_id",
+    which made the Add Station button silently broken for anyone who
+    didn't know to type a number first.
+    """
     try:
-        # Get request data
         if not request.is_json:
             return jsonify({
                 'success': False,
                 'error': 'Request must be JSON'
             }), 400
-        
-        data = request.json
-        
-        # Validate required fields
-        if 'station_id' not in data:
-            return jsonify({
-                'success': False,
-                'error': 'Missing required field: station_id'
-            }), 400
-        
-        # Get coffee system from app context
+
+        data = request.json or {}
+
         coffee_system = current_app.config.get('coffee_system')
         db = coffee_system.db
-        
-        # Check if station already exists
         cursor = db.cursor()
-        cursor.execute("SELECT COUNT(*) FROM station_stats WHERE station_id = %s", (data['station_id'],))
-        if cursor.fetchone()[0] > 0:
-            return jsonify({
-                'success': False,
-                'error': f'Station with ID {data["station_id"]} already exists'
-            }), 400
-        
-        # Set default values
+
+        station_id = data.get('station_id')
+        if station_id is None:
+            # Auto-pick next available id. Use the max + 1 to keep
+            # the numbers reasonable rather than chasing a sequence.
+            cursor.execute("SELECT COALESCE(MAX(station_id), 0) + 1 FROM station_stats")
+            row = cursor.fetchone()
+            station_id = row[0] if not isinstance(row, dict) else list(row.values())[0]
+            logger.info(f"Auto-assigned new station id: {station_id}")
+        else:
+            cursor.execute(
+                "SELECT COUNT(*) FROM station_stats WHERE station_id = %s",
+                (station_id,),
+            )
+            count = cursor.fetchone()[0]
+            if count > 0:
+                return jsonify({
+                    'success': False,
+                    'error': f'Station with ID {station_id} already exists',
+                }), 400
+
+        # Defaults — same as before. Capabilities are an empty JSONB
+        # which the conversation-flow handlers treat as "no
+        # specialties configured yet" and fall back to the standard
+        # milk/coffee menu until the organiser sets them.
         status = data.get('status', 'active')
         current_load = data.get('current_load', 0)
         total_orders = data.get('total_orders', 0)
-        avg_completion_time = data.get('avg_completion_time', 180)  # Default to 3 minutes
+        avg_completion_time = data.get('avg_completion_time', 180)
         barista_name = data.get('barista_name', None)
         now = datetime.now()
-        
-        # Insert new station
+
         cursor.execute("""
-            INSERT INTO station_stats 
+            INSERT INTO station_stats
             (station_id, status, current_load, total_orders, avg_completion_time, barista_name, last_updated)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
             RETURNING *
-        """, (data['station_id'], status, current_load, total_orders, avg_completion_time, barista_name, now))
-        
-        # Get the inserted station
-        result = cursor.fetchone()
+        """, (station_id, status, current_load, total_orders, avg_completion_time, barista_name, now))
+
         db.commit()
-        
-        # Format response
+
         cursor = db.cursor(cursor_factory=RealDictCursor)
-        cursor.execute("SELECT * FROM station_stats WHERE station_id = %s", (data['station_id'],))
+        cursor.execute("SELECT * FROM station_stats WHERE station_id = %s", (station_id,))
         new_station = cursor.fetchone()
-        
-        logger.info(f"Created new station with ID {data['station_id']}")
-        
+
+        logger.info(f"Created new station with ID {station_id}")
+
         return jsonify({
             'success': True,
             'message': 'Station created successfully',
-            'station': new_station
+            'station': new_station,
         }), 201
     except Exception as e:
         logger.error(f"Error creating station: {str(e)}")
         if 'db' in locals():
-            db.rollback()
+            try:
+                db.rollback()
+            except Exception:
+                pass
         return jsonify({
             'success': False,
             'error': str(e)

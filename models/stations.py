@@ -244,14 +244,24 @@ class Station:
                 'name': 'notes',
                 'location': 'equipment_notes'
             }
-            
-            # Build SET clause for SQL query
+
+            # Build SET clause for SQL query.
+            # Deduplicate by target DB column — a UI that sends both
+            # `name` and `notes` (or both `location` and `equipment_notes`)
+            # would otherwise generate "SET notes = X, notes = Y" which
+            # PostgreSQL rejects with "multiple assignments to same
+            # column". We keep the first occurrence per column, which
+            # for the rename UI happens to be the frontend-friendly
+            # `name`/`location` field.
             set_clauses = []
             params = []
-            
+            seen_columns = set()
+
             for key, value in updates.items():
-                # Map frontend field names to database field names
                 db_field = field_mapping.get(key, key)
+                if db_field in seen_columns:
+                    continue
+                seen_columns.add(db_field)
                 set_clauses.append(f"{db_field} = %s")
                 params.append(value)
             

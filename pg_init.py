@@ -297,7 +297,10 @@ def create_tables(conn):
         )
         ''')
         
-        # Station stats table
+        # Station stats table. notes/equipment_notes hold the
+        # human-readable name and location respectively (legacy naming
+        # from when this table doubled as the "stations" table). The
+        # rename UI silently failed on databases missing these columns.
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS station_stats (
             station_id INTEGER PRIMARY KEY,
@@ -308,7 +311,11 @@ def create_tables(conn):
             barista_name VARCHAR(100),
             last_updated TIMESTAMP,
             specialist_drinks TEXT,
-            equipment_status VARCHAR(20) DEFAULT 'operational'
+            equipment_status VARCHAR(20) DEFAULT 'operational',
+            notes TEXT,
+            equipment_notes TEXT,
+            capabilities JSONB DEFAULT '{}'::jsonb,
+            capacity INTEGER DEFAULT 10
         )
         ''')
         
