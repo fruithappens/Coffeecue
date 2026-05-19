@@ -139,6 +139,35 @@ Items intentionally **excluded** as already-built or out-of-scope:
 - Emergency stop-all — already in backend.
 - "Voice ordering / gestures / multi-event" — vapor-spec, not quick wins.
 
+## Open data-model problem: coffee inventory is conflating drinks with beans
+
+The current `inventory_items` table has rows in the `coffee` category that
+are *drinks* (`latte`, `cappuccino`, `flat white`, `espresso`, `mocha`).
+That's wrong on two levels:
+
+1. **Drinks aren't stocked, beans are.** What an operator actually buys
+   and tracks is: house blend, single-origin Ethiopian, decaf, etc.
+   Each has weight in kg.
+2. **Drinks are configured, not depleted.** "Can we serve a latte?"
+   depends on whether the station has espresso beans + milk in stock,
+   not on whether there's a row called `latte` with `amount > 0`.
+
+What the operator observed (Coffee in Kg dropdown showing
+"espresso / americano / etc.") is this conflation surfacing.
+
+**Suggested rethink** (1–2 sessions of work, deferred):
+- Rename / add `beans` category: rows like `house-blend`, `decaf`,
+  `ethiopian-yirgacheffe`, each with origin / roast / decaf flag.
+- Drinks become *recipes*, not stock. Stored as menu items with
+  ingredient requirements: `latte = 1 shot espresso + 200mL milk`.
+- The current `_get_available_coffee_types()` shifts from "what
+  rows exist in coffee category" to "given the stocked beans + milk,
+  what drinks can we make?".
+
+The conversation flow already validates `coffee_type` against
+`_get_available_coffee_types()`, so the shift can be done without
+breaking the SMS bot — just change what that helper returns.
+
 ## Issues identified but NOT yet fixed (good follow-ups)
 
 These were spotted during the audit but skipped to keep this change small. Priority order:

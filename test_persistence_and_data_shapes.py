@@ -127,6 +127,61 @@ def scenario_station_defaults_round_trip():
         f"station 2 default not saved: {payload}"
 
 
+def scenario_branding_settings_round_trip():
+    db_query("DELETE FROM settings WHERE key = 'branding_settings'")
+    token = login()
+    status, payload = api('GET', '/api/settings/branding', token=token)
+    assert status == 200, f"empty GET: {payload}"
+    assert payload.get('settings') == {}, f"expected empty, got {payload}"
+
+    status, payload = api('PUT', '/api/settings/branding', token=token,
+                          body={'settings': {'clientName': 'Acme Co',
+                                              'companyName': 'Acme Inc'}})
+    assert status == 200 and payload.get('success') is True
+
+    status, payload = api('GET', '/api/settings/branding', token=token)
+    assert payload['settings'].get('clientName') == 'Acme Co', \
+        f"clientName not saved: {payload}"
+
+
+def scenario_event_stock_round_trip():
+    db_query("DELETE FROM settings WHERE key = 'event_stock_levels'")
+    token = login()
+    status, payload = api('GET', '/api/event-stock', token=token)
+    assert status == 200 and payload == {}, f"expected empty, got {payload}"
+
+    body = {'milk': {'oat': {'quantity': 50, 'unit': 'L'}}}
+    status, payload = api('PUT', '/api/event-stock', token=token, body=body)
+    assert status == 200 and payload.get('success') is True
+
+    status, payload = api('GET', '/api/event-stock', token=token)
+    assert payload.get('milk', {}).get('oat', {}).get('quantity') == 50, \
+        f"oat quantity not saved: {payload}"
+
+
+def scenario_add_station_preserves_name():
+    """Regression for the 'Add Station drops name/location' bug.
+    Confirm a POST that includes name/location actually persists
+    them (used to silently drop them)."""
+    token = login()
+    # Find the next available id so we don't collide
+    db_query("DELETE FROM station_stats WHERE station_id > 100")
+    body = {
+        'station_id': 101,
+        'name': 'Persistence Lobby',
+        'location': 'Main Hall',
+    }
+    status, payload = api('POST', '/api/stations', token=token, body=body)
+    assert status == 201, f"create failed: {status} {payload}"
+
+    rows = db_query("SELECT notes, equipment_notes FROM station_stats WHERE station_id = 101")
+    assert rows, "station not in DB"
+    notes, equipment_notes = rows[0]
+    assert notes == 'Persistence Lobby', f"name not saved: {notes!r}"
+    assert equipment_notes == 'Main Hall', f"location not saved: {equipment_notes!r}"
+    db_query("DELETE FROM station_stats WHERE station_id = 101")
+
+
 def scenario_sms_templates_shape():
     token = login()
     status, payload = api('GET', '/api/sms/templates', token=token)
@@ -176,6 +231,9 @@ def main():
     for label, fn in [
         ('barista-profiles round trip',     scenario_barista_profiles_round_trip),
         ('station-defaults round trip',     scenario_station_defaults_round_trip),
+        ('branding settings round trip',    scenario_branding_settings_round_trip),
+        ('event-stock round trip',          scenario_event_stock_round_trip),
+        ('add station preserves name + location', scenario_add_station_preserves_name),
         ('sms/templates returns expected shape', scenario_sms_templates_shape),
         ('pending order has all camelCase aliases', scenario_pending_orders_data_shape),
     ]:

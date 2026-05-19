@@ -4725,6 +4725,72 @@ def upsert_barista_profile(name):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@bp.route('/settings/branding', methods=['GET'])
+@jwt_required_with_demo()
+def get_branding_settings():
+    """Branding (logo, company name, colours, taglines, etc.).
+
+    Frontend's BrandingSettings.js hits PUT /api/settings/branding to
+    save; previously the endpoint didn't exist, the PUT 404'd, and
+    the save handler caught the error silently — so the client name
+    and other branding fields appeared not to save. Persists via the
+    same settings-table KV pattern as the other JSON blobs.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        branding = _kv_get(coffee_system.db, 'branding_settings', default={}) or {}
+        return jsonify({'success': True, 'settings': branding})
+    except Exception as e:
+        logger.error(f"get_branding_settings error: {e}")
+        return jsonify({'success': False, 'settings': {}, 'error': str(e)}), 200
+
+
+@bp.route('/settings/branding', methods=['PUT', 'POST'])
+@jwt_required_with_demo()
+def upsert_branding_settings():
+    """Save branding settings. Accepts either `{settings: {...}}` (the
+    frontend's current format — sends nested under a `settings` key) or
+    a bare object."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        data = request.get_json() or {}
+        # Frontend wraps as {settings: {...}}; tolerate either form.
+        payload = data.get('settings') if isinstance(data.get('settings'), dict) else data
+        _kv_put(coffee_system.db, 'branding_settings', payload)
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"upsert_branding_settings error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/event-stock', methods=['GET'])
+@jwt_required_with_demo()
+def get_event_stock():
+    """Event-wide stock levels (the inventory that exists for the
+    whole event, before being allocated to stations). Same KV
+    persistence pattern as the other JSON blobs."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        stock = _kv_get(coffee_system.db, 'event_stock_levels', default={}) or {}
+        return jsonify(stock)
+    except Exception as e:
+        logger.error(f"get_event_stock error: {e}")
+        return jsonify({}), 200
+
+
+@bp.route('/event-stock', methods=['PUT', 'POST'])
+@jwt_required_with_demo()
+def upsert_event_stock():
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        data = request.get_json() or {}
+        _kv_put(coffee_system.db, 'event_stock_levels', data)
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"upsert_event_stock error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @bp.route('/station-defaults', methods=['GET'])
 @jwt_required_with_demo()
 def get_station_defaults():
