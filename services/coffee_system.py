@@ -216,7 +216,9 @@ class CoffeeOrderSystem:
                 ADD COLUMN IF NOT EXISTS capabilities JSONB DEFAULT '{}'::jsonb,
                 ADD COLUMN IF NOT EXISTS capacity INTEGER DEFAULT 10,
                 ADD COLUMN IF NOT EXISTS notes TEXT,
-                ADD COLUMN IF NOT EXISTS equipment_notes TEXT
+                ADD COLUMN IF NOT EXISTS equipment_notes TEXT,
+                ADD COLUMN IF NOT EXISTS name TEXT,
+                ADD COLUMN IF NOT EXISTS location TEXT
             """)
             # customer_preferences was missing the is_vip column on
             # most installs — _handle_vip_code crashed with "column

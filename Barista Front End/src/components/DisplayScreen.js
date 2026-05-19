@@ -235,14 +235,41 @@ const DisplayScreen = () => {
   const formatList = (list, status) => list.map(o => ({
     id: o.id,
     order_number: o.orderNumber || o.id,
-    customerName: o.customerName || 'Customer',
-    displayPhone: o.phoneNumber ? o.phoneNumber.slice(-4) : '',
-    coffeeType: o.coffeeType || 'Coffee',
-    milkType: o.milkType || '',
+    customerName: o.customerName || o.customer_name || 'Customer',
+    displayPhone: o.phoneNumber ? o.phoneNumber.slice(-4)
+      : (o.phone_number ? o.phone_number.slice(-4) : ''),
+    coffeeType: o.coffeeType || o.coffee_type || 'Coffee',
+    milkType: o.milkType || o.milk_type || '',
     size: o.size || '',
     status,
     stationId: o.stationId || o.station_id,
+    rawStatus: o.status,                  // for client-side dedupe / filter
+    completedAt: o.completed_at || o.completedAt || o.updated_at || o.updatedAt,
   }));
+
+  // Only show orders that are actually "ready for pickup" and were
+  // completed recently. Without this filter, every old completed
+  // order ever sits on the customer Display forever (Steve saw 30
+  // ancient test orders dominating his screen — none from the
+  // current event). 30 minutes is a sensible default; bumps to a
+  // longer window if the operator slows down.
+  const READY_RECENCY_MINUTES = 30;
+  const filterReadyForDisplay = (list) => {
+    const cutoff = Date.now() - READY_RECENCY_MINUTES * 60 * 1000;
+    return list.filter(o => {
+      // Drop already-picked-up — those aren't "ready for pickup".
+      if (o.rawStatus && (o.rawStatus === 'picked_up' || o.rawStatus === 'picked-up')) {
+        return false;
+      }
+      // Only keep orders completed recently. If the timestamp can't
+      // be parsed we keep the order (defensive — better to show
+      // something than nothing for a freshly-completed drink).
+      if (!o.completedAt) return true;
+      const t = new Date(o.completedAt).getTime();
+      if (Number.isNaN(t)) return true;
+      return t >= cutoff;
+    });
+  };
 
   useEffect(() => {
     if (!currentStation) return;
@@ -266,7 +293,12 @@ const DisplayScreen = () => {
         const next = {
           pending:    formatList(filterStation(pendingAll || []),    'pending'),
           inProgress: formatList(filterStation(inProgressAll || []), 'in-progress'),
-          ready:      formatList(filterStation(completedAll || []),  'completed'),
+          // Ready column is double-filtered: must belong to the
+          // selected station AND be a recent completion (not an
+          // ancient picked-up order from a previous event).
+          ready:      filterReadyForDisplay(
+                        formatList(filterStation(completedAll || []), 'completed')
+                      ),
         };
 
         // Detect newly-ready orders (visible since last poll) for
