@@ -1,12 +1,17 @@
 // components/UserManagementTab.js
 import React, { useState, useEffect } from 'react';
-import { 
-  UserPlus, Edit2, Trash2, Save, X, Coffee, Star, 
-  Clock, Award, Calendar, Shield, Eye, EyeOff, 
+import {
+  UserPlus, Edit2, Trash2, Save, X, Coffee, Star,
+  Clock, Award, Calendar, Shield, Eye, EyeOff,
   ChevronDown, ChevronUp, Search, Filter, User
 } from 'lucide-react';
+import useStations from '../hooks/useStations';
 
 const UserManagementTab = () => {
+  // Pull real stations from the backend so the preferred-station dropdown
+  // isn't capped at the hardcoded ['1','2','3']. Falls back to an empty
+  // list while loading, which is the same as "no preference".
+  const { stations: availableStations = [] } = useStations() || {};
   const [users, setUsers] = useState([]);
   const [showAddUser, setShowAddUser] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
@@ -413,9 +418,11 @@ const UserManagementTab = () => {
                   className="w-full border rounded px-3 py-2"
                 >
                   <option value="">No preference</option>
-                  <option value="1">Station 1</option>
-                  <option value="2">Station 2</option>
-                  <option value="3">Station 3</option>
+                  {availableStations.map(station => (
+                    <option key={station.id} value={station.id}>
+                      {station.name || `Station ${station.id}`}
+                    </option>
+                  ))}
                 </select>
               </div>
               

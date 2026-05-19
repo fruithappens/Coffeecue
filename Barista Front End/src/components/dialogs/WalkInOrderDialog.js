@@ -111,8 +111,12 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
           } else {
             console.warn(`⚠️ No stock data found for station ${targetStation.id}, trying API fallback...`);
             
-            // Fallback to API if no stock data
-            const response = await fetch(`http://localhost:5001/api/inventory?station_id=${targetStation.id}`, {
+            // Fallback to API if no stock data. Hardcoded localhost URL
+            // broke this in cloud deployments — use relative path in prod.
+            const apiBase = process.env.NODE_ENV === 'production'
+              ? '/api'
+              : 'http://localhost:5001/api';
+            const response = await fetch(`${apiBase}/inventory?station_id=${targetStation.id}`, {
               headers: {
                 'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
                 'Accept': 'application/json'

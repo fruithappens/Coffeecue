@@ -561,7 +561,16 @@ def get_pending_orders():
         # Get coffee system from app context
         coffee_system = current_app.config.get('coffee_system')
         db = coffee_system.db
-        
+
+        # Defensive rollback — psycopg2's "current transaction is
+        # aborted" error sticks until rolled back, and a previous
+        # request's failure could otherwise turn this endpoint into a
+        # silent 500 even though the orders themselves are fine.
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
         # Query database for pending orders
         cursor = db.cursor()
         cursor.execute('''
@@ -1108,52 +1117,129 @@ def lookup_order(order_id):
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff', 'barista'])
 def start_order(order_id):
-    """Start an order"""
+    """Start an order.
+
+    Also notifies the customer by SMS so they know their drink is being
+    made now — closes the silent gap between order-confirmed and
+    order-ready that previously made customers wander up to the station
+    asking if they'd been forgotten.
+    """
     try:
-        # Log incoming request
         logger.info(f"Received request to start order: {order_id}")
-        
+
         if not order_id or order_id == 'undefined':
             logger.error(f"Invalid order ID: {order_id}")
             return jsonify({"success": False, "message": "Invalid order ID"})
-        
-        # Clean the ID if needed
+
         clean_id = clean_order_id(order_id)
         logger.info(f"Cleaned order ID: {clean_id}")
-        
-        # Get coffee system from app context
+
         coffee_system = current_app.config.get('coffee_system')
         db = coffee_system.db
-        
-        # Check if order exists first to provide better error handling
+
+        # Fetch the row up-front: we want phone + details *before* we
+        # change status, so the notification has the right context even if
+        # something else races us.
         cursor = db.cursor()
-        cursor.execute('SELECT id FROM orders WHERE order_number = %s', (clean_id,))
-        order_exists = cursor.fetchone()
-        
-        if not order_exists:
+        cursor.execute(
+            'SELECT id, phone, order_details, status FROM orders WHERE order_number = %s',
+            (clean_id,),
+        )
+        order_row = cursor.fetchone()
+
+        if not order_row:
             logger.error(f"Order not found: {clean_id}")
             return jsonify({"success": False, "message": f"Order {clean_id} not found"})
-        
-        # Update order status
-        cursor.execute('''
+
+        # Tolerate both tuple and dict cursors.
+        if isinstance(order_row, dict):
+            order_phone = order_row.get('phone')
+            order_details = order_row.get('order_details') or {}
+            current_status = order_row.get('status')
+        else:
+            _, order_phone, order_details, current_status = order_row
+
+        cursor.execute(
+            '''
             UPDATE orders
             SET status = 'in-progress', updated_at = %s
             WHERE order_number = %s
-        ''', (datetime.now().isoformat(), clean_id))
-        
+            ''',
+            (datetime.now().isoformat(), clean_id),
+        )
         db.commit()
         rows_affected = cursor.rowcount
-        
-        if rows_affected > 0:
-            logger.info(f"Successfully started order: {clean_id}")
-            return jsonify({"success": True, "message": "Order started successfully"})
-        else:
+
+        if rows_affected <= 0:
             logger.error(f"Failed to update order: {clean_id}")
-            return jsonify({"success": False, "message": f"Order {clean_id} found but could not be updated"})
-    
+            return jsonify({
+                "success": False,
+                "message": f"Order {clean_id} found but could not be updated",
+            })
+
+        logger.info(f"Successfully started order: {clean_id}")
+
+        # Send the "your barista just started your X" SMS. We only do this
+        # on the pending → in-progress transition (not on re-starts) to
+        # avoid double-notifying the customer if a barista taps Start more
+        # than once.
+        if current_status == 'pending':
+            _notify_customer_order_started(order_phone, clean_id, order_details)
+
+        return jsonify({"success": True, "message": "Order started successfully"})
+
     except Exception as e:
         logger.error(f"Error starting order {order_id}: {str(e)}")
         return jsonify({"success": False, "message": f"Error processing request: {str(e)}"})
+
+
+def _notify_customer_order_started(phone, order_number, order_details):
+    """Send a brief 'your drink is being made now' SMS.
+
+    Never raises — the order has already been started in the DB by the
+    time we get here, so a messaging failure must not roll that back.
+    """
+    if not phone:
+        return
+    try:
+        messaging_service = current_app.config.get('messaging_service')
+        if not messaging_service:
+            logger.warning("No messaging_service configured; skipping start notification")
+            return
+
+        # order_details may be a JSON string (depending on cursor type)
+        # or a dict. Normalise.
+        if isinstance(order_details, str):
+            try:
+                import json as _json
+                order_details = _json.loads(order_details)
+            except Exception:
+                order_details = {}
+
+        if not isinstance(order_details, dict):
+            order_details = {}
+
+        drink = order_details.get('type') or 'coffee'
+        size = order_details.get('size')
+        milk = order_details.get('milk')
+
+        # Build a short, warm description: "large oat latte" rather than
+        # the full formal summary.
+        parts = []
+        if size:
+            parts.append(size)
+        if milk and milk != 'no milk':
+            parts.append(f"{milk}")
+        parts.append(drink)
+        description = ' '.join(parts)
+
+        body = (
+            f"👋 Your barista just started your {description} "
+            f"(Order #{order_number}). We'll text again when it's ready."
+        )
+        messaging_service.send_message(phone, body)
+    except Exception as exc:
+        logger.error(f"Error sending start-notification SMS: {exc}")
 
 @bp.route('/orders/<order_id>/complete', methods=['POST'])
 @jwt_required_with_demo()

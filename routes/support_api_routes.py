@@ -663,11 +663,11 @@ def send_announcement():
     try:
         data = request.get_json()
         message = data.get('message', '')
-        
+
         # In production, this would broadcast to all stations
         # For now, just log it
         logger.info(f"System announcement: {message}")
-        
+
         return jsonify({
             'status': 'success',
             'message': 'Announcement sent'
@@ -677,3 +677,188 @@ def send_announcement():
             'status': 'error',
             'message': str(e)
         }), 500
+
+
+# -----------------------------------------------------------------------
+# Broadcast SMS — lets an organiser send a one-off message to customers.
+#
+# Two phases by design:
+#   GET  /api/support/broadcast/preview?since_minutes=120
+#     → returns recipient_count and a sample of phones, no SMS sent.
+#   POST /api/support/broadcast/customers
+#     body: {
+#       "message": "Coffee break ends in 10 minutes!",
+#       "audience": "today" | "active_today" | "in_progress",
+#       "dry_run": false   // default false; true returns the preview
+#     }
+#     → sends the SMS and returns counts. Hard-capped at 500 recipients
+#       per call so a stray click can't blast the entire customer list.
+#
+# Operators usually want "everyone who ordered today" — that's the
+# default audience.
+# -----------------------------------------------------------------------
+
+BROADCAST_MAX_RECIPIENTS = 500
+BROADCAST_MAX_MESSAGE_LEN = 480  # well under 4 concatenated SMS segments
+BROADCAST_AUDIENCES = {'today', 'active_today', 'in_progress'}
+
+
+def _broadcast_recipients(cursor, audience):
+    """Return a list of distinct E.164 phone numbers for the given audience.
+
+    - today:        anyone who placed an order in the last 24 h
+    - active_today: today's customers whose latest order isn't completed/cancelled
+    - in_progress:  only people whose order is currently being made
+    """
+    if audience == 'in_progress':
+        cursor.execute("""
+            SELECT DISTINCT phone FROM orders
+            WHERE status = 'in-progress'
+              AND phone IS NOT NULL AND phone <> ''
+        """)
+    elif audience == 'active_today':
+        cursor.execute("""
+            SELECT DISTINCT phone FROM orders
+            WHERE created_at >= NOW() - INTERVAL '24 hours'
+              AND status NOT IN ('completed', 'cancelled', 'picked-up')
+              AND phone IS NOT NULL AND phone <> ''
+        """)
+    else:  # 'today'
+        cursor.execute("""
+            SELECT DISTINCT phone FROM orders
+            WHERE created_at >= NOW() - INTERVAL '24 hours'
+              AND phone IS NOT NULL AND phone <> ''
+        """)
+
+    rows = cursor.fetchall() or []
+    out = []
+    for row in rows:
+        phone = row[0] if not isinstance(row, dict) else row.get('phone')
+        if phone:
+            out.append(phone)
+    return out
+
+
+@support_api_bp.route('/api/support/broadcast/preview', methods=['GET'])
+@support_role_required
+def broadcast_preview():
+    """Return the recipient count + a small sample without sending."""
+    try:
+        audience = request.args.get('audience', 'today')
+        if audience not in BROADCAST_AUDIENCES:
+            return jsonify({
+                'status': 'error',
+                'message': f"audience must be one of {sorted(BROADCAST_AUDIENCES)}",
+            }), 400
+
+        from utils.database import get_db_connection
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        recipients = _broadcast_recipients(cursor, audience)
+        cursor.close()
+
+        return jsonify({
+            'status': 'success',
+            'audience': audience,
+            'recipient_count': len(recipients),
+            'capped_at': BROADCAST_MAX_RECIPIENTS,
+            'sample': recipients[:5],
+        })
+    except Exception as e:
+        logger.error(f"broadcast_preview error: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@support_api_bp.route('/api/support/broadcast/customers', methods=['POST'])
+@support_role_required
+def broadcast_customers():
+    """Send a one-off SMS to every customer in the chosen audience.
+
+    Returns a structured report:
+      { sent: N, failed: M, capped: bool, audience, sample_failures: [...] }
+    """
+    try:
+        data = request.get_json() or {}
+        message = (data.get('message') or '').strip()
+        audience = data.get('audience', 'today')
+        dry_run = bool(data.get('dry_run', False))
+
+        if not message:
+            return jsonify({
+                'status': 'error',
+                'message': 'message is required',
+            }), 400
+        if len(message) > BROADCAST_MAX_MESSAGE_LEN:
+            return jsonify({
+                'status': 'error',
+                'message': f'message exceeds {BROADCAST_MAX_MESSAGE_LEN} characters',
+            }), 400
+        if audience not in BROADCAST_AUDIENCES:
+            return jsonify({
+                'status': 'error',
+                'message': f"audience must be one of {sorted(BROADCAST_AUDIENCES)}",
+            }), 400
+
+        from utils.database import get_db_connection
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        recipients = _broadcast_recipients(cursor, audience)
+        cursor.close()
+
+        capped = len(recipients) > BROADCAST_MAX_RECIPIENTS
+        if capped:
+            logger.warning(
+                f"broadcast capped: {len(recipients)} recipients > "
+                f"{BROADCAST_MAX_RECIPIENTS}, truncating"
+            )
+            recipients = recipients[:BROADCAST_MAX_RECIPIENTS]
+
+        if dry_run:
+            return jsonify({
+                'status': 'success',
+                'dry_run': True,
+                'recipient_count': len(recipients),
+                'capped': capped,
+                'sample': recipients[:5],
+            })
+
+        messaging_service = current_app.config.get('messaging_service')
+        if not messaging_service:
+            return jsonify({
+                'status': 'error',
+                'message': 'messaging service is not configured',
+            }), 503
+
+        sent = 0
+        failed = 0
+        sample_failures = []
+        for phone in recipients:
+            try:
+                sid = messaging_service.send_message(phone, message)
+                if sid:
+                    sent += 1
+                else:
+                    failed += 1
+                    if len(sample_failures) < 5:
+                        sample_failures.append(phone)
+            except Exception as send_err:
+                logger.error(f"broadcast send failed for {phone}: {send_err}")
+                failed += 1
+                if len(sample_failures) < 5:
+                    sample_failures.append(phone)
+
+        logger.info(
+            f"broadcast complete: audience={audience} sent={sent} failed={failed} "
+            f"capped={capped}"
+        )
+        return jsonify({
+            'status': 'success',
+            'audience': audience,
+            'sent': sent,
+            'failed': failed,
+            'capped': capped,
+            'sample_failures': sample_failures,
+        })
+    except Exception as e:
+        logger.error(f"broadcast_customers error: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500

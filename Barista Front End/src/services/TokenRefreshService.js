@@ -56,7 +56,14 @@ class TokenRefreshService {
         return false;
       }
       
-      const response = await fetch('http://localhost:5001/api/auth/refresh', {
+      // Use a relative URL in production (same origin) and fall back to
+      // localhost in development. A hardcoded localhost URL broke token
+      // refresh in cloud deployments (Railway etc.).
+      const apiBase = process.env.NODE_ENV === 'production'
+        ? '/api'
+        : 'http://localhost:5001/api';
+
+      const response = await fetch(`${apiBase}/auth/refresh`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
