@@ -14,13 +14,25 @@ import os
 logger = logging.getLogger(__name__)
 
 # Initialize rate limiter.
+#
 # TESTING_MODE disables the default per-client limits so end-to-end
 # scripts can place dozens of orders in quick succession without
-# hitting the production 50/hour cap.
+# hitting any cap.
+#
+# In production the original "50/hour" default was tuned for a
+# brochure-site, not a busy café — an event with 3 stations easily
+# does 200+ orders/hour, and the React frontend polls /api/orders
+# every 15 seconds on top of that. Steve hit the cap during normal
+# testing and saw orders silently vanish (frontend can't create
+# them, can't refresh the list, etc.). Bumped to something more
+# event-appropriate.
 _testing = os.getenv('TESTING_MODE', 'False').lower() == 'true'
+# Env override so the operator can dial these without code changes.
+_default_hourly = int(os.getenv('RATELIMIT_HOURLY', '5000'))
+_default_daily = int(os.getenv('RATELIMIT_DAILY', '50000'))
 limiter = Limiter(
     key_func=get_remote_address,
-    default_limits=[] if _testing else ["200 per day", "50 per hour"],
+    default_limits=[] if _testing else [f"{_default_daily} per day", f"{_default_hourly} per hour"],
     storage_uri="memory://",
     enabled=not _testing,
 )
