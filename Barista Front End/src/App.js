@@ -9,6 +9,7 @@ import SupportInterface from './components/SupportInterface';
 import LoginPage from './components/auth/LoginPage';
 import AuthService from './services/AuthService';
 import DeploymentService from './services/DeploymentService';
+import SoundNotificationService from './services/SoundNotificationService';
 import { AppProvider } from './context/AppContext';
 import AuthGuard from './components/auth/AuthGuard';
 import UnauthorizedPage from './components/auth/UnauthorizedPage';
@@ -168,6 +169,11 @@ const ApiTestComponent = ({ apiStatus, onFallbackToggle }) => {
     </div>
   );
 };
+
+// One-time sound system bootstrap. Installs window.coffeeSounds and
+// hooks the app:newOrder / order_updated events. Runs once at module
+// load (the service has its own idempotency guard).
+SoundNotificationService.init();
 
 function App() {
   const [initialized, setInitialized] = useState(false);

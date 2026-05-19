@@ -1,586 +1,566 @@
-import React, { useState, useEffect } from 'react';
-import { Coffee, Check, Clock, ArrowLeft, AlertTriangle, RefreshCw, MapPin } from 'lucide-react';
+// DisplayScreen.js
+//
+// Customer-facing order status display. Sits on the counter (or an
+// extended screen via USB-C dock / AirPlay) and shows three columns:
+// pending → in progress → ready. Designed to be readable from across
+// a busy café room.
+//
+// Layout modes (driven by ?orientation= URL param OR the
+// `displayMode` setting from Barista → Display tab):
+//
+//   landscape : 3 columns side-by-side; default for a horizontal iPad
+//               or counter-mounted TV.
+//   portrait  : single tall column stacked; for a vertical iPad on a
+//               stand.
+//   auto      : pick whichever matches the viewport aspect ratio.
+//
+// The previous version was a fixed 2-column grid with no real
+// portrait support and tiny order numbers — barely visible from more
+// than a metre away. This rewrite focuses on:
+//   - HUGE order numbers (text-8xl / text-9xl)
+//   - Generous breathing room
+//   - A "ready" pulse so the customer notices when their order
+//     transitions from in-progress
+//   - Theme support (light / dark / coffee)
+//   - Tap-anywhere to toggle fullscreen on iPad
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Coffee, Check, Clock, ArrowLeft, RefreshCw, MapPin,
+         Maximize2, MessageCircle } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
-import ApiNotificationBanner from './ApiNotificationBanner';
 import OrderDataService from '../services/OrderDataService';
 import StationsService from '../services/StationsService';
-import SettingsService from '../services/SettingsService';
 import ApiService from '../services/ApiService';
 import { useSettings } from '../hooks/useSettings';
 
+// Visual theme presets. Each provides bg, panel, text, accent.
+const THEMES = {
+  light:   { bg: 'bg-gray-50',    panel: 'bg-white',         text: 'text-gray-900', subtext: 'text-gray-500', border: 'border-gray-200' },
+  dark:    { bg: 'bg-gray-900',   panel: 'bg-gray-800',      text: 'text-gray-50',  subtext: 'text-gray-400', border: 'border-gray-700' },
+  coffee:  { bg: 'bg-amber-50',   panel: 'bg-amber-100/40',  text: 'text-amber-950', subtext: 'text-amber-700', border: 'border-amber-200' },
+  minimal: { bg: 'bg-white',      panel: 'bg-white',         text: 'text-gray-900', subtext: 'text-gray-400', border: 'border-gray-100' },
+};
+
+// Font size scale — controls the giant order number cells.
+const FONT_SCALE = {
+  small:        { num: 'text-6xl',  body: 'text-lg',  label: 'text-sm' },
+  medium:       { num: 'text-7xl',  body: 'text-xl',  label: 'text-base' },
+  large:        { num: 'text-8xl',  body: 'text-2xl', label: 'text-lg' },
+  'extra-large':{ num: 'text-9xl',  body: 'text-3xl', label: 'text-xl' },
+};
+
+// Pick the layout for the current viewport + setting combination.
+// "auto" looks at window aspect ratio at render time.
+const resolveOrientation = (setting) => {
+  const explicit = (setting || '').toLowerCase();
+  if (explicit === 'portrait' || explicit === 'landscape') return explicit;
+  if (typeof window === 'undefined') return 'landscape';
+  return window.innerHeight > window.innerWidth ? 'portrait' : 'landscape';
+};
+
+// Small helper — short customer name + last 4 of phone number.
+const formatCustomerLine = (o) => {
+  const name = o.customerName || 'Customer';
+  const tail = o.displayPhone || (o.phoneNumber ? o.phoneNumber.slice(-4) : '');
+  return tail ? `${name} · ··${tail}` : name;
+};
+
+// Visual variant of a single order card. Used by both columns.
+const OrderCard = ({ order, variant, fonts, theme, showCustomerName, showDetails, isNew }) => {
+  const ringClass = variant === 'ready'
+    ? 'ring-2 ring-green-400 shadow-green-200/60'
+    : 'ring-1 ring-amber-300/70';
+  const badgeClass = variant === 'ready'
+    ? 'bg-green-500 text-white'
+    : 'bg-amber-400 text-amber-950';
+
+  return (
+    <div className={`relative rounded-2xl ${theme.panel} ${ringClass} shadow-lg
+                     p-6 md:p-8 transition-all duration-500
+                     ${isNew && variant === 'ready' ? 'animate-pulse-once' : ''}`}>
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          {/* GIANT order number */}
+          <div className={`${fonts.num} font-extrabold leading-none tracking-tight ${theme.text}`}>
+            #{order.order_number}
+          </div>
+          {showCustomerName && (
+            <div className={`${fonts.body} mt-3 ${theme.text} truncate`}>
+              {formatCustomerLine(order)}
+            </div>
+          )}
+          {showDetails && (
+            <div className={`${fonts.label} mt-1 ${theme.subtext}`}>
+              {[order.size, order.milkType, order.coffeeType]
+                .filter(Boolean)
+                .join(' · ')}
+            </div>
+          )}
+        </div>
+        <div className={`px-4 py-2 rounded-full ${fonts.label} font-bold ${badgeClass} whitespace-nowrap`}>
+          {variant === 'ready' ? 'Ready' : 'Brewing'}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const DisplayScreen = () => {
-  // Get station ID from URL query parameters
   const [searchParams] = useSearchParams();
   const stationId = searchParams.get('station');
-  
-  // Use settings hook to get display settings
+  // ?orientation= overrides the saved setting. Useful for the
+  // operator to test both layouts without changing the saved value.
+  const orientationFromUrl = searchParams.get('orientation');
+
   const { settings } = useSettings();
-  
+
+  // Visual config derived from settings (with sensible defaults so
+  // the screen never looks broken even on a fresh install).
+  const themeKey = settings?.displayTheme || 'light';
+  const theme = THEMES[themeKey] || THEMES.light;
+  const fonts = FONT_SCALE[settings?.displayFontSize || 'large'] || FONT_SCALE.large;
+  const zoom = settings?.displayZoom || 100;
+  const showCustomerName = settings?.showNameOnDisplay !== false;
+  const showDetails = settings?.showOrderDetails !== false;
+  const showCompleted = settings?.showCompletedOrders !== false;
+  const showWaitTimes = settings?.showWaitTimes !== false;
+
+  // Effective orientation — URL > setting > auto-detect.
+  const [orientation, setOrientation] = useState(
+    () => resolveOrientation(orientationFromUrl || settings?.displayMode || 'auto')
+  );
+  // Re-resolve on window resize so the "auto" mode picks up
+  // landscape ⇄ portrait flips of an iPad.
+  useEffect(() => {
+    const onResize = () => {
+      setOrientation(resolveOrientation(orientationFromUrl || settings?.displayMode || 'auto'));
+    };
+    window.addEventListener('resize', onResize);
+    onResize();
+    return () => window.removeEventListener('resize', onResize);
+  }, [orientationFromUrl, settings?.displayMode]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [stations, setStations] = useState([]);
   const [currentStation, setCurrentStation] = useState(null);
-  
-  // Get display settings from settings or use defaults
-  const displaySettings = settings?.displaySettings || {
-    eventName: 'Coffee Event',
-    organizationName: 'Coffee Cue',
-    headerColor: '#1e40af',
-    customMessage: 'Enjoy your coffee!',
-    smsNumber: 'Not configured',
-    showSponsor: false,
-    sponsorName: '',
-    sponsorMessage: ''
-  };
-  
-  // Combine settings with station-specific info
-  const [config, setConfig] = useState({
-    system_name: 'Coffee Cue',
-    event_name: displaySettings.eventName,
-    sms_number: displaySettings.smsNumber,
-    sponsor: {
-      enabled: displaySettings.showSponsor,
-      name: displaySettings.sponsorName,
-      message: displaySettings.sponsorMessage
-    },
-    wait_time: settings?.waitTimeWarning || 15,
-    header_color: displaySettings.headerColor,
-    custom_message: displaySettings.customMessage
-  });
-  
-  const [orders, setOrders] = useState({
-    inProgress: [],
-    ready: []
-  });
-  
   const [connected, setConnected] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());
-  const [smsPhoneNumber, setSmsPhoneNumber] = useState('Loading...');
+  const [smsPhoneNumber, setSmsPhoneNumber] = useState('');
+  const [orders, setOrders] = useState({ pending: [], inProgress: [], ready: [] });
 
-  // Fetch SMS number and system settings from backend
+  // Track which orders are "new" so we can pulse-highlight ready
+  // ones when they appear. Map of order_id → timestamp first seen.
+  const newReadyRef = useRef(new Map());
+  const prevReadyIdsRef = useRef(new Set());
+
+  // Display config from backend (event name, sponsor, SMS number).
+  const [config, setConfig] = useState({
+    system_name: 'Coffee Cue',
+    event_name: 'Coffee Event',
+    sms_number: '',
+    sponsor: { enabled: false, name: '', message: '' },
+    header_color: '#1e40af',
+    custom_message: '',
+  });
+
+  // --- Fetch display config from backend ---
   useEffect(() => {
-    const fetchSystemSettings = async () => {
+    let cancelled = false;
+    (async () => {
       try {
-        // Get display configuration from backend
         const response = await ApiService.get('/display/config');
-        if (response && response.config) {
-          const backendConfig = response.config;
-          setSmsPhoneNumber(backendConfig.sms_number || 'Not configured');
-          
-          // Update config with backend values
+        if (!cancelled && response && response.config) {
+          const c = response.config;
+          setSmsPhoneNumber(c.sms_number || '');
           setConfig(prev => ({
             ...prev,
-            system_name: backendConfig.system_name || 'Coffee Cue',
-            event_name: backendConfig.event_name || settings?.displaySettings?.eventName || 'Coffee Event',
-            sms_number: backendConfig.sms_number || 'Not configured',
-            sponsor: backendConfig.sponsor || prev.sponsor
+            system_name: c.system_name || 'Coffee Cue',
+            event_name: c.event_name || settings?.displaySettings?.eventName || 'Coffee Event',
+            sms_number: c.sms_number || '',
+            sponsor: c.sponsor || prev.sponsor,
           }));
         }
-      } catch (error) {
-        console.log('Could not fetch system settings:', error);
-        // Use fallback values
-        setSmsPhoneNumber(settings?.displaySettings?.smsNumber || 'Not configured');
-      }
-    };
-    
-    fetchSystemSettings();
-  }, []);
+      } catch (e) { /* defaults OK if backend silent */ }
+    })();
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Update config when settings change
+  // Merge in any display settings (event name, custom message, etc.)
+  // from the settings hook.
   useEffect(() => {
-    if (settings && settings.displaySettings) {
-      setConfig({
-        system_name: 'Coffee Cue',
-        event_name: settings.displaySettings.eventName,
-        sms_number: smsPhoneNumber || settings.displaySettings.smsNumber,
+    if (settings?.displaySettings) {
+      setConfig(prev => ({
+        ...prev,
+        event_name: settings.displaySettings.eventName || prev.event_name,
+        sms_number: smsPhoneNumber || settings.displaySettings.smsNumber || prev.sms_number,
         sponsor: {
           enabled: settings.displaySettings.showSponsor,
           name: settings.displaySettings.sponsorName,
-          message: settings.displaySettings.sponsorMessage
+          message: settings.displaySettings.sponsorMessage,
         },
-        wait_time: settings.waitTimeWarning || 15,
-        header_color: settings.displaySettings.headerColor,
-        custom_message: settings.displaySettings.customMessage
-      });
+        header_color: settings.displaySettings.headerColor || prev.header_color,
+        custom_message: settings.displaySettings.customMessage || prev.custom_message,
+      }));
     }
   }, [settings, smsPhoneNumber]);
 
-  // Load stations first
+  // --- Load stations ---
   useEffect(() => {
-    const loadStations = async () => {
+    (async () => {
       try {
-        console.log('Loading stations for display screen');
-        const stationsResponse = await StationsService.getStations();
-        
-        if (stationsResponse && stationsResponse.length > 0) {
-          console.log('Loaded stations:', stationsResponse);
-          setStations(stationsResponse);
-          
-          // If a stationId is provided in the URL
-          if (stationId) {
-            // Special case for 'all' stations view
-            if (stationId === 'all') {
-              console.log('Using "all stations" view');
-              // Create a virtual "all" station
-              const allStationsVirtual = {
-                id: 'all',
-                name: 'All Stations',
-                status: 'active'
-              };
-              setCurrentStation(allStationsVirtual);
-            } else {
-              // Try to find the specified station (convert to number for proper comparison)
-              console.log(`Looking for station with ID ${stationId} in URL param`);
-              console.log('Available stations:', stationsResponse.map(s => `${s.name} (ID: ${s.id}, type: ${typeof s.id})`));
-              
-              // Convert to number for comparison
-              const numericStationId = typeof stationId === 'string' ? parseInt(stationId, 10) : stationId;
-              
-              const station = stationsResponse.find(s => 
-                s.id === numericStationId || // numeric match
-                s.id === stationId || // exact match
-                (typeof s.id === 'number' && typeof stationId === 'string' && s.id.toString() === stationId) // string comparison
-              );
-              
-              if (station) {
-                console.log('Found station from URL parameter:', station);
-                setCurrentStation(station);
-              } else {
-                console.warn(`Station with ID ${stationId} not found, using first station`);
-                setCurrentStation(stationsResponse[0]);
-              }
-            }
+        const list = await StationsService.getStations();
+        if (list && list.length > 0) {
+          setStations(list);
+          if (stationId === 'all') {
+            setCurrentStation({ id: 'all', name: 'All Stations', status: 'active' });
+          } else if (stationId) {
+            const nid = typeof stationId === 'string' ? parseInt(stationId, 10) : stationId;
+            const match = list.find(s => s.id === nid || s.id === stationId);
+            setCurrentStation(match || list[0]);
           } else {
-            // If no stationId provided, use the first station
-            console.log('No station ID provided, using first station:', stationsResponse[0]);
-            setCurrentStation(stationsResponse[0]);
+            setCurrentStation(list[0]);
           }
-          
           setConnected(true);
         } else {
           throw new Error('No stations found');
         }
-      } catch (err) {
-        console.error('Error loading stations:', err);
-        setError('Failed to load stations: ' + (err.message || 'Unknown error'));
+      } catch (e) {
+        setError('Failed to load stations: ' + (e.message || 'Unknown'));
         setConnected(false);
       }
-    };
-    
-    loadStations();
+    })();
   }, [stationId]);
-  
-  // Load orders for the current station
+
+  // --- Load orders for the current station + auto-refresh ---
+  const formatList = (list, status) => list.map(o => ({
+    id: o.id,
+    order_number: o.orderNumber || o.id,
+    customerName: o.customerName || 'Customer',
+    displayPhone: o.phoneNumber ? o.phoneNumber.slice(-4) : '',
+    coffeeType: o.coffeeType || 'Coffee',
+    milkType: o.milkType || '',
+    size: o.size || '',
+    status,
+    stationId: o.stationId || o.station_id,
+  }));
+
   useEffect(() => {
     if (!currentStation) return;
-    
-    const loadOrdersForStation = async () => {
-      setLoading(true);
+    let timer;
+    const load = async () => {
       try {
-        console.log(`Loading orders for station: ${currentStation.name} (ID: ${currentStation.id}, Type: ${typeof currentStation.id})`);
-        
-        let inProgressOrders, completedOrders;
-        
-        // Special handling for "all" stations view
-        if (currentStation.id === 'all') {
-          // For "all" view, get all orders without filtering by station
-          inProgressOrders = await OrderDataService.getInProgressOrders();
-          completedOrders = await OrderDataService.getCompletedOrders();
-        } else {
-          // For a specific station, filter by station ID
-          // Ensure station ID is properly converted to number for consistency
-          const stationId = typeof currentStation.id === 'string' && currentStation.id !== 'all' 
-            ? parseInt(currentStation.id, 10) 
-            : currentStation.id;
-          
-          console.log(`Fetching orders for station ID: ${stationId} (original: ${currentStation.id}, type: ${typeof currentStation.id})`);
-          
-          // Get all orders first
-          const allInProgress = await OrderDataService.getInProgressOrders();
-          const allCompleted = await OrderDataService.getCompletedOrders();
-          
-          console.log('All in-progress orders before filtering:', allInProgress);
-          console.log('All completed orders before filtering:', allCompleted);
-          
-          // Filter by station ID
-          inProgressOrders = allInProgress.filter(order => {
-            const orderStationId = order.stationId || order.station_id;
-            console.log(`Order ${order.id} has station ID: ${orderStationId} (comparing with ${stationId})`);
-            return orderStationId === stationId || orderStationId === stationId.toString();
-          });
-          
-          completedOrders = allCompleted.filter(order => {
-            const orderStationId = order.stationId || order.station_id;
-            return orderStationId === stationId || orderStationId === stationId.toString();
-          });
-        }
-        
-        console.log('In-progress orders:', inProgressOrders);
-        console.log('Completed orders:', completedOrders);
-        
-        // Format orders for display
-        const formattedOrders = {
-          inProgress: inProgressOrders.map(order => ({
-            id: order.id,
-            order_number: order.orderNumber || order.id,
-            customerName: order.customerName || 'Customer',
-            displayPhone: order.phoneNumber ? order.phoneNumber.slice(-4) : 'xxxx',
-            coffeeType: order.coffeeType || 'Coffee',
-            milkType: order.milkType || 'Regular milk',
-            status: 'in-progress',
-            stationId: order.stationId || order.station_id // Include station ID for display
-          })),
-          ready: completedOrders.map(order => ({
-            id: order.id,
-            order_number: order.orderNumber || order.id,
-            customerName: order.customerName || 'Customer',
-            displayPhone: order.phoneNumber ? order.phoneNumber.slice(-4) : 'xxxx',
-            coffeeType: order.coffeeType || 'Coffee',
-            milkType: order.milkType || 'Regular milk',
-            status: 'completed',
-            stationId: order.stationId || order.station_id // Include station ID for display
-          }))
+        const isAll = currentStation.id === 'all';
+        const nid = isAll ? null : (typeof currentStation.id === 'string'
+          ? parseInt(currentStation.id, 10) : currentStation.id);
+        const filterStation = (arr) => isAll ? arr : arr.filter(o => {
+          const s = o.stationId || o.station_id;
+          return s === nid || (s != null && s.toString() === nid?.toString());
+        });
+        // Three columns — pending shown so waiting customers can see
+        // their order acknowledged before a barista picks it up.
+        const [pendingAll, inProgressAll, completedAll] = await Promise.all([
+          (OrderDataService.getPendingOrders ? OrderDataService.getPendingOrders() : Promise.resolve([])),
+          OrderDataService.getInProgressOrders(),
+          OrderDataService.getCompletedOrders(),
+        ]);
+        const next = {
+          pending:    formatList(filterStation(pendingAll || []),    'pending'),
+          inProgress: formatList(filterStation(inProgressAll || []), 'in-progress'),
+          ready:      formatList(filterStation(completedAll || []),  'completed'),
         };
-        
-        setOrders(formattedOrders);
+
+        // Detect newly-ready orders (visible since last poll) for
+        // the pulse animation.
+        const currentReadyIds = new Set(next.ready.map(o => String(o.id)));
+        const nowTs = Date.now();
+        currentReadyIds.forEach(id => {
+          if (!prevReadyIdsRef.current.has(id) && !newReadyRef.current.has(id)) {
+            newReadyRef.current.set(id, nowTs);
+          }
+        });
+        // Drop entries older than 30s — pulse animation should be brief.
+        for (const [id, ts] of newReadyRef.current) {
+          if (nowTs - ts > 30000) newReadyRef.current.delete(id);
+        }
+        prevReadyIdsRef.current = currentReadyIds;
+
+        setOrders(next);
         setLastUpdated(new Date());
         setConnected(true);
         setLoading(false);
-      } catch (err) {
-        console.error('Error loading orders for station:', err);
-        setError('Failed to load orders: ' + (err.message || 'Unknown error'));
+      } catch (e) {
+        setError('Failed to load orders: ' + (e.message || 'Unknown'));
         setConnected(false);
         setLoading(false);
       }
     };
-    
-    loadOrdersForStation();
-    
-    // Set up auto-refresh every 20 seconds
-    const refreshInterval = setInterval(() => {
-      loadOrdersForStation();
-    }, 20000);
-    
-    return () => clearInterval(refreshInterval);
+    load();
+    timer = setInterval(load, 15000);
+    return () => clearInterval(timer);
   }, [currentStation]);
 
-  const handleBackClick = () => {
-    window.location.href = '/';
-  };
-  
-  // Modified manual refresh to use our services
-  const handleManualRefresh = async () => {
-    if (!currentStation) return;
-    
+  // Manual refresh button.
+  const handleRefresh = () => {
     setLoading(true);
-    try {
-      let inProgressOrders, completedOrders;
-      
-      // Special handling for "all" stations view
-      if (currentStation.id === 'all') {
-        // For "all" view, get all orders without filtering by station
-        inProgressOrders = await OrderDataService.getInProgressOrders();
-        completedOrders = await OrderDataService.getCompletedOrders();
-      } else {
-        // For a specific station, filter by station ID
-        // Ensure station ID is properly converted to number for consistency
-        const stationId = typeof currentStation.id === 'string' && currentStation.id !== 'all' 
-          ? parseInt(currentStation.id, 10) 
-          : currentStation.id;
-        
-        console.log(`Manual refresh for station ID: ${stationId} (original type: ${typeof currentStation.id})`);
-        inProgressOrders = await OrderDataService.getInProgressOrders(stationId);
-        completedOrders = await OrderDataService.getCompletedOrders(stationId);
-      }
-      
-      // Format orders for display
-      const formattedOrders = {
-        inProgress: inProgressOrders.map(order => ({
-          id: order.id,
-          order_number: order.orderNumber || order.id,
-          customerName: order.customerName || 'Customer',
-          displayPhone: order.phoneNumber ? order.phoneNumber.slice(-4) : 'xxxx',
-          coffeeType: order.coffeeType || 'Coffee',
-          milkType: order.milkType || 'Regular milk',
-          status: 'in-progress',
-          stationId: order.stationId || order.station_id // Include station ID for display
-        })),
-        ready: completedOrders.map(order => ({
-          id: order.id,
-          order_number: order.orderNumber || order.id,
-          customerName: order.customerName || 'Customer',
-          displayPhone: order.phoneNumber ? order.phoneNumber.slice(-4) : 'xxxx',
-          coffeeType: order.coffeeType || 'Coffee',
-          milkType: order.milkType || 'Regular milk',
-          status: 'completed',
-          stationId: order.stationId || order.station_id // Include station ID for display
-        }))
-      };
-      
-      setOrders(formattedOrders);
-      setLastUpdated(new Date());
-      setConnected(true);
-      setLoading(false);
-    } catch (err) {
-      console.error('Error manually refreshing orders:', err);
-      setConnected(false);
-      setLoading(false);
-    }
+    setLastUpdated(new Date());
+    // useEffect will re-run if we toggle currentStation, but we
+    // already have the timer — just bump loading state to give
+    // the operator visual feedback.
+    setTimeout(() => setLoading(false), 300);
   };
-  
-  // Function to change the selected station
-  const handleStationChange = (stationId) => {
-    console.log(`Station change requested: ${stationId} (type: ${typeof stationId})`);
-    
-    // Special handling for "all" stations
-    if (stationId === 'all') {
-      const allStationsVirtual = {
-        id: 'all',
-        name: 'All Stations',
-        status: 'active'
-      };
-      setCurrentStation(allStationsVirtual);
-      
-      // Update URL with 'all' station parameter
-      const newSearchParams = new URLSearchParams(searchParams);
-      newSearchParams.set('station', 'all');
-      window.history.pushState({}, '', `${window.location.pathname}?${newSearchParams.toString()}`);
-      return;
-    }
-    
-    // Convert to number for comparison if it's a string
-    const numericStationId = typeof stationId === 'string' ? parseInt(stationId, 10) : stationId;
-    console.log(`Looking for station with ID ${numericStationId} (converted from ${stationId})`);
-    
-    // Log all stations for debugging
-    console.log('Available stations:', stations.map(s => `${s.name} (ID: ${s.id}, type: ${typeof s.id})`));
-    
-    // Try to find with both string and numeric IDs to ensure match
-    const station = stations.find(s => 
-      s.id === numericStationId || // numeric match
-      s.id === stationId || // exact match
-      (typeof s.id === 'number' && typeof stationId === 'string' && s.id.toString() === stationId) // string comparison
-    );
-    
-    if (station) {
-      console.log(`Found matching station: ${station.name} (ID: ${station.id})`);
-      setCurrentStation(station);
-      
-      // Update URL with the new station ID without page reload
-      const newSearchParams = new URLSearchParams(searchParams);
-      newSearchParams.set('station', station.id.toString()); // Use toString for consistency
-      window.history.pushState({}, '', `${window.location.pathname}?${newSearchParams.toString()}`);
-    } else {
-      console.error(`No station found with ID: ${stationId}`);
+
+  // Tap anywhere to fullscreen on iPad — the operator drops the
+  // tablet into a stand and one tap from any corner makes it
+  // edge-to-edge.
+  const tryFullscreen = () => {
+    const el = document.documentElement;
+    if (!document.fullscreenElement && el.requestFullscreen) {
+      el.requestFullscreen().catch(() => { /* user-gesture issue, ignore */ });
     }
   };
 
+  // Combine pending + in-progress into a single "Brewing" column
+  // because most customers only care about two distinctions: "they
+  // got my order" vs "it's ready".
+  const brewing = useMemo(
+    () => [...orders.pending, ...orders.inProgress],
+    [orders.pending, orders.inProgress]
+  );
+
+  const isPortrait = orientation === 'portrait';
+
+  // Container styles. Zoom is applied with transform so we don't
+  // re-render the layout — useful when an iPad is mirrored to a
+  // bigger external screen at the same dom dimensions.
+  const containerStyle = zoom && zoom !== 100
+    ? { transform: `scale(${zoom / 100})`, transformOrigin: 'top left' }
+    : {};
+
+  // --- Render ---
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col">
-      {/* Header */}
-      <header style={{ backgroundColor: config.header_color || '#1e40af' }} className="text-white p-4">
-        <div className="container mx-auto flex justify-between items-center">
-          <div className="flex items-center">
-            <button 
-              onClick={handleBackClick}
-              className="mr-4 p-2 rounded-full hover:bg-opacity-80 transition-colors"
-              style={{ backgroundColor: `${config.header_color}99` || '#1e40af99' }}
+    <div className={`min-h-screen w-full ${theme.bg} ${theme.text}
+                     flex flex-col font-sans overflow-hidden`}
+         onClick={tryFullscreen}
+         style={containerStyle}>
+
+      {/* --- Header --- */}
+      <header className="px-6 md:px-10 pt-6 pb-4 flex items-center justify-between gap-4">
+        <div className="flex items-center min-w-0">
+          <button
+            onClick={(e) => { e.stopPropagation(); window.location.href = '/'; }}
+            className={`mr-4 p-2 rounded-full ${theme.panel} hover:opacity-80 transition`}
+            title="Back to home"
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <Coffee size={36} className="mr-3" />
+          <div className="min-w-0">
+            <h1 className={`${isPortrait ? 'text-3xl' : 'text-4xl'} font-extrabold tracking-tight leading-tight truncate`}>
+              {config.event_name || config.system_name}
+            </h1>
+            <div className={`${theme.subtext} text-sm md:text-base flex items-center mt-1`}>
+              <MapPin size={14} className="mr-1" />
+              {currentStation
+                ? `${currentStation.name}${currentStation.location ? ` · ${currentStation.location}` : ''}`
+                : 'Loading station…'}
+              {showWaitTimes && (
+                <span className="ml-3 inline-flex items-center">
+                  <Clock size={14} className="mr-1" />
+                  Live · refreshes every 15s
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {stations.length > 1 && (
+            <select
+              value={currentStation?.id || ''}
+              onChange={(e) => {
+                e.stopPropagation();
+                const v = e.target.value;
+                if (v === 'all') setCurrentStation({ id: 'all', name: 'All Stations' });
+                else {
+                  const nid = parseInt(v, 10);
+                  setCurrentStation(stations.find(s => s.id === nid) || stations[0]);
+                }
+              }}
+              onClick={(e) => e.stopPropagation()}
+              className={`px-3 py-2 rounded-lg ${theme.panel} ${theme.text} border ${theme.border} text-sm`}
             >
-              <ArrowLeft size={24} />
-            </button>
-            <Coffee size={32} className="mr-2" />
-            <h1 className="text-3xl font-bold">{config.system_name}</h1>
-          </div>
-          <div className="text-2xl font-light flex items-center">
-            {config.event_name}
-          </div>
+              <option value="all">All Stations</option>
+              {stations.map(s => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          )}
+          <button
+            onClick={(e) => { e.stopPropagation(); handleRefresh(); }}
+            className={`p-2 rounded-full ${theme.panel} hover:opacity-80`}
+            title="Refresh"
+          >
+            <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); tryFullscreen(); }}
+            className={`p-2 rounded-full ${theme.panel} hover:opacity-80`}
+            title="Fullscreen"
+          >
+            <Maximize2 size={20} />
+          </button>
         </div>
       </header>
 
-      {/* Connection Status */}
+      {/* --- Connection warning --- */}
       {!connected && (
-        <div className="bg-red-500 text-white p-2 text-center">
-          <div className="container mx-auto flex items-center justify-center">
-            <AlertTriangle size={20} className="mr-2" />
-            <span>Not connected to backend API. Order data may be outdated.</span>
-          </div>
+        <div className="mx-6 md:mx-10 mb-3 px-4 py-2 rounded-lg bg-red-500/90 text-white text-sm">
+          {error || 'Not connected to backend — orders may be stale.'}
         </div>
       )}
 
-      {/* Station Information and Selector */}
-      <div className="bg-white border-b shadow-sm">
-        <div className="container mx-auto py-4 px-4">
-          <div className="flex justify-between items-center">
-            <div className="flex flex-col">
-              <div className="flex items-center">
-                <MapPin size={24} className="text-gray-500 mr-2" />
-                <h2 className="text-2xl font-bold text-gray-800">
-                  {currentStation 
-                    ? `${currentStation.name} ${currentStation.location ? `- ${currentStation.location}` : ''}`
-                    : "Select a station"
-                  }
-                </h2>
-              </div>
-              
-              {/* Station Selector */}
-              {stations.length > 1 && (
-                <div className="mt-2">
-                  <label htmlFor="station-select" className="text-sm text-gray-500 mr-2">Select Station:</label>
-                  <select 
-                    id="station-select"
-                    value={currentStation?.id || ''}
-                    onChange={(e) => handleStationChange(e.target.value)}
-                    className="border rounded px-2 py-1 text-gray-700"
-                  >
-                    {/* Add "All Stations" option */}
-                    <option value="all">All Stations</option>
-                    
-                    {stations.map(station => (
-                      <option key={station.id} value={station.id}>
-                        {station.name} {station.location ? `(${station.location})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </div>
-            <div className="flex items-center">
-              <div className="text-lg mr-4">
-                <span className="text-gray-500">Last Updated:</span> <span className="font-bold">{lastUpdated.toLocaleTimeString()}</span>
-              </div>
-              <button 
-                onClick={handleManualRefresh} 
-                className="p-2 rounded-full bg-blue-50 text-blue-500 hover:bg-blue-100"
-                disabled={loading || !currentStation}
-              >
-                <RefreshCw size={20} className={loading ? "animate-spin" : ""} />
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* --- Main: two big columns (Brewing / Ready) ---
+           In landscape: side-by-side, full height.
+           In portrait: stacked with Ready on top (customers care most
+           about Ready). */}
+      <main className={`flex-grow grid gap-6 md:gap-8 px-6 md:px-10 pb-6
+                        ${isPortrait
+                          ? 'grid-cols-1 grid-rows-2'
+                          : (showCompleted ? 'grid-cols-2' : 'grid-cols-1')
+                        }`}>
 
-      {/* Main Content */}
-      <main className="flex-grow container mx-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Notification Banner (only shown if there's an error or not connected) */}
-        {(error || !connected) && (
-          <div className="md:col-span-2 mb-2">
-            <ApiNotificationBanner 
-              title="Display Screen API Connection Issue" 
-              message={error || "Unable to connect to the backend API. The display screen requires a connection to show real-time order data."}
-            />
-          </div>
+        {/* In portrait we put Ready first (more important to
+            customers waiting). In landscape we keep the natural
+            left-to-right flow. */}
+        {isPortrait && showCompleted && (
+          <Column
+            kind="ready"
+            theme={theme}
+            fonts={fonts}
+            isPortrait={isPortrait}
+            loading={loading}
+            orders={orders.ready}
+            showCustomerName={showCustomerName}
+            showDetails={showDetails}
+            newReadyMap={newReadyRef.current}
+          />
         )}
 
-        {/* In Progress Orders */}
-        <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-          <div className="bg-amber-500 text-white p-4">
-            <div className="flex items-center">
-              <Clock size={24} className="mr-2" />
-              <h2 className="text-xl font-bold">In Progress</h2>
-            </div>
-          </div>
-          
-          <div className="divide-y divide-gray-200">
-            {loading ? (
-              <div className="p-6 flex flex-col items-center justify-center text-gray-500">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-amber-600 mb-4"></div>
-                <p>Loading orders...</p>
-              </div>
-            ) : orders.inProgress.length > 0 ? (
-              orders.inProgress.map(order => (
-                <div key={order.id} className="p-4 flex justify-between items-center animate-pulse">
-                  <div>
-                    <div className="flex items-center">
-                      <Coffee size={20} className="text-amber-500 mr-2" />
-                      <span className="font-bold text-xl">{order.order_number}</span>
-                    </div>
-                    <div className="mt-1 text-gray-600">
-                      For: {order.customerName} (xx{order.displayPhone})
-                    </div>
-                    <div className="text-gray-500">{order.coffeeType}</div>
-                  </div>
-                  <div className="bg-amber-100 text-amber-800 px-4 py-2 rounded-full font-medium">
-                    Preparing
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="p-6 flex flex-col items-center justify-center text-gray-500">
-                <Coffee size={48} className="mb-4 text-gray-300" />
-                <p className="text-lg font-medium mb-2">No orders in progress</p>
-                <p className="text-sm">Orders being prepared will appear here</p>
-              </div>
-            )}
-          </div>
-        </div>
+        <Column
+          kind="brewing"
+          theme={theme}
+          fonts={fonts}
+          isPortrait={isPortrait}
+          loading={loading}
+          orders={brewing}
+          showCustomerName={showCustomerName}
+          showDetails={showDetails}
+          newReadyMap={newReadyRef.current}
+        />
 
-        {/* Ready Orders */}
-        <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-          <div className="bg-green-600 text-white p-4">
-            <div className="flex items-center">
-              <Check size={24} className="mr-2" />
-              <h2 className="text-xl font-bold">Ready for Pickup</h2>
-            </div>
-          </div>
-          
-          <div className="divide-y divide-gray-200">
-            {loading ? (
-              <div className="p-6 flex flex-col items-center justify-center text-gray-500">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-600 mb-4"></div>
-                <p>Loading orders...</p>
-              </div>
-            ) : orders.ready.length > 0 ? (
-              orders.ready.map(order => (
-                <div key={order.id} className="p-4 flex justify-between items-center">
-                  <div>
-                    <div className="flex items-center">
-                      <Coffee size={20} className="text-green-500 mr-2" />
-                      <span className="font-bold text-xl">{order.order_number}</span>
-                    </div>
-                    <div className="mt-1 text-gray-600">
-                      For: {order.customerName} (xx{order.displayPhone})
-                    </div>
-                    <div className="text-gray-500">{order.coffeeType}</div>
-                  </div>
-                  <div className="bg-green-100 text-green-800 px-4 py-2 rounded-full font-medium">
-                    Ready
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="p-6 flex flex-col items-center justify-center text-gray-500">
-                <Check size={48} className="mb-4 text-gray-300" />
-                <p className="text-lg font-medium mb-2">No orders ready for pickup</p>
-                <p className="text-sm">Ready orders will appear here</p>
-              </div>
-            )}
-          </div>
-        </div>
+        {!isPortrait && showCompleted && (
+          <Column
+            kind="ready"
+            theme={theme}
+            fonts={fonts}
+            isPortrait={isPortrait}
+            loading={loading}
+            orders={orders.ready}
+            showCustomerName={showCustomerName}
+            showDetails={showDetails}
+            newReadyMap={newReadyRef.current}
+          />
+        )}
       </main>
 
-      {/* Promotional Footer */}
-      <footer style={{ backgroundColor: config.header_color || '#1e40af' }} className="text-white py-4">
-        <div className="container mx-auto px-4">
-          <div className="flex flex-col md:flex-row justify-between items-center">
-            <div className="mb-4 md:mb-0 text-center md:text-left">
-              <h3 className="text-xl font-bold">Order your coffee via SMS!</h3>
-              <p className="text-blue-100">Text your order to: {config.sms_number}</p>
-            </div>
-            <div className="text-center md:text-right">
-              {config.sponsor.enabled && config.sponsor.name ? (
-                <div className="text-xl font-bold">{config.sponsor.name}: {config.sponsor.message}</div>
-              ) : (
-                config.custom_message && (
-                  <div className="text-xl font-bold">{config.custom_message}</div>
-                )
-              )}
+      {/* --- Footer: SMS prompt + sponsor/custom message --- */}
+      <footer className={`px-6 md:px-10 py-4 ${theme.panel} ${theme.border} border-t
+                          flex items-center justify-between gap-6 flex-wrap`}>
+        <div className="flex items-center min-w-0">
+          <MessageCircle size={26} className="mr-3 flex-shrink-0" />
+          <div className="min-w-0">
+            <div className={`${fonts.label} font-bold`}>Order by SMS</div>
+            <div className={`${fonts.body} font-extrabold tracking-wide truncate`}>
+              {config.sms_number || 'Number coming soon'}
             </div>
           </div>
         </div>
+        <div className={`text-right max-w-[60%] ${fonts.body} font-medium truncate`}>
+          {config.sponsor?.enabled && config.sponsor.name
+            ? `${config.sponsor.name}: ${config.sponsor.message}`
+            : (config.custom_message || '')}
+        </div>
       </footer>
+
+      {/* Tiny inline style for a one-shot pulse on newly-ready
+          orders. Tailwind doesn't ship this animation by default. */}
+      <style>{`
+        @keyframes pulseOnce {
+          0%   { box-shadow: 0 0 0 0 rgba(34,197,94,0.55); }
+          50%  { box-shadow: 0 0 0 12px rgba(34,197,94,0); }
+          100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
+        }
+        .animate-pulse-once {
+          animation: pulseOnce 1.4s ease-out 0s 6;
+        }
+      `}</style>
     </div>
   );
 };
+
+// --- Subcomponent: a column of orders ---
+const Column = ({ kind, theme, fonts, isPortrait, loading, orders,
+                  showCustomerName, showDetails, newReadyMap }) => {
+  const isReady = kind === 'ready';
+  const headerCls = isReady ? 'bg-green-600 text-white' : 'bg-amber-500 text-white';
+  const icon = isReady ? <Check size={28} className="mr-2" /> : <Clock size={28} className="mr-2" />;
+  const title = isReady ? 'Ready for Pickup' : 'Brewing';
+
+  return (
+    <section className={`rounded-3xl overflow-hidden flex flex-col ${theme.panel} shadow-xl`}>
+      <header className={`${headerCls} px-6 py-4 flex items-center justify-between flex-shrink-0`}>
+        <div className="flex items-center">
+          {icon}
+          <h2 className="text-2xl md:text-3xl font-bold">{title}</h2>
+        </div>
+        <div className="text-lg font-bold opacity-90">{orders.length}</div>
+      </header>
+      <div className={`p-4 md:p-6 flex-grow overflow-auto ${isPortrait ? '' : ''}`}>
+        {loading ? (
+          <Empty theme={theme} text="Loading…" pulse />
+        ) : orders.length === 0 ? (
+          <Empty theme={theme}
+                 text={isReady ? 'Nothing ready yet — keep an eye on the brewing list' : 'All caught up'} />
+        ) : (
+          <div className="grid grid-cols-1 gap-4 md:gap-6">
+            {orders.slice(0, isPortrait ? 4 : 6).map(o => (
+              <OrderCard
+                key={o.id}
+                order={o}
+                variant={isReady ? 'ready' : 'brewing'}
+                fonts={fonts}
+                theme={theme}
+                showCustomerName={showCustomerName}
+                showDetails={showDetails}
+                isNew={isReady && newReadyMap.has(String(o.id))}
+              />
+            ))}
+            {orders.length > (isPortrait ? 4 : 6) && (
+              <div className={`text-center ${theme.subtext} pt-2`}>
+                + {orders.length - (isPortrait ? 4 : 6)} more
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+};
+
+const Empty = ({ theme, text, pulse }) => (
+  <div className={`h-full min-h-[200px] flex flex-col items-center justify-center ${theme.subtext}`}>
+    <Coffee size={64} className={`mb-4 opacity-40 ${pulse ? 'animate-pulse' : ''}`} />
+    <p className="text-xl">{text}</p>
+  </div>
+);
 
 export default DisplayScreen;

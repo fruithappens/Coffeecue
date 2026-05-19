@@ -781,8 +781,15 @@ class CoffeeOrderSystem:
             else:
                 lines.append("Coffee: (none in stock — check back soon)")
 
-            if extra_drinks:
-                lines.append(f"Other drinks: {', '.join(extra_drinks)}")
+            # Split out teas as their own line — the operator now
+            # stocks multiple flavors and they cluster more usefully
+            # for the customer than a flat "Other drinks: ..." list.
+            teas = [d for d in extra_drinks if 'tea' in d.lower()]
+            other_drinks = [d for d in extra_drinks if 'tea' not in d.lower()]
+            if teas:
+                lines.append(f"🍵 Tea: {', '.join(teas)}")
+            if other_drinks:
+                lines.append(f"Other drinks: {', '.join(other_drinks)}")
 
             if available_milks:
                 lines.append(f"🥛 Milk: {', '.join(sorted(available_milks))}")
@@ -3063,8 +3070,10 @@ class CoffeeOrderSystem:
         can override later via the inventory UI:
           - milk:   size-dependent (small=150, medium=200, large=280 mL),
                     converted to L (the unit milk inventory uses)
+                    BUT tea-with-milk only uses ~30 mL (a splash).
           - coffee: 1 shot per drink for everything except double-shot
                     espresso, etc. (we don't currently model strength)
+          - cups:   1 per order normally, 2 when tea-double-cup is on.
 
         Skips items not in stock so an empty `oat` row doesn't go
         negative on a customer who somehow placed an oat order anyway.
@@ -3073,26 +3082,60 @@ class CoffeeOrderSystem:
         size = (processed_details.get('size') or 'medium').lower()
         milk = (processed_details.get('milk') or '').lower()
         coffee_type = (processed_details.get('type') or '').lower()
+        # Tea detection: any drink with "tea" in the type name, OR an
+        # explicit is_tea flag set by the walk-in dialog.
+        is_tea = bool(processed_details.get('is_tea')) or ('tea' in coffee_type)
+        tea_double_cup = bool(processed_details.get('tea_double_cup'))
 
         # --- milk ---------------------------------------------------
         if milk and milk != 'no milk':
-            ml = self._SIZE_TO_ML.get(size, 200)
-            liters = ml / 1000.0
+            if is_tea:
+                # Tea milk is a splash — most customers want barely any.
+                # 30 mL keeps the decrement honest without overstating
+                # consumption.
+                liters = 30 / 1000.0
+            else:
+                ml = self._SIZE_TO_ML.get(size, 200)
+                liters = ml / 1000.0
             self._decrement_inventory_item(
                 cursor, db_type, category='milk', name=milk,
                 amount=liters, station_id=station_id,
             )
 
         # --- coffee shots -------------------------------------------
-        shots = self._COFFEE_SHOTS_BY_TYPE.get(coffee_type, 1)
-        # A "strong" or "double" order adds a shot — best effort.
-        if (processed_details.get('strength') or '').lower() in ('strong', 'double', 'extra shot'):
-            shots += 1
-        if shots > 0 and coffee_type:
-            self._decrement_inventory_item(
-                cursor, db_type, category='coffee', name=coffee_type,
-                amount=shots, station_id=station_id,
-            )
+        # Tea uses no coffee beans. Skip the shot decrement entirely.
+        if not is_tea:
+            shots = self._COFFEE_SHOTS_BY_TYPE.get(coffee_type, 1)
+            # A "strong" or "double" order adds a shot — best effort.
+            if (processed_details.get('strength') or '').lower() in ('strong', 'double', 'extra shot'):
+                shots += 1
+            if shots > 0 and coffee_type:
+                self._decrement_inventory_item(
+                    cursor, db_type, category='coffee', name=coffee_type,
+                    amount=shots, station_id=station_id,
+                )
+
+        # --- cups ---------------------------------------------------
+        # Tea is typically double-cupped because the cup gets too hot
+        # to hold; the walk-in dialog defaults the toggle to ON. We
+        # don't know the exact cup name the operator is using so we
+        # try a few common matches.
+        cups_used = 2 if (is_tea and tea_double_cup) else 1
+        size_label = (processed_details.get('size') or 'medium').lower()
+        cup_candidates = [
+            size_label,                                  # 'medium'
+            f"{size_label} (12oz)" if size_label == 'medium' else '',
+            f"{size_label} (8oz)"  if size_label == 'small'  else '',
+            f"{size_label} (16oz)" if size_label == 'large'  else '',
+            f"takeaway cup {size_label}",
+            'cup', 'cups',
+        ]
+        for cup_name in [c for c in cup_candidates if c]:
+            if self._decrement_inventory_item(
+                cursor, db_type, category='cups', name=cup_name,
+                amount=cups_used, station_id=station_id,
+            ):
+                break
 
         # --- sugar / sweeteners -------------------------------------
         # Sugar is tracked in *sachets* (or grams) — never in

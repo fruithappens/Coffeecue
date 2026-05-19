@@ -495,10 +495,17 @@ def orders():
                 'milk': data.get('milk_type', 'dairy'),
                 'size': data.get('size'),
                 'sugar': data.get('sugar', 'No sugar'),
-                'notes': data.get('special_instructions', ''),
+                'notes': data.get('special_instructions') or data.get('notes', ''),
                 'payment_method': data.get('payment_method', 'cash'),
                 'order_type': data.get('order_type', 'walk-in'),
-                'created_by': data.get('created_by', 'barista')
+                'created_by': data.get('created_by', 'barista'),
+                # Tea-specific fields from the walk-in dialog. These
+                # drive _decrement_stock_for_order (small milk amount,
+                # 2 cups when double-cupped) at order completion.
+                'is_tea':           bool(data.get('is_tea')) or ('tea' in str(data.get('coffee_type', '')).lower()),
+                'tea_strength':     data.get('tea_strength'),
+                'tea_double_cup':   bool(data.get('tea_double_cup')),
+                'tea_custom_blend': data.get('tea_custom_blend', ''),
             }
             
             # Determine priority (VIP orders get priority 1, regular get 5)
@@ -1294,40 +1301,77 @@ def complete_order(order_id):
     try:
         # Log incoming request
         logger.info(f"Received request to complete order: {order_id}")
-        
+
         if not order_id or order_id == 'undefined':
             logger.error(f"Invalid order ID: {order_id}")
             return jsonify({"success": False, "message": "Invalid order ID"})
-        
+
         # Clean the ID if needed
         clean_id = clean_order_id(order_id)
         logger.info(f"Cleaned order ID: {clean_id}")
-        
+
         # Get coffee system from app context
         coffee_system = current_app.config.get('coffee_system')
         db = coffee_system.db
-        
-        # Check if order exists first to provide better error handling
+
+        # Check if order exists — fetch details too so we can
+        # decrement stock at completion (the walk-in flow doesn't
+        # decrement at creation, only when the drink is actually made).
         cursor = db.cursor()
-        cursor.execute('SELECT id FROM orders WHERE order_number = %s', (clean_id,))
-        order_exists = cursor.fetchone()
-        
-        if not order_exists:
+        cursor.execute(
+            'SELECT id, station_id, order_details FROM orders WHERE order_number = %s',
+            (clean_id,),
+        )
+        order_row = cursor.fetchone()
+
+        if not order_row:
             logger.error(f"Order not found: {clean_id}")
             return jsonify({"success": False, "message": f"Order {clean_id} not found"})
-        
+
+        if isinstance(order_row, dict):
+            station_id_for_stock = order_row.get('station_id') or 1
+            order_details_raw = order_row.get('order_details') or {}
+        else:
+            _, station_id_for_stock, order_details_raw = order_row
+            station_id_for_stock = station_id_for_stock or 1
+
         # Get current time
         completed_at = datetime.now().isoformat()
-        
+
         # Update order status
         cursor.execute('''
             UPDATE orders
             SET status = 'completed', updated_at = %s, completed_at = %s
             WHERE order_number = %s
         ''', (completed_at, completed_at, clean_id))
-        
+
         db.commit()
         rows_affected = cursor.rowcount
+
+        # Decrement inventory at the moment the drink is actually
+        # made. Tea-aware decrement (small milk volume, 2 cups when
+        # double-cupped) lives in coffee_system._decrement_stock_for_order.
+        # Failure here is non-fatal — the order is already marked
+        # complete and we don't want to roll that back over inventory
+        # accounting.
+        try:
+            order_details_parsed = order_details_raw
+            if isinstance(order_details_parsed, str):
+                try:
+                    order_details_parsed = json.loads(order_details_parsed)
+                except Exception:
+                    order_details_parsed = {}
+            if isinstance(order_details_parsed, dict) and order_details_parsed:
+                db_type = 'sqlite' if 'sqlite' in str(type(db)).lower() else 'postgres'
+                coffee_system._decrement_stock_for_order(
+                    db, db_type, station_id_for_stock, order_details_parsed,
+                )
+        except Exception as inv_err:
+            logger.error(f"Stock decrement on complete failed (non-fatal): {inv_err}")
+            try:
+                db.rollback()
+            except Exception:
+                pass
         
         if rows_affected > 0:
             logger.info(f"Successfully completed order: {clean_id}")
@@ -4781,8 +4825,21 @@ DEFAULT_QUICK_PRESET = {
         'hot_chocolate': False,
         'chai': False,
         'matcha': False,
-        'tea': False,
     },
+    'teas': {
+        # Each per-flavor checkbox. All off by default — operator
+        # opts in to whichever teas they're stocking.
+        'english_breakfast': False,
+        'earl_grey':         False,
+        'green':             False,
+        'peppermint':        False,
+        'chamomile':         False,
+        'lemon_ginger':      False,
+        'rooibos':           False,
+        'generic':           False,
+    },
+    # Free-text custom blends entered by the operator, comma-separated.
+    'custom_teas': '',
     'unlimited_stock': True,
     'all_stations_same_capabilities': True,
     'always_open_schedule': True,
@@ -4793,7 +4850,20 @@ EXTRA_DRINKS = {
     'hot_chocolate': [('hot chocolate', 'drinks')],
     'chai':          [('chai latte', 'drinks')],
     'matcha':        [('matcha latte', 'drinks')],
-    'tea':           [('tea', 'drinks')],
+}
+
+# Tea flavors — keyed the same way the QuickSetup wizard sends them.
+# Each tea is a separate drinks-category inventory row so the
+# operator (or SMS bot) can refer to them individually.
+TEA_FLAVORS = {
+    'english_breakfast': 'english breakfast tea',
+    'earl_grey':         'earl grey tea',
+    'green':             'green tea',
+    'peppermint':        'peppermint tea',
+    'chamomile':         'chamomile tea',
+    'lemon_ginger':      'lemon & ginger tea',
+    'rooibos':           'rooibos tea',
+    'generic':           'hot tea',
 }
 
 
@@ -4877,6 +4947,44 @@ def _apply_quick_setup(coffee_system, preset):
     if extras_added:
         summary.append(f"{extras_added} extra non-coffee drink(s)")
 
+    # Teas — each ticked flavor becomes a drinks-category row so it
+    # shows up in the menu and walk-in dialog. The `is_tea` flag
+    # would normally be a schema column; we encode it in the name
+    # ("... Tea") which is what the rest of the system already
+    # checks for tea-specific behavior (smaller milk decrement etc).
+    teas_cfg = preset.get('teas', {}) or {}
+    teas_added = 0
+    for key, name in TEA_FLAVORS.items():
+        if teas_cfg.get(key):
+            cur.execute("""
+                INSERT INTO inventory_items (category, name, amount, unit, capacity, minimum_threshold)
+                VALUES ('drinks', %s, 100, 'units', 200, 20)
+            """, (name,))
+            teas_added += 1
+
+    # Custom tea blends — split the operator's free-text string,
+    # ensure each ends in "Tea" so downstream tea detection works,
+    # and seed a row per blend.
+    custom_raw = (preset.get('custom_teas') or '').strip()
+    if custom_raw:
+        parts = []
+        for chunk in custom_raw.replace('\n', ',').split(','):
+            t = chunk.strip()
+            if not t:
+                continue
+            if 'tea' not in t.lower():
+                t = f"{t} Tea"
+            parts.append(t)
+        for blend in parts:
+            cur.execute("""
+                INSERT INTO inventory_items (category, name, amount, unit, capacity, minimum_threshold)
+                VALUES ('drinks', %s, 100, 'units', 200, 20)
+            """, (blend.lower(),))
+            teas_added += 1
+
+    if teas_added:
+        summary.append(f"{teas_added} tea flavor(s)")
+
     db.commit()
 
     # 2. Unlimited stock mode — the conversation flow can check this
@@ -4947,16 +5055,46 @@ def apply_quick_setup():
                 **DEFAULT_QUICK_PRESET['drinks'],
                 **preset['drinks'],
             }
+        # teas is a nested dict — same merge pattern
+        if isinstance(preset.get('teas'), dict):
+            merged['teas'] = {
+                **DEFAULT_QUICK_PRESET['teas'],
+                **preset['teas'],
+            }
         summary = _apply_quick_setup(coffee_system, merged)
         # Invalidate the unlimited-stock cache so the conversation
         # flow's next read picks up the new value immediately.
         if hasattr(coffee_system, '_invalidate_unlimited_stock_cache'):
             coffee_system._invalidate_unlimited_stock_cache()
+        # Return the real station list so the frontend can mirror
+        # the preset into per-station localStorage stock data
+        # (coffee_stock_station_N). Without this the walk-in dialog
+        # reads stale per-station stock and shows different milks
+        # at different stations even though Quick Setup picked
+        # the same set for all of them.
+        stations = []
+        try:
+            cur = coffee_system.db.cursor()
+            cur.execute(
+                "SELECT station_id, COALESCE(notes, '') "
+                "FROM station_stats ORDER BY station_id"
+            )
+            stations = [
+                {'id': row[0], 'name': row[1] or f'Station {row[0]}'}
+                for row in cur.fetchall()
+            ]
+        except Exception as e:
+            logger.warning(f"could not enumerate stations for quick-setup response: {e}")
+            try:
+                coffee_system.db.rollback()
+            except Exception:
+                pass
         return jsonify({
             'success': True,
             'applied': summary,
             'summary': '; '.join(summary),
             'preset': merged,
+            'stations': stations,
         })
     except Exception as e:
         logger.exception(f"apply_quick_setup failed: {e}")

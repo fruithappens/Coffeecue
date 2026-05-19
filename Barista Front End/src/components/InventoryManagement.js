@@ -104,7 +104,18 @@ const InventoryManagement = () => {
         { name: 'Chai Latte', description: 'Spiced tea with milk' },
         { name: 'Matcha Latte', description: 'Green tea latte' },
         { name: 'Golden Latte', description: 'Turmeric-based latte' },
-        { name: 'Hot Tea', description: 'Selection of hot teas' },
+        // Tea section — individual flavors so the operator can pick
+        // and choose which teas are on offer. "Hot Tea" is kept as a
+        // generic catch-all for the simple café where the barista
+        // just has one tin of black tea.
+        { name: 'Hot Tea', description: 'Generic hot tea (black, no specific flavor)', isTea: true },
+        { name: 'English Breakfast Tea', description: 'Classic black tea blend', isTea: true },
+        { name: 'Earl Grey Tea', description: 'Black tea with bergamot', isTea: true },
+        { name: 'Green Tea', description: 'Light, grassy green tea', isTea: true },
+        { name: 'Peppermint Tea', description: 'Caffeine-free mint herbal', isTea: true },
+        { name: 'Chamomile Tea', description: 'Caffeine-free floral herbal', isTea: true },
+        { name: 'Lemon & Ginger Tea', description: 'Zesty herbal infusion', isTea: true },
+        { name: 'Rooibos Tea', description: 'Caffeine-free South African red tea', isTea: true },
         { name: 'Iced Tea', description: 'Refreshing cold tea' },
         { name: 'Fresh Juice', description: 'Freshly squeezed juice' },
         { name: 'Smoothie', description: 'Blended fruit drink' }
