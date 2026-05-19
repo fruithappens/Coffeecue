@@ -1174,6 +1174,51 @@ class CoffeeOrderSystem:
         if hasattr(self, '_unlimited_stock_cache'):
             del self._unlimited_stock_cache
 
+    # --- Routing rules ---------------------------------------------
+    # The Barista → Queue AI tab now persists its load-balancing
+    # preferences to the `routing_rules` row in `settings` (via
+    # /api/routing-rules). _assign_station consults them to shape
+    # the assignment algorithm. Cached at first call; invalidated by
+    # the PUT endpoint.
+    _ROUTING_DEFAULTS = {
+        'prioritizeEfficiency': True,
+        'balanceWorkload':      True,
+        'considerCapabilities': True,
+        'emergencyMode':        False,
+    }
+
+    def _get_routing_rules(self):
+        if hasattr(self, '_routing_rules_cache'):
+            return self._routing_rules_cache
+        try:
+            cursor = self.db.cursor()
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            cursor.execute(
+                "SELECT value FROM settings WHERE key = 'routing_rules'"
+            )
+            row = cursor.fetchone()
+            if row and row[0]:
+                import json as _json
+                try:
+                    parsed = _json.loads(row[0]) if isinstance(row[0], str) else row[0]
+                    if isinstance(parsed, dict):
+                        merged = {**self._ROUTING_DEFAULTS, **parsed}
+                        self._routing_rules_cache = merged
+                        return merged
+                except (TypeError, ValueError):
+                    pass
+        except Exception as e:
+            logger.error(f"Error reading routing_rules: {e}")
+        self._routing_rules_cache = dict(self._ROUTING_DEFAULTS)
+        return self._routing_rules_cache
+
+    def _invalidate_routing_rules_cache(self):
+        if hasattr(self, '_routing_rules_cache'):
+            del self._routing_rules_cache
+
     def _get_available_coffee_types(self):
         """Get list of available coffee drink types based on ingredient availability"""
         # Unlimited-stock mode: don't check inventory at all.
@@ -2945,55 +2990,85 @@ class CoffeeOrderSystem:
                 logger.warning("No active stations found, defaulting to station 1")
                 return 1, False
             
-            # Special handling for specific milk type orders
+            # Pull the operator's load-balancing preferences. These come
+            # from Barista → Queue AI (or admin can override via
+            # /api/routing-rules). They shape the algorithm below
+            # without changing its overall structure.
+            routing = self._get_routing_rules()
+            consider_capabilities = bool(routing.get('considerCapabilities', True))
+            balance_workload      = bool(routing.get('balanceWorkload', True))
+            prioritize_efficiency = bool(routing.get('prioritizeEfficiency', True))
+            emergency_mode        = bool(routing.get('emergencyMode', False))
+
+            # Special handling for specific milk type orders. In
+            # emergency mode (or with considerCapabilities turned off),
+            # we don't refuse the order if no station has that milk —
+            # we just assign it to the least-busy station and let the
+            # barista improvise. Closes the gap where the operator
+            # turned off oat mid-event but the wizard hadn't caught up.
             if milk_type_normalized:
-                # Find stations that have this specific milk type
                 milk_capable_stations = [s for s in active_stations if milk_type_normalized in s['milk_types']]
                 if milk_capable_stations:
                     # Sort by load to find the least busy station with this milk
                     milk_capable_stations.sort(key=lambda s: s['load'])
-                    logger.info(f"Assigned {milk_type} order to station {milk_capable_stations[0]['id']}")
+                    logger.info(f"Assigned {milk_type} order to station {milk_capable_stations[0]['id']} "
+                                f"(milk-capability match)")
                     return milk_capable_stations[0]['id'], False
                 else:
-                    logger.warning(f"No active stations have {milk_type}, cannot fulfill order")
-                    # You might want to handle this case differently - maybe return an error
-                    return 1, False  # Default fallback
-            
-            # Calculate weights for station selection based on load and capacity
-            # Higher capacity stations should handle more orders
+                    if not consider_capabilities or emergency_mode:
+                        logger.warning(f"No active stations have {milk_type}, but "
+                                       f"considerCapabilities={consider_capabilities} / "
+                                       f"emergencyMode={emergency_mode}; falling through to "
+                                       f"normal load-balancing.")
+                        # Fall through to the general weighted selection below.
+                    else:
+                        logger.warning(f"No active stations have {milk_type}, cannot fulfill order")
+                        return 1, False  # Default fallback
+
+            # Calculate weights for station selection based on load and capacity.
+            # The exact mix is driven by the routing rules:
+            #   balanceWorkload=False       → ignore load score (use capacity only)
+            #   prioritizeEfficiency=False  → ignore capacity bonus (use load only)
+            #   both False                  → uniform random; not what you want, but
+            #                                 we let the operator do it
             weighted_stations = []
             for station in active_stations:
-                # Normalized load (0-1 range, lower is better)
                 norm_load = min(1.0, station['load'] / station['capacity']) if station['capacity'] > 0 else 1.0
-                
-                # Load score: 1.0 = empty, 0.0 = full
                 load_score = 1.0 - norm_load
-                
-                # Capacity weight (higher capacity stations get more weight)
-                capacity_weight = station['capacity'] / 10.0  # Normalize to a reasonable range
-                
-                # Final weight combines both factors
-                final_weight = load_score * capacity_weight
-                
-                weighted_stations.append((station['id'], max(0.01, final_weight)))  # Ensure positive weight
-            
+                capacity_weight = station['capacity'] / 10.0
+
+                load_term = load_score if balance_workload else 1.0
+                cap_term  = capacity_weight if prioritize_efficiency else 1.0
+                final_weight = load_term * cap_term
+                weighted_stations.append((station['id'], max(0.01, final_weight)))
+
             # If only one station, use it
             if len(weighted_stations) == 1:
                 return weighted_stations[0][0], False
-            
-            # Otherwise do weighted selection
+
+            # If balanceWorkload is OFF but prioritizeEfficiency is ON,
+            # the operator wants deterministic "send to the biggest free
+            # station". Skip the random draw and just pick the highest.
+            if not balance_workload:
+                weighted_stations.sort(key=lambda t: t[1], reverse=True)
+                logger.info(f"Assigned order to station {weighted_stations[0][0]} "
+                            f"(balanceWorkload=False → deterministic pick)")
+                return weighted_stations[0][0], False
+
+            # Otherwise do weighted random selection (the existing behavior).
             station_ids, weights = zip(*weighted_stations)
             total_weight = sum(weights)
             norm_weights = [w/total_weight for w in weights]
-            
+
             rand = random.random()
             cumulative = 0
             for i, weight in enumerate(norm_weights):
                 cumulative += weight
                 if rand <= cumulative:
-                    logger.info(f"Assigned order to station {station_ids[i]} using weighted selection")
+                    logger.info(f"Assigned order to station {station_ids[i]} using weighted selection "
+                                f"(rules: balance={balance_workload}, eff={prioritize_efficiency})")
                     return station_ids[i], False
-            
+
             # Fallback to the least busy active station
             active_stations.sort(key=lambda s: s['load'])
             selected_station = active_stations[0]['id']

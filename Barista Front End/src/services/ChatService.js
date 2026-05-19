@@ -132,70 +132,85 @@ class ChatService {
   }
   
   /**
-   * Load chat messages from the server
+   * Load chat messages.
+   *
+   * Previously this method only read from localStorage, which meant
+   * Station 1 could never see what Station 2 sent — chat was siloed
+   * per browser. Now it primarily fetches from /api/chat/messages
+   * (the real chat_messages table, which the backend supports via
+   * POST and GET endpoints) and falls back to localStorage when the
+   * backend is unreachable.
+   *
    * @param {number} limit - Maximum number of messages to fetch
    * @returns {Promise<Array>} - Chat messages
    */
   async loadMessages(limit = 50) {
+    if (!this.initialized) return this.messages;
+
+    // Try the backend first — that's the source of truth for
+    // inter-station chat.
     try {
-      // Don't attempt to load if not initialized
-      if (!this.initialized) {
+      const serverMessages = await this.apiService.request(
+        `${this.baseUrl}/messages?limit=${limit}`,
+        { method: 'GET' }
+      );
+      // The endpoint historically returned a bare array; the newer
+      // consolidated route may wrap it as { messages: [...] }. Handle both.
+      const list = Array.isArray(serverMessages)
+        ? serverMessages
+        : (serverMessages?.messages || serverMessages?.data || []);
+      if (Array.isArray(list)) {
+        // Normalize each row to the shape the UI expects. Some rows
+        // come from the older inline-app.py route without station_name,
+        // so we patch missing fields from companions where possible.
+        const normalized = list.map(m => ({
+          id: m.id,
+          sender: m.sender || m.baristaName || `Station #${m.station_id || '?'}`,
+          content: m.content,
+          is_urgent: !!m.is_urgent,
+          station_id: m.station_id != null
+            ? (typeof m.station_id === 'string' ? parseInt(m.station_id, 10) : m.station_id)
+            : null,
+          station_name: m.station_name || null,
+          baristaName: m.baristaName || m.barista_name || null,
+          created_at: m.created_at || m.timestamp || new Date().toISOString(),
+          original_station_id: m.station_id ?? null,
+          original_station_name: m.station_name || null,
+        }));
+        // Sort oldest → newest so the chat panel scrolls naturally.
+        normalized.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+        this.messages = normalized;
+        try {
+          localStorage.setItem('coffee_chat_messages', JSON.stringify(this.messages));
+        } catch (e) {
+          // localStorage may be full; not fatal.
+        }
+        this.notifyListeners();
         return this.messages;
       }
-      
-      // Try to load from localStorage first
+    } catch (error) {
+      console.warn('Chat: backend fetch failed, falling back to localStorage:', error?.message || error);
+    }
+
+    // Fallback path — read whatever's in localStorage so the UI stays
+    // populated when the backend is temporarily down.
+    try {
       const savedMessages = localStorage.getItem('coffee_chat_messages');
       if (savedMessages) {
-        try {
-          // Parse messages from localStorage
-          const parsedMessages = JSON.parse(savedMessages);
-          
-          // Debug: Log the loaded messages
-          console.log(`Loaded ${parsedMessages.length} messages from localStorage`);
-          if (parsedMessages.length > 0) {
-            console.log("Sample message:", {
-              id: parsedMessages[0].id,
-              station_id: parsedMessages[0].station_id,
-              station_name: parsedMessages[0].station_name,
-              baristaName: parsedMessages[0].baristaName,
-              sender: parsedMessages[0].sender
-            });
+        const parsed = JSON.parse(savedMessages);
+        this.messages = parsed.map(message => {
+          if (!message.station_name && message.station_id) {
+            const ref = parsed.find(m => m.station_id === message.station_id && m.station_name);
+            if (ref) return { ...message, station_name: ref.station_name };
           }
-          
-          // Process messages to ensure all have the required fields
-          this.messages = parsedMessages.map(message => {
-            // If the message doesn't have the station_name field, try to add it
-            if (!message.station_name && message.station_id) {
-              // Try to find any existing message with this station_id that has a station_name
-              const referenceMessage = parsedMessages.find(
-                m => m.station_id === message.station_id && m.station_name
-              );
-              
-              if (referenceMessage) {
-                console.log(`Adding missing station_name to message ${message.id}: ${referenceMessage.station_name}`);
-                return {
-                  ...message,
-                  station_name: referenceMessage.station_name
-                };
-              }
-            }
-            return message;
-          });
-        } catch (e) {
-          console.error('Failed to parse saved messages:', e);
-        }
+          return message;
+        });
       }
-      
-      // Notify listeners with current messages
-      this.notifyListeners();
-      
-      return this.messages;
-    } catch (error) {
-      console.error('Failed to load chat messages:', error);
-      
-      // Return existing messages on error
-      return this.messages;
+    } catch (e) {
+      console.error('Failed to parse saved messages:', e);
     }
+    this.notifyListeners();
+    return this.messages;
   }
   
   /**
@@ -260,19 +275,49 @@ class ChatService {
         sender: newMessage.sender
       });
       
-      // Add to local messages
+      // Add to local messages immediately so the UI feels responsive,
+      // then send to the backend. If the backend accepts we swap our
+      // optimistic ID for the real one; if it errors we keep the
+      // local copy (visible to this barista but won't propagate).
       this.messages = [...this.messages, newMessage];
-      
-      // Save to localStorage for sharing between stations
+      this.notifyListeners();
+
+      try {
+        const resp = await this.apiService.request(`${this.baseUrl}/messages`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sender: messageData.sender,
+            content: messageData.content,
+            is_urgent: messageData.is_urgent,
+            station_id: messageData.station_id,
+            baristaName: messageData.baristaName,
+            station_name: newMessage.station_name,
+          }),
+        });
+        const persisted = resp?.message || resp?.data || resp;
+        if (persisted && persisted.id) {
+          // Replace the optimistic row with the server's authoritative copy.
+          this.messages = this.messages.map(m => (m.id === newMessage.id
+            ? {
+                ...newMessage,
+                id: persisted.id,
+                created_at: persisted.created_at || newMessage.created_at,
+              }
+            : m));
+        }
+      } catch (apiError) {
+        console.warn('Chat: backend POST failed, message kept locally only:', apiError?.message || apiError);
+      }
+
+      // Save to localStorage as a cache for next reload.
       try {
         localStorage.setItem('coffee_chat_messages', JSON.stringify(this.messages));
       } catch (storageError) {
         console.error('Failed to save messages to localStorage:', storageError);
       }
-      
-      // Notify listeners
+
       this.notifyListeners();
-      
       return newMessage;
     } catch (error) {
       console.error('Failed to send chat message:', error);
@@ -294,17 +339,27 @@ class ChatService {
       
       // Remove the message from our local array
       this.messages = this.messages.filter(message => message.id !== messageId);
-      
-      // Update localStorage
+
+      // Also delete on the backend so it actually vanishes for other
+      // stations. The DELETE endpoint at /api/chat/messages/<id>
+      // accepts admin/staff/barista roles.
+      try {
+        await this.apiService.request(`${this.baseUrl}/messages/${messageId}`, {
+          method: 'DELETE',
+        });
+      } catch (apiError) {
+        console.warn(`Chat: backend DELETE for ${messageId} failed:`, apiError?.message || apiError);
+      }
+
+      // Update localStorage cache
       try {
         localStorage.setItem('coffee_chat_messages', JSON.stringify(this.messages));
       } catch (storageError) {
         console.error('Failed to save messages to localStorage:', storageError);
       }
-      
-      // Notify listeners
+
       this.notifyListeners();
-      
+
       return { success: true };
     } catch (error) {
       console.error(`Failed to delete message ${messageId}:`, error);
