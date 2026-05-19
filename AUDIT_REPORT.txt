@@ -1,0 +1,307 @@
+
+[1m1. Endpoint URL mismatches[0m
+──────────────────────────
+Backend declared routes: 166
+Frontend call sites:     101
+
+Frontend calls that have NO matching backend route (likely 404):
+• DELETE  /api/<param>/messages/<param>
+• DELETE  /api/users/<param>
+• GET     /api/<param>/inventory
+• GET     /api/<param>/messages
+• GET     /api/<param>/messages/<param>
+• GET     /api/<param>/test
+• GET     /api/auth/logout
+• GET     /api/auth/me
+• GET     /api/auth/set-station/<param>
+• GET     /api/diagnostics/database
+• GET     /api/diagnostics/logs
+• GET     /api/diagnostics/performance
+• GET     /api/diagnostics/sms
+• GET     /api/heartbeat
+• GET     /api/migration/get-inventory
+• GET     /api/orders/search
+• GET     /api/settings/<param>
+• GET     /api/settings/walkin
+• GET     /api/stations/<param>/session
+• GET     /api/stations/broadcast
+• GET     /api/users
+• POST    /api/<param>/auth/refresh
+• POST    /api/<param>/messages
+• POST    /api/diagnostics/test
+• POST    /api/emergency/backup
+• POST    /api/emergency/clear-queues
+• POST    /api/emergency/lock-system
+• POST    /api/emergency/purge-data
+• POST    /api/emergency/reset-database
+• POST    /api/emergency/reset-stations
+  … +23 more
+
+Backend routes the frontend never calls (dead endpoints?):
+• DELETE  /api/<param>
+• DELETE  /api/chat/messages/<param>
+• DELETE  /api/inventory/<param>
+• DELETE  /api/messages/<param>
+• GET     /api/<param>
+• GET     /api/app
+• GET     /api/app/<param>
+• GET     /api/assets/<param>
+• GET     /api/auth/verify
+• GET     /api/auto-test.js
+• GET     /api/barista-react
+• GET     /api/chat/messages
+• GET     /api/chat/messages/<param>
+• GET     /api/chat/stations
+• GET     /api/coffee-sounds.js
+• GET     /api/config
+• GET     /api/customer
+• GET     /api/customer/orders
+• GET     /api/customer/points
+• GET     /api/customer/profile
+• GET     /api/customer_management
+• GET     /api/dashboard
+• GET     /api/display-helper.js
+• GET     /api/display-scaling.css
+• GET     /api/display/orders
+• GET     /api/edit_order/<param>
+• GET     /api/favicon.ico
+• GET     /api/fix-localstorage.js
+• GET     /api/inventory/<param>
+• GET     /api/inventory/categories
+  … +62 more
+
+
+[1m2. Status string consistency[0m
+────────────────────────────
+⚠ 'in_progress' AND 'in-progress' both used:
+  'in_progress' → 6 py file(s), 7 js file(s)
+  'in-progress' → 8 py file(s), 10 js file(s)
+  Sample py with each:
+    'in_progress': routes/order_status_api.py
+    'in-progress': routes/admin_routes.py
+  Sample js with each:
+    'in_progress': Barista Front End/src/components/InProgressOrder.test.js
+    'in-progress': Barista Front End/src/utils/offlineDataHelper.js
+
+⚠ 'picked_up' AND 'picked-up' both used:
+  'picked_up' → 3 py file(s), 5 js file(s)
+  'picked-up' → 1 py file(s), 5 js file(s)
+  Sample py with each:
+    'picked_up': routes/order_status_api.py
+    'picked-up': routes/support_api_routes.py
+  Sample js with each:
+    'picked_up': Barista Front End/src/components/DisplayScreen.js
+    'picked-up': Barista Front End/src/components/DemoDataService.js
+
+
+
+[1m3. localStorage key proliferation[0m
+─────────────────────────────────
+
+[other] 47 keys (likely consolidation candidates):
+  • JWT_SIGNATURE_ERROR  (1 files)
+  • app_version  (2 files)
+  • barista_profiles  (1 files)
+  • coffeeMenu  (3 files)
+  • coffee_auto_refresh_enabled  (1 files)
+  • coffee_auto_refresh_interval  (1 files)
+  • coffee_connection_status  (3 files)
+  • coffee_cue_active_tab  (1 files)
+  • coffee_cue_app_mode  (4 files)
+  • coffee_cue_demo_mode  (1 files)
+  • coffee_cue_enhanced_capabilities  (1 files)
+  • coffee_cue_hidden_demo_items  (2 files)
+  • coffee_cue_schedule  (4 files)
+  • coffee_cue_staff_allocation  (1 files)
+  • coffee_debug_milk_colors  (1 files)
+  • coffee_sound_enabled  (1 files)
+  • coffee_system_config  (1 files)
+  • coffee_system_errors  (3 files)
+  • coffee_system_user  (1 files)
+  • coffee_system_users  (3 files)
+  • connectionMode  (1 files)
+  • demoMode  (1 files)
+  • demoSpeed  (1 files)
+  • demo_data_initialized  (1 files)
+  • demo_mode_enabled  (4 files)
+  • dismissed_info_panels  (2 files)
+  • errorLog  (2 files)
+  • event_menu  (2 files)
+  • event_menu_version  (1 files)
+  • event_schedules  (2 files)
+  • event_sessions  (1 files)
+  • fallback_data_available  (4 files)
+  • global_menu_enabled  (1 files)
+  • html_etag  (1 files)
+  • html_last_modified  (1 files)
+  • jwt_error_endpoints  (3 files)
+  • migration_completed  (1 files)
+  • migration_date  (1 files)
+  • offlineMode  (1 files)
+  • organiser_active_section  (1 files)
+  • organiser_interface_version  (1 files)
+  • session_statuses  (1 files)
+  • supportErrors  (2 files)
+  • use_enhanced_organizer  (1 files)
+  • use_fallback_data  (7 files)
+  • user  (4 files)
+  • websocket_disabled  (1 files)
+
+[station] 28 keys (likely consolidation candidates):
+  • coffee_barista_name_station_${numericStationId}  (3 files)
+  • coffee_cue_selected_station  (5 files)
+  • coffee_cue_stations  (7 files)
+  • coffee_station_barista_${selectedStation}  (1 files)
+  • coffee_station_location_${selectedStation}  (1 files)
+  • coffee_station_name_${selectedStation}  (2 files)
+  • coffee_station_name_${station.id}  (3 files)
+  • coffee_station_name_${stationId}  (1 files)
+  • coffee_stock_station_${i}  (1 files)
+  • currentStationId  (1 files)
+  • last_used_station_id  (4 files)
+  • order_created_at_station_${order.id}  (1 files)
+  • order_created_at_station_${persistentId}  (1 files)
+  • order_created_at_station_${result.id}  (1 files)
+  • organiser_station_tab  (1 files)
+  • stationDefaults  (2 files)
+  • stationInventoryConfig  (3 files)
+  • stationMenuAssignments  (3 files)
+  • station_${currentStationId}_avg_prep_time  (1 files)
+  • station_${currentStationId}_total_completed  (1 files)
+  • station_${currentStationId}_wait_time  (1 files)
+  • station_${newStationId}_avg_prep_time  (1 files)
+  • station_${newStationId}_total_completed  (1 files)
+  • station_broadcasts  (1 files)
+  • station_id  (1 files)
+  • station_inventory_configs  (3 files)
+  • station_inventory_quantities  (3 files)
+  • station_locks  (1 files)
+
+[order] 16 keys (likely consolidation candidates):
+  • ${cachedOrdersKey}_backup  (1 files)
+  • ${cachedOrdersKey}_backup_time  (1 files)
+  • ${ordersKey}_backup  (1 files)
+  • ${ordersKey}_backup_time  (1 files)
+  • coffee_group_orders  (2 files)
+  • completedOrders  (1 files)
+  • demo_completed_orders  (1 files)
+  • demo_in_progress_orders  (1 files)
+  • demo_pending_orders  (1 files)
+  • demo_previous_orders  (1 files)
+  • fallback_completed_orders  (3 files)
+  • fallback_in_progress_orders  (3 files)
+  • fallback_pending_orders  (3 files)
+  • fallback_previous_orders  (3 files)
+  • inProgressOrders  (1 files)
+  • pendingOrders  (1 files)
+
+[auth] 13 keys (likely consolidation candidates):
+  • LAST_TOKEN_RESET  (1 files)
+  • access_token  (4 files)
+  • authToken  (1 files)
+  • auth_error_count  (3 files)
+  • auth_error_refresh_needed  (6 files)
+  • auth_token  (1 files)
+  • coffee_auth_token  (7 files)
+  • coffee_system_token  (10 files)
+  • jwt_token  (5 files)
+  • refreshToken  (5 files)
+  • token  (6 files)
+  • tokenExpiresIn  (2 files)
+  • tokenExpiry  (2 files)
+
+[settings] 8 keys (likely consolidation candidates):
+  • coffee_cue_balancing_settings  (1 files)
+  • coffee_cue_barista_settings  (1 files)
+  • coffee_cue_settings  (3 files)
+  • coffee_station_settings_${order.stationId}  (2 files)
+  • coffee_system_settings  (3 files)
+  • demoSettings  (1 files)
+  • messageServiceSettings  (1 files)
+  • sms_settings  (1 files)
+
+[chat/messages] 3 keys (likely consolidation candidates):
+  • coffee_chat_messages  (1 files)
+  • logout_message  (1 files)
+  • messageHistory  (1 files)
+
+[branding] 2 keys (likely consolidation candidates):
+  • coffee_event_branding  (1 files)
+  • coffee_system_branding  (3 files)
+
+[stock] 2 keys (likely consolidation candidates):
+  • event_stock_levels  (1 files)
+  • fallback_stock_data  (1 files)
+
+[queue/routing] 2 keys (likely consolidation candidates):
+  • coffee_cue_routing_rules  (1 files)
+  • sync_queue  (1 files)
+
+Total distinct keys in use: 122
+
+
+[1m4. Schema column references vs CREATE TABLE[0m
+───────────────────────────────────────────
+⚠ Table 'chat_messages' — referenced but not declared:
+• content  (e.g. in routes/api_routes.py)
+• created_at  (e.g. in routes/api_routes.py)
+• is_urgent  (e.g. in routes/chat_api_routes.py)
+• sender  (e.g. in routes/chat_api_routes.py)
+
+⚠ Table 'customer_preferences' — referenced but not declared:
+• account_status  (e.g. in routes/admin_routes.py)
+• favorite_time_of_day  (e.g. in routes/admin_routes.py)
+• first_order_date  (e.g. in routes/admin_routes.py)
+• last_order_date  (e.g. in routes/admin_routes.py)
+• loyalty_free_drinks  (e.g. in services/coffee_system.py)
+• loyalty_points  (e.g. in services/coffee_system.py)
+• name  (e.g. in app.py)
+• phone  (e.g. in services/coffee_system.py)
+• preferred_drink  (e.g. in services/coffee_system.py)
+• preferred_milk  (e.g. in services/coffee_system.py)
+• preferred_notes  (e.g. in services/coffee_system.py)
+• preferred_size  (e.g. in services/coffee_system.py)
+• preferred_sugar  (e.g. in services/coffee_system.py)
+• total_orders  (e.g. in routes/admin_routes.py)
+
+⚠ Table 'station_stats' — referenced but not declared:
+• station_count  (e.g. in services/coffee_system.py)
+• wait_time  (e.g. in services/coffee_system.py)
+
+⚠ Table 'users' — referenced but not declared:
+• created_at  (e.g. in routes/users_simple_api.py)
+• email  (e.g. in routes/consolidated_api_routes.py)
+• full_name  (e.g. in routes/consolidated_api_routes.py)
+• last_login  (e.g. in routes/users_simple_api.py)
+• role  (e.g. in routes/users_simple_api.py)
+• username  (e.g. in app.py)
+
+Note: this check is heuristic — false positives include
+SQL aliases, function names, and JSON keys. Use it as a
+starting point, then verify with the real schema.
+
+
+[1m5. Parallel / orphan component files[0m
+────────────────────────────────────
+Found 1 files with parallel variants:
+
+  Barista Front End/src/services/ApiService.js
+    └─ Barista Front End/src/services/ApiService.simplified.js
+
+Recommendation: move all variants to _archive_legacy/ unless
+verified to be wired in. Use `grep -l ImportName src` to confirm.
+
+
+[1m6. Dead UI button handlers (alert/console/empty)[0m
+────────────────────────────────────────────────
+Found 8 placeholder handler(s):
+
+• Barista Front End/src/components/EnhancedLiveOperationsDashboard.js:584  onClick={() => console.log('Announce')}
+• Barista Front End/src/components/EnhancedLiveOperationsDashboard.js:606  onClick={() => console.log('Redistribute')}
+• Barista Front End/src/components/EnhancedLiveOperationsDashboard.js:615  onClick={() => console.log('Manual SMS')}
+• Barista Front End/src/components/EnhancedStationCapabilities.js:412  onClick={() => console.log('Assign order to station')}
+• Barista Front End/src/components/support-tabs/DashboardTab.js:143  onClick={() => console.log('Pause all orders')}
+• Barista Front End/src/components/support-tabs/DashboardTab.js:149  onClick={() => console.log('Broadcast message')}
+• Barista Front End/src/components/support-tabs/DashboardTab.js:155  onClick={() => console.log('Restart services')}
+• Barista Front End/src/components/support-tabs/DashboardTab.js:161  onClick={() => console.log('Emergency stop')}
+
