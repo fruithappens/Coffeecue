@@ -706,41 +706,59 @@ def get_in_progress_orders():
 @bp.route('/orders/completed', methods=['GET'])
 @jwt_required_with_demo()
 def get_completed_orders():
-    """Get all completed orders"""
+    """Get completed orders.
+
+    Optional `?station_id=N` filters to just that station — the
+    Barista interface uses this so each station shows only its own
+    completed orders rather than every station's. Without the filter
+    (e.g. a manager-wide report) every station's completions come
+    back. The response now also includes `station_id` so callers can
+    label which station completed each order.
+    """
     try:
-        # Get coffee system from app context
         coffee_system = current_app.config.get('coffee_system')
         db = coffee_system.db
-        
-        # Query database for completed orders
+        # Defensive rollback — clear any prior aborted transaction
+        # state on the shared connection (same pattern as the other
+        # read endpoints).
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+        station_filter = request.args.get('station_id', type=int)
         cursor = db.cursor()
-        cursor.execute('''
-            SELECT id, order_number, status, station_id,
-                   created_at, updated_at, phone, order_details, picked_up_at
-            FROM orders 
-            WHERE status IN ('completed', 'picked_up')
-            ORDER BY updated_at DESC
-            LIMIT 10
-        ''')
-        
-        # Process orders
+        if station_filter is not None:
+            cursor.execute('''
+                SELECT id, order_number, status, station_id,
+                       created_at, updated_at, phone, order_details, picked_up_at
+                FROM orders
+                WHERE status IN ('completed', 'picked_up')
+                  AND station_id = %s
+                ORDER BY updated_at DESC
+                LIMIT 50
+            ''', (station_filter,))
+        else:
+            cursor.execute('''
+                SELECT id, order_number, status, station_id,
+                       created_at, updated_at, phone, order_details, picked_up_at
+                FROM orders
+                WHERE status IN ('completed', 'picked_up')
+                ORDER BY updated_at DESC
+                LIMIT 50
+            ''')
+
         completed_orders = []
         for order in cursor.fetchall():
-            # Extract order details
             order_id, order_number, status, station_id, created_at, updated_at, phone, order_details_json, picked_up_at = order
-            
-            # Use updated_at as completed_at time
             completed_at = updated_at or created_at
-            
-            # Parse order details
             if isinstance(order_details_json, str):
                 order_details = json.loads(order_details_json)
             else:
                 order_details = order_details_json
-            
-            # Format order for frontend
+
             completed_orders.append({
-                'id': order_number,  # Use order_number as id for consistency
+                'id': order_number,
                 'order_number': order_number,
                 'customer_name': order_details.get('name', 'Customer'),
                 'phone_number': phone,
@@ -748,9 +766,13 @@ def get_completed_orders():
                 'milk_type': order_details.get('milk', 'Standard'),
                 'completed_at': completed_at,
                 'picked_up_at': picked_up_at,
-                'pickedUpAt': picked_up_at,  # camelCase for frontend compatibility
+                'pickedUpAt': picked_up_at,
                 'status': status,
-                'ready_for_pickup': status == 'completed'
+                # Include station so callers can either filter again
+                # client-side or label which station made each one.
+                'station_id': station_id,
+                'stationId': station_id,
+                'ready_for_pickup': status == 'completed',
             })
         
         return jsonify({
