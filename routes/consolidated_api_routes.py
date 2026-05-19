@@ -4763,6 +4763,210 @@ def upsert_branding_settings():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+# ----------------------------------------------------------------------
+# Quick Setup — single-call "café in 30 seconds" wizard.
+#
+# Operators ran into a wall the first time they set up an event: every
+# milk type, cup size, drink category and station capability had to be
+# configured by hand across multiple panels. This endpoint takes a
+# single preset object and applies the whole config in one shot.
+# ----------------------------------------------------------------------
+
+DEFAULT_QUICK_PRESET = {
+    'milks': ['full cream', 'skim', 'oat', 'almond', 'lactose free'],
+    'sizes': ['medium'],
+    'sweeteners': ['no sugar', '1 sugar', '2 sugar'],
+    'drinks': {
+        'espresso_drinks': True,   # latte, cappuccino, flat white, espresso, long black, mocha
+        'hot_chocolate': False,
+        'chai': False,
+        'matcha': False,
+        'tea': False,
+    },
+    'unlimited_stock': True,
+    'all_stations_same_capabilities': True,
+    'always_open_schedule': True,
+}
+
+ESPRESSO_DRINKS = ['latte', 'cappuccino', 'flat white', 'espresso', 'long black', 'mocha']
+EXTRA_DRINKS = {
+    'hot_chocolate': [('hot chocolate', 'drinks')],
+    'chai':          [('chai latte', 'drinks')],
+    'matcha':        [('matcha latte', 'drinks')],
+    'tea':           [('tea', 'drinks')],
+}
+
+
+def _milk_default_amount(name):
+    """Reasonable starting amounts so the new event isn't immediately
+    "out of stock". 20 L for primary milks, 10 L for niche ones."""
+    primary = {'full cream', 'skim', 'oat', 'soy'}
+    return 30 if name in primary else 15
+
+
+def _coffee_default_kg():
+    return 5  # 5 kg of coffee beans is a small-event starting point
+
+
+def _apply_quick_setup(coffee_system, preset):
+    """Returns a list of summary strings describing what was applied."""
+    db = coffee_system.db
+    cur = db.cursor()
+    summary = []
+
+    # 1. Wipe-and-rebuild inventory items. The operator can refine
+    # individual rows after this initial setup.
+    cur.execute("DELETE FROM inventory_items")
+
+    # Milks
+    for milk in preset.get('milks', []):
+        amount = _milk_default_amount(milk)
+        cur.execute("""
+            INSERT INTO inventory_items
+            (category, name, amount, unit, capacity, minimum_threshold)
+            VALUES ('milk', %s, %s, 'L', %s, 2)
+        """, (milk, amount, amount * 2))
+    summary.append(f"{len(preset.get('milks', []))} milk types")
+
+    # Coffee beans (always: house blend; never the drinks-as-stock
+    # confusion the operator flagged). Decaf as a second SKU so the
+    # SMS flow can route decaf orders to a station that has decaf.
+    cur.execute("""
+        INSERT INTO inventory_items (category, name, amount, unit, capacity, minimum_threshold)
+        VALUES ('coffee', 'house blend beans', %s, 'kg', %s, 1),
+               ('coffee', 'decaf beans', %s, 'kg', %s, 1)
+    """, (_coffee_default_kg(), _coffee_default_kg() * 2,
+          _coffee_default_kg() / 2, _coffee_default_kg()))
+    summary.append("2 coffee bean SKUs (house + decaf)")
+
+    # Cup sizes
+    for size in preset.get('sizes', []):
+        cur.execute("""
+            INSERT INTO inventory_items (category, name, amount, unit, capacity, minimum_threshold)
+            VALUES ('cups', %s, 200, 'units', 500, 50)
+        """, (size,))
+    summary.append(f"{len(preset.get('sizes', []))} cup size(s)")
+
+    # Sweeteners
+    for s in preset.get('sweeteners', []):
+        cur.execute("""
+            INSERT INTO inventory_items (category, name, amount, unit, capacity, minimum_threshold)
+            VALUES ('sugar', %s, 200, 'sachets', 500, 20)
+        """, (s,))
+    summary.append(f"{len(preset.get('sweeteners', []))} sweetener option(s)")
+
+    # Drink categories: enable espresso-based drinks; optionally
+    # add the non-coffee drinks the operator wants. We seed these as
+    # rows in the existing `drinks` category so the walk-in dialog
+    # picks them up (it already scans for "chai", "matcha" etc.).
+    drinks_cfg = preset.get('drinks', {})
+    if drinks_cfg.get('espresso_drinks', True):
+        # Espresso drinks don't need to be in inventory — the
+        # backend's _get_available_coffee_types returns the standard
+        # list when coffee beans are in stock. So no rows needed.
+        pass
+    extras_added = 0
+    for key, rows in EXTRA_DRINKS.items():
+        if drinks_cfg.get(key):
+            for name, category in rows:
+                cur.execute("""
+                    INSERT INTO inventory_items (category, name, amount, unit, capacity, minimum_threshold)
+                    VALUES (%s, %s, 50, 'units', 100, 10)
+                """, (category, name))
+                extras_added += 1
+    if extras_added:
+        summary.append(f"{extras_added} extra non-coffee drink(s)")
+
+    db.commit()
+
+    # 2. Unlimited stock mode — the conversation flow can check this
+    # flag to skip "you're out of X" responses for organisers who
+    # aren't tracking stock at the event.
+    unlimited = bool(preset.get('unlimited_stock'))
+    _kv_put(db, 'unlimited_stock_mode', {'enabled': unlimited})
+    if unlimited:
+        summary.append("unlimited-stock mode ON")
+
+    # 3. All stations same capabilities — copy the first station's
+    # capabilities (or build a default) to every station.
+    if preset.get('all_stations_same_capabilities'):
+        capabilities = {
+            'milk_types': preset.get('milks', []),
+            'coffee_types': ESPRESSO_DRINKS,
+            'sizes': preset.get('sizes', []),
+            'alt_milk': True,
+        }
+        cur.execute(
+            "UPDATE station_stats SET capabilities = %s::jsonb",
+            (json.dumps(capabilities),),
+        )
+        db.commit()
+        summary.append("all stations given the same capabilities")
+
+    # 4. Always-open schedule — clear event_breaks so the
+    # break-window logic in _assign_station can't accidentally
+    # narrow routing during the event.
+    if preset.get('always_open_schedule'):
+        try:
+            cur.execute("DELETE FROM event_breaks")
+            db.commit()
+            summary.append("schedule set to always open (no breaks)")
+        except Exception:
+            db.rollback()
+
+    return summary
+
+
+@bp.route('/quick-setup/preset', methods=['GET'])
+@jwt_required_with_demo()
+def get_quick_setup_preset():
+    """Return the suggested defaults so the UI can pre-fill checkboxes."""
+    return jsonify({'preset': DEFAULT_QUICK_PRESET})
+
+
+@bp.route('/quick-setup', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def apply_quick_setup():
+    """Apply the supplied preset (or DEFAULT_QUICK_PRESET if empty).
+
+    DESTRUCTIVE: wipes the inventory_items table before rebuilding.
+    The endpoint requires admin/staff role. Returns a summary of
+    everything that was applied.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        body = request.get_json() or {}
+        preset = body.get('preset') if isinstance(body.get('preset'), dict) else body or DEFAULT_QUICK_PRESET
+        # Merge with defaults so callers can send just the fields
+        # they want to override.
+        merged = {**DEFAULT_QUICK_PRESET, **(preset or {})}
+        # drinks is a nested dict — merge it too
+        if isinstance(preset.get('drinks'), dict):
+            merged['drinks'] = {
+                **DEFAULT_QUICK_PRESET['drinks'],
+                **preset['drinks'],
+            }
+        summary = _apply_quick_setup(coffee_system, merged)
+        # Invalidate the unlimited-stock cache so the conversation
+        # flow's next read picks up the new value immediately.
+        if hasattr(coffee_system, '_invalidate_unlimited_stock_cache'):
+            coffee_system._invalidate_unlimited_stock_cache()
+        return jsonify({
+            'success': True,
+            'applied': summary,
+            'summary': '; '.join(summary),
+            'preset': merged,
+        })
+    except Exception as e:
+        logger.exception(f"apply_quick_setup failed: {e}")
+        try:
+            current_app.config.get('coffee_system').db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @bp.route('/event-stock', methods=['GET'])
 @jwt_required_with_demo()
 def get_event_stock():

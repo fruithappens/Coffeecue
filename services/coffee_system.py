@@ -1105,32 +1105,79 @@ class CoffeeOrderSystem:
             self._set_conversation_state(phone, 'awaiting_coffee_type', {'name': name})
             return f"You don't have a saved usual order yet. What type of coffee would you like, {name}?"
     
-    def _get_available_coffee_types(self):
-        """Get list of available coffee drink types based on ingredient availability"""
+    # The standard espresso-based drink menu — returned when coffee
+    # beans are in stock OR when unlimited-stock mode is on. Promoted
+    # to a class attribute so both that path and the fallback share
+    # the source of truth.
+    _STANDARD_DRINK_MENU = ["latte", "cappuccino", "flat white",
+                            "long black", "espresso", "mocha"]
+
+    def _is_unlimited_stock_mode(self):
+        """When the Quick Setup wizard sets 'unlimited_stock', the
+        operator isn't tracking stock for this event — skip the
+        "we're out of X" branches so customers don't get spurious
+        rejections. Cached at first call to avoid hitting the DB on
+        every conversation turn.
+        """
+        if hasattr(self, '_unlimited_stock_cache'):
+            return self._unlimited_stock_cache
         try:
             cursor = self.db.cursor()
-            
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            cursor.execute(
+                "SELECT value FROM settings WHERE key = 'unlimited_stock_mode'"
+            )
+            row = cursor.fetchone()
+            if row and row[0]:
+                import json as _json
+                try:
+                    parsed = _json.loads(row[0])
+                    self._unlimited_stock_cache = bool(parsed.get('enabled'))
+                    return self._unlimited_stock_cache
+                except (TypeError, ValueError):
+                    pass
+        except Exception as e:
+            logger.error(f"Error reading unlimited_stock_mode: {e}")
+        self._unlimited_stock_cache = False
+        return False
+
+    def _invalidate_unlimited_stock_cache(self):
+        """Called after Quick Setup so the next conversation turn
+        picks up the new mode without a process restart."""
+        if hasattr(self, '_unlimited_stock_cache'):
+            del self._unlimited_stock_cache
+
+    def _get_available_coffee_types(self):
+        """Get list of available coffee drink types based on ingredient availability"""
+        # Unlimited-stock mode: don't check inventory at all.
+        if self._is_unlimited_stock_mode():
+            return list(self._STANDARD_DRINK_MENU)
+        try:
+            cursor = self.db.cursor()
+
             # Check if we have coffee beans available
             cursor.execute("""
-                SELECT COUNT(*) FROM inventory_items 
-                WHERE category = 'coffee' 
+                SELECT COUNT(*) FROM inventory_items
+                WHERE category = 'coffee'
                 AND (amount IS NULL OR amount > COALESCE(minimum_threshold, 0))
             """)
             coffee_available = cursor.fetchone()[0] > 0
-            
+
             # Standard drink menu - only return if we have coffee beans
             if coffee_available:
-                drink_types = ["latte", "cappuccino", "flat white", "long black", "espresso", "mocha"]
-                logger.info(f"Coffee beans available, offering drink types: {drink_types}")
-                return drink_types
+                logger.info(f"Coffee beans available, offering drink types: {self._STANDARD_DRINK_MENU}")
+                return list(self._STANDARD_DRINK_MENU)
             else:
                 logger.warning("No coffee beans in stock, cannot offer coffee drinks")
                 return []
-            
+
         except Exception as e:
             logger.error(f"Error checking coffee availability: {str(e)}")
             # Return basic menu if there's an error
-            return ["latte", "cappuccino", "flat white", "long black", "espresso"]
+            return list(self._STANDARD_DRINK_MENU)
 
     def _is_valid_coffee_type(self, requested_type, available_types):
         """Check if the requested coffee type is valid"""
@@ -1147,8 +1194,14 @@ class CoffeeOrderSystem:
         
         return False
 
+    _STANDARD_MILK_MENU = ["full cream", "skim", "oat", "almond",
+                           "lactose free", "soy"]
+
     def _get_available_milk_types(self):
         """Get list of available milk types from inventory management."""
+        # Unlimited-stock mode: bypass inventory lookup entirely.
+        if self._is_unlimited_stock_mode():
+            return list(self._STANDARD_MILK_MENU)
         # Recover the connection from any prior aborted transaction. If we
         # don't do this, an unrelated upstream error silently changes the
         # customer's available milk options to the hard-coded
@@ -1202,8 +1255,15 @@ class CoffeeOrderSystem:
         
         return False
 
+    _STANDARD_SWEETENER_MENU = [("no sugar", "sugar"), ("1 sugar", "sugar"),
+                                ("2 sugar", "sugar"), ("3 sugar", "sugar"),
+                                ("half sugar", "sugar")]
+
     def _get_available_sweeteners(self):
         """Get list of available sweeteners from inventory management"""
+        # Unlimited-stock mode: skip inventory lookup.
+        if self._is_unlimited_stock_mode():
+            return list(self._STANDARD_SWEETENER_MENU)
         try:
             cursor = self.db.cursor()
             # Check for both 'sweetener' and 'sugar' categories
