@@ -52,6 +52,46 @@ TESTING_MODE=True JWT_SECRET_KEY=test SECRET_KEY=test PORT=5001 \
 python test_e2e_event_scenario.py
 ```
 
+## Update 2026-05-19 (later still): four operator-reported bugs confirmed and fixed
+
+The operator listed four areas they remembered as historically buggy: adding new stations, renaming stations, load balancing, and milk-specific routing. Drove the live stack (Postgres + Flask backend + React frontend) through [test_browser_scenarios.py](test_browser_scenarios.py) (headless Chromium via Playwright). All four are now passing along with stock deduction. Tests output to `test_screenshots/` for review.
+
+**The fixes (all in commit `64a18ab`):**
+
+- **Load balancing on Postgres**: `_confirm_order`'s station-load increment was nested *inside* the SQLite `except` branch. The Postgres path never ran. `current_load` stayed at 0 forever and `ORDER BY load` always picked Station 1. With 4 stations active, 6 orders now distribute 1-2-1-2 instead of 6-0-0-0.
+- **Milk routing** (two compounding bugs): `_assign_station` read capabilities from a non-existent column `equipment_notes` (the JSONB column is actually called `capabilities`), AND the break-time parser called `.split(':')` on `datetime.time` objects, throwing `AttributeError` that the outer except caught — silently bypassing all milk-aware routing. Both fixed; a soy order with soy stocked only at Station 3 is now correctly routed there.
+- **Adding stations**: `POST /api/stations` previously rejected requests that didn't include a client-provided `station_id`. Now auto-assigns `MAX(station_id) + 1` when none is supplied.
+- **Renaming stations**: PATCH endpoint existed and mapped frontend `name` → legacy `notes` column, but `station_stats` had no `notes` column on most installs → UPDATE silently failed. Now `pg_init.py` creates it for fresh installs, `_init_event_scheduling` `ALTER TABLE IF NOT EXISTS` for upgrades, and `Station.update_station` deduplicates column targets so a UI sending both `name` and `notes` doesn't crash.
+- **Bonus — inventory decrement**: live code had no `UPDATE inventory_items` logic (only the backup folder did). `_confirm_order` now decrements per drink: small/medium/large = 150/200/280 mL milk, 1 shot of coffee. Confirmed oat 20.00 → 19.80 L on a medium oat latte; full cream 30.00 → 28.80 L after 6 medium orders.
+- **TESTING_MODE rate limit bypass**: drops the default 50/hr cap so E2E scripts can place dozens of orders without 429ing.
+
+### Test infrastructure now in place
+
+- `test_sms_conversation_flow.py` — 19 unit tests, mocked DB. Plain `python3`. Verifies SMS flow & defaults handling.
+- `test_e2e_event_scenario.py` — 15-step live HTTP scenario via API.
+- `test_browser_scenarios.py` — 7 headless-browser scenarios via Playwright. Requires Postgres + backend + frontend running. Generates screenshots in `test_screenshots/` for visual review.
+
+### How to run the browser scenarios
+
+```bash
+# One-time: install Playwright + Chromium (~92 MB)
+/Users/stevewf/expresso/bin/pip install playwright
+/Users/stevewf/expresso/bin/python -m playwright install chromium
+
+# Each run: spin up backend + frontend, then drive the scenarios
+DATABASE_URL=postgresql://localhost/expresso_test_<timestamp> \
+TESTING_MODE=True JWT_SECRET_KEY=test SECRET_KEY=test PORT=5001 \
+    /Users/stevewf/expresso/bin/python run_server.py &
+
+cd "Barista Front End" && BROWSER=none PORT=3000 npm start &
+
+# Then in any terminal:
+DATABASE_URL=postgresql://localhost/expresso_test_<timestamp> \
+    /Users/stevewf/expresso/bin/python test_browser_scenarios.py
+```
+
+The seed inventory (coffee + milk + sugar rows) is in the `## Update 2026-05-19 (later that day)` section below.
+
 ## Quick orientation for the next session
 
 - The SMS conversation flow has 9 unit tests in [test_sms_conversation_flow.py](test_sms_conversation_flow.py). Run with plain `python3 test_sms_conversation_flow.py` — no pytest or Postgres required (DB is stubbed in-process). Add a test before touching `services/coffee_system.py` or `services/nlp.py`.
