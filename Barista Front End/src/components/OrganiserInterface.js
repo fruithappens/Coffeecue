@@ -371,27 +371,28 @@ const OrganiserInterface = () => {
               
               {/* Tab Content */}
               {stationTab === 'settings' && (
-                <StationSettings 
+                <StationSettings
                   stations={stations}
                   onStationUpdate={async (stationId, stationData) => {
+                    // ApiService is exported as a class — must be
+                    // instantiated before calling request(). The
+                    // previous version called ApiService.request(...)
+                    // directly on the class and silently failed with
+                    // "TypeError: ApiService.request is not a function",
+                    // which is why Add / Update / Delete Station all
+                    // appeared broken from the UI even after the
+                    // backend API was correct.
                     try {
                       console.log('Updating station:', stationId, stationData);
-                      
-                      // Import ApiService if not already available
-                      const { default: ApiService } = await import('../services/ApiService');
-                      
-                      // Update station via API
-                      const response = await ApiService.request(`/stations/${stationId}`, {
+                      const { default: ApiServiceClass } = await import('../services/ApiService');
+                      const apiService = new ApiServiceClass();
+                      const response = await apiService.request(`/stations/${stationId}`, {
                         method: 'PATCH',
-                        headers: {
-                          'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(stationData)
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(stationData),
                       });
-                      
                       if (response.success) {
                         console.log('Station updated successfully:', response);
-                        // Refresh stations list
                         refreshData();
                         return true;
                       } else {
@@ -406,28 +407,21 @@ const OrganiserInterface = () => {
                   onAddStation={async (stationData) => {
                     try {
                       console.log('Adding station:', stationData);
-                      
-                      // Import ApiService if not already available
-                      const { default: ApiService } = await import('../services/ApiService');
-                      
-                      // Generate a new station ID (simple approach - in production you'd let the backend handle this)
+                      const { default: ApiServiceClass } = await import('../services/ApiService');
+                      const apiService = new ApiServiceClass();
+                      // Backend auto-assigns station_id when omitted
+                      // (see routes/station_api_routes.py create_station).
+                      // We send a client-suggested id as a fallback,
+                      // but the server-side allocation is the source
+                      // of truth.
                       const newStationId = Math.max(0, ...stations.map(s => s.id || 0)) + 1;
-                      
-                      // Add station via API
-                      const response = await ApiService.request('/stations', {
+                      const response = await apiService.request('/stations', {
                         method: 'POST',
-                        headers: {
-                          'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                          station_id: newStationId,
-                          ...stationData
-                        })
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ station_id: newStationId, ...stationData }),
                       });
-                      
                       if (response.success) {
                         console.log('Station added successfully:', response);
-                        // Refresh stations list
                         refreshData();
                         return true;
                       } else {
@@ -442,18 +436,13 @@ const OrganiserInterface = () => {
                   onDeleteStation={async (stationId) => {
                     try {
                       console.log('Deleting station:', stationId);
-                      
-                      // Import ApiService if not already available
-                      const { default: ApiService } = await import('../services/ApiService');
-                      
-                      // Delete station via API
-                      const response = await ApiService.request(`/stations/${stationId}`, {
-                        method: 'DELETE'
+                      const { default: ApiServiceClass } = await import('../services/ApiService');
+                      const apiService = new ApiServiceClass();
+                      const response = await apiService.request(`/stations/${stationId}`, {
+                        method: 'DELETE',
                       });
-                      
                       if (response.success) {
                         console.log('Station deleted successfully:', response);
-                        // Refresh stations list
                         refreshData();
                         return true;
                       } else {
