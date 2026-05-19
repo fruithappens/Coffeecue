@@ -52,17 +52,28 @@ const OperationsTab = () => {
 
   const loadOperationalData = async () => {
     try {
-      // Load stations data first (this works)
+      // Load stations. StationsService.getStations() may return either
+      // a bare array or {stations: [...]} depending on the endpoint
+      // shape — unwrap defensively so .map() below doesn't blow up.
       const stationsData = await StationsService.getStations();
-      setStations(stationsData);
-      
-      // Try to load orders, but handle failure gracefully
+      const stationsArr = Array.isArray(stationsData)
+        ? stationsData
+        : (stationsData?.stations || stationsData?.data || []);
+      setStations(stationsArr);
+
+      // Same for orders. ApiService.get('/api/orders/pending') returns
+      // the full {success, orders: [...]} envelope; storing the
+      // envelope as state caused .filter() to throw
+      // ("orderQueue.filter is not a function") and the whole
+      // OperationsTab to be replaced by the Error Boundary fallback.
       try {
-        const ordersData = await ApiService.get('/api/orders/pending');
-        setOrderQueue(ordersData || []);
+        const ordersResp = await ApiService.get('/api/orders/pending');
+        const ordersArr = Array.isArray(ordersResp)
+          ? ordersResp
+          : (ordersResp?.orders || ordersResp?.data || []);
+        setOrderQueue(ordersArr);
       } catch (orderError) {
         console.warn('Could not load pending orders:', orderError);
-        // Use empty array if orders endpoint fails
         setOrderQueue([]);
       }
       

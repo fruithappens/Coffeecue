@@ -1,5 +1,5 @@
 // components/NotificationSystem.js
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { X, AlertCircle, Check, Info, AlertTriangle } from 'lucide-react';
 
 // Create context for the notification system
@@ -42,9 +42,16 @@ const DEFAULT_DURATION = 5000; // 5 seconds
 export const NotificationProvider = ({ children }) => {
   const [notifications, setNotifications] = useState([]);
 
-  // Add a new notification
+  // Add a new notification.
+  // Previously `id = Date.now()` — two notifications added within
+  // the same millisecond would collide, producing React's
+  // "Encountered two children with the same key" warning, which in
+  // turn could drop or duplicate notifications. A counter combined
+  // with the timestamp guarantees uniqueness even at high frequency.
+  const notificationCounter = useRef(0);
   const addNotification = useCallback((type, message, duration = DEFAULT_DURATION) => {
-    const id = Date.now().toString();
+    notificationCounter.current += 1;
+    const id = `${Date.now()}-${notificationCounter.current}`;
     const newNotification = {
       id,
       type,

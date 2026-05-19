@@ -4627,3 +4627,107 @@ def database_info():
             'error': str(e),
             'database_type': 'PostgreSQL'
         })
+
+# -------------------------------------------------------------------
+# Stub endpoints for two routes the frontend calls on load that
+# previously 404'd, flooding the console with errors and triggering
+# the smoke test. They both store JSON under a `settings` row so
+# operators get real persistence without a schema change.
+# -------------------------------------------------------------------
+
+def _kv_get(db, key, default=None):
+    cur = db.cursor()
+    try:
+        db.rollback()
+    except Exception:
+        pass
+    cur.execute("SELECT value FROM settings WHERE key = %s", (key,))
+    row = cur.fetchone()
+    if not row:
+        return default
+    raw = row[0] if not isinstance(row, dict) else row.get('value')
+    try:
+        return json.loads(raw) if raw else default
+    except (TypeError, ValueError):
+        return raw if raw is not None else default
+
+
+def _kv_put(db, key, value):
+    cur = db.cursor()
+    try:
+        db.rollback()
+    except Exception:
+        pass
+    payload = json.dumps(value)
+    cur.execute("""
+        INSERT INTO settings (key, value, updated_at)
+        VALUES (%s, %s, NOW())
+        ON CONFLICT (key) DO UPDATE
+            SET value = EXCLUDED.value, updated_at = NOW()
+    """, (key, payload))
+    db.commit()
+
+
+@bp.route('/barista-profiles', methods=['GET'])
+@jwt_required_with_demo()
+def get_barista_profiles():
+    """Return saved barista profiles (or {} if none have been saved yet).
+
+    The frontend (EnhancedStationCapabilities.js) calls this on
+    mount; previously the endpoint didn't exist and the 404 floods
+    the console. Persists to settings under key 'barista_profiles'.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        profiles = _kv_get(coffee_system.db, 'barista_profiles', default={}) or {}
+        return jsonify(profiles)
+    except Exception as e:
+        logger.error(f"get_barista_profiles error: {e}")
+        return jsonify({}), 200  # fall back to empty so frontend uses localStorage
+
+
+@bp.route('/barista-profiles/<name>', methods=['PUT', 'POST'])
+@jwt_required_with_demo()
+def upsert_barista_profile(name):
+    """Save/update one barista profile by name."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        data = request.get_json() or {}
+        profiles = _kv_get(coffee_system.db, 'barista_profiles', default={}) or {}
+        profiles[name] = data
+        _kv_put(coffee_system.db, 'barista_profiles', profiles)
+        return jsonify({'success': True, 'name': name})
+    except Exception as e:
+        logger.error(f"upsert_barista_profile error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/sms/templates', methods=['GET'])
+@jwt_required_with_demo()
+def get_sms_templates_api():
+    """Mirror of routes/sms_routes.py /sms/templates under the /api prefix.
+
+    The frontend calls /api/sms/templates; the existing sms_routes.py
+    handler lives at /sms/templates (no /api). Frontend was 404ing
+    on every Communications-tab visit.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        cur = db.cursor()
+        cur.execute("SELECT key, value FROM settings WHERE key LIKE %s", ('%_message',))
+        rows = cur.fetchall() or []
+        templates = {}
+        for row in rows:
+            if isinstance(row, dict):
+                templates[row['key']] = row['value']
+            else:
+                templates[row[0]] = row[1]
+        return jsonify({'status': 'success', 'templates': templates})
+    except Exception as e:
+        logger.error(f"get_sms_templates_api error: {e}")
+        return jsonify({'status': 'success', 'templates': {}})

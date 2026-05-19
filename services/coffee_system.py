@@ -227,6 +227,15 @@ class CoffeeOrderSystem:
                 ALTER TABLE customer_preferences
                 ADD COLUMN IF NOT EXISTS is_vip BOOLEAN DEFAULT FALSE
             """)
+            # users.is_active is referenced by support_api_routes.py
+            # (UserManagement panel and the /api/users CRUD) but was
+            # never in the schema — GET /api/users 500'd with
+            # "column is_active does not exist" on every Support →
+            # Users visit.
+            cursor.execute("""
+                ALTER TABLE users
+                ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE
+            """)
             self.db.commit()
 
             # Seed default capabilities for stations that don't have

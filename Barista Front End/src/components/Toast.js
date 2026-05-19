@@ -51,10 +51,15 @@ export const ToastManager = () => {
   const [toasts, setToasts] = useState([]);
 
   useEffect(() => {
-    // Listen for custom toast events
+    // Listen for custom toast events.
+    // Same bug as NotificationSystem had: Date.now() alone collides
+    // for back-to-back events in the same millisecond. Append a
+    // counter so React keys stay unique.
+    let counter = 0;
     const handleToast = (event) => {
       const { message, type, duration } = event.detail;
-      const id = Date.now();
+      counter += 1;
+      const id = `${Date.now()}-${counter}`;
       setToasts(prev => [...prev, { id, message, type, duration }]);
     };
 
