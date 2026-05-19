@@ -41,8 +41,15 @@ const AllOrdersTab = () => {
         previous: []
       };
 
-      // Get all station IDs
-      const stations = ['1', '2', '3']; // Could be made dynamic
+      // Get all station IDs. We can't easily call the useStations hook
+      // here because this function runs inside a setInterval, so discover
+      // stations by scanning localStorage cache keys instead. Previously
+      // this was hardcoded to ['1','2','3'] which silently dropped orders
+      // for any other station.
+      const cacheKeyPrefix = 'orders_cache_station_';
+      const stations = Object.keys(localStorage)
+        .filter(key => key.startsWith(cacheKeyPrefix))
+        .map(key => key.slice(cacheKeyPrefix.length));
 
       // Load orders from each station's cache
       stations.forEach(stationId => {

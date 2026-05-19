@@ -201,13 +201,17 @@ class NLPService:
                 
         return False
     
-    def parse_order(self, message):
+    def parse_order(self, message, apply_defaults=False):
         """
-        Parse a customer message to extract order details
-        
+        Parse a customer message to extract order details.
+
         Args:
             message: Text message from customer
-            
+            apply_defaults: If True, fill in "medium" size and "full cream" milk
+                when those fields weren't found in the message. Defaults to False
+                so callers can distinguish "customer said X" from "system guessed X"
+                and prompt the customer for any missing fields.
+
         Returns:
             Dictionary with extracted order details
         """
@@ -283,15 +287,17 @@ class NLPService:
         if notes:
             order_details["notes"] = notes
         
-        # Set default size if not specified
-        if "size" not in order_details:
-            order_details["size"] = "medium"
-        
-        # Set default milk for coffee types that typically need it
-        if "milk" not in order_details and "type" in order_details:
-            if not self.is_black_coffee(order_details["type"]):
-                order_details["milk"] = "full cream"
-        
+        # Only apply defaults if the caller explicitly asked for them.
+        # The SMS conversation flow (see services/coffee_system.py) opts out
+        # so it can detect missing fields and prompt the customer, instead of
+        # silently sending an order with assumed milk/size.
+        if apply_defaults:
+            if "size" not in order_details:
+                order_details["size"] = "medium"
+            if "milk" not in order_details and "type" in order_details:
+                if not self.is_black_coffee(order_details["type"]):
+                    order_details["milk"] = "full cream"
+
         return order_details
     
     def _normalize_message(self, message):

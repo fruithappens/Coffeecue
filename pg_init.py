@@ -223,7 +223,16 @@ def create_tables(conn):
             qr_code_url TEXT
         )
         ''')
-        
+
+        # Human-friendly order number counter. coffee_system._confirm_order
+        # uses nextval('order_number_seq') to produce "#42" style order
+        # numbers — short enough to shout across a café. If the sequence
+        # is absent the code falls back to a timestamp-based ID, so this
+        # is a soft requirement.
+        cursor.execute('''
+        CREATE SEQUENCE IF NOT EXISTS order_number_seq START 1
+        ''')
+
         # Feedback table
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS feedback (

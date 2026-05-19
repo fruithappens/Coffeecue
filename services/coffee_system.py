@@ -260,9 +260,22 @@ class CoffeeOrderSystem:
         """
         # Normalize phone number
         phone = self._normalize_phone(phone_number)
-        
+
         # Log incoming message
         logger.info(f"SMS received from {phone}: {message_body}")
+
+        # Defensive: if a previous request left the shared `self.db`
+        # connection in an aborted-transaction state (psycopg2 surfaces
+        # this as "current transaction is aborted, commands ignored
+        # until end of transaction block"), every subsequent read here
+        # silently fails — customer says "latte" and gets back "Sorry,
+        # we don't offer latte" because the inventory lookup couldn't
+        # run. Rolling back at the start of each SMS turn isolates each
+        # conversation from a poisoned predecessor.
+        try:
+            self.db.rollback()
+        except Exception:
+            pass
         
         # Check for station mentions in the message
         station_id = None
@@ -1115,28 +1128,39 @@ class CoffeeOrderSystem:
         return False
 
     def _get_available_milk_types(self):
-        """Get list of available milk types from inventory management"""
+        """Get list of available milk types from inventory management."""
+        # Recover the connection from any prior aborted transaction. If we
+        # don't do this, an unrelated upstream error silently changes the
+        # customer's available milk options to the hard-coded
+        # ["full cream", "skim"] fallback below — they'd then be told
+        # "we don't have oat milk" even with oat in stock.
+        try:
+            self.db.rollback()
+        except Exception:
+            pass
+
         try:
             cursor = self.db.cursor()
-            # Use correct table name and check stock levels
             cursor.execute("""
-                SELECT name FROM inventory_items 
-                WHERE category = 'milk' 
+                SELECT name FROM inventory_items
+                WHERE category = 'milk'
                 AND (amount IS NULL OR amount > COALESCE(minimum_threshold, 0))
                 ORDER BY name
             """)
             milk_types = [row[0].lower() for row in cursor.fetchall()]
-            
-            # If no milk types defined, return basic default list
+
             if not milk_types:
                 logger.warning("No milk types found in inventory_items table, using defaults")
                 return ["full cream", "skim"]
-            
+
             logger.info(f"Available milk types: {milk_types}")
             return milk_types
         except Exception as e:
             logger.error(f"Error getting available milk types: {str(e)}")
-            # Return basic default list if there's an error
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
             return ["full cream", "skim"]
 
     def _is_valid_milk_type(self, requested_milk, available_milks):
@@ -1246,22 +1270,24 @@ class CoffeeOrderSystem:
         
         # Check available coffee types from the inventory
         available_coffee_types = self._get_available_coffee_types()
-        
-        # Parse message with NLP
-        order_details = self.nlp.parse_order(message)
+
+        # Parse message with NLP. apply_defaults=False so we can tell which
+        # fields the customer actually specified vs. fields that are missing
+        # and need to be asked for. (See nlp.py parse_order docstring.)
+        order_details = self.nlp.parse_order(message, apply_defaults=False)
         coffee_type = order_details.get('type', '').lower()
-        
+
         # Check if the requested coffee type is available
         if coffee_type and not self._is_valid_coffee_type(coffee_type, available_coffee_types):
             return f"Sorry, we don't offer {coffee_type}. Available options are: {', '.join(available_coffee_types)}. Please select one of these."
-        
+
         # Validate milk type if specified
         milk_type = order_details.get('milk', '')
         if milk_type:
             available_milk_types = self._get_available_milk_types()
             if not self._is_valid_milk_type(milk_type, available_milk_types):
                 return f"Sorry, we don't have {milk_type} milk. Available options are: {', '.join(available_milk_types)}. Please try again."
-        
+
         # Validate sweetener if specified
         sweetener = order_details.get('sugar', '')
         if sweetener:
@@ -1269,45 +1295,59 @@ class CoffeeOrderSystem:
             if not self._is_valid_sweetener(sweetener, available_sweeteners):
                 sweetener_names = [s[0] for s in available_sweeteners]
                 return f"Sorry, we don't have {sweetener}. Available options are: {', '.join(sweetener_names)}. Please try again."
-        
+
         # Get customer's name from state
         name = state.get('temp_data', {}).get('name', '')
-        
-        # If NLP found a complete order, we can skip to confirmation
-        if len(order_details) >= 2 and 'type' in order_details:
-            # Save order details to state
-            state_data = {
-                'name': name,
-                'order_details': order_details
-            }
-            self._set_conversation_state(phone, 'awaiting_confirmation', state_data)
-            
-            # Format order summary
-            order_summary = self.nlp.format_order_summary(order_details)
-            
-            return (
-                f"Great! Here's your order: {order_summary}\n"
-                f"Would you like to confirm this order? (Reply YES to confirm, NO to cancel, or EDIT to change it)"
-            )
-        
-        # If only coffee type was provided, ask for milk next
-        if 'type' in order_details:
-            # Save coffee type and continue conversation
-            state_data = {
-                'name': name,
-                'order_details': order_details
-            }
-            self._set_conversation_state(phone, 'awaiting_milk', state_data)
-            
-            # Check if this is a black coffee
-            if self.nlp.is_black_coffee(order_details['type']):
-                # Skip milk question for black coffee
-                return self._handle_awaiting_milk(phone, "no milk", state)
-            else:
-                return f"What type of milk would you like with your {order_details['type']}? (full cream, skim, soy, almond, oat, etc.)"
-        
+
         # If no coffee type found, prompt again
-        return f"I'm not sure what type of coffee you'd like. Please specify a coffee type like latte, cappuccino, flat white, etc."
+        if 'type' not in order_details:
+            return f"I'm not sure what type of coffee you'd like, {name}. Please specify a coffee type like latte, cappuccino, flat white, etc."
+
+        # For black coffees, milk is implicitly "no milk"
+        if self.nlp.is_black_coffee(order_details['type']):
+            order_details['milk'] = 'no milk'
+
+        # Walk through missing fields one at a time so customers know what
+        # we understood vs. what we're still asking about. Previously the
+        # system silently defaulted missing fields and skipped to "Confirm?",
+        # which made customers feel their SMS was ignored.
+        state_data = {'name': name, 'order_details': order_details}
+
+        if 'milk' not in order_details:
+            self._set_conversation_state(phone, 'awaiting_milk', state_data)
+            return (
+                f"Got it — {order_details['type']} for {name}. "
+                f"What milk would you like? (full cream, skim, soy, almond, oat, lactose free, or 'no milk')"
+            )
+
+        # Phrase the read-back differently for black coffees so we don't say
+        # "with no milk milk".
+        milk = order_details['milk']
+        milk_phrase = '' if milk == 'no milk' else f" with {milk} milk"
+
+        if 'size' not in order_details:
+            self._set_conversation_state(phone, 'awaiting_size', state_data)
+            return (
+                f"Got it — {order_details['type']}{milk_phrase}. "
+                f"What size? (small, medium, large)"
+            )
+
+        if 'sugar' not in order_details:
+            self._set_conversation_state(phone, 'awaiting_sugar', state_data)
+            return (
+                f"Got it — {order_details['size']} {order_details['type']}{milk_phrase}. "
+                f"How much sugar? (none, 1, 2, 3, etc.)"
+            )
+
+        # All fields present in one message — go straight to confirmation,
+        # but read back exactly what we understood so the customer can
+        # correct mistakes before the order is placed.
+        self._set_conversation_state(phone, 'awaiting_confirmation', state_data)
+        order_summary = self.nlp.format_order_summary(order_details)
+        return (
+            f"Just to confirm — {order_summary}.\n"
+            f"Reply YES to send to the barista, EDIT to change something, or NO to cancel."
+        )
     
     def _handle_awaiting_milk(self, phone, message, state):
         """Handle milk type input"""
@@ -1419,11 +1459,21 @@ class CoffeeOrderSystem:
             sugar = '1 sugar'
         elif message_lower in ['2', 'two', 'two sugar', '2 sugar']:
             sugar = '2 sugar'
+        elif message_lower in ['3', 'three', 'three sugar', '3 sugar']:
+            sugar = '3 sugar'
         else:
-            # Use NLP to extract sugar
-            new_details = self.nlp.parse_order(message)
-            sugar = new_details.get('sugar', 'no sugar')
-        
+            # Try NLP. apply_defaults=False so we get None (not 'no sugar')
+            # when the customer's reply doesn't match a known sugar pattern,
+            # and can ask them again instead of silently dropping their input.
+            new_details = self.nlp.parse_order(message, apply_defaults=False)
+            sugar = new_details.get('sugar')
+
+        if not sugar:
+            return (
+                "Sorry, I didn't catch that. How much sugar? "
+                "Reply 'none', '1', '2', '3', or 'half'."
+            )
+
         # Update order details
         order_details['sugar'] = sugar
         
@@ -1625,61 +1675,58 @@ class CoffeeOrderSystem:
         friend_name = state.get('temp_data', {}).get('friend_name', '')
         group_orders = state.get('temp_data', {}).get('group_orders', [])
         station_id = state.get('temp_data', {}).get('station_id')
-        
-        # Parse message with NLP
-        order_details = self.nlp.parse_order(message)
-        
-        # If NLP found a complete order, we can skip to confirmation
-        if len(order_details) >= 2 and 'type' in order_details:
-            # Add friend's name and station ID
-            order_details['name'] = friend_name
-            if station_id:
-                order_details['station_id'] = station_id
-                order_details['stationId'] = station_id
-            
-            # Format order summary
-            order_summary = self.nlp.format_order_summary(order_details)
-            
-            # Add friend's order to the group orders
-            updated_group_orders = group_orders.copy()
-            updated_group_orders.append(order_details)
-            
-            # Save friend's order to state and move to friend order confirmation
-            self._set_conversation_state(phone, 'awaiting_friend_confirmation', {
-                'primary_name': primary_name,
-                'primary_order': primary_order,
-                'friend_name': friend_name,
-                'friend_order': order_details,
-                'group_orders': updated_group_orders,
-                'station_id': station_id
-            })
-            
-            return (
-                f"Great! Here's the order for {friend_name}: {order_summary}\n"
-                f"Would you like to confirm this order? (Reply YES to confirm, NO to cancel, or EDIT to change it)"
-            )
-        
-        # If only coffee type, ask for milk next
-        if 'type' in order_details:
-            # Update state with coffee type and continue
-            self._set_conversation_state(phone, 'awaiting_friend_milk', {
-                'primary_name': primary_name,
-                'primary_order': primary_order,
-                'friend_name': friend_name,
-                'friend_order': order_details,
-                'group_orders': group_orders,
-                'station_id': station_id
-            })
-            
-            # Check if this is a black coffee
-            if self.nlp.is_black_coffee(order_details['type']):
-                # Skip milk question for black coffee
-                return self._handle_awaiting_friend_milk(phone, "no milk", state)
-            else:
-                return f"What type of milk would {friend_name} like with their {order_details['type']}? (full cream, skim, soy, almond, oat, etc.)"
-        
-        # If no coffee type found, prompt again
-        return f"I'm not sure what type of coffee {friend_name} would like. Please specify a coffee type like latte, cappuccino, flat white, etc."
+
+        # Parse message; do not silently default missing fields.
+        order_details = self.nlp.parse_order(message, apply_defaults=False)
+
+        if 'type' not in order_details:
+            return f"I'm not sure what coffee {friend_name} would like. Please specify a coffee type like latte, cappuccino, flat white, etc."
+
+        # Black coffees don't need milk
+        if self.nlp.is_black_coffee(order_details['type']):
+            order_details['milk'] = 'no milk'
+
+        if station_id:
+            order_details['station_id'] = station_id
+            order_details['stationId'] = station_id
+
+        shared_state = {
+            'primary_name': primary_name,
+            'primary_order': primary_order,
+            'friend_name': friend_name,
+            'friend_order': order_details,
+            'group_orders': group_orders,
+            'station_id': station_id,
+        }
+
+        # Step through missing fields one at a time (same as the primary
+        # ordering flow) so customers can correct typos before the order
+        # is committed.
+        if 'milk' not in order_details:
+            self._set_conversation_state(phone, 'awaiting_friend_milk', shared_state)
+            return f"Got it — {order_details['type']} for {friend_name}. What milk? (full cream, skim, soy, almond, oat, lactose free, or 'no milk')"
+
+        milk = order_details['milk']
+        milk_phrase = '' if milk == 'no milk' else f" with {milk} milk"
+
+        if 'size' not in order_details:
+            self._set_conversation_state(phone, 'awaiting_friend_size', shared_state)
+            return f"Got it — {order_details['type']}{milk_phrase} for {friend_name}. What size? (small, medium, large)"
+
+        if 'sugar' not in order_details:
+            self._set_conversation_state(phone, 'awaiting_friend_sugar', shared_state)
+            return f"Got it — {order_details['size']} {order_details['type']}{milk_phrase} for {friend_name}. How much sugar? (none, 1, 2, 3)"
+
+        # Order is complete — confirm
+        updated_group_orders = group_orders.copy()
+        updated_group_orders.append(order_details)
+        shared_state['group_orders'] = updated_group_orders
+        self._set_conversation_state(phone, 'awaiting_friend_confirmation', shared_state)
+        order_summary = self.nlp.format_order_summary(order_details)
+        return (
+            f"For {friend_name}: {order_summary}.\n"
+            f"Reply YES to confirm, EDIT to change, or NO to cancel."
+        )
     
     def _handle_awaiting_friend_milk(self, phone, message, state):
         """Handle friend's milk type during group ordering"""
@@ -1779,11 +1826,15 @@ class CoffeeOrderSystem:
             sugar = '1 sugar'
         elif message_lower in ['2', 'two', 'two sugar', '2 sugar']:
             sugar = '2 sugar'
+        elif message_lower in ['3', 'three', 'three sugar', '3 sugar']:
+            sugar = '3 sugar'
         else:
-            # Use NLP to extract sugar
-            new_details = self.nlp.parse_order(message)
-            sugar = new_details.get('sugar', 'no sugar')
-        
+            new_details = self.nlp.parse_order(message, apply_defaults=False)
+            sugar = new_details.get('sugar')
+
+        if not sugar:
+            return f"Sorry, I didn't catch how much sugar for {friend_name}. Reply 'none', '1', '2', '3', or 'half'."
+
         # Update order details
         friend_order['sugar'] = sugar
         
@@ -1961,30 +2012,64 @@ class CoffeeOrderSystem:
             db_type = "sqlite" if isinstance(fresh_conn, sqlite3.Connection) else "postgres"
             logger.info(f"Using database type: {db_type} for order confirmation")
             
-            # Generate order number
+            # Generate order number.
+            # Preferred: a per-event running counter (e.g. "42") sourced
+            # from a Postgres sequence — short, human-friendly, easy to
+            # shout across a noisy café. The `#` is added at display time
+            # only, so the stored value stays a plain identifier.
+            # Falls back to the legacy AM/PM timestamp format
+            # ("A1402153") if the sequence isn't installed, so this code
+            # stays compatible with un-migrated databases and with the
+            # SQLite test path.
             now = datetime.now()
-            prefix = "A" if now.hour < 12 else "P"
-            order_number = f"{prefix}{now.strftime('%H%M%S')}{now.microsecond // 10000}"
+            order_number = None
+            if db_type != "sqlite":
+                try:
+                    seq_cursor = fresh_conn.cursor()
+                    seq_cursor.execute("SELECT nextval('order_number_seq')")
+                    seq_row = seq_cursor.fetchone()
+                    seq_cursor.close()
+                    if seq_row:
+                        seq_val = seq_row[0] if not isinstance(seq_row, dict) else list(seq_row.values())[0]
+                        order_number = str(int(seq_val))
+                except Exception as seq_err:
+                    logger.info(f"order_number_seq unavailable, using legacy format: {seq_err}")
+                    try:
+                        fresh_conn.rollback()
+                    except Exception:
+                        pass
+
+            if not order_number:
+                prefix = "A" if now.hour < 12 else "P"
+                order_number = f"{prefix}{now.strftime('%H%M%S')}{now.microsecond // 10000}"
             
             # Check for station assignment in the order details
             specified_station = order_details.get('station_id') or order_details.get('stationId')
-            
+
             # Assign station based on available information
             is_vip = order_details.get('vip', False)
             milk_type = order_details.get('milk')
-            
+
+            # Track whether the customer's chosen station got changed so we
+            # can tell them in the confirmation message instead of silently
+            # routing the order somewhere else.
+            requested_station_id = None
+            station_was_reassigned = False
+
             if specified_station:
                 try:
-                    station_id = int(specified_station)
+                    requested_station_id = int(specified_station)
+                    station_id = requested_station_id
                     is_delayed = False
                     logger.info(f"Using specified station {station_id} from order details")
                 except (ValueError, TypeError):
-                    # If conversion fails, use the advanced assignment
+                    requested_station_id = specified_station
                     station_id, is_delayed = self._assign_station(is_vip, milk_type)
                     if station_id is None:
                         logger.error("No stations available to assign order")
                         return "Sorry, no coffee stations are currently available. Please contact the organizer to set up stations."
-                    logger.info(f"Invalid station specified, using intelligent assignment to station {station_id}")
+                    station_was_reassigned = True
+                    logger.info(f"Invalid station {requested_station_id} specified, reassigned to station {station_id}")
             else:
                 # Use advanced station assignment if no station specified
                 station_id, is_delayed = self._assign_station(is_vip, milk_type)
@@ -1992,20 +2077,36 @@ class CoffeeOrderSystem:
                     logger.error("No stations available to assign order")
                     return "Sorry, no coffee stations are currently available. Please contact the organizer to set up stations."
                 logger.info(f"No station specified, using intelligent assignment to station {station_id}")
-                
-            # Parse order details to ensure they're in the right format
+
+            # Sanity-check required fields. If anything is missing at this
+            # point, the conversation state machine has a bug — fail loudly
+            # rather than silently filling in defaults that the customer
+            # never agreed to.
+            missing_required = [f for f in ('type', 'milk', 'size', 'sugar') if f not in order_details]
+            if missing_required:
+                logger.error(
+                    f"_confirm_order called with missing fields {missing_required} for {phone}: {order_details}"
+                )
+                return (
+                    "Sorry, your order is missing some details ("
+                    + ", ".join(missing_required)
+                    + "). Reply MENU to start over."
+                )
+
             processed_details = {
                 'name': name,
-                'type': order_details.get('type', 'coffee'),
-                'milk': order_details.get('milk', 'full cream'),
-                'size': order_details.get('size', 'medium'),
-                'sugar': order_details.get('sugar', 'no sugar'),
-                # Add station ID in all formats for maximum compatibility
+                'type': order_details['type'],
+                'milk': order_details['milk'],
+                'size': order_details['size'],
+                'sugar': order_details['sugar'],
                 'station_id': station_id,
                 'stationId': station_id,
                 'assigned_to_station': station_id,
-                'assignedStation': station_id
+                'assignedStation': station_id,
             }
+            if station_was_reassigned:
+                processed_details['requested_station_id'] = requested_station_id
+                processed_details['station_was_reassigned'] = True
             
             if 'strength' in order_details:
                 processed_details['strength'] = order_details['strength']
@@ -2277,6 +2378,15 @@ class CoffeeOrderSystem:
                 wait_time = self._get_station_wait_time(station_id)
             except Exception as wait_err:
                 logger.error(f"Error getting wait time: {str(wait_err)}")
+
+            # Get this customer's queue position at their station so we can
+            # tell them up-front "you're #3 in line". Failure here is
+            # non-critical; we just omit the position from the SMS.
+            queue_position = None
+            try:
+                queue_position = self._get_queue_position(station_id, order_number)
+            except Exception as qp_err:
+                logger.error(f"Error getting queue position: {str(qp_err)}")
             
             # Set conversation to completed - use separate try block to ensure failures don't affect order
             try:
@@ -2284,40 +2394,79 @@ class CoffeeOrderSystem:
             except Exception as conv_err:
                 logger.error(f"Error setting conversation state: {str(conv_err)}")
             
-            # Check if this milk type is only available at one station
+            # Check if this milk type is only available at one station.
+            # Historical bug: this used to query a `stations` table that
+            # doesn't exist in this schema (the table is `station_stats`
+            # — capabilities live there as a JSONB column). The failing
+            # query left the connection in an aborted-transaction state,
+            # which poisoned every subsequent read on `self.db` (orders
+            # list, customer lookup, milk inventory). Now we point at the
+            # right table AND wrap the whole probe in a SAVEPOINT so any
+            # future schema drift can't cascade either.
             milk_is_unique = False
             unique_station_info = None
+            requested_milk = (processed_details.get('milk') or '').lower()
+
+            if requested_milk and requested_milk != 'no milk' and db_type != "sqlite":
+                try:
+                    cursor.execute("SAVEPOINT milk_uniq_probe")
+                    cursor.execute("""
+                        SELECT COUNT(DISTINCT station_id) AS station_count
+                        FROM station_stats
+                        WHERE capabilities IS NOT NULL
+                          AND (capabilities->'milk_types') ? %s
+                    """, (requested_milk,))
+
+                    result = cursor.fetchone()
+                    if result:
+                        count_val = result[0] if not isinstance(result, dict) else \
+                                    (result.get('station_count') or list(result.values())[0])
+                        if count_val == 1:
+                            milk_is_unique = True
+                            unique_station_info = (station_id, wait_time)
+                    cursor.execute("RELEASE SAVEPOINT milk_uniq_probe")
+                except Exception as milk_check_err:
+                    logger.warning(
+                        f"Milk uniqueness probe failed (non-fatal): {milk_check_err}"
+                    )
+                    try:
+                        cursor.execute("ROLLBACK TO SAVEPOINT milk_uniq_probe")
+                    except Exception:
+                        pass
             
-            try:
-                # Check if milk type is only available at this specific station
-                cursor.execute("""
-                    SELECT COUNT(DISTINCT s.id) as station_count
-                    FROM stations s
-                    WHERE s.current_status IN ('active', 'open')
-                    AND s.capabilities::jsonb -> 'milk_types' ? %s
-                """, (processed_details.get('milk'),))
-                
-                result = cursor.fetchone()
-                if result and result[0] == 1:
-                    milk_is_unique = True
-                    unique_station_info = (station_id, wait_time)
-            except Exception as milk_check_err:
-                logger.error(f"Error checking milk uniqueness: {str(milk_check_err)}")
-            
+            # Build the queue-position string once for reuse.
+            if queue_position is not None and queue_position > 0:
+                position_line = (
+                    f"You're #1 in line — your barista will start it shortly."
+                    if queue_position == 1
+                    else f"You're #{queue_position} in line (~{wait_time} min wait)."
+                )
+            else:
+                position_line = f"Estimated wait time: {wait_time} minutes."
+
             # Build the confirmation message
             if milk_is_unique and unique_station_info:
                 # Show station immediately if it's the only one with this milk
                 confirmation_message = (
                     f"✅ Order #{order_number} confirmed!\n"
                     f"{processed_details.get('milk').title()} is available at Station {station_id} only.\n"
-                    f"Estimated wait time: {wait_time} minutes."
+                    f"{position_line}"
                 )
             else:
                 # Standard message - don't show station immediately
                 confirmation_message = (
                     f"✅ Order #{order_number} confirmed!\n"
-                    f"We're finding the shortest queue for you.\n"
+                    f"{position_line}\n"
                     f"You'll get an SMS when ready with pickup location."
+                )
+
+            # If the customer asked for a specific station but we had to
+            # reassign (invalid station number, capacity, etc.) let them know
+            # — silently routing the order elsewhere has caused confusion.
+            if station_was_reassigned:
+                confirmation_message += (
+                    f"\n\nNote: Station {requested_station_id} isn't available right now, "
+                    f"so your order was routed to Station {station_id}."
                 )
             
             # Add tracking URL if enabled
@@ -2704,6 +2853,42 @@ class CoffeeOrderSystem:
         except Exception as e:
             logger.error(f"Error updating station load: {str(e)}")
     
+    def _get_queue_position(self, station_id, order_number):
+        """Return this order's 1-based position in the station queue.
+
+        Counts non-completed, non-cancelled orders at the same station that
+        were created at or before the given order. Used to tell the
+        customer "you're #3 in line" in their confirmation SMS so they
+        don't think the bot just dropped their order into the void.
+
+        Returns None if the order isn't found yet (race) or on error —
+        the caller treats None as "skip the position line".
+        """
+        try:
+            is_sqlite = isinstance(self.db, sqlite3.Connection)
+            cursor = self.db.cursor()
+            placeholder = '?' if is_sqlite else '%s'
+            cursor.execute(
+                f"""
+                SELECT COUNT(*)
+                FROM orders
+                WHERE station_id = {placeholder}
+                  AND status IN ('pending', 'in-progress')
+                  AND created_at <= (
+                      SELECT created_at FROM orders WHERE order_number = {placeholder}
+                  )
+                """,
+                (station_id, order_number),
+            )
+            row = cursor.fetchone()
+            if not row:
+                return None
+            count = row[0] if not isinstance(row, dict) else list(row.values())[0]
+            return int(count) if count is not None else None
+        except Exception as e:
+            logger.error(f"Error computing queue position: {str(e)}")
+            return None
+
     def _get_station_wait_time(self, station_id):
         """Get estimated wait time for a station"""
         try:
