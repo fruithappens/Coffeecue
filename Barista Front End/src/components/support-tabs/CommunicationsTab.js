@@ -1,9 +1,15 @@
 import React, { useState } from 'react';
-import { 
-  MessageSquare, Phone, Send, AlertTriangle, 
+import {
+  MessageSquare, Phone, Send, AlertTriangle,
   CheckCircle, Settings, DollarSign, TestTube,
-  FileText, Users, Search, Filter
+  FileText, Users, Search, Filter, Megaphone
 } from 'lucide-react';
+import ApiServiceClass from '../../services/ApiService';
+
+// Broadcast cap kept in sync with the backend
+// (BROADCAST_MAX_RECIPIENTS in routes/support_api_routes.py).
+const BROADCAST_MAX_RECIPIENTS = 500;
+const BROADCAST_MAX_LEN = 480;
 
 const CommunicationsTab = () => {
   const [activeSection, setActiveSection] = useState('overview');
@@ -40,10 +46,68 @@ const CommunicationsTab = () => {
     console.log('Sending test SMS:', testSmsForm);
     // API call to send test SMS
   };
-  
+
   const handleUpdateTwilioConfig = () => {
     console.log('Updating Twilio config...');
     // API call to update config
+  };
+
+  // --- Broadcast SMS form state -------------------------------------------
+  const [broadcast, setBroadcast] = useState({
+    audience: 'today',
+    message: '',
+  });
+  const [broadcastBusy, setBroadcastBusy] = useState(false);
+  const [broadcastPreview, setBroadcastPreview] = useState(null);
+  const [broadcastResult, setBroadcastResult] = useState(null);
+
+  const broadcastRequest = async (method, path, body) => {
+    const api = new ApiServiceClass();
+    return api.request(path, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  };
+
+  const handleBroadcastPreview = async () => {
+    setBroadcastBusy(true);
+    setBroadcastResult(null);
+    try {
+      const resp = await broadcastRequest(
+        'GET',
+        `/support/broadcast/preview?audience=${encodeURIComponent(broadcast.audience)}`,
+      );
+      setBroadcastPreview(resp);
+    } catch (e) {
+      setBroadcastResult({ error: e.message || String(e) });
+    } finally {
+      setBroadcastBusy(false);
+    }
+  };
+
+  const handleBroadcastSend = async () => {
+    if (!broadcast.message.trim()) return;
+    // Always confirm before sending — this hits real customers.
+    const ok = window.confirm(
+      `Send this message to ${broadcastPreview?.recipient_count ?? 'everyone matching the audience'}?\n\n` +
+      `"${broadcast.message.trim()}"\n\nThis cannot be undone.`,
+    );
+    if (!ok) return;
+    setBroadcastBusy(true);
+    setBroadcastResult(null);
+    try {
+      const resp = await broadcastRequest(
+        'POST',
+        '/support/broadcast/customers',
+        { audience: broadcast.audience, message: broadcast.message.trim() },
+      );
+      setBroadcastResult(resp);
+    } catch (e) {
+      setBroadcastResult({ error: e.message || String(e) });
+    } finally {
+      setBroadcastBusy(false);
+    }
   };
   
   return (
@@ -69,6 +133,12 @@ const CommunicationsTab = () => {
             className={`px-4 py-2 rounded-lg ${activeSection === 'templates' ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}
           >
             Templates
+          </button>
+          <button
+            onClick={() => setActiveSection('broadcast')}
+            className={`px-4 py-2 rounded-lg ${activeSection === 'broadcast' ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}
+          >
+            Broadcast
           </button>
           <button
             onClick={() => setActiveSection('history')}
@@ -214,7 +284,123 @@ const CommunicationsTab = () => {
           </div>
         </div>
       )}
-      
+
+      {/* Broadcast SMS */}
+      {activeSection === 'broadcast' && (
+        <div className="bg-white rounded-lg shadow-sm p-6 max-w-3xl">
+          <h3 className="font-semibold text-lg mb-2 flex items-center">
+            <Megaphone className="w-5 h-5 mr-2" />
+            Broadcast SMS
+          </h3>
+          <p className="text-sm text-gray-600 mb-6">
+            Send a one-off message to a group of customers. Useful for "coffee break in 10 minutes",
+            schedule changes, or end-of-event thank-yous. Capped at {BROADCAST_MAX_RECIPIENTS} recipients
+            per send.
+          </p>
+
+          <label className="block text-sm font-medium mb-1">Audience</label>
+          <select
+            value={broadcast.audience}
+            onChange={(e) => {
+              setBroadcast({ ...broadcast, audience: e.target.value });
+              setBroadcastPreview(null);
+              setBroadcastResult(null);
+            }}
+            className="w-full px-4 py-2 border rounded-lg mb-4"
+            disabled={broadcastBusy}
+          >
+            <option value="today">Everyone who ordered today</option>
+            <option value="active_today">Today's customers with an open order</option>
+            <option value="in_progress">Currently being made (in-progress only)</option>
+          </select>
+
+          <label className="block text-sm font-medium mb-1">Message</label>
+          <textarea
+            value={broadcast.message}
+            onChange={(e) => setBroadcast({ ...broadcast, message: e.target.value })}
+            placeholder="Coffee break starts in 10 minutes — see you at the station!"
+            rows={4}
+            maxLength={BROADCAST_MAX_LEN}
+            className="w-full px-4 py-2 border rounded-lg mb-1"
+            disabled={broadcastBusy}
+          />
+          <p className="text-xs text-gray-500 mb-4">
+            {broadcast.message.length} / {BROADCAST_MAX_LEN} characters
+            {broadcast.message.length > 160 && (
+              <span className="ml-2 text-yellow-700">
+                (over 160 chars — Twilio will bill as multiple segments)
+              </span>
+            )}
+          </p>
+
+          <div className="flex space-x-2">
+            <button
+              onClick={handleBroadcastPreview}
+              disabled={broadcastBusy}
+              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg disabled:opacity-50"
+            >
+              Preview recipients
+            </button>
+            <button
+              onClick={handleBroadcastSend}
+              disabled={broadcastBusy || !broadcast.message.trim()}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center"
+            >
+              <Send className="w-4 h-4 mr-2" />
+              Send broadcast
+            </button>
+          </div>
+
+          {broadcastPreview && (
+            <div className="mt-4 p-4 border-l-4 border-blue-500 bg-blue-50 rounded">
+              <p className="text-sm">
+                <strong>{broadcastPreview.recipient_count}</strong> recipient
+                {broadcastPreview.recipient_count === 1 ? '' : 's'} match the
+                <code className="mx-1 px-1 bg-white rounded text-xs">{broadcastPreview.audience}</code>
+                audience.
+                {broadcastPreview.recipient_count > BROADCAST_MAX_RECIPIENTS && (
+                  <span className="block text-yellow-800 mt-1">
+                    ⚠ Will be capped at {BROADCAST_MAX_RECIPIENTS} on send.
+                  </span>
+                )}
+              </p>
+              {broadcastPreview.sample && broadcastPreview.sample.length > 0 && (
+                <p className="text-xs text-gray-600 mt-2">
+                  Sample numbers: {broadcastPreview.sample.join(', ')}
+                </p>
+              )}
+            </div>
+          )}
+
+          {broadcastResult && broadcastResult.error && (
+            <div className="mt-4 p-4 border-l-4 border-red-500 bg-red-50 rounded">
+              <p className="text-sm text-red-700">
+                <strong>Broadcast failed:</strong> {broadcastResult.error}
+              </p>
+            </div>
+          )}
+
+          {broadcastResult && !broadcastResult.error && broadcastResult.sent !== undefined && (
+            <div className="mt-4 p-4 border-l-4 border-green-500 bg-green-50 rounded">
+              <p className="text-sm text-green-800">
+                <strong>Sent {broadcastResult.sent}</strong>
+                {broadcastResult.failed > 0 && (
+                  <span> · {broadcastResult.failed} failed</span>
+                )}
+                {broadcastResult.capped && (
+                  <span> · capped at {BROADCAST_MAX_RECIPIENTS}</span>
+                )}
+              </p>
+              {broadcastResult.sample_failures && broadcastResult.sample_failures.length > 0 && (
+                <p className="text-xs text-red-700 mt-1">
+                  Sample failures: {broadcastResult.sample_failures.join(', ')}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* SMS History */}
       {activeSection === 'history' && (
         <div className="bg-white rounded-lg shadow-sm p-6">
