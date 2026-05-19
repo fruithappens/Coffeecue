@@ -218,6 +218,15 @@ class CoffeeOrderSystem:
                 ADD COLUMN IF NOT EXISTS notes TEXT,
                 ADD COLUMN IF NOT EXISTS equipment_notes TEXT
             """)
+            # customer_preferences was missing the is_vip column on
+            # most installs — _handle_vip_code crashed with "column
+            # does not exist" and customers got "Sorry, we couldn't
+            # process your VIP code". Same pattern as the station
+            # rename bug. Adding the column for existing DBs here.
+            cursor.execute("""
+                ALTER TABLE customer_preferences
+                ADD COLUMN IF NOT EXISTS is_vip BOOLEAN DEFAULT FALSE
+            """)
             self.db.commit()
 
             # Seed default capabilities for stations that don't have
@@ -1309,11 +1318,23 @@ class CoffeeOrderSystem:
         if self.nlp.is_black_coffee(order_details['type']):
             order_details['milk'] = 'no milk'
 
+        # Propagate the VIP flag from conversation state into the
+        # order details. _handle_vip_code stores it on temp_data but
+        # nothing copied it onto order_details, so _confirm_order's
+        # `if order_details.get('vip'): queue_priority = 1` branch
+        # never fired and VIP orders ended up at normal priority.
+        if state.get('temp_data', {}).get('vip'):
+            order_details['vip'] = True
+
         # Walk through missing fields one at a time so customers know what
         # we understood vs. what we're still asking about. Previously the
         # system silently defaulted missing fields and skipped to "Confirm?",
         # which made customers feel their SMS was ignored.
         state_data = {'name': name, 'order_details': order_details}
+        # Keep the VIP flag on temp_data too so it survives the
+        # subsequent milk → size → sugar state transitions.
+        if state.get('temp_data', {}).get('vip'):
+            state_data['vip'] = True
 
         if 'milk' not in order_details:
             self._set_conversation_state(phone, 'awaiting_milk', state_data)
