@@ -51,36 +51,32 @@ const DisplayTab = ({
 }) => {
   return (
     <div className="p-4">
-      {/* API Usage Notification */}
-      <DismissibleInfoPanel
-        id="displayInfoPanel"
-        title="Display Screen Integration"
-        message="The display screen currently shows demo data. It requires backend API integration for showing real-time order data."
-        borderColor="amber"
-        bgColor="amber"
-        isDismissed={dismissedPanels.displayInfoPanel}
-        onDismiss={dismissPanel}
-      />
-      
+      {/* The "demo data" warning that used to live here is gone —
+          the display screen now reads live orders from /api/orders.
+          Keeping a brief reminder of what's new (Steve found the old
+          warning confusing). */}
+      <div className="mb-4 rounded-lg p-3 bg-green-50 border-l-4 border-green-500 text-sm text-green-900">
+        Display screen now shows <strong>live</strong> orders. Portrait /
+        landscape auto-detects from the viewport — drop an iPad in a
+        vertical stand and it'll flip.
+      </div>
+
       <div className="bg-white rounded-lg shadow-md p-4 mb-4">
         <h2 className="text-xl font-bold mb-4">Display Screen Settings</h2>
         <p className="mb-4">Control what appears on the customer-facing display screen.</p>
-        
+
         <div className="flex space-x-4 mb-4">
-          <button 
+          <button
             className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-            onClick={() => {
-              alert('The display screen currently shows demo data. Backend API integration is required for real-time order display.');
-              openDisplayScreen();
-            }}
+            onClick={openDisplayScreen}
           >
             Open Display Screen
           </button>
-          <button 
+          <button
             className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
-            onClick={() => alert('Test display feature requires backend API implementation.')}
+            onClick={() => window.open(`${window.location.origin}/display`, '_blank', 'noopener')}
           >
-            Test Display
+            Open in New Tab
           </button>
         </div>
         

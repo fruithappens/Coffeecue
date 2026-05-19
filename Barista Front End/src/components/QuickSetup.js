@@ -23,7 +23,19 @@ const EXTRA_DRINK_OPTIONS = [
   { key: 'hot_chocolate', label: 'Hot Chocolate' },
   { key: 'chai',          label: 'Chai Latte' },
   { key: 'matcha',        label: 'Matcha Latte' },
-  { key: 'tea',           label: 'Hot Tea (black, green, herbal)' },
+];
+
+// Tea is its own section now (operator wanted per-flavor control).
+// Each key maps to a single drink name in InventoryManagement.
+const TEA_OPTIONS = [
+  { key: 'english_breakfast', label: 'English Breakfast', name: 'English Breakfast Tea' },
+  { key: 'earl_grey',         label: 'Earl Grey',         name: 'Earl Grey Tea' },
+  { key: 'green',             label: 'Green Tea',         name: 'Green Tea' },
+  { key: 'peppermint',        label: 'Peppermint',        name: 'Peppermint Tea' },
+  { key: 'chamomile',         label: 'Chamomile',         name: 'Chamomile Tea' },
+  { key: 'lemon_ginger',      label: 'Lemon & Ginger',    name: 'Lemon & Ginger Tea' },
+  { key: 'rooibos',           label: 'Rooibos',           name: 'Rooibos Tea' },
+  { key: 'generic',           label: 'Generic Hot Tea',   name: 'Hot Tea' },
 ];
 
 // The InventoryManagement UI uses a different, prettier set of names
@@ -46,6 +58,16 @@ const SIZE_NAME_MAP = {
   'medium': ['Medium (12oz)', 'Takeaway Cup Medium', 'Ceramic Mug'],
   'large':  ['Large (16oz)', 'Takeaway Cup Large'],
 };
+// Per-station stock only gets ONE canonical cup name per selected
+// size. The map above is intentionally broader so any pre-existing
+// cup variant in InventoryManagement gets toggled on; using all of
+// them in walk-in stock made Steve see "Takeaway Medium", "12oz" and
+// "Ceramic Mug" after ticking just "medium".
+const CANONICAL_SIZE_NAME = {
+  'small':  'Small',
+  'medium': 'Medium',
+  'large':  'Large',
+};
 const SWEETENER_NAME_MAP = {
   'no sugar':    [],                 // "no sugar" needs no inventory row
   '1 sugar':     ['White Sugar'],
@@ -53,14 +75,13 @@ const SWEETENER_NAME_MAP = {
   '3 sugar':     ['White Sugar'],
   'half sugar':  ['White Sugar'],
 };
-// The four "extra drink" checkboxes map to specific Non-Coffee Drinks
-// entries. Notably: ticking "Tea" enables Hot Tea (the black-tea
-// default) NOT Matcha Latte — operator reported this confusion.
+// The "extra drink" checkboxes map to specific Non-Coffee Drinks
+// entries. Tea is handled separately (see TEA_OPTIONS) so each
+// flavor can be toggled independently.
 const EXTRA_DRINK_NAME_MAP = {
   hot_chocolate: ['Hot Chocolate'],
   chai:          ['Chai Latte'],
   matcha:        ['Matcha Latte'],
-  tea:           ['Hot Tea'],
 };
 // Always-keep coffee types (espresso-based drinks the SMS bot supports
 // by default). Cold Brew / Filter / Americano / Macchiato / Cortado /
@@ -82,8 +103,20 @@ const DEFAULT_STATE = {
     hot_chocolate: false,
     chai: false,
     matcha: false,
-    tea: false,
   },
+  teas: {
+    english_breakfast: false,
+    earl_grey: false,
+    green: false,
+    peppermint: false,
+    chamomile: false,
+    lemon_ginger: false,
+    rooibos: false,
+    generic: false,
+  },
+  // Free-text additional tea blends — comma-separated. Each becomes
+  // its own drinks-category inventory row.
+  custom_teas: '',
   unlimited_stock: true,
   all_stations_same_capabilities: true,
   always_open_schedule: true,
@@ -122,6 +155,146 @@ const QuickSetup = () => {
     setConfig(c => ({ ...c, drinks: { ...c.drinks, [key]: !c.drinks[key] } }));
   };
 
+  const toggleTea = (key) => {
+    setConfig(c => ({ ...c, teas: { ...(c.teas || {}), [key]: !(c.teas || {})[key] } }));
+  };
+
+  const setCustomTeas = (val) => {
+    setConfig(c => ({ ...c, custom_teas: val }));
+  };
+
+  // Parse the free-text custom_teas string into an array of names.
+  // Splits on commas/newlines, trims, drops empties, and de-dupes
+  // against the existing tea checkboxes.
+  const customTeaList = () => {
+    const raw = (config.custom_teas || '').trim();
+    if (!raw) return [];
+    const builtIn = new Set(TEA_OPTIONS.map(t => t.name.toLowerCase()));
+    return raw.split(/[,\n]+/)
+      .map(s => s.trim())
+      .filter(s => s.length > 0 && !builtIn.has(s.toLowerCase()))
+      // Make sure each entry ends in "Tea" so it's discoverable
+      // alongside the standard tea names.
+      .map(s => /\btea\b/i.test(s) ? s : `${s} Tea`);
+  };
+
+  // Build the per-station stock data the Barista UI and walk-in
+  // dialog actually read (localStorage `coffee_stock_station_N`).
+  // Without this each station shows whatever stock it had before
+  // Quick Setup ran — inconsistent milks, missing options, etc.
+  //
+  // Stock items use the structure the rest of the UI expects:
+  // { id, name, amount, capacity, unit, status, lowThreshold,
+  //   criticalThreshold, enabled }.
+  // When unlimited_stock is on we use a large capacity so the
+  // station never appears low; when off we use modest event-style
+  // starting amounts.
+  const buildStockItem = (id, name, category, unlimited) => {
+    const big = unlimited;
+    let amount = 20, capacity = 40, unit = 'L';
+    if (category === 'milk') {
+      amount = big ? 999 : 30; capacity = big ? 999 : 60; unit = 'L';
+    } else if (category === 'coffee') {
+      amount = big ? 999 : 5; capacity = big ? 999 : 10; unit = 'kg';
+    } else if (category === 'cups') {
+      amount = big ? 9999 : 200; capacity = big ? 9999 : 500; unit = 'pcs';
+    } else if (category === 'sweeteners') {
+      amount = big ? 9999 : 500; capacity = big ? 9999 : 1000; unit = 'pcs';
+    } else if (category === 'drinks') {
+      amount = big ? 9999 : 50; capacity = big ? 9999 : 100; unit = 'units';
+    } else {
+      amount = big ? 9999 : 100; capacity = big ? 9999 : 200; unit = 'units';
+    }
+    return {
+      id, name, amount, capacity, unit,
+      status: 'good',
+      lowThreshold: Math.max(1, capacity * 0.25),
+      criticalThreshold: Math.max(1, capacity * 0.1),
+      enabled: true,
+      category,
+    };
+  };
+
+  const rebuildPerStationStock = (stations, enabledByCategory) => {
+    if (!Array.isArray(stations) || stations.length === 0) return;
+    const unlimited = !!config.unlimited_stock;
+
+    stations.forEach(station => {
+      const stationId = station.id;
+      const stockData = {
+        milk: [], coffee: [], cups: [], sweeteners: [], drinks: [], other: [],
+        lastUpdated: new Date().toISOString(),
+      };
+      // Milks
+      enabledByCategory.milk.forEach(name => {
+        const id = name.toLowerCase().replace(/\s+/g, '_');
+        stockData.milk.push(buildStockItem(id, name, 'milk', unlimited));
+      });
+      // Coffee beans — Quick Setup always seeds house blend + decaf
+      // on the backend; mirror those here so coffee-based drinks
+      // light up in the walk-in dialog.
+      [['house_blend', 'House Blend Beans'], ['decaf', 'Decaf Beans']]
+        .forEach(([id, name]) => {
+          stockData.coffee.push(buildStockItem(id, name, 'coffee', unlimited));
+        });
+      // Cups
+      enabledByCategory.cups.forEach(name => {
+        const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+        stockData.cups.push(buildStockItem(id, name, 'cups', unlimited));
+      });
+      // Sweeteners
+      enabledByCategory.sweeteners.forEach(name => {
+        const id = name.toLowerCase().replace(/\s+/g, '_');
+        stockData.sweeteners.push(buildStockItem(id, name, 'sweeteners', unlimited));
+      });
+      // Non-coffee drinks (chai, hot chocolate, matcha, tea)
+      enabledByCategory.drinks.forEach(name => {
+        const id = name.toLowerCase().replace(/\s+/g, '_');
+        stockData.drinks.push(buildStockItem(id, name, 'drinks', unlimited));
+      });
+
+      const stockKey = `coffee_stock_station_${stationId}`;
+      localStorage.setItem(stockKey, JSON.stringify(stockData));
+    });
+
+    // Tell any listening UI to refresh.
+    window.dispatchEvent(new CustomEvent('stock:updated', {
+      detail: { stations: stations.map(s => s.id) },
+    }));
+  };
+
+  // Build the per-station inventory config (which items are
+  // enabled at which station). Same shape used by
+  // StationInventoryConfig and the sweetener-availability check in
+  // WalkInOrderDialog. When all_stations_same is on every station
+  // gets every enabled item; when off we preserve existing
+  // per-station configs (the operator wants fine-grained control).
+  const rebuildStationConfigs = (stations, eventInventory) => {
+    if (!Array.isArray(stations) || stations.length === 0) return;
+    const allSame = !!config.all_stations_same_capabilities;
+    if (!allSame) return;  // preserve existing per-station configs
+
+    const cfg = {};
+    stations.forEach(station => {
+      const stationCfg = {};
+      Object.entries(eventInventory).forEach(([cat, items]) => {
+        if (!Array.isArray(items)) return;
+        stationCfg[cat] = {};
+        items.forEach(item => {
+          // Every enabled item is on for every station.
+          stationCfg[cat][item.id] = !!item.enabled;
+        });
+      });
+      cfg[station.id] = stationCfg;
+    });
+
+    localStorage.setItem('station_inventory_configs', JSON.stringify(cfg));
+    // Legacy key still read by WalkInOrderDialog's sweetener check
+    // and StationDefaults — keep them in sync.
+    localStorage.setItem('stationInventoryConfig', JSON.stringify(cfg));
+    window.dispatchEvent(new CustomEvent('stationConfig:updated', { detail: cfg }));
+  };
+
   // Rebuild the localStorage inventory the InventoryManagement panel
   // reads. Without this, the operator opens that panel after Quick
   // Setup and sees Rice Milk, Cold Brew, every syrup, every extra
@@ -129,7 +302,7 @@ const QuickSetup = () => {
   // overwrite the whole `event_inventory` blob with: defaults for
   // every category, but `enabled` set only for items in the
   // operator's Quick Setup selection.
-  const rebuildLocalInventory = () => {
+  const rebuildLocalInventory = (stationsFromBackend) => {
     const enabledMilks = new Set(config.milks.map(m => MILK_NAME_MAP[m]).filter(Boolean));
     const enabledSizes = new Set(config.sizes.flatMap(s => SIZE_NAME_MAP[s] || []));
     const enabledSweeteners = new Set(config.sweeteners.flatMap(s => SWEETENER_NAME_MAP[s] || []));
@@ -137,7 +310,12 @@ const QuickSetup = () => {
     if (config.drinks.hot_chocolate) EXTRA_DRINK_NAME_MAP.hot_chocolate.forEach(n => enabledDrinks.add(n));
     if (config.drinks.chai)          EXTRA_DRINK_NAME_MAP.chai.forEach(n => enabledDrinks.add(n));
     if (config.drinks.matcha)        EXTRA_DRINK_NAME_MAP.matcha.forEach(n => enabledDrinks.add(n));
-    if (config.drinks.tea)           EXTRA_DRINK_NAME_MAP.tea.forEach(n => enabledDrinks.add(n));
+    // Teas — both the built-in flavors and any custom blends the
+    // operator typed in free-text.
+    TEA_OPTIONS.forEach(t => {
+      if (config.teas && config.teas[t.key]) enabledDrinks.add(t.name);
+    });
+    customTeaList().forEach(n => enabledDrinks.add(n));
 
     const categoryFilter = {
       milk:       enabledMilks,
@@ -186,11 +364,72 @@ const QuickSetup = () => {
       }
     }
 
+    // Add any custom tea blends as new rows in the drinks category
+    // so they're discoverable in InventoryManagement after Quick
+    // Setup runs. Existing rows are not touched.
+    const customTeas = customTeaList();
+    if (customTeas.length > 0) {
+      if (!Array.isArray(updated.drinks)) updated.drinks = [];
+      customTeas.forEach((teaName, i) => {
+        const exists = updated.drinks.some(d =>
+          d && d.name && d.name.toLowerCase() === teaName.toLowerCase());
+        if (!exists) {
+          updated.drinks.push({
+            id: `qs-tea-${Date.now()}-${i}`,
+            name: teaName,
+            description: 'Custom tea blend added by Quick Setup',
+            isTea: true,
+            enabled: true,
+          });
+        }
+      });
+    }
+
     localStorage.setItem('event_inventory', JSON.stringify(updated));
 
     // Notify any listening components (MilkColorSettings,
     // EventStockManagement) that inventory changed.
     window.dispatchEvent(new CustomEvent('inventory:updated', { detail: updated }));
+
+    // --- Now mirror into the per-station stores the Barista UI and
+    // walk-in dialog actually read. ---
+    //
+    // The walk-in dialog showing inconsistent milks across stations
+    // was traced to `coffee_stock_station_N` keys being whatever each
+    // station happened to have set previously. Quick Setup updating
+    // only `event_inventory` is not enough — those keys need to be
+    // overwritten directly, per station.
+    //
+    // We need the real station list. Caller passes it from the
+    // /api/quick-setup response; if missing we fall back to a small
+    // probe of common station IDs so it still does something useful.
+    let stations = Array.isArray(stationsFromBackend) ? stationsFromBackend : [];
+    if (stations.length === 0) {
+      // Best-effort fallback: scan existing localStorage stock keys
+      // to find which station IDs currently exist.
+      for (let i = 1; i <= 10; i++) {
+        if (localStorage.getItem(`coffee_stock_station_${i}`)) {
+          stations.push({ id: i, name: `Station ${i}` });
+        }
+      }
+    }
+
+    // Enabled items per category, by display name (matching what
+    // the walk-in dialog filters on). For cups we use a single
+    // canonical name per selected size — the broader SIZE_NAME_MAP
+    // is only used to toggle existing InventoryManagement rows.
+    const canonicalCups = config.sizes
+      .map(s => CANONICAL_SIZE_NAME[s])
+      .filter(Boolean);
+    const enabledByCategory = {
+      milk: Array.from(enabledMilks),
+      cups: canonicalCups,
+      sweeteners: Array.from(enabledSweeteners),
+      drinks: Array.from(enabledDrinks),
+    };
+
+    rebuildPerStationStock(stations, enabledByCategory);
+    rebuildStationConfigs(stations, updated);
   };
 
   const apply = async () => {
@@ -209,9 +448,12 @@ const QuickSetup = () => {
         body: JSON.stringify({ preset: config }),
       });
       // Mirror the selections into localStorage so the Inventory
-      // Management UI reflects the same enabled-set.
+      // Management UI reflects the same enabled-set, AND so each
+      // station's `coffee_stock_station_N` blob shows the same
+      // milks/coffees/cups (this is what fixes the "walk-in shows
+      // different milks at different stations" issue).
       try {
-        rebuildLocalInventory();
+        rebuildLocalInventory(resp.stations);
       } catch (e) {
         console.warn('Could not rebuild localStorage inventory:', e);
       }
@@ -312,6 +554,40 @@ const QuickSetup = () => {
               label={d.label}
             />
           ))}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-lg shadow-sm p-6 mb-4">
+        <h3 className="font-semibold text-lg mb-1">Teas</h3>
+        <p className="text-sm text-gray-500 mb-3">
+          Tick each tea flavor you want on the menu. Walk-in orders for
+          tea will show strength (weak / standard / strong) and a
+          double-cup option (tea is hot — most baristas double-cup).
+        </p>
+        <div>
+          {TEA_OPTIONS.map(t => (
+            <Checkbox key={t.key}
+              checked={!!(config.teas && config.teas[t.key])}
+              onChange={() => toggleTea(t.key)}
+              label={t.label}
+            />
+          ))}
+        </div>
+        <div className="mt-3">
+          <label className="block text-sm text-gray-700 mb-1">
+            Other tea blends (comma-separated)
+          </label>
+          <input
+            type="text"
+            value={config.custom_teas || ''}
+            onChange={(e) => setCustomTeas(e.target.value)}
+            placeholder="e.g. Pu'er, Oolong, House Special Blend"
+            className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-amber-500"
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Each name becomes a row in Inventory Management → Non-Coffee
+            Drinks. "Tea" is appended automatically if you don't include it.
+          </p>
         </div>
       </div>
 

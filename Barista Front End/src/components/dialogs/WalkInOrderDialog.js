@@ -33,8 +33,16 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
     extraHot: false,
     priority: false, // VIP flag for staff/VIP orders
     notes: '',
-    collectionStation: null // null means collect at same station
+    collectionStation: null, // null means collect at same station
+    // Tea-specific fields. Hidden unless the selected drink is a tea.
+    teaStrength: 'standard',   // 'weak' | 'standard' | 'strong'
+    teaDoubleCup: true,        // default ON — tea is hot
+    teaCustomBlend: '',        // free-text override (e.g. "House Special")
   });
+
+  // True when the selected drink is a tea — matches any drink with
+  // "Tea" in the name. Drives the tea-specific UI block below.
+  const isTeaDrink = (orderDetails.coffeeType || '').toLowerCase().includes('tea');
   
   // State for group code lookup
   const [groupCodeInput, setGroupCodeInput] = useState('');
@@ -881,13 +889,32 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
     
     // Include bean type in coffee type description if it's not the default/house blend
     let coffeeTypeText = orderDetails.coffeeType;
-    if (orderDetails.beanType && 
-        !orderDetails.beanType.toLowerCase().includes('house') && 
+    if (orderDetails.beanType &&
+        !orderDetails.beanType.toLowerCase().includes('house') &&
         !orderDetails.beanType.toLowerCase().includes('blend')) {
       coffeeTypeText = `${orderDetails.beanType} ${orderDetails.coffeeType}`;
     }
     coffeeTypeText += shotsText;
-    
+
+    // For tea drinks, append strength / custom-blend info to the
+    // notes so the barista sees it. The backend tea-aware stock
+    // decrement reads `is_tea`, `tea_double_cup`, and `tea_strength`
+    // directly off the order, not the notes.
+    const isTea = (orderDetails.coffeeType || '').toLowerCase().includes('tea');
+    let teaNotes = '';
+    if (isTea) {
+      const bits = [];
+      if (orderDetails.teaStrength && orderDetails.teaStrength !== 'standard') {
+        bits.push(`${orderDetails.teaStrength} brew`);
+      }
+      if (orderDetails.teaDoubleCup) bits.push('double-cup');
+      if (orderDetails.teaCustomBlend && orderDetails.teaCustomBlend.trim()) {
+        bits.push(`blend: ${orderDetails.teaCustomBlend.trim()}`);
+      }
+      if (bits.length > 0) teaNotes = ` [Tea: ${bits.join(', ')}]`;
+    }
+    const mergedNotes = (orderDetails.notes || '') + teaNotes;
+
     const newOrder = {
       customer_name: orderDetails.customerName, // Backend expects snake_case
       phone_number: orderDetails.phoneNumber || 'Walk-in', // Backend expects snake_case
@@ -900,11 +927,17 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
       sugar: sugarText,
       extra_hot: orderDetails.extraHot, // Backend expects snake_case
       priority: isPriority, // Set priority based on checkbox OR keywords in notes
-      notes: orderDetails.notes,
+      notes: mergedNotes,
       shots: parseFloat(orderDetails.shots), // Include shot count for usage calculations
       bean_type: orderDetails.beanType, // Store bean type separately too
       is_walk_in: true, // Backend expects snake_case
-      collection_station: orderDetails.collectionStation || null // Backend expects snake_case
+      collection_station: orderDetails.collectionStation || null, // Backend expects snake_case
+      // Tea-specific flags so the backend can decrement stock
+      // correctly (small milk amount, optional 2 cups).
+      is_tea: isTea,
+      tea_strength: isTea ? (orderDetails.teaStrength || 'standard') : null,
+      tea_double_cup: isTea ? !!orderDetails.teaDoubleCup : false,
+      tea_custom_blend: isTea ? (orderDetails.teaCustomBlend || '').trim() : '',
     };
     
     console.log('Final order object being submitted:', newOrder);
@@ -1316,10 +1349,64 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
             </div>
           </div>
           
+          {isTeaDrink && (
+            <div className="mb-4 p-3 border border-emerald-200 bg-emerald-50 rounded">
+              <h4 className="text-sm font-semibold text-emerald-900 mb-2">Tea options</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Strength
+                  </label>
+                  <select
+                    name="teaStrength"
+                    value={orderDetails.teaStrength || 'standard'}
+                    onChange={handleChange}
+                    className="w-full p-2 border rounded"
+                  >
+                    <option value="weak">Weak (short brew)</option>
+                    <option value="standard">Standard</option>
+                    <option value="strong">Strong (long brew)</option>
+                  </select>
+                </div>
+                <div className="flex items-center pt-6">
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      name="teaDoubleCup"
+                      checked={!!orderDetails.teaDoubleCup}
+                      onChange={handleChange}
+                      className="mr-2"
+                    />
+                    <span className="text-sm font-medium text-gray-700">
+                      Double-cup (recommended — tea is hot)
+                    </span>
+                  </label>
+                </div>
+              </div>
+              <div className="mt-3">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Custom blend (optional)
+                </label>
+                <input
+                  type="text"
+                  name="teaCustomBlend"
+                  value={orderDetails.teaCustomBlend || ''}
+                  onChange={handleChange}
+                  className="w-full p-2 border rounded"
+                  placeholder='e.g. "Customer brought own teabag" or "House Special"'
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Note: tea-with-milk only uses a splash (~30 ml); stock is
+                  decremented at the lower rate.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="mb-4 flex space-x-4">
             <label className="flex items-center">
-              <input 
-                type="checkbox" 
+              <input
+                type="checkbox"
                 name="extraHot"
                 checked={orderDetails.extraHot}
                 onChange={handleChange}
@@ -1327,10 +1414,10 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
               />
               <span className="text-sm font-medium text-gray-700">Extra hot</span>
             </label>
-            
+
             <label className="flex items-center">
-              <input 
-                type="checkbox" 
+              <input
+                type="checkbox"
                 name="priority"
                 checked={orderDetails.priority}
                 onChange={handleChange}
