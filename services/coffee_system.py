@@ -203,34 +203,36 @@ class CoffeeOrderSystem:
                 self.db.commit()
                 logger.info("Created default event breaks schedule")
             
-            # Update station_stats table to include capabilities field if needed
+            # Ensure the station_stats schema has all the columns the
+            # rest of the app expects. Historically the rename UI
+            # appeared broken because `station_stats.notes` (where the
+            # station "name" lives, for legacy reasons) simply didn't
+            # exist on freshly-initialised databases — the UPDATE
+            # silently failed and the new name was discarded. Same for
+            # `equipment_notes` (which holds the location). IF NOT
+            # EXISTS makes these safe to run on every boot.
             cursor.execute("""
-                SELECT column_name 
-                FROM information_schema.columns 
-                WHERE table_name='station_stats' AND column_name='capabilities'
+                ALTER TABLE station_stats
+                ADD COLUMN IF NOT EXISTS capabilities JSONB DEFAULT '{}'::jsonb,
+                ADD COLUMN IF NOT EXISTS capacity INTEGER DEFAULT 10,
+                ADD COLUMN IF NOT EXISTS notes TEXT,
+                ADD COLUMN IF NOT EXISTS equipment_notes TEXT
             """)
-            
-            if cursor.fetchone() is None:
-                # Add capabilities field to station_stats
-                cursor.execute("""
-                    ALTER TABLE station_stats 
-                    ADD COLUMN IF NOT EXISTS capabilities JSONB DEFAULT '{}',
-                    ADD COLUMN IF NOT EXISTS capacity INTEGER DEFAULT 10
-                """)
-                
-                # Update defaults for existing stations
-                cursor.execute("""
-                    UPDATE station_stats
-                    SET capabilities = json_build_object(
-                        'alt_milk', TRUE,
-                        'high_volume', station_id = 1,  -- Make station 1 high volume by default
-                        'vip_service', station_id = 3   -- Make station 3 VIP service by default
-                    )
-                    WHERE capabilities IS NULL OR capabilities = '{}'
-                """)
-                
-                self.db.commit()
-                logger.info("Updated station stats with capabilities information")
+            self.db.commit()
+
+            # Seed default capabilities for stations that don't have
+            # them yet — preserves user-customised JSONB across boots.
+            cursor.execute("""
+                UPDATE station_stats
+                SET capabilities = json_build_object(
+                    'alt_milk', TRUE,
+                    'high_volume', station_id = 1,
+                    'vip_service', station_id = 3
+                )
+                WHERE capabilities IS NULL OR capabilities = '{}'::jsonb
+            """)
+            self.db.commit()
+            logger.info("Updated station stats with capabilities information")
             
         except Exception as e:
             logger.error(f"Error initializing event scheduling: {str(e)}")
@@ -2319,59 +2321,89 @@ class CoffeeOrderSystem:
                     except:
                         pass
             
-            # Step 3: Update station stats (increment load)
+            # Step 3: Update station stats (increment load).
+            #
+            # Historical bug: the Postgres upsert lived inside the
+            # except-branch of the SQLite path, so on Postgres NOTHING
+            # ran — current_load stayed at 0 forever — and the
+            # load-balancing assignment in _assign_station() always
+            # picked station 1 (lowest id wins on a 0/0/0 tie). That
+            # broke load balancing for every Postgres deployment.
             try:
                 if db_type == "sqlite":
-                    cursor.execute("""
-                        INSERT INTO station_stats (station_id, current_load, last_updated)
-                        VALUES (?, 1, ?)
-                        ON CONFLICT(station_id) DO UPDATE SET
-                            current_load = station_stats.current_load + 1,
-                            last_updated = ?
-                    """, (station_id, now, now))
-            except Exception as sqlite_error:
-                # Fallback for older SQLite versions that don't support ON CONFLICT
-                logger.warning(f"Advanced SQLite upsert failed, trying basic approach: {str(sqlite_error)}")
-                try:
-                    # Check if stats record exists
-                    cursor.execute("SELECT station_id FROM station_stats WHERE station_id = ?", (station_id,))
-                    if cursor.fetchone():
-                        # Update existing record
-                        cursor.execute("""
-                            UPDATE station_stats 
-                            SET current_load = current_load + 1, last_updated = ?
-                            WHERE station_id = ?
-                        """, (now, station_id))
-                    else:
-                        # Insert new record
-                        cursor.execute("""
+                    try:
+                        cursor.execute(
+                            """
                             INSERT INTO station_stats (station_id, current_load, last_updated)
                             VALUES (?, 1, ?)
-                        """, (station_id, now))
-                except Exception as e:
-                    logger.error(f"Error updating station stats in SQLite (fallback): {str(e)}")
-                    # Continue despite this error
-                if db_type != "sqlite":
-                    # For PostgreSQL
-                    cursor.execute("""
+                            ON CONFLICT(station_id) DO UPDATE SET
+                                current_load = station_stats.current_load + 1,
+                                last_updated = ?
+                            """,
+                            (station_id, now, now),
+                        )
+                    except Exception as sqlite_error:
+                        # Fallback for older SQLite versions without ON CONFLICT
+                        logger.warning(
+                            f"SQLite upsert unsupported, using manual approach: {sqlite_error}"
+                        )
+                        cursor.execute(
+                            "SELECT station_id FROM station_stats WHERE station_id = ?",
+                            (station_id,),
+                        )
+                        if cursor.fetchone():
+                            cursor.execute(
+                                "UPDATE station_stats SET current_load = current_load + 1, "
+                                "last_updated = ? WHERE station_id = ?",
+                                (now, station_id),
+                            )
+                        else:
+                            cursor.execute(
+                                "INSERT INTO station_stats (station_id, current_load, last_updated) "
+                                "VALUES (?, 1, ?)",
+                                (station_id, now),
+                            )
+                else:
+                    # Postgres path — must run on every order, not only
+                    # as an except-handler fallback.
+                    cursor.execute(
+                        """
                         INSERT INTO station_stats (station_id, current_load, last_updated)
                         VALUES (%s, 1, %s)
                         ON CONFLICT (station_id) DO UPDATE SET
                             current_load = station_stats.current_load + 1,
                             last_updated = %s
-                    """, (station_id, now, now))
-                
-                # Try to commit, but continue if it fails
+                        """,
+                        (station_id, now, now),
+                    )
+
                 try:
                     fresh_conn.commit()
                     logger.info(f"Updated station {station_id} load")
                 except Exception as commit_err:
-                    logger.error(f"Error committing station stats update: {str(commit_err)}")
-                    # No rollback here - we want to preserve the order creation
+                    logger.error(f"Error committing station stats update: {commit_err}")
             except Exception as stats_error:
-                logger.error(f"Error updating station stats: {str(stats_error)}")
-                # Continue despite this error - it's non-critical
-            
+                logger.error(f"Error updating station stats: {stats_error}")
+                # Non-critical — preserve the order even if load tracking fails.
+
+            # Step 3b: Decrement inventory for the things this order
+            # consumed. Without this, organisers can't see real-time
+            # stock levels and run out mid-event without warning.
+            #
+            # Per-drink amounts are conservative defaults — operators
+            # can refine them later via the inventory UI. We decrement
+            # both station-scoped stock (if a station_id-tagged row
+            # exists for that item) and event-wide stock (the row with
+            # station_id IS NULL) so reports at either scope stay
+            # accurate.
+            try:
+                self._decrement_stock_for_order(
+                    fresh_conn, db_type, station_id, processed_details
+                )
+            except Exception as inv_err:
+                # Order must not fail because of inventory accounting.
+                logger.error(f"Stock decrement failed (non-fatal): {inv_err}")
+
             # Get wait time - use separate try block to ensure failures don't affect order
             wait_time = 10  # Default wait time
             try:
@@ -2544,10 +2576,22 @@ class CoffeeOrderSystem:
             
             for break_info in cursor.fetchall():
                 break_id, start_str, end_str, stations_json = break_info
-                
-                # Parse the time strings (format: "HH:MM")
-                start_hour, start_minute = map(int, start_str.split(':'))
-                end_hour, end_minute = map(int, end_str.split(':'))
+
+                # event_breaks.start_time / end_time are TIME columns,
+                # which psycopg2 surfaces as datetime.time objects — not
+                # the "HH:MM" strings this code originally assumed. The
+                # bare .split() call used to throw AttributeError, the
+                # outer except handler caught it, and the function
+                # silently fell back to "least loaded station" —
+                # bypassing ALL the milk-specific routing. Handle both
+                # shapes defensively.
+                def _hours(value):
+                    if hasattr(value, 'hour') and hasattr(value, 'minute'):
+                        return int(value.hour), int(value.minute)
+                    return tuple(int(p) for p in str(value).split(':')[:2])
+
+                start_hour, start_minute = _hours(start_str)
+                end_hour, end_minute = _hours(end_str)
                 
                 # Check if current time is within the break
                 if ((current_hour > start_hour) or 
@@ -2559,7 +2603,11 @@ class CoffeeOrderSystem:
                         'id': break_id,
                         'start': (start_hour, start_minute),
                         'end': (end_hour, end_minute),
-                        'stations': json.loads(stations_json) if stations_json else []
+                        # event_breaks.stations is JSONB; psycopg2
+                        # already deserialises to a list, so don't
+                        # double-parse.
+                        'stations': stations_json if isinstance(stations_json, list)
+                                    else (json.loads(stations_json) if stations_json else [])
                     }
                     break
                 
@@ -2570,29 +2618,45 @@ class CoffeeOrderSystem:
                         'id': break_id,
                         'start': (start_hour, start_minute),
                         'end': (end_hour, end_minute),
-                        'stations': json.loads(stations_json) if stations_json else []
+                        # event_breaks.stations is JSONB; psycopg2
+                        # already deserialises to a list, so don't
+                        # double-parse.
+                        'stations': stations_json if isinstance(stations_json, list)
+                                    else (json.loads(stations_json) if stations_json else [])
                     }
                     break
             
-            # Get all stations with their current load and capabilities
+            # Get all stations with their current load and capabilities.
+            # Historical bug: this read from `equipment_notes` (which is
+            # not a column on station_stats) — capabilities are stored in
+            # the JSONB column literally named `capabilities`. The bad
+            # column name returned NULL → fell through to the
+            # hard-coded "full cream + skim" default → so every soy /
+            # oat / almond order ignored station capabilities and got
+            # routed by load only.
             cursor.execute("""
-                SELECT station_id, COALESCE(current_load, 0), 
-                       COALESCE(equipment_notes, '{}') as capabilities, 
-                       COALESCE(status, 'active') as current_status
+                SELECT station_id, COALESCE(current_load, 0),
+                       COALESCE(capabilities, '{}'::jsonb) AS capabilities,
+                       COALESCE(status, 'active') AS current_status
                 FROM station_stats
                 WHERE status IN ('active', 'open') OR status IS NULL
                 ORDER BY COALESCE(current_load, 0)
             """)
-            
+
             stations = []
             stations_with_milk = {}  # Track which stations have specific milk types
-            
+
             for station_data in cursor.fetchall():
-                station_id, load, capabilities_json, status = station_data
-                try:
-                    capabilities = json.loads(capabilities_json) if capabilities_json and capabilities_json != '{}' else {}
-                except (json.JSONDecodeError, TypeError):
-                    capabilities = {}
+                station_id, load, capabilities_value, status = station_data
+                # capabilities_value may already be a dict (psycopg2's
+                # JSONB adapter) or a string (older driver / SQLite).
+                if isinstance(capabilities_value, dict):
+                    capabilities = capabilities_value
+                else:
+                    try:
+                        capabilities = json.loads(capabilities_value) if capabilities_value and capabilities_value != '{}' else {}
+                    except (json.JSONDecodeError, TypeError):
+                        capabilities = {}
                 
                 # Set minimal default capabilities for stations that don't have them configured
                 if not capabilities:
@@ -2853,6 +2917,94 @@ class CoffeeOrderSystem:
         except Exception as e:
             logger.error(f"Error updating station load: {str(e)}")
     
+    # Per-drink consumption defaults. Tweak per event in the inventory
+    # UI later; these are the "if I don't know better" values.
+    _SIZE_TO_ML = {'small': 150, 'medium': 200, 'large': 280}
+    _COFFEE_SHOTS_BY_TYPE = {
+        'espresso': 1, 'long black': 1, 'short black': 1, 'americano': 1,
+        'flat white': 1, 'latte': 1, 'cappuccino': 1, 'mocha': 1,
+        'piccolo': 1, 'macchiato': 1, 'cortado': 1,
+    }
+
+    def _decrement_stock_for_order(self, conn, db_type, station_id, processed_details):
+        """Decrement the milk and coffee an order consumed.
+
+        Tries the station-specific row first (station_id = X) and falls
+        back to the event-wide row (station_id IS NULL) so reports at
+        either scope stay accurate without requiring operators to track
+        both.
+
+        Quantities are deliberately conservative defaults the operator
+        can override later via the inventory UI:
+          - milk:   size-dependent (small=150, medium=200, large=280 mL),
+                    converted to L (the unit milk inventory uses)
+          - coffee: 1 shot per drink for everything except double-shot
+                    espresso, etc. (we don't currently model strength)
+
+        Skips items not in stock so an empty `oat` row doesn't go
+        negative on a customer who somehow placed an oat order anyway.
+        """
+        cursor = conn.cursor()
+        size = (processed_details.get('size') or 'medium').lower()
+        milk = (processed_details.get('milk') or '').lower()
+        coffee_type = (processed_details.get('type') or '').lower()
+
+        # --- milk ---------------------------------------------------
+        if milk and milk != 'no milk':
+            ml = self._SIZE_TO_ML.get(size, 200)
+            liters = ml / 1000.0
+            self._decrement_inventory_item(
+                cursor, db_type, category='milk', name=milk,
+                amount=liters, station_id=station_id,
+            )
+
+        # --- coffee shots -------------------------------------------
+        shots = self._COFFEE_SHOTS_BY_TYPE.get(coffee_type, 1)
+        # A "strong" or "double" order adds a shot — best effort.
+        if (processed_details.get('strength') or '').lower() in ('strong', 'double', 'extra shot'):
+            shots += 1
+        if shots > 0 and coffee_type:
+            self._decrement_inventory_item(
+                cursor, db_type, category='coffee', name=coffee_type,
+                amount=shots, station_id=station_id,
+            )
+
+        conn.commit()
+
+    def _decrement_inventory_item(self, cursor, db_type, *, category, name, amount, station_id):
+        """Decrement a single inventory row, preferring station scope."""
+        ph = '?' if db_type == 'sqlite' else '%s'
+        # Station-scoped row first.
+        cursor.execute(
+            f"""
+            UPDATE inventory_items
+            SET amount = GREATEST(0, amount - {ph}),
+                last_updated = CURRENT_TIMESTAMP
+            WHERE category = {ph} AND LOWER(name) = {ph}
+              AND station_id = {ph} AND amount IS NOT NULL
+            """,
+            (amount, category, name, station_id),
+        )
+        rows = cursor.rowcount or 0
+        if rows == 0:
+            # Fall back to the event-wide row (station_id IS NULL).
+            cursor.execute(
+                f"""
+                UPDATE inventory_items
+                SET amount = GREATEST(0, amount - {ph}),
+                    last_updated = CURRENT_TIMESTAMP
+                WHERE category = {ph} AND LOWER(name) = {ph}
+                  AND station_id IS NULL AND amount IS NOT NULL
+                """,
+                (amount, category, name),
+            )
+            rows = cursor.rowcount or 0
+        if rows == 0:
+            logger.info(
+                f"No inventory row to decrement: category={category} name={name} "
+                f"(item may be sugar/template/untracked)"
+            )
+
     def _get_queue_position(self, station_id, order_number):
         """Return this order's 1-based position in the station queue.
 
