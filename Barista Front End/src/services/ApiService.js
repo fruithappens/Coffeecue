@@ -192,7 +192,61 @@ class ApiService {
     // Token is still valid
     return true;
   }
-  
+
+  /**
+   * Force a token refresh regardless of the "expiring soon" check.
+   * Called from the 401 retry path in fetchWithAuth — by the time
+   * the server returns 401, the access token IS dead, so the lazy
+   * "if expiring soon" check would have already let it through.
+   * Returns true if this.token was successfully replaced.
+   * @private
+   */
+  async _forceRefreshToken() {
+    const tokenKey = 'coffee_system_token';
+    const refreshKey = 'coffee_system_refresh_token';
+    const refreshToken = localStorage.getItem(refreshKey)
+      || localStorage.getItem('refreshToken');
+    if (!refreshToken) {
+      console.warn('No refresh token available — cannot recover from 401');
+      return false;
+    }
+    const refreshUrl = this.baseUrl ? `${this.baseUrl}/auth/refresh` : '/api/auth/refresh';
+    try {
+      const response = await fetch(refreshUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // flask-jwt-extended expects the refresh token as a Bearer
+          // header on /auth/refresh.
+          'Authorization': `Bearer ${refreshToken}`,
+        },
+        body: JSON.stringify({ refreshToken }),
+        mode: 'cors',
+      });
+      if (!response.ok) {
+        console.warn(`Refresh endpoint returned ${response.status} — user will need to re-login`);
+        return false;
+      }
+      const data = await response.json();
+      const newToken = data.token || data.access_token;
+      if (!newToken) {
+        console.warn('Refresh response had no token field:', data);
+        return false;
+      }
+      this.token = newToken;
+      localStorage.setItem(tokenKey, newToken);
+      localStorage.setItem('token', newToken);  // legacy key some places read
+      if (data.expiresIn) {
+        localStorage.setItem('tokenExpiry', Date.now() + (data.expiresIn * 1000));
+      }
+      console.log('Token auto-refreshed after 401');
+      return true;
+    } catch (err) {
+      console.error('Force refresh failed:', err.message);
+      return false;
+    }
+  }
+
   /**
    * Make API request with appropriate service based on mode
    * @param {string} endpoint - API endpoint
@@ -332,7 +386,7 @@ class ApiService {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), this.connectionTimeout);
 
-      const response = await fetch(url, {
+      let response = await fetch(url, {
         ...options,
         headers,
         signal: controller.signal,
@@ -340,8 +394,31 @@ class ApiService {
         mode: 'cors'
         // Don't include credentials to avoid CORS issues with wildcard origin
       });
-      
+
       clearTimeout(timeoutId);
+
+      // If the access token has just expired (15-min lifetime), the
+      // backend returns 401. The "expiring soon" pre-check in
+      // refreshTokenIfNeeded only fires for tokens with < 5 min left,
+      // so a request issued at exactly the expiry boundary still goes
+      // out with the dead token. Catch that here, refresh the token,
+      // and retry ONCE — without this, idle users get thrown into the
+      // demo-data fallback and have to log in again every 15 minutes.
+      if (response.status === 401 && !options._isRetry) {
+        const refreshed = await this._forceRefreshToken();
+        if (refreshed) {
+          // Rebuild the auth header with the new token and retry.
+          const retryHeaders = {
+            ...headers,
+            'Authorization': `Bearer ${this.token}`,
+          };
+          response = await fetch(url, {
+            ...options,
+            headers: retryHeaders,
+            mode: 'cors',
+          });
+        }
+      }
 
       if (!response.ok) {
         // Try to get error details from response
@@ -355,7 +432,7 @@ class ApiService {
             errorDetails = { message: `HTTP error: ${response.status} ${response.statusText}` };
           }
         }
-        
+
         console.error(`API error: ${response.status}`, errorDetails);
         throw new Error(errorDetails.message || `API error: ${response.status}`);
       }
