@@ -203,23 +203,37 @@ def create_station():
                     'error': f'Station with ID {station_id} already exists',
                 }), 400
 
-        # Defaults — same as before. Capabilities are an empty JSONB
-        # which the conversation-flow handlers treat as "no
-        # specialties configured yet" and fall back to the standard
-        # milk/coffee menu until the organiser sets them.
+        # Defaults — capabilities are an empty JSONB which the
+        # conversation-flow handlers treat as "no specialties
+        # configured yet" and fall back to the standard menu.
+        #
+        # Historical bug: the Organiser "Add Station" form sends a
+        # `name`, `location` and `description` along with the
+        # station_id, but this endpoint silently ignored them — so
+        # newly-created stations appeared with no name on the next
+        # page load. Frontend's StationSettings.js maps name → notes
+        # and location → equipment_notes, so accept either key.
         status = data.get('status', 'active')
         current_load = data.get('current_load', 0)
         total_orders = data.get('total_orders', 0)
         avg_completion_time = data.get('avg_completion_time', 180)
         barista_name = data.get('barista_name', None)
+        notes = data.get('notes') or data.get('name')
+        equipment_notes = data.get('equipment_notes') or data.get('location')
         now = datetime.now()
 
         cursor.execute("""
             INSERT INTO station_stats
-            (station_id, status, current_load, total_orders, avg_completion_time, barista_name, last_updated)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            (station_id, status, current_load, total_orders,
+             avg_completion_time, barista_name, last_updated,
+             notes, equipment_notes)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING *
-        """, (station_id, status, current_load, total_orders, avg_completion_time, barista_name, now))
+        """, (
+            station_id, status, current_load, total_orders,
+            avg_completion_time, barista_name, now,
+            notes, equipment_notes,
+        ))
 
         db.commit()
 

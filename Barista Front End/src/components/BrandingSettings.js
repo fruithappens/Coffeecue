@@ -139,14 +139,23 @@ const BrandingSettings = () => {
         customCSS: settings.customCSS || ''
       });
       
-      // Also save to backend if available
+      // Also save to backend. Previously this swallowed any error
+      // silently and showed "saved successfully" even when the
+      // backend had returned 404 — operators reported that the
+      // client name and other branding fields didn't actually save.
+      let serverSaved = false;
       try {
-        await SettingsService.updateBrandingSettings(settings);
+        const result = await SettingsService.updateBrandingSettings(settings);
+        serverSaved = !!result;
       } catch (err) {
-        console.log('Backend save failed, but local branding updated');
+        console.error('Backend branding save failed:', err);
       }
-      
-      setSuccess('Branding settings saved successfully! Page will reload...');
+
+      if (serverSaved) {
+        setSuccess('Branding settings saved successfully! Page will reload...');
+      } else {
+        setSuccess('Saved locally — server save did not confirm. Settings may not sync across devices.');
+      }
       
       // Apply theme colors to document
       if (settings.customBranding) {

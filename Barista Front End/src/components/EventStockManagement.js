@@ -1,8 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { 
+import {
   Package, Plus, Minus, Save, AlertCircle, Check,
   Coffee, Droplet, Square, Candy, Beaker, Package2
 } from 'lucide-react';
+import ApiServiceClass from '../services/ApiService';
+
+// Backend-backed event stock — previously localStorage-only, so
+// changes vanished when an operator opened the page on a different
+// device. /api/event-stock GET/PUT persists to the settings table.
+const apiService = new ApiServiceClass();
 
 /**
  * Event Stock Management Component
@@ -71,21 +77,32 @@ const EventStockManagement = () => {
     }
   };
 
-  // Load event stock levels
-  const loadEventStock = () => {
-    const savedStock = localStorage.getItem('event_stock_levels');
-    if (savedStock) {
-      try {
-        const parsedStock = JSON.parse(savedStock);
-        setEventStock(parsedStock);
-        console.log('EventStockManagement: Loaded existing event stock from localStorage');
-      } catch (e) {
-        console.error('Error loading event stock:', e);
-        // Only initialize if we truly can't load existing data
-        if (inventory && Object.keys(inventory).length > 0) {
-          initializeDefaultStock();
+  // Load event stock levels — backend first, fall back to localStorage.
+  const loadEventStock = async () => {
+    let parsedStock = null;
+    try {
+      const resp = await apiService.request('/event-stock', { method: 'GET' });
+      if (resp && typeof resp === 'object' && Object.keys(resp).length > 0) {
+        parsedStock = resp;
+      }
+    } catch (apiErr) {
+      console.warn('event-stock API unavailable, using localStorage:', apiErr.message);
+    }
+    if (!parsedStock) {
+      const savedStock = localStorage.getItem('event_stock_levels');
+      if (savedStock) {
+        try {
+          parsedStock = JSON.parse(savedStock);
+        } catch (e) {
+          console.error('Error parsing localStorage event stock:', e);
         }
       }
+    }
+    if (parsedStock) {
+      setEventStock(parsedStock);
+      localStorage.setItem('event_stock_levels', JSON.stringify(parsedStock));
+      console.log('EventStockManagement: Loaded event stock');
+      return;
     } else {
       console.log('EventStockManagement: No saved event stock found - will auto-initialize when inventory loads');
       // Don't initialize here - wait for inventory to load first
@@ -177,19 +194,35 @@ const EventStockManagement = () => {
     setHasChanges(true);
   };
 
-  // Save event stock levels
-  const saveEventStock = () => {
+  // Save event stock levels — localStorage first for fast UI, then
+  // POST to backend so other devices / operators get the same data.
+  const saveEventStock = async () => {
     try {
       localStorage.setItem('event_stock_levels', JSON.stringify(eventStock));
-      setSaveMessage('Event stock levels saved successfully!');
+      let serverSaved = false;
+      try {
+        const resp = await apiService.request('/event-stock', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(eventStock),
+        });
+        serverSaved = !!(resp && resp.success);
+      } catch (apiErr) {
+        console.warn('event-stock PUT failed:', apiErr.message);
+      }
+      setSaveMessage(
+        serverSaved
+          ? 'Event stock levels saved (synced to server).'
+          : 'Saved locally — server save did not confirm.'
+      );
       setHasChanges(false);
-      
+
       // Notify other components
-      window.dispatchEvent(new CustomEvent('eventStock:updated', { 
-        detail: { eventStock } 
+      window.dispatchEvent(new CustomEvent('eventStock:updated', {
+        detail: { eventStock }
       }));
-      
-      setTimeout(() => setSaveMessage(''), 3000);
+
+      setTimeout(() => setSaveMessage(''), 4000);
     } catch (e) {
       console.error('Error saving event stock:', e);
       setSaveMessage('Error saving stock levels');
