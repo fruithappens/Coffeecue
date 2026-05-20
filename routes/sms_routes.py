@@ -46,11 +46,30 @@ def sms_webhook():
     logger.info(f"X-Forwarded-For: {request.headers.get('X-Forwarded-For', 'NOT SET')}")
     
     try:
-        # SECURITY: Validate Twilio webhook signature
+        # SECURITY: Validate Twilio webhook signature.
+        #
+        # Previously this branch skipped validation if TWILIO_AUTH_TOKEN
+        # was the literal string 'test_token' or missing entirely. That
+        # meant any deploy that left the placeholder in .env would
+        # silently accept unsigned (forged) webhooks. Now: validation
+        # is mandatory unless TESTING_MODE is explicitly enabled, and
+        # we fail closed (401) if the auth token is missing in
+        # production rather than letting unsigned requests through.
         auth_token = os.getenv('TWILIO_AUTH_TOKEN')
-        if auth_token and auth_token != 'test_token':  # Skip validation if using test token
+        testing_mode = os.getenv('TESTING_MODE', 'False').lower() == 'true'
+        skip_validation = testing_mode and (not auth_token or auth_token == 'test_token')
+
+        if not skip_validation and not auth_token:
+            logger.error(
+                "Refusing SMS webhook: TWILIO_AUTH_TOKEN is not configured "
+                "and TESTING_MODE is off. Set TWILIO_AUTH_TOKEN or enable "
+                "TESTING_MODE to accept unsigned requests in dev."
+            )
+            return "Unauthorized", 401
+
+        if not skip_validation:
             validator = RequestValidator(auth_token)
-            
+
             # Get the signature from headers
             signature = request.headers.get('X-Twilio-Signature', '')
             
@@ -88,7 +107,11 @@ def sms_webhook():
             else:
                 logger.info("✅ Twilio webhook signature validation successful")
         else:
-            logger.warning("Twilio auth token not configured or in test mode, skipping webhook validation")
+            logger.warning(
+                "Twilio signature validation skipped (TESTING_MODE is on "
+                "and auth token is unset or 'test_token'). This must NOT "
+                "happen in production."
+            )
         # Log all request information for debugging
         logger.info(f"SMS webhook called with request method: {request.method}")
         logger.info(f"Request form data: {request.form}")

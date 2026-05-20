@@ -2,7 +2,7 @@
 Authentication utilities for the Expresso Coffee Ordering System
 """
 import logging
-from flask import g, request, jsonify
+from flask import g, request, jsonify, current_app
 from flask_jwt_extended import JWTManager, create_access_token, create_refresh_token, decode_token
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from datetime import datetime, timedelta
@@ -16,6 +16,28 @@ logger = logging.getLogger("expresso.auth")
 
 # JWT Manager instance
 jwt = None
+
+# Demo token suffix. JWTs ending with this string are accepted WITHOUT
+# signature verification — but only when TESTING_MODE is on (see
+# _demo_mode_enabled below). The frontend mints these in its offline /
+# demo fallback path (`Barista Front End/src/services/AuthService.js`).
+# In production this branch is closed so a stolen / forged token with
+# the magic suffix can't grant admin access.
+_DEMO_TOKEN_SUFFIX = 'valid_signature_for_offline_demo_mode'
+
+
+def _demo_mode_enabled():
+    """Return True iff demo-token bypass is allowed in this process.
+
+    Demo tokens skip signature verification entirely, so they MUST NOT
+    be honoured in production. This is gated solely by the app's
+    TESTING_MODE config (defaults to False in config.py).
+    """
+    try:
+        return bool(current_app.config.get('TESTING_MODE', False))
+    except Exception:
+        # Outside an app context (e.g. unit tests) — fail closed.
+        return False
 
 def init_app(app):
     """Initialize JWT authentication for the app"""
@@ -32,15 +54,26 @@ def init_app(app):
     def invalid_token_callback(error_message):
         """Handle invalid tokens including demo tokens"""
         logger.warning(f"Invalid token error: {error_message}")
-        
-        # Check if this is a demo token in the request
+
+        # Check if this is a demo token in the request. We only honour
+        # the demo bypass when TESTING_MODE is enabled; in production
+        # the request just gets rejected as it should.
         auth_header = request.headers.get('Authorization', '')
-        if auth_header.startswith('Bearer ') and auth_header.endswith('valid_signature_for_offline_demo_mode'):
-            logger.info("Demo token detected in invalid token handler, allowing access")
-            # For demo tokens, we can't return a valid response here
-            # The before_request handler should have caught this
-            pass
-            
+        if (
+            auth_header.startswith('Bearer ')
+            and auth_header.endswith(_DEMO_TOKEN_SUFFIX)
+        ):
+            if _demo_mode_enabled():
+                logger.info("Demo token detected in invalid token handler, allowing access")
+                # For demo tokens, we can't return a valid response here
+                # The before_request handler should have caught this
+                pass
+            else:
+                logger.warning(
+                    "Rejecting demo token in production (TESTING_MODE=False). "
+                    "If this is a real client, ensure it's using a real signed JWT."
+                )
+
         return jsonify({
             'success': False,
             'message': 'Invalid authentication token',
@@ -133,25 +166,38 @@ def init_app(app):
             token = auth_header.split(' ')[1]
             
             try:
-                # Check if this is a demo/offline mode token
-                if token.endswith('valid_signature_for_offline_demo_mode'):
+                # Check if this is a demo/offline mode token. We only
+                # accept these when TESTING_MODE is on — in production
+                # this branch is closed so a token with the magic
+                # suffix can NOT skip signature verification.
+                if token.endswith(_DEMO_TOKEN_SUFFIX):
+                    if not _demo_mode_enabled():
+                        logger.warning(
+                            "Demo token presented but TESTING_MODE is off; rejecting. "
+                            "If a real client is sending this token suffix, the frontend "
+                            "AuthService.js needs to be updated to use a real signed JWT."
+                        )
+                        # Fall through to normal decode path which will
+                        # fail signature validation and 401 the request.
+                        raise ValueError("demo token rejected in production")
+
                     logger.info("Demo/offline mode token detected, using fallback authentication")
-                    
+
                     # Parse the demo token manually (it's still a valid JWT structure without signature verification)
                     try:
                         import base64
                         import json
-                        
+
                         # Split token parts
                         header_b64, payload_b64, _ = token.split('.')
-                        
+
                         # Add padding if needed
                         payload_b64 += '=' * (4 - len(payload_b64) % 4)
-                        
+
                         # Decode payload
                         payload_bytes = base64.b64decode(payload_b64)
                         payload = json.loads(payload_bytes.decode('utf-8'))
-                        
+
                         # Set demo user in g
                         g.user = {
                             'id': payload.get('sub', 'demo_user'),
@@ -160,15 +206,15 @@ def init_app(app):
                             'role': payload.get('role', 'admin'),
                             'full_name': payload.get('full_name', 'Demo User')
                         }
-                        
+
                         logger.info(f"Demo user authenticated: {g.user['username']}")
-                        
+
                     except Exception as demo_error:
                         logger.error(f"Error parsing demo token: {str(demo_error)}")
                         g.user = {
                             'id': 'demo_user',
                             'username': 'Demo User',
-                            'email': 'demo@coffeecue.com', 
+                            'email': 'demo@coffeecue.com',
                             'role': 'admin',
                             'full_name': 'Demo User'
                         }
