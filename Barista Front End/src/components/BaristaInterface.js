@@ -2937,20 +2937,58 @@ const ReadyForPickupColumn = ({ stationId, onMarkPickedUp, onSendMessage, refres
 
   const fetchReady = React.useCallback(async () => {
     try {
-      // Use OrderDataService's underlying ApiService so we benefit
-      // from the JWT auto-refresh on 401. Raw fetch() with a stale
-      // token silently 401'd and the column showed 0. ApiService
-      // also picks up the API base URL from config.
-      const ApiServiceClass = (await import('../services/ApiService')).default;
-      const api = new ApiServiceClass();
+      // Direct fetch with manual auth — bypassing ApiService because
+      // its demo-mode/mock-data interception could mask real-backend
+      // data when something flips the app mode unexpectedly. Steve
+      // reported orders not appearing in this column even when the
+      // customer Display screen (which uses a different path) had
+      // them, so the safest fix is to always go direct.
+      const token = localStorage.getItem('coffee_system_token')
+                 || localStorage.getItem('coffee_auth_token')
+                 || localStorage.getItem('token');
       const sid = stationId != null ? `&station_id=${stationId}` : '';
-      const data = await api.request(
-        `/orders/completed?recent_minutes=${READY_RECENCY_MIN}${sid}`,
-        { method: 'GET' },
-      );
+      const url = `/api/orders/completed?recent_minutes=${READY_RECENCY_MIN}${sid}`;
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const r = await fetch(url, { headers });
+      if (r.status === 401) {
+        // Token expired — try a one-shot refresh then retry.
+        try {
+          const ApiServiceClass = (await import('../services/ApiService')).default;
+          const api = new ApiServiceClass();
+          if (typeof api._forceRefreshToken === 'function') {
+            const newToken = await api._forceRefreshToken();
+            if (newToken) {
+              const r2 = await fetch(url, { headers: { Authorization: `Bearer ${newToken}` } });
+              const data2 = await r2.json();
+              const orders2 = Array.isArray(data2) ? data2 : (data2?.orders || []);
+              setList(prev => prev);  // keep showing previous list while we apply
+              if (process.env.NODE_ENV !== 'production') {
+                console.log(`[ReadyForPickup] refreshed token, got ${orders2.length} for station ${stationId}`);
+              }
+              // Continue with the rest of the processing.
+              const cutoff = Date.now() - READY_RECENCY_MS;
+              const now = Date.now();
+              const filt2 = orders2.filter(o => {
+                const s = (o.status || '').toLowerCase();
+                if (s === 'picked_up' || s === 'picked-up') return false;
+                const ts = o.completedAt || o.completed_at || o.updatedAt || o.updated_at;
+                if (!ts) return true;
+                const t = new Date(ts).getTime();
+                return Number.isNaN(t) || (t >= cutoff && t <= now + 5 * 60 * 1000);
+              });
+              setList(filt2);
+              setLoading(false);
+              return;
+            }
+          }
+        } catch (e) {
+          console.warn('[ReadyForPickup] token refresh failed:', e);
+        }
+      }
+      const data = await r.json();
       const orders = Array.isArray(data) ? data : (data?.orders || []);
       if (process.env.NODE_ENV !== 'production') {
-        console.log(`[ReadyForPickup] fetched ${orders.length} for station ${stationId}`);
+        console.log(`[ReadyForPickup] fetched ${orders.length} for station ${stationId} from ${url}`);
       }
       // Belt-and-braces client filter — drop picked_up rows and
       // anything older than the cutoff (future-dated test rows
