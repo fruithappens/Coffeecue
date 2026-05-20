@@ -185,7 +185,7 @@ def emergency_stop():
         # Stop all active orders
         cursor.execute("""
             UPDATE orders SET status = 'paused', notes = 'Emergency stop activated'
-            WHERE status IN ('pending', 'in_progress')
+            WHERE status IN ('pending', 'in-progress')
         """)
         db.commit()
         cursor.close()
@@ -720,7 +720,7 @@ def _broadcast_recipients(cursor, audience):
         cursor.execute("""
             SELECT DISTINCT phone FROM orders
             WHERE created_at >= NOW() - INTERVAL '24 hours'
-              AND status NOT IN ('completed', 'cancelled', 'picked-up')
+              AND status NOT IN ('completed', 'cancelled', 'picked_up')
               AND phone IS NOT NULL AND phone <> ''
         """)
     else:  # 'today'

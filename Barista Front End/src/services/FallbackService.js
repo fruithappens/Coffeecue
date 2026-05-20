@@ -124,7 +124,7 @@ class FallbackService {
       },
       {
         id: 2,
-        status: 'in_progress',
+        status: 'in-progress',
         customerName: 'Demo Customer 2',
         items: [
           { id: 2, name: 'Latte', size: 'Large', milk: 'Almond' }

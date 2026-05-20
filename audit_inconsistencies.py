@@ -115,14 +115,26 @@ def collect_backend_routes() -> set[tuple[str, str]]:
     # The leading prefix differs (blueprint prefix is /api), so normalise.
     for py_file in [BACKEND_APP] + _walk(BACKEND_ROUTES, ('.py',)):
         text = _read(py_file)
+        # Match @<anything>.route(...) — covers app.route, bp.route,
+        # support_api_bp.route, broadcast_bp.route, etc. The previous
+        # regex only matched `bp` and `app` so it missed half the
+        # blueprints (e.g. /api/emergency/* lived on support_api_bp
+        # and was reported as missing-backend in the audit).
         for m in re.finditer(
-            r"@(?:bp|app)\.route\(\s*['\"]([^'\"]+)['\"]\s*(?:,\s*methods\s*=\s*\[([^\]]+)\])?",
+            r"@(\w+)\.route\(\s*['\"]([^'\"]+)['\"]\s*(?:,\s*methods\s*=\s*\[([^\]]+)\])?",
             text,
         ):
-            raw_path, methods_str = m.group(1), (m.group(2) or "'GET'")
-            # Normalize: blueprint routes don't include /api prefix; app.route ones might.
+            decorator, raw_path, methods_str = m.group(1), m.group(2), (m.group(3) or "'GET'")
+            # Skip non-route decorators (limiter, jwt, role) that happen
+            # to have a .route()-style call on their objects — but the
+            # signature with a string arg makes false positives unlikely.
+            if decorator in {'limiter', 'limit', 'cross_origin'}:
+                continue
+            # Normalize. Blueprint routes typically register without /api
+            # (the blueprint has url_prefix='/api'); explicitly-prefixed
+            # routes already have /api in the string. Either way, ensure
+            # exactly one leading /api/.
             path = raw_path if raw_path.startswith('/api') else '/api' + raw_path
-            # Convert <param> placeholders to a sentinel so frontend comparison works.
             normalized = re.sub(r"<[^>]+>", "<param>", path)
             for raw_method in re.findall(r"['\"](\w+)['\"]", methods_str):
                 routes.add((raw_method.upper(), normalized.rstrip('/')))

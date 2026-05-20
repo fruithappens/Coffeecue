@@ -239,10 +239,11 @@ class OrderDataService {
    */
   async claimOrder(orderId, baristaId, stationId) {
     try {
-      const result = await this.updateOrderStatus(orderId, 'in_progress', {
+      // Use canonical 'in-progress' (hyphen) — see ARCHITECTURE.md.
+      const result = await this.updateOrderStatus(orderId, 'in-progress', {
         barista_id: baristaId,
         station_id: stationId,
-        started_at: new Date().toISOString()
+        started_at: new Date().toISOString(),
       });
       return { success: true, data: result };
     } catch (error) {

@@ -193,7 +193,10 @@ def get_group_orders(code):
         stats = {
             'total': len(orders),
             'pending': len([o for o in orders if o.status == 'pending']),
-            'in_progress': len([o for o in orders if o.status == 'in_progress']),
+            # Key kept as `in_progress` (JSON convenience), but comparison
+            # uses canonical `'in-progress'` (also tolerates the legacy
+            # underscore form for any rows persisted before this fix).
+            'in_progress': len([o for o in orders if o.status in ('in-progress', 'in_progress')]),
             'completed': len([o for o in orders if o.status == 'completed'])
         }
         
