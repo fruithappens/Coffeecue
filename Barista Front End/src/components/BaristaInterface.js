@@ -1821,6 +1821,7 @@ const BaristaInterface = () => {
                 completions from the last 30 minutes — stale orders
                 still live under the full Completed tab. */}
             <ReadyForPickupColumn
+              completedOrders={completedOrders}
               stationId={selectedStation}
               onMarkPickedUp={markOrderPickedUp}
               onSendMessage={handleOpenMessageDialog}
@@ -2931,117 +2932,92 @@ const BaristaInterface = () => {
 const READY_RECENCY_MS = 30 * 60 * 1000;
 const READY_RECENCY_MIN = 30;
 
-const ReadyForPickupColumn = ({ stationId, onMarkPickedUp, onSendMessage, refreshToken }) => {
-  const [list, setList] = React.useState([]);
-  const [loading, setLoading] = React.useState(true);
+const ReadyForPickupColumn = ({ completedOrders, stationId, onMarkPickedUp, onSendMessage }) => {
+  // Switched May 2026: instead of fetching its own list this column
+  // now derives from the same `completedOrders` that the Completed
+  // tab uses. Steve reported the column showing 0 while the
+  // Completed tab showed real orders — proving the data was in the
+  // hook, we just had a broken parallel fetch path.
+  //
+  // We still apply two client-side filters:
+  //   1. station_id matches the selected station (so a barista
+  //      doesn't see other stations' ready orders)
+  //   2. completed within the last READY_RECENCY_MIN minutes (so
+  //      ancient picked-up rows don't squat here forever)
+  const [hiddenIds, setHiddenIds] = React.useState(() => new Set());
 
-  const fetchReady = React.useCallback(async () => {
-    try {
-      // Direct fetch with manual auth — bypassing ApiService because
-      // its demo-mode/mock-data interception could mask real-backend
-      // data when something flips the app mode unexpectedly. Steve
-      // reported orders not appearing in this column even when the
-      // customer Display screen (which uses a different path) had
-      // them, so the safest fix is to always go direct.
-      const token = localStorage.getItem('coffee_system_token')
-                 || localStorage.getItem('coffee_auth_token')
-                 || localStorage.getItem('token');
-      const sid = stationId != null ? `&station_id=${stationId}` : '';
-      const url = `/api/orders/completed?recent_minutes=${READY_RECENCY_MIN}${sid}`;
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      const r = await fetch(url, { headers });
-      if (r.status === 401) {
-        // Token expired — try a one-shot refresh then retry.
-        try {
-          const ApiServiceClass = (await import('../services/ApiService')).default;
-          const api = new ApiServiceClass();
-          if (typeof api._forceRefreshToken === 'function') {
-            const newToken = await api._forceRefreshToken();
-            if (newToken) {
-              const r2 = await fetch(url, { headers: { Authorization: `Bearer ${newToken}` } });
-              const data2 = await r2.json();
-              const orders2 = Array.isArray(data2) ? data2 : (data2?.orders || []);
-              setList(prev => prev);  // keep showing previous list while we apply
-              if (process.env.NODE_ENV !== 'production') {
-                console.log(`[ReadyForPickup] refreshed token, got ${orders2.length} for station ${stationId}`);
-              }
-              // Continue with the rest of the processing.
-              const cutoff = Date.now() - READY_RECENCY_MS;
-              const now = Date.now();
-              const filt2 = orders2.filter(o => {
-                const s = (o.status || '').toLowerCase();
-                if (s === 'picked_up' || s === 'picked-up') return false;
-                const ts = o.completedAt || o.completed_at || o.updatedAt || o.updated_at;
-                if (!ts) return true;
-                const t = new Date(ts).getTime();
-                return Number.isNaN(t) || (t >= cutoff && t <= now + 5 * 60 * 1000);
-              });
-              setList(filt2);
-              setLoading(false);
-              return;
-            }
+  const list = React.useMemo(() => {
+    if (!Array.isArray(completedOrders)) return [];
+    const cutoff = Date.now() - READY_RECENCY_MS;
+    const now = Date.now();
+    const sidStr = stationId != null ? String(stationId) : null;
+
+    return completedOrders
+      .filter(o => {
+        // Optimistic-remove: once Collected is tapped, hide
+        // immediately even before the backend confirms.
+        const oid = o.id || o.order_number || o.orderNumber;
+        if (hiddenIds.has(oid)) return false;
+        // Skip already-picked-up
+        const status = (o.status || '').toLowerCase();
+        if (status === 'picked_up' || status === 'picked-up') return false;
+        // Match station — check every alias the data ships under,
+        // tolerate string/number type mismatch.
+        if (sidStr) {
+          const candidates = [
+            o.stationId, o.station_id,
+            o.assignedStation, o.assigned_to_station,
+          ].filter(v => v != null).map(String);
+          if (candidates.length > 0 && !candidates.includes(sidStr)) {
+            return false;
           }
-        } catch (e) {
-          console.warn('[ReadyForPickup] token refresh failed:', e);
         }
-      }
-      const data = await r.json();
-      const orders = Array.isArray(data) ? data : (data?.orders || []);
-      if (process.env.NODE_ENV !== 'production') {
-        console.log(`[ReadyForPickup] fetched ${orders.length} for station ${stationId} from ${url}`);
-      }
-      // Belt-and-braces client filter — drop picked_up rows and
-      // anything older than the cutoff (future-dated test rows
-      // squeak through otherwise).
-      const cutoff = Date.now() - READY_RECENCY_MS;
-      const now = Date.now();
-      const filtered = orders
-        .filter(o => {
-          const s = (o.status || '').toLowerCase();
-          if (s === 'picked_up' || s === 'picked-up') return false;
-          const ts = o.completedAt || o.completed_at || o.updatedAt || o.updated_at;
-          if (!ts) return true;
-          const t = new Date(ts).getTime();
-          if (Number.isNaN(t)) return true;
-          // Allow up to 5 min into the future to tolerate clock skew.
-          return t >= cutoff && t <= now + 5 * 60 * 1000;
-        })
-        .sort((a, b) => {
-          const ta = new Date(a.completedAt || a.completed_at || a.updatedAt || a.updated_at || 0).getTime();
-          const tb = new Date(b.completedAt || b.completed_at || b.updatedAt || b.updated_at || 0).getTime();
-          return tb - ta;
-        });
-      setList(filtered);
-    } catch (e) {
-      console.warn('ReadyForPickupColumn fetch failed:', e);
-    } finally {
-      setLoading(false);
-    }
-  }, [stationId]);
+        // Recency
+        const ts = o.completedAt || o.completed_at
+                || o.updatedAt   || o.updated_at;
+        if (!ts) return true;
+        const t = new Date(ts).getTime();
+        if (Number.isNaN(t)) return true;
+        // Tolerate clock skew up to 5 min in either direction.
+        return t >= cutoff && t <= now + 5 * 60 * 1000;
+      })
+      .sort((a, b) => {
+        const ta = new Date(a.completedAt || a.completed_at || a.updatedAt || a.updated_at || 0).getTime();
+        const tb = new Date(b.completedAt || b.completed_at || b.updatedAt || b.updated_at || 0).getTime();
+        return tb - ta;
+      });
+  }, [completedOrders, stationId, hiddenIds]);
 
+  // Reset the hidden set when the underlying completedOrders changes
+  // significantly — prevents stale ids from accumulating.
   React.useEffect(() => {
-    fetchReady();
-    const timer = setInterval(fetchReady, 15000);
-    const wsHandler = () => fetchReady();
-    window.addEventListener('order_updated', wsHandler);
-    window.addEventListener('order_created', wsHandler);
-    return () => {
-      clearInterval(timer);
-      window.removeEventListener('order_updated', wsHandler);
-      window.removeEventListener('order_created', wsHandler);
-    };
-  }, [fetchReady, refreshToken]);
+    if (!Array.isArray(completedOrders)) return;
+    setHiddenIds(prev => {
+      const live = new Set(completedOrders.map(o => o.id || o.order_number || o.orderNumber));
+      const next = new Set([...prev].filter(id => live.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [completedOrders]);
 
-  // Optimistic-remove: when the barista taps Collected, remove the
-  // row immediately rather than waiting for the next refresh. The
-  // backend call still runs via onMarkPickedUp.
   const handleCollected = async (oid) => {
-    setList(prev => prev.filter(o => (o.id || o.order_number || o.orderNumber) !== oid));
+    setHiddenIds(prev => {
+      const next = new Set(prev);
+      next.add(oid);
+      return next;
+    });
     try { await onMarkPickedUp(oid); } catch (e) {
-      // If the backend failed, restore the row on next refresh.
-      fetchReady();
+      // If backend failed, unhide so the operator can retry.
+      setHiddenIds(prev => {
+        const next = new Set(prev);
+        next.delete(oid);
+        return next;
+      });
     }
   };
+
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`[ReadyForPickup] showing ${list.length} of ${completedOrders?.length || 0} completedOrders for station ${stationId}`);
+  }
 
   return (
     <div>
