@@ -538,6 +538,22 @@ def orders():
                 'tea_double_cup':   bool(data.get('tea_double_cup')),
                 'tea_custom_blend': data.get('tea_custom_blend', ''),
             }
+            # Compute price (honor-system) — same logic as the SMS
+            # flow. Stashed on order_details so the barista UI's
+            # current-order card knows what to charge.
+            try:
+                if hasattr(coffee_system, '_compute_order_price'):
+                    pv, pf = coffee_system._compute_order_price({
+                        'type': order_details['type'],
+                        'milk': order_details['milk'],
+                        'size': order_details['size'],
+                        'sugar': order_details['sugar'],
+                    })
+                    if pv is not None:
+                        order_details['price'] = pv
+                        order_details['price_formatted'] = pf
+            except Exception as price_err:
+                logger.warning(f"Walk-in price compute failed (non-fatal): {price_err}")
             
             # Determine priority (VIP orders get priority 1, regular get 5)
             priority = 1 if data.get('priority') == 'vip' else 5
@@ -680,8 +696,14 @@ def get_pending_orders():
                 'phoneNumber': phone,
                 'station_id': station_id,
                 'stationId': station_id,
+                # Pricing — null when disabled, otherwise carries the
+                # computed total. Barista UI shows this so they know
+                # what to charge at collection time.
+                'price': order_details.get('price'),
+                'price_formatted': order_details.get('price_formatted'),
+                'priceFormatted': order_details.get('price_formatted'),
             })
-        
+
         return jsonify({
             'success': True,
             'orders': pending_orders
@@ -758,6 +780,12 @@ def get_in_progress_orders():
                 'wait_time': wait_time,
                 'station_id': station_id,
                 'size': size,
+                # Pricing — pulled straight from order_details (set
+                # at confirm time by either SMS flow or walk-in
+                # endpoint). Null when pricing is disabled.
+                'price': order_details.get('price'),
+                'price_formatted': order_details.get('price_formatted'),
+                'priceFormatted': order_details.get('price_formatted'),
                 # camelCase aliases — REQUIRED by the React UI for filtering.
                 'orderNumber': order_number,
                 'customerName': customer_name,
@@ -5460,6 +5488,88 @@ def apply_quick_setup():
             current_app.config.get('coffee_system').db.rollback()
         except Exception:
             pass
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+DEFAULT_PRICING = {
+    'enabled': False,
+    'currency': 'AUD',
+    'symbol': '$',
+    # Base price per drink type. The bot is tolerant to missing keys —
+    # any drink not listed defaults to `unknown_drink_price` so a
+    # newly-added drink doesn't crash the SMS confirmation.
+    'per_drink': {
+        'latte': 4.50, 'cappuccino': 4.50, 'flat white': 4.50,
+        'long black': 4.00, 'espresso': 3.50, 'mocha': 5.00,
+        'macchiato': 4.00, 'cortado': 4.00, 'piccolo': 4.00,
+        'americano': 4.00,
+        'hot chocolate': 4.50, 'chai latte': 4.50, 'matcha latte': 5.00,
+        'golden latte': 5.00,
+        'hot tea': 3.50, 'english breakfast tea': 3.50, 'earl grey tea': 3.50,
+        'green tea': 3.50, 'peppermint tea': 3.50, 'chamomile tea': 3.50,
+        'lemon & ginger tea': 3.50, 'rooibos tea': 3.50,
+    },
+    'unknown_drink_price': 4.50,   # fallback for drinks not in per_drink
+    'milk_surcharge': {
+        'full cream': 0.00, 'skim': 0.00, 'dairy': 0.00, 'no milk': 0.00,
+        'oat': 0.50, 'almond': 0.50, 'soy': 0.50, 'coconut': 0.50,
+        'lactose free': 0.50, 'macadamia': 0.50, 'rice': 0.50,
+    },
+    'size_surcharge': {'small': -0.50, 'medium': 0.00, 'large': 0.50},
+    'sugar_surcharge_per_sachet': 0.00,
+    # Display options
+    'show_in_sms': True,            # embed total in SMS confirmation
+    'show_in_walkin': True,         # show total at bottom of walk-in dialog
+    'show_in_barista': True,        # show total on the order card in barista UI
+    'show_on_display': False,       # NOT shown on customer Display by default
+}
+
+
+@bp.route('/pricing-settings', methods=['GET'])
+@jwt_required_with_demo()
+def get_pricing_settings():
+    """Per-event pricing for the honor-system payment flow.
+
+    When `enabled` is true, the SMS confirmation message embeds the
+    computed total and asks the customer to pay at the counter.
+    Defaults to disabled — free events keep their current behavior.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        saved = _kv_get(coffee_system.db, 'pricing_settings', default=None) or {}
+        # Deep-merge with defaults so new fields appear without
+        # forcing the operator to re-edit existing pricing.
+        merged = {**DEFAULT_PRICING, **saved}
+        for k in ('per_drink', 'milk_surcharge', 'size_surcharge'):
+            if isinstance(saved.get(k), dict):
+                merged[k] = {**DEFAULT_PRICING[k], **saved[k]}
+        return jsonify(merged)
+    except Exception as e:
+        logger.error(f"get_pricing_settings error: {e}")
+        return jsonify(DEFAULT_PRICING), 200
+
+
+@bp.route('/pricing-settings', methods=['PUT', 'POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def upsert_pricing_settings():
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        data = request.get_json() or {}
+        # Deep-merge inbound on top of defaults so callers can PATCH
+        # individual fields (e.g. just toggle `enabled`).
+        merged = {**DEFAULT_PRICING, **data}
+        for k in ('per_drink', 'milk_surcharge', 'size_surcharge'):
+            if isinstance(data.get(k), dict):
+                merged[k] = {**DEFAULT_PRICING[k], **data[k]}
+        _kv_put(coffee_system.db, 'pricing_settings', merged)
+        # Invalidate the in-process cache so the next SMS confirmation
+        # picks up the new pricing without a server restart.
+        if hasattr(coffee_system, '_invalidate_pricing_cache'):
+            coffee_system._invalidate_pricing_cache()
+        return jsonify({'success': True, 'pricing': merged})
+    except Exception as e:
+        logger.error(f"upsert_pricing_settings error: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 

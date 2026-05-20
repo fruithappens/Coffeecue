@@ -235,6 +235,57 @@ Each station-scoped event is emitted to `room='station_${id}'`; the
 frontend joins via `webSocketService.joinRoom('station_2')` (or via
 `apiService.joinStationRoom(2)`).
 
+## 11. Pricing — honor-system model
+
+When `pricing_settings.enabled` is true, the SMS conversation flow
+appends the computed total to the confirmation message and asks the
+customer to pay at the counter at collection time. **No card
+processing** — this is an honor-system feature aimed at churches,
+community cafés, and free events that occasionally need to recoup
+costs.
+
+### Price formula
+
+```
+total = base_drink_price
+      + milk_surcharge (e.g. oat +$0.50)
+      + size_surcharge (large +$0.50, small -$0.50)
+      + sugar_surcharge_per_sachet × sachets
+```
+
+`base_drink_price` looks up the drink name (lowercased) in
+`pricing_settings.per_drink`. Falls back to `unknown_drink_price`
+(default $4.50) for unrecognized drinks. Decaf prefixes are stripped
+so "decaf latte" matches `latte` pricing.
+
+### Where to configure
+
+- **Organiser → Quick Setup → Pricing (honor system)** — toggle, edit
+  prices.
+- Or direct API: `PUT /api/pricing-settings` with a partial JSON blob.
+
+### Where prices appear
+
+| Surface | Source | Toggle |
+|---------|--------|--------|
+| SMS confirmation message | `_compute_order_price()` + `_format_price_tail()` | `pricing_settings.show_in_sms` |
+| Walk-in dialog (preview) | not yet implemented | `pricing_settings.show_in_walkin` (future) |
+| Barista order card price tag | `order.priceFormatted` field returned by `/api/orders/pending` + `in-progress` | `pricing_settings.show_in_barista` |
+| Customer Display screen | not implemented (intentional) | `pricing_settings.show_on_display` (future) |
+
+### Implementation notes for future Claudes
+
+- The price is computed and stashed onto `order_details.price` +
+  `order_details.price_formatted` at confirm time (SMS flow:
+  `_confirm_order`; walk-in: `/api/orders` POST handler).
+- It's stored on the order — re-computing later (e.g. on pickup)
+  uses the stamped value, not the live `pricing_settings`. That
+  way changing prices mid-event doesn't retroactively change what
+  a customer agreed to pay.
+- Cache: `coffee_system._pricing_cache` invalidated by the
+  `PUT /api/pricing-settings` endpoint. Same pattern as the routing
+  rules cache.
+
 ## 10. Tests & smoke checks
 
 | Script | What it covers |
