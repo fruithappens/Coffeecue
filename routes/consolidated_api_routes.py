@@ -5551,6 +5551,125 @@ def upsert_event_inventory():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+# ---------------------------------------------------------------------------
+# Per-event reporting
+# ---------------------------------------------------------------------------
+# Operators kept asking "how many orders have we done today?", "what's our
+# revenue?", "which station is busiest?" — there was no answer surface, so
+# the data sat unused in `orders`. /api/reports/today rolls it all up so
+# the Support tab Reports panel can render today's metrics live.
+@bp.route('/reports/today', methods=['GET'])
+@jwt_required_with_demo()
+def get_today_report():
+    """Return today's event metrics:
+      - total orders + breakdown by status
+      - average wait time (created → completed) in minutes
+      - total revenue (if pricing is enabled and orders have a price stamp)
+      - per-station breakdown
+      - top 5 drinks by order count
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        cur = db.cursor()
+
+        # Status breakdown for today
+        cur.execute("""
+            SELECT status, COUNT(*) AS n
+            FROM orders
+            WHERE created_at::date = CURRENT_DATE
+            GROUP BY status
+        """)
+        status_counts = {row[0]: int(row[1]) for row in cur.fetchall()}
+        total = sum(status_counts.values())
+
+        # Average wait (created → completed) for completed/picked_up orders today
+        cur.execute("""
+            SELECT AVG(EXTRACT(EPOCH FROM (updated_at - created_at)) / 60.0)
+            FROM orders
+            WHERE created_at::date = CURRENT_DATE
+              AND status IN ('completed', 'picked_up')
+              AND updated_at IS NOT NULL
+              AND created_at IS NOT NULL
+        """)
+        row = cur.fetchone()
+        avg_wait_min = float(row[0]) if row and row[0] is not None else None
+
+        # Revenue from stamped prices (works when pricing was enabled
+        # when the order was confirmed — see ARCHITECTURE.md §11).
+        cur.execute("""
+            SELECT COALESCE(SUM((order_details->>'price')::numeric), 0)
+            FROM orders
+            WHERE created_at::date = CURRENT_DATE
+              AND order_details ? 'price'
+        """)
+        row = cur.fetchone()
+        revenue_total = float(row[0]) if row and row[0] is not None else 0.0
+
+        # Per-station breakdown
+        cur.execute("""
+            SELECT station_id, COUNT(*) AS n,
+                   AVG(EXTRACT(EPOCH FROM (updated_at - created_at)) / 60.0)
+                     FILTER (WHERE status IN ('completed', 'picked_up')
+                             AND updated_at IS NOT NULL) AS avg_min
+            FROM orders
+            WHERE created_at::date = CURRENT_DATE
+            GROUP BY station_id
+            ORDER BY station_id
+        """)
+        per_station = []
+        for row in cur.fetchall():
+            sid, n, avg_min = row
+            per_station.append({
+                'station_id': sid,
+                'orders': int(n),
+                'avg_wait_min': round(float(avg_min), 1) if avg_min is not None else None,
+            })
+
+        # Top 5 drinks today
+        cur.execute("""
+            SELECT LOWER(order_details->>'type') AS drink, COUNT(*) AS n
+            FROM orders
+            WHERE created_at::date = CURRENT_DATE
+              AND order_details ? 'type'
+            GROUP BY drink
+            ORDER BY n DESC
+            LIMIT 5
+        """)
+        top_drinks = [{'drink': r[0], 'orders': int(r[1])} for r in cur.fetchall()]
+
+        # Pricing currency (for nicer formatting client-side)
+        currency_symbol = '$'
+        try:
+            pricing_blob = _kv_get(coffee_system.db, 'pricing_settings', default={}) or {}
+            currency_symbol = pricing_blob.get('symbol', '$')
+        except Exception:
+            pass
+
+        return jsonify({
+            'success': True,
+            'date': datetime.now().date().isoformat(),
+            'total_orders': total,
+            'status_breakdown': status_counts,
+            'avg_wait_min': round(avg_wait_min, 1) if avg_wait_min is not None else None,
+            'revenue_total': round(revenue_total, 2),
+            'currency_symbol': currency_symbol,
+            'per_station': per_station,
+            'top_drinks': top_drinks,
+        })
+    except Exception as e:
+        logger.error(f"get_today_report error: {e}")
+        try:
+            current_app.config.get('coffee_system').db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 DEFAULT_PRICING = {
     'enabled': False,
     'currency': 'AUD',

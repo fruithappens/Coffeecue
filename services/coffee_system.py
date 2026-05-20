@@ -3517,9 +3517,105 @@ class CoffeeOrderSystem:
             logger.error(f"Error computing queue position: {str(e)}")
             return None
 
-    def _get_station_wait_time(self, station_id):
-        """Get estimated wait time for a station"""
+    def _get_recent_completion_avg_minutes(self, station_id, window_minutes=60, sample_size=20):
+        """Compute a moving-average prep time from real recent orders.
+
+        Looks at orders completed at this station within the last
+        `window_minutes`, takes up to `sample_size` of them, and
+        averages the delta from created_at → updated_at. Returns None
+        if there's not enough data (caller falls back to a heuristic).
+
+        Used by _get_station_wait_time() — gives a much more honest
+        "your drink in ~7 min" estimate than the static 10-minute
+        default that was previously displayed.
+        """
         try:
+            cursor = self.db.cursor()
+            cursor.execute(
+                """
+                SELECT EXTRACT(EPOCH FROM (updated_at - created_at)) / 60.0 AS minutes
+                FROM orders
+                WHERE station_id = %s
+                  AND status IN ('completed', 'picked_up')
+                  AND updated_at >= NOW() - (%s || ' minutes')::interval
+                  AND created_at IS NOT NULL
+                  AND updated_at IS NOT NULL
+                ORDER BY updated_at DESC
+                LIMIT %s
+                """,
+                (station_id, str(window_minutes), sample_size),
+            )
+            rows = cursor.fetchall()
+            if not rows:
+                return None
+            # Clamp individual samples to [0.5, 30] min so a single
+            # outlier (e.g. an order someone left to ferment in
+            # "in-progress" for hours) doesn't poison the average.
+            samples = []
+            for row in rows:
+                v = row[0] if not isinstance(row, dict) else list(row.values())[0]
+                try:
+                    m = float(v)
+                except (TypeError, ValueError):
+                    continue
+                if 0.5 <= m <= 30:
+                    samples.append(m)
+            if not samples:
+                return None
+            return sum(samples) / len(samples)
+        except Exception as e:
+            logger.warning(f"_get_recent_completion_avg_minutes failed: {e}")
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            return None
+
+    def _get_station_pending_count(self, station_id):
+        """How many orders are queued/in-progress at this station right now."""
+        try:
+            cursor = self.db.cursor()
+            cursor.execute(
+                "SELECT COUNT(*) FROM orders "
+                "WHERE station_id = %s AND status IN ('pending', 'in-progress')",
+                (station_id,),
+            )
+            row = cursor.fetchone()
+            return int(row[0]) if row else 0
+        except Exception:
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            return 0
+
+    def _get_station_wait_time(self, station_id):
+        """Get estimated wait time for a station.
+
+        Updated May 2026: now uses a moving-average prep time
+        (last hour, up to 20 orders) × queue depth to produce a
+        realistic "your drink should be ready in ~X minutes" number,
+        rather than the static 10-minute default that was previously
+        shown to every customer.
+
+        Order of precedence:
+          1. Moving average × queue depth (best — real data)
+          2. station_stats.avg_completion_time × current_load (legacy)
+          3. station_stats.wait_time (operator override)
+          4. waitTime from `stations` table (older schema)
+          5. Static fallback (10 min)
+        """
+        try:
+            # 1. Best signal: real recent completions × queue depth.
+            avg_min = self._get_recent_completion_avg_minutes(station_id)
+            if avg_min is not None:
+                queue = self._get_station_pending_count(station_id)
+                # +1 for "the order we're about to place"; if the
+                # station has spare capacity (queue <= 1), the wait is
+                # just the prep time. Otherwise scale by queue depth.
+                wait = avg_min * max(1, queue)
+                # Clamp to a reasonable range.
+                return max(1, min(int(round(wait)), 45))
             db_type = "sqlite" if isinstance(self.db, sqlite3.Connection) else "postgres"
             cursor = self.db.cursor()
             
