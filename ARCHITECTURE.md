@@ -358,8 +358,8 @@ case — they're cleanup / depth.
 ### Medium
 
 5. **Real capabilities editing UI.** The endpoint exists (`/api/stations/<id>/capabilities`); the UI is mostly read-only.
-6. **Per-event reporting.** Each event currently shares the global orders table; pull a date/event filter through the UI.
-7. **Better wait-time prediction.** The current heuristic is `pending_count × 4 min`. With historical completion times we could do better.
+6. ~~**Per-event reporting.**~~ ✅ Done May 2026 — `/api/reports/today` rolls up totals, status breakdown, avg wait, revenue (when pricing's on), per-station, top drinks. Rendered in Support → Dashboard. Polls every 30s + WS-driven refresh.
+7. ~~**Better wait-time prediction.**~~ ✅ Done May 2026 — `_get_recent_completion_avg_minutes()` computes a per-station moving average from the last hour of completed orders (up to 20 samples), then multiplies by current queue depth. Falls back to legacy heuristics on stations with no recent data.
 8. **Tea support in SMS flow.** The infrastructure (inventory rows, walk-in UI, stock decrement) is in place; the SMS conversation state machine (`coffee_system.py`) doesn't ask "which tea?" yet.
 
 ### Polish / depth

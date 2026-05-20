@@ -292,6 +292,9 @@ const DashboardTab = () => {
           </div>
         </div>
       </div>
+
+      <TodayReport />
+
       
       {/* Station Status */}
       <div className="mt-6 bg-white rounded-lg shadow-sm p-4">
@@ -346,6 +349,144 @@ const QuickActionButton = ({ label, icon, color, onClick }) => {
       {icon}
       <span className="text-xs font-medium">{label}</span>
     </button>
+  );
+};
+
+// ---- TodayReport --------------------------------------------------------
+// Live event metrics rolled up by /api/reports/today. Polls every 30s
+// and listens for order_updated WS events so figures stay current
+// without the operator hitting refresh.
+const TodayReport = () => {
+  const [data, setData] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState(null);
+
+  const load = React.useCallback(async () => {
+    try {
+      const r = await api.request('/reports/today', { method: 'GET' });
+      if (r && r.success !== false) {
+        setData(r);
+        setError(null);
+      } else {
+        setError(r?.error || 'Could not load report');
+      }
+    } catch (e) {
+      setError(e?.message || 'Network error');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    load();
+    const timer = setInterval(load, 30000);
+    const onOrderEvt = () => load();
+    window.addEventListener('order_updated', onOrderEvt);
+    window.addEventListener('order_created', onOrderEvt);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('order_updated', onOrderEvt);
+      window.removeEventListener('order_created', onOrderEvt);
+    };
+  }, [load]);
+
+  if (loading && !data) {
+    return (
+      <div className="mt-6 bg-white rounded-lg shadow-sm p-4">
+        <h3 className="font-semibold text-lg mb-4">Today's Report</h3>
+        <p className="text-sm text-gray-500">Loading…</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="mt-6 bg-white rounded-lg shadow-sm p-4">
+        <h3 className="font-semibold text-lg mb-4">Today's Report</h3>
+        <p className="text-sm text-red-600">{error}</p>
+      </div>
+    );
+  }
+
+  const total = data?.total_orders ?? 0;
+  const sym = data?.currency_symbol ?? '$';
+  const fmtRev = (n) => `${sym}${(n || 0).toFixed(2)}`;
+  const fmtMin = (n) => (n == null ? '—' : `${n.toFixed(1)} min`);
+
+  return (
+    <div className="mt-6 bg-white rounded-lg shadow-sm p-4">
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="font-semibold text-lg">Today's Report</h3>
+        <span className="text-xs text-gray-400">{data?.date}</span>
+      </div>
+
+      {/* Headline numbers */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+        <div className="text-center p-3 border rounded">
+          <div className="text-2xl font-bold">{total}</div>
+          <div className="text-xs text-gray-500 uppercase">Total orders</div>
+        </div>
+        <div className="text-center p-3 border rounded">
+          <div className="text-2xl font-bold">{fmtMin(data?.avg_wait_min)}</div>
+          <div className="text-xs text-gray-500 uppercase">Avg wait</div>
+        </div>
+        <div className="text-center p-3 border rounded">
+          <div className="text-2xl font-bold">{fmtRev(data?.revenue_total)}</div>
+          <div className="text-xs text-gray-500 uppercase">Revenue (stamped)</div>
+        </div>
+        <div className="text-center p-3 border rounded">
+          <div className="text-2xl font-bold">
+            {data?.status_breakdown?.completed ?? 0}
+          </div>
+          <div className="text-xs text-gray-500 uppercase">Completed</div>
+        </div>
+      </div>
+
+      {/* Per-station + top drinks side by side */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <h4 className="text-sm font-semibold text-gray-700 mb-2">Per station</h4>
+          {data?.per_station?.length ? (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-gray-500">
+                  <th className="text-left py-1">Station</th>
+                  <th className="text-right py-1">Orders</th>
+                  <th className="text-right py-1">Avg wait</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.per_station.map(s => (
+                  <tr key={s.station_id || 'unassigned'} className="border-b last:border-b-0">
+                    <td className="py-1">{s.station_id ?? 'Unassigned'}</td>
+                    <td className="py-1 text-right">{s.orders}</td>
+                    <td className="py-1 text-right">{s.avg_wait_min == null ? '—' : `${s.avg_wait_min} min`}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : <p className="text-sm text-gray-500">No data yet.</p>}
+        </div>
+        <div>
+          <h4 className="text-sm font-semibold text-gray-700 mb-2">Top drinks</h4>
+          {data?.top_drinks?.length ? (
+            <ol className="text-sm space-y-1">
+              {data.top_drinks.map((d, i) => (
+                <li key={d.drink} className="flex justify-between border-b last:border-b-0 py-1">
+                  <span>{i + 1}. {d.drink}</span>
+                  <span className="text-gray-500">{d.orders}</span>
+                </li>
+              ))}
+            </ol>
+          ) : <p className="text-sm text-gray-500">No data yet.</p>}
+        </div>
+      </div>
+
+      <p className="text-xs text-gray-400 mt-3">
+        Refreshes every 30s and on order updates. Revenue counts only orders
+        with a price stamped at confirmation (pricing must be enabled).
+      </p>
+    </div>
   );
 };
 
