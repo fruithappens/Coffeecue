@@ -581,7 +581,27 @@ const EnhancedLiveOperationsDashboard = () => {
           </button>
           
           <button
-            onClick={() => console.log('Announce')}
+            onClick={() => {
+              // Quick announce — prompt for a message and broadcast
+              // to anyone who ordered today. Wired to the existing
+              // /api/support/broadcast/customers endpoint.
+              const msg = window.prompt('Announce to today\'s customers (SMS):\n\nKeep it short — under 160 chars works best.');
+              if (!msg || !msg.trim()) return;
+              const token = localStorage.getItem('coffee_auth_token')
+                         || localStorage.getItem('coffee_system_token');
+              fetch('/api/support/broadcast/customers', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({ message: msg.trim(), audience: 'today' }),
+              }).then(r => r.json()).then(data => {
+                window.alert(data?.sent
+                  ? `Announcement sent to ${data.sent} customer(s).`
+                  : `Done. ${data?.message || ''}`);
+              }).catch(e => window.alert('Broadcast failed: ' + e.message));
+            }}
             className="flex flex-col items-center justify-center p-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all"
           >
             <MessageCircle size={24} className="mb-2" />
@@ -603,16 +623,42 @@ const EnhancedLiveOperationsDashboard = () => {
           </button>
           
           <button
-            onClick={() => console.log('Redistribute')}
+            onClick={() => {
+              // Redistribute lives in Inventory AI now (where the
+              // alert-driven transfer flow already exists). Send
+              // the operator there rather than duplicating the UI.
+              window.alert('Inventory transfers are managed under Barista → Inventory AI. The alert panel there shows suggested redistributions you can apply directly.');
+            }}
             className="flex flex-col items-center justify-center p-4 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-all"
           >
             <RefreshCw size={24} className="mb-2" />
             <span className="text-sm font-medium">Redistribute</span>
             <span className="text-xs opacity-75">Balance Load</span>
           </button>
-          
+
           <button
-            onClick={() => console.log('Manual SMS')}
+            onClick={() => {
+              // Manual SMS — send a one-off message to a phone
+              // number. Used for ad-hoc replies the bot can't handle.
+              const phone = window.prompt('Phone number (E.164 format, e.g. +61412345678):');
+              if (!phone || !phone.trim()) return;
+              const msg = window.prompt('Message:');
+              if (!msg || !msg.trim()) return;
+              const token = localStorage.getItem('coffee_auth_token')
+                         || localStorage.getItem('coffee_system_token');
+              fetch('/api/sms/send', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({ to: phone.trim(), message: msg.trim() }),
+              }).then(r => r.json()).then(data => {
+                window.alert(data?.success === false
+                  ? `Failed: ${data?.message || 'unknown error'}`
+                  : 'Message sent.');
+              }).catch(e => window.alert('Send failed: ' + e.message));
+            }}
             className="flex flex-col items-center justify-center p-4 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all"
           >
             <MessageCircle size={24} className="mb-2" />

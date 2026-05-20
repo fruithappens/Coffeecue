@@ -82,22 +82,32 @@ and normalizes it. Keep it working but don't extend it.
 
 ## 4. Settings stores (localStorage)
 
-Three localStorage keys exist for overlapping data:
+**Two** localStorage keys, each with a single clear purpose
+(consolidated from three in May 2026 — see git history):
 
-| Key | Owner | Read by |
-|-----|-------|---------|
-| `coffee_cue_barista_settings` | `BaristaInterface.js` Settings tab | the Settings tab itself, on mount |
-| `coffee_cue_settings` | `useSettings` hook | DisplayScreen, Organiser, many components |
-| `coffee_system_branding` | `SettingsService` | branding panel + display config endpoint |
+| Key | Owner | Read by | Backend-synced? |
+|-----|-------|---------|----------------|
+| `coffee_cue_settings` | `useSettings` hook + `BaristaInterface.setSettings` | Everything — DisplayScreen, Organiser, Barista, etc. | No, localStorage only |
+| `coffee_system_branding` | `SettingsService` | Branding panel + display config endpoint | Yes — mirrored to backend `branding_settings` row |
 
-**Convention:** when writing settings, mirror into all three
-(or at least the appropriate two) and dispatch a `'settings:updated'`
-window event so any listening hook re-reads. `BaristaInterface.setSettings`
-already does this — copy that pattern.
+**Convention for writing settings:**
 
-The right long-term fix is one store + a backend round-trip, but
-that's substantial refactor. Mirror-and-event is the pragmatic
-compromise.
+```js
+// from inside any component
+setSettings({ ...settings, showNameOnDisplay: false });
+// → BaristaInterface.setSettings merges into coffee_cue_settings
+//   AND dispatches 'settings:updated' so useSettings re-reads.
+```
+
+The legacy `coffee_cue_barista_settings` key was retired. On first
+mount after the consolidation, `BaristaInterface.loadSettings()`
+checks for a stale copy and migrates it into the canonical store.
+
+**Why branding stays separate:** branding settings (event name,
+sponsor, colors) round-trip through the backend's
+`/api/settings/branding` endpoint so they propagate to other
+machines/users; the local settings are per-browser preferences
+(sounds, autorefresh, default station).
 
 ## 5. localStorage keys — categories
 
