@@ -253,10 +253,15 @@ const DisplayScreen = () => {
   // ancient test orders dominating his screen — none from the
   // current event). 30 minutes is a sensible default; bumps to a
   // longer window if the operator slows down.
+  //
+  // Sorted newest-first so the most recent "your order is ready"
+  // is at the top of the column. With a fixed slice of 4-6
+  // entries below, this means old no-show orders naturally
+  // age off the bottom as new ones come in.
   const READY_RECENCY_MINUTES = 30;
   const filterReadyForDisplay = (list) => {
     const cutoff = Date.now() - READY_RECENCY_MINUTES * 60 * 1000;
-    return list.filter(o => {
+    const filtered = list.filter(o => {
       // Drop already-picked-up — those aren't "ready for pickup".
       if (o.rawStatus && (o.rawStatus === 'picked_up' || o.rawStatus === 'picked-up')) {
         return false;
@@ -268,6 +273,12 @@ const DisplayScreen = () => {
       const t = new Date(o.completedAt).getTime();
       if (Number.isNaN(t)) return true;
       return t >= cutoff;
+    });
+    // Newest first. Items without a parseable timestamp sort last.
+    return filtered.sort((a, b) => {
+      const ta = a.completedAt ? new Date(a.completedAt).getTime() : 0;
+      const tb = b.completedAt ? new Date(b.completedAt).getTime() : 0;
+      return tb - ta;
     });
   };
 
