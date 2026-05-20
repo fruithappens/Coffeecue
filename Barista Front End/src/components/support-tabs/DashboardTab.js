@@ -1,15 +1,87 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Activity, AlertTriangle, Coffee, Clock, TrendingUp, 
-  Users, DollarSign, CheckCircle, XCircle, RefreshCw 
+import {
+  Activity, AlertTriangle, Coffee, Clock, TrendingUp,
+  Users, DollarSign, CheckCircle, XCircle, RefreshCw
 } from 'lucide-react';
 import useOrders from '../../hooks/useOrders';
 import useStations from '../../hooks/useStations';
+import ApiServiceClass from '../../services/ApiService';
+
+const api = new ApiServiceClass();
+
+// Wire the Quick Action buttons to real backend endpoints. Each
+// handler confirms with the operator first (these are
+// event-affecting actions — no accidental clicks). On success a
+// short status message is shown alongside the button grid.
+const quickAction = async (label, fn, setStatus) => {
+  setStatus({ label, state: 'busy', message: 'Working…' });
+  try {
+    const result = await fn();
+    setStatus({ label, state: 'ok', message: result || 'Done' });
+  } catch (e) {
+    setStatus({ label, state: 'err', message: e?.message || 'Failed' });
+  } finally {
+    setTimeout(() => setStatus(null), 4000);
+  }
+};
 
 const DashboardTab = () => {
-  console.log('DashboardTab component loaded');
   const { pendingOrders, inProgressOrders, completedOrders } = useOrders();
   const { stations } = useStations();
+  const [quickStatus, setQuickStatus] = useState(null);
+  const [broadcastOpen, setBroadcastOpen] = useState(false);
+  const [broadcastMsg, setBroadcastMsg] = useState('');
+  const [broadcastSending, setBroadcastSending] = useState(false);
+
+  // Pause / Resume / Emergency Stop wire to the real backend endpoints.
+  const handlePauseAll = () => quickAction('Pause All Orders', async () => {
+    if (!window.confirm('Pause all pending and in-progress orders? Customers will need to be told their order is delayed.')) return 'Cancelled';
+    const r = await api.request('/emergency/stop-all', { method: 'POST' });
+    return r?.message || 'All active orders paused';
+  }, setQuickStatus);
+
+  const handleEmergencyStop = () => quickAction('Emergency Stop', async () => {
+    if (!window.confirm('Emergency stop will pause ALL active orders. Use only if there\'s an immediate safety issue. Continue?')) return 'Cancelled';
+    const r = await api.request('/emergency/stop-all', { method: 'POST' });
+    return r?.message || 'Emergency stop activated';
+  }, setQuickStatus);
+
+  const handleBroadcast = () => {
+    setBroadcastMsg('');
+    setBroadcastOpen(true);
+  };
+
+  const sendBroadcast = async () => {
+    const text = (broadcastMsg || '').trim();
+    if (!text) return;
+    setBroadcastSending(true);
+    try {
+      const r = await api.request('/support/broadcast/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, audience: 'today' }),
+      });
+      setQuickStatus({ label: 'Broadcast Message', state: 'ok',
+                       message: `Sent to ${r?.sent || r?.recipient_count || 'recipients'}` });
+      setBroadcastOpen(false);
+      setBroadcastMsg('');
+      setTimeout(() => setQuickStatus(null), 4000);
+    } catch (e) {
+      setQuickStatus({ label: 'Broadcast Message', state: 'err',
+                       message: e?.message || 'Broadcast failed' });
+    } finally {
+      setBroadcastSending(false);
+    }
+  };
+
+  const handleRefreshData = () => quickAction('Refresh Data', async () => {
+    // The "Restart Services" placeholder didn't make sense for a
+    // hosted backend the operator can't actually restart. Repurposed
+    // as "Refresh Data" — force-reload caches by invalidating the
+    // useOrders/useStations data via a window event.
+    window.dispatchEvent(new CustomEvent('app:forceRefresh'));
+    return 'Caches refreshed';
+  }, setQuickStatus);
   
   const [metrics, setMetrics] = useState({
     totalOrders: 0,
@@ -132,7 +204,7 @@ const DashboardTab = () => {
           </button>
         </div>
         
-        {/* Quick Actions */}
+        {/* Quick Actions — wired to real backend endpoints. */}
         <div className="bg-white rounded-lg shadow-sm p-4">
           <h3 className="font-semibold text-lg mb-4">Quick Actions</h3>
           <div className="grid grid-cols-2 gap-3">
@@ -140,27 +212,65 @@ const DashboardTab = () => {
               label="Pause All Orders"
               icon={<Activity className="w-5 h-5" />}
               color="red"
-              onClick={() => console.log('Pause all orders')}
+              onClick={handlePauseAll}
             />
             <QuickActionButton
               label="Broadcast Message"
               icon={<Users className="w-5 h-5" />}
               color="blue"
-              onClick={() => console.log('Broadcast message')}
+              onClick={handleBroadcast}
             />
             <QuickActionButton
-              label="Restart Services"
+              label="Refresh Data"
               icon={<RefreshCw className="w-5 h-5" />}
               color="yellow"
-              onClick={() => console.log('Restart services')}
+              onClick={handleRefreshData}
             />
             <QuickActionButton
               label="Emergency Stop"
               icon={<XCircle className="w-5 h-5" />}
               color="red"
-              onClick={() => console.log('Emergency stop')}
+              onClick={handleEmergencyStop}
             />
           </div>
+          {quickStatus && (
+            <div className={`mt-3 text-sm p-2 rounded ${
+              quickStatus.state === 'ok' ? 'bg-green-50 text-green-800' :
+              quickStatus.state === 'err' ? 'bg-red-50 text-red-800' :
+              'bg-gray-50 text-gray-700'
+            }`}>
+              <strong>{quickStatus.label}:</strong> {quickStatus.message}
+            </div>
+          )}
+          {broadcastOpen && (
+            <div className="mt-3 p-3 border border-blue-200 bg-blue-50 rounded">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Broadcast message to today's customers
+              </label>
+              <textarea
+                value={broadcastMsg}
+                onChange={(e) => setBroadcastMsg(e.target.value)}
+                rows="3"
+                maxLength={480}
+                placeholder="e.g. The coffee station is closing in 15 minutes."
+                className="w-full p-2 border border-gray-300 rounded text-sm"
+              />
+              <div className="flex justify-between items-center mt-2">
+                <span className="text-xs text-gray-500">{broadcastMsg.length}/480 chars</span>
+                <div className="space-x-2">
+                  <button
+                    onClick={() => { setBroadcastOpen(false); setBroadcastMsg(''); }}
+                    className="px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 rounded"
+                  >Cancel</button>
+                  <button
+                    onClick={sendBroadcast}
+                    disabled={broadcastSending || !broadcastMsg.trim()}
+                    className="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded disabled:opacity-50"
+                  >{broadcastSending ? 'Sending…' : 'Send'}</button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
       

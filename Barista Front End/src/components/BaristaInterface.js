@@ -346,10 +346,28 @@ const BaristaInterface = () => {
     }
   };
 
-  // Load settings from localStorage or use defaults
+  // Load settings from localStorage or use defaults.
+  //
+  // Migration (May 2026): the canonical store is now
+  // `coffee_cue_settings` (the same one `useSettings` reads from).
+  // We try that first; if not present, we fall back to the legacy
+  // `coffee_cue_barista_settings` key and copy it into the canonical
+  // store so future reads find it there. This collapses the three-
+  // stores-for-similar-data mess that caused toggles like
+  // "Show name on display" to appear dead.
   const loadSettings = () => {
     try {
-      const saved = localStorage.getItem('coffee_cue_barista_settings');
+      let saved = localStorage.getItem('coffee_cue_settings');
+      if (!saved || saved === 'undefined' || saved === 'null') {
+        // First boot after this change — migrate from the legacy key.
+        const legacy = localStorage.getItem('coffee_cue_barista_settings');
+        if (legacy && legacy !== 'undefined' && legacy !== 'null') {
+          saved = legacy;
+          try {
+            localStorage.setItem('coffee_cue_settings', legacy);
+          } catch (_) { /* migration is best-effort */ }
+        }
+      }
       if (saved && saved !== 'undefined' && saved !== 'null') {
         const parsed = JSON.parse(saved);
         return {
@@ -410,32 +428,31 @@ const BaristaInterface = () => {
   // Settings state (moved to a SettingsService in a full implementation)
   const [settings, setSettingsState] = useState(loadSettings());
   
-  // Wrapper function to persist settings when they change. We
-  // store under TWO keys because:
-  //   coffee_cue_barista_settings — what this component re-reads on mount
-  //   coffee_cue_settings          — what useSettings (and the
-  //     customer Display screen, plus several other components) reads
-  // Without the mirror, toggling "Show name on display" here saved
-  // to barista-settings but the Display read from coffee_cue_settings
-  // and saw the unchanged old value → the toggle appeared dead.
+  // Wrapper function to persist settings when they change.
+  //
+  // Canonical store is `coffee_cue_settings` — the same one
+  // `useSettings` reads from. After this change there's only ONE
+  // settings store for local (non-branding) state; the old
+  // mirror-and-event pattern is gone.
+  //
+  // The legacy `coffee_cue_barista_settings` key is intentionally
+  // NOT written to anymore; loadSettings() does a one-shot read of
+  // it for migration purposes on first boot.
   const setSettings = (newSettings) => {
     setSettingsState(newSettings);
     try {
-      localStorage.setItem('coffee_cue_barista_settings', JSON.stringify(newSettings));
-      // Mirror into useSettings' store so Display + other consumers
-      // see the same values. Merge rather than overwrite so we don't
-      // clobber backend-synced fields the hook also manages.
+      // Merge against any existing stored value so we don't clobber
+      // fields managed by other components that share this store.
+      let existing = {};
       try {
-        const existing = JSON.parse(localStorage.getItem('coffee_cue_settings') || '{}');
-        const merged = { ...existing, ...newSettings };
-        localStorage.setItem('coffee_cue_settings', JSON.stringify(merged));
-      } catch (mirrorErr) {
-        console.warn('Could not mirror settings into coffee_cue_settings:', mirrorErr);
-      }
-      // Tell the hook to refresh its in-memory copy. useSettings
-      // listens for 'settings:updated' (we'll wire that next).
+        existing = JSON.parse(localStorage.getItem('coffee_cue_settings') || '{}');
+      } catch (_) { /* corrupted, start fresh */ }
+      const merged = { ...existing, ...newSettings };
+      localStorage.setItem('coffee_cue_settings', JSON.stringify(merged));
+      // Tell the useSettings hook to refresh its in-memory copy so
+      // sibling components (Display screen etc.) re-render with the
+      // new value immediately.
       window.dispatchEvent(new CustomEvent('settings:updated', { detail: newSettings }));
-      console.log('Saved settings to localStorage:', newSettings);
     } catch (error) {
       console.error('Error saving settings to localStorage:', error);
     }
