@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
+import {
   Calendar, Clock, Plus, Trash2, Users, Coffee, Lock, Unlock, AlertTriangle,
   PlayCircle, PauseCircle, Bell, Timer, Shield, UserCheck, ChevronLeft,
   ChevronRight, MessageSquare, Activity, RefreshCw, Settings, AlertCircle,
@@ -8,6 +8,43 @@ import {
 import ScheduleService from '../services/ScheduleService';
 import StationsService from '../services/StationsService';
 import MessageService from '../services/MessageService';
+import ApiServiceClass from '../services/ApiService';
+
+// Backend-backed event_sessions + session_statuses. The /settings/
+// event-sessions KV endpoint persists these to Postgres so a
+// coordinator opening the schedule on a different device sees the
+// same sessions. localStorage still acts as a fast first-paint cache.
+const _apiService = new ApiServiceClass();
+
+const _refreshSessionsFromBackend = async () => {
+  try {
+    const resp = await _apiService.get('/settings/event-sessions');
+    if (resp?.success !== false) {
+      if (Array.isArray(resp?.sessions)) {
+        localStorage.setItem('event_sessions', JSON.stringify(resp.sessions));
+      }
+      if (resp?.statuses && typeof resp.statuses === 'object') {
+        localStorage.setItem('session_statuses', JSON.stringify(resp.statuses));
+      }
+    }
+    return resp;
+  } catch (err) {
+    console.warn('Could not refresh sessions from backend; using localStorage cache:', err);
+    return null;
+  }
+};
+
+const _persistSessionsToBackend = async ({ sessions, statuses }) => {
+  const payload = {};
+  if (sessions !== undefined) payload.sessions = sessions;
+  if (statuses !== undefined) payload.statuses = statuses;
+  if (Object.keys(payload).length === 0) return;
+  try {
+    await _apiService.post('/settings/event-sessions', payload);
+  } catch (err) {
+    console.warn('Could not save sessions to backend; localStorage cache kept:', err);
+  }
+};
 
 /**
  * Enhanced Schedule Management Component for Organiser Interface
@@ -46,12 +83,22 @@ const EnhancedScheduleManagement = () => {
     return () => clearInterval(timer);
   }, []);
   
-  // Load initial data
+  // Load initial data. Pull authoritative sessions + statuses from
+  // the backend KV so a coordinator on a tablet sees the same
+  // schedule as a coordinator on a laptop; localStorage caches let
+  // the panel render instantly while the fetch is in flight.
   useEffect(() => {
     loadStations();
     loadBaristas();
     loadSessions();
     loadSessionStatuses();
+    (async () => {
+      const resp = await _refreshSessionsFromBackend();
+      if (resp) {
+        loadSessions();
+        loadSessionStatuses();
+      }
+    })();
   }, [selectedDate]);
   
   // Auto-scroll timeline to current time
@@ -118,18 +165,25 @@ const EnhancedScheduleManagement = () => {
     }
   };
   
-  // Save sessions
+  // Save sessions. Writes localStorage immediately for instant UI
+  // feedback, then mirrors the full sessions list to the backend so
+  // it persists cross-device. Other-date sessions are preserved.
   const saveSessions = (newSessions) => {
     const allSessions = JSON.parse(localStorage.getItem('event_sessions') || '[]');
     const otherSessions = allSessions.filter(s => s.date !== selectedDate);
     const updatedSessions = [...otherSessions, ...newSessions];
-    
+
     localStorage.setItem('event_sessions', JSON.stringify(updatedSessions));
     setSessions(newSessions.sort((a, b) => a.startTime.localeCompare(b.startTime)));
-    
+
+    // Best-effort backend mirror. We send the whole sessions list
+    // (across all dates), so a partial network failure can't desync
+    // one date from another.
+    _persistSessionsToBackend({ sessions: updatedSessions });
+
     // Trigger update event
-    window.dispatchEvent(new CustomEvent('sessions:updated', { 
-      detail: { sessions: updatedSessions } 
+    window.dispatchEvent(new CustomEvent('sessions:updated', {
+      detail: { sessions: updatedSessions }
     }));
   };
   
@@ -227,6 +281,8 @@ const EnhancedScheduleManagement = () => {
     
     setSessionStatuses(newStatuses);
     localStorage.setItem('session_statuses', JSON.stringify(newStatuses));
+    // Mirror to backend KV so the next device sees the same status.
+    _persistSessionsToBackend({ statuses: newStatuses });
     
     // Update the session itself
     updateSession(sessionId, { status });

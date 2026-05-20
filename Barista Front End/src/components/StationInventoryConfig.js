@@ -1,9 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Coffee, Settings, Check, X, Search, Filter, 
+import {
+  Coffee, Settings, Check, X, Search, Filter,
   CheckCircle, Circle, Package, Trash2, Plus, Minus
 } from 'lucide-react';
 import InventoryIntegrationService from '../services/InventoryIntegrationService';
+import ApiServiceClass from '../services/ApiService';
+
+// One ApiService instance per import — request() handles JWT refresh
+// and base URL.
+const _apiService = new ApiServiceClass();
 
 /**
  * Station Inventory Configuration Component
@@ -28,18 +33,65 @@ const StationInventoryConfig = ({ stations }) => {
     extras: { name: 'Extras & Add-ons', color: 'indigo' }
   };
 
-  // Load data on mount
+  // Load data on mount. The configs + quantities now come from the
+  // backend so settings made on one device show up on another. We
+  // still keep localStorage caches as a fast first paint + offline
+  // fallback if the backend is briefly unreachable.
   useEffect(() => {
     console.log('StationInventoryConfig mounting, loading data...');
     loadInventory();
     loadStationConfigs();
     loadStationInventory();
-    
+    // Async fetch from backend; replaces the localStorage values if
+    // the call succeeds. Doing this AFTER the local read means the
+    // panel renders instantly with whatever the user saw last time.
+    refreshFromBackend();
+
     // Cleanup function to track unmounting
     return () => {
       console.log('StationInventoryConfig unmounting...');
     };
   }, []);
+
+  // Pull authoritative configs + quantities from the backend KV.
+  const refreshFromBackend = async () => {
+    try {
+      const resp = await _apiService.get('/settings/station-inventory-configs');
+      if (resp?.success !== false) {
+        if (resp?.configs && typeof resp.configs === 'object') {
+          setStationConfigs(resp.configs);
+          try {
+            localStorage.setItem('station_inventory_configs', JSON.stringify(resp.configs));
+          } catch (_) {}
+        }
+        if (resp?.quantities && typeof resp.quantities === 'object') {
+          setStationInventory(resp.quantities);
+          try {
+            localStorage.setItem('station_inventory_quantities', JSON.stringify(resp.quantities));
+          } catch (_) {}
+        }
+      }
+    } catch (err) {
+      console.warn('Could not refresh station inventory config from backend; using localStorage cache:', err);
+    }
+  };
+
+  // Best-effort backend save. Falls back silently to localStorage-only
+  // if the backend is unreachable — the saveStation* helpers always
+  // write localStorage as a sync source of truth for the next render.
+  // Pass undefined for the half you're not updating; the backend only
+  // touches whichever key it sees in the payload.
+  const _persistToBackend = async (configs, quantities) => {
+    const payload = {};
+    if (configs !== undefined && configs !== null) payload.configs = configs;
+    if (quantities !== undefined && quantities !== null) payload.quantities = quantities;
+    if (Object.keys(payload).length === 0) return;
+    try {
+      await _apiService.post('/settings/station-inventory-configs', payload);
+    } catch (err) {
+      console.warn('Could not save station inventory config to backend; localStorage cache kept:', err);
+    }
+  };
 
   // Don't auto-initialize - let user explicitly choose what's available
   // This was causing all items to be enabled by default
@@ -150,11 +202,16 @@ const StationInventoryConfig = ({ stations }) => {
       
       localStorage.setItem('station_inventory_configs', configString);
       setStationConfigs(configs);
-      
+
       // Verify it was saved correctly
       const savedConfigs = localStorage.getItem('station_inventory_configs');
       console.log('Verified saved configs:', savedConfigs);
-      
+
+      // Persist to backend KV so a different operator on a different
+      // device picks up the same config. Best-effort — if the network
+      // is down we still have localStorage as a fallback.
+      _persistToBackend(configs, undefined);
+
       // Notify integration service that station configuration was updated
       InventoryIntegrationService.notifyStationConfigUpdated();
     } catch (e) {
@@ -170,17 +227,20 @@ const StationInventoryConfig = ({ stations }) => {
       localStorage.setItem('station_inventory_quantities', inventoryString);
       setStationInventory(inventory);
       console.log('Station inventory quantities saved successfully');
-      
+
       // Verify it was saved correctly
       const savedInventory = localStorage.getItem('station_inventory_quantities');
       console.log('Verified saved inventory quantities:', savedInventory);
-      
+
+      // Persist to backend KV so quantities are visible cross-device.
+      _persistToBackend(undefined, inventory);
+
       // Dispatch event to notify EventStockManagement component
       window.dispatchEvent(new CustomEvent('stationInventory:updated', {
         detail: { inventory }
       }));
       console.log('Dispatched stationInventory:updated event');
-      
+
       // Don't auto-sync - it's overwriting configurations
       // InventoryIntegrationService.syncInventoryToStations();
       console.log('Skipping auto-sync to prevent config loss');

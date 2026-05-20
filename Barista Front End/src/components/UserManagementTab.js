@@ -6,6 +6,34 @@ import {
   ChevronDown, ChevronUp, Search, Filter, User
 } from 'lucide-react';
 import useStations from '../hooks/useStations';
+import ApiServiceClass from '../services/ApiService';
+
+// One ApiService instance per component import — request() handles
+// JWT refresh and base URL automatically.
+const apiService = new ApiServiceClass();
+
+// localStorage key for the rich metadata (skills, availability, notes)
+// that the backend's users table doesn't track yet. Identity-relevant
+// fields (username, email, role, password) live in Postgres via
+// /api/users and survive across devices. Enrichment is keyed by username
+// so it follows the canonical row from the backend.
+const ENRICHMENT_KEY = 'coffee_system_user_enrichment';
+
+const _loadEnrichment = () => {
+  try {
+    return JSON.parse(localStorage.getItem(ENRICHMENT_KEY) || '{}');
+  } catch (_) {
+    return {};
+  }
+};
+
+const _saveEnrichment = (enrichment) => {
+  try {
+    localStorage.setItem(ENRICHMENT_KEY, JSON.stringify(enrichment));
+  } catch (e) {
+    console.error('Could not save user enrichment to localStorage:', e);
+  }
+};
 
 const UserManagementTab = () => {
   // Pull real stations from the backend so the preferred-station dropdown
@@ -53,64 +81,62 @@ const UserManagementTab = () => {
     active: true
   });
 
-  // Load users from localStorage on mount
+  // Loading / error state for the API roundtrips.
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Load users from the backend on mount, merging with the local
+  // enrichment store for the fields the backend doesn't persist
+  // (skills, availability, notes, fullName, etc.).
   useEffect(() => {
     loadUsers();
   }, []);
 
-  const loadUsers = () => {
+  const loadUsers = async () => {
+    setLoading(true);
+    setError(null);
     try {
-      const savedUsers = localStorage.getItem('coffee_system_users');
-      if (savedUsers) {
-        setUsers(JSON.parse(savedUsers));
-      } else {
-        // Initialize with some default users
-        const defaultUsers = [
-          {
-            id: 'user_1',
-            username: 'barista1',
-            email: 'barista1@coffee.com',
-            fullName: 'John Smith',
-            role: 'barista',
-            phone: '555-0101',
-            experience: 'intermediate',
-            skills: {
-              espresso: true,
-              latte_art: true,
-              customer_service: true,
-              inventory_management: false,
-              speed: true,
-              training_others: false
-            },
-            preferredStation: '1',
-            active: true,
-            createdAt: new Date().toISOString(),
-            stats: {
-              totalOrders: 156,
-              avgPrepTime: 3.5,
-              rating: 4.8
-            }
-          }
-        ];
-        setUsers(defaultUsers);
-        localStorage.setItem('coffee_system_users', JSON.stringify(defaultUsers));
-      }
-    } catch (error) {
-      console.error('Error loading users:', error);
+      const resp = await apiService.get('/users');
+      const dbUsers = resp?.data || resp?.users || [];
+      const enrichment = _loadEnrichment();
+
+      // Merge backend rows with local enrichment, keyed by username.
+      const merged = dbUsers.map((u) => {
+        const extras = enrichment[u.username] || {};
+        return {
+          ...extras,
+          id: u.id,
+          username: u.username,
+          email: u.email || extras.email || '',
+          role: u.role,
+          active: u.is_active !== false,
+          last_login: u.last_login,
+          password: '***',  // never display — the backend stores a hash
+        };
+      });
+      setUsers(merged);
+    } catch (err) {
+      console.error('Error loading users:', err);
+      setError(
+        `Could not load users from the backend: ${err.message || err}. ` +
+        `Falling back to local cache (this device only).`
+      );
+      // Best-effort fallback so the panel still renders something.
+      const enrichment = _loadEnrichment();
+      setUsers(
+        Object.entries(enrichment).map(([username, extras]) => ({
+          ...extras,
+          username,
+          id: extras.id || `local_${username}`,
+          password: '***',
+        }))
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
-  const saveUsers = (updatedUsers) => {
-    try {
-      localStorage.setItem('coffee_system_users', JSON.stringify(updatedUsers));
-      setUsers(updatedUsers);
-    } catch (error) {
-      console.error('Error saving users:', error);
-      alert('Failed to save users');
-    }
-  };
-
-  const handleAddUser = () => {
+  const handleAddUser = async () => {
     if (!userForm.username || !userForm.password || !userForm.fullName) {
       alert('Please fill in all required fields');
       return;
@@ -121,57 +147,124 @@ const UserManagementTab = () => {
       return;
     }
 
-    // Check if username already exists
+    // Check if username already exists locally (defensive — backend
+    // also checks).
     if (users.some(u => u.username === userForm.username)) {
       alert('Username already exists');
       return;
     }
 
-    const newUser = {
-      id: `user_${Date.now()}`,
-      ...userForm,
-      createdAt: new Date().toISOString(),
-      stats: {
-        totalOrders: 0,
-        avgPrepTime: 0,
-        rating: 0
-      }
-    };
-
-    // Don't store actual password in localStorage (in real app, this would be hashed)
-    delete newUser.confirmPassword;
-    newUser.password = '***'; // Placeholder
-
-    saveUsers([...users, newUser]);
-    resetForm();
-    setShowAddUser(false);
+    setLoading(true);
+    setError(null);
+    try {
+      // Backend takes the basic identity fields. The rich
+      // skills/availability/notes go into local enrichment so they
+      // appear next time we render this list (per-device cache).
+      const resp = await apiService.post('/users', {
+        username: userForm.username,
+        email: userForm.email,
+        role: userForm.role,
+        password: userForm.password,
+      });
+      const created = resp?.data || resp;
+      const enrichment = _loadEnrichment();
+      enrichment[userForm.username] = {
+        fullName: userForm.fullName,
+        phone: userForm.phone,
+        experience: userForm.experience,
+        skills: userForm.skills,
+        availability: userForm.availability,
+        preferredStation: userForm.preferredStation,
+        certifications: userForm.certifications,
+        notes: userForm.notes,
+        createdAt: new Date().toISOString(),
+      };
+      _saveEnrichment(enrichment);
+      await loadUsers();
+      resetForm();
+      setShowAddUser(false);
+    } catch (err) {
+      console.error('Error adding user:', err);
+      setError(`Could not add user: ${err.message || err}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleUpdateUser = () => {
+  const handleUpdateUser = async () => {
     if (!userForm.username || !userForm.fullName) {
       alert('Please fill in all required fields');
       return;
     }
 
-    const updatedUsers = users.map(user => 
-      user.id === editingUser 
-        ? { 
-            ...user, 
-            ...userForm,
-            password: userForm.password || user.password,
-            updatedAt: new Date().toISOString()
-          }
-        : user
-    );
+    const existing = users.find(u => u.id === editingUser);
+    if (!existing) return;
 
-    saveUsers(updatedUsers);
-    resetForm();
-    setEditingUser(null);
+    setLoading(true);
+    setError(null);
+    try {
+      // Send the identity fields the backend cares about.
+      const updatePayload = {
+        username: userForm.username,
+        email: userForm.email,
+        role: userForm.role,
+      };
+      if (userForm.password) {
+        // Password change — backend re-hashes server-side.
+        updatePayload.password = userForm.password;
+      }
+      if (typeof userForm.active === 'boolean') {
+        updatePayload.is_active = userForm.active;
+      }
+      await apiService.put(`/users/${existing.id}`, updatePayload);
+
+      // Update the enrichment row keyed by the (possibly new) username.
+      const enrichment = _loadEnrichment();
+      if (existing.username !== userForm.username) {
+        delete enrichment[existing.username];
+      }
+      enrichment[userForm.username] = {
+        fullName: userForm.fullName,
+        phone: userForm.phone,
+        experience: userForm.experience,
+        skills: userForm.skills,
+        availability: userForm.availability,
+        preferredStation: userForm.preferredStation,
+        certifications: userForm.certifications,
+        notes: userForm.notes,
+        updatedAt: new Date().toISOString(),
+      };
+      _saveEnrichment(enrichment);
+      await loadUsers();
+      resetForm();
+      setEditingUser(null);
+    } catch (err) {
+      console.error('Error updating user:', err);
+      setError(`Could not update user: ${err.message || err}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDeleteUser = (userId) => {
-    if (window.confirm('Are you sure you want to delete this user?')) {
-      saveUsers(users.filter(u => u.id !== userId));
+  const handleDeleteUser = async (userId) => {
+    if (!window.confirm('Are you sure you want to delete this user?')) return;
+    const target = users.find(u => u.id === userId);
+    setLoading(true);
+    setError(null);
+    try {
+      await apiService.delete(`/users/${userId}`);
+      // Tidy up local enrichment too.
+      if (target?.username) {
+        const enrichment = _loadEnrichment();
+        delete enrichment[target.username];
+        _saveEnrichment(enrichment);
+      }
+      await loadUsers();
+    } catch (err) {
+      console.error('Error deleting user:', err);
+      setError(`Could not delete user: ${err.message || err}`);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -247,11 +340,31 @@ const UserManagementTab = () => {
 
   return (
     <div className="space-y-6">
+      {/* Loading + error banners — surface backend round-trip status. */}
+      {loading && (
+        <div className="bg-blue-50 border border-blue-200 text-blue-800 px-3 py-2 rounded text-sm">
+          Loading users from the server…
+        </div>
+      )}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-800 px-3 py-2 rounded text-sm flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="ml-2"><X size={16} /></button>
+        </div>
+      )}
+
       {/* Header and Actions */}
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold">User Management</h2>
-          <p className="text-gray-600">Manage barista profiles, skills, and schedules</p>
+          <p className="text-gray-600">
+            Manage barista profiles, skills, and schedules.
+            <span className="text-xs text-gray-500 ml-2">
+              Identity (username/email/role/password) is saved to the
+              backend. Skills, availability and notes are cached locally
+              per-device.
+            </span>
+          </p>
         </div>
         <button
           onClick={() => {

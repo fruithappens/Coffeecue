@@ -5429,6 +5429,123 @@ def upsert_barista_profile(name):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@bp.route('/settings/station-inventory-configs', methods=['GET'])
+@jwt_required_with_demo()
+def get_station_inventory_configs():
+    """Per-station inventory enable/disable + quantity config.
+
+    Previously this lived only in localStorage (StationInventoryConfig.js
+    keys 'station_inventory_configs' and 'station_inventory_quantities'),
+    so an organiser who set up oat-only-at-station-2 on their laptop
+    saw none of it after closing the browser and reopening on a tablet.
+    Now backed by the settings KV table so it follows the rest of the
+    org config across devices.
+
+    Returns:
+      {
+        'configs':     { <station_id>: { <category>: { <itemId>: bool } } },
+        'quantities':  { <station_id>: { <category>: { <itemId>: number } } }
+      }
+    Either half can be empty if it's never been saved.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        configs = _kv_get(coffee_system.db, 'station_inventory_configs', default={}) or {}
+        quantities = _kv_get(coffee_system.db, 'station_inventory_quantities', default={}) or {}
+        return jsonify({
+            'success': True,
+            'configs': configs,
+            'quantities': quantities,
+        })
+    except Exception as e:
+        logger.error(f"get_station_inventory_configs error: {e}")
+        return jsonify({
+            'success': False,
+            'configs': {},
+            'quantities': {},
+            'error': str(e),
+        }), 200
+
+
+@bp.route('/settings/event-sessions', methods=['GET'])
+@jwt_required_with_demo()
+def get_event_sessions():
+    """Multi-day event session config consumed by
+    EnhancedScheduleManagement.js — what conference sessions are
+    happening when, station-by-station lock map, and a per-session
+    status (upcoming / in_progress / done).
+
+    Previously this all lived in localStorage so a coordinator
+    running the schedule on one device saw a different picture than
+    a coordinator on another. Now backed by the settings KV.
+
+    Returns:
+      {
+        sessions:   [...],   # full session objects (event_sessions)
+        statuses:   {...}    # { <session_id>: 'upcoming'|'in_progress'|'done' }
+      }
+    Either half can be empty.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        sessions = _kv_get(coffee_system.db, 'event_sessions', default=[]) or []
+        statuses = _kv_get(coffee_system.db, 'session_statuses', default={}) or {}
+        return jsonify({
+            'success': True,
+            'sessions': sessions,
+            'statuses': statuses,
+        })
+    except Exception as e:
+        logger.error(f"get_event_sessions error: {e}")
+        return jsonify({
+            'success': False,
+            'sessions': [],
+            'statuses': {},
+            'error': str(e),
+        }), 200
+
+
+@bp.route('/settings/event-sessions', methods=['PUT', 'POST'])
+@jwt_required_with_demo()
+def upsert_event_sessions():
+    """Save event sessions / per-session status. Accepts either
+    field independently so e.g. flipping one session to 'in_progress'
+    doesn't require resending all the session definitions."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        data = request.get_json() or {}
+        if 'sessions' in data and isinstance(data['sessions'], list):
+            _kv_put(coffee_system.db, 'event_sessions', data['sessions'])
+        if 'statuses' in data and isinstance(data['statuses'], dict):
+            _kv_put(coffee_system.db, 'session_statuses', data['statuses'])
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"upsert_event_sessions error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/settings/station-inventory-configs', methods=['PUT', 'POST'])
+@jwt_required_with_demo()
+def upsert_station_inventory_configs():
+    """Save per-station inventory config. Accepts:
+      { 'configs': {...} }         — enable/disable map
+      { 'quantities': {...} }      — quantity map
+      { 'configs': {...}, 'quantities': {...} }  — both at once
+    Either field can be omitted; the missing key isn't touched.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        data = request.get_json() or {}
+        if 'configs' in data and isinstance(data['configs'], dict):
+            _kv_put(coffee_system.db, 'station_inventory_configs', data['configs'])
+        if 'quantities' in data and isinstance(data['quantities'], dict):
+            _kv_put(coffee_system.db, 'station_inventory_quantities', data['quantities'])
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"upsert_station_inventory_configs error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @bp.route('/settings/branding', methods=['GET'])
 @jwt_required_with_demo()
 def get_branding_settings():
