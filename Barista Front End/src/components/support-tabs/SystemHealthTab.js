@@ -1,105 +1,143 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Server, Database, Wifi, MessageSquare, Activity, 
-  HardDrive, Cpu, MemoryStick, Globe, CheckCircle, 
-  XCircle, AlertTriangle, RefreshCw 
+import {
+  Server, Database, Wifi, MessageSquare, Activity,
+  HardDrive, Cpu, MemoryStick, Globe, CheckCircle,
+  XCircle, AlertTriangle, RefreshCw
 } from 'lucide-react';
+import ApiServiceClass from '../../services/ApiService';
+
+const _apiService = new ApiServiceClass();
 
 const SystemHealthTab = () => {
   const [components, setComponents] = useState([
+    // Tiles are populated from real /api/diagnostics/* endpoints by
+    // checkSystemHealth(). Initial values are 'unknown' so support
+    // staff see a clear "loading" state rather than the hardcoded
+    // mock that used to live here (45ms response, $123.45 Twilio
+    // balance, etc).
+    //
+    // Redis and nginx tiles were removed — this stack doesn't use
+    // either, so claiming they're "healthy" was actively misleading.
     {
       id: 'api',
       name: 'API Server',
       icon: <Server className="w-6 h-6" />,
-      status: 'healthy',
-      metrics: {
-        'Response Time': '45ms',
-        'Error Rate': '0.01%',
-        'Uptime': '72h 15m',
-        'Requests/min': '342'
-      }
+      status: 'unknown',
+      metrics: { 'Status': 'Loading…' },
     },
     {
       id: 'database',
       name: 'PostgreSQL Database',
       icon: <Database className="w-6 h-6" />,
-      status: 'healthy',
-      metrics: {
-        'Connections': '12/100',
-        'Query Time': '3ms',
-        'Size': '1.2GB',
-        'Cache Hit Rate': '94%'
-      }
+      status: 'unknown',
+      metrics: { 'Status': 'Loading…' },
     },
     {
       id: 'twilio',
       name: 'SMS Gateway (Twilio)',
       icon: <MessageSquare className="w-6 h-6" />,
-      status: 'healthy',
-      metrics: {
-        'Balance': '$123.45',
-        'Messages Today': '3,421',
-        'Delivery Rate': '99.2%',
-        'Avg Response': '1.2s'
-      }
+      status: 'unknown',
+      metrics: { 'Status': 'Loading…' },
     },
     {
-      id: 'websocket',
-      name: 'WebSocket Server',
-      icon: <Wifi className="w-6 h-6" />,
-      status: 'healthy',
-      metrics: {
-        'Active Connections': '87',
-        'Messages/sec': '125',
-        'Memory Usage': '234MB',
-        'CPU Usage': '12%'
-      }
+      id: 'host',
+      name: 'Application Host (CPU/Memory)',
+      icon: <Cpu className="w-6 h-6" />,
+      status: 'unknown',
+      metrics: { 'Status': 'Loading…' },
     },
-    {
-      id: 'redis',
-      name: 'Redis Cache',
-      icon: <HardDrive className="w-6 h-6" />,
-      status: 'warning',
-      metrics: {
-        'Memory': '450MB/512MB',
-        'Hit Rate': '89%',
-        'Keys': '10,234',
-        'Evictions': '42'
-      },
-      warning: 'Memory usage high'
-    },
-    {
-      id: 'nginx',
-      name: 'Load Balancer',
-      icon: <Globe className="w-6 h-6" />,
-      status: 'healthy',
-      metrics: {
-        'Active Connections': '234',
-        'Requests/sec': '450',
-        'Bandwidth': '12.3 MB/s',
-        'SSL Handshakes': '98/s'
-      }
-    }
   ]);
-  
+
+
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(new Date());
   
   useEffect(() => {
+    // Initial check on mount.
+    checkSystemHealth();
     if (!autoRefresh) return;
-    
     const interval = setInterval(() => {
-      // Simulate health check
       checkSystemHealth();
       setLastUpdate(new Date());
     }, 5000);
-    
     return () => clearInterval(interval);
   }, [autoRefresh]);
-  
+
+  // Pull real diagnostics from the backend endpoints that already
+  // exist (support_api_routes.py): database, sms, performance.
+  // Updates the corresponding tile statuses + metrics so support
+  // staff stops looking at the previously-hardcoded mockup values.
   const checkSystemHealth = async () => {
-    // In real implementation, this would call the API
-    console.log('Checking system health...');
+    const updates = {};
+
+    // --- API + Database -------------------------------------------
+    // Backend response shape: {status: 'healthy'|'error', message: ...}
+    try {
+      const dbResp = await _apiService.get('/diagnostics/database');
+      const ok = dbResp?.status === 'healthy';
+      updates.api = {
+        status: ok ? 'healthy' : 'error',
+        metrics: ok
+          ? { 'DB Connection': 'OK' }
+          : { 'Error': dbResp?.message || 'unreachable' },
+      };
+      updates.database = {
+        status: ok ? 'healthy' : 'error',
+        metrics: ok
+          ? { 'Status': 'Connected' }
+          : { 'Error': dbResp?.message || 'down' },
+      };
+    } catch (e) {
+      updates.api = { status: 'error', metrics: { 'Error': String(e?.message || e) } };
+      updates.database = { status: 'error', metrics: { 'Error': 'unreachable' } };
+    }
+
+    // --- Twilio / SMS gateway -------------------------------------
+    // Backend response shape: {status: 'healthy'|'warning'|'error', message: ...}
+    try {
+      const smsResp = await _apiService.get('/diagnostics/sms');
+      const status =
+        smsResp?.status === 'healthy' ? 'healthy' :
+        smsResp?.status === 'warning' ? 'warning' :
+        'error';
+      updates.twilio = {
+        status,
+        metrics: {
+          'Status':  smsResp?.status || 'unknown',
+          ...(smsResp?.message ? { 'Message': smsResp.message } : {}),
+        },
+      };
+    } catch (e) {
+      updates.twilio = { status: 'error', metrics: { 'Error': String(e?.message || e) } };
+    }
+
+    // --- Host (CPU/Memory) ----------------------------------------
+    try {
+      const perfResp = await _apiService.get('/diagnostics/performance');
+      const cpu = perfResp?.cpuUsage;
+      const mem = perfResp?.memoryUsage;
+      const status = (cpu > 90 || mem > 90) ? 'warning' : 'healthy';
+      updates.host = {
+        status,
+        metrics: {
+          'CPU':    typeof cpu === 'number' ? `${cpu.toFixed(0)}%` : 'n/a',
+          'Memory': typeof mem === 'number' ? `${mem.toFixed(0)}%` : 'n/a',
+        },
+      };
+    } catch (e) {
+      updates.host = { status: 'warning', metrics: { 'Error': String(e?.message || e) } };
+    }
+
+    // Merge updates onto whichever tile id matches. Anything we don't
+    // have real data for keeps its existing (possibly mock) values —
+    // intentional fallback rather than nuking the whole grid on the
+    // first failed fetch.
+    setComponents(prev => prev.map(c => {
+      const upd = updates[c.id];
+      if (!upd) return c;
+      return { ...c, status: upd.status, metrics: upd.metrics };
+    }));
+    setLastUpdate(new Date());
   };
   
   const getStatusIcon = (status) => {
@@ -124,11 +162,17 @@ const SystemHealthTab = () => {
     }
   };
   
+  // Component-restart buttons are non-functional: there's no per-
+  // component restart endpoint on the backend (and "restart Postgres
+  // from the support UI" isn't a thing you actually want to wire up
+  // anyway). Left in place but no-op'd to make this explicit — was
+  // previously a console.log that looked like it worked.
   const handleRestart = (componentId) => {
-    if (window.confirm(`Are you sure you want to restart ${componentId}?`)) {
-      console.log(`Restarting ${componentId}...`);
-      // API call to restart component
-    }
+    window.alert(
+      `Restarting "${componentId}" from this panel isn't supported. ` +
+      `Restart the service from your deploy host (Railway dashboard, ` +
+      `systemd, etc).`
+    );
   };
   
   return (

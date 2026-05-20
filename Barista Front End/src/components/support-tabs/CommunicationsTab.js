@@ -12,7 +12,9 @@ const BROADCAST_MAX_RECIPIENTS = 500;
 const BROADCAST_MAX_LEN = 480;
 
 const CommunicationsTab = () => {
-  const [activeSection, setActiveSection] = useState('overview');
+  // Default to 'broadcast' — overview/twilio/templates/history were
+  // hardcoded mock content, hidden until backed by real endpoints.
+  const [activeSection, setActiveSection] = useState('broadcast');
   const [twilioConfig, setTwilioConfig] = useState({
     phoneNumber: '+61 XXX XXX XXX',
     accountSid: 'AC***hidden***',
@@ -117,35 +119,17 @@ const CommunicationsTab = () => {
         <h2 className="text-2xl font-bold">Communications Center</h2>
         <div className="flex space-x-2">
           <button
-            onClick={() => setActiveSection('overview')}
-            className={`px-4 py-2 rounded-lg ${activeSection === 'overview' ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}
-          >
-            Overview
-          </button>
-          <button
-            onClick={() => setActiveSection('twilio')}
-            className={`px-4 py-2 rounded-lg ${activeSection === 'twilio' ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}
-          >
-            Twilio Config
-          </button>
-          <button
-            onClick={() => setActiveSection('templates')}
-            className={`px-4 py-2 rounded-lg ${activeSection === 'templates' ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}
-          >
-            Templates
-          </button>
-          <button
             onClick={() => setActiveSection('broadcast')}
             className={`px-4 py-2 rounded-lg ${activeSection === 'broadcast' ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}
           >
             Broadcast
           </button>
-          <button
-            onClick={() => setActiveSection('history')}
-            className={`px-4 py-2 rounded-lg ${activeSection === 'history' ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}
-          >
-            History
-          </button>
+          {/* The Overview / Twilio Config / Templates / History
+              sub-tabs were hardcoded mock content with no backend
+              behind them ($123.45 Twilio balance was a literal
+              constant in the file). Hidden until the corresponding
+              backends are real. Broadcast is the only working
+              section — kept visible. */}
         </div>
       </div>
       

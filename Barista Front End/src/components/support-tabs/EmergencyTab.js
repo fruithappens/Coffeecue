@@ -234,24 +234,9 @@ const EmergencyTab = () => {
               )}
             </Button>
 
-            <Button
-              variant="destructive"
-              className="h-20"
-              onClick={systemLocked ? unlockSystem : lockSystem}
-              disabled={Object.keys(confirmations).length > 0}
-            >
-              {systemLocked ? (
-                <>
-                  <Unlock className="h-6 w-6 mr-2" />
-                  Unlock System
-                </>
-              ) : (
-                <>
-                  <Lock className="h-6 w-6 mr-2" />
-                  Lock System
-                </>
-              )}
-            </Button>
+            {/* Lock System button hidden — /api/emergency/lock-system
+                doesn't exist on the backend. See the deferred section
+                below. */}
           </div>
         </CardContent>
       </Card>
@@ -275,36 +260,12 @@ const EmergencyTab = () => {
               <Coffee className="h-4 w-4 mr-2" />
               Clear All Order Queues
             </Button>
-            
-            <Button
-              variant="outline"
-              className="w-full justify-start text-red-600"
-              onClick={resetAllStations}
-              disabled={Object.keys(confirmations).length > 0}
-            >
-              <Power className="h-4 w-4 mr-2" />
-              Reset All Stations
-            </Button>
 
-            <Button
-              variant="outline"
-              className="w-full justify-start text-red-600"
-              onClick={purgeOldData}
-              disabled={Object.keys(confirmations).length > 0}
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Purge Old Data (&gt;30 days)
-            </Button>
-
-            <Button
-              variant="destructive"
-              className="w-full justify-start"
-              onClick={resetDatabase}
-              disabled={Object.keys(confirmations).length > 0}
-            >
-              <Database className="h-4 w-4 mr-2" />
-              RESET ENTIRE DATABASE
-            </Button>
+            {/* Reset All Stations / Purge Old Data / RESET ENTIRE
+                DATABASE are hidden — their backend endpoints don't
+                exist yet (see audit batch F). Leaving them visible
+                would silently 404 in an actual emergency, which is
+                the worst possible time to discover. */}
           </div>
         </CardContent>
       </Card>
@@ -327,20 +288,8 @@ const EmergencyTab = () => {
                 <Download className="h-4 w-4 mr-2" />
                 {backupStatus === 'creating' ? 'Creating...' : 'Create Backup'}
               </Button>
-              
-              <label className="cursor-pointer">
-                <input
-                  type="file"
-                  accept=".json"
-                  onChange={restoreFromBackup}
-                  className="hidden"
-                  disabled={Object.keys(confirmations).length > 0}
-                />
-                <Button variant="outline" as="span">
-                  <Upload className="h-4 w-4 mr-2" />
-                  Restore from Backup
-                </Button>
-              </label>
+              {/* Restore from Backup is hidden — /api/emergency/restore
+                  doesn't exist on the backend. */}
             </div>
             
             {backupStatus === 'completed' && (
@@ -380,6 +329,32 @@ const EmergencyTab = () => {
           </CardContent>
         </Card>
       ))}
+
+      {/* Deferred controls — visible as informational text so support
+          staff know these features exist conceptually but aren't
+          wired to the backend yet. Re-enable each button as its
+          endpoint is implemented. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-gray-500">
+            <AlertCircle className="h-5 w-5" />
+            Deferred controls (backend pending)
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ul className="text-sm text-gray-600 space-y-1 list-disc list-inside">
+            <li>Lock / Unlock System — needs /api/emergency/lock-system + unlock-system</li>
+            <li>Reset All Stations — needs /api/emergency/reset-stations</li>
+            <li>Purge Old Data — needs /api/emergency/purge-data</li>
+            <li>Reset Entire Database — needs /api/emergency/reset-database</li>
+            <li>Restore from Backup — needs /api/emergency/restore</li>
+          </ul>
+          <p className="text-xs text-gray-500 mt-2">
+            These were silently 404ing before — buttons removed so support
+            staff don't think they took action in a real emergency.
+          </p>
+        </CardContent>
+      </Card>
 
       {/* Action Log */}
       <Card>

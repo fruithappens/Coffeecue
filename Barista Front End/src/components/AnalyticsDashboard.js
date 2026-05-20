@@ -125,15 +125,27 @@ const AnalyticsDashboard = () => {
       };
     });
     
-    // Calculate revenue (mock calculation)
-    const avgOrderValue = 5.50;
-    const revenue = completedOrders.length * avgOrderValue;
-    
+    // Calculate revenue. Sums the price stamp on each completed
+    // order (the pricing system writes order_details.price when
+    // pricing is enabled). Falls back to 0 for orders without a
+    // price — i.e. we no longer pretend a non-priced order earned
+    // $5.50 of revenue. If pricing isn't enabled at all the tile
+    // shows $0.00, which is the honest answer.
+    const revenue = completedOrders.reduce((sum, o) => {
+      const details = o.order_details || o.orderDetails || o;
+      const raw = details?.price ?? details?.total ?? o.price ?? o.total ?? 0;
+      const num = parseFloat(raw);
+      return sum + (isNaN(num) ? 0 : num);
+    }, 0);
+
     setMetrics({
       ordersPerHour: ordersPerHour.toFixed(1),
       avgWaitTime: avgWaitTime.toFixed(1),
       completionRate: completionRate.toFixed(1),
-      customerSatisfaction: 4.8, // Mock value
+      // CSAT removed — was hardcoded to 4.8 with no real feedback
+      // signal. Re-introduce when a post-pickup feedback SMS / form
+      // is wired up. Until then we don't pretend.
+      customerSatisfaction: null,
       revenue: revenue.toFixed(2),
       popularItems,
       peakTimes,
