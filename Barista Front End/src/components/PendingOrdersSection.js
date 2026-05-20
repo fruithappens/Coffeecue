@@ -56,7 +56,11 @@ const PendingOrdersSection = ({
   };
 
   return (
-    <div className="w-1/2 flex flex-col h-full">
+    // No fixed width — let the parent container (grid or flex) size
+    // this column. Previously hardcoded as w-1/2 from when the
+    // Orders tab was a 2-column layout; this fought the new
+    // 3-column grid and made the centre column visibly narrower.
+    <div className="flex flex-col h-full">
       <div className="bg-amber-600 text-white p-2 rounded-t-lg flex justify-between items-center">
         <h2 className="text-xl font-bold">Upcoming Orders ({orders.length})</h2>
         <div className="flex space-x-1">
