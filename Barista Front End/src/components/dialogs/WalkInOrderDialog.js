@@ -847,11 +847,33 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
     console.log('- orderDetails.milkType:', orderDetails.milkType);
     console.log('- Available milks:', availableMilks.map(m => `${m.id}: ${m.name}`));
     
-    // Create new order object
-    const selectedMilk = orderDetails.milkType === 'no_milk' 
-      ? { id: 'no_milk', name: 'No milk', properties: { dairyFree: true, lactoseFree: true, vegan: true }}
-      : (DEFAULT_MILK_TYPES.find(milk => milk.id === orderDetails.milkType) || DEFAULT_MILK_TYPES[0]);
-    
+    // Resolve the milk object from the dropdown selection.
+    //
+    // The previous version looked up ONLY in DEFAULT_MILK_TYPES, but
+    // the dropdown is populated from `availableMilks` which is built
+    // dynamically from the station's inventory (with potentially custom
+    // IDs that aren't in the default list — e.g. when Quick Setup
+    // adds Lactose-Free milk on the fly). Custom milks always fell back
+    // to DEFAULT_MILK_TYPES[0] (full cream) regardless of what the user
+    // picked. Steve flagged: "milk type does not change despite what
+    // I select."
+    //
+    // Look-up order: availableMilks (the same list the dropdown
+    // renders) → DEFAULT_MILK_TYPES (back-compat for older flows) →
+    // a synthesized fallback that at least preserves the ID/name.
+    const selectedMilk = orderDetails.milkType === 'no_milk'
+      ? { id: 'no_milk', name: 'No milk', properties: { dairyFree: true, lactoseFree: true, vegan: true } }
+      : (
+          availableMilks.find(milk => milk.id === orderDetails.milkType)
+          || DEFAULT_MILK_TYPES.find(milk => milk.id === orderDetails.milkType)
+          || {
+              id: orderDetails.milkType,
+              name: orderDetails.milkType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+              category: 'standard',
+              properties: {},
+            }
+        );
+
     console.log('- Selected milk object:', selectedMilk);
     
     // Check if any VIP/organizer codes appear in the notes
