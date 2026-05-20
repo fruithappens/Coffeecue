@@ -1462,6 +1462,17 @@ def start_order(order_id):
         coffee_system = current_app.config.get('coffee_system')
         db = coffee_system.db
 
+        # The barista's currently-selected station is sent in the body
+        # so we can check whether that station can actually make this
+        # drink — without it, a barista at Station 2 could tap Start on
+        # an oat-milk order routed to Station 1 (which has oat) and
+        # nothing would stop them from making it on a station that
+        # doesn't stock oat. The check is best-effort and only blocks
+        # when capabilities are definitively wrong; missing/empty
+        # capabilities mean "no restriction".
+        payload = request.get_json(silent=True) or {}
+        claiming_station_id = payload.get('station_id') or payload.get('stationId')
+
         # Fetch the row up-front: we want phone + details *before* we
         # change status, so the notification has the right context even if
         # something else races us.
@@ -1483,6 +1494,35 @@ def start_order(order_id):
             current_status = order_row.get('status')
         else:
             _, order_phone, order_details, current_status = order_row
+
+        # Parse order_details if it came back as JSON text.
+        parsed_details = order_details
+        if isinstance(parsed_details, str):
+            try:
+                parsed_details = json.loads(parsed_details)
+            except Exception:
+                parsed_details = {}
+        if not isinstance(parsed_details, dict):
+            parsed_details = {}
+
+        # Capability gate: if the barista's station can't make this drink,
+        # refuse to start it and tell them why. Routing already picked
+        # the right station at order time, so this only fires when a
+        # barista at the wrong station tries to claim.
+        if claiming_station_id:
+            capability_check = _station_can_make_order(
+                db, claiming_station_id, parsed_details
+            )
+            if capability_check.get('blocked'):
+                logger.warning(
+                    f"Refused start of order {clean_id} at station "
+                    f"{claiming_station_id}: {capability_check.get('reason')}"
+                )
+                return jsonify({
+                    "success": False,
+                    "message": capability_check.get('reason'),
+                    "code": "STATION_CAPABILITY_MISMATCH",
+                }), 400
 
         cursor.execute(
             '''
@@ -1522,6 +1562,100 @@ def start_order(order_id):
     except Exception as e:
         logger.error(f"Error starting order {order_id}: {str(e)}")
         return jsonify({"success": False, "message": f"Error processing request: {str(e)}"})
+
+
+def _station_can_make_order(db, station_id, order_details):
+    """Return {'blocked': bool, 'reason': str} for whether a station can
+    make this drink.
+
+    Capabilities live in station_stats.capabilities (JSONB) — populated
+    by the Capabilities editor UI. Shape we honour:
+
+      {
+        "coffee_types": ["latte", "cappuccino"],   # optional, list
+        "milk_types":   ["full cream", "skim"],    # optional, list
+        "alt_milk":     true,                       # boolean flag
+        ...
+      }
+
+    Only block when the list is explicitly set AND doesn't include the
+    requested item. Missing / empty lists are interpreted as "no
+    restriction" so the organiser doesn't have to enumerate every
+    station's full menu just to enable order claiming.
+    """
+    try:
+        station_id_int = int(station_id)
+    except (TypeError, ValueError):
+        return {'blocked': False, 'reason': ''}
+
+    requested_type = (order_details.get('type') or '').strip().lower()
+    requested_milk = (order_details.get('milk') or '').strip().lower()
+
+    # Strip decaf prefix from drink type for the capability check —
+    # decaf flat white is still a flat white capability-wise.
+    if requested_type.startswith('decaf '):
+        requested_type = requested_type[6:].strip()
+
+    try:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        cursor = db.cursor()
+        cursor.execute(
+            "SELECT capabilities FROM station_stats WHERE station_id = %s",
+            (station_id_int,),
+        )
+        row = cursor.fetchone()
+    except Exception as e:
+        logger.warning(f"Capabilities lookup failed for station {station_id_int}: {e}")
+        return {'blocked': False, 'reason': ''}
+
+    if not row:
+        return {'blocked': False, 'reason': ''}
+
+    caps_raw = row[0] if not isinstance(row, dict) else row.get('capabilities')
+    if not caps_raw:
+        return {'blocked': False, 'reason': ''}
+    if isinstance(caps_raw, str):
+        try:
+            caps_raw = json.loads(caps_raw)
+        except Exception:
+            return {'blocked': False, 'reason': ''}
+    if not isinstance(caps_raw, dict):
+        return {'blocked': False, 'reason': ''}
+
+    coffee_types = caps_raw.get('coffee_types') or caps_raw.get('drinks')
+    if (
+        requested_type
+        and isinstance(coffee_types, list)
+        and len(coffee_types) > 0
+        and requested_type not in [str(c).lower() for c in coffee_types]
+    ):
+        return {
+            'blocked': True,
+            'reason': (
+                f"This station isn't set up to make {requested_type}. "
+                f"Available here: {', '.join(coffee_types)}."
+            ),
+        }
+
+    milk_types = caps_raw.get('milk_types') or caps_raw.get('milks')
+    if (
+        requested_milk
+        and isinstance(milk_types, list)
+        and len(milk_types) > 0
+        and requested_milk not in [str(m).lower() for m in milk_types]
+    ):
+        return {
+            'blocked': True,
+            'reason': (
+                f"This station doesn't stock {requested_milk}. "
+                f"Available here: {', '.join(milk_types)}."
+            ),
+        }
+
+    return {'blocked': False, 'reason': ''}
 
 
 def _emit_order_status_change(order_number, status):
@@ -1659,7 +1793,10 @@ def complete_order(order_id):
         # double-cupped) lives in coffee_system._decrement_stock_for_order.
         # Failure here is non-fatal — the order is already marked
         # complete and we don't want to roll that back over inventory
-        # accounting.
+        # accounting — but we surface skipped items so the barista
+        # gets a toast warning instead of silently consuming stock
+        # that the system thinks they have.
+        stock_result = {'decremented': [], 'skipped': []}
         try:
             order_details_parsed = order_details_raw
             if isinstance(order_details_parsed, str):
@@ -1669,9 +1806,14 @@ def complete_order(order_id):
                     order_details_parsed = {}
             if isinstance(order_details_parsed, dict) and order_details_parsed:
                 db_type = 'sqlite' if 'sqlite' in str(type(db)).lower() else 'postgres'
-                coffee_system._decrement_stock_for_order(
+                stock_result = coffee_system._decrement_stock_for_order(
                     db, db_type, station_id_for_stock, order_details_parsed,
-                )
+                ) or stock_result
+                if stock_result.get('skipped'):
+                    logger.warning(
+                        f"Stock decrement on complete: skipped items for "
+                        f"order {clean_id} → {stock_result['skipped']}"
+                    )
         except Exception as inv_err:
             logger.error(f"Stock decrement on complete failed (non-fatal): {inv_err}")
             try:
@@ -1700,7 +1842,21 @@ def complete_order(order_id):
                 station_id_for_stock,
             )
 
-            return jsonify({"success": True, "message": "Order completed successfully"})
+            # Surface stock-decrement skipped items in the response so
+            # the barista UI can toast a warning. `stock_warnings` is a
+            # human-readable summary, frontend renders it conditionally.
+            response = {"success": True, "message": "Order completed successfully"}
+            if stock_result.get('skipped'):
+                names = [
+                    f"{s.get('category', '?')}:{s.get('name', '?')}"
+                    for s in stock_result['skipped']
+                ]
+                response['stock_warnings'] = (
+                    f"Order completed, but stock wasn't decremented for: "
+                    f"{', '.join(names)} (no matching inventory row)."
+                )
+                response['stock_skipped'] = stock_result['skipped']
+            return jsonify(response)
         else:
             logger.error(f"Failed to update order: {clean_id}")
             return jsonify({"success": False, "message": f"Order {clean_id} found but could not be updated"})

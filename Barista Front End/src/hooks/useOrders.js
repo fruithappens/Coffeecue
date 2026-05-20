@@ -1501,10 +1501,28 @@ export default function useOrders(stationId = null) {
       
       // For regular orders, proceed with API call
       const result = await OrderDataService.completeOrder(orderId);
-      
+
       if (!result || !result.success) {
         const errorMessage = result?.message || 'Unknown error';
         throw new Error(`Failed to complete order: ${errorMessage}`);
+      }
+
+      // Surface stock-decrement warnings if the backend couldn't find
+      // the inventory row for milk/coffee/cups/etc. The order is still
+      // marked complete; this is a heads-up that the inventory counter
+      // hasn't kept up with reality. Without this the barista
+      // unknowingly drains physical stock past zero.
+      try {
+        const warning = result.data?.stock_warnings || result.stock_warnings;
+        if (warning) {
+          // Setting `error` makes the existing red banner in
+          // BaristaInterface render — same channel as start/complete
+          // errors. It's not blocking, just visible.
+          setError(warning);
+          console.warn('[completeOrder] stock warning:', warning);
+        }
+      } catch (_) {
+        // never block the order on a warning-display failure
       }
       
       // Optimistically update UI state

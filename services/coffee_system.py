@@ -3802,7 +3802,22 @@ class CoffeeOrderSystem:
 
         Skips items not in stock so an empty `oat` row doesn't go
         negative on a customer who somehow placed an oat order anyway.
+
+        Returns a result dict so callers (and the `/complete` endpoint)
+        can surface what actually got decremented vs. what was skipped
+        because no inventory row matched. Previously this was a
+        fire-and-forget that swallowed missing-row errors silently —
+        baristas had no way to know if the oat milk counter actually
+        ticked down.
+
+        Shape:
+          {
+            'decremented': ['milk:oat', 'coffee:latte', 'cups:medium'],
+            'skipped':     [{'category': 'cups', 'name': 'medium',
+                              'reason': 'no matching inventory row'}],
+          }
         """
+        result = {'decremented': [], 'skipped': []}
         # Idempotency guard. The SMS confirmation flow calls this on
         # order confirm; the new /complete endpoint also calls it for
         # walk-in orders. If both fire on the same order we'd
@@ -3810,7 +3825,7 @@ class CoffeeOrderSystem:
         # `_stock_decremented` flag on processed_details to mark
         # completion, but as a backstop we no-op here when we see it.
         if processed_details.get('_stock_decremented'):
-            return
+            return result
         cursor = conn.cursor()
         size = (processed_details.get('size') or 'medium').lower()
         milk = (processed_details.get('milk') or '').lower()
@@ -3830,10 +3845,16 @@ class CoffeeOrderSystem:
             else:
                 ml = self._SIZE_TO_ML.get(size, 200)
                 liters = ml / 1000.0
-            self._decrement_inventory_item(
+            if self._decrement_inventory_item(
                 cursor, db_type, category='milk', name=milk,
                 amount=liters, station_id=station_id,
-            )
+            ):
+                result['decremented'].append(f"milk:{milk}")
+            else:
+                result['skipped'].append({
+                    'category': 'milk', 'name': milk,
+                    'reason': 'no matching inventory row',
+                })
 
         # --- coffee shots -------------------------------------------
         # Tea uses no coffee beans. Skip the shot decrement entirely.
@@ -3843,10 +3864,16 @@ class CoffeeOrderSystem:
             if (processed_details.get('strength') or '').lower() in ('strong', 'double', 'extra shot'):
                 shots += 1
             if shots > 0 and coffee_type:
-                self._decrement_inventory_item(
+                if self._decrement_inventory_item(
                     cursor, db_type, category='coffee', name=coffee_type,
                     amount=shots, station_id=station_id,
-                )
+                ):
+                    result['decremented'].append(f"coffee:{coffee_type}")
+                else:
+                    result['skipped'].append({
+                        'category': 'coffee', 'name': coffee_type,
+                        'reason': 'no matching inventory row',
+                    })
 
         # --- cups ---------------------------------------------------
         # Tea is typically double-cupped because the cup gets too hot
@@ -3863,12 +3890,20 @@ class CoffeeOrderSystem:
             f"takeaway cup {size_label}",
             'cup', 'cups',
         ]
+        cup_decremented = False
         for cup_name in [c for c in cup_candidates if c]:
             if self._decrement_inventory_item(
                 cursor, db_type, category='cups', name=cup_name,
                 amount=cups_used, station_id=station_id,
             ):
+                result['decremented'].append(f"cups:{cup_name}")
+                cup_decremented = True
                 break
+        if not cup_decremented:
+            result['skipped'].append({
+                'category': 'cups', 'name': size_label,
+                'reason': 'no matching inventory row',
+            })
 
         # --- sugar / sweeteners -------------------------------------
         # Sugar is tracked in *sachets* (or grams) — never in
@@ -3879,14 +3914,23 @@ class CoffeeOrderSystem:
         sugar = (processed_details.get('sugar') or '').lower()
         sachets = self._sugar_sachets_from_text(sugar)
         if sachets > 0:
+            sugar_decremented = False
             for cat in ('sweetener', 'sugar', 'artificial_sweetener'):
                 if self._decrement_inventory_item(
                     cursor, db_type, category=cat, name=sugar,
                     amount=sachets, station_id=station_id,
                 ):
+                    result['decremented'].append(f"{cat}:{sugar}")
+                    sugar_decremented = True
                     break
+            if not sugar_decremented:
+                result['skipped'].append({
+                    'category': 'sweetener', 'name': sugar,
+                    'reason': 'no matching inventory row',
+                })
 
         conn.commit()
+        return result
 
     @staticmethod
     def _sugar_sachets_from_text(sugar_text):
