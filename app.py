@@ -290,6 +290,18 @@ def create_app():
         
         coffee_system = CoffeeOrderSystem(db, vars(config))
         logger.info(f"Database initialized successfully using PostgreSQL")
+
+        # Run any pending schema migrations. Replaces (alongside)
+        # the scattered ALTER TABLE IF NOT EXISTS calls in
+        # coffee_system._init_event_scheduling. Idempotent — safe
+        # to run at every boot. See services/migrations.py.
+        try:
+            from services.migrations import apply_pending_migrations
+            applied = apply_pending_migrations(db)
+            if applied:
+                logger.info(f"Applied schema migrations: {', '.join(applied)}")
+        except Exception as mig_err:
+            logger.error(f"Schema migrations failed (non-fatal): {mig_err}")
     except Exception as e:
         logger.error(f"Error initializing database with PostgreSQL: {str(e)}")
         raise # Re-raise to fail fast - PostgreSQL is required

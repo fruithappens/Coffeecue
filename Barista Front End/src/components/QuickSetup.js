@@ -12,6 +12,7 @@
 import React, { useEffect, useState } from 'react';
 import { Zap, Check, AlertTriangle, RefreshCw } from 'lucide-react';
 import ApiServiceClass from '../services/ApiService';
+import EventInventoryService from '../services/EventInventoryService';
 
 const api = new ApiServiceClass();
 
@@ -385,11 +386,15 @@ const QuickSetup = () => {
       });
     }
 
-    localStorage.setItem('event_inventory', JSON.stringify(updated));
-
-    // Notify any listening components (MilkColorSettings,
-    // EventStockManagement) that inventory changed.
-    window.dispatchEvent(new CustomEvent('inventory:updated', { detail: updated }));
+    // Save to the source-of-truth backend (which also mirrors to
+    // localStorage and dispatches inventory:updated). Fire-and-forget
+    // — the rest of the Quick Setup flow doesn't need to wait.
+    EventInventoryService.save(updated).catch(err => {
+      console.warn('Quick Setup: backend inventory save failed (local kept):', err);
+      // Local write still happened inside save(); also dispatch the
+      // event manually so listeners refresh even if backend was down.
+      window.dispatchEvent(new CustomEvent('inventory:updated', { detail: updated }));
+    });
 
     // --- Now mirror into the per-station stores the Barista UI and
     // walk-in dialog actually read. ---

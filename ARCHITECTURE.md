@@ -191,24 +191,52 @@ happen atomically (or as atomically as multiple stores allow):
 
 If you add a new inventory category, all six places need an update.
 
-## 7. The two parallel inventory systems
+## 7. Inventory data model (post May 2026)
 
-A historical wart that keeps biting:
+Three stores, each with a clear role:
 
-- **`inventory_items`** table (Postgres) — what the SMS bot reads when matching milks/coffees and what `_decrement_stock_for_order` updates.
-- **`event_inventory`** localStorage — what `InventoryManagement.js` displays.
+| Store | Role | Source of truth | Read/written by |
+|-------|------|-----------------|----------------|
+| `settings.event_inventory` (Postgres KV) | **Master menu list** — what's on offer, with `enabled` flags. The "what can a customer order" config. | ✅ Yes | `EventInventoryService` on the frontend; SMS bot can also consult via `/api/event-inventory` |
+| `localStorage.event_inventory` (per browser) | Write-through cache of the above. Lets the UI render instantly without a backend round-trip. | No — cache only | `EventInventoryService` mirrors writes here; legacy components still read it directly |
+| `inventory_items` (Postgres table) | **Stock levels** — how much of each item exists, optionally per station. The "what can the bar actually make right now" data. | ✅ Yes (for quantities) | `_get_available_*` SMS helpers, `_decrement_stock_for_order`, Quick Setup |
+| `station_inventory_configs` / `stationInventoryConfig` (localStorage) | Per-station overrides — which items each station offers. | No — derived from event_inventory + Quick Setup all_stations_same toggle | Walk-in dialog filter, station stock UI |
 
-Plus a third store:
+**Source-of-truth rule:** for the master menu list, **the backend wins**. Use `EventInventoryService.load()` / `.save()` to read/write — it handles the mirror and the offline fallback.
 
-- **`stationInventoryConfig`** / **`station_inventory_configs`** — per-station overrides used by walk-in and station-stock UIs.
+When the UI needs to know "what's on the menu", `EventInventoryService.load()` does:
+1. Backend GET `/api/event-inventory`
+2. If backend has data → cache it locally, return it
+3. If backend is empty and localStorage has data → migrate localStorage → backend (one-shot bootstrap)
+4. If backend is offline → serve from localStorage cache, retry next call
 
-Quick Setup writes all three. Manual UI changes write to whichever
-store the UI is wired to — meaning hand-edits in InventoryManagement
-DON'T propagate to `inventory_items`, and vice versa. This is the
-inconsistency Steve flagged about milks at different stations.
+This collapses what used to be three parallel write paths into one.
 
-Long-term fix: pick the backend table as the source of truth and
-have InventoryManagement read/write through an API. Not done yet.
+## 7b. Schema migrations
+
+Run automatically at every boot. See `services/migrations.py`.
+
+Each migration is a small idempotent function. The runner records
+applied versions in the `schema_migrations` table and skips them next
+time. To add a new schema change:
+
+```python
+def _m006_my_new_thing(cur):
+    """One-line description for the boot log."""
+    cur.execute("ALTER TABLE foo ADD COLUMN IF NOT EXISTS bar TEXT")
+
+MIGRATIONS = [
+    # …existing migrations…
+    Migration(6, 'my_new_thing', _m006_my_new_thing),
+]
+```
+
+**Do not renumber existing migrations.** Append at the bottom.
+
+Migrations 1-5 replicate the scattered `ALTER TABLE IF NOT EXISTS`
+calls that used to live in `coffee_system._init_event_scheduling`.
+Those calls can stay for now (belt-and-braces) — they're no-ops on
+a DB that's already had migrations run.
 
 ## 8. Order number format
 
@@ -322,7 +350,7 @@ case — they're cleanup / depth.
 
 ### High-leverage (would fix recurring bugs)
 
-1. **Source-of-truth inventory.** Make `inventory_items` (Postgres) the only store; have InventoryManagement.js read/write via API. Removes the two-parallel-stores problem in section 7.
+1. ~~**Source-of-truth inventory.**~~ ✅ Done May 2026 — `settings.event_inventory` KV is now authoritative for the master menu list. `EventInventoryService` handles read/write with localStorage as a write-through cache. See section 7.
 2. ~~**Single settings store.**~~ ✅ Done May 2026 — `coffee_cue_settings` is now canonical for local prefs; `coffee_system_branding` stays separate for backend-synced branding.
 3. ~~**WebSocket-driven order updates.**~~ ✅ Done May 2026 — `useOrders` + DisplayScreen now both refresh on `order_created` / `order_updated` / `app:newOrder` window events forwarded from the WebSocket. Polling kept as a 15s fallback for when the WS is offline.
 4. **Status field cleanup.** Once everyone's migrated to `'in-progress'` and `'picked_up'`, drop the back-compat in `OrderDataService.getOrders` and friends.
@@ -337,7 +365,7 @@ case — they're cleanup / depth.
 ### Polish / depth
 
 9. ~~**Build out the placeholder buttons.**~~ ✅ Done May 2026 — all 8 `() => console.log(...)` onClicks are wired to real endpoints (Pause All Orders, Broadcast, Announce, Manual SMS, etc.) or properly disabled with tooltips explaining where the functionality lives.
-10. **Schema migrations as code.** Currently schema drift is fixed by `ALTER TABLE IF NOT EXISTS` calls scattered through `services/coffee_system.py:_init_event_scheduling`. A proper migration tool would help.
+10. ~~**Schema migrations as code.**~~ ✅ Done May 2026 — `services/migrations.py` runs at boot. Pending migrations get applied automatically; the `schema_migrations` table tracks what's been done. Adding a new schema change = append one entry to `MIGRATIONS`. See section 7b.
 11. ~~**Twilio webhook signature verification.**~~ ✅ Already implemented in `routes/sms_routes.py` (gated by `TWILIO_AUTH_TOKEN` env var ≠ 'test_token'). The CLAUDE.md note was stale.
 
 ### Deferred

@@ -114,6 +114,10 @@ class WebSocketService {
       forward('stock_update',   'stock:update');
       forward('stock_alert',    'stock:alert');
       forward('station_update', 'station:update');
+      // Master inventory list changed (someone hit Save in
+      // InventoryManagement or applied Quick Setup). Other tabs
+      // refetch via EventInventoryService.invalidate().
+      forward('event_inventory_updated', 'event_inventory_updated');
 
       return true;
     } catch (error) {

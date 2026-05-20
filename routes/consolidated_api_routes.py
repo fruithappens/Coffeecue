@@ -5491,6 +5491,66 @@ def apply_quick_setup():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+# ---------------------------------------------------------------------------
+# Source-of-truth event inventory
+# ---------------------------------------------------------------------------
+# The "master list" of what's on the menu (categories with enabled flags) used
+# to live ONLY in `localStorage.event_inventory`. That meant different
+# browsers/devices could disagree on what was on offer, and the Quick Setup
+# wizard had to manually rewrite each browser's local copy. Now the master
+# list is persisted to the `settings` table (key='event_inventory'). Local
+# stores keep working as a write-through cache; the backend is authoritative.
+@bp.route('/event-inventory', methods=['GET'])
+@jwt_required_with_demo()
+def get_event_inventory():
+    """Return the master inventory list (what's on the menu).
+
+    Shape: { milk: [...], coffee: [...], cups: [...], syrups: [...],
+             sweeteners: [...], drinks: [...], extras: [...] }
+    Each item: { id, name, description, enabled, ...optional }
+    Returns {} on first access — frontend treats that as "use the
+    InventoryManagement defaults and POST them back on first save".
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        inventory = _kv_get(coffee_system.db, 'event_inventory', default=None)
+        return jsonify(inventory or {})
+    except Exception as e:
+        logger.error(f"get_event_inventory error: {e}")
+        return jsonify({}), 200
+
+
+@bp.route('/event-inventory', methods=['PUT', 'POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def upsert_event_inventory():
+    """Persist the master inventory list. The whole blob is replaced.
+
+    InventoryManagement.js and Quick Setup both POST to this endpoint
+    after editing. The SMS bot reads via _get_event_inventory() which
+    falls back to inventory_items for legacy DBs.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        data = request.get_json() or {}
+        if not isinstance(data, dict):
+            return jsonify({'success': False, 'error': 'payload must be an object'}), 400
+        _kv_put(coffee_system.db, 'event_inventory', data)
+        # Tell anyone listening (other tabs, the SMS bot, etc.) that
+        # the menu changed. Echoed to the React event bus via WS.
+        try:
+            socketio = current_app.config.get('socketio')
+            if socketio:
+                socketio.emit('event_inventory_updated', {'keys': list(data.keys())},
+                              room='all_stations')
+        except Exception:
+            pass
+        return jsonify({'success': True, 'event_inventory': data})
+    except Exception as e:
+        logger.error(f"upsert_event_inventory error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 DEFAULT_PRICING = {
     'enabled': False,
     'currency': 'AUD',

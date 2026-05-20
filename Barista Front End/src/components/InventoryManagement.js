@@ -4,6 +4,7 @@ import {
   Beaker, Square, Candy, Search
 } from 'lucide-react';
 import InventoryIntegrationService from '../services/InventoryIntegrationService';
+import EventInventoryService from '../services/EventInventoryService';
 
 /**
  * Comprehensive Inventory Management Component
@@ -161,30 +162,53 @@ const InventoryManagement = () => {
     setShowAddForm(false);
   }, [activeCategory]);
 
-  // Load inventory from localStorage on mount
+  // Load inventory from the source-of-truth backend (with localStorage
+  // as a cache fallback). EventInventoryService handles the precedence;
+  // if the backend has nothing, it migrates from localStorage on first
+  // save and the user sees no disruption.
   useEffect(() => {
-    const savedInventory = localStorage.getItem('event_inventory');
-    if (savedInventory) {
-      try {
-        const parsed = JSON.parse(savedInventory);
-        // Validate the loaded inventory
+    let cancelled = false;
+    EventInventoryService.load().then(loaded => {
+      if (cancelled) return;
+      if (loaded && Object.keys(loaded).length > 0) {
+        // Validate before applying
         const validated = {};
-        Object.keys(parsed).forEach(category => {
-          if (Array.isArray(parsed[category])) {
-            validated[category] = parsed[category].filter(item => 
+        Object.keys(loaded).forEach(category => {
+          if (Array.isArray(loaded[category])) {
+            validated[category] = loaded[category].filter(item =>
               item && typeof item === 'object' && item.name
             );
           }
         });
         setInventory(validated);
-      } catch (e) {
-        console.error('Error loading saved inventory:', e);
-        localStorage.removeItem('event_inventory'); // Clear corrupted data
+      } else {
         initializeDefaultInventory();
       }
-    } else {
+    }).catch(e => {
+      console.error('Error loading inventory from backend:', e);
+      // Final fallback — try local then defaults
+      try {
+        const savedInventory = localStorage.getItem('event_inventory');
+        if (savedInventory) {
+          setInventory(JSON.parse(savedInventory));
+          return;
+        }
+      } catch (_) { /* ignore */ }
       initializeDefaultInventory();
-    }
+    });
+    // Cross-tab / other-station refresh: re-read when an external
+    // 'event_inventory_updated' arrives.
+    const onExternalUpdate = () => {
+      EventInventoryService.invalidate();
+      EventInventoryService.load({ forceReload: true }).then(latest => {
+        if (latest && Object.keys(latest).length > 0) setInventory(latest);
+      });
+    };
+    window.addEventListener('event_inventory_updated', onExternalUpdate);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('event_inventory_updated', onExternalUpdate);
+    };
   }, []);
 
   // Initialize with default items
@@ -202,17 +226,23 @@ const InventoryManagement = () => {
     saveInventory(defaultInventory);
   };
 
-  // Save inventory to localStorage
+  // Save inventory through the source-of-truth service. The service
+  // writes the backend AND mirrors to localStorage, so existing
+  // components that still read localStorage.event_inventory stay
+  // in sync. Backend errors surface as a console warning — local
+  // state still updates optimistically.
   const saveInventory = (inventoryData) => {
-    try {
-      localStorage.setItem('event_inventory', JSON.stringify(inventoryData));
-      console.log('Inventory saved successfully');
-      
-      // Notify integration service that inventory was updated
-      InventoryIntegrationService.notifyInventoryUpdated();
-    } catch (e) {
-      console.error('Error saving inventory:', e);
-    }
+    EventInventoryService.save(inventoryData)
+      .then(() => {
+        // Notify the integration service so per-station stock
+        // configs re-sync with the new master list.
+        InventoryIntegrationService.notifyInventoryUpdated();
+      })
+      .catch(e => {
+        console.error('Error saving inventory to backend:', e);
+        // Local cache still wrote; the operator's edit isn't lost.
+        InventoryIntegrationService.notifyInventoryUpdated();
+      });
   };
 
   // Add new item
