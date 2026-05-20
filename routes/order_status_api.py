@@ -37,8 +37,16 @@ def update_order_status(order_id):
                 'message': 'Status is required'
             }), 400
             
-        # Validate status
-        valid_statuses = ['pending', 'in_progress', 'completed', 'cancelled', 'ready', 'picked_up']
+        # Validate status. Accept both spellings (in_progress / in-progress,
+        # picked_up / picked-up) for backward compat, but normalize to the
+        # canonical hyphen-form for in-progress and underscore-form for
+        # picked_up — see ARCHITECTURE.md for why those are canonical.
+        _STATUS_ALIASES = {
+            'in_progress': 'in-progress',
+            'picked-up':   'picked_up',
+        }
+        new_status = _STATUS_ALIASES.get(new_status, new_status)
+        valid_statuses = ['pending', 'in-progress', 'completed', 'cancelled', 'ready', 'picked_up']
         if new_status not in valid_statuses:
             return jsonify({
                 'status': 'error',
@@ -83,7 +91,7 @@ def update_order_status(order_id):
         }
         
         # Add status-specific fields
-        if new_status == 'in_progress':
+        if new_status == 'in-progress':
             # Update station if provided
             if 'station_id' in data:
                 update_data['station_id'] = data['station_id']

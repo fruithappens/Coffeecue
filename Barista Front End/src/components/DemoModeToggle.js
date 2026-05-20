@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import ApiService from '../services/ApiService.simplified';
+import ApiService from '../services/ApiService';
 
 /**
  * Demo Mode Toggle Component

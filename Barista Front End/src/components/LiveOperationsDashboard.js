@@ -274,7 +274,7 @@ const LiveOperationsDashboard = () => {
               ? orders.filter(o => o.station_id === station.id)
               : [];
             const pendingOrders = stationOrders.filter(o => o.status === 'pending').length;
-            const inProgressOrders = stationOrders.filter(o => o.status === 'in_progress').length;
+            const inProgressOrders = stationOrders.filter(o => o.status === 'in-progress' || o.status === 'in_progress').length;
             
             return (
               <div 
@@ -415,7 +415,7 @@ const LiveOperationsDashboard = () => {
                   <td className="py-2">
                     <span className={`px-2 py-1 text-xs rounded-full ${
                       order.status === 'completed' ? 'bg-green-100 text-green-800' :
-                      order.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
+                      (order.status === 'in-progress' || order.status === 'in_progress') ? 'bg-blue-100 text-blue-800' :
                       order.status === 'pending' ? 'bg-amber-100 text-amber-800' :
                       'bg-gray-100 text-gray-800'
                     }`}>

@@ -342,7 +342,7 @@ class DemoModeService {
       completedOrders[orderIndex] = {
         ...completedOrders[orderIndex],
         pickedUpAt: new Date(),
-        status: 'picked-up'
+        status: 'picked_up'
       };
       
       localStorage.setItem('demo_completed_orders', JSON.stringify(completedOrders));
