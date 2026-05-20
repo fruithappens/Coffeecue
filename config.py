@@ -73,6 +73,13 @@ MAX_QUEUE_SIZE = int(os.getenv('MAX_QUEUE_SIZE', 50))
 RUSH_THRESHOLD = int(os.getenv('RUSH_THRESHOLD', 10))
 NUM_STATIONS = int(os.getenv('NUM_STATIONS', 3))
 
+# SMS-side timing knobs (see services/pickup_reminder.py and
+# CoffeeOrderSystem._is_state_stale). Both default to "reasonable
+# for an event" — operators can override per-deployment via env.
+STALE_CONVERSATION_MINUTES = int(os.getenv('STALE_CONVERSATION_MINUTES', 20))
+PICKUP_REMINDER_MINUTES = int(os.getenv('PICKUP_REMINDER_MINUTES', 10))  # 0 disables
+PICKUP_REMINDER_INTERVAL_SECONDS = int(os.getenv('PICKUP_REMINDER_INTERVAL_SECONDS', 60))
+
 # Loyalty program settings
 LOYALTY_POINTS_PER_ORDER = int(os.getenv('LOYALTY_POINTS_PER_ORDER', 10))
 LOYALTY_POINTS_FOR_FREE_COFFEE = int(os.getenv('LOYALTY_POINTS_FOR_FREE_COFFEE', 100))

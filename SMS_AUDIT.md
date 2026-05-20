@@ -133,7 +133,7 @@ These are listed by impact-per-effort. The top 3 close real customer-facing gaps
 | 3 | Add stale-conversation timeout (15-30 min) — reset state if no reply | ✅ DONE | 30 min | Stops customers getting stuck mid-flow next day |
 | 4 | Capture preferred strength (shots) + decaf flag on saved usual | ✅ DONE | 45 min | Returning customers get their full usual |
 | 5 | Real time-of-day-aware usual suggestion, OR drop the misleading wording | ✅ DONE (dropped wording) | 1 min | Either deliver on the promise or stop making it |
-| 6 | Auto-reminder SMS after N min of "completed but not picked up" | TODO | 1 hour | Closes the no-show loop |
+| 6 | Auto-reminder SMS after N min of "completed but not picked up" | ✅ DONE | 1 hour | Closes the no-show loop |
 | 7 | Real EDIT support (edit milk / size / sugar without restarting) | ✅ DONE | 1 hour | Operator-flagged friction |
 | 8 | Welcome message respects branding event_name | ✅ DONE | 5 min | Consistency with rest of system |
 
@@ -161,6 +161,29 @@ These are listed by impact-per-effort. The top 3 close real customer-facing gaps
   - Validates against the NLP vocab (`self.nlp.milks` / `.sizes` / `.sugars`) so gibberish is rejected with a friendly message instead of being accepted silently
   - Bare `EDIT` / `CHANGE` falls back to the legacy "restart from coffee type" behaviour (with a hint about targeted edits)
   - After a successful edit, re-prompts confirmation with the updated order summary so the customer sees what changed.
+
+### Batch 4 implementation notes (May 2026)
+
+- **Fix 6** — pickup-reminder background service. New `services/pickup_reminder.py` runs a daemon thread that wakes every 60s and queries `orders WHERE status='completed' AND picked_up_at IS NULL AND reminder_sent_at IS NULL AND completed_at < now() - PICKUP_REMINDER_MINUTES`. For each match it sends a single gentle SMS ("just a reminder — your X is still waiting at Station N") and stamps `reminder_sent_at` so we never spam the same customer twice. Configurable via env: `PICKUP_REMINDER_MINUTES` (default 10, set 0 to disable) and `PICKUP_REMINDER_INTERVAL_SECONDS` (default 60). Schema dependency: migration #7 adds `orders.reminder_sent_at`. Wired up at app boot in `app.py` next to the messaging-service init.
+
+---
+
+## Summary — all 8 audit fixes shipped
+
+All eight prioritized items from the audit are now implemented:
+
+| # | Fix | Commit |
+|---|-----|--------|
+| 1 | Ready-pickup SMS from `/complete` | batch 1 |
+| 2 | Drop misleading "Default:" prompt | batch 1 |
+| 3 | Stale-conversation timeout (20min default) | batch 1 |
+| 4 | Capture preferred strength + decaf on usual | batch 2 |
+| 5 | Drop misleading time-of-day claim | batch 2 |
+| 6 | Auto-reminder for completed-not-picked-up | batch 4 |
+| 7 | Real EDIT support (no full restart) | batch 3 |
+| 8 | Live `event_name` from branding_settings | batch 1 |
+
+Schema changes added migrations #6 (`preferred_strength`, `preferred_decaf`) and #7 (`reminder_sent_at`).
 
 ---
 

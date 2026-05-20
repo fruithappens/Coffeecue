@@ -312,6 +312,20 @@ def create_app():
         phone_number=config.TWILIO_PHONE_NUMBER,
         testing_mode=config.TESTING_MODE
     )
+
+    # Pickup-reminder background service. Sends one gentle SMS
+    # to customers whose orders have been 'completed' for >N min
+    # without being marked picked_up. Disabled if
+    # PICKUP_REMINDER_MINUTES is 0. See services/pickup_reminder.py.
+    try:
+        from services.pickup_reminder import PickupReminderService
+        pickup_reminder = PickupReminderService(db, messaging_service, vars(config))
+        pickup_reminder.start()
+    except Exception as reminder_err:
+        logger.error(
+            f"Failed to start pickup-reminder service (non-fatal): {reminder_err}"
+        )
+        pickup_reminder = None
     
     # Register route blueprints
     app.register_blueprint(admin_bp)

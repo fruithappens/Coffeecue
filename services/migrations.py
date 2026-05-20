@@ -100,6 +100,17 @@ def _m005_orders_picked_up_at(cur):
     """)
 
 
+def _m007_orders_reminder_sent_at(cur):
+    """Add reminder_sent_at to orders so the pickup-reminder
+    background service knows which completed-but-not-collected orders
+    have already had a reminder SMS sent. Without this column we'd
+    spam customers every minute the reminder thread wakes up."""
+    cur.execute("""
+        ALTER TABLE orders
+        ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMP
+    """)
+
+
 def _m006_customer_preferences_shots_and_decaf(cur):
     """Add preferred_strength + preferred_decaf to customer_preferences
     so a regular's "usual" replay actually reflects their full order.
@@ -130,6 +141,7 @@ MIGRATIONS: list[Migration] = [
     Migration(5, 'orders_picked_up_at',        _m005_orders_picked_up_at),
     Migration(6, 'customer_preferences_strength_and_decaf',
               _m006_customer_preferences_shots_and_decaf),
+    Migration(7, 'orders_reminder_sent_at',    _m007_orders_reminder_sent_at),
 ]
 
 
