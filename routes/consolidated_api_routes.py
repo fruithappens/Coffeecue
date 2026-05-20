@@ -560,8 +560,24 @@ def orders():
             if data.get('priority') == 'urgent':
                 priority = 2
             
-            # Use provided station or default to station 1
-            station_id = data.get('station_id', 1)
+            # Station precedence: explicit collection_station (walk-in
+            # dialog's "send to station N for collection" override),
+            # then station_id, then default to 1. Without the
+            # collection_station fallback here, callers that send only
+            # that field landed every order at station 1 — the bug
+            # Steve flagged: "the option to assign the order to
+            # another station is not working".
+            station_id = (
+                data.get('collection_station')
+                or data.get('collectionStation')
+                or data.get('station_id')
+                or data.get('stationId')
+                or 1
+            )
+            try:
+                station_id = int(station_id)
+            except (TypeError, ValueError):
+                station_id = 1
             
             # Insert order into database
             cursor = db.cursor()

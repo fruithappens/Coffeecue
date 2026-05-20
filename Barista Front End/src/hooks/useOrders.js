@@ -1787,11 +1787,40 @@ export default function useOrders(stationId = null) {
     }
     
     try {
-      // Preserve station assignments from BaristaInterface, only add currentStationId as fallback
+      // Station precedence for a walk-in order:
+      //   1. collection_station (operator explicitly picked "send
+      //      to station N for collection" in the walk-in dialog)
+      //   2. station_id / stationId / assignedStation that the
+      //      caller passed in
+      //   3. currentStationId fallback
+      //
+      // Previously the walk-in dialog's Collection Station dropdown
+      // had no effect because this handler ignored collection_station
+      // entirely and the backend defaults to station 1. Steve flagged
+      // this — "the option to assign the order to another station
+      // is not working".
+      const collectionStation = orderDetails.collection_station
+                             || orderDetails.collectionStation;
+      const resolvedStation =
+        collectionStation
+        || orderDetails.station_id
+        || orderDetails.stationId
+        || currentStationId;
+
       const orderWithStation = {
         ...orderDetails,
-        station_id: orderDetails.station_id || orderDetails.stationId || currentStationId,
-        assigned_to_station: orderDetails.assigned_to_station || orderDetails.assignedStation || orderDetails.stationId || currentStationId
+        station_id: resolvedStation,
+        // Mirror to all the camelCase / alt names the rest of the
+        // pipeline reads. Without this the local optimistic order
+        // would show the wrong station even though the backend got
+        // the right one.
+        stationId: resolvedStation,
+        assigned_to_station: resolvedStation,
+        assignedStation: resolvedStation,
+        // Clear the collection_station hint now that it's been
+        // applied — keeps the order_details JSON tidy.
+        collection_station: null,
+        collectionStation: null,
       };
       
       console.log(`Adding walk-in order at station ${currentStationId}:`, orderWithStation);
