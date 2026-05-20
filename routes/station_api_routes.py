@@ -420,44 +420,79 @@ def update_station_capabilities(station_id):
             # Nested format: { capabilities: { ... } }
             cap_data = data['capabilities']
         else:
-            # Direct format: { coffeeTypes: [...], ... }
+            # Direct format
             cap_data = data
-            
-        capabilities = {
-            'coffee_types': cap_data.get('coffeeTypes', []),
-            'milk_types': cap_data.get('milkTypes', []),
-            'extra_options': cap_data.get('extraOptions', []),
-            'capacity': cap_data.get('capacity', 10),
-            'skill_level': cap_data.get('skillLevel', 'basic'),
-            'specializations': cap_data.get('specializations', [])
-        }
-        
-        # Update station capabilities
-        # For now, we'll store capabilities in the notes field as JSON
-        # In a production system, you'd want a separate capabilities table
+
+        # Accept both camelCase (legacy frontend) AND snake_case (new
+        # StationCapabilitiesEditor). Whichever set the caller sends
+        # wins; the other is taken from the value already in the DB
+        # so partial saves don't wipe siblings.
+        def _pick(*keys):
+            for k in keys:
+                if k in cap_data:
+                    return cap_data[k]
+            return None
+
+        new_caps_partial = {}
+        for snake, camel in [
+            ('coffee_types', 'coffeeTypes'),
+            ('milk_types',   'milkTypes'),
+            ('extra_options', 'extraOptions'),
+            ('capacity',     'capacity'),
+            ('skill_level',  'skillLevel'),
+            ('specializations', 'specializations'),
+            ('alt_milk',     'altMilk'),
+            ('high_volume',  'highVolume'),
+            ('vip_service',  'vipService'),
+            ('sizes',        'sizes'),
+        ]:
+            val = _pick(snake, camel)
+            if val is not None:
+                new_caps_partial[snake] = val
+
+        # Merge with the existing JSONB row so partial saves are safe.
+        # Previously this endpoint wrote to `equipment_notes` (a TEXT
+        # column meant for hardware notes) and wiped all fields on
+        # every save — meaning a save of just `vip_service: true`
+        # blew away milk_types, coffee_types, etc. _assign_station
+        # reads `capabilities` (JSONB), so the old data flow was
+        # silently broken: edits never reached the SMS-routing
+        # decision. Fixed May 2026.
         cursor = db.cursor()
-        cursor.execute("""
-            UPDATE station_stats 
-            SET equipment_notes = %s, last_updated = %s
-            WHERE station_id = %s
-        """, (json.dumps(capabilities), datetime.now(), station_id))
+        cursor.execute(
+            "SELECT COALESCE(capabilities, '{}'::jsonb) FROM station_stats WHERE station_id = %s",
+            (station_id,),
+        )
+        row = cursor.fetchone()
+        existing = {}
+        if row and row[0]:
+            raw = row[0]
+            if isinstance(raw, str):
+                try:
+                    existing = json.loads(raw)
+                except Exception:
+                    existing = {}
+            elif isinstance(raw, dict):
+                existing = raw
+        capabilities = {**existing, **new_caps_partial}
+
+        cursor.execute(
+            "UPDATE station_stats SET capabilities = %s::jsonb, last_updated = %s "
+            "WHERE station_id = %s",
+            (json.dumps(capabilities), datetime.now(), station_id),
+        )
         
         db.commit()
         
         # Get updated station
         updated_station = Station.get_by_id(db, station_id)
-        
+
         # Format response
         formatted_station = dict(updated_station)
-        
-        # Parse capabilities from equipment_notes if it's JSON
-        try:
-            if formatted_station.get('equipment_notes'):
-                parsed_capabilities = json.loads(formatted_station['equipment_notes'])
-                formatted_station['capabilities'] = parsed_capabilities
-        except json.JSONDecodeError:
-            # If not JSON, treat as location text
-            formatted_station['location'] = formatted_station.get('equipment_notes', '')
+
+        # Surface the merged capabilities we just wrote so the
+        # frontend doesn't have to re-GET.
+        formatted_station['capabilities'] = capabilities
         
         # Map database fields to frontend fields
         formatted_station['id'] = formatted_station.get('station_id', formatted_station.get('id'))
