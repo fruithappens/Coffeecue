@@ -118,23 +118,26 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
             console.log(`✅ Loaded inventory from barista stock for station ${targetStation.id}:`, inventory);
           } else {
             console.warn(`⚠️ No stock data found for station ${targetStation.id}, trying API fallback...`);
-            
-            // Fallback to API if no stock data. Hardcoded localhost URL
-            // broke this in cloud deployments — use relative path in prod.
-            const apiBase = process.env.NODE_ENV === 'production'
-              ? '/api'
-              : 'http://localhost:5001/api';
-            const response = await fetch(`${apiBase}/inventory?station_id=${targetStation.id}`, {
-              headers: {
-                'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-                'Accept': 'application/json'
-              }
-            });
-            
-            if (response.ok) {
-              const data = await response.json();
+
+            // Fallback to API if no stock data. We use ApiService
+            // rather than raw fetch so:
+            //   - the base URL comes from the same place every other
+            //     call does (no more hardcoded localhost that 404s on
+            //     Railway when offline-mode kicks in)
+            //   - auth header + refresh-on-401 inherit automatically
+            //   - if the token is wrong, the user gets the same
+            //     re-login flow they would anywhere else.
+            const { default: ApiServiceClass } = await import('../../services/ApiService');
+            const apiService = new ApiServiceClass();
+            let data = null;
+            try {
+              data = await apiService.get(`/inventory?station_id=${targetStation.id}`);
               console.log(`✅ API fallback inventory for station ${targetStation.id}:`, data);
-              
+            } catch (apiErr) {
+              console.warn(`API fallback failed for station ${targetStation.id}:`, apiErr);
+            }
+
+            if (data) {
               if (data.items) {
                 data.items.forEach(item => {
                   const itemData = {
