@@ -131,8 +131,8 @@ These are listed by impact-per-effort. The top 3 close real customer-facing gaps
 | 1 | Send "your X is ready for pickup at Station N" SMS from `/complete` endpoint | ✅ DONE | 15 min | Biggest customer-experience gap right now |
 | 2 | Drop the misleading "Default: medium, full cream, no sugar" line from the prompt | ✅ DONE | 2 min | Lies about behavior |
 | 3 | Add stale-conversation timeout (15-30 min) — reset state if no reply | ✅ DONE | 30 min | Stops customers getting stuck mid-flow next day |
-| 4 | Capture `preferred_shots` (decaf flag too) on saved usual | TODO | 45 min | Returning customers get their full usual |
-| 5 | Real time-of-day-aware usual suggestion, OR drop the misleading wording | TODO | 30 min / 1 min | Either deliver on the promise or stop making it |
+| 4 | Capture preferred strength (shots) + decaf flag on saved usual | ✅ DONE | 45 min | Returning customers get their full usual |
+| 5 | Real time-of-day-aware usual suggestion, OR drop the misleading wording | ✅ DONE (dropped wording) | 1 min | Either deliver on the promise or stop making it |
 | 6 | Auto-reminder SMS after N min of "completed but not picked up" | TODO | 1 hour | Closes the no-show loop |
 | 7 | Real EDIT support (edit milk / size / sugar without restarting) | TODO | 1 hour | Operator-flagged friction |
 | 8 | Welcome message respects branding event_name | ✅ DONE | 5 min | Consistency with rest of system |
@@ -143,6 +143,11 @@ These are listed by impact-per-effort. The top 3 close real customer-facing gaps
 - **Fix 2** — replaced the misleading "Default: medium, full cream, no sugar" prompt with honest examples in `services/coffee_system.py`. The bot does NOT silently inject defaults (apply_defaults=False) so the prompt now reflects reality.
 - **Fix 3** — added `_is_state_stale()` + `_reset_conversation_state()` in `services/coffee_system.py`. The `_get_conversation_state()` method now detects states idle > `STALE_CONVERSATION_MINUTES` (default 20) and clears them, so the next message starts fresh instead of being routed to a mid-order handler. Configurable via env.
 - **Fix 8** — `event_name` is now a `@property` reading live from `branding_settings` (30s cache). Operator changes via the Branding panel flow through to SMS responses immediately, no restart needed.
+
+### Batch 2 implementation notes (May 2026)
+
+- **Fix 4** — added migration #6 (`customer_preferences_strength_and_decaf`) to add `preferred_strength TEXT` + `preferred_decaf BOOLEAN` columns. The save path (`_confirm_order`) now strips the "decaf " prefix from the drink type, stores the bare type in `preferred_drink`, and stamps `preferred_decaf=true`. The strength field (e.g. "double shot", "strong") gets stored verbatim. Read paths (`_get_usual_order_details`, `_get_usual_order_suggestion`, `_handle_awaiting_name`) include decaf prefix + strength tail so a regular's full usual ("strong decaf flat white") replays exactly. Schema-tolerant — falls back to the old SELECT if migration #6 hasn't been applied.
+- **Fix 5** — dropped the misleading "which you often enjoy around this time" claim in `_get_usual_order_suggestion`. The underlying logic doesn't actually filter by hour-of-day, so the claim was dishonest. New wording: "What can I get you today, {name}? Your usual {size} {drink} with {milk}, {sugar} ({strength})?" — concise, honest, full-fidelity.
 
 ---
 

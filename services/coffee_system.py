@@ -491,25 +491,78 @@ class CoffeeOrderSystem:
             return welcome_message.replace('{event_name}', self.event_name)
     
     def _get_usual_order_suggestion(self, phone, name):
-        """Get usual order suggestions based on previous orders"""
+        """Get usual order suggestions based on previous orders.
+
+        The previous wording claimed "which you often enjoy around
+        this time" but the underlying logic doesn't actually filter
+        by hour-of-day — it offers the same usual regardless of when
+        the customer texts. Dropped the misleading time claim. Also
+        now includes decaf prefix + strength tail so a regular's full
+        usual ("strong decaf flat white") replays exactly.
+        """
         try:
-            # Check for customer preferences
+            # Check for customer preferences. Try the richer SELECT
+            # first; fall back if migration #6 hasn't been applied.
             cursor = self.db.cursor()
-            cursor.execute(
-                "SELECT preferred_drink, preferred_milk, preferred_size, preferred_sugar FROM customer_preferences WHERE phone = %s",
-                (phone,)
-            )
-            result = cursor.fetchone()
-            
-            if result and result[0]:
-                drink, milk, size, sugar = result
-                
-                # Build a suggestion message
+            strength = None
+            decaf = False
+            try:
+                cursor.execute(
+                    "SELECT preferred_drink, preferred_milk, preferred_size, "
+                    "preferred_sugar, preferred_strength, preferred_decaf "
+                    "FROM customer_preferences WHERE phone = %s",
+                    (phone,)
+                )
+                row = cursor.fetchone()
+                if row:
+                    if isinstance(row, dict):
+                        drink = row.get('preferred_drink')
+                        milk = row.get('preferred_milk')
+                        size = row.get('preferred_size')
+                        sugar = row.get('preferred_sugar')
+                        strength = row.get('preferred_strength')
+                        decaf = bool(row.get('preferred_decaf'))
+                    else:
+                        drink, milk, size, sugar, strength, decaf = row
+                        decaf = bool(decaf)
+                else:
+                    drink = milk = size = sugar = None
+            except Exception:
+                try:
+                    self.db.rollback()
+                except Exception:
+                    pass
+                cursor = self.db.cursor()
+                cursor.execute(
+                    "SELECT preferred_drink, preferred_milk, preferred_size, preferred_sugar FROM customer_preferences WHERE phone = %s",
+                    (phone,)
+                )
+                row = cursor.fetchone()
+                if row:
+                    if isinstance(row, dict):
+                        drink = row.get('preferred_drink')
+                        milk = row.get('preferred_milk')
+                        size = row.get('preferred_size')
+                        sugar = row.get('preferred_sugar')
+                    else:
+                        drink, milk, size, sugar = row
+                else:
+                    drink = milk = size = sugar = None
+
+            if drink:
+                # Build a suggestion message with full fidelity
                 if all([drink, milk, size]):
+                    drink_label = f"decaf {drink}" if decaf else drink
                     sugar_text = f", {sugar}" if sugar else ""
-                    return f"What type of coffee would you like today? Your usual {drink} or perhaps a {size} {drink} with {milk} milk{sugar_text}, which you often enjoy around this time?"
-            
+                    strength_text = f" ({strength})" if strength else ""
+                    return (
+                        f"What can I get you today, {name}? Your usual "
+                        f"{size} {drink_label} with {milk} milk{sugar_text}"
+                        f"{strength_text}?"
+                    )
+
             # If no preferences, check previous orders
+            cursor = self.db.cursor()
             cursor.execute("""
                 SELECT o.order_details
                 FROM orders o
@@ -1074,20 +1127,30 @@ class CoffeeOrderSystem:
         customer = self.get_customer(phone)
         
         if customer and self._has_usual_order(phone):
-            # Suggest usual order if they have one
+            # Suggest usual order if they have one. Include decaf
+            # prefix and strength tail so a regular's full usual
+            # ("strong decaf flat white") replays exactly.
             usual_order = self._get_usual_order_details(phone)
             if usual_order:
                 coffee_type = usual_order.get('type', 'coffee')
                 milk = usual_order.get('milk', 'milk')
                 size = usual_order.get('size', 'regular')
-                
+                strength = usual_order.get('strength')
+                decaf = usual_order.get('decaf')
+                drink_label = f"decaf {coffee_type}" if decaf else coffee_type
+                strength_text = f" ({strength})" if strength else ""
+
                 # Save name and set suggestion context
                 self._set_conversation_state(phone, 'awaiting_coffee_type', {
                     'name': name,
                     'suggestion_context': 'usual_order'  # Mark that we've suggested their usual order
                 })
-                
-                return f"Nice to meet you, {name}! Would you like your usual {size} {coffee_type} with {milk}? Reply YES or tell me what you'd like."
+
+                return (
+                    f"Nice to meet you, {name}! Would you like your usual "
+                    f"{size} {drink_label} with {milk}{strength_text}? "
+                    f"Reply YES or tell me what you'd like."
+                )
         
         # For new customers or those without usual orders
         self._set_conversation_state(phone, 'awaiting_coffee_type', {'name': name})
@@ -1123,20 +1186,66 @@ class CoffeeOrderSystem:
             return False
     
     def _get_usual_order_details(self, phone):
-        """Get the customer's usual order details"""
+        """Get the customer's usual order details.
+
+        Reads strength + decaf as well as the core type/milk/size/sugar
+        fields so a regular's "usual" replay actually reflects how they
+        actually order. preferred_strength + preferred_decaf are
+        tolerated-missing (older DBs without migration #6 just return
+        None for those fields).
+        """
         try:
             cursor = self.db.cursor()
-            cursor.execute("""
-                SELECT preferred_drink, preferred_milk, preferred_size, preferred_sugar, preferred_notes
-                FROM customer_preferences 
-                WHERE phone = %s
-            """, (phone,))
-            
-            result = cursor.fetchone()
-            
+            # Try the richer SELECT first. If the columns don't exist
+            # (migration #6 hasn't been applied), fall back.
+            try:
+                cursor.execute("""
+                    SELECT preferred_drink, preferred_milk, preferred_size,
+                           preferred_sugar, preferred_notes,
+                           preferred_strength, preferred_decaf
+                    FROM customer_preferences
+                    WHERE phone = %s
+                """, (phone,))
+                result = cursor.fetchone()
+                has_strength_cols = True
+            except Exception:
+                try:
+                    self.db.rollback()
+                except Exception:
+                    pass
+                cursor = self.db.cursor()
+                cursor.execute("""
+                    SELECT preferred_drink, preferred_milk, preferred_size,
+                           preferred_sugar, preferred_notes
+                    FROM customer_preferences
+                    WHERE phone = %s
+                """, (phone,))
+                result = cursor.fetchone()
+                has_strength_cols = False
+
             if result:
-                coffee_type, milk, size, sugar, notes = result
-                
+                if has_strength_cols:
+                    if isinstance(result, dict):
+                        coffee_type = result.get('preferred_drink')
+                        milk = result.get('preferred_milk')
+                        size = result.get('preferred_size')
+                        sugar = result.get('preferred_sugar')
+                        notes = result.get('preferred_notes')
+                        strength = result.get('preferred_strength')
+                        decaf = result.get('preferred_decaf')
+                    else:
+                        coffee_type, milk, size, sugar, notes, strength, decaf = result
+                else:
+                    if isinstance(result, dict):
+                        coffee_type = result.get('preferred_drink')
+                        milk = result.get('preferred_milk')
+                        size = result.get('preferred_size')
+                        sugar = result.get('preferred_sugar')
+                        notes = result.get('preferred_notes')
+                    else:
+                        coffee_type, milk, size, sugar, notes = result
+                    strength, decaf = None, False
+
                 # Only return if we have at least a coffee type
                 if coffee_type:
                     order_details = {
@@ -1144,17 +1253,23 @@ class CoffeeOrderSystem:
                         'milk': milk or 'full cream',
                         'size': size or 'medium'
                     }
-                    
+
                     if sugar:
                         order_details['sugar'] = sugar
-                    
+
                     if notes:
                         order_details['notes'] = notes
-                    
+
+                    if strength:
+                        order_details['strength'] = strength
+
+                    if decaf:
+                        order_details['decaf'] = True
+
                     return order_details
-            
+
             return None
-            
+
         except Exception as e:
             logger.error(f"Error getting usual order: {str(e)}")
             return None
@@ -1186,14 +1301,23 @@ class CoffeeOrderSystem:
             }
             self._set_conversation_state(phone, 'awaiting_confirmation', state_data)
             
-            # Format order summary
+            # Format order summary — include decaf prefix and strength
+            # tail so a regular's full usual ("strong decaf double-shot
+            # flat white") replays exactly, not collapsed to "flat white".
             coffee_type = usual_order.get('type', 'coffee')
             milk = usual_order.get('milk', 'milk')
             size = usual_order.get('size', 'medium')
             sugar = usual_order.get('sugar', 'no sugar')
-            
+            strength = usual_order.get('strength')
+            decaf = usual_order.get('decaf')
+
+            drink_label = f"decaf {coffee_type}" if decaf else coffee_type
+            summary = f"{size} {drink_label} with {milk}, {sugar}"
+            if strength:
+                summary += f" ({strength})"
+
             return (
-                f"Great, {name}! Here's your usual order: {size} {coffee_type} with {milk}, {sugar}"
+                f"Great, {name}! Here's your usual order: {summary}"
                 f"{self._format_price_tail(usual_order)}\n"
                 f"Would you like to confirm this order? (Reply YES to confirm, NO to cancel, or EDIT to change it)"
             )
@@ -2675,18 +2799,34 @@ class CoffeeOrderSystem:
             # When ordering for a friend, don't overwrite the customer's own preferences
             if not is_friend_order:
                 try:
+                    # Extract decaf-ness from the drink type so "decaf flat white"
+                    # is stored as type="flat white" with decaf=True. Without
+                    # this, the next visit drops the decaf and a regular has
+                    # to re-specify every time.
+                    raw_type = (processed_details.get('type') or '').strip()
+                    decaf_flag = False
+                    bare_type = raw_type
+                    lower_type = raw_type.lower()
+                    if lower_type.startswith('decaf '):
+                        decaf_flag = True
+                        bare_type = raw_type[6:].strip()
+                    elif lower_type.startswith('decaffeinated '):
+                        decaf_flag = True
+                        bare_type = raw_type[14:].strip()
+                    preferred_strength = processed_details.get('strength')
+
                     # Check if customer exists
                     if db_type == "sqlite":
                         cursor.execute("SELECT name FROM customer_preferences WHERE phone = ?", (phone,))
                     else:
                         cursor.execute("SELECT name FROM customer_preferences WHERE phone = %s", (phone,))
-                    
+
                     # Get result based on cursor type
                     if db_type == "sqlite":
                         result = cursor.fetchone()
                     else:
                         result = cursor.fetchone()
-                        
+
                     if result:
                         # Update existing customer but DON'T change their name
                         # Only update their drink preferences with their own order
@@ -2697,14 +2837,18 @@ class CoffeeOrderSystem:
                                     preferred_milk = ?,
                                     preferred_size = ?,
                                     preferred_sugar = ?,
+                                    preferred_strength = ?,
+                                    preferred_decaf = ?,
                                     last_order_date = ?,
                                     total_orders = total_orders + 1
                                 WHERE phone = ?
                             """, (
-                                processed_details.get('type'),
+                                bare_type,
                                 processed_details.get('milk'),
                                 processed_details.get('size'),
                                 processed_details.get('sugar'),
+                                preferred_strength,
+                                1 if decaf_flag else 0,
                                 now,
                                 phone
                             ))
@@ -2715,14 +2859,18 @@ class CoffeeOrderSystem:
                                     preferred_milk = %s,
                                     preferred_size = %s,
                                     preferred_sugar = %s,
+                                    preferred_strength = %s,
+                                    preferred_decaf = %s,
                                     last_order_date = %s,
                                     total_orders = total_orders + 1
                                 WHERE phone = %s
                             """, (
-                                processed_details.get('type'),
+                                bare_type,
                                 processed_details.get('milk'),
                                 processed_details.get('size'),
                                 processed_details.get('sugar'),
+                                preferred_strength,
+                                decaf_flag,
                                 now,
                                 phone
                             ))
@@ -2731,16 +2879,19 @@ class CoffeeOrderSystem:
                         if db_type == "sqlite":
                             cursor.execute("""
                             INSERT INTO customer_preferences
-                            (phone, name, preferred_drink, preferred_milk, preferred_size, preferred_sugar, 
+                            (phone, name, preferred_drink, preferred_milk, preferred_size, preferred_sugar,
+                             preferred_strength, preferred_decaf,
                              first_order_date, last_order_date, total_orders)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """, (
                             phone,
                             name,
-                            processed_details.get('type'),
+                            bare_type,
                             processed_details.get('milk'),
                             processed_details.get('size'),
                             processed_details.get('sugar'),
+                            preferred_strength,
+                            1 if decaf_flag else 0,
                             now,
                             now,
                             1
@@ -2748,21 +2899,24 @@ class CoffeeOrderSystem:
                         else:
                             cursor.execute("""
                             INSERT INTO customer_preferences
-                            (phone, name, preferred_drink, preferred_milk, preferred_size, preferred_sugar, 
+                            (phone, name, preferred_drink, preferred_milk, preferred_size, preferred_sugar,
+                             preferred_strength, preferred_decaf,
                              first_order_date, last_order_date, total_orders)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         """, (
                             phone,
                             name,
-                            processed_details.get('type'),
+                            bare_type,
                             processed_details.get('milk'),
                             processed_details.get('size'),
                             processed_details.get('sugar'),
+                            preferred_strength,
+                            decaf_flag,
                             now,
                             now,
                             1
                         ))
-                
+
                     fresh_conn.commit()
                     logger.info(f"Updated customer preferences for {name}")
                 except Exception as e:

@@ -100,6 +100,25 @@ def _m005_orders_picked_up_at(cur):
     """)
 
 
+def _m006_customer_preferences_shots_and_decaf(cur):
+    """Add preferred_strength + preferred_decaf to customer_preferences
+    so a regular's "usual" replay actually reflects their full order.
+    A customer who always orders a double-shot decaf flat white was
+    previously stored as just "flat white" — and the next visit's
+    suggestion dropped both the shots and the decaf, forcing them to
+    re-specify every time.
+
+    `preferred_strength` is TEXT (not INTEGER) because customers say
+    "strong" / "double shot" / "extra strong" interchangeably and we
+    want to replay verbatim rather than collapsing them into a number.
+    `preferred_decaf` is BOOLEAN — "decaf " prefix stripped on save."""
+    cur.execute("""
+        ALTER TABLE customer_preferences
+        ADD COLUMN IF NOT EXISTS preferred_strength TEXT,
+        ADD COLUMN IF NOT EXISTS preferred_decaf BOOLEAN DEFAULT FALSE
+    """)
+
+
 # Master list. Append new migrations at the bottom — DO NOT renumber
 # existing ones, and DO NOT change `version`. The runner trusts the
 # version number to determine which migrations to skip.
@@ -109,6 +128,8 @@ MIGRATIONS: list[Migration] = [
     Migration(3, 'users_is_active',            _m003_users_is_active),
     Migration(4, 'order_number_seq',           _m004_order_number_seq),
     Migration(5, 'orders_picked_up_at',        _m005_orders_picked_up_at),
+    Migration(6, 'customer_preferences_strength_and_decaf',
+              _m006_customer_preferences_shots_and_decaf),
 ]
 
 
