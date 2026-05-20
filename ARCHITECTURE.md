@@ -101,8 +101,8 @@ compromise.
 
 ## 5. localStorage keys — categories
 
-Active categories (from the audit; see `AUDIT_REPORT.txt` for the
-full inventory):
+Full inventory in `AUDIT_REPORT.txt` (~150 distinct keys). Working
+categories the active code touches:
 
 - **Auth**: `coffee_auth_token`, `coffee_refresh_token`, `coffee_system_token` (the last one is legacy; ApiService falls back to both).
 - **Settings**: see section 4 above.
@@ -112,6 +112,31 @@ full inventory):
 - **Routing rules**: `coffee_cue_routing_rules` — local cache mirroring the backend's `/api/routing-rules`.
 - **Chat**: `coffee_chat_messages` — local cache mirroring `/api/chat/messages`.
 - **Demo mode**: `demo_mode_enabled`, `use_fallback_data`, `coffee_cue_app_mode` — these gate the FallbackService.
+- **Station naming (variable-name drift only)**: `coffee_station_name_${selectedStation}` / `${station.id}` / `${stationId}` are three spellings of the same data. They all resolve to the same actual localStorage key for a given station ID, so they're functionally fine — but cosmetic style drift. Canonical: `coffee_station_name_${stationId}`.
+- **Selected station — intentional dual write**: `coffee_cue_selected_station` (canonical) AND `last_used_station_id` (mirror) are written together. Readers prefer the first, fall back to the second. Keep both writes in sync if you touch the code.
+
+### Deferred cleanup (known dead code, retired in a future pass)
+
+These keys are referenced by code that's either no longer reached
+or only kicks in for disabled features. They don't break anything,
+but cleaning them up reduces noise:
+
+| Key(s) | Lives in | Status |
+|--------|---------|--------|
+| `html_etag`, `html_last_modified` | `DeploymentService.js` | Service is disabled in dev (`NODE_ENV !== 'production'` short-circuit). Production-only "Update available" banner machinery. Don't break — just unused. |
+| `migration_completed`, `migration_date` | `DatabaseInventoryService.js` | One-shot localStorage migration flag from an old refactor. Harmless. |
+| `demoSpeed`, `demo_data_initialized`, `coffee_cue_hidden_demo_items`, `connectionMode`, `demoMode`, `offlineMode` | Various | Demo-mode infrastructure. Used only when the operator explicitly switches to demo mode. |
+| `JWT_SIGNATURE_ERROR`, `coffee_debug_milk_colors` | Error/debug paths | Diagnostic flags. Worth keeping for now. |
+| `coffeeMenu`, `event_menu`, `event_menu_version` | Multiple | Older menu-shape caches. May overlap with `event_inventory`; needs verification before removal. |
+| `coffee_system_user`, `coffee_system_users`, `user` | Multiple | Three keys for similar data. Auth-related; `coffee_system_token` flow is the canonical path. |
+
+When adding a new localStorage key:
+
+1. Prefix it with `coffee_cue_` (the active convention).
+2. Document it here under the relevant category.
+3. Use `JSON.stringify`/`JSON.parse` — most existing keys are JSON.
+4. If it stores something the backend should know about, mirror it
+   to a `/api/...` KV setting too (see Quick Setup for the pattern).
 
 ## 6. Quick Setup behavior
 
