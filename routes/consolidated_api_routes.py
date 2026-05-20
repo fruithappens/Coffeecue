@@ -1646,19 +1646,31 @@ def pickup_order(order_id):
         # Get current time
         pickup_at = datetime.now().isoformat()
         
-        # Update order status - set picked_up_at field if it exists
+        # Update order: status → 'picked_up' AND set timestamps.
+        # The status change is critical: without it the order stays
+        # as status='completed' forever, so the customer Display
+        # keeps showing it in "Ready for Pickup" even after the
+        # barista taps Collected. (Bug Steve hit on Station 4.)
         try:
             cursor.execute('''
                 UPDATE orders
-                SET picked_up_at = %s, updated_at = %s
+                SET status = 'picked_up',
+                    picked_up_at = %s,
+                    updated_at = %s
                 WHERE order_number = %s
             ''', (pickup_at, pickup_at, clean_id))
         except Exception as e:
-            # If picked_up_at column doesn't exist, fall back to a simpler update
+            # picked_up_at column missing on this DB — best-effort
+            # without the timestamp, but still flip the status so the
+            # Display knows to drop the order.
             logger.warning(f"picked_up_at column may not exist, using simpler update: {str(e)}")
+            try:
+                db.rollback()
+            except Exception:
+                pass
             cursor.execute('''
                 UPDATE orders
-                SET updated_at = %s
+                SET status = 'picked_up', updated_at = %s
                 WHERE order_number = %s
             ''', (pickup_at, clean_id))
         
