@@ -878,6 +878,174 @@ def get_completed_orders():
             'message': f"Error fetching completed orders: {str(e)}"
         }), 500
 
+@bp.route('/heartbeat', methods=['GET'])
+def heartbeat():
+    """Connectivity check — used by the React UI to confirm the
+    backend is reachable. Intentionally cheap (no DB hit).
+
+    Previously returned 404 because no route existed; the UI
+    interpreted the failure as "offline" and dropped into
+    fallback-data mode unnecessarily.
+    """
+    return jsonify({'status': 'ok', 'service': 'expresso'})
+
+
+@bp.route('/orders/search', methods=['GET'])
+@jwt_required_with_demo()
+def search_orders():
+    """Full-text search over recent orders.
+
+    Body of search is matched against customer_name and order_number
+    case-insensitively. Optional `?station_id=N` further filters. Used
+    by the Barista UI's Completed Orders search box.
+    """
+    try:
+        q = (request.args.get('q') or request.args.get('query') or '').strip().lower()
+        station_id = request.args.get('station_id', type=int)
+        limit = min(int(request.args.get('limit', 50)), 200)
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        cur = db.cursor()
+        where = ['1=1']
+        params: list = []
+        if q:
+            # Match against order_number OR the JSON 'name' field.
+            # Postgres JSONB makes this clean; SQLite path is best-effort.
+            where.append("(LOWER(order_number) LIKE %s OR LOWER(COALESCE(order_details->>'name','')) LIKE %s)")
+            params.extend([f"%{q}%", f"%{q}%"])
+        if station_id is not None:
+            where.append("station_id = %s")
+            params.append(station_id)
+        params.append(limit)
+        sql = f"""
+            SELECT order_number, status, station_id, created_at, phone, order_details
+            FROM orders
+            WHERE {' AND '.join(where)}
+            ORDER BY created_at DESC
+            LIMIT %s
+        """
+        cur.execute(sql, params)
+        results = []
+        for row in cur.fetchall():
+            order_number, status, sid, created_at, phone, od = row
+            if isinstance(od, str):
+                try:
+                    od = json.loads(od)
+                except Exception:
+                    od = {}
+            od = od or {}
+            results.append({
+                'order_number': order_number,
+                'orderNumber': order_number,
+                'status': status,
+                'station_id': sid, 'stationId': sid,
+                'created_at': created_at.isoformat() if hasattr(created_at, 'isoformat') else created_at,
+                'customer_name': od.get('name', ''),
+                'customerName': od.get('name', ''),
+                'coffee_type': od.get('type', ''),
+                'coffeeType': od.get('type', ''),
+                'milk_type': od.get('milk', ''),
+                'milkType': od.get('milk', ''),
+                'phone_number': phone, 'phoneNumber': phone,
+            })
+        return jsonify({'success': True, 'status': 'success', 'data': results, 'orders': results})
+    except Exception as e:
+        logger.error(f"search_orders error: {e}")
+        try:
+            current_app.config.get('coffee_system').db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@bp.route('/orders/batch/process', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def process_order_batch():
+    """Move a list of pending orders to in-progress in one call.
+
+    Body: { "order_ids": ["W123", "W124", ...] }
+
+    The Barista UI's "Batch Process" button selects multiple
+    related orders (same milk + coffee type) and starts them
+    together. Without this endpoint the button silently no-op'd.
+    Returns the new statuses and a per-order success flag.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        data = request.get_json() or {}
+        order_ids = data.get('order_ids') or data.get('orderIds') or []
+        if not isinstance(order_ids, list) or not order_ids:
+            return jsonify({'success': False, 'message': 'order_ids must be a non-empty array'}), 400
+        results = []
+        cur = db.cursor()
+        for oid in order_ids:
+            clean = clean_order_id(str(oid))
+            try:
+                cur.execute(
+                    "UPDATE orders SET status = 'in-progress', updated_at = %s "
+                    "WHERE order_number = %s AND status = 'pending' RETURNING order_number",
+                    (datetime.now().isoformat(), clean),
+                )
+                row = cur.fetchone()
+                results.append({'order_id': clean, 'success': bool(row),
+                                'new_status': 'in-progress' if row else None})
+            except Exception as e:
+                results.append({'order_id': clean, 'success': False, 'error': str(e)})
+                try: db.rollback()
+                except Exception: pass
+        db.commit()
+        return jsonify({'success': True, 'results': results,
+                        'count': sum(1 for r in results if r['success'])})
+    except Exception as e:
+        logger.error(f"process_order_batch error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@bp.route('/auth/me', methods=['GET'])
+@jwt_required_with_demo()
+def auth_me():
+    """Return information about the currently-authenticated user.
+
+    Standard JWT-introspection convenience used by the React UI to
+    populate the logged-in indicator and the role-gated menu items.
+    Reads from the JWT claims so no DB hit is needed.
+    """
+    try:
+        from flask_jwt_extended import get_jwt, get_jwt_identity
+        try:
+            ident = get_jwt_identity()
+            claims = get_jwt()
+        except Exception:
+            ident, claims = None, {}
+        return jsonify({
+            'success': True,
+            'user': {
+                'id': ident,
+                'username': claims.get('username') or claims.get('sub'),
+                'email': claims.get('email'),
+                'role': claims.get('role'),
+                'full_name': claims.get('full_name'),
+            },
+        })
+    except Exception as e:
+        logger.error(f"auth_me error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@bp.route('/auth/logout', methods=['GET', 'POST'])
+def auth_logout():
+    """JWT logout is client-side (drop the token), but the UI still
+    pings this endpoint for telemetry. Acknowledge gracefully so the
+    frontend doesn't think it's offline."""
+    return jsonify({'success': True, 'message': 'logout acknowledged'})
+
+
 @bp.route('/orders/history', methods=['GET'])
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff', 'barista'])
