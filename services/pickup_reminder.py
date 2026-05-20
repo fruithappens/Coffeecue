@@ -44,6 +44,12 @@ class PickupReminderService:
         cfg = config or {}
         self.reminder_minutes = int(cfg.get('PICKUP_REMINDER_MINUTES', 10))
         self.interval_seconds = int(cfg.get('PICKUP_REMINDER_INTERVAL_SECONDS', 60))
+        # Cap how stale an order can be and still get a reminder. Without
+        # this, a fresh deploy would spam reminders for every historical
+        # completed-but-not-picked-up order (test seed data, abandoned
+        # orders from last week, etc). Default: only remind about orders
+        # completed in the last 4 hours. Set 0 to disable the cap.
+        self.max_reminder_age_minutes = int(cfg.get('PICKUP_REMINDER_MAX_AGE_MINUTES', 240))
         self._stop_event = threading.Event()
         self._thread = None
 
@@ -95,27 +101,52 @@ class PickupReminderService:
         try:
             conn = get_db_connection()
             cur = conn.cursor()
-            cutoff = datetime.now() - timedelta(minutes=self.reminder_minutes)
+            now = datetime.now()
+            cutoff = now - timedelta(minutes=self.reminder_minutes)
+            min_completed_at = None
+            if self.max_reminder_age_minutes > 0:
+                min_completed_at = now - timedelta(minutes=self.max_reminder_age_minutes)
 
             # The schema's "completed" status is what /complete sets.
             # picked_up_at IS NULL means barista hasn't tapped Picked Up.
             # reminder_sent_at IS NULL means we haven't reminded yet.
-            cur.execute(
-                """
-                SELECT id, order_number, phone, order_details, station_id
-                FROM orders
-                WHERE status = 'completed'
-                  AND picked_up_at IS NULL
-                  AND reminder_sent_at IS NULL
-                  AND completed_at IS NOT NULL
-                  AND completed_at < %s
-                  AND phone IS NOT NULL
-                  AND phone != ''
-                ORDER BY completed_at ASC
-                LIMIT 50
-                """,
-                (cutoff,),
-            )
+            # min_completed_at filter caps how stale an order can be and
+            # still earn a reminder (skip historical / abandoned orders).
+            if min_completed_at:
+                cur.execute(
+                    """
+                    SELECT id, order_number, phone, order_details, station_id
+                    FROM orders
+                    WHERE status = 'completed'
+                      AND picked_up_at IS NULL
+                      AND reminder_sent_at IS NULL
+                      AND completed_at IS NOT NULL
+                      AND completed_at < %s
+                      AND completed_at > %s
+                      AND phone IS NOT NULL
+                      AND phone != ''
+                    ORDER BY completed_at ASC
+                    LIMIT 50
+                    """,
+                    (cutoff, min_completed_at),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT id, order_number, phone, order_details, station_id
+                    FROM orders
+                    WHERE status = 'completed'
+                      AND picked_up_at IS NULL
+                      AND reminder_sent_at IS NULL
+                      AND completed_at IS NOT NULL
+                      AND completed_at < %s
+                      AND phone IS NOT NULL
+                      AND phone != ''
+                    ORDER BY completed_at ASC
+                    LIMIT 50
+                    """,
+                    (cutoff,),
+                )
             rows = cur.fetchall()
             if not rows:
                 return

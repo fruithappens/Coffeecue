@@ -79,6 +79,9 @@ NUM_STATIONS = int(os.getenv('NUM_STATIONS', 3))
 STALE_CONVERSATION_MINUTES = int(os.getenv('STALE_CONVERSATION_MINUTES', 20))
 PICKUP_REMINDER_MINUTES = int(os.getenv('PICKUP_REMINDER_MINUTES', 10))  # 0 disables
 PICKUP_REMINDER_INTERVAL_SECONDS = int(os.getenv('PICKUP_REMINDER_INTERVAL_SECONDS', 60))
+# Cap how stale an order can still earn a reminder. Default 4 hours so
+# a fresh deploy doesn't spam historical/abandoned orders. Set 0 = no cap.
+PICKUP_REMINDER_MAX_AGE_MINUTES = int(os.getenv('PICKUP_REMINDER_MAX_AGE_MINUTES', 240))
 
 # Loyalty program settings
 LOYALTY_POINTS_PER_ORDER = int(os.getenv('LOYALTY_POINTS_PER_ORDER', 10))
