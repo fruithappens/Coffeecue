@@ -591,6 +591,8 @@ const QuickSetup = () => {
         </div>
       </div>
 
+      <PricingSection />
+
       <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
         <h3 className="font-semibold text-lg mb-3">Event-wide options</h3>
         <Checkbox
@@ -654,6 +656,177 @@ const QuickSetup = () => {
           </div>
         </div>
       )}
+    </div>
+  );
+};
+
+// --- Pricing (honor-system) ------------------------------------
+// Talks directly to /api/pricing-settings rather than going through
+// the Quick Setup apply payload. Operator can enable/disable and
+// edit per-drink prices independently of the rest of Quick Setup.
+const PricingSection = () => {
+  const [loaded, setLoaded] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+  const [savedMsg, setSavedMsg] = React.useState('');
+  const [pricing, setPricing] = React.useState({
+    enabled: false,
+    currency: 'AUD',
+    symbol: '$',
+    per_drink: {},
+    unknown_drink_price: 4.50,
+    milk_surcharge: {},
+    size_surcharge: { small: -0.50, medium: 0.00, large: 0.50 },
+    sugar_surcharge_per_sachet: 0,
+    show_in_sms: true,
+    show_in_barista: true,
+    show_on_display: false,
+  });
+
+  React.useEffect(() => {
+    let cancelled = false;
+    api.request('/pricing-settings', { method: 'GET' })
+       .then(resp => { if (!cancelled && resp) { setPricing(p => ({ ...p, ...resp })); setLoaded(true); } })
+       .catch(() => setLoaded(true));
+    return () => { cancelled = true; };
+  }, []);
+
+  const save = async () => {
+    setSaving(true); setSavedMsg('');
+    try {
+      await api.request('/pricing-settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(pricing),
+      });
+      setSavedMsg('Saved');
+      setTimeout(() => setSavedMsg(''), 2500);
+    } catch (e) {
+      setSavedMsg('Save failed: ' + (e.message || 'unknown'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const numericInput = (val, setter) => (
+    <input
+      type="number"
+      step="0.10"
+      value={val ?? 0}
+      onChange={(e) => setter(parseFloat(e.target.value) || 0)}
+      className="w-24 px-2 py-1 border border-gray-300 rounded text-right"
+    />
+  );
+
+  return (
+    <div className="bg-white rounded-lg shadow-sm p-6 mb-4">
+      <h3 className="font-semibold text-lg mb-1">Pricing (honor system)</h3>
+      <p className="text-sm text-gray-500 mb-3">
+        When enabled, the SMS confirmation tells the customer the total
+        and asks them to pay at the counter at collection time. No card
+        processing — just embeds the price in the conversation.
+      </p>
+
+      <label className="inline-flex items-center mb-4 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={!!pricing.enabled}
+          onChange={(e) => setPricing(p => ({ ...p, enabled: e.target.checked }))}
+          className="mr-2 h-4 w-4 accent-amber-600"
+        />
+        <span className="font-medium">Enable pricing</span>
+      </label>
+
+      {pricing.enabled && (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <label className="text-sm">
+              <span className="block text-gray-600">Currency symbol</span>
+              <input
+                type="text" maxLength={3}
+                value={pricing.symbol || '$'}
+                onChange={(e) => setPricing(p => ({ ...p, symbol: e.target.value }))}
+                className="w-full px-2 py-1 border border-gray-300 rounded"
+              />
+            </label>
+            <label className="text-sm">
+              <span className="block text-gray-600">Unknown drink fallback</span>
+              {numericInput(pricing.unknown_drink_price,
+                v => setPricing(p => ({ ...p, unknown_drink_price: v })))}
+            </label>
+            <label className="text-sm">
+              <span className="block text-gray-600">Sugar per sachet</span>
+              {numericInput(pricing.sugar_surcharge_per_sachet,
+                v => setPricing(p => ({ ...p, sugar_surcharge_per_sachet: v })))}
+            </label>
+          </div>
+
+          <h4 className="font-semibold mt-2 mb-2">Per-drink price</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-4">
+            {Object.entries(pricing.per_drink || {}).sort().map(([drink, price]) => (
+              <div key={drink} className="flex items-center gap-2 justify-between">
+                <span className="text-sm capitalize">{drink}</span>
+                {numericInput(price, v => setPricing(p => ({
+                  ...p, per_drink: { ...p.per_drink, [drink]: v }
+                })))}
+              </div>
+            ))}
+          </div>
+
+          <h4 className="font-semibold mt-2 mb-2">Alt milk surcharge</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-4">
+            {Object.entries(pricing.milk_surcharge || {}).sort().map(([milk, price]) => (
+              <div key={milk} className="flex items-center gap-2 justify-between">
+                <span className="text-sm capitalize">{milk}</span>
+                {numericInput(price, v => setPricing(p => ({
+                  ...p, milk_surcharge: { ...p.milk_surcharge, [milk]: v }
+                })))}
+              </div>
+            ))}
+          </div>
+
+          <h4 className="font-semibold mt-2 mb-2">Size surcharge</h4>
+          <div className="grid grid-cols-3 gap-2 mb-4">
+            {Object.entries(pricing.size_surcharge || {}).map(([size, price]) => (
+              <div key={size} className="flex items-center gap-2 justify-between">
+                <span className="text-sm capitalize">{size}</span>
+                {numericInput(price, v => setPricing(p => ({
+                  ...p, size_surcharge: { ...p.size_surcharge, [size]: v }
+                })))}
+              </div>
+            ))}
+          </div>
+
+          <div className="space-y-1 text-sm mb-4">
+            <label className="flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={!!pricing.show_in_sms}
+                onChange={(e) => setPricing(p => ({ ...p, show_in_sms: e.target.checked }))}
+                className="mr-2"
+              />
+              Include total in SMS confirmation
+            </label>
+            <label className="flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={!!pricing.show_in_barista}
+                onChange={(e) => setPricing(p => ({ ...p, show_in_barista: e.target.checked }))}
+                className="mr-2"
+              />
+              Show price tag on Barista order cards
+            </label>
+          </div>
+        </>
+      )}
+
+      <button
+        onClick={save}
+        disabled={saving || !loaded}
+        className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded disabled:opacity-50"
+      >
+        {saving ? 'Saving…' : 'Save pricing'}
+      </button>
+      {savedMsg && <span className="ml-3 text-sm text-green-700">{savedMsg}</span>}
     </div>
   );
 };

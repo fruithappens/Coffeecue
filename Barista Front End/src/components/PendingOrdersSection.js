@@ -143,7 +143,17 @@ const PendingOrdersSection = ({
                 </div>
                 
                 <div className="mt-2 p-2 bg-gray-100 rounded">
-                  <div className="font-medium">{order.coffeeType}, {order.milkType}, {order.sugar}</div>
+                  <div className="font-medium flex justify-between items-center gap-2">
+                    <span>{order.coffeeType}, {order.milkType}, {order.sugar}</span>
+                    {/* Honor-system price tag. Only renders when
+                        pricing is enabled — the backend stamps
+                        priceFormatted onto the order at confirm time. */}
+                    {(order.priceFormatted || order.price_formatted) && (
+                      <span className="inline-block bg-green-100 text-green-800 text-sm font-bold px-2 py-1 rounded whitespace-nowrap">
+                        {order.priceFormatted || order.price_formatted}
+                      </span>
+                    )}
+                  </div>
                   {order.alternativeMilk && (
                     <div className="inline-block bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded mt-2">
                       Alternative Milk

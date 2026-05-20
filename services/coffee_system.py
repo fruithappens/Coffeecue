@@ -1123,7 +1123,8 @@ class CoffeeOrderSystem:
             sugar = usual_order.get('sugar', 'no sugar')
             
             return (
-                f"Great, {name}! Here's your usual order: {size} {coffee_type} with {milk}, {sugar}\n"
+                f"Great, {name}! Here's your usual order: {size} {coffee_type} with {milk}, {sugar}"
+                f"{self._format_price_tail(usual_order)}\n"
                 f"Would you like to confirm this order? (Reply YES to confirm, NO to cancel, or EDIT to change it)"
             )
         else:
@@ -1220,6 +1221,127 @@ class CoffeeOrderSystem:
     def _invalidate_routing_rules_cache(self):
         if hasattr(self, '_routing_rules_cache'):
             del self._routing_rules_cache
+
+    # --- Pricing (honor-system) ----------------------------------
+    # When pricing_settings.enabled is true, the SMS confirmation
+    # message embeds the computed total and asks the customer to
+    # pay at the counter at collection time. See ARCHITECTURE.md
+    # section 11 for the pricing model.
+    def _get_pricing_settings(self):
+        if hasattr(self, '_pricing_cache'):
+            return self._pricing_cache
+        defaults = {
+            'enabled': False,
+            'currency': 'AUD',
+            'symbol': '$',
+            'per_drink': {},
+            'unknown_drink_price': 4.50,
+            'milk_surcharge': {},
+            'size_surcharge': {'small': -0.50, 'medium': 0.00, 'large': 0.50},
+            'sugar_surcharge_per_sachet': 0.00,
+            'show_in_sms': True,
+        }
+        try:
+            cursor = self.db.cursor()
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            cursor.execute("SELECT value FROM settings WHERE key = 'pricing_settings'")
+            row = cursor.fetchone()
+            if row and row[0]:
+                import json as _json
+                try:
+                    parsed = _json.loads(row[0]) if isinstance(row[0], str) else row[0]
+                    if isinstance(parsed, dict):
+                        merged = {**defaults, **parsed}
+                        # Deep-merge the sub-dicts so partial saves
+                        # don't blow away the defaults.
+                        for k in ('per_drink', 'milk_surcharge', 'size_surcharge'):
+                            if isinstance(parsed.get(k), dict):
+                                merged[k] = {**defaults.get(k, {}), **parsed[k]}
+                        self._pricing_cache = merged
+                        return merged
+                except (TypeError, ValueError):
+                    pass
+        except Exception as e:
+            logger.error(f"Error reading pricing_settings: {e}")
+        self._pricing_cache = defaults
+        return defaults
+
+    def _invalidate_pricing_cache(self):
+        if hasattr(self, '_pricing_cache'):
+            del self._pricing_cache
+
+    def _format_price_tail(self, order_details):
+        """Return a one-line "\nTotal: $5.50 — pay at the counter on
+        collection." suffix if pricing is enabled and show_in_sms is
+        true. Empty string otherwise. Callers concatenate this onto
+        the confirmation message; centralizing the format means
+        the three SMS confirmation flows stay consistent.
+        """
+        pricing = self._get_pricing_settings()
+        if not pricing.get('enabled') or not pricing.get('show_in_sms', True):
+            return ''
+        try:
+            _, formatted = self._compute_order_price(order_details)
+            if formatted is None:
+                return ''
+            return f"\nTotal: {formatted} — pay at the counter when you collect."
+        except Exception as e:
+            logger.warning(f"_format_price_tail failed (non-fatal): {e}")
+            return ''
+
+    def _compute_order_price(self, order_details):
+        """Compute the total price for an order.
+
+        Returns (price_float, formatted_string) e.g. (5.50, "$5.50").
+        Returns (None, None) when pricing is disabled — callers should
+        skip price-related logic in that case.
+
+        Honor-system: this is just the AMOUNT to mention in the SMS
+        confirmation. No payment processing.
+        """
+        pricing = self._get_pricing_settings()
+        if not pricing.get('enabled'):
+            return None, None
+
+        drink = (order_details.get('type') or '').strip().lower()
+        milk = (order_details.get('milk') or '').strip().lower()
+        size = (order_details.get('size') or 'medium').strip().lower()
+
+        # Strip "decaf " prefix if present — same price as regular.
+        if drink.startswith('decaf '):
+            drink = drink[6:].strip()
+
+        per_drink = pricing.get('per_drink', {}) or {}
+        base = per_drink.get(drink)
+        if base is None:
+            base = float(pricing.get('unknown_drink_price', 4.50))
+        else:
+            base = float(base)
+
+        milk_surcharge = float(
+            (pricing.get('milk_surcharge', {}) or {}).get(milk, 0.0)
+        )
+
+        size_surcharge = float(
+            (pricing.get('size_surcharge', {}) or {}).get(size, 0.0)
+        )
+
+        # Sugar surcharge — only counts the sachets the customer asked for.
+        try:
+            sachets = self._sugar_sachets_from_text(order_details.get('sugar') or '')
+        except Exception:
+            sachets = 0
+        sugar_total = float(pricing.get('sugar_surcharge_per_sachet', 0.0)) * sachets
+
+        total = max(0.0, base + milk_surcharge + size_surcharge + sugar_total)
+        # Round to 2dp; the format string handles trailing zeros.
+        total = round(total, 2)
+        symbol = pricing.get('symbol', '$')
+        formatted = f"{symbol}{total:.2f}"
+        return total, formatted
 
     def _get_available_coffee_types(self):
         """Get list of available coffee drink types based on ingredient availability"""
@@ -1526,7 +1648,8 @@ class CoffeeOrderSystem:
         self._set_conversation_state(phone, 'awaiting_confirmation', state_data)
         order_summary = self.nlp.format_order_summary(order_details)
         return (
-            f"Just to confirm — {order_summary}.\n"
+            f"Just to confirm — {order_summary}."
+            f"{self._format_price_tail(order_details)}\n"
             f"Reply YES to send to the barista, EDIT to change something, or NO to cancel."
         )
     
@@ -1667,9 +1790,10 @@ class CoffeeOrderSystem:
         
         # Format order summary
         order_summary = self.nlp.format_order_summary(order_details)
-        
+
         return (
-            f"Great! Here's your order: {order_summary}\n"
+            f"Great! Here's your order: {order_summary}"
+            f"{self._format_price_tail(order_details)}\n"
             f"Would you like to confirm this order? (Reply YES to confirm, NO to cancel, or EDIT to change it)"
         )
     
@@ -2179,10 +2303,21 @@ class CoffeeOrderSystem:
     
     def _confirm_order(self, phone, order_details, name, is_friend_order=False):
         """Confirm and process the order"""
+        # Stash the computed price on the order_details blob so the
+        # barista UI can show "what to charge" without having to
+        # re-compute. No-op when pricing is disabled.
+        try:
+            price_value, price_formatted = self._compute_order_price(order_details)
+            if price_value is not None:
+                order_details['price'] = price_value
+                order_details['price_formatted'] = price_formatted
+        except Exception as e:
+            logger.warning(f"price compute on confirm failed (non-fatal): {e}")
+
         # Create a completely fresh connection to avoid transaction isolation issues
         fresh_conn = None
         cursor = None
-        
+
         try:
             # For maximum reliability, get a fresh DB connection from the pool
             # This prevents issues with aborted transactions and isolation levels
