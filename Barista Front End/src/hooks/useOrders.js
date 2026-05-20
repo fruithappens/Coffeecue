@@ -828,21 +828,48 @@ export default function useOrders(stationId = null) {
     
     // Listen for the custom refresh event
     window.addEventListener('app:refreshOrders', handleRefreshEvent);
-    
-    // Also listen for visibility change
+
+    // Refresh on visibility change so a tab that's been hidden
+    // catches up immediately when refocused.
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         console.log('Tab became visible - refreshing orders');
         fetchOrdersData(false);
       }
     };
-    
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    
+
+    // WebSocket-driven push refresh. The WebSocketService forwards
+    // backend SocketIO emits to window events; we listen for the
+    // order-related ones here so the UI updates the moment the
+    // backend changes state, rather than waiting for the next 15s
+    // poll. Throttled to once per second so a burst (e.g. batch
+    // process) doesn't trigger a refetch storm.
+    let lastWsRefresh = 0;
+    const handleWsOrderEvent = (evtName) => () => {
+      const now = Date.now();
+      if (now - lastWsRefresh < 1000) return;
+      lastWsRefresh = now;
+      console.log(`[useOrders] WS event ${evtName} → refresh`);
+      fetchOrdersData(false);
+    };
+    const wsCreated = handleWsOrderEvent('order_created');
+    const wsUpdated = handleWsOrderEvent('order_updated');
+    const wsNewOrder = handleWsOrderEvent('app:newOrder');
+    window.addEventListener('order_created', wsCreated);
+    window.addEventListener('order_updated', wsUpdated);
+    window.addEventListener('app:newOrder', wsNewOrder);
+    // app:forceRefresh — fired by DashboardTab's Refresh Data button.
+    window.addEventListener('app:forceRefresh', handleRefreshEvent);
+
     // Cleanup on unmount
     return () => {
       if (interval) clearInterval(interval);
       window.removeEventListener('app:refreshOrders', handleRefreshEvent);
+      window.removeEventListener('app:forceRefresh', handleRefreshEvent);
+      window.removeEventListener('order_created', wsCreated);
+      window.removeEventListener('order_updated', wsUpdated);
+      window.removeEventListener('app:newOrder', wsNewOrder);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [autoRefreshEnabled, autoRefreshInterval, currentStationId]); // FIXED: Removed fetchOrdersData to prevent infinite loops

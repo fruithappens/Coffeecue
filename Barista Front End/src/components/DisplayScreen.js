@@ -339,7 +339,27 @@ const DisplayScreen = () => {
     };
     load();
     timer = setInterval(load, 15000);
-    return () => clearInterval(timer);
+    // Push refresh on WebSocket order events so the customer-facing
+    // Display flips "Brewing → Ready" instantly when the barista
+    // hits Complete, instead of waiting for the next 15s poll.
+    // Throttled — a single barista action that emits multiple
+    // events shouldn't trigger a refetch storm.
+    let lastWsLoad = 0;
+    const wsLoad = () => {
+      const now = Date.now();
+      if (now - lastWsLoad < 800) return;
+      lastWsLoad = now;
+      load();
+    };
+    window.addEventListener('order_created', wsLoad);
+    window.addEventListener('order_updated', wsLoad);
+    window.addEventListener('app:newOrder', wsLoad);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('order_created', wsLoad);
+      window.removeEventListener('order_updated', wsLoad);
+      window.removeEventListener('app:newOrder', wsLoad);
+    };
   }, [currentStation]);
 
   // Manual refresh button.

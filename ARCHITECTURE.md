@@ -323,8 +323,8 @@ case — they're cleanup / depth.
 ### High-leverage (would fix recurring bugs)
 
 1. **Source-of-truth inventory.** Make `inventory_items` (Postgres) the only store; have InventoryManagement.js read/write via API. Removes the two-parallel-stores problem in section 7.
-2. **Single settings store.** Pick `coffee_cue_settings` as canonical; migrate readers off the other two. Section 4.
-3. **WebSocket-driven order updates.** The plumbing is wired; the consumer hooks (`useOrders`) still poll every 15s. Switching to push would feel ~10× snappier.
+2. ~~**Single settings store.**~~ ✅ Done May 2026 — `coffee_cue_settings` is now canonical for local prefs; `coffee_system_branding` stays separate for backend-synced branding.
+3. ~~**WebSocket-driven order updates.**~~ ✅ Done May 2026 — `useOrders` + DisplayScreen now both refresh on `order_created` / `order_updated` / `app:newOrder` window events forwarded from the WebSocket. Polling kept as a 15s fallback for when the WS is offline.
 4. **Status field cleanup.** Once everyone's migrated to `'in-progress'` and `'picked_up'`, drop the back-compat in `OrderDataService.getOrders` and friends.
 
 ### Medium
@@ -336,9 +336,9 @@ case — they're cleanup / depth.
 
 ### Polish / depth
 
-9. **Build out the placeholder buttons (Tier 3 in AUDIT_FINDINGS.md).** Each needs a decision: build or remove.
+9. ~~**Build out the placeholder buttons.**~~ ✅ Done May 2026 — all 8 `() => console.log(...)` onClicks are wired to real endpoints (Pause All Orders, Broadcast, Announce, Manual SMS, etc.) or properly disabled with tooltips explaining where the functionality lives.
 10. **Schema migrations as code.** Currently schema drift is fixed by `ALTER TABLE IF NOT EXISTS` calls scattered through `services/coffee_system.py:_init_event_scheduling`. A proper migration tool would help.
-11. **Twilio webhook signature verification.** Currently missing per `CLAUDE.md`. Important before deploying anywhere public.
+11. ~~**Twilio webhook signature verification.**~~ ✅ Already implemented in `routes/sms_routes.py` (gated by `TWILIO_AUTH_TOKEN` env var ≠ 'test_token'). The CLAUDE.md note was stale.
 
 ### Deferred
 
