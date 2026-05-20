@@ -1511,11 +1511,42 @@ def start_order(order_id):
         if current_status == 'pending':
             _notify_customer_order_started(order_phone, clean_id, order_details)
 
+        # Push a WS event so any open Barista UI / Display refreshes
+        # immediately instead of waiting for the next 15s poll. The
+        # forwarded window event 'order_updated' is what useOrders +
+        # the customer Display + the Ready-for-Pickup column listen to.
+        _emit_order_status_change(clean_id, 'in-progress')
+
         return jsonify({"success": True, "message": "Order started successfully"})
 
     except Exception as e:
         logger.error(f"Error starting order {order_id}: {str(e)}")
         return jsonify({"success": False, "message": f"Error processing request: {str(e)}"})
+
+
+def _emit_order_status_change(order_number, status):
+    """Fire-and-forget SocketIO emit so connected clients refresh.
+
+    Forwarded by WebSocketService.js to the 'order_updated' window
+    event, which useOrders + DisplayScreen + ReadyForPickupColumn
+    all subscribe to. Without this, status changes only became
+    visible on the next 15s poll. Steve hit this with Complete:
+    "they are not going to the completed column" — the local
+    optimistic update fired, but anything looking at the backend's
+    canonical view (Ready-for-Pickup column, customer Display) had
+    to wait for the poll.
+    """
+    try:
+        socketio = current_app.config.get('socketio')
+        if socketio:
+            socketio.emit(
+                'order_updated',
+                {'order_number': order_number, 'status': status},
+                room='orders',
+            )
+    except Exception as e:
+        # Never let a WS emit failure break the request.
+        logger.debug(f"socketio emit skipped: {e}")
 
 
 def _notify_customer_order_started(phone, order_number, order_details):
@@ -1648,11 +1679,12 @@ def complete_order(order_id):
         
         if rows_affected > 0:
             logger.info(f"Successfully completed order: {clean_id}")
+            _emit_order_status_change(clean_id, 'completed')
             return jsonify({"success": True, "message": "Order completed successfully"})
         else:
             logger.error(f"Failed to update order: {clean_id}")
             return jsonify({"success": False, "message": f"Order {clean_id} found but could not be updated"})
-    
+
     except Exception as e:
         logger.error(f"Error completing order {order_id}: {str(e)}")
         return jsonify({"success": False, "message": f"Error processing request: {str(e)}"})
@@ -1723,6 +1755,7 @@ def pickup_order(order_id):
         
         if rows_affected > 0:
             logger.info(f"Successfully marked order as picked up: {clean_id}")
+            _emit_order_status_change(clean_id, 'picked_up')
             return jsonify({"success": True, "message": "Order marked as picked up successfully"})
         else:
             logger.error(f"Failed to update order: {clean_id}")
