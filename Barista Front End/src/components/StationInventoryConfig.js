@@ -62,13 +62,19 @@ const StationInventoryConfig = ({ stations }) => {
           setStationConfigs(resp.configs);
           try {
             localStorage.setItem('station_inventory_configs', JSON.stringify(resp.configs));
-          } catch (_) {}
+          } catch (cacheErr) {
+            // localStorage quota / disabled storage — non-fatal, the
+            // in-memory state above already updated.
+            console.debug('localStorage cache write skipped:', cacheErr);
+          }
         }
         if (resp?.quantities && typeof resp.quantities === 'object') {
           setStationInventory(resp.quantities);
           try {
             localStorage.setItem('station_inventory_quantities', JSON.stringify(resp.quantities));
-          } catch (_) {}
+          } catch (cacheErr) {
+            console.debug('localStorage cache write skipped:', cacheErr);
+          }
         }
       }
     } catch (err) {

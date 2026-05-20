@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Coffee, Users, Clock, TrendingUp, Calendar, Settings, 
-  LogOut, MessageSquare, Bell, BarChart, Layers, Sliders,
-  FileText, UserPlus, Activity, Brain, Zap, LineChart,
+import {
+  Coffee, Users, Clock, Calendar, Settings,
+  LogOut, Bell, Sliders,
+  FileText, Activity, Brain, Zap, LineChart,
   Radio, Shield, Package, ArrowLeft
 } from 'lucide-react';
+// MessageSquare, TrendingUp, BarChart, Layers, UserPlus were imported
+// but unused — left in the original sprawl. Trimmed in batch G of the
+// system audit (Messages section + others removed). LogOut is kept —
+// still rendered in the header.
 
 import GroupOrdersTab from './GroupOrdersTab';
 import AllOrdersTab from './AllOrdersTab';

@@ -4,22 +4,19 @@ import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
-import { 
-  AlertTriangle, 
-  Power,
+// Icon list trimmed after batch F removed the dead buttons (Lock,
+// Unlock, Power, Trash2, Upload, etc) — keep only what's still used
+// in the JSX below so ESLint doesn't flag the leftovers.
+import {
+  AlertTriangle,
+  AlertCircle,
   RefreshCw,
   Database,
-  Users,
   Coffee,
-  MessageSquare,
   Shield,
   Download,
-  Upload,
-  Trash2,
   StopCircle,
   PlayCircle,
-  Lock,
-  Unlock
 } from 'lucide-react';
 import ApiServiceClass from '../../services/ApiService';
 
