@@ -31,6 +31,10 @@ import MessageService from '../services/MessageService';
 import OrderDataService from '../services/OrderDataService';
 import ChatService from '../services/ChatService';
 import InventoryIntegrationService from '../services/InventoryIntegrationService';
+import SoundNotificationService, {
+  SOUND_PRESETS,
+  DEFAULT_SOUND_CHOICES,
+} from '../services/SoundNotificationService';
 
 // Import components
 import MessageDialog from './dialogs/MessageDialog';
@@ -1778,9 +1782,9 @@ const BaristaInterface = () => {
         
         {/* Orders Tab */}
         {!loading && activeTab === 'orders' && (
-          <div className="flex space-x-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {/* Current Order (In Progress) */}
-            <div className="w-1/2">
+            <div>
               <div className="bg-amber-700 text-white p-2 rounded-t-lg">
                 <h2 className="text-xl font-bold">Current Order</h2>
               </div>
@@ -1796,9 +1800,9 @@ const BaristaInterface = () => {
                 )}
               </div>
             </div>
-            
-            {/* Updated: Using PendingOrdersSection component with the new props */}
-            <PendingOrdersSection 
+
+            {/* Pending Orders */}
+            <PendingOrdersSection
               orders={pendingOrders}
               filter={filter}
               onFilterChange={setFilter}
@@ -1807,6 +1811,19 @@ const BaristaInterface = () => {
               onSendMessage={handleOpenMessageDialog}
               onDelayOrder={handleDelayOrder}
               onEditOrder={handleEditOrder}
+            />
+
+            {/* Ready for Pickup — recently-completed orders at this
+                station with a Collected button. Steve wanted this
+                visible on the main Orders tab so the barista doesn't
+                have to switch to the Completed tab to mark orders
+                as collected as customers arrive. Only shows
+                completions from the last 30 minutes — stale orders
+                still live under the full Completed tab. */}
+            <ReadyForPickupColumn
+              completedOrders={completedOrders}
+              onMarkPickedUp={markOrderPickedUp}
+              onSendMessage={handleOpenMessageDialog}
             />
           </div>
         )}
@@ -2414,138 +2431,15 @@ const BaristaInterface = () => {
                         <span className="text-sm w-10">{settings.soundVolume}%</span>
                       </div>
                       
-                      {/* Individual Sound Controls */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <label className="flex items-center space-x-2">
-                            <input 
-                              type="checkbox" 
-                              checked={settings.soundNewOrder}
-                              onChange={(e) => setSettings({...settings, soundNewOrder: e.target.checked})}
-                            />
-                            <span className="text-sm">New Order</span>
-                          </label>
-                          <button
-                            className="px-2 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600"
-                            onClick={() => {
-                              if (window.coffeeSounds) {
-                                window.coffeeSounds.play('newOrder', { volume: settings.soundVolume / 100 });
-                              } else {
-                                // Fallback: create simple beep
-                                const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhCEGdyfPo');
-                                audio.volume = settings.soundVolume / 100;
-                                audio.play().catch((err) => console.log('Audio play failed:', err));
-                              }
-                            }}
-                          >
-                            Test
-                          </button>
-                        </div>
-                        
-                        <div className="flex items-center justify-between">
-                          <label className="flex items-center space-x-2">
-                            <input 
-                              type="checkbox" 
-                              checked={settings.soundOrderComplete}
-                              onChange={(e) => setSettings({...settings, soundOrderComplete: e.target.checked})}
-                            />
-                            <span className="text-sm">Order Complete</span>
-                          </label>
-                          <button
-                            className="px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600"
-                            onClick={() => {
-                              if (window.coffeeSounds) {
-                                window.coffeeSounds.play('orderComplete', { volume: settings.soundVolume / 100 });
-                              } else {
-                                // Fallback: create different beep
-                                const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhCEGdyfPg');
-                                audio.volume = settings.soundVolume / 100;
-                                audio.play().catch((err) => console.log('Audio play failed:', err));
-                              }
-                            }}
-                          >
-                            Test
-                          </button>
-                        </div>
-                        
-                        <div className="flex items-center justify-between">
-                          <label className="flex items-center space-x-2">
-                            <input 
-                              type="checkbox" 
-                              checked={settings.soundOrderPickedUp}
-                              onChange={(e) => setSettings({...settings, soundOrderPickedUp: e.target.checked})}
-                            />
-                            <span className="text-sm">Order Picked Up</span>
-                          </label>
-                          <button
-                            className="px-2 py-1 bg-purple-500 text-white text-xs rounded hover:bg-purple-600"
-                            onClick={() => {
-                              if (window.coffeeSounds) {
-                                window.coffeeSounds.play('orderPickedUp', { volume: settings.soundVolume / 100 });
-                              } else {
-                                // Fallback: create pickup sound
-                                const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhCEGdyfOl');
-                                audio.volume = settings.soundVolume / 100;
-                                audio.play().catch((err) => console.log('Audio play failed:', err));
-                              }
-                            }}
-                          >
-                            Test
-                          </button>
-                        </div>
-                        
-                        <div className="flex items-center justify-between">
-                          <label className="flex items-center space-x-2">
-                            <input 
-                              type="checkbox" 
-                              checked={settings.soundLowStock}
-                              onChange={(e) => setSettings({...settings, soundLowStock: e.target.checked})}
-                            />
-                            <span className="text-sm">Low Stock Alert</span>
-                          </label>
-                          <button
-                            className="px-2 py-1 bg-yellow-500 text-white text-xs rounded hover:bg-yellow-600"
-                            onClick={() => {
-                              if (window.coffeeSounds) {
-                                window.coffeeSounds.play('lowStock', { volume: settings.soundVolume / 100 });
-                              } else {
-                                // Fallback: create warning sound
-                                const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhCEGdyfPx');
-                                audio.volume = settings.soundVolume / 100;
-                                audio.play().catch((err) => console.log('Audio play failed:', err));
-                              }
-                            }}
-                          >
-                            Test
-                          </button>
-                        </div>
-                        
-                        <div className="flex items-center justify-between">
-                          <label className="flex items-center space-x-2">
-                            <input 
-                              type="checkbox" 
-                              checked={settings.soundError}
-                              onChange={(e) => setSettings({...settings, soundError: e.target.checked})}
-                            />
-                            <span className="text-sm">Error Alert</span>
-                          </label>
-                          <button
-                            className="px-2 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600"
-                            onClick={() => {
-                              if (window.coffeeSounds) {
-                                window.coffeeSounds.play('error', { volume: settings.soundVolume / 100 });
-                              } else {
-                                // Fallback: create error sound
-                                const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhCEGdyfPe');
-                                audio.volume = settings.soundVolume / 100;
-                                audio.play().catch((err) => console.log('Audio play failed:', err));
-                              }
-                            }}
-                          >
-                            Test
-                          </button>
-                        </div>
-                      </div>
+                      {/* Per-event sound chooser. Each row: enable
+                          toggle, sound dropdown, preview button. The
+                          sounds come from SoundNotificationService's
+                          synthesized library — they're genuinely
+                          different (different pitches, envelopes,
+                          waveforms) rather than the old near-identical
+                          base64 WAV stubs. */}
+                      <SoundChoiceRows settings={settings} setSettings={setSettings} />
+
                       
                       {/* Test All Sounds Button */}
                       <button
@@ -3016,6 +2910,176 @@ const BaristaInterface = () => {
           onBaristaNameChange={(name) => setSettings({...settings, baristaName: name})}
         />
       )}
+    </div>
+  );
+};
+
+// ---- ReadyForPickupColumn ------------------------------------------------
+// Third column of the Orders tab. Shows completed-but-not-picked-up
+// orders from the last 30 minutes with a one-tap Collected button.
+//
+// Without this column the barista had to navigate to the Completed
+// tab every time a customer walked up to collect — too much friction.
+// Older completions still live under the full Completed tab.
+const READY_RECENCY_MS = 30 * 60 * 1000;
+
+const ReadyForPickupColumn = ({ completedOrders, onMarkPickedUp, onSendMessage }) => {
+  const cutoff = Date.now() - READY_RECENCY_MS;
+  // Filter: status='completed' (NOT picked_up) AND completed recently.
+  // Sort newest-first so the most recent finish is at the top.
+  const list = (completedOrders || [])
+    .filter(o => {
+      const status = (o.status || '').toLowerCase();
+      if (status === 'picked_up' || status === 'picked-up') return false;
+      const ts = o.completedAt || o.completed_at || o.updatedAt || o.updated_at;
+      if (!ts) return true;
+      const t = new Date(ts).getTime();
+      return Number.isNaN(t) || t >= cutoff;
+    })
+    .sort((a, b) => {
+      const ta = new Date(a.completedAt || a.completed_at || a.updatedAt || a.updated_at || 0).getTime();
+      const tb = new Date(b.completedAt || b.completed_at || b.updatedAt || b.updated_at || 0).getTime();
+      return tb - ta;
+    });
+
+  return (
+    <div>
+      <div className="bg-green-600 text-white p-2 rounded-t-lg flex justify-between items-center">
+        <h2 className="text-xl font-bold">Ready for Pickup</h2>
+        <span className="text-sm">{list.length}</span>
+      </div>
+      <div className="bg-white p-4 rounded-b-lg shadow-md min-h-[120px]">
+        {list.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            <Coffee size={48} className="mx-auto mb-2 text-gray-400" />
+            <p>Nothing ready yet</p>
+            <p className="text-sm text-gray-400">Completed orders appear here</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {list.map(order => {
+              const oid = order.id || order.order_number || order.orderNumber;
+              const orderNum = order.orderNumber || order.order_number || oid;
+              const name = order.customerName || order.customer_name || 'Customer';
+              const coffee = order.coffeeType || order.coffee_type || 'Coffee';
+              const milk = order.milkType || order.milk_type || '';
+              const price = order.priceFormatted || order.price_formatted;
+              return (
+                <div key={oid} className="border rounded-lg p-3 hover:border-green-400">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1 min-w-0">
+                      <div className="font-bold text-lg">#{orderNum}</div>
+                      <div className="text-sm text-gray-700 truncate">{name}</div>
+                      <div className="text-xs text-gray-500 truncate">
+                        {[coffee, milk].filter(Boolean).join(' · ')}
+                      </div>
+                    </div>
+                    {price && (
+                      <span className="inline-block bg-green-100 text-green-800 text-sm font-bold px-2 py-1 rounded whitespace-nowrap">
+                        {price}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      type="button"
+                      className="flex-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm rounded font-medium"
+                      onClick={() => onMarkPickedUp(oid)}
+                    >
+                      ✓ Collected
+                    </button>
+                    {onSendMessage && (
+                      <button
+                        type="button"
+                        className="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm rounded"
+                        title="Send reminder SMS"
+                        onClick={() => onSendMessage(order)}
+                      >
+                        SMS
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ---- SoundChoiceRows -----------------------------------------------------
+// Renders the per-event sound chooser inside the Settings tab. Five rows,
+// one per alert type: each has an enable checkbox, a dropdown for picking
+// which sound to play, and a Test button that previews it.
+//
+// State lives in `settings.soundChoices` ({eventKey: soundPresetKey}) and
+// `settings.sound<EventName>` booleans (legacy on/off per event, kept for
+// back-compat with any code that reads them). All persisted via the
+// existing setSettings flow → coffee_cue_settings localStorage.
+const SOUND_EVENT_ROWS = [
+  { key: 'newOrder',      label: 'New Order',      enableField: 'soundNewOrder',      btnColor: 'bg-green-500 hover:bg-green-600' },
+  { key: 'orderComplete', label: 'Order Complete', enableField: 'soundOrderComplete', btnColor: 'bg-blue-500 hover:bg-blue-600' },
+  { key: 'orderPickedUp', label: 'Order Picked Up', enableField: 'soundOrderPickedUp', btnColor: 'bg-purple-500 hover:bg-purple-600' },
+  { key: 'lowStock',      label: 'Low Stock Alert', enableField: 'soundLowStock',     btnColor: 'bg-yellow-500 hover:bg-yellow-600' },
+  { key: 'error',         label: 'Error Alert',     enableField: 'soundError',        btnColor: 'bg-red-500 hover:bg-red-600' },
+];
+
+const SoundChoiceRows = ({ settings, setSettings }) => {
+  const choices = { ...DEFAULT_SOUND_CHOICES, ...(settings.soundChoices || {}) };
+  const volume = (settings.soundVolume ?? 70) / 100;
+
+  const setChoice = (eventKey, presetKey) => {
+    setSettings({
+      ...settings,
+      soundChoices: { ...choices, [eventKey]: presetKey },
+    });
+  };
+
+  const preview = (presetKey) => {
+    try {
+      SoundNotificationService.preview(presetKey, volume);
+    } catch (e) {
+      // Should never happen; the service handles its own errors.
+      console.warn('Sound preview failed:', e);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      {SOUND_EVENT_ROWS.map(row => (
+        <div key={row.key} className="flex items-center gap-2 flex-wrap">
+          <label className="flex items-center space-x-2 min-w-[150px]">
+            <input
+              type="checkbox"
+              checked={settings[row.enableField] !== false}
+              onChange={(e) => setSettings({ ...settings, [row.enableField]: e.target.checked })}
+            />
+            <span className="text-sm">{row.label}</span>
+          </label>
+          <select
+            value={choices[row.key] || DEFAULT_SOUND_CHOICES[row.key]}
+            onChange={(e) => setChoice(row.key, e.target.value)}
+            className="flex-1 min-w-[180px] text-sm px-2 py-1 border border-gray-300 rounded"
+          >
+            {SOUND_PRESETS.map(p => (
+              <option key={p.key} value={p.key}>{p.label}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className={`px-2 py-1 text-white text-xs rounded ${row.btnColor}`}
+            onClick={() => preview(choices[row.key] || DEFAULT_SOUND_CHOICES[row.key])}
+          >
+            Test
+          </button>
+        </div>
+      ))}
+      <div className="text-xs text-gray-500 mt-2">
+        Sounds are synthesized in-browser — no assets to download, works offline.
+        "No sound" disables that alert without affecting the others.
+      </div>
     </div>
   );
 };
