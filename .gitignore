@@ -76,6 +76,9 @@ diagnostics/*_results.json
 
 # Security - Never commit these
 .env.*
+# ...except the template, which has no real secrets and is the
+# discoverability aid for operators setting up a fresh deploy.
+!.env.example
 *secret*
 *password*
 *token*
