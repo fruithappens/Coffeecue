@@ -610,14 +610,27 @@ function App() {
   }
 
   return (
-    <AppProvider>
-      <Router>
-        {/* API Status Notification Banner - Now self-detecting authentication and connection issues */}
-        <ApiNotificationBanner />
-        
-        <Routes>
-          {/* Public routes */}
-          <Route path="/" element={<LandingPage />} />
+    // Top-level Error Boundary — last line of defence. The Barista,
+    // Organiser, and Support routes already have their own per-route
+    // ErrorBoundary so a crash in one role's UI doesn't kill the
+    // others. But Landing / Login / Display / unmatched routes
+    // weren't wrapped, so a render crash there would blank the
+    // entire page with no recovery. This outer boundary catches
+    // anything the inner ones miss (incl. AppProvider /
+    // ApiNotificationBanner / Router init failures) and shows a
+    // reload-to-recover screen instead of a white page of death.
+    <ErrorBoundary
+      componentName="App"
+      showErrorDetails={process.env.NODE_ENV !== 'production'}
+    >
+      <AppProvider>
+        <Router>
+          {/* API Status Notification Banner - Now self-detecting authentication and connection issues */}
+          <ApiNotificationBanner />
+
+          <Routes>
+            {/* Public routes */}
+            <Route path="/" element={<LandingPage />} />
           
           {/* Direct login route for clear access */}
           <Route path="/direct-login" element={<Navigate to="/login" replace />} />
@@ -693,6 +706,7 @@ function App() {
         </Routes>
       </Router>
     </AppProvider>
+    </ErrorBoundary>
   );
 }
 
