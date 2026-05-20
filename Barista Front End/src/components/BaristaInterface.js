@@ -48,6 +48,7 @@ import QueueIntelligence from './QueueIntelligence';
 import StationLoadBalancer from './StationLoadBalancer';
 import DynamicStaffAllocation from './DynamicStaffAllocation';
 import MultiLevelInventory from './MultiLevelInventory';
+import StationCapabilitiesEditor from './StationCapabilitiesEditor';
 import EnhancedStationCapabilities from './EnhancedStationCapabilities';
 
 const BaristaInterface = () => {
@@ -2229,10 +2230,28 @@ const BaristaInterface = () => {
           </div>
         )}
         
-        {/* Enhanced Capabilities Tab */}
+        {/* Enhanced Capabilities Tab — two stacked sections:
+            (1) the new per-station milk/drink/size editor that drives
+                _assign_station routing (built May 2026), and
+            (2) the older barista skill-level profile editor below it. */}
         {!loading && activeTab === 'capabilities' && (
-          <div className="p-4">
-            <EnhancedStationCapabilities />
+          <div className="p-4 space-y-6">
+            <div>
+              <h2 className="text-xl font-bold mb-3">Station Capabilities</h2>
+              <p className="text-sm text-gray-600 mb-3">
+                What each station can serve. Drives where the SMS bot
+                routes incoming orders.
+              </p>
+              <StationCapabilitiesEditor />
+            </div>
+            <div className="border-t border-gray-200 pt-6">
+              <h2 className="text-xl font-bold mb-3">Barista Skill Profiles</h2>
+              <p className="text-sm text-gray-600 mb-3">
+                Optional skill-level tracking per barista. Read-only
+                analytics for now.
+              </p>
+              <EnhancedStationCapabilities />
+            </div>
           </div>
         )}
         
