@@ -1855,26 +1855,77 @@ class CoffeeOrderSystem:
         
         return False
 
-    def _get_available_sizes(self, coffee_type):
-        """Get available sizes for a specific coffee type"""
+    # Map cup names as the operator writes them (in inventory_items) to
+    # the canonical sizes the NLP/order layer uses. Customers say
+    # "medium" but the operator's cup category is "Regular"; we treat
+    # those as the same thing rather than rejecting the customer's word.
+    _SIZE_NAME_NORMALIZATION = {
+        # canonical → variants seen in inventory_items.name
+        'small':  ['small', 'sm', 's', '8oz', '8 oz'],
+        'medium': ['medium', 'regular', 'med', 'reg', 'm', '12oz', '12 oz'],
+        'large':  ['large', 'lg', 'l', '16oz', '16 oz', 'extra large', 'xl'],
+    }
+
+    def _get_available_sizes(self, coffee_type=None):
+        """Return the list of cup sizes currently in stock.
+
+        Previously queried `size_options` — a table that doesn't exist
+        on this schema — and silently fell back to defaults while logging
+        an error on every MENU / awaiting_size turn. Now reads the real
+        source of truth: inventory_items rows in the 'cups' category
+        (which the Quick Setup wizard and the Organiser inventory UI
+        both write to).
+
+        The coffee_type parameter is kept for API compatibility but
+        ignored — cup stock isn't per-drink in this system.
+
+        Normalizes operator-facing names ("Regular") to customer-facing
+        canonical names ("medium") so the bot's reply matches the
+        vocabulary in services/nlp.py.
+        """
+        # Unlimited-stock mode: every size is available.
+        if self._is_unlimited_stock_mode():
+            return ['small', 'medium', 'large']
+
         try:
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
             cursor = self.db.cursor()
             cursor.execute("""
-                SELECT DISTINCT size FROM size_options 
-                WHERE coffee_type = %s AND is_active = TRUE
-                ORDER BY size
-            """, (coffee_type,))
-            sizes = [row[0].lower() for row in cursor.fetchall()]
-            
-            # If no sizes defined, return default list
-            if not sizes:
-                return ["small", "medium", "large"]
-            
-            return sizes
+                SELECT name FROM inventory_items
+                WHERE category = 'cups'
+                  AND (amount IS NULL OR amount > COALESCE(minimum_threshold, 0))
+            """)
+            raw_names = [row[0] for row in cursor.fetchall()]
         except Exception as e:
-            logger.error(f"Error getting available sizes: {str(e)}")
-            # Return default list if there's an error
-            return ["small", "medium", "large"]
+            logger.error(f"Error getting available sizes: {e}")
+            return ['small', 'medium', 'large']
+
+        if not raw_names:
+            # No cups defined yet — return canonical defaults so the
+            # bot doesn't refuse to take orders during initial setup.
+            return ['small', 'medium', 'large']
+
+        # Normalize: map each operator-defined cup name back to one of
+        # the three canonical sizes the NLP understands.
+        canonical = []
+        for raw in raw_names:
+            key = (raw or '').strip().lower()
+            matched = None
+            for canon, variants in self._SIZE_NAME_NORMALIZATION.items():
+                if key == canon or key in variants:
+                    matched = canon
+                    break
+            if matched and matched not in canonical:
+                canonical.append(matched)
+
+        # Preserve the conventional small → medium → large order even
+        # if the DB returned them in a different sequence.
+        order = {'small': 0, 'medium': 1, 'large': 2}
+        canonical.sort(key=lambda s: order.get(s, 99))
+        return canonical or ['small', 'medium', 'large']
 
     def _handle_awaiting_coffee_type(self, phone, message, state):
         """Handle coffee type input"""
