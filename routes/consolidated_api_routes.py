@@ -1618,12 +1618,12 @@ def complete_order(order_id):
         coffee_system = current_app.config.get('coffee_system')
         db = coffee_system.db
 
-        # Check if order exists — fetch details too so we can
-        # decrement stock at completion (the walk-in flow doesn't
-        # decrement at creation, only when the drink is actually made).
+        # Check if order exists — fetch details + phone too so we
+        # can decrement stock at completion AND send the customer a
+        # "your drink is ready" SMS once the status flip succeeds.
         cursor = db.cursor()
         cursor.execute(
-            'SELECT id, station_id, order_details FROM orders WHERE order_number = %s',
+            'SELECT id, station_id, order_details, phone FROM orders WHERE order_number = %s',
             (clean_id,),
         )
         order_row = cursor.fetchone()
@@ -1635,9 +1635,11 @@ def complete_order(order_id):
         if isinstance(order_row, dict):
             station_id_for_stock = order_row.get('station_id') or 1
             order_details_raw = order_row.get('order_details') or {}
+            order_phone = order_row.get('phone') or ''
         else:
-            _, station_id_for_stock, order_details_raw = order_row
+            _, station_id_for_stock, order_details_raw, order_phone = order_row
             station_id_for_stock = station_id_for_stock or 1
+            order_phone = order_phone or ''
 
         # Get current time
         completed_at = datetime.now().isoformat()
@@ -1680,6 +1682,24 @@ def complete_order(order_id):
         if rows_affected > 0:
             logger.info(f"Successfully completed order: {clean_id}")
             _emit_order_status_change(clean_id, 'completed')
+
+            # Send the customer a "your drink is ready" SMS. This was
+            # the biggest gap in the SMS UX audit — the legacy PUT
+            # /status path sent this, but the new /complete endpoint
+            # (which the Barista UI now uses) didn't. Customers had
+            # no signal their order was ready unless they were
+            # watching the customer Display screen.
+            #
+            # Never raises — the order is already marked complete by
+            # the time we get here, so a messaging failure must not
+            # roll that back.
+            _notify_customer_order_ready(
+                order_phone,
+                clean_id,
+                order_details_parsed if isinstance(order_details_parsed, dict) else {},
+                station_id_for_stock,
+            )
+
             return jsonify({"success": True, "message": "Order completed successfully"})
         else:
             logger.error(f"Failed to update order: {clean_id}")
@@ -1688,6 +1708,55 @@ def complete_order(order_id):
     except Exception as e:
         logger.error(f"Error completing order {order_id}: {str(e)}")
         return jsonify({"success": False, "message": f"Error processing request: {str(e)}"})
+
+
+def _notify_customer_order_ready(phone, order_number, order_details, station_id):
+    """Send the customer a 'your drink is ready' SMS.
+
+    Mirror of _notify_customer_order_started for the pending →
+    in-progress transition. Called from /complete; safe to call with
+    a blank phone (no-op).
+    """
+    if not phone:
+        return
+    try:
+        messaging_service = current_app.config.get('messaging_service')
+        if not messaging_service:
+            logger.warning("No messaging_service configured; skipping ready notification")
+            return
+
+        if isinstance(order_details, str):
+            try:
+                import json as _json
+                order_details = _json.loads(order_details)
+            except Exception:
+                order_details = {}
+        if not isinstance(order_details, dict):
+            order_details = {}
+
+        name = order_details.get('name') or 'there'
+        drink = order_details.get('type') or 'coffee'
+        size = order_details.get('size')
+        milk = order_details.get('milk')
+
+        # Build the same "large oat latte" descriptor used by the
+        # started-notification so the two SMS feel like a pair.
+        parts = []
+        if size:
+            parts.append(size)
+        if milk and milk != 'no milk':
+            parts.append(milk)
+        parts.append(drink)
+        description = ' '.join(parts)
+
+        station_label = f"Station {station_id}" if station_id else "the counter"
+        body = (
+            f"☕ Hi {name}! Your {description} (Order #{order_number}) "
+            f"is ready for pickup at {station_label}. Enjoy!"
+        )
+        messaging_service.send_message(phone, body)
+    except Exception as exc:
+        logger.error(f"Error sending ready-notification SMS: {exc}")
 
 @bp.route('/orders/<order_id>/pickup', methods=['POST'])
 @jwt_required_with_demo()

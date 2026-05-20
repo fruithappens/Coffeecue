@@ -126,18 +126,23 @@ The `_handle_awaiting_friend_*` chain is full of state machine work. Customers w
 
 These are listed by impact-per-effort. The top 3 close real customer-facing gaps; the rest are polish.
 
-| # | Fix | Effort | Why |
-|---|-----|--------|-----|
-| 1 | Send "your X is ready for pickup at Station N" SMS from `/complete` endpoint | 15 min | Biggest customer-experience gap right now |
-| 2 | Drop the misleading "Default: medium, full cream, no sugar" line from the prompt | 2 min | Lies about behavior |
-| 3 | Add stale-conversation timeout (15-30 min) — reset state if no reply | 30 min | Stops customers getting stuck mid-flow next day |
-| 4 | Capture `preferred_shots` (decaf flag too) on saved usual | 45 min | Returning customers get their full usual |
-| 5 | Real time-of-day-aware usual suggestion, OR drop the misleading wording | 30 min / 1 min | Either deliver on the promise or stop making it |
-| 6 | Auto-reminder SMS after N min of "completed but not picked up" | 1 hour | Closes the no-show loop |
-| 7 | Real EDIT support (edit milk / size / sugar without restarting) | 1 hour | Operator-flagged friction |
-| 8 | Welcome message respects branding event_name | 5 min | Consistency with rest of system |
+| # | Fix | Status | Effort | Why |
+|---|-----|--------|--------|-----|
+| 1 | Send "your X is ready for pickup at Station N" SMS from `/complete` endpoint | ✅ DONE | 15 min | Biggest customer-experience gap right now |
+| 2 | Drop the misleading "Default: medium, full cream, no sugar" line from the prompt | ✅ DONE | 2 min | Lies about behavior |
+| 3 | Add stale-conversation timeout (15-30 min) — reset state if no reply | ✅ DONE | 30 min | Stops customers getting stuck mid-flow next day |
+| 4 | Capture `preferred_shots` (decaf flag too) on saved usual | TODO | 45 min | Returning customers get their full usual |
+| 5 | Real time-of-day-aware usual suggestion, OR drop the misleading wording | TODO | 30 min / 1 min | Either deliver on the promise or stop making it |
+| 6 | Auto-reminder SMS after N min of "completed but not picked up" | TODO | 1 hour | Closes the no-show loop |
+| 7 | Real EDIT support (edit milk / size / sugar without restarting) | TODO | 1 hour | Operator-flagged friction |
+| 8 | Welcome message respects branding event_name | ✅ DONE | 5 min | Consistency with rest of system |
 
-Want me to do #1, #2, #3 right now? They're together about an hour of work and they're the biggest customer-facing wins.
+### Batch 1 implementation notes (May 2026)
+
+- **Fix 1** — added `_notify_customer_order_ready()` helper in `routes/consolidated_api_routes.py`; the `/api/orders/<id>/complete` endpoint now sends an SMS describing the drink + station to the customer's saved phone number. Falls back gracefully if `messaging_service` isn't configured or phone is missing.
+- **Fix 2** — replaced the misleading "Default: medium, full cream, no sugar" prompt with honest examples in `services/coffee_system.py`. The bot does NOT silently inject defaults (apply_defaults=False) so the prompt now reflects reality.
+- **Fix 3** — added `_is_state_stale()` + `_reset_conversation_state()` in `services/coffee_system.py`. The `_get_conversation_state()` method now detects states idle > `STALE_CONVERSATION_MINUTES` (default 20) and clears them, so the next message starts fresh instead of being routed to a mid-order handler. Configurable via env.
+- **Fix 8** — `event_name` is now a `@property` reading live from `branding_settings` (30s cache). Operator changes via the Branding panel flow through to SMS responses immediately, no restart needed.
 
 ---
 

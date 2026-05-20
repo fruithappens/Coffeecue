@@ -32,10 +32,23 @@ class CoffeeOrderSystem:
         self.db = db
         self.config = config
         self.nlp = NLPService()
-        self.event_name = config.get('EVENT_NAME', 'ANZCA ASM 2025 Cairns')
-        
+        # Boot-time fallback. The `event_name` property below reads
+        # the LIVE value from branding_settings on each access so
+        # operator edits via the Branding panel flow through to SMS
+        # responses immediately (no restart needed).
+        self._event_name_boot = config.get('EVENT_NAME', 'Coffee Event')
+
         # Initialize conversation states dictionary
         self.conversation_states = {}
+
+        # Stale conversation timeout — if a customer starts an order
+        # ("latte") and the bot is mid-flow asking for milk, but they
+        # never reply, the state would otherwise linger forever.
+        # When they text again hours later their reply would land in
+        # `_handle_awaiting_milk` and confuse them. Reset the state
+        # after this many minutes of inactivity so the next message
+        # starts a fresh conversation.
+        self.stale_conversation_minutes = config.get('STALE_CONVERSATION_MINUTES', 20)
         
         # Initialize settings cache
         self.settings_cache = {}
@@ -54,6 +67,55 @@ class CoffeeOrderSystem:
         
         logger.info("Coffee Order System initialized")
     
+    @property
+    def event_name(self):
+        """Live event name — reads branding_settings on each access.
+
+        Falls back to the boot-time EVENT_NAME config value if the
+        branding row isn't set yet. Cached for a short window to
+        avoid hitting the DB on every SMS.
+        """
+        # Short cache so a high-volume burst doesn't hit DB N times.
+        cached = getattr(self, '_event_name_cache', None)
+        if cached and (datetime.now() - cached[1]).total_seconds() < 30:
+            return cached[0]
+        name = self._event_name_boot
+        try:
+            cursor = self.db.cursor()
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            cursor.execute("SELECT value FROM settings WHERE key = 'branding_settings'")
+            row = cursor.fetchone()
+            if row and row[0]:
+                blob = row[0]
+                if isinstance(blob, str):
+                    blob = json.loads(blob)
+                if isinstance(blob, dict):
+                    candidate = (
+                        blob.get('event_name')
+                        or blob.get('eventName')
+                        or blob.get('landingTitle')
+                        or blob.get('clientName')
+                    )
+                    if candidate:
+                        name = candidate
+        except Exception:
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+        self._event_name_cache = (name, datetime.now())
+        return name
+
+    @event_name.setter
+    def event_name(self, value):
+        """Allow tests / config to set event_name explicitly."""
+        self._event_name_boot = value
+        # Invalidate the cache so the next read picks it up.
+        self._event_name_cache = None
+
     def _load_sponsor_info(self):
         """Load sponsor information from database"""
         try:
@@ -1029,7 +1091,15 @@ class CoffeeOrderSystem:
         
         # For new customers or those without usual orders
         self._set_conversation_state(phone, 'awaiting_coffee_type', {'name': name})
-        return f"Hi {name}! What are the details for your coffee?\n(e.g., \"cap 1 sugar skim\" or just \"latte\")\nDefault: medium, full cream, no sugar\nReply OPTIONS for full menu"
+        # Previously this said "Default: medium, full cream, no sugar"
+        # which advertised behaviour the bot doesn't actually do — the
+        # state machine asks for each missing field (apply_defaults=False).
+        # Replaced with a more honest example.
+        return (
+            f"Hi {name}! What can I get you?\n"
+            f"Examples: \"large oat latte 1 sugar\", \"flat white\", \"earl grey tea\"\n"
+            f"Reply MENU to see what's on offer."
+        )
     
     def _has_usual_order(self, phone):
         """Check if customer has a usual order"""
@@ -4061,20 +4131,92 @@ class CoffeeOrderSystem:
         
         return phone
     
+    def _is_state_stale(self, state_obj):
+        """Return True if this conversation has been idle too long.
+
+        We treat a state as stale if `last_interaction` is older than
+        `self.stale_conversation_minutes`. Customers who get
+        interrupted mid-flow ("latte" -> bot asks "what milk?" ->
+        crickets) shouldn't have their reply hours/days later land
+        in the milk handler. Once stale, the state is reset so the
+        next message starts a fresh conversation.
+        """
+        try:
+            minutes = int(self.stale_conversation_minutes or 0)
+        except (TypeError, ValueError):
+            minutes = 0
+        if minutes <= 0:
+            return False
+        last = state_obj.get('last_interaction') if isinstance(state_obj, dict) else None
+        if not last:
+            return False
+        # last_interaction may come back as datetime (psycopg2) or
+        # string (sqlite or some driver configs). Coerce to datetime.
+        if isinstance(last, str):
+            try:
+                # Strip fractional seconds and timezone for fromisoformat
+                # compatibility on older Pythons.
+                last = datetime.fromisoformat(last)
+            except Exception:
+                try:
+                    last = datetime.strptime(last.split('.')[0], '%Y-%m-%d %H:%M:%S')
+                except Exception:
+                    return False
+        try:
+            return (datetime.now() - last) > timedelta(minutes=minutes)
+        except Exception:
+            return False
+
+    def _reset_conversation_state(self, phone):
+        """Wipe the conversation state for a phone, in cache + DB.
+
+        Used when a state has gone stale (see `_is_state_stale`) so
+        the next message starts cleanly.
+        """
+        self.conversation_states.pop(phone, None)
+        try:
+            is_sqlite = isinstance(self.db, sqlite3.Connection)
+            from utils.database import get_db_connection, close_connection
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            if is_sqlite:
+                cursor.execute(
+                    "DELETE FROM conversation_states WHERE phone = ?",
+                    (phone,),
+                )
+            else:
+                cursor.execute(
+                    "DELETE FROM conversation_states WHERE phone = %s",
+                    (phone,),
+                )
+            conn.commit()
+            close_connection(conn)
+        except Exception as e:
+            logger.warning(f"Could not clear stale conversation state for {phone}: {e}")
+
     def _get_conversation_state(self, phone):
         """Get the conversation state for a phone number"""
         # Check in-memory cache first
         if phone in self.conversation_states:
-            return self.conversation_states[phone]
-        
+            cached = self.conversation_states[phone]
+            if self._is_state_stale(cached):
+                logger.info(
+                    f"Conversation state for {phone} is stale "
+                    f"(idle > {self.stale_conversation_minutes} min). "
+                    f"Resetting to fresh greeting flow."
+                )
+                self._reset_conversation_state(phone)
+                return {'state': None, 'temp_data': {}, 'message_count': 0}
+            return cached
+
         # Check if we're using SQLite or PostgreSQL
         is_sqlite = isinstance(self.db, sqlite3.Connection)
         db_type = "sqlite" if is_sqlite else "postgres"
-        
+
         # Otherwise, check database
         try:
             cursor = self.db.cursor()
-            
+
             # Use the appropriate parameter style for the database type
             if is_sqlite:
                 cursor.execute("""
@@ -4088,9 +4230,9 @@ class CoffeeOrderSystem:
                     FROM conversation_states
                     WHERE phone = %s
                 """, (phone,))
-            
+
             result = cursor.fetchone()
-            
+
             if result:
                 # Get values from result - may be a tuple or a dict depending on cursor type
                 if isinstance(result, dict):
@@ -4100,14 +4242,14 @@ class CoffeeOrderSystem:
                     message_count = result.get('message_count', 0)
                 else:
                     state, temp_data_str, last_interaction, message_count = result
-                
+
                 # Parse JSON temp data
                 try:
                     temp_data = json.loads(temp_data_str) if temp_data_str else {}
                 except Exception as json_err:
                     logger.error(f"Error parsing JSON in conversation state: {str(json_err)}")
                     temp_data = {}
-                
+
                 # Create state object
                 state_obj = {
                     'state': state,
@@ -4115,15 +4257,27 @@ class CoffeeOrderSystem:
                     'last_interaction': last_interaction,
                     'message_count': int(message_count) if message_count else 0
                 }
-                
+
+                # If the state has gone stale since the last message,
+                # wipe it so the customer's new message starts fresh
+                # instead of being routed to a mid-order handler.
+                if self._is_state_stale(state_obj):
+                    logger.info(
+                        f"Conversation state for {phone} is stale "
+                        f"(idle > {self.stale_conversation_minutes} min). "
+                        f"Resetting to fresh greeting flow."
+                    )
+                    self._reset_conversation_state(phone)
+                    return {'state': None, 'temp_data': {}, 'message_count': 0}
+
                 # Cache in memory
                 self.conversation_states[phone] = state_obj
-                
+
                 return state_obj
-            
+
             # No state found - return empty state
             return {'state': None, 'temp_data': {}, 'message_count': 0}
-            
+
         except Exception as e:
             logger.error(f"Error getting conversation state: {str(e)}")
             return {'state': None, 'temp_data': {}, 'message_count': 0}
