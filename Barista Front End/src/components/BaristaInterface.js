@@ -2937,15 +2937,21 @@ const ReadyForPickupColumn = ({ stationId, onMarkPickedUp, onSendMessage, refres
 
   const fetchReady = React.useCallback(async () => {
     try {
-      const token = localStorage.getItem('coffee_auth_token')
-                 || localStorage.getItem('coffee_system_token');
+      // Use OrderDataService's underlying ApiService so we benefit
+      // from the JWT auto-refresh on 401. Raw fetch() with a stale
+      // token silently 401'd and the column showed 0. ApiService
+      // also picks up the API base URL from config.
+      const ApiServiceClass = (await import('../services/ApiService')).default;
+      const api = new ApiServiceClass();
       const sid = stationId != null ? `&station_id=${stationId}` : '';
-      const r = await fetch(
-        `/api/orders/completed?recent_minutes=${READY_RECENCY_MIN}${sid}`,
-        { headers: { Authorization: `Bearer ${token}` } },
+      const data = await api.request(
+        `/orders/completed?recent_minutes=${READY_RECENCY_MIN}${sid}`,
+        { method: 'GET' },
       );
-      const data = await r.json();
       const orders = Array.isArray(data) ? data : (data?.orders || []);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[ReadyForPickup] fetched ${orders.length} for station ${stationId}`);
+      }
       // Belt-and-braces client filter — drop picked_up rows and
       // anything older than the cutoff (future-dated test rows
       // squeak through otherwise).
@@ -3003,7 +3009,12 @@ const ReadyForPickupColumn = ({ stationId, onMarkPickedUp, onSendMessage, refres
     <div>
       <div className="bg-green-600 text-white p-2 rounded-t-lg flex justify-between items-center">
         <h2 className="text-xl font-bold">Ready for Pickup</h2>
-        <span className="text-sm">{list.length}</span>
+        <span className="text-sm">
+          {list.length}
+          {stationId != null && (
+            <span className="ml-2 opacity-75 text-xs">@ Station {stationId}</span>
+          )}
+        </span>
       </div>
       <div className="bg-white p-4 rounded-b-lg shadow-md min-h-[120px]">
         {list.length === 0 ? (
