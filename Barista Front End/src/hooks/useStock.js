@@ -157,7 +157,12 @@ const useStock = (stationId, stationName) => {
     let lowCount = 0;
     let criticalCount = 0;
     
+    // Stock blob can contain non-array metadata (e.g. lastUpdated
+    // timestamp written by Quick Setup). Skip non-arrays to avoid
+    // "category.forEach is not a function" crashes when navigating
+    // to a station whose blob was freshly written.
     Object.values(stockItems).forEach(category => {
+      if (!Array.isArray(category)) return;
       category.forEach(item => {
         if (item.status === 'danger') {
           criticalCount++;
