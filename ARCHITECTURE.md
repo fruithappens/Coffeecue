@@ -138,6 +138,34 @@ When adding a new localStorage key:
 4. If it stores something the backend should know about, mirror it
    to a `/api/...` KV setting too (see Quick Setup for the pattern).
 
+## 5b. Customer Display screen — where each piece of text comes from
+
+The `/display` route's UI elements are sourced as follows. Knowing
+this saves you 30 minutes of grepping when an operator says "where
+do I change X?".
+
+| UI element | Backend source | Operator edits via |
+|------------|---------------|--------------------|
+| Big header (e.g. "ANZCA ASM 2025") | `branding_settings.event_name` (falls back to `clientName`, `landingTitle`) | Organiser → Branding & Display → **Event Name** |
+| Header color bar | `branding_settings.headerColor` / `primaryColor` | Branding & Display → color picker |
+| Station name + location subtitle | `station_stats.name` / `station_stats.location` | Organiser → Stations → edit station |
+| Sponsor banner | `branding_settings.sponsorEnabled` + `sponsorName` + `sponsorMessage` | Branding & Display (toggle + fields) |
+| Footer SMS number | `TWILIO_PHONE_NUMBER` env var → `branding_settings.smsNumber` | `.env` OR Branding & Display → **SMS Order Number** |
+| Footer custom message | `branding_settings.customMessage` / `footerText` | Branding & Display → Footer Text |
+| Theme (light/dark/coffee) | `coffee_cue_settings.displayTheme` | Barista → Display tab |
+| Font size | `coffee_cue_settings.displayFontSize` | Barista → Display tab |
+| Zoom | `coffee_cue_settings.displayZoom` | Barista → Display tab |
+| Portrait/landscape | URL `?orientation=…` OR `coffee_cue_settings.displayMode` | URL param or Barista → Display tab |
+| "All Stations" option in selector | hardcoded fallback | n/a (intentional) |
+| "Live · refreshes every 15s" subtitle | hardcoded | n/a (intentional) |
+
+**The hardcoded "123 456 789" bug:** an old SettingsService default
+shipped `smsNumber: '+61 123 456 789'` as a placeholder. When no
+branding override was set, this placeholder showed on the display
+looking like a real number. Default is now blank — display falls
+back to "Number coming soon" so an operator immediately knows what
+needs configuring.
+
 ## 6. Quick Setup behavior
 
 When the operator clicks "Apply Quick Setup", the following changes

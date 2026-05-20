@@ -222,14 +222,19 @@ class SettingsService {
       showNameOnDisplay: true,
       // Display screen settings
       displaySettings: {
-        eventName: 'ANZCA ASM 2025',
-        organizationName: 'Australian and New Zealand College of Anaesthetists',
-        headerColor: '#1e40af', // blue-800
-        customMessage: 'Enjoy your coffee!',
-        smsNumber: '+61 123 456 789',
+        // These are FALLBACK defaults used when the backend hasn't
+        // returned a saved settings blob yet. Leave smsNumber blank
+        // so the display says "Number coming soon" rather than
+        // showing a fake "+61 123 456 789" placeholder that confused
+        // operators into thinking the system was misconfigured.
+        eventName: '',
+        organizationName: '',
+        headerColor: '#1e40af',
+        customMessage: '',
+        smsNumber: '',
         showSponsor: false,
         sponsorName: '',
-        sponsorMessage: ''
+        sponsorMessage: '',
       },
       // Station-specific settings (standardized structure)
       stationSettings: {
