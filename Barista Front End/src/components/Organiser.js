@@ -1,20 +1,13 @@
 // components/Organiser.js
 import React from 'react';
-import EnhancedOrganizerInterface from './EnhancedOrganizerInterface';
 import OrganiserInterface from './OrganiserInterface';
-import AuthService from '../services/AuthService';
 
+// Previously imported EnhancedOrganizerInterface but never rendered
+// it — that older interface has been archived to
+// _archive_legacy/components_dup_2026_05/. Also dropped a localStorage
+// preference toggle ('use_enhanced_organizer') that was just being
+// cleared on every mount.
 const Organiser = () => {
-  // Force use of the new improved interface (with proper inventory management)
-  // Clear any old preference to use enhanced interface
-  localStorage.removeItem('use_enhanced_organizer');
-  
-  const handleLogout = () => {
-    AuthService.logout();
-    window.location.href = '/login';
-  };
-  
-  // Always use the new OrganiserInterface with the improved station/inventory management
   return <OrganiserInterface />;
 };
 
