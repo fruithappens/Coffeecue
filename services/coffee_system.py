@@ -1467,6 +1467,135 @@ class CoffeeOrderSystem:
         if hasattr(self, '_pricing_cache'):
             del self._pricing_cache
 
+    def _apply_targeted_edit(self, message, order_details):
+        """Parse an "edit <field> [to] <value>" message and return
+        (updated_order_details, change_summary) or None if the message
+        wasn't actually a targeted edit (caller falls back to the
+        legacy "restart from coffee type" behaviour).
+
+        Supports:
+          - edit milk to oat / change milk oat
+          - edit size large / change size to large
+          - edit sugar 2 / change sugar to no sugar
+          - edit strength strong / change to double shot
+          - edit decaf / change to decaf / make it decaf / no decaf
+          - edit drink flat white / change drink to latte
+
+        Validates values against the NLP vocab (self.nlp.milks etc.)
+        so we don't accept gibberish.
+        """
+        if not isinstance(order_details, dict):
+            return None
+
+        text = (message or '').strip().lower()
+        # Strip the EDIT/CHANGE prefix
+        for prefix in ('edit ', 'change ', 'edit', 'change'):
+            if text.startswith(prefix):
+                text = text[len(prefix):].strip()
+                break
+        # Allow optional "to": "edit milk TO oat" / "change size TO large"
+        text = re.sub(r'\bto\b', ' ', text).strip()
+        text = re.sub(r'\s+', ' ', text)
+        if not text:
+            return None
+
+        updated = dict(order_details)
+
+        # Helper: try to match a value against an NLP vocab dict
+        # (canonical -> [variations]). Returns the canonical form.
+        def _match_vocab(value, vocab):
+            value = value.strip().lower()
+            if not value:
+                return None
+            if value in vocab:
+                return value
+            for canonical, variations in vocab.items():
+                if value == canonical:
+                    return canonical
+                for v in variations:
+                    if value == v:
+                        return canonical
+            return None
+
+        # Special toggles for decaf
+        if text in ('decaf', 'make it decaf', 'to decaf'):
+            current_type = updated.get('type', '') or ''
+            if not current_type.lower().startswith('decaf'):
+                updated['type'] = f"decaf {current_type}".strip()
+            return updated, "made it decaf"
+        if text in ('no decaf', 'regular', 'not decaf', 'undecaf'):
+            current_type = updated.get('type', '') or ''
+            lower = current_type.lower()
+            if lower.startswith('decaf '):
+                updated['type'] = current_type[6:].strip()
+                return updated, "removed decaf"
+            return updated, "kept it regular"
+
+        # Field-then-value form: "milk oat", "size large", "sugar 2"
+        parts = text.split(' ', 1)
+        if len(parts) >= 2:
+            field, value = parts[0], parts[1].strip()
+            field_aliases = {
+                'milk': 'milk', 'milks': 'milk',
+                'size': 'size', 'sizes': 'size',
+                'sugar': 'sugar', 'sugars': 'sugar', 'sweetener': 'sugar', 'sweetness': 'sugar',
+                'strength': 'strength', 'shot': 'strength', 'shots': 'strength',
+                'drink': 'type', 'coffee': 'type', 'type': 'type',
+            }
+            canonical_field = field_aliases.get(field)
+            if canonical_field == 'milk':
+                match = _match_vocab(value, self.nlp.milks)
+                if match:
+                    updated['milk'] = match
+                    return updated, f"milk → {match}"
+                return updated, f"sorry, \"{value}\" isn't a milk we recognise"
+            if canonical_field == 'size':
+                match = _match_vocab(value, self.nlp.sizes)
+                if match:
+                    updated['size'] = match
+                    return updated, f"size → {match}"
+                return updated, f"sorry, \"{value}\" isn't a size we recognise"
+            if canonical_field == 'sugar':
+                match = _match_vocab(value, self.nlp.sugars)
+                if match:
+                    updated['sugar'] = match
+                    return updated, f"sugar → {match}"
+                return updated, f"sorry, \"{value}\" isn't a sugar amount we recognise"
+            if canonical_field == 'strength':
+                match = _match_vocab(value, self.nlp.strengths)
+                if match:
+                    updated['strength'] = match
+                    return updated, f"strength → {match}"
+                # Allow free-form ("2 shots") to pass through verbatim
+                updated['strength'] = value
+                return updated, f"strength → {value}"
+            if canonical_field == 'type':
+                # Use full NLP parse to canonicalise the drink type
+                parsed = self.nlp.parse_order(value, apply_defaults=False)
+                if parsed.get('type'):
+                    updated['type'] = parsed['type']
+                    return updated, f"drink → {parsed['type']}"
+                return updated, f"sorry, \"{value}\" isn't a drink we recognise"
+
+        # Single-word form: "milk", "size", "sugar" → not enough info
+        if text in ('milk', 'size', 'sugar', 'strength', 'drink', 'coffee'):
+            return None
+
+        # Fall-through: treat whole text as a candidate value across
+        # all vocabs — e.g. customer just says "EDIT oat" or "CHANGE large".
+        for vocab, field, label in (
+            (self.nlp.milks, 'milk', 'milk'),
+            (self.nlp.sizes, 'size', 'size'),
+            (self.nlp.sugars, 'sugar', 'sugar'),
+        ):
+            match = _match_vocab(text, vocab)
+            if match:
+                updated[field] = match
+                return updated, f"{label} → {match}"
+
+        # Couldn't interpret — let the caller fall back to legacy EDIT.
+        return None
+
     def _format_price_tail(self, order_details):
         """Return a one-line "\nTotal: $5.50 — pay at the counter on
         collection." suffix if pricing is enabled and show_in_sms is
@@ -2060,11 +2189,31 @@ class CoffeeOrderSystem:
             self._set_conversation_state(phone, 'awaiting_coffee_type', {'name': name})
             return f"Order cancelled. What type of coffee would you like instead, {name}?"
         
-        elif message_upper == 'EDIT' or message_upper == 'CHANGE':
-            # Allow editing the order - go back to coffee type
+        elif message_upper.startswith('EDIT') or message_upper.startswith('CHANGE'):
+            # Targeted edit ("edit milk to oat") modifies only that
+            # field and keeps the rest. Bare EDIT/CHANGE falls back
+            # to the legacy "restart from coffee type" behaviour.
+            edit_result = self._apply_targeted_edit(message, order_details)
+            if edit_result is not None:
+                updated_details, change_summary = edit_result
+                # Save back and re-prompt confirmation
+                temp_data = dict(state.get('temp_data', {}))
+                temp_data['order_details'] = updated_details
+                self._set_conversation_state(phone, 'awaiting_confirmation', temp_data)
+                order_summary = self.nlp.format_order_summary(updated_details)
+                return (
+                    f"Updated — {change_summary}.\n"
+                    f"Here's your order now: {order_summary}"
+                    f"{self._format_price_tail(updated_details)}\n"
+                    f"Reply YES to confirm, NO to cancel, or EDIT to change something else."
+                )
+            # Bare EDIT — restart from coffee type
             self._set_conversation_state(phone, 'awaiting_coffee_type', {'name': name})
-            return f"Let's change that order. What type of coffee would you like, {name}?"
-        
+            return (
+                f"Let's change that order, {name}. What type of coffee would you like?\n"
+                f"Tip: you can also say e.g. \"edit milk to oat\" to change just one thing."
+            )
+
         elif message_upper == 'FRIEND' or message_upper == 'GROUP' or 'FRIEND' in message_upper:
             # Start an order for a friend - keep the same phone number but ask for friend's name
             self._set_conversation_state(phone, 'awaiting_friend_name', {

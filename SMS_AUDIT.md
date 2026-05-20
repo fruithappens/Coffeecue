@@ -134,7 +134,7 @@ These are listed by impact-per-effort. The top 3 close real customer-facing gaps
 | 4 | Capture preferred strength (shots) + decaf flag on saved usual | ✅ DONE | 45 min | Returning customers get their full usual |
 | 5 | Real time-of-day-aware usual suggestion, OR drop the misleading wording | ✅ DONE (dropped wording) | 1 min | Either deliver on the promise or stop making it |
 | 6 | Auto-reminder SMS after N min of "completed but not picked up" | TODO | 1 hour | Closes the no-show loop |
-| 7 | Real EDIT support (edit milk / size / sugar without restarting) | TODO | 1 hour | Operator-flagged friction |
+| 7 | Real EDIT support (edit milk / size / sugar without restarting) | ✅ DONE | 1 hour | Operator-flagged friction |
 | 8 | Welcome message respects branding event_name | ✅ DONE | 5 min | Consistency with rest of system |
 
 ### Batch 1 implementation notes (May 2026)
@@ -148,6 +148,19 @@ These are listed by impact-per-effort. The top 3 close real customer-facing gaps
 
 - **Fix 4** — added migration #6 (`customer_preferences_strength_and_decaf`) to add `preferred_strength TEXT` + `preferred_decaf BOOLEAN` columns. The save path (`_confirm_order`) now strips the "decaf " prefix from the drink type, stores the bare type in `preferred_drink`, and stamps `preferred_decaf=true`. The strength field (e.g. "double shot", "strong") gets stored verbatim. Read paths (`_get_usual_order_details`, `_get_usual_order_suggestion`, `_handle_awaiting_name`) include decaf prefix + strength tail so a regular's full usual ("strong decaf flat white") replays exactly. Schema-tolerant — falls back to the old SELECT if migration #6 hasn't been applied.
 - **Fix 5** — dropped the misleading "which you often enjoy around this time" claim in `_get_usual_order_suggestion`. The underlying logic doesn't actually filter by hour-of-day, so the claim was dishonest. New wording: "What can I get you today, {name}? Your usual {size} {drink} with {milk}, {sugar} ({strength})?" — concise, honest, full-fidelity.
+
+### Batch 3 implementation notes (May 2026)
+
+- **Fix 7** — real EDIT support. Added `_apply_targeted_edit()` parser that interprets the customer's edit message and mutates only the field they named. Supports:
+  - `edit milk to oat` / `change milk oat` / `EDIT MILK SOY`
+  - `edit size large` / `change size to large`
+  - `edit sugar 2` / `edit sugar no sugar`
+  - `change to decaf` / `no decaf`
+  - `change drink to flat white`
+  - Bare-value form (`EDIT oat`) auto-detects which field
+  - Validates against the NLP vocab (`self.nlp.milks` / `.sizes` / `.sugars`) so gibberish is rejected with a friendly message instead of being accepted silently
+  - Bare `EDIT` / `CHANGE` falls back to the legacy "restart from coffee type" behaviour (with a hint about targeted edits)
+  - After a successful edit, re-prompts confirmation with the updated order summary so the customer sees what changed.
 
 ---
 
