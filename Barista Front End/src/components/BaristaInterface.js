@@ -1821,7 +1821,7 @@ const BaristaInterface = () => {
                 completions from the last 30 minutes — stale orders
                 still live under the full Completed tab. */}
             <ReadyForPickupColumn
-              completedOrders={completedOrders}
+              stationId={selectedStation}
               onMarkPickedUp={markOrderPickedUp}
               onSendMessage={handleOpenMessageDialog}
             />
@@ -2921,26 +2921,83 @@ const BaristaInterface = () => {
 // Without this column the barista had to navigate to the Completed
 // tab every time a customer walked up to collect — too much friction.
 // Older completions still live under the full Completed tab.
+//
+// Fetches its own list rather than using the shared completedOrders
+// from useOrders, for two reasons:
+//   1. It needs only the last 30 min — useOrders fetches 50 ever.
+//   2. Some old test rows had future-dated completed_at timestamps
+//      that defeated a client-side filter. Backend recency filter
+//      (recent_minutes=30, station_id=X) is reliable.
 const READY_RECENCY_MS = 30 * 60 * 1000;
+const READY_RECENCY_MIN = 30;
 
-const ReadyForPickupColumn = ({ completedOrders, onMarkPickedUp, onSendMessage }) => {
-  const cutoff = Date.now() - READY_RECENCY_MS;
-  // Filter: status='completed' (NOT picked_up) AND completed recently.
-  // Sort newest-first so the most recent finish is at the top.
-  const list = (completedOrders || [])
-    .filter(o => {
-      const status = (o.status || '').toLowerCase();
-      if (status === 'picked_up' || status === 'picked-up') return false;
-      const ts = o.completedAt || o.completed_at || o.updatedAt || o.updated_at;
-      if (!ts) return true;
-      const t = new Date(ts).getTime();
-      return Number.isNaN(t) || t >= cutoff;
-    })
-    .sort((a, b) => {
-      const ta = new Date(a.completedAt || a.completed_at || a.updatedAt || a.updated_at || 0).getTime();
-      const tb = new Date(b.completedAt || b.completed_at || b.updatedAt || b.updated_at || 0).getTime();
-      return tb - ta;
-    });
+const ReadyForPickupColumn = ({ stationId, onMarkPickedUp, onSendMessage, refreshToken }) => {
+  const [list, setList] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+
+  const fetchReady = React.useCallback(async () => {
+    try {
+      const token = localStorage.getItem('coffee_auth_token')
+                 || localStorage.getItem('coffee_system_token');
+      const sid = stationId != null ? `&station_id=${stationId}` : '';
+      const r = await fetch(
+        `/api/orders/completed?recent_minutes=${READY_RECENCY_MIN}${sid}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      const data = await r.json();
+      const orders = Array.isArray(data) ? data : (data?.orders || []);
+      // Belt-and-braces client filter — drop picked_up rows and
+      // anything older than the cutoff (future-dated test rows
+      // squeak through otherwise).
+      const cutoff = Date.now() - READY_RECENCY_MS;
+      const now = Date.now();
+      const filtered = orders
+        .filter(o => {
+          const s = (o.status || '').toLowerCase();
+          if (s === 'picked_up' || s === 'picked-up') return false;
+          const ts = o.completedAt || o.completed_at || o.updatedAt || o.updated_at;
+          if (!ts) return true;
+          const t = new Date(ts).getTime();
+          if (Number.isNaN(t)) return true;
+          // Allow up to 5 min into the future to tolerate clock skew.
+          return t >= cutoff && t <= now + 5 * 60 * 1000;
+        })
+        .sort((a, b) => {
+          const ta = new Date(a.completedAt || a.completed_at || a.updatedAt || a.updated_at || 0).getTime();
+          const tb = new Date(b.completedAt || b.completed_at || b.updatedAt || b.updated_at || 0).getTime();
+          return tb - ta;
+        });
+      setList(filtered);
+    } catch (e) {
+      console.warn('ReadyForPickupColumn fetch failed:', e);
+    } finally {
+      setLoading(false);
+    }
+  }, [stationId]);
+
+  React.useEffect(() => {
+    fetchReady();
+    const timer = setInterval(fetchReady, 15000);
+    const wsHandler = () => fetchReady();
+    window.addEventListener('order_updated', wsHandler);
+    window.addEventListener('order_created', wsHandler);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('order_updated', wsHandler);
+      window.removeEventListener('order_created', wsHandler);
+    };
+  }, [fetchReady, refreshToken]);
+
+  // Optimistic-remove: when the barista taps Collected, remove the
+  // row immediately rather than waiting for the next refresh. The
+  // backend call still runs via onMarkPickedUp.
+  const handleCollected = async (oid) => {
+    setList(prev => prev.filter(o => (o.id || o.order_number || o.orderNumber) !== oid));
+    try { await onMarkPickedUp(oid); } catch (e) {
+      // If the backend failed, restore the row on next refresh.
+      fetchReady();
+    }
+  };
 
   return (
     <div>
@@ -2984,7 +3041,7 @@ const ReadyForPickupColumn = ({ completedOrders, onMarkPickedUp, onSendMessage }
                     <button
                       type="button"
                       className="flex-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm rounded font-medium"
-                      onClick={() => onMarkPickedUp(oid)}
+                      onClick={() => handleCollected(oid)}
                     >
                       ✓ Collected
                     </button>
