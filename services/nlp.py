@@ -31,19 +31,63 @@ class NLPService:
     
     def load_coffee_database(self):
         """Load comprehensive databases of coffee terminology"""
-        # Coffee types with common misspellings, shorthand, and slang
+        # Coffee types with common misspellings, shorthand, and slang.
+        #
+        # IMPORTANT — order matters. The parser iterates this dict in
+        # insertion order and returns the first hit. So MORE SPECIFIC
+        # entries (matcha latte, earl grey tea) MUST come BEFORE less
+        # specific ones (latte, hot tea) — otherwise "matcha latte"
+        # matches "latte" first and "earl grey tea" matches "hot tea"
+        # via the "tea" variation.
         self.coffee_types = {
-            # Standard coffees
-            "cappuccino": ["cap", "capp", "caps", "capaccino", "capacino", "capochino", "capuccino", "cappacino", "cappacino", "cappcino", "cappuccino"],
-            "latte": ["lat", "late", "lattee", "lattay", "lattae", "café latte", "cafe latte", "coffee latte", "latte"],
+            # ── Tea section (specific flavours first) ───────────────
+            # These were added May 2026 so the SMS bot can recognise
+            # tea flavours by name rather than collapsing everything
+            # to generic "tea". When a flavour isn't stocked for THIS
+            # event, the conversation flow responds with "Sorry we
+            # don't have earl grey today, here's what's available"
+            # instead of the old "I'm not sure what type of coffee
+            # you'd like" confusion. Names match the inventory rows
+            # InventoryManagement.js seeds.
+            "english breakfast tea": ["english breakfast", "english tea", "breakfast tea", "eng breakfast", "ebt"],
+            "earl grey tea":          ["earl grey", "earlgrey", "earl-grey", "earl", "eg"],
+            "lemon & ginger tea":     ["lemon ginger", "lemon and ginger", "ginger lemon", "lemon n ginger", "lemon-ginger"],
+            "peppermint tea":         ["peppermint", "mint tea", "spearmint"],
+            "chamomile tea":          ["chamomile", "camomile", "chamomile flower"],
+            "rooibos tea":            ["rooibos", "redbush", "red tea", "rooibus"],
+            "green tea":              ["sencha", "gunpowder"],
+            "chai tea":               ["spiced tea", "masala chai", "indian tea"],
+            # Generic "tea" comes AFTER specific flavours so it only
+            # matches when nothing more specific did.
+            "hot tea":                ["hot t", "regular tea", "normal tea", "tea", "cuppa", "brew", "black tea", "plain tea"],
+
+            # ── Latte variants (specific first, then plain latte) ───
+            "matcha latte":  ["matcha", "green tea latte", "match", "matcha tea latte"],
+            "chai latte":    ["chai", "chai tea latte", "cha", "chailatte", "chai-latte"],
+            "golden latte":  ["golden", "turmeric latte", "turmeric"],
+
+            # ── Standard espresso drinks ────────────────────────────
+            "cappuccino": ["cap", "capp", "caps", "capaccino", "capacino", "capochino", "capuccino", "cappacino", "cappcino"],
+            "latte":      ["lat", "late", "lattee", "lattay", "lattae", "café latte", "cafe latte", "coffee latte"],
             "flat white": ["fw", "flatwhite", "flat-white", "flatty", "flattie", "flat-w", "flatw", "flt white", "flat"],
-            "espresso": ["esp", "expresso", "shot", "short black", "sb", "espresso shot", "exspresso", "spro", "espresso"],
+            "espresso":   ["esp", "expresso", "shot", "short black", "sb", "espresso shot", "exspresso", "spro"],
             "long black": ["lb", "americano", "longblack", "long-black", "americano coffee", "long coffee", "long"],
-            "mocha": ["moch", "mocha coffee", "cafe mocha", "moca", "mocca", "chocolate coffee", "mocha"],
+            "mocha":      ["moch", "mocha coffee", "cafe mocha", "moca", "mocca", "chocolate coffee"],
             "hot chocolate": ["hc", "choc", "chocolate", "hotchoc", "hot choc", "cacao", "cocoa"],
-            "chai latte": ["chai", "chai tea", "chai tea latte", "cha", "chailatte", "chai-latte"],
-            "matcha latte": ["matcha", "green tea latte", "matcha tea", "match", "matcha tea latte"],
-            "tea": ["t", "cuppa", "brew", "regular tea", "normal tea", "english tea", "black tea", "green tea"],
+
+            # ── Iced / cold drinks ──────────────────────────────────
+            # Recognised even when not stocked so the bot can say
+            # "we don't have iced coffee today" rather than ask for
+            # a coffee type again.
+            "iced coffee": ["ice coffee", "cold coffee black", "ic"],  # "iced" alone too broad
+            "iced latte":  ["ice latte", "cold latte", "iced milk coffee"],
+            "iced tea":    ["ice tea", "cold tea"],
+            "frappe":      ["frappuccino", "blended coffee", "iced blended"],
+
+            # ── Non-coffee staples ──────────────────────────────────
+            "babyccino":   ["babychino", "baby cap", "baby cappuccino", "kids drink", "kids coffee"],
+            "fresh juice": ["juice", "oj", "orange juice", "apple juice"],
+            "smoothie":    ["smoothy", "fruit smoothie", "blended fruit"],
             
             # Specialty coffees
             "piccolo": ["pic", "picolo", "picolo latte", "small latte", "baby latte"],
@@ -376,24 +420,61 @@ class NLPService:
             
             # If we didn't find a match in database types, fall back to standard pattern matching
         
-        # Try exact matches first
-        for canonical, variations in self.coffee_types.items():
-            if canonical in message:
+        # Two-pass matching:
+        # 1. Multi-word canonicals first (longest first) — so "iced latte
+        #    please" picks "iced latte" not "latte"; "matcha latte"
+        #    picks the specific canonical not "latte"; "earl grey tea"
+        #    picks the specific tea not "hot tea" via "tea" variation.
+        # 2. Then single-word canonicals + variation lists for the rest.
+        message_lc = message.lower()
+        # Sort canonicals descending by word count then character length
+        # so "english breakfast tea" beats "tea", "iced latte" beats "latte".
+        canonicals_by_specificity = sorted(
+            self.coffee_types.keys(),
+            key=lambda c: (-len(c.split()), -len(c)),
+        )
+        for canonical in canonicals_by_specificity:
+            # Multi-word: every word must appear (allows "lemon ginger
+            # tea" to hit "lemon & ginger tea" even with the ampersand).
+            words = canonical.replace('&', '').split()
+            words = [w for w in words if w]
+            if len(words) >= 2 and all(w in message_lc for w in words):
                 return canonical
-            
+
+        # Now check single-word canonicals + variations.
+        for canonical, variations in self.coffee_types.items():
+            if len(canonical.split()) == 1 and canonical in message_lc:
+                return canonical
+
             for variation in variations:
-                # Use word boundaries to avoid partial matches
-                if re.search(r'\b' + re.escape(variation) + r'\b', message.lower()):
+                if re.search(r'\b' + re.escape(variation) + r'\b', message_lc):
                     return canonical
-        
-        # Try matching multi-word coffee types that might not have exact boundaries
-        multi_word_types = ["flat white", "long black", "hot chocolate", "chai latte", "matcha latte", "cold brew", "pour over", "filter coffee"]
+
+        # Legacy multi-word fallback kept for back-compat — should be
+        # unreachable now that the first pass handles multi-word
+        # canonicals, but harmless.
+        # Tea flavours and iced drinks added May 2026 so messages like
+        # "can I have an earl grey please" still match even when the
+        # variations table miss.
+        multi_word_types = [
+            "flat white", "long black", "hot chocolate", "chai latte",
+            "matcha latte", "golden latte", "cold brew", "pour over",
+            "filter coffee", "hot tea",
+            # Specific tea flavours
+            "english breakfast tea", "earl grey tea", "green tea",
+            "peppermint tea", "chamomile tea", "lemon & ginger tea",
+            "rooibos tea", "chai tea",
+            # Iced / cold
+            "iced coffee", "iced latte", "iced tea", "frappe",
+        ]
         for coffee_type in multi_word_types:
-            words = coffee_type.split()
-            # Match if all words are present in the message
+            # & in "lemon & ginger tea" won't appear in customer messages
+            # as text; loosen the match so "lemon ginger tea" hits too.
+            words = coffee_type.replace('&', '').split()
+            words = [w for w in words if w]  # drop empties
             if all(word in message for word in words):
                 return coffee_type
-        
+
         return None
         
     def _get_db_coffee_types(self):

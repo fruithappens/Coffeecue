@@ -1344,14 +1344,23 @@ class CoffeeOrderSystem:
         return total, formatted
 
     def _get_available_coffee_types(self):
-        """Get list of available coffee drink types based on ingredient availability"""
-        # Unlimited-stock mode: don't check inventory at all.
+        """Get list of available drink types — espresso drinks (gated
+        on coffee bean stock) PLUS every row in the inventory `drinks`
+        category (teas, hot chocolate, chai, matcha, etc.).
+
+        Without the drinks-category pull, a customer ordering "earl
+        grey" would always get "Sorry, we don't offer earl grey"
+        because the function only returned espresso drinks. Steve
+        flagged: SMS should know tea exists even when the menu
+        offers it.
+        """
+        # Unlimited-stock mode: skip the inventory check but STILL
+        # pull configured tea/drinks rows so the menu is honest.
+        extras = self._get_available_extra_drinks()
         if self._is_unlimited_stock_mode():
-            return list(self._STANDARD_DRINK_MENU)
+            return list(self._STANDARD_DRINK_MENU) + extras
         try:
             cursor = self.db.cursor()
-
-            # Check if we have coffee beans available
             cursor.execute("""
                 SELECT COUNT(*) FROM inventory_items
                 WHERE category = 'coffee'
@@ -1359,18 +1368,38 @@ class CoffeeOrderSystem:
             """)
             coffee_available = cursor.fetchone()[0] > 0
 
-            # Standard drink menu - only return if we have coffee beans
-            if coffee_available:
-                logger.info(f"Coffee beans available, offering drink types: {self._STANDARD_DRINK_MENU}")
-                return list(self._STANDARD_DRINK_MENU)
-            else:
-                logger.warning("No coffee beans in stock, cannot offer coffee drinks")
-                return []
-
+            base = list(self._STANDARD_DRINK_MENU) if coffee_available else []
+            return base + extras
         except Exception as e:
             logger.error(f"Error checking coffee availability: {str(e)}")
-            # Return basic menu if there's an error
-            return list(self._STANDARD_DRINK_MENU)
+            return list(self._STANDARD_DRINK_MENU) + extras
+
+    def _get_available_extra_drinks(self):
+        """Return the lowercased names of stocked drinks-category
+        items (tea flavours, hot chocolate, chai latte, matcha latte,
+        etc.). Empty list if the table doesn't exist or no rows
+        are present.
+        """
+        try:
+            cursor = self.db.cursor()
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            cursor.execute("""
+                SELECT LOWER(name) FROM inventory_items
+                WHERE category = 'drinks'
+                  AND (amount IS NULL OR amount > COALESCE(minimum_threshold, 0))
+                ORDER BY name
+            """)
+            return [row[0] for row in cursor.fetchall() if row and row[0]]
+        except Exception as e:
+            logger.debug(f"_get_available_extra_drinks: {e}")
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            return []
 
     def _is_valid_coffee_type(self, requested_type, available_types):
         """Check if the requested coffee type is valid"""
@@ -1556,11 +1585,26 @@ class CoffeeOrderSystem:
         # when they got "we don't have coconut milk" without knowing
         # what they DO have.
 
-        # Check if the requested coffee type is available
+        # Check if the requested coffee type is available. When the
+        # NLP parser recognises a tea / alt-drink (chai, matcha, hot
+        # chocolate, etc.) we can give a much friendlier "we don't
+        # have X today" response with the available menu, rather than
+        # the old "I'm not sure what coffee you want" confusion.
         if coffee_type and not self._is_valid_coffee_type(coffee_type, available_coffee_types):
+            # Split teas and coffees so the response reads naturally.
+            teas = [c for c in (available_coffee_types or [])
+                    if 'tea' in c.lower()]
+            non_teas = [c for c in (available_coffee_types or [])
+                        if 'tea' not in c.lower()]
+            parts = []
+            if non_teas:
+                parts.append(f"Coffee: {', '.join(sorted(non_teas))}")
+            if teas:
+                parts.append(f"Tea: {', '.join(sorted(teas))}")
+            available_line = ' · '.join(parts) if parts else 'see MENU'
             return (
-                f"Sorry, we don't offer {coffee_type}. Available options: "
-                f"{', '.join(available_coffee_types)}.\n"
+                f"Sorry, we don't have {coffee_type} today. Available: "
+                f"{available_line}.\n"
                 f"Reply MENU for the full list."
             )
 
