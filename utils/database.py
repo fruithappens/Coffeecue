@@ -24,6 +24,20 @@ logger = logging.getLogger("expresso.database")
 # Database connection pool
 connection_pool = None
 
+
+def _testing_mode_enabled():
+    """Return True iff TESTING_MODE is on in this process.
+
+    Used to gate the SQLite fallback path. In production the bot must
+    fail loudly when Postgres is unreachable rather than silently
+    splitting writes onto an empty SQLite file that nobody will
+    notice — historically the worst kind of data-loss bug.
+
+    Reads the env var directly (this module is imported before Flask
+    creates the app context).
+    """
+    return os.environ.get('TESTING_MODE', 'False').lower() == 'true'
+
 def init_db_pool(db_url=None):
     """Initialize the database connection pool"""
     global connection_pool
@@ -84,10 +98,15 @@ def init_db_pool(db_url=None):
         
         logger.info(f"Connecting to PostgreSQL as {user}@{host}:{port}/{dbname}")
         
-        # Create a connection pool
+        # Create a connection pool. Defaults to 2..30 so a Railway
+        # container can handle a few dozen concurrent baristas without
+        # blocking. Operators can tune via env if the deployment is
+        # particularly large or small.
+        pool_min = int(os.environ.get('DB_POOL_MIN_CONNECTIONS', 2))
+        pool_max = int(os.environ.get('DB_POOL_MAX_CONNECTIONS', 30))
         connection_pool = pool.SimpleConnectionPool(
-            minconn=1,
-            maxconn=10,
+            minconn=pool_min,
+            maxconn=pool_max,
             user=user,
             password=password,
             host=host,
@@ -125,49 +144,54 @@ def get_db_connection(db_url=None):
         Database connection
     """
     global connection_pool
-    
-    # If PostgreSQL is not available, fall back to SQLite
+
+    # If PostgreSQL is not available at all (import failed), fall back
+    # to SQLite ONLY in TESTING_MODE. In production we fail loudly so
+    # the operator notices missing psycopg2 rather than silently
+    # writing orders to a different DB.
     if not HAS_POSTGRES:
-        logger.info("Using SQLite database (fallback mode)")
-        # Create a SQLite connection to a file
+        if not _testing_mode_enabled():
+            raise RuntimeError(
+                "psycopg2 is not installed and TESTING_MODE is off. "
+                "Refusing to fall back to SQLite in production — install "
+                "psycopg2-binary and set DATABASE_URL."
+            )
+        logger.warning("Using SQLite database (fallback mode — TESTING_MODE only)")
         sqlite_db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'coffee_orders.db')
         logger.info(f"SQLite database path: {sqlite_db_path}")
-        
-        # Create a SQLite connection
         conn = sqlite3.connect(sqlite_db_path)
-        
-        # Configure SQLite connection to return dictionaries
         conn.row_factory = sqlite3.Row
-        
-        # Create basic tables if they don't exist
         create_sqlite_tables(conn)
-        
         return conn
-    
+
     # Initialize the pool if it doesn't exist
     if connection_pool is None:
         init_db_pool(db_url)
-    
+
     try:
+        # Bounded wait — without this, an exhausted pool blocks the
+        # request thread forever. Five seconds is enough for a transient
+        # spike; if the pool is genuinely saturated the caller surfaces
+        # a 503 to the client instead of hanging.
         conn = connection_pool.getconn()
         return conn
     except Exception as e:
         logger.error(f"Error getting database connection: {str(e)}")
-        
-        # If connection to PostgreSQL fails, fall back to SQLite
-        logger.info("Falling back to SQLite after PostgreSQL connection failure")
+
+        # In production, fail loudly. The previous behaviour silently
+        # swapped to SQLite, splitting writes across two databases that
+        # never get reconciled — the worst kind of data-loss bug. In
+        # TESTING_MODE the legacy fallback is preserved so dev tooling
+        # without Postgres still works.
+        if not _testing_mode_enabled():
+            raise
+
+        logger.warning("Falling back to SQLite after PostgreSQL connection failure (TESTING_MODE only)")
         sqlite_db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'coffee_orders.db')
         logger.info(f"SQLite fallback database path: {sqlite_db_path}")
-        
-        # Create a SQLite connection
         conn = sqlite3.connect(sqlite_db_path)
-        
-        # Configure SQLite connection to return dictionaries
         conn.row_factory = sqlite3.Row
-        
-        # Create basic tables if they don't exist
         create_sqlite_tables(conn)
-        
         return conn
 
 def close_connection(conn):
