@@ -328,6 +328,18 @@ const PredictiveIntelligence = () => {
   
   return (
     <div className="space-y-6">
+      {/* Preview banner — the demand-forecast, bottleneck-detection,
+          stock-depletion and staffing-needs predictions all run on
+          real order/station/stock data. BUT the "auto-adjust" toggle
+          and the "resilience mode" / "active protocols" state are
+          UI-only — no automated adjustments actually happen. Treat
+          this as an early-warning dashboard, not an operational
+          autopilot. */}
+      <div className="bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2 rounded text-sm">
+        <strong>Preview:</strong> predictions are computed from real
+        data, but the auto-adjust toggle doesn't trigger any backend
+        action yet — use this as an early-warning dashboard.
+      </div>
       {/* Header & Controls */}
       <div className="bg-white rounded-lg shadow-sm p-6">
         <div className="flex justify-between items-center mb-6">

@@ -248,6 +248,19 @@ const QueuePsychologyIntelligence = () => {
 
   return (
     <div className="p-6 space-y-6">
+      {/* Preview banner — the batch-opportunity detection runs on
+          real order data and is genuinely useful as a suggestion
+          panel. BUT the communication-mode toggle, batch-optimization
+          toggle, and the "alternative drinks" suggestion-text do not
+          actually send SMS to the customers shown — they're UI
+          previews. Use this as a queue-monitoring aid; the SMS
+          actually sent to customers is governed by the bot in
+          coffee_system.py. */}
+      <div className="bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2 rounded text-sm">
+        <strong>Preview:</strong> the batch suggestions reflect real
+        queue data, but the communication-mode toggle and alternative-
+        drink prompts shown here aren't sent to customers automatically.
+      </div>
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-900 flex items-center">
           <Brain className="mr-2" size={24} />

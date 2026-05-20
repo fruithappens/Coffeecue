@@ -254,19 +254,11 @@ const OrganiserInterface = () => {
               {sidebarOpen && <span>AI Predict</span>}
             </button>
             
-            {/* Messages */}
-            <button
-              className={`w-full flex items-center px-3 py-2 rounded-md ${
-                activeSection === 'messages' 
-                  ? 'bg-amber-100 text-amber-800' 
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
-              onClick={() => setActiveSection('messages')}
-            >
-              <MessageSquare size={20} className="mr-3" />
-              {sidebarOpen && <span>Messages</span>}
-            </button>
-            
+            {/* Messages — removed in batch G of the system audit. The
+                section just rendered "Message center functionality coming
+                soon." Use the Communications Hub or Support → Broadcast
+                for real inter-station / customer messaging. */}
+
             {/* Settings */}
             <button
               className={`w-full flex items-center px-3 py-2 rounded-md ${
@@ -552,13 +544,7 @@ const OrganiserInterface = () => {
             <EnhancedScheduleManagement />
           )}
           
-          {/* Messages */}
-          {activeSection === 'messages' && (
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-xl font-semibold mb-4">Message Center</h2>
-              <p className="text-gray-600">Message center functionality coming soon.</p>
-            </div>
-          )}
+          {/* Messages section removed in batch G — see sidebar comment. */}
           
           {/* Placeholder for other sections */}
           {activeSection !== 'dashboard' && 

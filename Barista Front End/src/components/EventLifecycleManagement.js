@@ -386,6 +386,17 @@ const EventLifecycleManagement = () => {
 
   return (
     <div className="p-6 space-y-6">
+      {/* Preview banner — the phase transitions and overrides on this
+          panel are UI-only: nothing is wired to the backend yet, so
+          changing the current phase here doesn't affect order routing,
+          SMS responses, or the barista UI. The phase suggestions ARE
+          derived from real order data; treat this as a planning aid
+          rather than an operational control until the wiring lands. */}
+      <div className="bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2 rounded text-sm">
+        <strong>Preview:</strong> phase transitions on this panel don't
+        affect operations yet. The recommendations are derived from
+        real data, but switching phases here is informational only.
+      </div>
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-900 flex items-center">
           <Calendar className="mr-2" size={24} />
