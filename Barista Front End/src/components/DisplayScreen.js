@@ -104,12 +104,22 @@ const OrderCard = ({ order, variant, fonts, theme, showCustomerName, showDetails
   );
 };
 
+// Allowed rotation values in degrees. Honour both the saved
+// `displayRotation` setting and a `?rotate=` URL param so an operator
+// can test rotation without committing to the saved value.
+const _normalizeRotation = (value) => {
+  const n = parseInt(value, 10);
+  return [0, 90, 180, 270].includes(n) ? n : 0;
+};
+
 const DisplayScreen = () => {
   const [searchParams] = useSearchParams();
   const stationId = searchParams.get('station');
   // ?orientation= overrides the saved setting. Useful for the
   // operator to test both layouts without changing the saved value.
   const orientationFromUrl = searchParams.get('orientation');
+  // ?rotate=90 etc. overrides the saved rotation. Same idea.
+  const rotateFromUrl = searchParams.get('rotate');
 
   const { settings } = useSettings();
 
@@ -123,6 +133,14 @@ const DisplayScreen = () => {
   const showDetails = settings?.showOrderDetails !== false;
   const showCompleted = settings?.showCompletedOrders !== false;
   const showWaitTimes = settings?.showWaitTimes !== false;
+  // CSS rotation for hardware screens mounted sideways (a vertical
+  // TV on a stand fed by an HDMI source that can't itself rotate,
+  // an AirPlay'd iPad on a wall mount, etc). 0/90/180/270 only.
+  // When the OS supports rotation that's still the better path —
+  // this is for when it doesn't.
+  const rotation = _normalizeRotation(
+    rotateFromUrl != null ? rotateFromUrl : (settings?.displayRotation ?? 0)
+  );
 
   // Effective orientation — URL > setting > auto-detect.
   const [orientation, setOrientation] = useState(
@@ -396,12 +414,42 @@ const DisplayScreen = () => {
   // Container styles. Zoom is applied with transform so we don't
   // re-render the layout — useful when an iPad is mirrored to a
   // bigger external screen at the same dom dimensions.
-  const containerStyle = zoom && zoom !== 100
+  // When rotation is set, we ALSO swap width/height and re-anchor
+  // so the rotated content fills the viewport rather than running
+  // off the right edge. transform-origin is top-left + a translate
+  // so the post-rotation top-left lands at (0,0) of the viewport.
+  const ROTATION_WRAPPERS = {
+    0:   null,
+    90:  {
+      width: '100vh', height: '100vw',
+      transform: 'rotate(90deg) translate(0, -100vh)',
+      transformOrigin: 'top left',
+    },
+    180: {
+      width: '100vw', height: '100vh',
+      transform: 'rotate(180deg)',
+      transformOrigin: 'center center',
+    },
+    270: {
+      width: '100vh', height: '100vw',
+      transform: 'rotate(-90deg) translate(-100vw, 0)',
+      transformOrigin: 'top left',
+    },
+  };
+  const rotationStyle = ROTATION_WRAPPERS[rotation];
+
+  const zoomStyle = zoom && zoom !== 100
     ? { transform: `scale(${zoom / 100})`, transformOrigin: 'top left' }
     : {};
+  // If both rotation and zoom are active, the rotation transform
+  // sits on the outer wrapper and zoom on the inner content — so
+  // they don't fight each other.
+  const containerStyle = rotationStyle ? {} : zoomStyle;
 
   // --- Render ---
-  return (
+  // Rotation wrapper. When rotation === 0 we render the content
+  // directly so the DOM stays simple in the common case.
+  const content = (
     <div className={`min-h-screen w-full ${theme.bg} ${theme.text}
                      flex flex-col font-sans overflow-hidden`}
          onClick={tryFullscreen}
@@ -569,6 +617,32 @@ const DisplayScreen = () => {
       `}</style>
     </div>
   );
+
+  // Apply CSS rotation if the operator picked a non-zero value. This
+  // is the "screen is mounted sideways, OS can't rotate" escape
+  // hatch — when the OS CAN rotate (Mac System Settings → Displays,
+  // Windows → Display orientation), prefer that. CSS rotation works
+  // but adds a transform that can blur text slightly on some
+  // browsers.
+  if (rotationStyle) {
+    // Apply zoom on the inner content (so it doesn't fight the
+    // outer rotation transform).
+    const innerStyle = zoom && zoom !== 100
+      ? { transform: `scale(${zoom / 100})`, transformOrigin: 'top left',
+          width: zoom === 100 ? '100%' : `${10000 / zoom}%`,
+          height: zoom === 100 ? '100%' : `${10000 / zoom}%` }
+      : { width: '100%', height: '100%' };
+    return (
+      <div style={{
+        position: 'fixed', top: 0, left: 0,
+        overflow: 'hidden',
+        ...rotationStyle,
+      }}>
+        <div style={innerStyle}>{content}</div>
+      </div>
+    );
+  }
+  return content;
 };
 
 // --- Subcomponent: a column of orders ---

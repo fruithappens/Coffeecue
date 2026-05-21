@@ -377,6 +377,11 @@ const BaristaInterface = () => {
         const parsed = JSON.parse(saved);
         return {
           displayMode: parsed.displayMode || 'landscape',
+          // Rotation in degrees for hardware screens mounted sideways.
+          // 0 = no rotation (use OS-level rotation when possible). 90 /
+          // 180 / 270 supported. See DisplayScreen.js — applied via
+          // CSS transform.
+          displayRotation: parsed.displayRotation || 0,
           soundEnabled: parsed.soundEnabled !== undefined ? parsed.soundEnabled : true,
           // Granular sound settings
           soundNewOrder: parsed.soundNewOrder !== undefined ? parsed.soundNewOrder : true,
@@ -406,6 +411,7 @@ const BaristaInterface = () => {
     // Return defaults if no saved settings
     return {
       displayMode: 'landscape',
+      displayRotation: 0,
       soundEnabled: true,
       // Granular sound settings
       soundNewOrder: true,
@@ -2701,16 +2707,55 @@ const BaristaInterface = () => {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Display Mode
+                    Layout
                   </label>
-                  <select 
+                  <select
                     value={settings.displayMode}
                     onChange={(e) => setSettings({...settings, displayMode: e.target.value})}
                     className="w-full p-2 border rounded"
                   >
-                    <option value="landscape">Landscape</option>
-                    <option value="portrait">Portrait</option>
+                    <option value="auto">Auto — match screen shape</option>
+                    <option value="landscape">Landscape (16:9) — 3 columns side-by-side</option>
+                    <option value="portrait">Portrait (9:16) — stacked, Ready on top</option>
                   </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Decides whether the customer Display shows three columns side-by-side
+                    (wide screen / horizontal iPad) or a single tall stacked layout (tall
+                    screen / vertical iPad). "Auto" picks based on the screen's aspect ratio.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Rotate output
+                  </label>
+                  <select
+                    value={settings.displayRotation ?? 0}
+                    onChange={(e) => setSettings({...settings, displayRotation: parseInt(e.target.value, 10)})}
+                    className="w-full p-2 border rounded"
+                  >
+                    <option value={0}>None (recommended)</option>
+                    <option value={90}>90° clockwise</option>
+                    <option value={180}>180°</option>
+                    <option value={270}>270° (90° counter-clockwise)</option>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    For a TV mounted sideways when the OS / display can't rotate the image
+                    itself. Prefer OS-level rotation (Mac System Settings → Displays, Windows
+                    → Display orientation, iPad Control Center) when possible — it's sharper.
+                    Use this as an escape hatch.
+                  </p>
+                </div>
+
+                <div className="pt-2">
+                  <a
+                    href={`/display${stations.find(s => s.id === selectedStation) ? `?station=${selectedStation}` : ''}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-blue-600 hover:text-blue-800 underline"
+                  >
+                    Open customer Display in new window →
+                  </a>
                 </div>
                 
                 <div>
