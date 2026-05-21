@@ -1,7 +1,25 @@
 // components/StationChat.js
 import React, { useState, useEffect, useRef } from 'react';
-import { XCircle, RefreshCw, AlertTriangle, ChevronDown, Edit, Save, User } from 'lucide-react';
+import { XCircle, RefreshCw, AlertTriangle, ChevronDown, Edit, Save, User, AtSign } from 'lucide-react';
 import ChatService from '../services/ChatService';
+
+// Build a stable @mention token from a station object. We canonicalize
+// to lowercased-with-hyphens so "Coffee Station One" → "@coffee-station-one"
+// — keeps the message text short and stops a station rename from
+// matching legacy messages incorrectly. The picker prepends the
+// human-readable form for the operator's benefit; the matcher checks
+// either form so both work.
+const _mentionToken = (s) =>
+  (s?.name || `Station ${s?.id ?? ''}`).trim();
+
+// Does this message text mention the given station name? Case-insensitive,
+// matches the human-readable name with a leading @.
+const _mentions = (text, stationName) => {
+  if (!text || !stationName) return false;
+  const haystack = String(text).toLowerCase();
+  const needle = `@${String(stationName).trim().toLowerCase()}`;
+  return haystack.includes(needle);
+};
 
 const StationChat = ({ onClose, onMessageRead, stations, currentStationId, currentStationName, baristaName = "Barista", onBaristaNameChange }) => {
   // Use the current station as default if not explicitly provided
@@ -32,6 +50,50 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
   // New state for barista name editing
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedBaristaName, setEditedBaristaName] = useState(baristaName);
+
+  // @mention picker — operators wanted to address a specific station
+  // ("@Coffee Station Two — Bob is on his way for extra lids") rather
+  // than always broadcasting to everyone. The picker prepends the
+  // selected station's name + '@' to the message; on receive,
+  // messages mentioning the current station highlight in amber so
+  // it's obvious the message was meant for them.
+  const [showMentionPicker, setShowMentionPicker] = useState(false);
+  const mentionPickerRef = useRef(null);
+  const inputRef = useRef(null);
+  useEffect(() => {
+    // Close the picker on any outside click.
+    const onClickOutside = (e) => {
+      if (mentionPickerRef.current && !mentionPickerRef.current.contains(e.target)) {
+        setShowMentionPicker(false);
+      }
+    };
+    if (showMentionPicker) {
+      document.addEventListener('mousedown', onClickOutside);
+      return () => document.removeEventListener('mousedown', onClickOutside);
+    }
+  }, [showMentionPicker]);
+
+  const insertMention = (station) => {
+    const token = `@${_mentionToken(station)} `;
+    // Insert at cursor if possible, else append.
+    const el = inputRef.current;
+    if (el && typeof el.selectionStart === 'number') {
+      const before = newMessage.slice(0, el.selectionStart);
+      const after = newMessage.slice(el.selectionEnd);
+      setNewMessage(`${before}${token}${after}`);
+      // Restore focus + place cursor after the inserted token.
+      setTimeout(() => {
+        try {
+          el.focus();
+          const pos = (before + token).length;
+          el.setSelectionRange(pos, pos);
+        } catch (_) { /* non-fatal */ }
+      }, 0);
+    } else {
+      setNewMessage((m) => `${m}${m && !m.endsWith(' ') ? ' ' : ''}${token}`);
+    }
+    setShowMentionPicker(false);
+  };
   
   // Update editedBaristaName when baristaName prop changes
   useEffect(() => {
@@ -192,16 +254,21 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
   };
 
   return (
-    <div className="fixed bottom-0 right-0 w-full md:w-80 h-96 bg-white shadow-lg border rounded-t-lg overflow-hidden z-40">
-      <div className="bg-blue-500 text-white p-2 flex justify-between items-center">
-        <div className="flex items-center">
-          <h3 className="font-medium mr-1">Station Chat</h3>
-          <div className="relative ml-2">
-            <button 
-              className="flex items-center text-white text-sm p-1 hover:bg-blue-600 rounded"
+    // Width bumped 320 → 440px and capped to viewport so the header
+    // (title + station picker + refresh + close) and footer (input +
+    // @ + type + send) don't overflow. Mobile keeps full-width.
+    <div className="fixed bottom-0 right-0 w-full md:w-[440px] max-w-[100vw] h-[28rem] bg-white shadow-lg border rounded-t-lg overflow-hidden z-40 flex flex-col">
+      <div className="bg-blue-500 text-white p-2 flex justify-between items-center flex-shrink-0">
+        <div className="flex items-center min-w-0">
+          <h3 className="font-medium mr-1 whitespace-nowrap">Chat</h3>
+          <div className="relative ml-1 min-w-0">
+            <button
+              className="flex items-center text-white text-sm p-1 hover:bg-blue-600 rounded truncate max-w-[200px]"
               onClick={() => setShowStationSelector(!showStationSelector)}
+              title={getCurrentStationName()}
             >
-              {getCurrentStationName()} <ChevronDown size={14} className="ml-1" />
+              <span className="truncate">{getCurrentStationName()}</span>
+              <ChevronDown size={14} className="ml-1 flex-shrink-0" />
             </button>
             
             {/* Station selector dropdown */}
@@ -241,30 +308,21 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
             )}
           </div>
         </div>
-        <div className="flex items-center">
-          <button 
-            className="text-white mr-2"
+        <div className="flex items-center flex-shrink-0">
+          <button
+            className="text-white p-1 hover:bg-blue-600 rounded"
             onClick={handleRefresh}
             disabled={loading}
             title="Refresh Messages"
           >
             <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
           </button>
-          <button 
-            className="text-white mr-2"
-            onClick={() => {
-              // Reset messages for testing
-              if (window.confirm('Reset all chat messages? This is for debugging only.')) {
-                ChatService.resetMessages();
-              }
-            }}
-            title="Reset All Messages (Debug)"
-          >
-            {/* Use RefreshCw as a clear icon */}
-            <RefreshCw size={18} className="text-red-300" />
-          </button>
-          <button 
-            className="text-white"
+          {/* Debug Reset button removed — it was a development-only
+              "wipe all messages" button that shipped to operators and
+              took up space in the header. To clear messages now, use
+              the backend reset path or a SQL truncate. */}
+          <button
+            className="text-white p-1 hover:bg-blue-600 rounded ml-1"
             onClick={onClose}
             title="Close Chat"
           >
@@ -314,7 +372,7 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
         </button>
       </div>
       
-      <div className="h-64 overflow-y-auto p-3 bg-gray-50">
+      <div className="flex-1 overflow-y-auto p-3 bg-gray-50">
         {loading && messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
@@ -326,17 +384,28 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
             <p className="text-sm">Send a message to start the conversation!</p>
           </div>
         ) : (
-          messages.map(message => (
-            <div 
-              key={message.id} 
+          messages.map(message => {
+            // A message that @-mentions THIS station gets an amber
+            // border — same idea as urgent but distinct, so a barista
+            // can tell at a glance "this one's for me" vs "this is a
+            // global urgent broadcast". Urgent still wins if both apply.
+            const mentionsMe = _mentions(message.content, getCurrentStationName());
+            const fromMe = (
+              message.station_id === selectedStationId ||
+              (typeof selectedStationId === 'string' && message.station_id === parseInt(selectedStationId, 10)) ||
+              (message.sender === baristaName && message.station_id === selectedStationId)
+            );
+            return (
+            <div
+              key={message.id}
               className={`p-2 mb-2 rounded ${
-                message.is_urgent 
-                  ? 'bg-red-50 border-l-2 border-red-500' 
-                  : (message.station_id === selectedStationId || 
-                     (typeof selectedStationId === 'string' && message.station_id === parseInt(selectedStationId, 10)) ||
-                     (message.sender === baristaName && message.station_id === selectedStationId))
-                    ? 'bg-blue-100' 
-                    : 'bg-gray-100'
+                message.is_urgent
+                  ? 'bg-red-50 border-l-2 border-red-500'
+                  : mentionsMe
+                    ? 'bg-amber-50 border-l-2 border-amber-500'
+                    : fromMe
+                      ? 'bg-blue-100'
+                      : 'bg-gray-100'
               }`}
             >
               <div className="text-xs text-gray-500 mb-1 flex justify-between">
@@ -365,41 +434,75 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
                 {message.content}
               </div>
             </div>
-          ))
+            );
+          })
         )}
         <div ref={messagesEndRef} />
       </div>
       
-      <form onSubmit={handleSendMessage} className="p-2 border-t flex">
-        <input 
-          type="text" 
+      <form onSubmit={handleSendMessage} className="p-2 border-t flex flex-shrink-0 relative">
+        {/* @mention picker. Opens a small dropdown of stations; clicking
+            one inserts '@Station Name ' at the cursor. The picker
+            closes on outside click (effect above). */}
+        <div className="relative" ref={mentionPickerRef}>
+          <button
+            type="button"
+            onClick={() => setShowMentionPicker((v) => !v)}
+            className="border rounded-l p-2 bg-gray-50 hover:bg-gray-100 text-gray-700 flex items-center"
+            title="Mention a station — addresses your message to that station"
+            disabled={sending}
+          >
+            <AtSign size={16} />
+          </button>
+          {showMentionPicker && stations && stations.length > 0 && (
+            <div className="absolute bottom-full left-0 mb-1 bg-white shadow-lg rounded-md border overflow-y-auto max-h-48 w-56 z-50">
+              <div className="text-xs text-gray-500 px-2 py-1 border-b bg-gray-50">
+                Mention a station:
+              </div>
+              {stations.map((station) => (
+                <button
+                  key={station.id}
+                  type="button"
+                  onClick={() => insertMention(station)}
+                  className="w-full text-left p-2 hover:bg-gray-100 border-b last:border-b-0"
+                >
+                  <div className="font-medium text-sm">@{_mentionToken(station)}</div>
+                  <div className="text-xs text-gray-500 flex items-center">
+                    <div className={`w-2 h-2 rounded-full mr-1 ${station.status === 'active' ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                    {station.status}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <input
+          ref={inputRef}
+          type="text"
           value={newMessage}
           onChange={(e) => setNewMessage(e.target.value)}
-          placeholder="Type a message..." 
-          className="flex-grow border rounded-l p-2"
+          placeholder="Type a message…  (use @ to mention a station)"
+          className="flex-grow border-y border-r p-2 min-w-0"
           disabled={sending}
         />
-        <select 
+        <select
           value={messageType}
           onChange={(e) => setMessageType(e.target.value)}
-          className="border-y p-2"
+          className="border-y p-2 text-sm"
           disabled={sending}
         >
           <option value="normal">Normal</option>
           <option value="urgent">Urgent</option>
         </select>
-        <button 
+        <button
           type="submit"
           className={`${
             sending ? 'bg-blue-400' : 'bg-blue-500 hover:bg-blue-600'
-          } text-white p-2 rounded-r transition-colors`}
+          } text-white px-3 py-2 rounded-r transition-colors flex items-center justify-center min-w-[64px]`}
           disabled={sending || !newMessage.trim()}
         >
           {sending ? (
-            <div className="flex items-center">
-              <RefreshCw size={16} className="animate-spin mr-1" />
-              <span>Sending</span>
-            </div>
+            <RefreshCw size={16} className="animate-spin" />
           ) : (
             'Send'
           )}
