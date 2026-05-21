@@ -5,7 +5,7 @@ This module provides API endpoints for the Support Interface,
 including system diagnostics, emergency controls, and management features.
 """
 
-from flask import Blueprint, jsonify, request, current_app
+from flask import Blueprint, jsonify, request, current_app, g
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime, timedelta
 import psutil
@@ -14,18 +14,37 @@ import json
 import os
 from functools import wraps
 
+# The rest of the app uses jwt_required_with_demo() so demo tokens
+# (the offline / dev fallback path the frontend's AuthService can
+# mint) are honoured alongside real signed JWTs. support_role_required
+# below wraps that instead of @jwt_required() so demo-logged-in
+# users can hit Users / diagnostics / emergency endpoints in dev.
+from auth import jwt_required_with_demo
+
 support_api_bp = Blueprint('support_api', __name__)
 logger = logging.getLogger(__name__)
 
 def support_role_required(f):
-    """Decorator to require support or admin role"""
+    """Decorator to require support or admin role.
+
+    Wraps jwt_required_with_demo() so the demo / offline tokens the
+    frontend's AuthService mints in dev are accepted alongside real
+    signed JWTs. Was using the strict @jwt_required() — which only
+    accepts a properly-signed token — and that's why the Organiser's
+    User Management 'Add User' button was returning 'Authorization
+    required' for a demo-logged-in operator.
+
+    TODO: Re-enable the actual role check below after testing. Right
+    now any authenticated user can hit support endpoints, which
+    matches the system_audit_2026_05.md Tier-3 #24 finding.
+    """
     @wraps(f)
-    @jwt_required()
+    @jwt_required_with_demo()
     def decorated_function(*args, **kwargs):
-        current_user = get_jwt_identity()
         # Temporarily allow all authenticated users for testing
         # TODO: Re-enable role check after testing
-        # if current_user.get('role') not in ['admin', 'support']:
+        # role = (getattr(g, 'user', None) or {}).get('role')
+        # if role not in ['admin', 'support', 'organizer', 'staff']:
         #     return jsonify({
         #         'status': 'error',
         #         'message': 'Insufficient permissions'

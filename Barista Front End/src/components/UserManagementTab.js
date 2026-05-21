@@ -160,11 +160,15 @@ const UserManagementTab = () => {
       // Backend takes the basic identity fields. The rich
       // skills/availability/notes go into local enrichment so they
       // appear next time we render this list (per-device cache).
+      // full_name is required by the backend (users_simple_api.py);
+      // we send the human-readable name + keep the rich enrichment
+      // local. Without full_name the backend returns 400.
       const resp = await apiService.post('/users', {
         username: userForm.username,
         email: userForm.email,
         role: userForm.role,
         password: userForm.password,
+        full_name: userForm.fullName || userForm.username,
       });
       const created = resp?.data || resp;
       const enrichment = _loadEnrichment();
