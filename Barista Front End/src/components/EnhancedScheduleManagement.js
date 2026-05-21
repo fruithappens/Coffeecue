@@ -9,6 +9,7 @@ import ScheduleService from '../services/ScheduleService';
 import StationsService from '../services/StationsService';
 import MessageService from '../services/MessageService';
 import ApiServiceClass from '../services/ApiService';
+import QuickSetupStatusBanner from './QuickSetupStatusBanner';
 
 // Backend-backed event_sessions + session_statuses. The /settings/
 // event-sessions KV endpoint persists these to Postgres so a
@@ -377,6 +378,9 @@ const EnhancedScheduleManagement = () => {
   
   return (
     <div className="bg-white rounded-lg shadow-lg">
+      <div className="px-6 pt-6">
+        <QuickSetupStatusBanner section="schedule" />
+      </div>
       {/* Header */}
       <div className="p-6 border-b border-gray-200">
         <div className="flex justify-between items-center">

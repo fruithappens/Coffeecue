@@ -5,6 +5,7 @@ import {
   CheckCircle, Circle, Trash2, Copy, Globe, Monitor
 } from 'lucide-react';
 import useStations from '../hooks/useStations';
+import QuickSetupStatusBanner from './QuickSetupStatusBanner';
 
 // Menu version for auto-updates. Bumping forces existing operator
 // installs to re-init from defaultCoffeeMenu — used here to flip
@@ -1093,6 +1094,7 @@ const MenuManagement = () => {
   
   return (
     <div className="bg-white rounded-lg shadow-lg p-6">
+      <QuickSetupStatusBanner section="menu_items" />
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-800">Menu Management</h2>
         <div className="flex space-x-2">

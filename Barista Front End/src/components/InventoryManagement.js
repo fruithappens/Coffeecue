@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import InventoryIntegrationService from '../services/InventoryIntegrationService';
 import EventInventoryService from '../services/EventInventoryService';
+import QuickSetupStatusBanner from './QuickSetupStatusBanner';
 
 /**
  * Comprehensive Inventory Management Component
@@ -369,6 +370,7 @@ const InventoryManagement = () => {
 
   return (
     <div className="bg-white rounded-lg shadow-lg p-6">
+      <QuickSetupStatusBanner section="event_inventory" />
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-800">Inventory Management</h2>
         <button

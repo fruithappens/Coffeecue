@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import InventoryIntegrationService from '../services/InventoryIntegrationService';
 import ApiServiceClass from '../services/ApiService';
+import QuickSetupStatusBanner from './QuickSetupStatusBanner';
 
 // One ApiService instance per import — request() handles JWT refresh
 // and base URL.
@@ -480,6 +481,7 @@ const StationInventoryConfig = ({ stations }) => {
 
   return (
     <div className="bg-white rounded-lg shadow-lg p-6">
+      <QuickSetupStatusBanner section="station_inventory" />
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-800">Station Inventory Configuration</h2>
       </div>

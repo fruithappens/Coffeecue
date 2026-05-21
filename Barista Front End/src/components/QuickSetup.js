@@ -619,6 +619,22 @@ const QuickSetup = () => {
       } catch (e) {
         console.warn('Could not rebuild localStorage inventory:', e);
       }
+      // Stamp the time Quick Setup applied so other tabs (Event
+      // Inventory, Station Inventory, Schedule, Menu Items) can show
+      // a "this was populated by Quick Setup X ago" banner. Otherwise
+      // operators run Quick Setup, open one of those tabs, and have
+      // no visual confirmation that anything happened — the
+      // populated data looks identical to data they typed in by hand.
+      try {
+        const stamp = {
+          appliedAt: new Date().toISOString(),
+          preset: config,
+        };
+        localStorage.setItem('quick_setup_last_applied', JSON.stringify(stamp));
+        // Dispatch so any open tabs refresh their banners immediately.
+        window.dispatchEvent(new CustomEvent('quick_setup_applied', { detail: stamp }));
+      } catch (_) { /* localStorage may be full / disabled */ }
+
       setResult({
         success: !!resp.success,
         summary: resp.summary || (resp.applied || []).join('; '),
