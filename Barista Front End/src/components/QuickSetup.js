@@ -955,6 +955,7 @@ const PricingSection = () => {
     milk_surcharge: {},
     size_surcharge: { small: -0.50, medium: 0.00, large: 0.50 },
     sugar_surcharge_per_sachet: 0,
+    vip_free: false,
     show_in_sms: true,
     show_in_barista: true,
     show_on_display: false,
@@ -1092,6 +1093,27 @@ const PricingSection = () => {
                 className="mr-2"
               />
               Show price tag on Barista order cards
+            </label>
+            {/* VIP comp — sponsors / staff / press tagged as VIP via
+                the SMS VIP code get a free drink. Their order card
+                shows "VIP — no charge" and their SMS says the drink
+                is complimentary instead of asking them to pay. To
+                give staff the same treatment, set them up with the
+                VIP code (Organiser → Settings) and have them text it
+                in — no separate "staff_free" flag needed. */}
+            <label className="flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={!!pricing.vip_free}
+                onChange={(e) => setPricing(p => ({ ...p, vip_free: e.target.checked }))}
+                className="mr-2"
+              />
+              <span>
+                VIP orders are free
+                <span className="block text-xs text-gray-500 ml-0">
+                  Staff get this too — give them the VIP code.
+                </span>
+              </span>
             </label>
           </div>
         </>

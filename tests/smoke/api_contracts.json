@@ -124,6 +124,14 @@
       "method": "GET",
       "path": "/api/schedule/shifts",
       "expect_status": 200
+    },
+    {
+      "name": "GET /api/pricing-settings",
+      "method": "GET",
+      "path": "/api/pricing-settings",
+      "expect_status": 200,
+      "expect_keys": ["enabled", "vip_free", "per_drink", "milk_surcharge"],
+      "_note": "vip_free is the comp-VIP toggle. Missing it = regression of the VIP-free feature."
     }
   ]
 }

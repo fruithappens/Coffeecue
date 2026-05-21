@@ -1434,6 +1434,14 @@ class CoffeeOrderSystem:
             'size_surcharge': {'small': -0.50, 'medium': 0.00, 'large': 0.50},
             'sugar_surcharge_per_sachet': 0.00,
             'show_in_sms': True,
+            # When True AND pricing is enabled, VIP orders are free.
+            # Used at paid events where the host comps drinks for
+            # sponsors / staff / press — they get tagged VIP (via SMS
+            # VIP code, or marked on a walk-in) and the price compute
+            # returns 0 with a "VIP — no charge" label rather than a
+            # dollar amount, so neither the SMS confirmation nor the
+            # barista card mistakenly asks them to pay.
+            'vip_free': False,
         }
         try:
             cursor = self.db.cursor()
@@ -1607,9 +1615,14 @@ class CoffeeOrderSystem:
         if not pricing.get('enabled') or not pricing.get('show_in_sms', True):
             return ''
         try:
-            _, formatted = self._compute_order_price(order_details)
+            price_value, formatted = self._compute_order_price(order_details)
             if formatted is None:
                 return ''
+            # VIP comp: no "pay at the counter" — they're not paying.
+            # Keep the message warm; this is usually a sponsor/staff
+            # comp and a brusque "$0.00 owed" would feel off.
+            if price_value == 0.0:
+                return "\nYour drink is complimentary today — enjoy!"
             return f"\nTotal: {formatted} — pay at the counter when you collect."
         except Exception as e:
             logger.warning(f"_format_price_tail failed (non-fatal): {e}")
@@ -1624,10 +1637,22 @@ class CoffeeOrderSystem:
 
         Honor-system: this is just the AMOUNT to mention in the SMS
         confirmation. No payment processing.
+
+        VIP-free: when pricing_settings.vip_free is True AND the order
+        is flagged vip, returns (0.0, "VIP — no charge"). The string
+        is the badge the barista card / SMS will show instead of a
+        dollar amount — so neither the customer nor the barista
+        mistakenly thinks a sponsor / staff member owes money.
         """
         pricing = self._get_pricing_settings()
         if not pricing.get('enabled'):
             return None, None
+
+        # VIP comp short-circuits BEFORE any price math. Cheaper and
+        # avoids the "0.50 + -0.50 = $0.00" coincidence looking like
+        # a free drink for non-VIPs.
+        if pricing.get('vip_free') and order_details.get('vip'):
+            return 0.0, "VIP — no charge"
 
         drink = (order_details.get('type') or '').strip().lower()
         milk = (order_details.get('milk') or '').strip().lower()

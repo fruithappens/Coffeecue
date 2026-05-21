@@ -529,6 +529,16 @@ def orders():
                 legacy_prefix = "W" if data.get('order_type') == 'walk-in' else "O"
                 order_number = f"{legacy_prefix}{now.strftime('%H%M%S')}{now.microsecond // 10000}"
             
+            # Walk-in / API orders can flag VIP via priority=true OR
+            # priority='vip' OR vip=true. We canonicalise to a single
+            # vip bool here so downstream (price compute, queue) sees
+            # the same shape that the SMS flow produces.
+            _walkin_vip = bool(
+                data.get('vip')
+                or data.get('priority') is True
+                or str(data.get('priority') or '').lower() == 'vip'
+            )
+
             # Prepare order details
             order_details = {
                 'name': data.get('customer_name'),
@@ -540,6 +550,10 @@ def orders():
                 'payment_method': data.get('payment_method', 'cash'),
                 'order_type': data.get('order_type', 'walk-in'),
                 'created_by': data.get('created_by', 'barista'),
+                # VIP flag is what _compute_order_price reads to apply
+                # the vip_free comp; persisting on order_details keeps
+                # it visible to the barista UI too.
+                'vip': _walkin_vip,
                 # Tea-specific fields from the walk-in dialog. These
                 # drive _decrement_stock_for_order (small milk amount,
                 # 2 cups when double-cupped) at order completion.
@@ -550,7 +564,8 @@ def orders():
             }
             # Compute price (honor-system) — same logic as the SMS
             # flow. Stashed on order_details so the barista UI's
-            # current-order card knows what to charge.
+            # current-order card knows what to charge. Includes the
+            # vip flag so vip_free comping triggers when configured.
             try:
                 if hasattr(coffee_system, '_compute_order_price'):
                     pv, pf = coffee_system._compute_order_price({
@@ -558,16 +573,19 @@ def orders():
                         'milk': order_details['milk'],
                         'size': order_details['size'],
                         'sugar': order_details['sugar'],
+                        'vip':  order_details['vip'],
                     })
                     if pv is not None:
                         order_details['price'] = pv
                         order_details['price_formatted'] = pf
             except Exception as price_err:
                 logger.warning(f"Walk-in price compute failed (non-fatal): {price_err}")
-            
-            # Determine priority (VIP orders get priority 1, regular get 5)
-            priority = 1 if data.get('priority') == 'vip' else 5
-            if data.get('priority') == 'urgent':
+
+            # Determine queue priority. Was checking for the string 'vip'
+            # but the walk-in frontend sends a boolean — that meant walk-in
+            # VIPs never actually got queue priority 1. Honour both shapes.
+            priority = 1 if _walkin_vip else 5
+            if str(data.get('priority') or '').lower() == 'urgent':
                 priority = 2
             
             # Station precedence: explicit collection_station (walk-in
@@ -6266,6 +6284,12 @@ DEFAULT_PRICING = {
     },
     'size_surcharge': {'small': -0.50, 'medium': 0.00, 'large': 0.50},
     'sugar_surcharge_per_sachet': 0.00,
+    # VIP comp: when True AND a customer is flagged VIP (via SMS VIP
+    # code, or marked VIP on a walk-in), their drink is free. The
+    # price-compute returns 0 with "VIP — no charge" instead of a
+    # dollar amount. Staff can be treated the same way by issuing
+    # them a VIP code — no separate "staff_free" flag needed.
+    'vip_free': False,
     # Display options
     'show_in_sms': True,            # embed total in SMS confirmation
     'show_in_walkin': True,         # show total at bottom of walk-in dialog
