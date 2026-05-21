@@ -123,14 +123,51 @@ const DEFAULT_STATE = {
   always_open_schedule: true,
 };
 
+// localStorage key for the in-progress Quick Setup form. Persisting
+// here means an operator who ticks Hot Chocolate, switches to Live
+// Ops, then comes back doesn't lose their selection. Cleared after
+// a successful Apply so a fresh visit gets the backend's defaults.
+const DRAFT_KEY = 'quick_setup_draft';
+
+const _readDraft = () => {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch (_) {
+    return null;
+  }
+};
+
+const _writeDraft = (cfg) => {
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(cfg));
+  } catch (_) { /* localStorage full / disabled — non-fatal */ }
+};
+
 const QuickSetup = () => {
-  const [config, setConfig] = useState(DEFAULT_STATE);
+  // Hydrate from the saved draft synchronously so the first render
+  // already shows the operator's last selections. Backend defaults
+  // only kick in if there's no draft.
+  const [config, setConfig] = useState(() => {
+    const draft = _readDraft();
+    return draft ? { ...DEFAULT_STATE, ...draft,
+      // Deep-merge the nested objects so partially-saved drafts
+      // (e.g. only `drinks` filled in) don't drop the top-level
+      // defaults for the other fields.
+      drinks: { ...DEFAULT_STATE.drinks, ...(draft.drinks || {}) },
+      teas:   { ...DEFAULT_STATE.teas,   ...(draft.teas   || {}) },
+    } : DEFAULT_STATE;
+  });
   const [applying, setApplying] = useState(false);
   const [result, setResult] = useState(null);
 
-  // Fetch the server's suggested defaults on mount so the UI stays
-  // in sync if we change them later in the backend.
+  // Fetch the server's suggested defaults on mount. We ONLY apply
+  // them when there's no draft — if the operator has ticks in
+  // progress, we don't want a backend fetch to clobber them.
   useEffect(() => {
+    if (_readDraft()) return;  // local draft wins
     api.request('/quick-setup/preset', { method: 'GET' })
        .then(resp => {
          if (resp && resp.preset) {
@@ -141,6 +178,13 @@ const QuickSetup = () => {
        })
        .catch(() => { /* defaults are fine if server is unreachable */ });
   }, []);
+
+  // Persist every config change. Cheap — fires on every tick/untick,
+  // writes a small JSON blob. The draft is cleared after a
+  // successful Apply (see apply() below).
+  useEffect(() => {
+    _writeDraft(config);
+  }, [config]);
 
   const toggleArrayItem = (key, value) => {
     setConfig(c => {
@@ -696,7 +740,15 @@ const QuickSetup = () => {
     }
   };
 
-  const resetDefaults = () => setConfig(DEFAULT_STATE);
+  const resetDefaults = () => {
+    setConfig(DEFAULT_STATE);
+    // Drop the persisted draft so the next mount doesn't immediately
+    // re-hydrate the just-cleared selections. The autosave effect
+    // above will then write DEFAULT_STATE back as the new draft on
+    // the next render — that's fine, it just means "Reset → Reset"
+    // is idempotent.
+    try { localStorage.removeItem(DRAFT_KEY); } catch (_) { /* non-fatal */ }
+  };
 
   const Checkbox = ({ checked, onChange, label }) => (
     <label className="inline-flex items-center mr-3 mb-2 cursor-pointer select-none">
