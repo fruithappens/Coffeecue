@@ -435,9 +435,24 @@ const QuickSetup = () => {
       });
     });
 
+    // Build case-insensitive lookup sets so we match operator-selected
+    // names against existing items regardless of how they were
+    // originally written ('hot chocolate' vs 'Hot Chocolate' vs
+    // 'HOT CHOCOLATE'). Without this, an older Quick Setup run that
+    // saved drinks with different casing would never re-enable on
+    // a fresh Quick Setup — exactly the 'non-coffee drinks not
+    // getting checked' bug.
+    const _lower = (s) => (s || '').toString().toLowerCase().trim();
+    const lowerCaseFilter = {};
+    Object.entries(categoryFilter).forEach(([k, v]) => {
+      lowerCaseFilter[k] = v instanceof Set
+        ? new Set(Array.from(v).map(_lower))
+        : v;
+    });
+
     const updated = {};
     Object.entries(existing).forEach(([catKey, items]) => {
-      const allowed = categoryFilter[catKey];
+      const allowed = lowerCaseFilter[catKey];
       if (!Array.isArray(items)) {
         updated[catKey] = items;
         return;
@@ -445,7 +460,7 @@ const QuickSetup = () => {
       updated[catKey] = items.map(item => {
         // Don't delete items — toggle `enabled`. Keeps them
         // discoverable in the inventory panel for re-enable later.
-        const shouldBeOn = allowed ? allowed.has(item.name) : false;
+        const shouldBeOn = allowed ? allowed.has(_lower(item.name)) : false;
         return { ...item, enabled: shouldBeOn };
       });
     });
@@ -475,6 +490,23 @@ const QuickSetup = () => {
         }
       });
     }
+
+    // Diagnostic log so an operator hitting "the drinks aren't
+    // checked" can confirm at-a-glance what Quick Setup actually
+    // sent through. Open the browser console and look for
+    // [QuickSetup] rebuilt event_inventory: ...
+    try {
+      const summary = {};
+      Object.entries(updated).forEach(([k, v]) => {
+        if (Array.isArray(v)) {
+          summary[k] = {
+            total: v.length,
+            enabled: v.filter(it => it && it.enabled).map(it => it.name),
+          };
+        }
+      });
+      console.log('[QuickSetup] rebuilt event_inventory:', summary);
+    } catch (_) { /* logging is best-effort */ }
 
     // Save to the source-of-truth backend (which also mirrors to
     // localStorage and dispatches inventory:updated). Fire-and-forget
