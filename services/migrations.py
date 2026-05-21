@@ -100,6 +100,38 @@ def _m005_orders_picked_up_at(cur):
     """)
 
 
+def _m008_clear_capabilities_json_from_equipment_notes(cur):
+    """Clear stale capabilities-shaped JSON from station_stats.equipment_notes.
+
+    An older save path (since fixed) wrote capabilities JSON
+    (coffee_types, milk_types, extra_options, capacity, skill_level,
+    specializations) into the TEXT `equipment_notes` column instead
+    of the proper JSONB `capabilities` column. The Organiser UI maps
+    equipment_notes -> "location", so affected stations show a raw
+    JSON blob where their location should be.
+
+    The save bug is fixed (station_api_routes.py:454 has the comment),
+    but the corrupted rows were never cleaned. This migration is
+    idempotent: it only touches rows where equipment_notes starts
+    with '{' AND contains one of the capabilities key names, so a
+    legitimate hardware note like 'gas-powered, near the bar' is
+    preserved untouched.
+    """
+    cur.execute("""
+        UPDATE station_stats
+        SET equipment_notes = ''
+        WHERE equipment_notes IS NOT NULL
+          AND TRIM(equipment_notes) LIKE '{%'
+          AND (
+            equipment_notes LIKE '%coffee_types%'
+            OR equipment_notes LIKE '%milk_types%'
+            OR equipment_notes LIKE '%extra_options%'
+            OR equipment_notes LIKE '%skill_level%'
+            OR equipment_notes LIKE '%specializations%'
+          )
+    """)
+
+
 def _m007_orders_reminder_sent_at(cur):
     """Add reminder_sent_at to orders so the pickup-reminder
     background service knows which completed-but-not-collected orders
@@ -142,6 +174,8 @@ MIGRATIONS: list[Migration] = [
     Migration(6, 'customer_preferences_strength_and_decaf',
               _m006_customer_preferences_shots_and_decaf),
     Migration(7, 'orders_reminder_sent_at',    _m007_orders_reminder_sent_at),
+    Migration(8, 'clear_capabilities_json_from_equipment_notes',
+              _m008_clear_capabilities_json_from_equipment_notes),
 ]
 
 

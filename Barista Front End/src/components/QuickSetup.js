@@ -435,6 +435,89 @@ const QuickSetup = () => {
 
     rebuildPerStationStock(stations, enabledByCategory);
     rebuildStationConfigs(stations, updated);
+    // Reconcile Menu Management's separate `event_menu` localStorage
+    // against what the operator just selected. Without this, the
+    // "Menu Items" sub-tab keeps showing the default (with iced
+    // drinks, etc) regardless of Quick Setup — see the operator's
+    // bug report: "Menu items also have iced coffee etc ticked even
+    // after quick setup complete".
+    rebuildEventMenu(config);
+  };
+
+  // Quick Setup's drink toggles ↔ MenuManagement.js menu-item ids.
+  // The menu uses dashed-kebab ids (cold-brew, flat-white). When a
+  // Quick Setup category is enabled, every drink id in its list flips
+  // to enabled: true. Anything NOT listed under any enabled category
+  // is set to enabled: false. Conservative — when in doubt, off, so
+  // operators see exactly what they selected.
+  const MENU_IDS_BY_CATEGORY = {
+    // espresso_drinks covers the hot espresso-based family
+    espresso_drinks: [
+      'espresso', 'long-black', 'cappuccino', 'latte', 'flat-white',
+      'macchiato', 'piccolo', 'cortado', 'mocha', 'affogato',
+      'filter-coffee',
+    ],
+    hot_chocolate: ['hot-chocolate', 'babycino'],
+    chai: ['chai-latte'],
+    matcha: ['matcha-latte', 'turmeric-latte'],
+    // No Quick Setup toggle for cold/iced drinks yet — they stay
+    // disabled until the operator turns them on manually in the
+    // Menu Items panel. This is intentional: iced drinks default
+    // ON in defaultCoffeeMenu, which was the bug report's complaint.
+  };
+
+  const rebuildEventMenu = (cfg) => {
+    try {
+      // Decide which menu ids should be enabled, then load and patch
+      // existing event_menu so per-drink station-availability and
+      // custom additions aren't blown away.
+      const enabledIds = new Set();
+      Object.entries(MENU_IDS_BY_CATEGORY).forEach(([category, ids]) => {
+        if (cfg.drinks && cfg.drinks[category]) {
+          ids.forEach(id => enabledIds.add(id));
+        }
+      });
+
+      let menu = {};
+      try {
+        menu = JSON.parse(localStorage.getItem('event_menu') || '{}');
+      } catch (_) {
+        menu = {};
+      }
+      if (!menu || typeof menu !== 'object' || Object.keys(menu).length === 0) {
+        // No saved menu — MenuManagement will hydrate from defaults
+        // on next render. Nothing to reconcile here.
+        return;
+      }
+
+      let touched = false;
+      Object.keys(menu).forEach(drinkId => {
+        const drink = menu[drinkId];
+        if (!drink || typeof drink !== 'object') return;
+        // Only touch drinks Quick Setup knows about. Custom drinks
+        // the operator added are left alone.
+        const isKnown = Object.values(MENU_IDS_BY_CATEGORY)
+          .some(ids => ids.includes(drinkId));
+        if (!isKnown && !drinkId.startsWith('iced-') && drinkId !== 'cold-brew') {
+          return;
+        }
+        // Iced/cold drinks → force off (Quick Setup doesn't surface
+        // them, so they shouldn't silently stay on after a reset).
+        const isIced = drinkId.startsWith('iced-') || drinkId === 'cold-brew';
+        const target = !isIced && enabledIds.has(drinkId);
+        if (drink.enabled !== target) {
+          menu[drinkId] = { ...drink, enabled: target };
+          touched = true;
+        }
+      });
+      if (touched) {
+        localStorage.setItem('event_menu', JSON.stringify(menu));
+        // Tell MenuManagement to re-read (if mounted).
+        window.dispatchEvent(new CustomEvent('event_menu_updated', { detail: menu }));
+      }
+    } catch (err) {
+      console.warn('Could not reconcile event_menu from Quick Setup:', err);
+    }
   };
 
   const apply = async () => {

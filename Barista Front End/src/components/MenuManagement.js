@@ -6,8 +6,11 @@ import {
 } from 'lucide-react';
 import useStations from '../hooks/useStations';
 
-// Menu version for auto-updates
-const MENU_VERSION = "2.0";
+// Menu version for auto-updates. Bumping forces existing operator
+// installs to re-init from defaultCoffeeMenu — used here to flip
+// iced/cold-brew drinks off by default (operators reported they
+// were ticked even after Quick Setup didn't enable them).
+const MENU_VERSION = "2.1";
 
 // Default coffee menu with all common types
 const defaultCoffeeMenu = {
@@ -543,7 +546,7 @@ const defaultCoffeeMenu = {
     id: "cold-brew",
     name: "Cold Brew",
     category: "filter-drip",
-    enabled: true,
+    enabled: false,  // off by default — operator opts in via Menu Items (not a Quick Setup category)
     description: "Coffee steeped in cold water for 12-24 hours",
     requiresMilk: false,
     sizes: {
@@ -579,7 +582,7 @@ const defaultCoffeeMenu = {
     id: "iced-latte",
     name: "Iced Latte",
     category: "cold-drinks",
-    enabled: true,
+    enabled: false,  // off by default — see cold-brew comment
     description: "Cold latte over ice",
     requiresMilk: true,
     sizes: {
@@ -618,7 +621,7 @@ const defaultCoffeeMenu = {
     id: "iced-chocolate",
     name: "Iced Chocolate",
     category: "cold-drinks",
-    enabled: true,
+    enabled: false,
     description: "Cold chocolate drink over ice",
     requiresMilk: true,
     requiresExtra: ["chocolate-powder"],
@@ -661,7 +664,7 @@ const defaultCoffeeMenu = {
     id: "iced-cappuccino",
     name: "Iced Cappuccino",
     category: "cold-drinks",
-    enabled: true,
+    enabled: false,
     description: "Cold cappuccino over ice with foam",
     requiresMilk: true,
     sizes: {
@@ -703,7 +706,7 @@ const defaultCoffeeMenu = {
     id: "iced-mocha",
     name: "Iced Mocha",
     category: "cold-drinks",
-    enabled: true,
+    enabled: false,
     description: "Cold mocha over ice",
     requiresMilk: true,
     requiresExtra: ["chocolate-powder"],
@@ -795,6 +798,22 @@ const MenuManagement = () => {
     if (savedGlobalMenu !== null) {
       setGlobalMenuEnabled(savedGlobalMenu === 'true');
     }
+    // Refresh when Quick Setup (or anything else) reconciles
+    // event_menu. Without this listener, the operator runs Quick
+    // Setup, the underlying localStorage updates, but the panel
+    // stays showing the old menu until they refresh — exactly the
+    // "Menu items still have iced coffee ticked" bug.
+    const onMenuUpdate = (e) => {
+      if (e?.detail && typeof e.detail === 'object') {
+        setMenuItems(e.detail);
+      } else {
+        loadMenu();
+      }
+    };
+    window.addEventListener('event_menu_updated', onMenuUpdate);
+    return () => {
+      window.removeEventListener('event_menu_updated', onMenuUpdate);
+    };
   }, []);
   
   // Load menu from localStorage or use defaults

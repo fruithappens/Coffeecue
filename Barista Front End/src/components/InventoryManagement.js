@@ -196,17 +196,34 @@ const InventoryManagement = () => {
       } catch (_) { /* ignore */ }
       initializeDefaultInventory();
     });
-    // Cross-tab / other-station refresh: re-read when an external
-    // 'event_inventory_updated' arrives.
-    const onExternalUpdate = () => {
+    // Cross-tab / cross-component refresh. Two events to listen for:
+    //   - 'inventory:updated'   — the canonical name dispatched by
+    //                             EventInventoryService.save() and by
+    //                             Quick Setup. THIS is the one that
+    //                             actually fires in practice — listening
+    //                             only for the underscore form was why
+    //                             Quick Setup didn't refresh the
+    //                             Inventory Management panel.
+    //   - 'event_inventory_updated' — legacy alias still dispatched
+    //                                 in a few places; keep listening
+    //                                 for backwards compat.
+    const onExternalUpdate = (e) => {
       EventInventoryService.invalidate();
+      // The dispatched event sometimes carries the new payload in
+      // event.detail — use it directly to skip a round-trip.
+      if (e?.detail && typeof e.detail === 'object' && Object.keys(e.detail).length > 0) {
+        setInventory(e.detail);
+        return;
+      }
       EventInventoryService.load({ forceReload: true }).then(latest => {
         if (latest && Object.keys(latest).length > 0) setInventory(latest);
       });
     };
+    window.addEventListener('inventory:updated', onExternalUpdate);
     window.addEventListener('event_inventory_updated', onExternalUpdate);
     return () => {
       cancelled = true;
+      window.removeEventListener('inventory:updated', onExternalUpdate);
       window.removeEventListener('event_inventory_updated', onExternalUpdate);
     };
   }, []);
