@@ -102,17 +102,30 @@ const PendingOrdersSection = ({
     });
   });
 
-  // Apply selected filter
+  // Apply selected filter. The Batch filter now includes BOTH
+  // explicit batch_group orders AND orders with a similarity hint
+  // (e.g. shared milk type). Previously it only matched explicit
+  // groups, so a queue of 3 oat orders from different customers
+  // showed empty under Batch — clearly not what the operator
+  // expected. The Urgent filter falls back to a 10-minute absolute
+  // threshold when promisedTime isn't set (which it usually isn't).
   const getFilteredOrders = () => {
     switch (filter) {
       case 'vip':
         return orders.filter(order => order.vip || order.priority);
       case 'batch':
-        return orders.filter(order => order.batchGroup);
+        return orders.filter(order =>
+          order.batchGroup || (batchHintsByOrderId[order.id] || []).length > 0
+        );
       case 'urgent':
         return orders.filter(order => {
-          const ratio = order.waitTime / order.promisedTime;
-          return ratio > 0.8;
+          // If promisedTime is set, use the ratio. Otherwise fall
+          // back to absolute waitTime threshold (10 min default).
+          const promised = order.promisedTime;
+          if (promised && promised > 0) {
+            return (order.waitTime || 0) / promised > 0.8;
+          }
+          return (order.waitTime || 0) >= 10;
         });
       default:
         return orders;
