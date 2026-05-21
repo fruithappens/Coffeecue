@@ -1,12 +1,12 @@
 // components/RegularOrdersList.js
 import React from 'react';
-import { Edit } from 'lucide-react';
+import { Edit, ArrowRightLeft } from 'lucide-react';
 import { getTimeRatioColor, getOrderBackgroundColor } from '../utils/orderUtils';
 import { useSettings } from '../hooks/useSettings';
 import { getMilkColorStyle, getMilkDotStyle } from '../utils/milkColorHelper';
 import '../styles/milkColors.css';
 
-const RegularOrdersList = ({ orders, onStartOrder, onSendMessage, onDelayOrder, onEditOrder, batchHintsByOrderId = {} }) => {
+const RegularOrdersList = ({ orders, onStartOrder, onSendMessage, onDelayOrder, onEditOrder, onMoveOrder, batchHintsByOrderId = {} }) => {
   const { settings } = useSettings();
   
   // Debug first order's milk info
@@ -98,13 +98,25 @@ const RegularOrdersList = ({ orders, onStartOrder, onSendMessage, onDelayOrder, 
               >
                 Delay
               </button>
-              <button 
+              <button
                 className="flex-1 py-1 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-md text-sm"
                 onClick={() => onSendMessage && onSendMessage(order)}
               >
                 Message
               </button>
-              <button 
+              {/* Move icon — opens the dialog to reassign this order
+                  to another active station. Use case: milk just ran
+                  out at this station, push the queue elsewhere. */}
+              {onMoveOrder && (
+                <button
+                  className="p-1 text-gray-500 hover:text-amber-600"
+                  onClick={() => onMoveOrder(order)}
+                  title="Move to another station"
+                >
+                  <ArrowRightLeft size={16} />
+                </button>
+              )}
+              <button
                 className="p-1 text-gray-500 hover:text-gray-700"
                 onClick={() => onEditOrder && onEditOrder(order)}
                 title="Edit order"

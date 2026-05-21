@@ -38,6 +38,7 @@ import SoundNotificationService, {
 
 // Import components
 import MessageDialog from './dialogs/MessageDialog';
+import MoveOrderDialog from './dialogs/MoveOrderDialog';
 import WaitTimeDialog from './dialogs/WaitTimeDialog';
 import WalkInOrderDialog from './dialogs/WalkInOrderDialog';
 // Using inline help dialog instead of importing external component
@@ -110,6 +111,7 @@ const BaristaInterface = () => {
     processBatchSelection,
     addWalkInOrder,
     sendMessage,
+    reassignOrder,
     updateWaitTime,
     clearError,
     refreshData,
@@ -291,6 +293,11 @@ const BaristaInterface = () => {
   const [showWaitTimeDialog, setShowWaitTimeDialog] = useState(false);
   const [showWalkInDialog, setShowWalkInDialog] = useState(false);
   const [showMessageDialog, setShowMessageDialog] = useState(false);
+  // Move-order dialog: opened when the barista taps the move icon on a
+  // pending card (e.g. ran out of oat milk; push this oat order to
+  // another station rather than disappointing the customer).
+  const [showMoveDialog, setShowMoveDialog] = useState(false);
+  const [orderToMove, setOrderToMove] = useState(null);
   const [currentMessageOrder, setCurrentMessageOrder] = useState(null);
   const [showHelpDialog, setShowHelpDialog] = useState(false);
   
@@ -645,6 +652,18 @@ const BaristaInterface = () => {
     // Optional: If you want to show this in the UI, you could update the order locally
     // This would be temporary until the next data refresh
     console.log(`Delayed order ${order.id} by 5 minutes`);
+  };
+
+  // Open the move-to-station dialog. Just stages the order — the
+  // dialog drives the actual reassign call so it can show inline
+  // errors (e.g. capability mismatch) without disrupting the queue.
+  const handleOpenMoveDialog = (order) => {
+    if (!order || !order.id) {
+      console.error('Cannot move order: missing order ID');
+      return;
+    }
+    setOrderToMove(order);
+    setShowMoveDialog(true);
   };
 
   const handleEditOrder = (order) => {
@@ -1818,6 +1837,7 @@ const BaristaInterface = () => {
               onSendMessage={handleOpenMessageDialog}
               onDelayOrder={handleDelayOrder}
               onEditOrder={handleEditOrder}
+              onMoveOrder={handleOpenMoveDialog}
             />
 
             {/* Ready for Pickup — recently-completed orders at this
@@ -2922,7 +2942,28 @@ const BaristaInterface = () => {
           }}
         />
       )}
-      
+
+      {/* Move-to-station dialog — used when the current station can't
+          serve this order (milk out, machine fault) and the operator
+          wants to push it to a different station rather than disappoint
+          the customer. The dialog handles its own error display; if
+          the backend refuses (e.g. capability mismatch), the operator
+          can pick a different target without the queue blanking. */}
+      {showMoveDialog && orderToMove && (
+        <MoveOrderDialog
+          order={orderToMove}
+          stations={stations}
+          currentStationId={selectedStation}
+          onConfirm={async (order, targetStationId) => {
+            return await reassignOrder(order, targetStationId);
+          }}
+          onClose={() => {
+            setShowMoveDialog(false);
+            setOrderToMove(null);
+          }}
+        />
+      )}
+
       {showHelpDialog && (
         <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50">
           <div className="bg-white p-6 rounded-lg shadow-lg max-w-lg w-full max-h-[80vh] overflow-y-auto">

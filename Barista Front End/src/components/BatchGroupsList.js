@@ -1,11 +1,11 @@
 // components/BatchGroupsList.js
 import React from 'react';
-import { Edit, Clock } from 'lucide-react';
+import { Edit, Clock, ArrowRightLeft } from 'lucide-react';
 import { getOrderBackgroundColor, getTimeRatioColor } from '../utils/orderUtils';
 import { useSettings } from '../hooks/useSettings';
 import '../styles/milkColors.css';
 
-const BatchGroupsList = ({ batchGroups, onStartOrder, onProcessBatch, onSendMessage, onDelayOrder, onEditOrder }) => {
+const BatchGroupsList = ({ batchGroups, onStartOrder, onProcessBatch, onSendMessage, onDelayOrder, onEditOrder, onMoveOrder }) => {
   const { settings } = useSettings();
   // Format batch group name for display
   const formatBatchName = (batchName) => {
@@ -75,13 +75,22 @@ const BatchGroupsList = ({ batchGroups, onStartOrder, onProcessBatch, onSendMess
                 >
                   Delay
                 </button>
-                <button 
+                <button
                   className="flex-1 py-1 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-md text-sm"
                   onClick={() => onSendMessage && onSendMessage(order)}
                 >
                   Message
                 </button>
-                <button 
+                {onMoveOrder && (
+                  <button
+                    className="p-1 text-gray-500 hover:text-amber-600"
+                    onClick={() => onMoveOrder(order)}
+                    title="Move to another station"
+                  >
+                    <ArrowRightLeft size={16} />
+                  </button>
+                )}
+                <button
                   className="p-1 text-gray-500 hover:text-gray-700"
                   onClick={() => onEditOrder && onEditOrder(order)}
                   title="Edit order"

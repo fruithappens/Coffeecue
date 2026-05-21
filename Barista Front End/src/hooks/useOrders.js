@@ -2176,6 +2176,43 @@ export default function useOrders(stationId = null) {
     }
   }, [refreshData]);
 
+  // Move an order to a different station. Optimistically remove it
+  // from the current station's pending list so the UI updates
+  // instantly; refreshData() will pull the real state back in 500ms,
+  // which fixes the list if the backend rejected the move.
+  const reassignOrder = useCallback(async (order, targetStationId) => {
+    if (!order || !order.id) {
+      setError('Cannot reassign: missing order ID');
+      return { success: false, message: 'Missing order ID' };
+    }
+    if (!targetStationId) {
+      return { success: false, message: 'Pick a target station' };
+    }
+
+    try {
+      const result = await OrderDataService.reassignOrder(
+        order.orderNumber || order.id,
+        targetStationId,
+      );
+
+      if (result && result.success) {
+        // Optimistic: drop from this station's pending list.
+        // The 500ms refresh will then reflect the canonical state
+        // (and re-add if the move bounced for some race reason).
+        setPendingOrders(prev => prev.filter(o => o.id !== order.id));
+        setTimeout(refreshData, 500);
+      } else {
+        // Surface backend's specific reason via the dialog.
+        // Don't set the global error — the dialog handles its own.
+        console.warn('Reassign refused:', result?.message);
+      }
+      return result;
+    } catch (err) {
+      console.error('Reassign error:', err);
+      return { success: false, message: err.message };
+    }
+  }, [refreshData]);
+
   // Get batch groups from pending orders
   const getBatchGroups = useCallback(() => {
     return pendingOrders.reduce((groups, order) => {
@@ -2224,6 +2261,7 @@ export default function useOrders(stationId = null) {
     updateWaitTime,
     calculateDynamicWaitTime,
     delayOrder,
+    reassignOrder,
     clearError: () => setError(null),
     refreshData,
     updateStationId,

@@ -9,15 +9,16 @@ import VipOrdersList from './VipOrdersList';
 import BatchGroupsList from './BatchGroupsList';
 import RegularOrdersList from './RegularOrdersList';
 
-const PendingOrdersSection = ({ 
-  orders, 
-  filter, 
-  onFilterChange, 
-  onStartOrder, 
+const PendingOrdersSection = ({
+  orders,
+  filter,
+  onFilterChange,
+  onStartOrder,
   onProcessBatch,
   onSendMessage,
   onDelayOrder,
-  onEditOrder
+  onEditOrder,
+  onMoveOrder
 }) => {
   const { settings } = useSettings();
   // Organize orders into categories - support both vip and priority property names
@@ -172,24 +173,26 @@ const PendingOrdersSection = ({
           <>
             {/* VIP Orders Section */}
             {vipOrders.length > 0 && (
-              <VipOrdersList 
-                orders={vipOrders} 
+              <VipOrdersList
+                orders={vipOrders}
                 onStartOrder={onStartOrder}
                 onSendMessage={onSendMessage}
                 onDelayOrder={onDelayOrder}
                 onEditOrder={onEditOrder}
+                onMoveOrder={onMoveOrder}
               />
             )}
 
             {/* Batch Groups Section */}
             {Object.keys(batchGroups).length > 0 && (
-              <BatchGroupsList 
-                batchGroups={batchGroups} 
+              <BatchGroupsList
+                batchGroups={batchGroups}
                 onStartOrder={onStartOrder}
                 onProcessBatch={onProcessBatch}
                 onSendMessage={onSendMessage}
                 onDelayOrder={onDelayOrder}
                 onEditOrder={onEditOrder}
+                onMoveOrder={onMoveOrder}
               />
             )}
 
@@ -201,6 +204,7 @@ const PendingOrdersSection = ({
                 onSendMessage={onSendMessage}
                 onDelayOrder={onDelayOrder}
                 onEditOrder={onEditOrder}
+                onMoveOrder={onMoveOrder}
                 batchHintsByOrderId={batchHintsByOrderId}
               />
             )}
@@ -256,12 +260,23 @@ const PendingOrdersSection = ({
                   >
                     Delay
                   </button>
-                  <button 
+                  <button
                     className="px-3 py-1 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-md text-sm"
                     onClick={() => onSendMessage && onSendMessage(order)}
                   >
                     Message
                   </button>
+                  {/* Move-to-station — small icon to keep the action
+                      row tight. Opens a dialog with active stations. */}
+                  {onMoveOrder && (
+                    <button
+                      className="p-1 text-gray-500 hover:text-amber-600"
+                      onClick={() => onMoveOrder(order)}
+                      title="Move to another station (e.g. ran out of milk here)"
+                    >
+                      ↪
+                    </button>
+                  )}
                   <button className="p-1 text-gray-500 hover:text-gray-700">
                     <Edit size={16} />
                   </button>

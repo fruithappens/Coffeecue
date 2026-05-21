@@ -2185,6 +2185,175 @@ def send_message(order_id):
         logger.error(f"Error sending message for order {order_id}: {str(e)}")
         return jsonify({"success": False, "message": f"Error processing request: {str(e)}"})
 
+
+@bp.route('/orders/<order_id>/reassign', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def reassign_order(order_id):
+    """Move an order to a different station.
+
+    Use case: Station 1 runs out of oat milk / has a machine fault mid-event.
+    The barista takes the station offline (status=maintenance) — that stops
+    NEW orders from being routed there — but the 3 oat lattes already in
+    its queue need to be pushed to Station 2 so the customers don't end up
+    forgotten. This endpoint is the "push" half of that handoff.
+
+    Body: {"target_station_id": <int>}
+
+    Refuses to:
+      - reassign a completed / picked-up order (it's already done — no
+        point re-queueing it)
+      - reassign to a station that doesn't exist, or one that isn't
+        currently active
+      - reassign to a station that can't make the drink (uses the same
+        capability check Start uses, so we don't punt an oat order to
+        a station that doesn't stock oat)
+    """
+    try:
+        if not order_id or order_id == 'undefined':
+            return jsonify({"success": False, "message": "Invalid order ID"}), 400
+
+        clean_id = clean_order_id(order_id)
+        payload = request.get_json(silent=True) or {}
+        target_raw = payload.get('target_station_id') or payload.get('targetStationId')
+
+        try:
+            target_station_id = int(target_raw)
+        except (TypeError, ValueError):
+            return jsonify({
+                "success": False,
+                "message": "target_station_id is required (integer)",
+            }), 400
+
+        coffee_system = current_app.config.get('coffee_system')
+        if not coffee_system or not getattr(coffee_system, 'db', None):
+            return jsonify({"success": False, "message": "Service unavailable"}), 503
+
+        db = coffee_system.db
+        try:
+            db.rollback()  # clear any prior aborted txn
+        except Exception:
+            pass
+
+        cursor = db.cursor()
+
+        # 1. Fetch the order. We need its current status + details for the
+        # capability check.
+        cursor.execute(
+            'SELECT id, status, station_id, order_details '
+            'FROM orders WHERE order_number = %s',
+            (clean_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({
+                "success": False,
+                "message": f"Order {clean_id} not found",
+            }), 404
+
+        order_pk, current_status, current_station_id, order_details_raw = (
+            row if not isinstance(row, dict)
+            else (row['id'], row['status'], row['station_id'], row['order_details'])
+        )
+
+        # 2. Status gate. Completed/picked-up orders are done — no point
+        # moving them. Allow both pending and in-progress (in-progress
+        # might happen if barista realises mid-pour they're out of milk).
+        if current_status in ('completed', 'picked_up'):
+            return jsonify({
+                "success": False,
+                "message": f"Order is already {current_status}; can't reassign.",
+            }), 400
+
+        # No-op when already at the target.
+        if current_station_id == target_station_id:
+            return jsonify({
+                "success": True,
+                "message": "Order is already at that station.",
+                "no_change": True,
+            })
+
+        # 3. Validate target station exists + is active.
+        cursor.execute(
+            "SELECT status FROM station_stats WHERE station_id = %s",
+            (target_station_id,),
+        )
+        target_row = cursor.fetchone()
+        if not target_row:
+            return jsonify({
+                "success": False,
+                "message": f"Station {target_station_id} doesn't exist.",
+            }), 404
+        target_status = target_row[0] if not isinstance(target_row, dict) else target_row.get('status')
+        if target_status != 'active':
+            return jsonify({
+                "success": False,
+                "message": (
+                    f"Station {target_station_id} is {target_status}, not active. "
+                    "Pick a different station."
+                ),
+            }), 400
+
+        # 4. Capability check — same one /start uses, so we never push
+        # an oat order to a station with no oat capability.
+        parsed_details = order_details_raw
+        if isinstance(parsed_details, str):
+            try:
+                parsed_details = json.loads(parsed_details)
+            except Exception:
+                parsed_details = {}
+        if not isinstance(parsed_details, dict):
+            parsed_details = {}
+
+        cap = _station_can_make_order(db, target_station_id, parsed_details)
+        if cap.get('blocked'):
+            return jsonify({
+                "success": False,
+                "message": cap.get('reason') or (
+                    f"Station {target_station_id} can't make this drink."
+                ),
+                "code": "STATION_CAPABILITY_MISMATCH",
+            }), 400
+
+        # 5. Do the move.
+        cursor.execute(
+            'UPDATE orders SET station_id = %s, updated_at = %s '
+            'WHERE order_number = %s',
+            (target_station_id, datetime.now(), clean_id),
+        )
+        db.commit()
+
+        logger.info(
+            f"Reassigned order {clean_id}: station "
+            f"{current_station_id} → {target_station_id}"
+        )
+
+        # 6. Tell connected clients so both stations' queues refresh.
+        _emit_order_status_change(clean_id, current_status)
+
+        return jsonify({
+            "success": True,
+            "message": f"Order {clean_id} moved to station {target_station_id}.",
+            "data": {
+                "order_number": clean_id,
+                "from_station_id": current_station_id,
+                "to_station_id": target_station_id,
+            },
+        })
+
+    except Exception as e:
+        logger.error(f"reassign_order failed for {order_id}: {e}")
+        logger.exception(e)
+        try:
+            current_app.config.get('coffee_system').db.rollback()
+        except Exception:
+            pass
+        return jsonify({
+            "success": False,
+            "message": f"Error reassigning order: {e}",
+        }), 500
+
+
 # ============================================================================
 # DISPLAY ENDPOINTS (PUBLIC FACING)
 # ============================================================================

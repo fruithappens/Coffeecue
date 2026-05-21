@@ -629,6 +629,40 @@ class OrderDataService {
   }
 
   /**
+   * Reassign an order to a different station.
+   *
+   * Used when the current station can't make the drink anymore (milk
+   * ran out, machine fault, etc.). Backend validates the target is
+   * active AND can make the drink — if it refuses, we surface the
+   * reason so the operator can pick a different station.
+   *
+   * @param {string} orderId - Order number
+   * @param {number} targetStationId - Station to move it to
+   * @returns {Promise<{success: boolean, message?: string, data?: object}>}
+   */
+  async reassignOrder(orderId, targetStationId) {
+    try {
+      const response = await this.apiService.post(
+        `/orders/${orderId}/reassign`,
+        { target_station_id: targetStationId }
+      );
+      // Backend returns {success, message, data} — pass it through
+      // verbatim so the dialog can show the specific failure reason.
+      const isSuccess = response.success === true || response.status === 'success';
+      return {
+        success: isSuccess,
+        message: response.message,
+        data: response.data,
+      };
+    } catch (error) {
+      console.error('Error reassigning order:', error);
+      // ApiService throws Error objects with the server message attached
+      // when it parses a JSON error body; preserve that here.
+      return { success: false, message: error.message || 'Network error' };
+    }
+  }
+
+  /**
    * Delay an order
    * @param {string} orderId - Order ID
    * @param {number} minutes - Minutes to delay
