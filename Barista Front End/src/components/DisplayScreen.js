@@ -418,22 +418,39 @@ const DisplayScreen = () => {
   // so the rotated content fills the viewport rather than running
   // off the right edge. transform-origin is top-left + a translate
   // so the post-rotation top-left lands at (0,0) of the viewport.
+  // CSS rotation that ACTUALLY fills the viewport. The trick:
+  //   - For 90° / 270° the visible width and height swap, so the
+  //     wrapper is sized 100vh × 100vw.
+  //   - transform-origin is set to a corner of the viewport such
+  //     that after rotation the element lands on (0,0)..(vw,vh).
+  //
+  // Recipe references: 90° starts anchored at the RIGHT edge and
+  // rotates clockwise into the viewport. 270° starts anchored at
+  // the BOTTOM edge and rotates anti-clockwise into the viewport.
+  // 180° just rotates in place around the centre.
+  //
+  // Previous version used `rotate(...) translate(...)` chains which
+  // got the math subtly wrong on real browsers — content was
+  // off-screen or doubled up.
   const ROTATION_WRAPPERS = {
     0:   null,
     90:  {
+      position: 'fixed', top: 0, left: '100vw',
       width: '100vh', height: '100vw',
-      transform: 'rotate(90deg) translate(0, -100vh)',
       transformOrigin: 'top left',
+      transform: 'rotate(90deg)',
     },
     180: {
+      position: 'fixed', top: 0, left: 0,
       width: '100vw', height: '100vh',
-      transform: 'rotate(180deg)',
       transformOrigin: 'center center',
+      transform: 'rotate(180deg)',
     },
     270: {
+      position: 'fixed', top: '100vh', left: 0,
       width: '100vh', height: '100vw',
-      transform: 'rotate(-90deg) translate(-100vw, 0)',
       transformOrigin: 'top left',
+      transform: 'rotate(-90deg)',
     },
   };
   const rotationStyle = ROTATION_WRAPPERS[rotation];

@@ -447,7 +447,17 @@ def orders():
                     'order_type': order_details.get('order_type', 'walk-in'),
                     'orderType': order_details.get('order_type', 'walk-in'),  # camelCase
                     'station_id': station_id,
-                    'stationId': station_id  # camelCase
+                    'stationId': station_id,  # camelCase
+                    # Pricing — pulled straight from order_details
+                    # (stamped at confirm-time by the SMS flow or
+                    # walk-in endpoint when pricing_settings.enabled
+                    # is true). Both casings surfaced for the barista
+                    # card's `order.priceFormatted || order.price_formatted`
+                    # check. Without these the green price tag never
+                    # showed even with pricing fully enabled.
+                    'price': order_details.get('price'),
+                    'price_formatted': order_details.get('price_formatted'),
+                    'priceFormatted': order_details.get('price_formatted'),
                 })
             
             return jsonify({
