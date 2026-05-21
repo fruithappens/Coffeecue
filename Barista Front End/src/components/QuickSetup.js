@@ -335,28 +335,39 @@ const QuickSetup = () => {
       existing = {};
     }
 
-    // On a fresh install the operator has never opened the Inventory
-    // Management panel — so localStorage.event_inventory is empty,
-    // `existing` is {}, and the loop below produces an empty `updated`.
-    // Quick Setup then writes that empty blob to the backend, and
-    // when InventoryManagement opens it sees nothing and falls back
-    // to the FULL default list with everything enabled — which is
-    // exactly what the operator just opted OUT of.
+    // The toggle loop below relies on `item.name` matching one of the
+    // canonical names in `categoryFilter` (MILK_NAME_MAP values,
+    // SIZE_NAME_MAP values, etc.). On a fresh install
+    // localStorage.event_inventory is empty, so the loop never runs
+    // and we write {} to the backend — InventoryManagement then
+    // hydrates from its hardcoded defaults with EVERYTHING enabled.
     //
-    // Fix: seed `existing` with the same defaults InventoryManagement
-    // would use so the loop has something to iterate over. The seed
-    // is only used to populate empty categories; categories the
-    // operator has already customised pass through unchanged.
-    const DEFAULT_SEED = {
+    // Worse: on a partial / stale install (an operator ran an older
+    // Quick Setup at some point), `existing` has SOME rows but
+    // possibly under different names than the current mappers expect.
+    // E.g. cups seed used 'Small' but SIZE_NAME_MAP looks for
+    // 'Small (8oz)' — so the cup toggle never matched anything,
+    // showing every cup disabled regardless of the operator's pick.
+    //
+    // Fix: for each category, ENSURE every name our matcher knows
+    // about is present. Don't replace existing items — just add the
+    // missing canonical entries. The toggle loop then produces the
+    // right result whether the install is fresh OR stale.
+    //
+    // Names listed here MUST match the values that appear in
+    // MILK_NAME_MAP / SIZE_NAME_MAP / SWEETENER_NAME_MAP /
+    // EXTRA_DRINK_NAME_MAP / TEA_OPTIONS at the top of this file.
+    const CANONICAL_BY_CATEGORY = {
       milk: [
-        { name: 'Whole Milk',     description: 'Regular dairy milk' },
-        { name: 'Skim Milk',      description: 'Low-fat dairy milk' },
-        { name: 'Oat Milk',       description: 'Plant-based oat milk' },
-        { name: 'Almond Milk',    description: 'Plant-based almond milk' },
-        { name: 'Soy Milk',       description: 'Plant-based soy milk' },
-        { name: 'Coconut Milk',   description: 'Plant-based coconut milk' },
-        { name: 'Macadamia Milk', description: 'Plant-based macadamia milk' },
-        { name: 'Rice Milk',      description: 'Plant-based rice milk' },
+        { name: 'Whole Milk',        description: 'Regular dairy milk' },
+        { name: 'Skim Milk',         description: 'Low-fat dairy milk' },
+        { name: 'Oat Milk',          description: 'Plant-based oat milk' },
+        { name: 'Almond Milk',       description: 'Plant-based almond milk' },
+        { name: 'Soy Milk',          description: 'Plant-based soy milk' },
+        { name: 'Coconut Milk',      description: 'Plant-based coconut milk' },
+        { name: 'Macadamia Milk',    description: 'Plant-based macadamia milk' },
+        { name: 'Lactose-Free Milk', description: 'Lactose-free dairy alternative' },
+        { name: 'Rice Milk',         description: 'Plant-based rice milk' },
       ],
       coffee: [
         { name: 'Espresso',    description: 'Strong coffee shot' },
@@ -364,16 +375,23 @@ const QuickSetup = () => {
         { name: 'Latte',       description: 'Espresso with steamed milk' },
         { name: 'Cappuccino',  description: 'Espresso with foam' },
         { name: 'Flat White',  description: 'Double shot with microfoam' },
+        { name: 'Long Black',  description: 'Espresso shots topped with hot water' },
         { name: 'Mocha',       description: 'Chocolate coffee drink' },
         { name: 'Macchiato',   description: 'Espresso with milk foam' },
         { name: 'Cortado',     description: 'Equal parts espresso and warm milk' },
         { name: 'Filter Coffee', description: 'Drip brewed coffee' },
         { name: 'Cold Brew',   description: 'Cold steeped coffee' },
       ],
+      // Cup names MUST match SIZE_NAME_MAP entries above, including
+      // the parenthetical size + the takeaway/ceramic variants.
       cups: [
-        { name: 'Small',  description: 'Small cup' },
-        { name: 'Medium', description: 'Medium cup' },
-        { name: 'Large',  description: 'Large cup' },
+        { name: 'Small (8oz)',          description: '240ml cup', volume: 240, shots: 1 },
+        { name: 'Medium (12oz)',        description: '350ml cup', volume: 350, shots: 1 },
+        { name: 'Large (16oz)',         description: '470ml cup', volume: 470, shots: 2 },
+        { name: 'Takeaway Cup Small',   description: 'Small disposable cup',  volume: 240, shots: 1 },
+        { name: 'Takeaway Cup Medium',  description: 'Medium disposable cup', volume: 350, shots: 1 },
+        { name: 'Takeaway Cup Large',   description: 'Large disposable cup',  volume: 470, shots: 2 },
+        { name: 'Ceramic Mug',          description: 'Reusable ceramic mug',  volume: 300, shots: 1 },
       ],
       sweeteners: [
         { name: 'White Sugar', description: 'Regular granulated sugar' },
@@ -382,31 +400,39 @@ const QuickSetup = () => {
         { name: 'Stevia',      description: 'Natural leaf sweetener' },
       ],
       drinks: [
-        { name: 'Hot Chocolate', description: 'Rich chocolate drink' },
-        { name: 'Chai Latte',    description: 'Spiced tea with milk' },
-        { name: 'Matcha Latte',  description: 'Green tea latte' },
-        { name: 'Hot Tea',                description: 'Generic hot tea',          isTea: true },
-        { name: 'English Breakfast Tea',  description: 'Classic black tea blend',  isTea: true },
-        { name: 'Earl Grey Tea',          description: 'Black tea with bergamot',  isTea: true },
-        { name: 'Green Tea',              description: 'Light green tea',          isTea: true },
-        { name: 'Peppermint Tea',         description: 'Caffeine-free mint',       isTea: true },
-        { name: 'Chamomile Tea',          description: 'Caffeine-free floral',     isTea: true },
-        { name: 'Lemon & Ginger Tea',     description: 'Zesty herbal infusion',    isTea: true },
-        { name: 'Rooibos Tea',            description: 'South African red tea',    isTea: true },
+        { name: 'Hot Chocolate',          description: 'Rich chocolate drink' },
+        { name: 'Chai Latte',             description: 'Spiced tea with milk' },
+        { name: 'Matcha Latte',           description: 'Green tea latte' },
+        { name: 'Hot Tea',                description: 'Generic hot tea',         isTea: true },
+        { name: 'English Breakfast Tea',  description: 'Classic black tea blend', isTea: true },
+        { name: 'Earl Grey Tea',          description: 'Black tea with bergamot', isTea: true },
+        { name: 'Green Tea',              description: 'Light green tea',         isTea: true },
+        { name: 'Peppermint Tea',         description: 'Caffeine-free mint',      isTea: true },
+        { name: 'Chamomile Tea',          description: 'Caffeine-free floral',    isTea: true },
+        { name: 'Lemon & Ginger Tea',     description: 'Zesty herbal infusion',   isTea: true },
+        { name: 'Rooibos Tea',            description: 'South African red tea',   isTea: true },
       ],
-      syrups: [],
-      extras: [],
+      // syrups + extras intentionally NOT seeded — Quick Setup turns
+      // them all OFF, so the operator's existing list (if any) stays
+      // untouched. They can opt items back in via Event Inventory.
     };
-    Object.keys(DEFAULT_SEED).forEach((catKey) => {
-      if (!Array.isArray(existing[catKey]) || existing[catKey].length === 0) {
-        // Seed only EMPTY categories. If the operator has already
-        // built out e.g. Syrups by hand, leave their list alone.
-        existing[catKey] = DEFAULT_SEED[catKey].map((item, i) => ({
-          id: `qs-seed-${catKey}-${i}-${Date.now()}`,
-          ...item,
-          enabled: true,  // will be re-toggled by the loop below
-        }));
-      }
+    Object.keys(CANONICAL_BY_CATEGORY).forEach((catKey) => {
+      if (!Array.isArray(existing[catKey])) existing[catKey] = [];
+      const existingNames = new Set(
+        existing[catKey]
+          .map((it) => it && it.name)
+          .filter(Boolean)
+          .map((n) => n.toLowerCase())
+      );
+      CANONICAL_BY_CATEGORY[catKey].forEach((tmpl) => {
+        if (!existingNames.has(tmpl.name.toLowerCase())) {
+          existing[catKey].push({
+            id: `qs-add-${catKey}-${tmpl.name.replace(/\W+/g, '-')}`,
+            ...tmpl,
+            enabled: false,  // toggle loop below flips this if selected
+          });
+        }
+      });
     });
 
     const updated = {};
@@ -424,20 +450,10 @@ const QuickSetup = () => {
       });
     });
 
-    // Lactose-Free is not in InventoryManagement.js defaults but the
-    // Quick Setup defaults include it — add it if missing so it
-    // surfaces in the panel.
-    if (config.milks.includes('lactose free') && updated.milk) {
-      const has = updated.milk.some(m => /lactose/i.test(m.name));
-      if (!has) {
-        updated.milk.push({
-          id: `qs-lactose-${Date.now()}`,
-          name: 'Lactose-Free Milk',
-          description: 'Added by Quick Setup',
-          enabled: true,
-        });
-      }
-    }
+    // (Lactose-Free Milk now lives in CANONICAL_BY_CATEGORY above —
+    // the toggle loop handles it like every other milk. The old
+    // special-case here was a workaround for it being absent from
+    // InventoryManagement.js defaults.)
 
     // Add any custom tea blends as new rows in the drinks category
     // so they're discoverable in InventoryManagement after Quick
