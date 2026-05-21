@@ -3956,42 +3956,130 @@ class CoffeeOrderSystem:
     def _decrement_inventory_item(self, cursor, db_type, *, category, name, amount, station_id):
         """Decrement a single inventory row, preferring station scope.
 
-        Returns True if a row was actually updated, False otherwise —
-        callers like sugar/sweetener can use the boolean to try the
-        next category if the first didn't match.
+        Match cascade — each step gets progressively more forgiving so
+        a perfectly normal order doesn't trip 'no matching row':
+
+          1. Exact LOWER(name) match at station scope
+          2. Same, event-wide (station_id IS NULL)
+          3. Partial match — LIKE '%token%' both ways. Handles:
+               * 'oat'        ↔ DB 'Oat Milk'
+               * 'oat milk'   ↔ DB 'Oat'
+               * 'small (8oz)' ↔ DB 'Small'
+               * '1 white sugar' ↔ DB 'White Sugar'
+          4. Category fallback — for `coffee`, any item in the category
+             (since beans aren't typed per-drink and the whole category
+             is what gets consumed).
+
+        Returns True if a row was actually updated, False otherwise.
         """
         ph = '?' if db_type == 'sqlite' else '%s'
-        # Station-scoped row first.
-        cursor.execute(
-            f"""
-            UPDATE inventory_items
-            SET amount = GREATEST(0, amount - {ph}),
-                last_updated = CURRENT_TIMESTAMP
-            WHERE category = {ph} AND LOWER(name) = {ph}
-              AND station_id = {ph} AND amount IS NOT NULL
-            """,
-            (amount, category, name, station_id),
-        )
-        rows = cursor.rowcount or 0
-        if rows == 0:
-            # Fall back to the event-wide row (station_id IS NULL).
+        name_norm = (name or '').strip().lower()
+        if not name_norm:
+            return False
+
+        def _exact(sql_extra, params):
             cursor.execute(
                 f"""
                 UPDATE inventory_items
                 SET amount = GREATEST(0, amount - {ph}),
                     last_updated = CURRENT_TIMESTAMP
                 WHERE category = {ph} AND LOWER(name) = {ph}
-                  AND station_id IS NULL AND amount IS NOT NULL
+                  AND amount IS NOT NULL
+                  {sql_extra}
                 """,
-                (amount, category, name),
+                (amount, category, name_norm, *params),
             )
-            rows = cursor.rowcount or 0
-        if rows == 0:
-            logger.info(
-                f"No inventory row to decrement: category={category} name={name}"
+            return cursor.rowcount or 0
+
+        # Step 1: exact match at station scope.
+        if _exact(f"AND station_id = {ph}", (station_id,)) > 0:
+            return True
+        # Step 2: exact match event-wide.
+        if _exact("AND station_id IS NULL", ()) > 0:
+            return True
+
+        # Step 3: partial-match cascade. Build the candidate tokens by
+        # stripping noise that often differs between order text and
+        # inventory row name (' milk' suffix, parenthetical sizes,
+        # leading count words like '1 ').
+        import re as _re
+        candidates = {name_norm}
+        # Strip a trailing ' milk' for milk-category names so
+        # 'oat milk' matches 'oat' and vice versa.
+        if name_norm.endswith(' milk'):
+            candidates.add(name_norm[:-5].strip())
+        # Strip parenthetical content for cups: 'small (8oz)' → 'small'.
+        no_paren = _re.sub(r'\s*\([^)]*\)\s*', '', name_norm).strip()
+        if no_paren:
+            candidates.add(no_paren)
+        # Strip a leading numeric count for sweeteners: '1 white sugar' → 'white sugar'.
+        no_count = _re.sub(r'^\d+\s+', '', name_norm).strip()
+        if no_count:
+            candidates.add(no_count)
+
+        # For each candidate try a substring match (both directions —
+        # row name contains candidate OR candidate contains row name).
+        for cand in candidates:
+            if not cand:
+                continue
+            cursor.execute(
+                f"""
+                UPDATE inventory_items
+                SET amount = GREATEST(0, amount - {ph}),
+                    last_updated = CURRENT_TIMESTAMP
+                WHERE id = (
+                    SELECT id FROM inventory_items
+                    WHERE category = {ph}
+                      AND amount IS NOT NULL
+                      AND (LOWER(name) LIKE {ph} OR {ph} LIKE '%' || LOWER(name) || '%')
+                      AND (station_id = {ph} OR station_id IS NULL)
+                    ORDER BY (station_id = {ph}) DESC NULLS LAST
+                    LIMIT 1
+                )
+                """,
+                (amount, category, f"%{cand}%", cand, station_id, station_id),
             )
-            return False
-        return True
+            if (cursor.rowcount or 0) > 0:
+                logger.debug(
+                    f"Stock decrement matched via partial: requested='{name}', "
+                    f"category={category}, candidate='{cand}'"
+                )
+                return True
+
+        # Step 4: category fallback for fungible categories. Coffee
+        # beans aren't typed per drink, and sweetener / sugar
+        # inventory rows are typically by-count ('1 sugar') while
+        # order text combines count + type ('1 White Sugar') — both
+        # cases mean "decrement any row in this category".
+        if category in ('coffee', 'sugar', 'sweetener', 'artificial_sweetener'):
+            cursor.execute(
+                f"""
+                UPDATE inventory_items
+                SET amount = GREATEST(0, amount - {ph}),
+                    last_updated = CURRENT_TIMESTAMP
+                WHERE id = (
+                    SELECT id FROM inventory_items
+                    WHERE category = {ph}
+                      AND amount IS NOT NULL
+                      AND (station_id = {ph} OR station_id IS NULL)
+                    ORDER BY (station_id = {ph}) DESC NULLS LAST,
+                             LOWER(name) ASC
+                    LIMIT 1
+                )
+                """,
+                (amount, category, station_id, station_id),
+            )
+            if (cursor.rowcount or 0) > 0:
+                logger.debug(
+                    f"Stock decrement matched via category fallback: "
+                    f"requested='{name}', category={category}"
+                )
+                return True
+
+        logger.info(
+            f"No inventory row to decrement: category={category} name={name}"
+        )
+        return False
 
     def _get_queue_position(self, station_id, order_number):
         """Return this order's 1-based position in the station queue.

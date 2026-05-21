@@ -30,20 +30,20 @@ const InventoryManagement = () => {
       ]
     },
     coffee: {
-      name: 'Coffee Types',
+      // 'Coffee' here means BEANS, not drinks. Drinks belong on the
+      // Menu Items page. Historical bug: the defaults below seeded
+      // drink names ('Espresso', 'Cappuccino', 'Latte') into the
+      // coffee category — which then surfaced as 'bean type' options
+      // in the walk-in dialog, producing nonsense orders like
+      // 'Cappuccino Latte'. Fixed to actual bean SKUs that match
+      // what Quick Setup writes (house blend beans / decaf beans).
+      name: 'Coffee Beans',
       icon: <Coffee size={20} />,
       color: 'amber',
       defaultItems: [
-        { name: 'Espresso', description: 'Strong coffee shot' },
-        { name: 'Americano', description: 'Espresso with hot water' },
-        { name: 'Latte', description: 'Espresso with steamed milk' },
-        { name: 'Cappuccino', description: 'Espresso with foam' },
-        { name: 'Flat White', description: 'Double shot with microfoam' },
-        { name: 'Mocha', description: 'Chocolate coffee drink' },
-        { name: 'Macchiato', description: 'Espresso with milk foam' },
-        { name: 'Cortado', description: 'Equal parts espresso and warm milk' },
-        { name: 'Filter Coffee', description: 'Drip brewed coffee' },
-        { name: 'Cold Brew', description: 'Cold steeped coffee' }
+        { name: 'House Blend Beans',     description: 'Standard espresso blend' },
+        { name: 'Decaf Beans',           description: 'Decaffeinated beans for SMS-routed decaf orders' },
+        { name: 'Single Origin Beans',   description: 'Optional rotating single origin' },
       ]
     },
     cups: {

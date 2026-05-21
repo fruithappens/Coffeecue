@@ -912,11 +912,36 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
       }
     }
     
-    // Include bean type in coffee type description if it's not the default/house blend
+    // Include bean type in coffee type description if it's not the
+    // default/house blend AND it actually looks like a bean.
+    //
+    // Bug guard: InventoryManagement's default 'coffee' category was
+    // (incorrectly) seeded with DRINK names ('Espresso', 'Cappuccino',
+    // 'Latte') instead of BEAN names. The walk-in dialog populates
+    // its beanType dropdown from that inventory list, so when an
+    // operator hadn't run Quick Setup (which writes proper bean
+    // rows like 'house blend beans' + 'decaf beans'), the bean
+    // dropdown surfaced 'Cappuccino' / 'Espresso' as 'beans'. Then
+    // this concat produced nonsense order types like 'Cappuccino
+    // Latte' and 'Espresso Cappuccino' that the rest of the
+    // system couldn't match against menu / pricing / stock rows.
+    //
+    // Heuristic: only prepend if the beanType looks like a bean
+    // (contains 'bean', 'blend', 'roast', 'single origin', or
+    // specific origin like 'colombia/ethiopia/etc'). Anything else
+    // is silently ignored — operator can fix their inventory.
+    const _looksLikeBean = (s) => {
+      const x = (s || '').toLowerCase();
+      if (!x) return false;
+      return /(bean|blend|roast|single\s*origin|decaf|colombian?|ethiopian?|brazilian?|kenyan?|guatemalan?)/.test(x);
+    };
     let coffeeTypeText = orderDetails.coffeeType;
-    if (orderDetails.beanType &&
-        !orderDetails.beanType.toLowerCase().includes('house') &&
-        !orderDetails.beanType.toLowerCase().includes('blend')) {
+    if (
+      orderDetails.beanType &&
+      _looksLikeBean(orderDetails.beanType) &&
+      !orderDetails.beanType.toLowerCase().includes('house') &&
+      !orderDetails.beanType.toLowerCase().includes('blend')
+    ) {
       coffeeTypeText = `${orderDetails.beanType} ${orderDetails.coffeeType}`;
     }
     coffeeTypeText += shotsText;
