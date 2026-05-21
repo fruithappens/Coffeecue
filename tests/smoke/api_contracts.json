@@ -1,0 +1,129 @@
+{
+  "_doc": [
+    "Declarative API contracts for the smoke test.",
+    "",
+    "Each entry under `checks` describes ONE request and what shape the",
+    "frontend expects in return. The smoke runner reads this file, makes",
+    "the request, and asserts:",
+    "  1. The HTTP status matches `expect_status`",
+    "  2. Every key in `expect_keys` is present at the response root",
+    "  3. If `expect_item_keys_at` is set (e.g. `data[*]` or `data`),",
+    "     every key in `expect_item_keys` is present on each item under",
+    "     that path",
+    "",
+    "Why this exists: 5 of the last ~12 bug-fixes were field-name",
+    "mismatches across the FE/BE boundary (priceFormatted missing from",
+    "/orders; full_name vs fullName; etc.). A flat JSON contract file",
+    "is the cheapest way to catch those before the user does.",
+    "",
+    "To add an endpoint: drop a new object into `checks`. No code change",
+    "needed."
+  ],
+  "auth": {
+    "path": "/api/auth/login",
+    "method": "POST",
+    "body": {"username": "coffeecue", "password": "adminpassword"},
+    "token_field": "token",
+    "expect_status": 200,
+    "expect_keys": ["status", "token", "refreshToken", "expiresIn", "user"]
+  },
+  "checks": [
+    {
+      "name": "GET /api/health",
+      "method": "GET",
+      "path": "/api/health",
+      "auth": false,
+      "expect_status": 200,
+      "expect_keys": ["status"]
+    },
+    {
+      "name": "GET /api/orders (pending list)",
+      "method": "GET",
+      "path": "/api/orders?status=pending",
+      "expect_status": 200,
+      "expect_keys": ["data"],
+      "expect_item_keys_at": "data[*]",
+      "expect_item_keys": [
+        "id",
+        "orderNumber",
+        "customerName",
+        "coffeeType",
+        "milkType",
+        "waitTime"
+      ],
+      "_note": "priceFormatted should be present when pricing is on (recently fixed). Not required because demo orders may not have it."
+    },
+    {
+      "name": "GET /api/orders/pending",
+      "method": "GET",
+      "path": "/api/orders/pending",
+      "expect_status": 200,
+      "expect_keys": ["data"],
+      "expect_item_keys_at": "data[*]",
+      "expect_item_keys": ["id", "orderNumber", "customerName", "coffeeType", "milkType"]
+    },
+    {
+      "name": "GET /api/orders/in-progress",
+      "method": "GET",
+      "path": "/api/orders/in-progress",
+      "expect_status": 200,
+      "expect_keys": ["data"]
+    },
+    {
+      "name": "GET /api/orders/completed",
+      "method": "GET",
+      "path": "/api/orders/completed",
+      "expect_status": 200,
+      "expect_keys": ["data"]
+    },
+    {
+      "name": "GET /api/users",
+      "method": "GET",
+      "path": "/api/users",
+      "expect_status": 200,
+      "expect_keys": ["status", "data"],
+      "expect_item_keys_at": "data[*]",
+      "expect_item_keys": ["id", "username", "email", "role"],
+      "_note": "UserManagementTab reads user.fullName (camelCase) but backend currently returns full_name. Latent mismatch. Add 'fullName' here once backend exposes it."
+    },
+    {
+      "name": "GET /api/stations",
+      "method": "GET",
+      "path": "/api/stations",
+      "expect_status": 200,
+      "expect_keys": ["status"]
+    },
+    {
+      "name": "GET /api/inventory (station 1)",
+      "method": "GET",
+      "path": "/api/inventory?station_id=1",
+      "expect_status": 200,
+      "expect_keys": ["status"]
+    },
+    {
+      "name": "GET /api/settings",
+      "method": "GET",
+      "path": "/api/settings",
+      "expect_status": 200
+    },
+    {
+      "name": "GET /api/settings/wait-time",
+      "method": "GET",
+      "path": "/api/settings/wait-time",
+      "expect_status": 200
+    },
+    {
+      "name": "GET /api/diagnostics/database (Emergency tab)",
+      "method": "GET",
+      "path": "/api/diagnostics/database",
+      "expect_status": 200,
+      "_note": "Recent bug: support_role_required rejected demo tokens. Smoke catches that regressing."
+    },
+    {
+      "name": "GET /api/schedule/shifts",
+      "method": "GET",
+      "path": "/api/schedule/shifts",
+      "expect_status": 200
+    }
+  ]
+}
