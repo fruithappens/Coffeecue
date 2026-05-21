@@ -38,6 +38,70 @@ const PendingOrdersSection = ({
     order => !(order.vip || order.priority) && !order.batchGroup
   );
 
+  // --- Similarity-based batch hints --------------------------------
+  // Detect orders that COULD be batched together even though they
+  // don't share an explicit batch_group code. Two axes:
+  //   - Shared milk type (≥2 pending oat orders → steam one big jug)
+  //   - Shared non-coffee base (≥2 hot chocolates → make one batch
+  //     of chocolate powder mix)
+  // Each hint adds a small coloured tag to the order card so the
+  // barista can spot the opportunity at a glance. Originally there
+  // was a 'Batch' tag on the cards but it disappeared at some point —
+  // this re-introduces it, computed automatically rather than
+  // requiring an explicit group.
+  const _norm = (s) => (s || '').toString().toLowerCase().trim();
+  const _BATCHABLE_MILKS = new Set([
+    'oat', 'soy', 'almond', 'coconut', 'macadamia',
+    'lactose free', 'lactose-free', 'rice',
+    'skim', 'full cream', 'whole milk', 'whole',
+  ]);
+  const _BATCHABLE_BASES = {
+    'hot chocolate': /hot chocolate/i,
+    'chai':          /chai/i,
+    'matcha':        /matcha/i,
+  };
+
+  // Bucket all pending orders by milk + base. Only buckets with ≥2
+  // entries become hints (a single oat latte isn't a batch).
+  const milkBuckets = {};
+  const baseBuckets = {};
+  orders.forEach((o) => {
+    const milk = _norm(o.milkType);
+    if (_BATCHABLE_MILKS.has(milk)) {
+      (milkBuckets[milk] = milkBuckets[milk] || []).push(o.id);
+    }
+    const drink = _norm(o.coffeeType);
+    Object.entries(_BATCHABLE_BASES).forEach(([base, re]) => {
+      if (re.test(drink)) {
+        (baseBuckets[base] = baseBuckets[base] || []).push(o.id);
+      }
+    });
+  });
+
+  // For each order, build a list of badge labels (e.g. ['Batch oat (3)',
+  // 'Batch hot chocolate (2)']). Most orders will have zero badges.
+  const batchHintsByOrderId = {};
+  Object.entries(milkBuckets).forEach(([milk, ids]) => {
+    if (ids.length < 2) return;
+    ids.forEach((id) => {
+      (batchHintsByOrderId[id] = batchHintsByOrderId[id] || []).push({
+        key: `milk:${milk}`,
+        label: `Batch ${milk} (${ids.length})`,
+        kind: 'milk',
+      });
+    });
+  });
+  Object.entries(baseBuckets).forEach(([base, ids]) => {
+    if (ids.length < 2) return;
+    ids.forEach((id) => {
+      (batchHintsByOrderId[id] = batchHintsByOrderId[id] || []).push({
+        key: `base:${base}`,
+        label: `Batch ${base} (${ids.length})`,
+        kind: 'base',
+      });
+    });
+  });
+
   // Apply selected filter
   const getFilteredOrders = () => {
     switch (filter) {
@@ -118,12 +182,13 @@ const PendingOrdersSection = ({
 
             {/* Regular Orders Section */}
             {regularOrders.length > 0 && (
-              <RegularOrdersList 
-                orders={regularOrders} 
+              <RegularOrdersList
+                orders={regularOrders}
                 onStartOrder={onStartOrder}
                 onSendMessage={onSendMessage}
                 onDelayOrder={onDelayOrder}
                 onEditOrder={onEditOrder}
+                batchHintsByOrderId={batchHintsByOrderId}
               />
             )}
           </>

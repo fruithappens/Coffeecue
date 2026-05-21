@@ -6,7 +6,7 @@ import { useSettings } from '../hooks/useSettings';
 import { getMilkColorStyle, getMilkDotStyle } from '../utils/milkColorHelper';
 import '../styles/milkColors.css';
 
-const RegularOrdersList = ({ orders, onStartOrder, onSendMessage, onDelayOrder, onEditOrder }) => {
+const RegularOrdersList = ({ orders, onStartOrder, onSendMessage, onDelayOrder, onEditOrder, batchHintsByOrderId = {} }) => {
   const { settings } = useSettings();
   
   // Debug first order's milk info
@@ -26,13 +26,21 @@ const RegularOrdersList = ({ orders, onStartOrder, onSendMessage, onDelayOrder, 
   return (
     <div>
       {orders.map(order => {
-        const milkColorStyle = order.milkType && order.milkType !== 'No Milk' 
-          ? getMilkColorStyle(order.milkType, order.milkTypeId)
-          : { borderLeftWidth: '4px', borderLeftStyle: 'solid', borderLeftColor: '#3B82F6' };
-        
+        const hints = batchHintsByOrderId[order.id] || [];
+        // When a batch hint exists, override the milk colour bar with
+        // a more eye-catching amber stripe + thicker border. The
+        // operator's request was 'a coloured side bar or Batch tag
+        // so I can use a larger frothing jug and do a few at a
+        // time' — this is the side bar.
+        const milkColorStyle = hints.length > 0
+          ? { borderLeftWidth: '6px', borderLeftStyle: 'solid', borderLeftColor: '#f59e0b' }  // amber-500
+          : order.milkType && order.milkType !== 'No Milk'
+            ? getMilkColorStyle(order.milkType, order.milkTypeId)
+            : { borderLeftWidth: '4px', borderLeftStyle: 'solid', borderLeftColor: '#3B82F6' };
+
         return (
-        <div 
-          key={order.id} 
+        <div
+          key={order.id}
           className={`mb-2 rounded-lg overflow-hidden shadow-sm ${getOrderBackgroundColor(order, settings)}`}
           style={milkColorStyle}
         >
@@ -40,11 +48,27 @@ const RegularOrdersList = ({ orders, onStartOrder, onSendMessage, onDelayOrder, 
             <div className="flex justify-between items-center">
               <div className="font-bold text-gray-800">#{order.orderNumber} - {order.customerName}</div>
               <div className="flex items-center space-x-1">
+                {/* Batch hint badges — small amber tags telling the
+                    barista this order can be made alongside N
+                    others of the same kind. */}
+                {hints.map((h) => (
+                  <span
+                    key={h.key}
+                    className="inline-block bg-amber-100 text-amber-800 text-xs font-semibold px-2 py-0.5 rounded uppercase tracking-wide whitespace-nowrap"
+                    title={
+                      h.kind === 'milk'
+                        ? `Steam one jug — ${h.label.replace(/^Batch /,'')} pending`
+                        : `Make one base — ${h.label.replace(/^Batch /,'')} pending`
+                    }
+                  >
+                    {h.label}
+                  </span>
+                ))}
                 <span className="text-sm text-gray-600">{order.waitTime} min</span>
                 <div className={`w-2 h-2 rounded-full ${getTimeRatioColor(order.waitTime, order.promisedTime)}`}></div>
               </div>
             </div>
-            
+
             <div className="mt-2 p-2 bg-gray-50 rounded">
               <div className="font-medium text-gray-700 flex items-center">
                 {order.milkType && order.milkType !== 'No Milk' && (

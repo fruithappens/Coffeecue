@@ -4,12 +4,93 @@ import OrderDataService from '../services/OrderDataService';
 import StockService from '../services/StockService';
 import { calculateWaitTime } from '../utils/orderUtils';
 
+// How long a local optimistic transition wins over backend fetches.
+// Long enough that any polling/WS replay can't bounce the order back
+// to its old column, short enough that a real backend rejection
+// (e.g. start failed) eventually reconciles. 30s is a comfortable
+// middle ground for a busy queue.
+const _TRANSITION_TTL_MS = 30_000;
+
 export default function useOrders(stationId = null) {
   // State for different order types
   const [pendingOrders, setPendingOrders] = useState([]);
   const [inProgressOrders, setInProgressOrders] = useState([]);
   const [completedOrders, setCompletedOrders] = useState([]);
   const [previousOrders, setPreviousOrders] = useState([]);
+
+  // Tracks orders we just optimistically transitioned (Start →
+  // in-progress, Complete → completed, etc). Each entry is
+  // { orderId: { targetStatus, expiresAt } }. Used to PIN the
+  // order in its new column when a fetched payload comes back
+  // with the old status — the bug operators saw as 'hit Start,
+  // order moves to Current for a moment, then snaps back to
+  // Upcoming'. The pin clears when either:
+  //   (a) the backend agrees (next fetch shows the new status),
+  //   (b) TTL elapses (something's wrong, let backend win).
+  const transitionRef = useRef(new Map());
+
+  // Helper: mark an order as just-transitioned to a status.
+  const _markTransition = useCallback((orderId, targetStatus) => {
+    if (!orderId) return;
+    transitionRef.current.set(String(orderId), {
+      targetStatus,
+      expiresAt: Date.now() + _TRANSITION_TTL_MS,
+    });
+  }, []);
+
+  // Helper: given three category arrays (pending/inProgress/completed)
+  // freshly fetched from the backend, MOVE any orders whose recent
+  // local transition disagrees with the backend's current status,
+  // and drop expired pins. Returns three new arrays. Pure — no
+  // setState side-effects.
+  const _applyPendingTransitions = useCallback((pending, inProgress, completed) => {
+    const pins = transitionRef.current;
+    if (pins.size === 0) return { pending, inProgress, completed };
+
+    const now = Date.now();
+    const groups = { pending: [...pending], 'in-progress': [...inProgress], completed: [...completed] };
+
+    // Convenience indexers.
+    const findAndRemove = (arr, id) => {
+      const idx = arr.findIndex(o => String(o.id) === String(id));
+      if (idx < 0) return null;
+      const [removed] = arr.splice(idx, 1);
+      return removed;
+    };
+
+    pins.forEach((pin, orderId) => {
+      // Drop expired pins.
+      if (pin.expiresAt < now) {
+        pins.delete(orderId);
+        return;
+      }
+      // Find the order in any of the three groups.
+      const target = pin.targetStatus === 'completed' ? 'completed'
+                   : pin.targetStatus === 'in-progress' ? 'in-progress'
+                   : 'pending';
+      let order = findAndRemove(groups.pending,       orderId);
+      if (!order) order = findAndRemove(groups['in-progress'], orderId);
+      if (!order) order = findAndRemove(groups.completed,      orderId);
+      if (!order) return;  // Not in any list anymore — fine, drop the pin too.
+      // If the backend already agrees, clear the pin and let
+      // the order sit where the backend put it (we just took it
+      // out, put it back where it belongs).
+      if (order.status === target) {
+        pins.delete(orderId);
+        groups[target].push(order);
+        return;
+      }
+      // Backend disagrees — force the order into the target column
+      // with the right status. The pin sticks for the next fetch.
+      groups[target].push({ ...order, status: target });
+    });
+
+    return {
+      pending: groups.pending,
+      inProgress: groups['in-progress'],
+      completed: groups.completed,
+    };
+  }, []);
   
   // Debug function to track previousOrders changes
   useEffect(() => {
@@ -369,11 +450,20 @@ export default function useOrders(stationId = null) {
         });
       };
       
-      // Update state with filtered data
-      const filteredPending = filterByStation(pending);
-      const filteredInProgress = filterByStation(inProgress);
-      const filteredCompleted = filterByStation(completed);
-      
+      // Update state with filtered data.
+      let filteredPending = filterByStation(pending);
+      let filteredInProgress = filterByStation(inProgress);
+      let filteredCompleted = filterByStation(completed);
+
+      // Apply any pending optimistic transitions (Start / Complete
+      // happened in the last 30s; backend may not be reflected here
+      // yet — pin the orders in the column the operator just put
+      // them into so they don't visibly snap back).
+      const merged = _applyPendingTransitions(filteredPending, filteredInProgress, filteredCompleted);
+      filteredPending = merged.pending;
+      filteredInProgress = merged.inProgress;
+      filteredCompleted = merged.completed;
+
       // Check for new orders that weren't in the previous state
       // Only do this for non-initial loads where we have previous data
       if (pendingOrders.length > 0) {
@@ -1196,18 +1286,20 @@ export default function useOrders(stationId = null) {
         throw new Error(`Failed to start order: ${errorMessage}`);
       }
       
-      // Optimistically update UI state
+      // Optimistically update UI state + pin the transition so the
+      // next backend fetch can't bounce the order back to pending.
+      _markTransition(order.id, 'in-progress');
       setPendingOrders(prev => prev.filter(o => o.id !== order.id));
-      
-      const updatedOrder = { 
-        ...order, 
+
+      const updatedOrder = {
+        ...order,
         startedAt: new Date(),
         status: 'in-progress',
         stationId: currentStationId,
         station_id: currentStationId,
         assignedStation: currentStationId
       };
-      
+
       setInProgressOrders(prev => [...prev, updatedOrder]);
       setQueueCount(prev => Math.max(0, prev - 1));
       
@@ -1525,9 +1617,12 @@ export default function useOrders(stationId = null) {
         // never block the order on a warning-display failure
       }
       
-      // Optimistically update UI state
+      // Optimistically update UI state + pin transition (see Start
+      // handler — same race protects against bouncing back to
+      // in-progress when the next fetch returns the pre-complete state).
+      _markTransition(orderId, 'completed');
       setInProgressOrders(prev => prev.filter(o => o.id !== orderId));
-      
+
       const completedOrder = {
         ...orderToComplete,
         completedAt: new Date(),
