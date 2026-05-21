@@ -335,6 +335,80 @@ const QuickSetup = () => {
       existing = {};
     }
 
+    // On a fresh install the operator has never opened the Inventory
+    // Management panel — so localStorage.event_inventory is empty,
+    // `existing` is {}, and the loop below produces an empty `updated`.
+    // Quick Setup then writes that empty blob to the backend, and
+    // when InventoryManagement opens it sees nothing and falls back
+    // to the FULL default list with everything enabled — which is
+    // exactly what the operator just opted OUT of.
+    //
+    // Fix: seed `existing` with the same defaults InventoryManagement
+    // would use so the loop has something to iterate over. The seed
+    // is only used to populate empty categories; categories the
+    // operator has already customised pass through unchanged.
+    const DEFAULT_SEED = {
+      milk: [
+        { name: 'Whole Milk',     description: 'Regular dairy milk' },
+        { name: 'Skim Milk',      description: 'Low-fat dairy milk' },
+        { name: 'Oat Milk',       description: 'Plant-based oat milk' },
+        { name: 'Almond Milk',    description: 'Plant-based almond milk' },
+        { name: 'Soy Milk',       description: 'Plant-based soy milk' },
+        { name: 'Coconut Milk',   description: 'Plant-based coconut milk' },
+        { name: 'Macadamia Milk', description: 'Plant-based macadamia milk' },
+        { name: 'Rice Milk',      description: 'Plant-based rice milk' },
+      ],
+      coffee: [
+        { name: 'Espresso',    description: 'Strong coffee shot' },
+        { name: 'Americano',   description: 'Espresso with hot water' },
+        { name: 'Latte',       description: 'Espresso with steamed milk' },
+        { name: 'Cappuccino',  description: 'Espresso with foam' },
+        { name: 'Flat White',  description: 'Double shot with microfoam' },
+        { name: 'Mocha',       description: 'Chocolate coffee drink' },
+        { name: 'Macchiato',   description: 'Espresso with milk foam' },
+        { name: 'Cortado',     description: 'Equal parts espresso and warm milk' },
+        { name: 'Filter Coffee', description: 'Drip brewed coffee' },
+        { name: 'Cold Brew',   description: 'Cold steeped coffee' },
+      ],
+      cups: [
+        { name: 'Small',  description: 'Small cup' },
+        { name: 'Medium', description: 'Medium cup' },
+        { name: 'Large',  description: 'Large cup' },
+      ],
+      sweeteners: [
+        { name: 'White Sugar', description: 'Regular granulated sugar' },
+        { name: 'Brown Sugar', description: 'Raw cane sugar' },
+        { name: 'Honey',       description: 'Natural honey sweetener' },
+        { name: 'Stevia',      description: 'Natural leaf sweetener' },
+      ],
+      drinks: [
+        { name: 'Hot Chocolate', description: 'Rich chocolate drink' },
+        { name: 'Chai Latte',    description: 'Spiced tea with milk' },
+        { name: 'Matcha Latte',  description: 'Green tea latte' },
+        { name: 'Hot Tea',                description: 'Generic hot tea',          isTea: true },
+        { name: 'English Breakfast Tea',  description: 'Classic black tea blend',  isTea: true },
+        { name: 'Earl Grey Tea',          description: 'Black tea with bergamot',  isTea: true },
+        { name: 'Green Tea',              description: 'Light green tea',          isTea: true },
+        { name: 'Peppermint Tea',         description: 'Caffeine-free mint',       isTea: true },
+        { name: 'Chamomile Tea',          description: 'Caffeine-free floral',     isTea: true },
+        { name: 'Lemon & Ginger Tea',     description: 'Zesty herbal infusion',    isTea: true },
+        { name: 'Rooibos Tea',            description: 'South African red tea',    isTea: true },
+      ],
+      syrups: [],
+      extras: [],
+    };
+    Object.keys(DEFAULT_SEED).forEach((catKey) => {
+      if (!Array.isArray(existing[catKey]) || existing[catKey].length === 0) {
+        // Seed only EMPTY categories. If the operator has already
+        // built out e.g. Syrups by hand, leave their list alone.
+        existing[catKey] = DEFAULT_SEED[catKey].map((item, i) => ({
+          id: `qs-seed-${catKey}-${i}-${Date.now()}`,
+          ...item,
+          enabled: true,  // will be re-toggled by the loop below
+        }));
+      }
+    });
+
     const updated = {};
     Object.entries(existing).forEach(([catKey, items]) => {
       const allowed = categoryFilter[catKey];
