@@ -313,9 +313,17 @@ const UserManagementTab = () => {
   };
 
   const filteredUsers = users.filter(user => {
-    const matchesSearch = user.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.email.toLowerCase().includes(searchTerm.toLowerCase());
+    // After batch E, users come from /api/users which only returns
+    // identity fields (id/username/email/role/is_active). The rich
+    // metadata fields (fullName, etc) come from localStorage
+    // enrichment and may be undefined for users created on another
+    // device. Guard with `|| ''` so a missing field doesn't crash
+    // the whole list.
+    const q = (searchTerm || '').toLowerCase();
+    const matchesSearch =
+      (user.fullName || '').toLowerCase().includes(q) ||
+      (user.username || '').toLowerCase().includes(q) ||
+      (user.email || '').toLowerCase().includes(q);
     const matchesRole = filterRole === 'all' || user.role === filterRole;
     return matchesSearch && matchesRole;
   });
@@ -627,7 +635,11 @@ const UserManagementTab = () => {
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <h4 className="font-bold">{user.fullName}</h4>
+                        {/* Fall back to username when enrichment is
+                            missing (e.g. user created on another
+                            device with no local skills/full-name
+                            cache yet). */}
+                        <h4 className="font-bold">{user.fullName || user.username}</h4>
                         <span className={`text-xs px-2 py-0.5 rounded ${getRoleBadgeColor(user.role)}`}>
                           {user.role}
                         </span>
@@ -638,12 +650,14 @@ const UserManagementTab = () => {
                         )}
                       </div>
                       <div className="text-sm text-gray-600">
-                        @{user.username} • {user.email}
+                        @{user.username}{user.email ? ` • ${user.email}` : ''}
                       </div>
                       <div className="flex items-center gap-4 mt-1">
-                        <span className={`text-xs px-2 py-0.5 rounded ${getExperienceColor(user.experience)}`}>
-                          {user.experience}
-                        </span>
+                        {user.experience && (
+                          <span className={`text-xs px-2 py-0.5 rounded ${getExperienceColor(user.experience)}`}>
+                            {user.experience}
+                          </span>
+                        )}
                         {user.preferredStation && (
                           <span className="text-xs text-gray-500">
                             Prefers Station {user.preferredStation}

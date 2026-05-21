@@ -114,8 +114,27 @@ class ErrorBoundary extends React.Component {
                   {this.props.showErrorDetails && (
                     <details className="mt-2 bg-red-100 p-2 rounded text-xs">
                       <summary className="cursor-pointer font-medium">Technical Details</summary>
-                      <pre className="mt-1 whitespace-pre-wrap">
-                        {this.state.error?.message}
+                      <pre className="mt-1 whitespace-pre-wrap break-words">
+                        {/* Show whatever we can get our hands on — some
+                            errors arrive without a useful .message
+                            (e.g. thrown strings, undefined deref) so
+                            falling back to .toString() and including
+                            the component stack helps locate the actual
+                            file when a generic "TypeError" fires. */}
+                        {this.state.error?.message
+                          || (this.state.error ? String(this.state.error) : '(no error message)')}
+                        {this.state.error?.stack && (
+                          <>
+                            {'\n\nStack:\n'}
+                            {this.state.error.stack}
+                          </>
+                        )}
+                        {this.state.errorInfo?.componentStack && (
+                          <>
+                            {'\n\nComponent stack:'}
+                            {this.state.errorInfo.componentStack}
+                          </>
+                        )}
                       </pre>
                     </details>
                   )}
