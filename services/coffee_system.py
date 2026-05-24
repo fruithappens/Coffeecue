@@ -1327,11 +1327,66 @@ class CoffeeOrderSystem:
             return f"You don't have a saved usual order yet. What type of coffee would you like, {name}?"
     
     # The standard espresso-based drink menu — returned when coffee
-    # beans are in stock OR when unlimited-stock mode is on. Promoted
-    # to a class attribute so both that path and the fallback share
-    # the source of truth.
-    _STANDARD_DRINK_MENU = ["latte", "cappuccino", "flat white",
-                            "long black", "espresso", "mocha"]
+    # beans are in stock OR when unlimited-stock mode is on.
+    #
+    # Was previously a hardcoded list — adding a new drink (e.g.
+    # 'cold brew') required a code edit. Now reads from
+    # catalog_items WHERE category='drink' AND subcategory='espresso',
+    # so adding a drink in the catalog (or via /api/catalog POST)
+    # propagates to SMS recognition without redeploy.
+    #
+    # Kept as a static fallback constant for when the DB is
+    # unreachable (booting before the catalog exists, demo mode).
+    _STANDARD_DRINK_MENU_FALLBACK = ["latte", "cappuccino", "flat white",
+                                     "long black", "espresso", "mocha"]
+
+    def _get_espresso_drink_menu(self):
+        """Return the espresso-based drink menu from catalog_items.
+
+        Cached for the lifetime of the CoffeeOrderSystem instance —
+        a new drink added at runtime requires a restart to pick up
+        (acceptable since adding drinks is a rare operator action).
+        Falls back to the hardcoded list if catalog_items is empty
+        or unreachable.
+        """
+        if hasattr(self, '_espresso_menu_cache'):
+            return self._espresso_menu_cache
+        try:
+            cur = self.db.cursor()
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            cur.execute("""
+                SELECT short_name, display_name
+                FROM catalog_items
+                WHERE category = 'drink'
+                  AND subcategory = 'espresso'
+                  AND is_active = TRUE
+                ORDER BY sort_order
+            """)
+            rows = cur.fetchall()
+            if rows:
+                # Prefer short_name (lowercase, no parens) — matches
+                # what the SMS conversation pattern matchers expect.
+                menu = [r[0] or (r[1] or '').lower() for r in rows]
+                self._espresso_menu_cache = menu
+                return menu
+        except Exception as e:
+            logger.warning(f"catalog espresso menu read failed, using fallback: {e}")
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+        self._espresso_menu_cache = list(self._STANDARD_DRINK_MENU_FALLBACK)
+        return self._espresso_menu_cache
+
+    # Back-compat shim: existing code references self._STANDARD_DRINK_MENU
+    # as if it were a list. Make it a property that calls the getter so
+    # we don't have to find-and-replace every callsite in one go.
+    @property
+    def _STANDARD_DRINK_MENU(self):
+        return self._get_espresso_drink_menu()
 
     def _is_unlimited_stock_mode(self):
         """When the Quick Setup wizard sets 'unlimited_stock', the
