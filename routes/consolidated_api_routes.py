@@ -1674,24 +1674,58 @@ def _station_can_make_order(db, station_id, order_details):
         and isinstance(milk_types, list)
         and len(milk_types) > 0
     ):
-        # Normalise both sides for comparison. The order's milk field
-        # carries display names like 'Skim Milk' / 'Oat Milk' (lowercased
-        # to 'skim milk'/'oat milk'). The capabilities list has short
-        # tokens like 'skim'/'oat'. Without normalising, the literal `in`
-        # check would always fail and a station would block an order
-        # for a milk it actually stocks — Steve hit this with a 'doesn't
-        # stock skim milk' error that listed 'skim' in the available set.
-        def _milk_token(s):
+        # Normalise both sides + map synonyms to canonical tokens.
+        #
+        # Two reasons the literal `in` check fails:
+        #   1. Order carries display names ('Skim Milk') vs capability
+        #      short tokens ('skim') — strip ' milk' suffix.
+        #   2. 'Whole Milk' (US/walk-in default) and 'Full Cream'
+        #      (Aussie) and 'Regular' and 'Standard' all refer to the
+        #      same milk. Steve hit this trying to move a Whole Milk
+        #      order to a station that only had 'full cream' in caps.
+        #
+        # Canonicalise via a synonym table so all of those collapse to
+        # the same token before comparison.
+        _MILK_SYNONYMS = {
+            # Each value is the canonical token; keys are accepted spellings.
+            'whole milk': 'full_cream',
+            'whole':      'full_cream',
+            'full cream': 'full_cream',
+            'full-cream': 'full_cream',
+            'fullcream':  'full_cream',
+            'regular':    'full_cream',
+            'standard':   'full_cream',
+            'dairy':      'full_cream',
+            'skim':       'skim',
+            'skinny':     'skim',
+            'low fat':    'skim',
+            'low-fat':    'skim',
+            'trim':       'skim',
+            'oat':        'oat',
+            'soy':        'soy',
+            'soya':       'soy',
+            'almond':     'almond',
+            'coconut':    'coconut',
+            'macadamia':  'macadamia',
+            'rice':       'rice',
+            'lactose free':  'lactose_free',
+            'lactose-free':  'lactose_free',
+            'lactose_free':  'lactose_free',
+        }
+
+        def _milk_canon(s):
             t = (s or '').strip().lower()
-            # Strip the trailing ' milk' / 'milk' so 'skim milk' == 'skim'.
             if t.endswith(' milk'):
                 t = t[:-5].strip()
             elif t == 'milk':
                 t = ''
-            return t
-        requested_norm = _milk_token(requested_milk)
-        available_norms = [_milk_token(m) for m in milk_types]
-        if requested_norm and requested_norm not in available_norms:
+            # Map synonyms → canonical. Unknown milks pass through as
+            # themselves so a custom milk like 'Hemp' still works.
+            return _MILK_SYNONYMS.get(t, t)
+
+        requested_canon = _milk_canon(requested_milk)
+        available_canon = {_milk_canon(m) for m in milk_types}
+        if requested_canon and requested_canon not in available_canon:
             return {
                 'blocked': True,
                 'reason': (
