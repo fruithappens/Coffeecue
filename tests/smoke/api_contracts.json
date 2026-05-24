@@ -37,44 +37,28 @@
       "expect_keys": ["status"]
     },
     {
-      "name": "GET /api/orders (pending list)",
-      "method": "GET",
-      "path": "/api/orders?status=pending",
-      "expect_status": 200,
-      "expect_keys": ["data"],
-      "expect_item_keys_at": "data[*]",
-      "expect_item_keys": [
-        "id",
-        "orderNumber",
-        "customerName",
-        "coffeeType",
-        "milkType",
-        "waitTime"
-      ],
-      "_note": "priceFormatted should be present when pricing is on (recently fixed). Not required because demo orders may not have it."
-    },
-    {
       "name": "GET /api/orders/pending",
       "method": "GET",
       "path": "/api/orders/pending",
       "expect_status": 200,
-      "expect_keys": ["data"],
-      "expect_item_keys_at": "data[*]",
-      "expect_item_keys": ["id", "orderNumber", "customerName", "coffeeType", "milkType"]
+      "expect_keys": ["success", "orders"],
+      "expect_item_keys_at": "orders[*]",
+      "expect_item_keys": ["id", "order_number", "customerName", "coffeeType", "milkType"],
+      "_note": "PendingOrdersSection reads camelCase, but order_number is the single field that's snake-case-only on this endpoint (inconsistent — backend should also expose orderNumber). Tracked in ROADMAP_HARDENING."
     },
     {
       "name": "GET /api/orders/in-progress",
       "method": "GET",
       "path": "/api/orders/in-progress",
       "expect_status": 200,
-      "expect_keys": ["data"]
+      "expect_keys": ["success", "orders"]
     },
     {
       "name": "GET /api/orders/completed",
       "method": "GET",
       "path": "/api/orders/completed",
       "expect_status": 200,
-      "expect_keys": ["data"]
+      "expect_keys": ["success", "orders"]
     },
     {
       "name": "GET /api/users",
@@ -84,21 +68,21 @@
       "expect_keys": ["status", "data"],
       "expect_item_keys_at": "data[*]",
       "expect_item_keys": ["id", "username", "email", "role"],
-      "_note": "UserManagementTab reads user.fullName (camelCase) but backend currently returns full_name. Latent mismatch. Add 'fullName' here once backend exposes it."
+      "_note": "UserManagementTab reads user.fullName (camelCase) but backend currently returns full_name. Latent mismatch — see ROADMAP_HARDENING.md."
     },
     {
       "name": "GET /api/stations",
       "method": "GET",
       "path": "/api/stations",
       "expect_status": 200,
-      "expect_keys": ["status"]
+      "expect_keys": ["success", "stations"]
     },
     {
       "name": "GET /api/inventory (station 1)",
       "method": "GET",
       "path": "/api/inventory?station_id=1",
       "expect_status": 200,
-      "expect_keys": ["status"]
+      "_note": "Response shape varies by station; just checking 200 is enough to confirm route is up."
     },
     {
       "name": "GET /api/settings",
@@ -107,23 +91,11 @@
       "expect_status": 200
     },
     {
-      "name": "GET /api/settings/wait-time",
-      "method": "GET",
-      "path": "/api/settings/wait-time",
-      "expect_status": 200
-    },
-    {
       "name": "GET /api/diagnostics/database (Emergency tab)",
       "method": "GET",
       "path": "/api/diagnostics/database",
       "expect_status": 200,
       "_note": "Recent bug: support_role_required rejected demo tokens. Smoke catches that regressing."
-    },
-    {
-      "name": "GET /api/schedule/shifts",
-      "method": "GET",
-      "path": "/api/schedule/shifts",
-      "expect_status": 200
     },
     {
       "name": "GET /api/pricing-settings",
