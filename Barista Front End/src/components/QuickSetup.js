@@ -122,6 +122,12 @@ const DEFAULT_STATE = {
   unlimited_stock: true,
   all_stations_same_capabilities: true,
   always_open_schedule: true,
+  // Generic demo-friendly VIP code. Operator changes for real events.
+  // Set to '' to skip — preserves whatever code is currently saved.
+  vip_code: 'VIP',
+  // Flip every station status to 'active' on apply. Saves the new
+  // operator from going into Stations and toggling each one.
+  activate_all_stations: true,
 };
 
 // localStorage key for the in-progress Quick Setup form. Persisting
@@ -576,17 +582,35 @@ const QuickSetup = () => {
         : v;
     });
 
+    // Build a "QS knows about this name" set per category. Anything
+    // NOT in this set is an operator-added custom item — Quick Setup
+    // should leave it alone (don't disable it, don't touch enabled).
+    // Steve's framing: 'quick setup is setting up app and not
+    // overriding'. So a 'Hemp Milk' the operator added in
+    // InventoryManagement won't get auto-disabled the next time
+    // Quick Setup runs just because QS doesn't have a Hemp toggle.
+    const qsKnownByCategory = {};
+    Object.entries(CANONICAL_BY_CATEGORY).forEach(([catKey, tmpls]) => {
+      qsKnownByCategory[catKey] = new Set(tmpls.map(t => _lower(t.name)));
+    });
+
     const updated = {};
     Object.entries(existing).forEach(([catKey, items]) => {
       const allowed = lowerCaseFilter[catKey];
+      const qsKnown = qsKnownByCategory[catKey] || new Set();
       if (!Array.isArray(items)) {
         updated[catKey] = items;
         return;
       }
       updated[catKey] = items.map(item => {
-        // Don't delete items — toggle `enabled`. Keeps them
-        // discoverable in the inventory panel for re-enable later.
-        const shouldBeOn = allowed ? allowed.has(_lower(item.name)) : false;
+        const lname = _lower(item.name);
+        const isQsManaged = qsKnown.has(lname);
+        if (!isQsManaged) {
+          // Operator-added custom item — leave enabled state alone.
+          return item;
+        }
+        // QS-managed item — flip enabled based on operator's QS selection.
+        const shouldBeOn = allowed ? allowed.has(lname) : false;
         return { ...item, enabled: shouldBeOn };
       });
     });
@@ -770,9 +794,16 @@ const QuickSetup = () => {
 
   const apply = async () => {
     if (!window.confirm(
-      'Apply Quick Setup?\n\nThis REPLACES the current inventory items with the ' +
-      'defaults selected here AND disables anything you haven\'t ticked in the ' +
-      'Inventory Management panel. Existing orders / customers / stations are kept. ' +
+      'Apply Quick Setup?\n\n' +
+      'This will SEED any missing defaults across inventory, station ' +
+      'configs, stock, and menu items based on the selections above. ' +
+      'It will:\n\n' +
+      '  ✓ Add items you selected that aren\'t already enabled\n' +
+      '  ✓ Disable QS-managed items you UN-selected\n' +
+      '  ✓ Seed empty stations with the same items\n' +
+      '  ✓ Leave operator-tuned stock amounts alone (existing items keep their quantities)\n' +
+      '  ✓ Leave custom items you added in Inventory Management alone\n\n' +
+      'Existing orders, customers, and station setup are kept.\n\n' +
       'Continue?'
     )) return;
     setApplying(true);
@@ -851,11 +882,16 @@ const QuickSetup = () => {
         <div>
           <h2 className="text-xl font-bold text-amber-800">Quick Setup</h2>
           <p className="text-amber-700 text-sm mt-1">
-            One click. Replaces your inventory with the selections below, copies
-            station capabilities, and (optionally) puts the schedule in
-            always-open mode. Use this for a fresh event setup; if you've
-            already configured things by hand, prefer the individual settings
-            panels.
+            One click to fill in sensible defaults across inventory, station
+            configs, stock amounts, menu, schedule, and VIP code — enough
+            to demo the whole app or get a fresh event ready to take orders.
+          </p>
+          <p className="text-amber-700 text-sm mt-2">
+            <strong>Safe to re-run.</strong> Quick Setup seeds — it doesn't
+            override. Existing stock amounts, custom items you added in
+            Inventory Management, and per-station tweaks all survive.
+            Only QS-managed items get reconciled to match the selections
+            below.
           </p>
         </div>
       </div>
@@ -974,6 +1010,35 @@ const QuickSetup = () => {
           onChange={() => setConfig(c => ({ ...c, always_open_schedule: !c.always_open_schedule }))}
           label="Always open — clear any scheduled breaks; orders flow all day"
         />
+        <br />
+        <Checkbox
+          checked={config.activate_all_stations}
+          onChange={() => setConfig(c => ({ ...c, activate_all_stations: !c.activate_all_stations }))}
+          label="Activate all stations — flip every station to status=active so they can take orders"
+        />
+
+        {/* VIP code — sets the magic SMS code that flags a customer
+            as VIP. 'VIP' is a sensible demo default; operator can
+            change to a private code for real events. Blank skips
+            (preserves any existing saved code). */}
+        <div className="mt-4">
+          <label className="text-sm">
+            <span className="block text-gray-600 mb-1">
+              VIP code (SMS customers texting this become VIP)
+            </span>
+            <input
+              type="text"
+              value={config.vip_code || ''}
+              onChange={(e) => setConfig(c => ({ ...c, vip_code: e.target.value }))}
+              placeholder="VIP"
+              className="w-48 px-2 py-1 border border-gray-300 rounded font-mono"
+              maxLength={20}
+            />
+            <span className="block text-xs text-gray-500 mt-1">
+              Leave blank to keep whatever code is currently saved.
+            </span>
+          </label>
+        </div>
       </div>
 
       <div className="flex items-center gap-3">

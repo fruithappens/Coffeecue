@@ -5871,6 +5871,15 @@ DEFAULT_QUICK_PRESET = {
     'unlimited_stock': True,
     'all_stations_same_capabilities': True,
     'always_open_schedule': True,
+    # 'VIP' is a memorable demo code — operator can change it. When
+    # provided (non-empty), Quick Setup writes to settings.vip_code so
+    # SMS customers texting this string get marked VIP. Set to ''
+    # (empty) to skip — preserves whatever vip_code is already saved.
+    'vip_code': 'VIP',
+    # Mark every existing station status='active' on apply. Useful for
+    # demos / fresh events where the operator wants the stack ready
+    # to take orders without manually flipping every station.
+    'activate_all_stations': True,
 }
 
 ESPRESSO_DRINKS = ['latte', 'cappuccino', 'flat white', 'espresso', 'long black', 'mocha']
@@ -6048,6 +6057,36 @@ def _apply_quick_setup(coffee_system, preset):
             db.commit()
             summary.append("schedule set to always open (no breaks)")
         except Exception:
+            db.rollback()
+
+    # 5. VIP code. Stored in settings.vip_code — when a customer texts
+    # this string the SMS handler flips their customer_preferences.is_vip
+    # to true. Skipped when blank so existing vip_code is preserved.
+    _vip_code = (preset.get('vip_code') or '').strip()
+    if _vip_code:
+        try:
+            cur.execute("""
+                INSERT INTO settings(key, value) VALUES('vip_code', %s)
+                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+            """, (_vip_code,))
+            db.commit()
+            summary.append(f"VIP code set to '{_vip_code}'")
+        except Exception as e:
+            logger.warning(f"quick-setup vip_code save failed: {e}")
+            db.rollback()
+
+    # 6. Activate all stations — flip status='active' across the board.
+    # Convenience for fresh setups / demos where the operator wants the
+    # whole stack ready to take orders without manually toggling each.
+    if preset.get('activate_all_stations'):
+        try:
+            cur.execute("UPDATE station_stats SET status = 'active' WHERE status != 'active'")
+            n = cur.rowcount or 0
+            db.commit()
+            if n > 0:
+                summary.append(f"activated {n} station(s)")
+        except Exception as e:
+            logger.warning(f"quick-setup activate_all_stations failed: {e}")
             db.rollback()
 
     return summary
