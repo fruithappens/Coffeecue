@@ -492,18 +492,32 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
           setAvailableCoffeeTypes(sortedDrinkTypes);
           console.log(`✅ Station ${targetStation.id} has ${sortedDrinkTypes.length} drink types available:`, sortedDrinkTypes);
           
-          // Process available bean types from coffee inventory
+          // Process available bean types from coffee inventory.
+          //
+          // The 'coffee' category was historically (incorrectly) seeded
+          // with DRINK names — 'Espresso', 'Latte', 'Cappuccino' etc. —
+          // so without filtering we'd populate the Bean Type dropdown
+          // with drinks, which is nonsense and what Steve flagged.
+          // Same `_looksLikeBean` regex used elsewhere in this file
+          // for the order-text bean prefix; centralizing the filter
+          // here means the dropdown never shows drink-named rows even
+          // on legacy events that haven't migrated to the new
+          // 'Coffee Beans' SKU layout.
+          const _itemLooksLikeBean = (name) => {
+            const x = (name || '').toLowerCase();
+            return /(bean|blend|roast|single\s*origin|decaf|colombian?|ethiopian?|brazilian?|kenyan?|guatemalan?)/.test(x);
+          };
           const beanTypes = [];
           if (inventory.coffee && inventory.coffee.length > 0) {
             inventory.coffee.forEach(coffeeItem => {
-              if (coffeeItem.amount > 0) {
+              if (coffeeItem.amount > 0 && _itemLooksLikeBean(coffeeItem.name)) {
                 // Extract bean type name (remove "Beans" or "Coffee Beans" suffix)
                 let beanName = coffeeItem.name
                   .replace(/\s*(Coffee\s*)?Beans?\s*$/i, '')
                   .trim();
-                
+
                 // Don't add duplicates
-                if (!beanTypes.includes(beanName)) {
+                if (beanName && !beanTypes.includes(beanName)) {
                   beanTypes.push(beanName);
                 }
               }
@@ -691,10 +705,33 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
       hasChanges = true;
     }
 
-    // Check if selected milk is still available - be more careful here
+    // Check if selected milk is still available - be more careful here.
+    //
+    // Default milk: pick the most-common milk (whole / full cream /
+    // regular dairy) rather than whatever happens to be at position 0
+    // — which is sometimes Lactose-Free or Oat just because of how
+    // the inventory was sorted, and that's a confusing default for a
+    // walk-in operator who'll serve dairy 80%+ of the time. Falls
+    // back to first available if no "standard" milk is stocked.
+    const _pickDefaultMilk = (milks) => {
+      if (!milks || milks.length === 0) return 'no_milk';
+      // Priority: whole / full cream / regular / dairy first, then
+      // skim / low-fat, then anything else. Match against id or name.
+      const score = (m) => {
+        const t = `${m.id || ''} ${m.name || ''}`.toLowerCase();
+        if (/(whole|full[\s_-]?cream|regular)/.test(t)) return 0;
+        if (/^milk$|^dairy$|standard/.test(t)) return 1;
+        if (/(skim|low[\s_-]?fat|trim)/.test(t)) return 2;
+        return 3;
+      };
+      const sorted = [...milks].sort((a, b) => score(a) - score(b));
+      return sorted[0]?.id || milks[0]?.id || 'no_milk';
+    };
+
     if (availableMilks.length > 0 && !availableMilks.some(milk => milk.id === orderDetails.milkType)) {
-      console.log('Milk type not available, updating from', orderDetails.milkType, 'to', availableMilks[0]?.id);
-      updatedDetails.milkType = availableMilks[0]?.id || 'no_milk';
+      const def = _pickDefaultMilk(availableMilks);
+      console.log('Milk type not available, updating from', orderDetails.milkType, 'to', def);
+      updatedDetails.milkType = def;
       hasChanges = true;
     } else if (availableMilks.length > 0) {
       console.log('Current milk type is available:', orderDetails.milkType);
