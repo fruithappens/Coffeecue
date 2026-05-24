@@ -1673,15 +1673,32 @@ def _station_can_make_order(db, station_id, order_details):
         requested_milk
         and isinstance(milk_types, list)
         and len(milk_types) > 0
-        and requested_milk not in [str(m).lower() for m in milk_types]
     ):
-        return {
-            'blocked': True,
-            'reason': (
-                f"This station doesn't stock {requested_milk}. "
-                f"Available here: {', '.join(milk_types)}."
-            ),
-        }
+        # Normalise both sides for comparison. The order's milk field
+        # carries display names like 'Skim Milk' / 'Oat Milk' (lowercased
+        # to 'skim milk'/'oat milk'). The capabilities list has short
+        # tokens like 'skim'/'oat'. Without normalising, the literal `in`
+        # check would always fail and a station would block an order
+        # for a milk it actually stocks — Steve hit this with a 'doesn't
+        # stock skim milk' error that listed 'skim' in the available set.
+        def _milk_token(s):
+            t = (s or '').strip().lower()
+            # Strip the trailing ' milk' / 'milk' so 'skim milk' == 'skim'.
+            if t.endswith(' milk'):
+                t = t[:-5].strip()
+            elif t == 'milk':
+                t = ''
+            return t
+        requested_norm = _milk_token(requested_milk)
+        available_norms = [_milk_token(m) for m in milk_types]
+        if requested_norm and requested_norm not in available_norms:
+            return {
+                'blocked': True,
+                'reason': (
+                    f"This station doesn't stock {requested_milk}. "
+                    f"Available here: {', '.join(milk_types)}."
+                ),
+            }
 
     return {'blocked': False, 'reason': ''}
 
