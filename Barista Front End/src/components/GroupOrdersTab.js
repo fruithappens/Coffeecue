@@ -2,8 +2,26 @@
 import React, { useState, useEffect } from 'react';
 import { PlusCircle, Trash2, Check, FileText, Coffee, Copy } from 'lucide-react';
 import { DEFAULT_MILK_TYPES } from '../utils/milkConfig';
+import useCatalog from '../hooks/useCatalog';
 
 const GroupOrdersTab = ({ onSubmitGroupOrders }) => {
+  // Canonical milk list from /api/catalog/milk. Falls back to
+  // DEFAULT_MILK_TYPES if catalog unreachable. Same pattern as
+  // StationDefaults — see catalog architecture in
+  // CLAUDE_ONBOARDING.md.
+  const { items: catalogMilksRaw } = useCatalog('milk');
+  const milkOptions = (Array.isArray(catalogMilksRaw) && catalogMilksRaw.length > 0)
+    ? catalogMilksRaw.map(c => ({
+        id: c.id,
+        name: c.name,
+        category: c.subcategory || 'standard',
+        properties: {
+          lactoseFree: !!c.properties?.lactoseFree,
+          vegan: !!c.properties?.vegan,
+        },
+      }))
+    : DEFAULT_MILK_TYPES;
+
   const [groupName, setGroupName] = useState('');
   const [groupCode, setGroupCode] = useState('');
   const [notes, setNotes] = useState('');
@@ -258,7 +276,7 @@ const GroupOrdersTab = ({ onSubmitGroupOrders }) => {
                   className="w-full p-2 border rounded"
                 >
                   <optgroup label="Standard Milks">
-                    {DEFAULT_MILK_TYPES
+                    {milkOptions
                       .filter(milk => milk.category === 'standard')
                       .map(milk => (
                         <option key={milk.id} value={milk.id}>
@@ -270,7 +288,7 @@ const GroupOrdersTab = ({ onSubmitGroupOrders }) => {
                     }
                   </optgroup>
                   <optgroup label="Alternative Milks">
-                    {DEFAULT_MILK_TYPES
+                    {milkOptions
                       .filter(milk => milk.category === 'alternative')
                       .map(milk => (
                         <option key={milk.id} value={milk.id}>
@@ -347,7 +365,7 @@ const GroupOrdersTab = ({ onSubmitGroupOrders }) => {
                         <span className="font-medium">{order.name}</span>
                         <span className="text-sm text-gray-600 ml-2">
                           {order.size} {order.coffeeType}, 
-                          {DEFAULT_MILK_TYPES.find(m => m.id === order.milkType)?.name || order.milkType}, 
+                          {milkOptions.find(m => m.id === order.milkType)?.name || order.milkType}, 
                           {order.sugar}
                           {order.extraHot ? ', Extra Hot' : ''}
                           {order.notes ? `, ${order.notes}` : ''}
@@ -440,7 +458,7 @@ const GroupOrdersTab = ({ onSubmitGroupOrders }) => {
                           <span className="font-medium">{order.name}</span>:&nbsp;
                           <span className="text-gray-600">
                             {order.size} {order.coffeeType}, 
-                            {DEFAULT_MILK_TYPES.find(m => m.id === order.milkType)?.name || order.milkType}, 
+                            {milkOptions.find(m => m.id === order.milkType)?.name || order.milkType}, 
                             {order.sugar}
                             {order.extraHot ? ', Extra Hot' : ''}
                             {order.notes ? `, ${order.notes}` : ''}

@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Coffee, Settings, Save, AlertTriangle } from 'lucide-react';
 import useStations from '../hooks/useStations';
 import { DEFAULT_MILK_TYPES } from '../utils/milkConfig';
+import useCatalog from '../hooks/useCatalog';
 import ApiServiceClass from '../services/ApiService';
 
 // Backend-backed station defaults — the previous version saved only
@@ -18,6 +19,24 @@ const StationDefaults = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
+
+  // Canonical milk list from /api/catalog/milk. Falls back to
+  // DEFAULT_MILK_TYPES (the legacy hardcoded list) only if the
+  // catalog endpoint is unreachable. Once catalog is reliably
+  // populated in production, DEFAULT_MILK_TYPES can be deleted.
+  const { items: catalogMilksRaw } = useCatalog('milk');
+  const milkOptions = (Array.isArray(catalogMilksRaw) && catalogMilksRaw.length > 0)
+    ? catalogMilksRaw.map(c => ({
+        id: c.id,
+        name: c.name,
+        category: c.subcategory || 'standard',
+        properties: {
+          lactoseFree: !!c.properties?.lactoseFree,
+          lowFat: !!c.properties?.lowFat,
+          vegan: !!c.properties?.vegan,
+        },
+      }))
+    : DEFAULT_MILK_TYPES;
   
   // Available options
   const [coffeeMenu, setCoffeeMenu] = useState({});
@@ -363,7 +382,7 @@ const StationDefaults = () => {
                 className="w-full p-3 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
               >
                 <optgroup label="Standard Milks">
-                  {DEFAULT_MILK_TYPES
+                  {milkOptions
                     .filter(milk => milk.category === 'standard')
                     .map(milk => (
                       <option key={milk.id} value={milk.id}>
@@ -375,7 +394,7 @@ const StationDefaults = () => {
                   }
                 </optgroup>
                 <optgroup label="Alternative Milks">
-                  {DEFAULT_MILK_TYPES
+                  {milkOptions
                     .filter(milk => milk.category === 'alternative')
                     .map(milk => (
                       <option key={milk.id} value={milk.id}>
@@ -448,7 +467,7 @@ const StationDefaults = () => {
               <p><strong>Coffee:</strong> {getCurrentDefaults(selectedStation).coffeeType}</p>
               <p><strong>Size:</strong> {getCurrentDefaults(selectedStation).size}</p>
               <p><strong>Milk:</strong> {
-                DEFAULT_MILK_TYPES.find(m => m.id === getCurrentDefaults(selectedStation).milkType)?.name || 'No milk'
+                milkOptions.find(m => m.id === getCurrentDefaults(selectedStation).milkType)?.name || 'No milk'
               }</p>
               <p><strong>Shots:</strong> {getCurrentDefaults(selectedStation).shots}</p>
               <p><strong>Bean Type:</strong> {getCurrentDefaults(selectedStation).beanType}</p>
