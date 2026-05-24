@@ -1,6 +1,7 @@
 // services/OrderDataService.refactored.js
 import ApiService from './ApiService';
 import { DEFAULT_MILK_TYPES } from '../utils/milkConfig';
+import { ORDER_STATUS, isPending, isInProgress, isCompleted, isPickedUp } from '../constants/orderStatus';
 
 /**
  * Refactored OrderDataService that uses APIs with localStorage as fallback only
@@ -92,19 +93,15 @@ class OrderDataService {
       if (response.status === 'success') {
         const orders = response.data || [];
 
-        // Group orders by status. CRITICAL: the backend stores the
-        // status as `in-progress` (hyphen) and `picked_up`/`picked-up`
-        // varies by codepath. Previously this filter looked only for
-        // `in_progress` (underscore) — every started order vanished
-        // from the UI because the filter never matched, which is the
-        // "start an order → it disappears → can't even complete it"
-        // bug Steve hit. Normalize both forms here.
-        const isInProgress = (s) => s === 'in-progress' || s === 'in_progress';
-        const isPickedUp   = (s) => s === 'picked_up'   || s === 'picked-up';
+        // Group orders by status. Uses the ORDER_STATUS helpers which
+        // tolerate the historical in-progress/in_progress drift +
+        // picked_up/picked-up variants. See constants/orderStatus.js
+        // for context — this used to be a hand-rolled normalize that
+        // got out of sync per call site.
         const groupedOrders = {
-          pendingOrders:    orders.filter(o => o.status === 'pending'),
-          inProgressOrders: orders.filter(o => isInProgress(o.status)),
-          completedOrders:  orders.filter(o => o.status === 'completed' || isPickedUp(o.status)),
+          pendingOrders:    orders.filter(o => isPending(o)),
+          inProgressOrders: orders.filter(o => isInProgress(o)),
+          completedOrders:  orders.filter(o => isCompleted(o) || isPickedUp(o)),
         };
 
         // Cache the result

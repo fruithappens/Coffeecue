@@ -8,6 +8,7 @@ import {
 import useStations from '../hooks/useStations';
 import useOrders from '../hooks/useOrders';
 import useStock from '../hooks/useStock';
+import { isPending, isInProgress } from '../constants/orderStatus';
 import useSettings from '../hooks/useSettings';
 import useMessages from '../hooks/useMessages';
 
@@ -273,8 +274,8 @@ const LiveOperationsDashboard = () => {
             const stationOrders = orders && Array.isArray(orders) 
               ? orders.filter(o => o.station_id === station.id)
               : [];
-            const pendingOrders = stationOrders.filter(o => o.status === 'pending').length;
-            const inProgressOrders = stationOrders.filter(o => o.status === 'in-progress' || o.status === 'in_progress').length;
+            const pendingOrders = stationOrders.filter(isPending).length;
+            const inProgressOrders = stationOrders.filter(isInProgress).length;
             
             return (
               <div 
@@ -414,10 +415,17 @@ const LiveOperationsDashboard = () => {
                   <td className="py-2">Station {order.station_id || '-'}</td>
                   <td className="py-2">
                     <span className={`px-2 py-1 text-xs rounded-full ${
-                      order.status === 'completed' ? 'bg-green-100 text-green-800' :
-                      (order.status === 'in-progress' || order.status === 'in_progress') ? 'bg-blue-100 text-blue-800' :
-                      order.status === 'pending' ? 'bg-amber-100 text-amber-800' :
-                      'bg-gray-100 text-gray-800'
+                      // Use the canonical helpers so the same legacy
+                      // drift (in_progress vs in-progress) doesn't
+                      // make orders fall through to the grey 'unknown'
+                      // pill.
+                      // eslint-disable-next-line
+                      (() => {
+                        if (order.status === 'completed') return 'bg-green-100 text-green-800';
+                        if (isInProgress(order)) return 'bg-blue-100 text-blue-800';
+                        if (isPending(order)) return 'bg-amber-100 text-amber-800';
+                        return 'bg-gray-100 text-gray-800';
+                      })()
                     }`}>
                       {order.status}
                     </span>
