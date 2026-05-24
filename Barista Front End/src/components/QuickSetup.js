@@ -261,45 +261,90 @@ const QuickSetup = () => {
     };
   };
 
+  // Build per-station stock with MERGE semantics — preserve any
+  // amount the operator has adjusted. Steve's framing: 'Quick Setup
+  // should auto-populate but not override. If the barista sets a
+  // milk to 2L during service, re-running Quick Setup must not
+  // reset it to 30L.'
+  //
+  // Merge rules per item:
+  //   - exists in current stock + still enabled by QS → keep existing
+  //     (amount, capacity, thresholds — all operator-tuned values)
+  //   - exists in current stock + no longer enabled → drop (operator
+  //     intent: 'no longer offering this' propagates)
+  //   - newly enabled by QS → seed with default amount/capacity
+  //   - manually-added custom item (id starts with 'custom_' or has
+  //     no QS-matching name) → always preserve
   const rebuildPerStationStock = (stations, enabledByCategory) => {
     if (!Array.isArray(stations) || stations.length === 0) return;
     const unlimited = !!config.unlimited_stock;
 
+    // Helper: index a stock category by id for fast lookup.
+    const _byId = (arr) => {
+      const m = new Map();
+      if (Array.isArray(arr)) arr.forEach(it => it && it.id && m.set(it.id, it));
+      return m;
+    };
+    const _isCustom = (id) =>
+      typeof id === 'string' && (id.startsWith('custom_') || id.startsWith('user_'));
+
     stations.forEach(station => {
       const stationId = station.id;
+      const stockKey = `coffee_stock_station_${stationId}`;
+
+      // Read existing stock so we can preserve operator-tuned amounts.
+      let existing = { milk: [], coffee: [], cups: [], sweeteners: [], drinks: [], other: [] };
+      try {
+        const cur = JSON.parse(localStorage.getItem(stockKey) || 'null');
+        if (cur && typeof cur === 'object') existing = { ...existing, ...cur };
+      } catch { /* ignore parse errors */ }
+
       const stockData = {
         milk: [], coffee: [], cups: [], sweeteners: [], drinks: [], other: [],
         lastUpdated: new Date().toISOString(),
       };
-      // Milks
-      enabledByCategory.milk.forEach(name => {
-        const id = name.toLowerCase().replace(/\s+/g, '_');
-        stockData.milk.push(buildStockItem(id, name, 'milk', unlimited));
-      });
-      // Coffee beans — Quick Setup always seeds house blend + decaf
-      // on the backend; mirror those here so coffee-based drinks
-      // light up in the walk-in dialog.
-      [['house_blend', 'House Blend Beans'], ['decaf', 'Decaf Beans']]
-        .forEach(([id, name]) => {
-          stockData.coffee.push(buildStockItem(id, name, 'coffee', unlimited));
-        });
-      // Cups
-      enabledByCategory.cups.forEach(name => {
-        const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '_');
-        stockData.cups.push(buildStockItem(id, name, 'cups', unlimited));
-      });
-      // Sweeteners
-      enabledByCategory.sweeteners.forEach(name => {
-        const id = name.toLowerCase().replace(/\s+/g, '_');
-        stockData.sweeteners.push(buildStockItem(id, name, 'sweeteners', unlimited));
-      });
-      // Non-coffee drinks (chai, hot chocolate, matcha, tea)
-      enabledByCategory.drinks.forEach(name => {
-        const id = name.toLowerCase().replace(/\s+/g, '_');
-        stockData.drinks.push(buildStockItem(id, name, 'drinks', unlimited));
-      });
 
-      const stockKey = `coffee_stock_station_${stationId}`;
+      // For each category, merge the QS-enabled list with existing.
+      const _mergeCategory = (catKey, enabledNames) => {
+        const existingById = _byId(existing[catKey]);
+        const idFromName = (name) => {
+          if (catKey === 'cups') return name.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+          return name.toLowerCase().replace(/\s+/g, '_');
+        };
+        // 1. QS-enabled items: preserve if exists, seed if new.
+        enabledNames.forEach(name => {
+          const id = idFromName(name);
+          const prior = existingById.get(id);
+          if (prior) {
+            // Preserve operator-tuned amount/capacity but make sure
+            // it's marked enabled and the name matches the latest
+            // (in case the catalog renamed it).
+            stockData[catKey].push({ ...prior, name, enabled: true });
+            existingById.delete(id);
+          } else {
+            stockData[catKey].push(buildStockItem(id, name, catKey, unlimited));
+          }
+        });
+        // 2. What's left in existingById is either:
+        //    (a) a custom operator-added item — KEEP
+        //    (b) something QS just disabled — DROP (operator intent)
+        existingById.forEach((item, id) => {
+          if (_isCustom(id)) stockData[catKey].push(item);
+        });
+      };
+
+      _mergeCategory('milk',       enabledByCategory.milk);
+      _mergeCategory('cups',       enabledByCategory.cups);
+      _mergeCategory('sweeteners', enabledByCategory.sweeteners);
+      _mergeCategory('drinks',     enabledByCategory.drinks);
+
+      // Coffee beans — Quick Setup always seeds house blend + decaf,
+      // same merge logic.
+      _mergeCategory('coffee', ['House Blend Beans', 'Decaf Beans']);
+
+      // Preserve any items in 'other' the operator added manually.
+      if (Array.isArray(existing.other)) stockData.other = existing.other;
+
       localStorage.setItem(stockKey, JSON.stringify(stockData));
     });
 
