@@ -37,6 +37,15 @@
       "expect_keys": ["status"]
     },
     {
+      "name": "GET /api/health/full",
+      "method": "GET",
+      "path": "/api/health/full",
+      "auth": false,
+      "expect_status": 200,
+      "expect_keys": ["status", "checks"],
+      "_note": "Used by Support → System Health tab. Returns ok/warn/fail per subsystem (database, twilio, migrations, catalog, stations)."
+    },
+    {
       "name": "GET /api/orders/pending",
       "method": "GET",
       "path": "/api/orders/pending",
