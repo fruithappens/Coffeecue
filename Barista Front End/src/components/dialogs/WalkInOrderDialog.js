@@ -85,6 +85,11 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
   const [groupCodeInput, setGroupCodeInput] = useState('');
   const [groupOrder, setGroupOrder] = useState(null);
   const [isLookingUp, setIsLookingUp] = useState(false);
+  // Group lookup lives at the bottom now (collapsed by default) — it's
+  // the rare path. Open auto-expands when the operator actually has a
+  // code to type. Steve flagged that the prominent NEW banner at the
+  // top was wasting vertical space the common path needed.
+  const [groupLookupOpen, setGroupLookupOpen] = useState(false);
   
   // State to prevent duplicate submissions
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1130,8 +1135,25 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-800 bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-lg p-6 max-w-lg w-full">
+    <div className="fixed inset-0 bg-gray-800 bg-opacity-50 flex items-center justify-center z-50 p-4">
+      {/* Wider (max-w-2xl) + capped at 90vh + flex column so the action
+          bar stays visible at the bottom no matter how tall the form
+          grows. Form scrolls in the middle. Steve's report: 'I have
+          to scroll to hit Add or Cancel' — this stops that. */}
+      <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] flex flex-col">
+        {/* === STICKY HEADER === */}
+        <div className="px-6 pt-5 pb-3 border-b flex justify-between items-center flex-shrink-0">
+          <h3 className="text-lg font-bold">Add Walk-in Order</h3>
+          <button
+            className="text-gray-500 hover:text-gray-700"
+            onClick={handleClose}
+          >
+            <XCircle size={20} />
+          </button>
+        </div>
+
+        {/* === SCROLLABLE BODY === */}
+        <div className="overflow-y-auto px-6 py-4 flex-1">
         {/* Station inventory status message */}
         {targetStation && !loadingInventory && (
           <div className="bg-blue-50 border border-blue-200 rounded p-2 mb-4 text-sm">
@@ -1194,91 +1216,10 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
             </div>
           </div>
         )}
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-bold">Add Walk-in Order</h3>
-          <button 
-            className="text-gray-500 hover:text-gray-700"
-            onClick={handleClose}
-          >
-            <XCircle size={20} />
-          </button>
-        </div>
-
-        {/* Group Code Lookup Section */}
-        <div className="bg-blue-50 p-3 mb-4 rounded-lg border-2 border-blue-300">
-          <h4 className="text-sm font-semibold mb-2 text-blue-800 flex items-center">
-            <Coffee size={16} className="mr-1 text-blue-600" /> 
-            Group Order Lookup 
-            <span className="ml-2 bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full">NEW</span>
-          </h4>
-          <div className="flex space-x-2">
-            <input
-              type="text"
-              placeholder="Enter group code (e.g. ASM-1234)"
-              className="flex-1 p-2 border rounded"
-              value={groupCodeInput}
-              onChange={(e) => setGroupCodeInput(e.target.value)}
-            />
-            <button
-              type="button"
-              className="bg-blue-600 text-white px-3 py-2 rounded flex items-center"
-              onClick={lookupGroupCode}
-              disabled={isLookingUp}
-            >
-              {isLookingUp ? 'Looking up...' : <><Search size={16} className="mr-1" /> Lookup</>}
-            </button>
-          </div>
-          <p className="text-xs text-blue-600 mt-1">
-            <strong>NEW FEATURE:</strong> Enter a group code to retrieve a pre-saved group order. Organizers can create group orders with priority status, and they'll be processed together.
-          </p>
-          
-          {/* Found Group Display */}
-          {groupOrder && (
-            <div className="mt-3 bg-white p-3 rounded-lg border border-blue-200">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h5 className="font-semibold">{groupOrder.groupName}</h5>
-                  <div className="text-sm text-gray-600">Code: {groupOrder.groupCode}</div>
-                  {groupOrder.notes && (
-                    <div className="text-sm mt-1">
-                      {groupOrder.notes.toLowerCase().includes('vip') || 
-                       groupOrder.notes.toLowerCase().includes('staff') || 
-                       groupOrder.notes.toLowerCase().includes('priority') ? (
-                        <div className="flex items-center">
-                          <Star size={14} className="text-red-500 mr-1" />
-                          <span className="font-medium text-red-600">{groupOrder.notes}</span>
-                        </div>
-                      ) : (
-                        <span className="italic">{groupOrder.notes}</span>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center">
-                  <Users size={18} className="text-blue-500 mr-1" />
-                  <div className="text-xl font-bold text-amber-600">
-                    {groupOrder.orders.length} orders
-                  </div>
-                </div>
-              </div>
-              
-              <button
-                type="button"
-                className="w-full mt-2 bg-amber-600 text-white py-2 rounded-md flex items-center justify-center"
-                onClick={handleSubmitGroup}
-              >
-                <Coffee size={18} className="mr-2" />
-                Submit Entire Group ({groupOrder.orders.length} coffees)
-              </button>
-            </div>
-          )}
-          
-          <div className="mt-2 text-center text-xs text-gray-600">
-            - OR -
-          </div>
-        </div>
-        
-        <form onSubmit={handleSubmit}>
+        {/* Form is now identified by id so the sticky action bar at
+            the bottom (outside the form tag, in the dialog's footer)
+            can still submit via the button[form="walkInForm"] attr. */}
+        <form id="walkInForm" onSubmit={handleSubmit}>
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1726,27 +1667,111 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
             </p>
           </div>
           
-          <div className="flex justify-end space-x-2">
-            <button 
-              type="button"
-              className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
-              onClick={handleClose}
-            >
-              Cancel
-            </button>
-            <button 
-              type="submit"
-              disabled={isSubmitting}
-              className={`px-4 py-2 rounded text-white ${
-                isSubmitting 
-                  ? 'bg-gray-400 cursor-not-allowed' 
-                  : 'bg-amber-600 hover:bg-amber-700'
-              }`}
-            >
-              {isSubmitting ? 'Adding Order...' : 'Add Order'}
-            </button>
-          </div>
         </form>
+
+        {/* Group Order Lookup — moved from the top of the dialog to
+            the bottom as a collapsed disclosure. Rare path; doesn't
+            need to dominate the dialog header. Operators who do need
+            it click 'Look up a group code' and the input expands. */}
+        <div className="mt-4 border-t pt-3">
+          <button
+            type="button"
+            onClick={() => setGroupLookupOpen(o => !o)}
+            className="w-full text-left text-sm text-gray-600 hover:text-amber-700 flex items-center justify-between"
+          >
+            <span className="flex items-center">
+              <Coffee size={14} className="mr-2" />
+              Look up a group code instead
+            </span>
+            <span className="text-gray-400">{groupLookupOpen ? '−' : '+'}</span>
+          </button>
+          {groupLookupOpen && (
+            <div className="mt-3 p-3 bg-blue-50 rounded border border-blue-200">
+              <div className="flex space-x-2">
+                <input
+                  type="text"
+                  placeholder="Enter group code (e.g. ASM-1234)"
+                  className="flex-1 p-2 border rounded"
+                  value={groupCodeInput}
+                  onChange={(e) => setGroupCodeInput(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="bg-blue-600 text-white px-3 py-2 rounded flex items-center"
+                  onClick={lookupGroupCode}
+                  disabled={isLookingUp}
+                >
+                  {isLookingUp ? 'Looking up...' : <><Search size={16} className="mr-1" /> Lookup</>}
+                </button>
+              </div>
+              {groupOrder && (
+                <div className="mt-3 bg-white p-3 rounded-lg border border-blue-200">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h5 className="font-semibold">{groupOrder.groupName}</h5>
+                      <div className="text-sm text-gray-600">Code: {groupOrder.groupCode}</div>
+                      {groupOrder.notes && (
+                        <div className="text-sm mt-1">
+                          {groupOrder.notes.toLowerCase().includes('vip') ||
+                           groupOrder.notes.toLowerCase().includes('staff') ||
+                           groupOrder.notes.toLowerCase().includes('priority') ? (
+                            <div className="flex items-center">
+                              <Star size={14} className="text-red-500 mr-1" />
+                              <span className="font-medium text-red-600">{groupOrder.notes}</span>
+                            </div>
+                          ) : (
+                            <span className="italic">{groupOrder.notes}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center">
+                      <Users size={18} className="text-blue-500 mr-1" />
+                      <div className="text-xl font-bold text-amber-600">
+                        {groupOrder.orders.length} orders
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="w-full mt-2 bg-amber-600 text-white py-2 rounded-md flex items-center justify-center"
+                    onClick={handleSubmitGroup}
+                  >
+                    <Coffee size={18} className="mr-2" />
+                    Submit Entire Group ({groupOrder.orders.length} coffees)
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        </div>{/* === end SCROLLABLE BODY === */}
+
+        {/* === STICKY FOOTER === Always-visible action bar. Buttons use
+            form="walkInForm" so the submit still hits the form's onSubmit
+            handler even though they live outside the <form> tag. */}
+        <div className="px-6 py-3 border-t flex justify-end space-x-2 flex-shrink-0 bg-white rounded-b-lg">
+          <button
+            type="button"
+            className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+            onClick={handleClose}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            form="walkInForm"
+            disabled={isSubmitting}
+            className={`px-4 py-2 rounded text-white ${
+              isSubmitting
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-amber-600 hover:bg-amber-700'
+            }`}
+          >
+            {isSubmitting ? 'Adding Order...' : 'Add Order'}
+          </button>
+        </div>
       </div>
     </div>
   );
