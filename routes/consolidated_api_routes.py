@@ -1674,44 +1674,46 @@ def _station_can_make_order(db, station_id, order_details):
         and isinstance(milk_types, list)
         and len(milk_types) > 0
     ):
-        # Normalise both sides + map synonyms to canonical tokens.
+        # Catalog-driven canonicalisation. Build a synonym map at
+        # request time by reading catalog_items.properties.synonyms +
+        # display_name / short_name / item_id for every milk. Anything
+        # the operator or walk-in dialog throws at us — 'Whole Milk',
+        # 'full cream', 'oat milk', 'OAT' — collapses to the canonical
+        # item_id ('full_cream', 'oat') before comparison.
         #
-        # Two reasons the literal `in` check fails:
-        #   1. Order carries display names ('Skim Milk') vs capability
-        #      short tokens ('skim') — strip ' milk' suffix.
-        #   2. 'Whole Milk' (US/walk-in default) and 'Full Cream'
-        #      (Aussie) and 'Regular' and 'Standard' all refer to the
-        #      same milk. Steve hit this trying to move a Whole Milk
-        #      order to a station that only had 'full cream' in caps.
-        #
-        # Canonicalise via a synonym table so all of those collapse to
-        # the same token before comparison.
-        _MILK_SYNONYMS = {
-            # Each value is the canonical token; keys are accepted spellings.
-            'whole milk': 'full_cream',
-            'whole':      'full_cream',
-            'full cream': 'full_cream',
-            'full-cream': 'full_cream',
-            'fullcream':  'full_cream',
-            'regular':    'full_cream',
-            'standard':   'full_cream',
-            'dairy':      'full_cream',
-            'skim':       'skim',
-            'skinny':     'skim',
-            'low fat':    'skim',
-            'low-fat':    'skim',
-            'trim':       'skim',
-            'oat':        'oat',
-            'soy':        'soy',
-            'soya':       'soy',
-            'almond':     'almond',
-            'coconut':    'coconut',
-            'macadamia':  'macadamia',
-            'rice':       'rice',
-            'lactose free':  'lactose_free',
-            'lactose-free':  'lactose_free',
-            'lactose_free':  'lactose_free',
+        # Falls back to a static synonym set if catalog_items is
+        # missing (fresh DB before migration ran).
+        _STATIC_FALLBACK = {
+            'whole milk': 'full_cream', 'whole': 'full_cream',
+            'full cream': 'full_cream', 'regular': 'full_cream',
+            'standard': 'full_cream', 'dairy': 'full_cream',
+            'skim': 'skim', 'skinny': 'skim',
+            'low fat': 'skim', 'trim': 'skim',
+            'oat': 'oat', 'soy': 'soy', 'soya': 'soy',
+            'almond': 'almond', 'coconut': 'coconut',
+            'macadamia': 'macadamia', 'rice': 'rice',
+            'lactose free': 'lactose_free',
+            'lactose-free': 'lactose_free',
         }
+        synonym_map = {}
+        try:
+            c2 = db.cursor()
+            c2.execute("""
+                SELECT item_id, display_name, short_name, properties
+                FROM catalog_items
+                WHERE category = 'milk' AND is_active = TRUE
+            """)
+            for iid, dn, sn, props in c2.fetchall():
+                # Self + display + short variants
+                for v in (iid, dn, sn):
+                    if v:
+                        key = v.strip().lower().removesuffix(' milk')
+                        synonym_map[key] = iid
+                # Explicit synonyms from properties JSONB
+                for syn in (props or {}).get('synonyms', []):
+                    synonym_map[str(syn).strip().lower()] = iid
+        except Exception:
+            synonym_map = dict(_STATIC_FALLBACK)
 
         def _milk_canon(s):
             t = (s or '').strip().lower()
@@ -1719,9 +1721,7 @@ def _station_can_make_order(db, station_id, order_details):
                 t = t[:-5].strip()
             elif t == 'milk':
                 t = ''
-            # Map synonyms → canonical. Unknown milks pass through as
-            # themselves so a custom milk like 'Hemp' still works.
-            return _MILK_SYNONYMS.get(t, t)
+            return synonym_map.get(t, t)
 
         requested_canon = _milk_canon(requested_milk)
         available_canon = {_milk_canon(m) for m in milk_types}
@@ -6394,6 +6394,178 @@ def upsert_pricing_settings():
         return jsonify({'success': True, 'pricing': merged})
     except Exception as e:
         logger.error(f"upsert_pricing_settings error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ============================================================================
+# CATALOG (single source of truth for option lists)
+# ============================================================================
+# All UIs (walk-in dialog, capability editor, inventory editor) read
+# their option lists from here. Replaces DEFAULT_MILK_TYPES, hardcoded
+# drink lists, etc. — see services/migrations.py _m009_catalog_items
+# for the design rationale.
+
+VALID_CATALOG_CATEGORIES = {'milk', 'drink', 'size', 'sweetener'}
+
+
+@bp.route('/catalog/<category>', methods=['GET'])
+@jwt_required_with_demo()
+def get_catalog(category):
+    """List canonical items for a category.
+
+    Query params:
+      include_inactive=1  — include rows where is_active=false
+      include_custom=0    — exclude operator-added customs
+
+    Response:
+      {
+        "category": "milk",
+        "items": [
+          {"id": "full_cream", "name": "Full Cream Milk",
+           "short_name": "full cream", "subcategory": "standard",
+           "properties": {...}, "is_custom": false, ...},
+          ...
+        ]
+      }
+    """
+    try:
+        if category not in VALID_CATALOG_CATEGORIES:
+            return jsonify({
+                'success': False,
+                'error': f"Unknown category '{category}'. Valid: "
+                         f"{sorted(VALID_CATALOG_CATEGORIES)}",
+            }), 400
+
+        include_inactive = request.args.get('include_inactive') == '1'
+        include_custom_raw = request.args.get('include_custom', '1')
+        include_custom = include_custom_raw != '0'
+
+        coffee_system = current_app.config.get('coffee_system')
+        if not coffee_system or not getattr(coffee_system, 'db', None):
+            return jsonify({'success': False, 'error': 'DB unavailable'}), 503
+
+        cur = coffee_system.db.cursor()
+        try:
+            coffee_system.db.rollback()
+        except Exception:
+            pass
+
+        where = ['category = %s']
+        params: list = [category]
+        if not include_inactive:
+            where.append('is_active = TRUE')
+        if not include_custom:
+            where.append('is_custom = FALSE')
+
+        cur.execute(f"""
+            SELECT item_id, display_name, short_name, subcategory,
+                   properties, sort_order, is_active, is_custom
+            FROM catalog_items
+            WHERE {' AND '.join(where)}
+            ORDER BY sort_order, display_name
+        """, params)
+
+        items = []
+        for row in cur.fetchall():
+            iid, dn, sn, sub, props, sort, active, custom = row
+            items.append({
+                'id': iid,
+                'name': dn,
+                'short_name': sn,
+                'subcategory': sub,
+                'properties': props or {},
+                'sort_order': sort,
+                'is_active': active,
+                'is_custom': custom,
+            })
+
+        return jsonify({'category': category, 'items': items})
+    except Exception as e:
+        logger.error(f"get_catalog({category}) error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/catalog/<category>', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def add_catalog_item(category):
+    """Add a custom item to the catalog.
+
+    Body: {"name": "Hemp Milk", "short_name": "hemp" (optional),
+           "subcategory": "alternative" (optional)}
+
+    The item_id is derived from the name (lowercased, spaces→underscores)
+    so it's deterministic — adding 'Hemp Milk' twice is a no-op.
+    """
+    try:
+        if category not in VALID_CATALOG_CATEGORIES:
+            return jsonify({
+                'success': False,
+                'error': f"Unknown category '{category}'",
+            }), 400
+
+        data = request.get_json() or {}
+        name = (data.get('name') or '').strip()
+        if not name:
+            return jsonify({'success': False, 'error': "'name' required"}), 400
+
+        # Derive item_id deterministically so duplicates collapse.
+        import re as _re
+        item_id = _re.sub(r'[^a-z0-9]+', '_', name.lower()).strip('_')
+        if not item_id:
+            return jsonify({'success': False, 'error': 'name produced empty id'}), 400
+
+        short_name = (data.get('short_name') or name).strip().lower()
+        # Strip ' milk' suffix from milks for compact display.
+        if category == 'milk' and short_name.endswith(' milk'):
+            short_name = short_name[:-5]
+        subcategory = data.get('subcategory')
+        properties = data.get('properties') or {}
+
+        coffee_system = current_app.config.get('coffee_system')
+        cur = coffee_system.db.cursor()
+        try:
+            coffee_system.db.rollback()
+        except Exception:
+            pass
+
+        # Highest sort_order + 10 puts custom items at the end of
+        # the seeded list by default — operator can drag-reorder later.
+        cur.execute(
+            "SELECT COALESCE(MAX(sort_order), 0) + 10 FROM catalog_items WHERE category = %s",
+            (category,),
+        )
+        next_sort = cur.fetchone()[0]
+
+        cur.execute("""
+            INSERT INTO catalog_items
+                (category, item_id, display_name, short_name, subcategory,
+                 properties, sort_order, is_custom)
+            VALUES (%s, %s, %s, %s, %s, %s::jsonb, %s, TRUE)
+            ON CONFLICT (category, item_id) DO UPDATE
+                SET is_active = TRUE
+            RETURNING item_id, display_name, short_name, subcategory,
+                      properties, sort_order, is_active, is_custom
+        """, (category, item_id, name, short_name, subcategory,
+              json.dumps(properties), next_sort))
+        row = cur.fetchone()
+        coffee_system.db.commit()
+
+        iid, dn, sn, sub, props, sort, active, custom = row
+        return jsonify({
+            'success': True,
+            'item': {
+                'id': iid, 'name': dn, 'short_name': sn,
+                'subcategory': sub, 'properties': props or {},
+                'sort_order': sort, 'is_active': active, 'is_custom': custom,
+            }
+        })
+    except Exception as e:
+        logger.error(f"add_catalog_item({category}) error: {e}")
+        try:
+            current_app.config.get('coffee_system').db.rollback()
+        except Exception:
+            pass
         return jsonify({'success': False, 'error': str(e)}), 500
 
 

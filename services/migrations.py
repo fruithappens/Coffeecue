@@ -143,6 +143,130 @@ def _m007_orders_reminder_sent_at(cur):
     """)
 
 
+def _m009_catalog_items(cur):
+    """Single source of truth for canonical option lists.
+
+    The system used to invent option names in 4+ places independently:
+    DEFAULT_MILK_TYPES in milkConfig.js, inventory_items.name typed
+    by the operator, station_stats.capabilities.milk_types from the
+    Capabilities editor, the walk-in dialog hardcoded list. Result:
+    'Whole Milk' from one place silently failed to match 'full cream'
+    from another, the capability check rejected orders, the synonym
+    table papered over a real architectural hole.
+
+    catalog_items is the one list. Every UI reads it via
+    /api/catalog/<category>. Capabilities editor checks boxes from
+    this list. Walk-in dialog dropdown is this list (intersected
+    with stocked inventory). 'Custom' is just adding a row with
+    is_custom=true.
+
+    Schema notes:
+    - item_id is the canonical machine-readable token ('full_cream').
+      Used in capabilities, used as the order_details.milk value
+      going forward, used as the React key.
+    - display_name is what humans see ('Full Cream Milk').
+    - short_name is the compact form for tight UI ('full cream').
+    - properties is JSONB so milks can carry dairyFree/vegan/etc.
+      without schema churn when we add new attributes.
+    """
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS catalog_items (
+            id            SERIAL PRIMARY KEY,
+            category      VARCHAR(50)  NOT NULL,
+            item_id       VARCHAR(100) NOT NULL,
+            display_name  VARCHAR(200) NOT NULL,
+            short_name    VARCHAR(100),
+            subcategory   VARCHAR(50),
+            properties    JSONB DEFAULT '{}'::jsonb,
+            sort_order    INTEGER NOT NULL DEFAULT 100,
+            is_active     BOOLEAN NOT NULL DEFAULT TRUE,
+            is_custom     BOOLEAN NOT NULL DEFAULT FALSE,
+            created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(category, item_id)
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_catalog_category ON catalog_items(category, is_active)")
+
+    # Seed canonical items. ON CONFLICT DO NOTHING so this is safe to
+    # re-run and won't clobber an operator who tweaked sort_order or
+    # marked something inactive.
+    SEED = [
+        # category, item_id, display_name, short_name, subcategory, properties, sort_order
+        # --- MILKS (dairy + alternative) ---
+        ('milk', 'full_cream',   'Full Cream Milk',   'full cream',   'standard',
+         {'dairyFree': False, 'lactoseFree': False, 'vegan': False, 'lowFat': False,
+          'synonyms': ['whole milk', 'whole', 'regular', 'standard', 'dairy']}, 10),
+        ('milk', 'skim',         'Skim Milk',         'skim',         'standard',
+         {'dairyFree': False, 'lactoseFree': False, 'vegan': False, 'lowFat': True,
+          'synonyms': ['skinny', 'low fat', 'low-fat', 'trim']}, 20),
+        ('milk', 'reduced_fat',  'Reduced Fat Milk',  'reduced fat',  'standard',
+         {'dairyFree': False, 'lactoseFree': False, 'vegan': False, 'lowFat': True}, 30),
+        ('milk', 'lactose_free', 'Lactose-Free Milk', 'lactose free', 'standard',
+         {'dairyFree': False, 'lactoseFree': True,  'vegan': False, 'lowFat': False,
+          'synonyms': ['lactose-free']}, 40),
+        ('milk', 'soy',          'Soy Milk',          'soy',          'alternative',
+         {'dairyFree': True,  'lactoseFree': True,  'vegan': True,  'lowFat': False,
+          'synonyms': ['soya']}, 50),
+        ('milk', 'oat',          'Oat Milk',          'oat',          'alternative',
+         {'dairyFree': True,  'lactoseFree': True,  'vegan': True,  'lowFat': False}, 60),
+        ('milk', 'almond',       'Almond Milk',       'almond',       'alternative',
+         {'dairyFree': True,  'lactoseFree': True,  'vegan': True,  'lowFat': True}, 70),
+        ('milk', 'coconut',      'Coconut Milk',      'coconut',      'alternative',
+         {'dairyFree': True,  'lactoseFree': True,  'vegan': True,  'lowFat': False}, 80),
+        ('milk', 'macadamia',    'Macadamia Milk',    'macadamia',    'alternative',
+         {'dairyFree': True,  'lactoseFree': True,  'vegan': True,  'lowFat': False}, 90),
+        ('milk', 'rice',         'Rice Milk',         'rice',         'alternative',
+         {'dairyFree': True,  'lactoseFree': True,  'vegan': True,  'lowFat': True}, 100),
+
+        # --- DRINKS (espresso + non-coffee) ---
+        ('drink', 'flat_white',  'Flat White',  'flat white',  'espresso', {}, 10),
+        ('drink', 'cappuccino',  'Cappuccino',  'cappuccino',  'espresso', {}, 20),
+        ('drink', 'latte',       'Latte',       'latte',       'espresso', {}, 30),
+        ('drink', 'long_black',  'Long Black',  'long black',  'espresso', {}, 40),
+        ('drink', 'espresso',    'Espresso',    'espresso',    'espresso', {}, 50),
+        ('drink', 'mocha',       'Mocha',       'mocha',       'espresso', {}, 60),
+        ('drink', 'macchiato',   'Macchiato',   'macchiato',   'espresso', {}, 70),
+        ('drink', 'americano',   'Americano',   'americano',   'espresso', {}, 80),
+        ('drink', 'cortado',     'Cortado',     'cortado',     'espresso', {}, 90),
+        ('drink', 'piccolo',     'Piccolo',     'piccolo',     'espresso', {}, 100),
+        ('drink', 'hot_chocolate', 'Hot Chocolate', 'hot chocolate', 'other',  {}, 200),
+        ('drink', 'chai_latte',    'Chai Latte',    'chai latte',    'other',  {}, 210),
+        ('drink', 'matcha_latte',  'Matcha Latte',  'matcha latte',  'other',  {}, 220),
+        ('drink', 'golden_latte',  'Golden Latte',  'golden latte',  'other',  {}, 230),
+        ('drink', 'hot_tea',                'Hot Tea',               'hot tea',               'tea', {}, 300),
+        ('drink', 'english_breakfast_tea',  'English Breakfast Tea', 'english breakfast tea', 'tea', {}, 310),
+        ('drink', 'earl_grey_tea',          'Earl Grey Tea',         'earl grey tea',         'tea', {}, 320),
+        ('drink', 'peppermint_tea',         'Peppermint Tea',        'peppermint tea',        'tea', {}, 330),
+        ('drink', 'green_tea',              'Green Tea',             'green tea',             'tea', {}, 340),
+        ('drink', 'chamomile_tea',          'Chamomile Tea',         'chamomile tea',         'tea', {}, 350),
+        ('drink', 'lemon_ginger_tea',       'Lemon & Ginger Tea',    'lemon ginger tea',      'tea', {}, 360),
+        ('drink', 'rooibos_tea',            'Rooibos Tea',           'rooibos tea',           'tea', {}, 370),
+
+        # --- SIZES ---
+        ('size', 'small',  'Small (8oz)',  'small',  None, {'ml': 240}, 10),
+        ('size', 'medium', 'Medium (12oz)','medium', None, {'ml': 355}, 20),
+        ('size', 'large',  'Large (16oz)', 'large',  None, {'ml': 475}, 30),
+
+        # --- SWEETENERS ---
+        ('sweetener', 'white_sugar', 'White Sugar', 'white sugar', None, {}, 10),
+        ('sweetener', 'brown_sugar', 'Brown Sugar', 'brown sugar', None, {}, 20),
+        ('sweetener', 'raw_sugar',   'Raw Sugar',   'raw sugar',   None, {}, 30),
+        ('sweetener', 'stevia',      'Stevia',      'stevia',      'artificial', {}, 40),
+        ('sweetener', 'equal',       'Equal',       'equal',       'artificial', {}, 50),
+        ('sweetener', 'sweet_n_low', 'Sweet’N Low', 'sweet n low', 'artificial', {}, 60),
+        ('sweetener', 'honey',       'Honey',       'honey',       None, {'vegan': False}, 70),
+    ]
+
+    import json as _json
+    for (cat, iid, dn, sn, sub, props, sort) in SEED:
+        cur.execute("""
+            INSERT INTO catalog_items
+                (category, item_id, display_name, short_name, subcategory, properties, sort_order)
+            VALUES (%s, %s, %s, %s, %s, %s::jsonb, %s)
+            ON CONFLICT (category, item_id) DO NOTHING
+        """, (cat, iid, dn, sn, sub, _json.dumps(props), sort))
+
+
 def _m006_customer_preferences_shots_and_decaf(cur):
     """Add preferred_strength + preferred_decaf to customer_preferences
     so a regular's "usual" replay actually reflects their full order.
@@ -174,6 +298,7 @@ MIGRATIONS: list[Migration] = [
     Migration(6, 'customer_preferences_strength_and_decaf',
               _m006_customer_preferences_shots_and_decaf),
     Migration(7, 'orders_reminder_sent_at',    _m007_orders_reminder_sent_at),
+    Migration(9, 'catalog_items',              _m009_catalog_items),
     Migration(8, 'clear_capabilities_json_from_equipment_notes',
               _m008_clear_capabilities_json_from_equipment_notes),
 ]

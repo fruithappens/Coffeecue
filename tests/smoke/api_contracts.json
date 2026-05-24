@@ -134,6 +134,23 @@
       "_note": "vip_free is the comp-VIP toggle. Missing it = regression of the VIP-free feature."
     },
     {
+      "name": "GET /api/catalog/milk",
+      "method": "GET",
+      "path": "/api/catalog/milk",
+      "expect_status": 200,
+      "expect_keys": ["category", "items"],
+      "expect_item_keys_at": "items[*]",
+      "expect_item_keys": ["id", "name", "short_name", "subcategory"],
+      "_note": "Catalog is the source of truth for option lists. Missing keys here = regression of the catalog feature; every UI reads from it."
+    },
+    {
+      "name": "GET /api/catalog/drink",
+      "method": "GET",
+      "path": "/api/catalog/drink",
+      "expect_status": 200,
+      "expect_keys": ["category", "items"]
+    },
+    {
       "name": "GET /api/walkin-defaults",
       "method": "GET",
       "path": "/api/walkin-defaults",
