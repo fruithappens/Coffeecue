@@ -1309,34 +1309,116 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
           </div>
           
           <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Coffee Type*
-              </label>
-              <select 
-                name="coffeeType"
-                value={availableCoffeeTypes.includes(orderDetails.coffeeType) ? orderDetails.coffeeType : availableCoffeeTypes[0]}
-                onChange={handleChange}
-                className="w-full p-2 border rounded"
-                required
-              >
-                {availableCoffeeTypes.map(type => (
-                  <option key={type} value={type}>{type}</option>
-                ))}
-              </select>
-              {availableCoffeeTypes.length < 9 && (
-                <div className="mt-1 text-xs text-amber-600 flex items-center">
-                  <AlertTriangle size={12} className="inline mr-1" />
-                  Limited coffee options at this station
+            {/* Drink picker: category first, then drink within that
+                category. Previously a single dropdown crammed all
+                drinks (Latte → Earl Grey Tea → Hot Chocolate) into
+                one list — once the menu grew past 10 drinks it was
+                hard to scan. Now Category narrows what's in Drink. */}
+            {(() => {
+              // Categorise from name. Tea / Hot Chocolate / Chai /
+              // Matcha by substring; everything else is "coffee"
+              // (i.e. espresso drink). 'other' is for the free-text
+              // escape hatch — never derived from inventory.
+              const _categorize = (name) => {
+                const n = (name || '').toLowerCase();
+                if (n.includes('tea')) return 'tea';
+                if (n.includes('hot chocolate')) return 'hot_chocolate';
+                if (n.includes('chai')) return 'chai';
+                if (n.includes('matcha')) return 'matcha';
+                return 'coffee';
+              };
+              // Bucket the available drinks. Only show categories
+              // that have at least one drink stocked at this station.
+              const buckets = { coffee: [], tea: [], hot_chocolate: [], chai: [], matcha: [] };
+              for (const d of availableCoffeeTypes) {
+                const cat = _categorize(d);
+                if (buckets[cat]) buckets[cat].push(d);
+              }
+              const categoryLabels = {
+                coffee: 'Coffee', tea: 'Tea',
+                hot_chocolate: 'Hot Chocolate',
+                chai: 'Chai', matcha: 'Matcha', other: 'Other (custom)',
+              };
+              const availableCategories = Object.entries(buckets)
+                .filter(([, drinks]) => drinks.length > 0)
+                .map(([cat]) => cat);
+              // 'Other' is ALWAYS available — it's the escape hatch.
+              availableCategories.push('other');
+
+              const isOther = orderDetails.coffeeType && !availableCoffeeTypes.includes(orderDetails.coffeeType);
+              const currentCategory = isOther ? 'other' : _categorize(orderDetails.coffeeType);
+              const drinksInCategory = currentCategory === 'other' ? [] : (buckets[currentCategory] || []);
+
+              const handleCategoryChange = (e) => {
+                const newCat = e.target.value;
+                if (newCat === 'other') {
+                  // Leave coffeeType as a placeholder for the text input.
+                  setOrderDetails(prev => ({ ...prev, coffeeType: '' }));
+                } else {
+                  // Snap to the first drink in the new category.
+                  const first = (buckets[newCat] || [])[0];
+                  if (first) setOrderDetails(prev => ({ ...prev, coffeeType: first }));
+                }
+              };
+
+              return (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Drink*
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {/* Category picker — narrows the drink list */}
+                    <select
+                      value={currentCategory}
+                      onChange={handleCategoryChange}
+                      className="p-2 border rounded text-sm"
+                      aria-label="Drink category"
+                    >
+                      {availableCategories.map(cat => (
+                        <option key={cat} value={cat}>{categoryLabels[cat]}</option>
+                      ))}
+                    </select>
+                    {/* Drink picker — either select-from-category or
+                        free-text for 'other' */}
+                    {currentCategory === 'other' ? (
+                      <input
+                        type="text"
+                        name="coffeeType"
+                        value={orderDetails.coffeeType}
+                        onChange={handleChange}
+                        placeholder="e.g. Babyccino"
+                        className="p-2 border rounded text-sm"
+                        required
+                      />
+                    ) : (
+                      <select
+                        name="coffeeType"
+                        value={drinksInCategory.includes(orderDetails.coffeeType) ? orderDetails.coffeeType : (drinksInCategory[0] || '')}
+                        onChange={handleChange}
+                        className="p-2 border rounded text-sm"
+                        required
+                      >
+                        {drinksInCategory.map(d => (
+                          <option key={d} value={d}>{d}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                  {availableCoffeeTypes.length < 9 && (
+                    <div className="mt-1 text-xs text-amber-600 flex items-center">
+                      <AlertTriangle size={12} className="inline mr-1" />
+                      Limited drink options at this station
+                    </div>
+                  )}
+                  {coffeeInventoryWarning && (
+                    <div className="mt-1 text-xs text-red-600 flex items-center">
+                      <AlertTriangle size={12} className="inline mr-1" />
+                      Warning: No coffee beans in inventory
+                    </div>
+                  )}
                 </div>
-              )}
-              {coffeeInventoryWarning && (
-                <div className="mt-1 text-xs text-red-600 flex items-center">
-                  <AlertTriangle size={12} className="inline mr-1" />
-                  Warning: No coffee beans in inventory
-                </div>
-              )}
-            </div>
+              );
+            })()}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Size
