@@ -700,10 +700,24 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
       console.log('Current milk type is available:', orderDetails.milkType);
     }
 
-    // Check if selected sweetener type is still available
+    // Sweetener default: prefer the first REAL sweetener (e.g. "White
+    // Sugar") over 'None'. Operators were having to click into the
+    // dropdown and pick a type before the quantity selector even became
+    // enabled — pure friction when 99% of stations only stock one
+    // sweetener and qty=0 already means "no sugar". With the real
+    // sweetener pre-selected at qty 0, the operator only touches the
+    // quantity dropdown when the customer asks for sugar.
+    const _realSweeteners = (availableSweeteners || []).filter(s => s && s !== 'None');
     if (availableSweeteners.length > 0 && !availableSweeteners.includes(orderDetails.sweetenerType)) {
-      console.log('Sweetener type not available, updating from', orderDetails.sweetenerType, 'to', availableSweeteners[0]);
-      updatedDetails.sweetenerType = availableSweeteners[0] || 'None';
+      // Current type isn't valid — pick the first real one if there is
+      // one, else fall back to whatever's first (likely 'None').
+      updatedDetails.sweetenerType = _realSweeteners[0] || availableSweeteners[0] || 'None';
+      hasChanges = true;
+    } else if (orderDetails.sweetenerType === 'None' && _realSweeteners.length > 0) {
+      // Current type is 'None' but a real sweetener is available — flip
+      // the default. Quantity stays at 0 so this is invisible to the
+      // operator unless the customer wants sugar.
+      updatedDetails.sweetenerType = _realSweeteners[0];
       hasChanges = true;
     }
     
@@ -1309,22 +1323,28 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
             </div>
           </div>
           
-          {/* Bean Type Selection - Only show for coffee-based drinks */}
+          {/* Bean Type Selection — only meaningful when the station has
+              2+ beans loaded. Most event stations run a single bean, so
+              forcing the operator to confirm the bean for every walk-in
+              is pure friction. When only one bean is stocked, the
+              backend still gets the bean name (defaulted in state from
+              availableBeanTypes[0]); the UI just hides the dropdown. */}
           {(() => {
-            const isCoffeeDrink = orderDetails.coffeeType && 
-              !orderDetails.coffeeType.includes('Tea') && 
+            const isCoffeeDrink = orderDetails.coffeeType &&
+              !orderDetails.coffeeType.includes('Tea') &&
               !orderDetails.coffeeType.includes('Hot Chocolate') &&
               !orderDetails.coffeeType.includes('Chai') &&
               !orderDetails.coffeeType.includes('Matcha');
-              
-            if (isCoffeeDrink && availableBeanTypes.length > 0) {
+
+            // Only render the dropdown when there's a real choice to make.
+            if (isCoffeeDrink && availableBeanTypes.length > 1) {
               return (
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Bean Type
                     </label>
-                    <select 
+                    <select
                       name="beanType"
                       value={orderDetails.beanType}
                       onChange={handleChange}
@@ -1337,11 +1357,9 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
                         </option>
                       ))}
                     </select>
-                    {availableBeanTypes.length > 1 && (
-                      <p className="text-xs text-gray-500 mt-1">
-                        Multiple grinders available
-                      </p>
-                    )}
+                    <p className="text-xs text-gray-500 mt-1">
+                      Multiple grinders available
+                    </p>
                   </div>
                   <div></div>
                 </div>
