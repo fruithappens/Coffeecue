@@ -317,14 +317,29 @@ def create_app():
     # to customers whose orders have been 'completed' for >N min
     # without being marked picked_up. Disabled if
     # PICKUP_REMINDER_MINUTES is 0. See services/pickup_reminder.py.
-    try:
-        from services.pickup_reminder import PickupReminderService
-        pickup_reminder = PickupReminderService(db, messaging_service, vars(config))
-        pickup_reminder.start()
-    except Exception as reminder_err:
-        logger.error(
-            f"Failed to start pickup-reminder service (non-fatal): {reminder_err}"
-        )
+    #
+    # WERKZEUG_RUN_MAIN guard: in dev mode with the Flask reloader
+    # on, create_app() runs TWICE (once in the parent watcher, once
+    # in the child that actually serves). Starting the reminder
+    # thread in both would double-fire SMS reminders. Only start
+    # in the child (where WERKZEUG_RUN_MAIN == 'true') or when the
+    # reloader isn't involved at all (production / no debug).
+    _should_start_bg = (
+        os.environ.get('WERKZEUG_RUN_MAIN') == 'true'
+        or os.environ.get('FLASK_DEBUG', '').lower() not in ('1', 'true')
+    )
+    if _should_start_bg:
+        try:
+            from services.pickup_reminder import PickupReminderService
+            pickup_reminder = PickupReminderService(db, messaging_service, vars(config))
+            pickup_reminder.start()
+        except Exception as reminder_err:
+            logger.error(
+                f"Failed to start pickup-reminder service (non-fatal): {reminder_err}"
+            )
+            pickup_reminder = None
+    else:
+        logger.info("Skipping pickup-reminder start in reloader parent process")
         pickup_reminder = None
     
     # Register route blueprints
