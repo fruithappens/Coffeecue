@@ -25,12 +25,12 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
   const [inventoryError, setInventoryError] = useState(null);
   const [coffeeInventoryWarning, setCoffeeInventoryWarning] = useState(false);
 
-  // Catalog: canonical milk list with synonyms baked into properties.
-  // Source of truth for milk display names, ids, and matching. Falls
-  // back to DEFAULT_MILK_TYPES if the catalog endpoint is unreachable
-  // (offline / demo mode), which keeps the dialog working even without
-  // a backend.
+  // Catalog: canonical milk + drink lists. Source of truth for
+  // display names, ids, subcategories, and milk synonyms. Falls back
+  // to DEFAULT_MILK_TYPES / name-based heuristics if the catalog
+  // endpoint is unreachable (offline / demo mode).
   const { items: catalogMilks } = useCatalog('milk');
+  const { items: catalogDrinks } = useCatalog('drink');
 
   // Walk-in defaults loaded from /api/walkin-defaults. Operator
   // configures these once per event in Quick Setup → Walk-in defaults.
@@ -1332,16 +1332,34 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
                 one list — once the menu grew past 10 drinks it was
                 hard to scan. Now Category narrows what's in Drink. */}
             {(() => {
-              // Categorise from name. Tea / Hot Chocolate / Chai /
-              // Matcha by substring; everything else is "coffee"
-              // (i.e. espresso drink). 'other' is for the free-text
-              // escape hatch — never derived from inventory.
+              // Categorise via catalog subcategory when the drink is
+              // in the catalog, fall back to name-based detection
+              // otherwise. Adding 'cold_brew' to catalog with
+              // subcategory='espresso' automatically lands it in the
+              // Coffee bucket; subcategory='other' splits further by
+              // name (so Hot Chocolate, Chai, Matcha stay separate).
+              const _catalogLookup = (name) => {
+                if (!Array.isArray(catalogDrinks) || !name) return null;
+                const n = name.toLowerCase().trim();
+                return catalogDrinks.find(d =>
+                  (d.name || '').toLowerCase() === n ||
+                  (d.short_name || '').toLowerCase() === n ||
+                  (d.id || '').toLowerCase() === n.replace(/\s+/g, '_')
+                );
+              };
               const _categorize = (name) => {
+                const cat = _catalogLookup(name);
+                if (cat?.subcategory === 'espresso') return 'coffee';
+                if (cat?.subcategory === 'tea')      return 'tea';
+                // 'other' subcategory + name-based fallback: split
+                // chai / hot chocolate / matcha into their own
+                // buckets for the operator's sanity.
                 const n = (name || '').toLowerCase();
                 if (n.includes('tea')) return 'tea';
                 if (n.includes('hot chocolate')) return 'hot_chocolate';
                 if (n.includes('chai')) return 'chai';
                 if (n.includes('matcha')) return 'matcha';
+                // No catalog match + no name signal — assume coffee.
                 return 'coffee';
               };
               // Bucket the available drinks. Only show categories
