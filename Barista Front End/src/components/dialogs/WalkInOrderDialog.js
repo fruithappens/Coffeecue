@@ -944,18 +944,14 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
       updatedDetails.sweetenerQuantity = '0';
     }
     
-    // If notes field is being updated, check for VIP keywords
-    if (name === 'notes') {
-      const notesLower = value.toLowerCase();
-      const vipKeywords = ['vip', 'staff', 'organizer', 'organiser', 'priority'];
-      const hasVipKeyword = vipKeywords.some(keyword => notesLower.includes(keyword));
-      
-      // Automatically check the priority checkbox if VIP keyword is found
-      if (hasVipKeyword) {
-        updatedDetails.priority = true;
-      }
-    }
-    
+    // (Removed: notes-keyword VIP auto-detection.) Previously, typing
+    // 'vip' / 'staff' / 'organiser' / 'priority' anywhere in the notes
+    // auto-checked the VIP box. False-positives included customer name
+    // 'Priority' and notes like 'allergic to staff lunches' or
+    // 'organiser wants two sugars'. Now that the VIP checkbox is a
+    // real, working input — and a recent fix stopped EVERY walk-in
+    // from being silently flagged VIP — the auto-detection is more
+    // dangerous than useful. The checkbox is the source of truth.
     setOrderDetails(updatedDetails);
   };
   
@@ -985,11 +981,16 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
       if (foundGroup) {
         setGroupOrder(foundGroup);
         
-        // Check if group has VIP/priority in notes
+        // Group orders auto-flag VIP if the group's notes contain a
+        // VIP keyword as a STANDALONE WORD (not substring). Tightened
+        // from substring match so 'Priority Conference' or 'Affordable
+        // Staff Lunches' don't trip it. The operator who created the
+        // group typed these notes intentionally so this auto-detection
+        // is more reliable than for free-text customer-name notes
+        // (which removed the same detection — see handleChange).
         const groupNotesLower = (foundGroup.notes || '').toLowerCase();
-        const vipKeywords = ['vip', 'staff', 'organizer', 'organiser', 'priority'];
-        const hasVipKeyword = vipKeywords.some(keyword => groupNotesLower.includes(keyword));
-        
+        const hasVipKeyword = /\b(vip|staff|organi[sz]er|priority)\b/.test(groupNotesLower);
+
         if (hasVipKeyword) {
           // Update order details with priority flag
           setOrderDetails(prev => ({
@@ -1087,12 +1088,10 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
     // Check if any VIP/organizer codes appear in the notes
     // We'll look for common VIP indicators like "VIP", "staff", "organizer", "organiser"
     // This list can be expanded or modified as needed
-    const notesLower = (orderDetails.notes || '').toLowerCase();
-    const vipKeywords = ['vip', 'staff', 'organizer', 'organiser', 'priority'];
-    const hasVipKeyword = vipKeywords.some(keyword => notesLower.includes(keyword));
-    
-    // Set priority if explicitly checked or if VIP keyword is in notes
-    const isPriority = orderDetails.priority || hasVipKeyword;
+    // Priority is now driven by the explicit VIP checkbox only.
+    // (Was OR'd with notes-keyword detection — too many false
+    // positives; see the removed handleChange logic above for context.)
+    const isPriority = !!orderDetails.priority;
     
     // Include shot information in the coffee type description if not single shot
     const shotsText = orderDetails.shots === '1' ? '' : 
@@ -1737,10 +1736,11 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
               onChange={handleChange}
               className="w-full p-2 border rounded"
               rows="2"
-              placeholder="Special instructions or VIP/organizer codes..."
+              placeholder="Special instructions (no foam, extra hot, etc.)"
             ></textarea>
             <p className="text-xs text-gray-500 mt-1">
-              Adding words like "VIP", "staff", or "organiser" in the notes will automatically prioritize the order.
+              For VIP / staff comp, tick the VIP checkbox above —
+              the notes-keyword auto-detection was removed.
             </p>
           </div>
           
