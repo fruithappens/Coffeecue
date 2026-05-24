@@ -8,45 +8,43 @@ Pick from the top — items higher up unblock items below them.
 
 ---
 
-## P0 — finish the catalog migration (the in-flight work)
+## P0 — catalog migration
 
-### [M] Wire WalkInOrderDialog.js to /api/catalog
-The dialog still imports `DEFAULT_MILK_TYPES` and has hardcoded
-milk-fallback logic. Replace with `useCatalog('milk')`. The
-backend capability check already uses the catalog; this closes
-the loop and lets the operator add a custom milk that immediately
-appears in the dialog without a code change. Touch:
-`Barista Front End/src/components/dialogs/WalkInOrderDialog.js`.
+DONE this round (2026-05-25):
+- ✅ WalkInOrderDialog uses useCatalog('milk') — canonical names in dropdown
+- ✅ InventoryManagement Add form has catalog-backed datalist autocomplete
+- ✅ StationCapabilitiesEditor uses catalog for checkbox lists + name canonicalisation
+- ✅ StationDefaults + GroupOrdersTab use useCatalog('milk')
+- ✅ coffee_system._STANDARD_DRINK_MENU now reads from catalog_items
+- ✅ /api/orders/pending exposes orderNumber camelCase alias
 
-### [S] Wire MenuManagement to /api/catalog/drink
-Currently MenuManagement has its own list of espresso drinks plus
-tea flavours. Should read from `/api/catalog/drink` so adding a new
-drink in one place (the catalog) makes it appear in MenuManagement
-toggles without a code edit. Touch:
-`Barista Front End/src/components/MenuManagement.js`.
+STILL PENDING:
 
-### [S] Wire InventoryManagement to /api/catalog/*
-Same pattern — when "Add inventory item", the name dropdown should
-be from the catalog (so the operator can't typo "Whoel Milk").
-Touch: `Barista Front End/src/components/InventoryManagement.js`.
+### [M] Wire MenuManagement to /api/catalog/drink (refactor)
+MenuManagement has rich per-drink metadata (sizes, prices, recipes,
+shots, milkRatio) that doesn't map cleanly to catalog. Proper fix:
+catalog provides the master drink list (which drinks exist), menu
+stores per-drink overrides (which sizes/prices for THIS event).
+Refactor; not a one-line wireup. Touch:
+`Barista Front End/src/components/MenuManagement.js`,
+introduce `event_drink_config` table.
 
-### [S] Wire Capabilities editor to /api/catalog/*
-Per-station capability toggles should be one row per catalog item.
-Touch: search for `Capabilities` editor — likely
-`EnhancedStationCapabilities.js` or similar.
+### [S] Delete DEFAULT_MILK_TYPES
+Now only used by:
+- `milkConfig.js` helpers (getMilkTypeById, getStandardMilks, etc.)
+- `orderUtils.js` (one normalisation lookup)
+- `AvailableMilkOptions.js` (utility component, internal use)
+- `OrderDataService.js` (passes the list as part of a settings blob)
+- WalkInOrderDialog + StationDefaults + GroupOrdersTab as offline
+  fallback only
 
-### [S] Delete `_MILK_SYNONYMS` static fallback once catalog is reliable
-The capability check has a `_STATIC_FALLBACK` map for the edge
-case where `catalog_items` is empty. Once the catalog is
-unconditionally seeded (it is), the static fallback can go.
-Touch: `routes/consolidated_api_routes.py` `_station_can_make_order`.
+Refactor the helpers in milkConfig.js to call useCatalog internally,
+or expose a sync `getCatalogMilks()` from the module-level cache.
+Then delete the constant.
 
-### [S] Delete `DEFAULT_MILK_TYPES`
-Once nothing references it, delete `Barista Front End/src/utils/milkConfig.js`.
-
-### [S] Drop hardcoded `_STANDARD_DRINK_MENU` from coffee_system.py
-SMS recognition reads this. Replace with a backend cache that
-pulls from `catalog_items WHERE category='drink'`.
+### [S] Delete `_STATIC_FALLBACK` synonym map
+The capability check has a static fallback used only when
+catalog_items query fails. Keep it for resilience; not blocking.
 
 ---
 
@@ -71,14 +69,10 @@ typo (`'in_progress'` underscore) silently breaks queries. Add:
 - Search/replace literal strings (carefully — some are DB values
   that must stay literal).
 
-### [M] Drop notes-keyword VIP auto-detection
-`vipKeywords = ['vip', 'staff', 'organizer', 'organiser', 'priority']`
-in `WalkInOrderDialog.handleChange` auto-checks the VIP box when
-the operator types a keyword in notes. False-positives include
-customer literally named "Priority" or the operator typing
-"customer is a STAFF member of partner org" — both wrongly tagged
-VIP. Now that the VIP checkbox is a real input, the auto-detection
-is redundant. Delete it OR require word-boundary match.
+### ~~[M] Drop notes-keyword VIP auto-detection~~ — DONE 2026-05-25
+Removed from handleChange + handleSubmit. Group-lookup keeps a
+tightened word-boundary regex version (operator-typed notes are
+more trustworthy than free-text customer notes).
 
 ### [L] Backend hot-reload in dev mode
 Add Flask dev mode toggle (`FLASK_ENV=development` + `app.run(debug=True)`)
@@ -195,6 +189,11 @@ is using `*` as origin.
 
 ## Done so far (for orientation)
 
+- 2026-05-25 overnight: Catalog wireup completed for WalkInOrderDialog,
+  InventoryManagement, StationCapabilitiesEditor, StationDefaults,
+  GroupOrdersTab. Backend coffee_system._STANDARD_DRINK_MENU now
+  reads from catalog_items. Notes-keyword VIP auto-detection
+  removed. orderNumber camelCase alias added to /api/orders/pending.
 - 2026-05-22: Catalog architecture (backend + Quick Setup wired)
 - 2026-05-22: Synonym table in capability check (interim, will be
   replaced by full catalog wireup)
