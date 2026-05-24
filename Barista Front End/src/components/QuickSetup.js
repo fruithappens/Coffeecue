@@ -13,6 +13,7 @@ import React, { useEffect, useState } from 'react';
 import { Zap, Check, AlertTriangle, RefreshCw } from 'lucide-react';
 import ApiServiceClass from '../services/ApiService';
 import EventInventoryService from '../services/EventInventoryService';
+import useCatalog from '../hooks/useCatalog';
 
 const api = new ApiServiceClass();
 
@@ -1200,50 +1201,23 @@ const WalkinDefaultsSection = () => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         <label className="text-sm">
           <span className="block text-gray-600">Default drink</span>
-          {/* Dropdown of common drinks rather than free text, so the
-              operator can't typo a drink name that won't match the
-              station's menu. List mirrors backend _STANDARD_DRINK_MENU
-              plus common non-coffee options. */}
-          <select
-            value={defaults.default_coffee_type || 'Flat White'}
-            onChange={(e) => setDefaults(d => ({ ...d, default_coffee_type: e.target.value }))}
-            className="w-full px-2 py-1 border border-gray-300 rounded"
-          >
-            <optgroup label="Espresso drinks">
-              <option value="Flat White">Flat White</option>
-              <option value="Cappuccino">Cappuccino</option>
-              <option value="Latte">Latte</option>
-              <option value="Long Black">Long Black</option>
-              <option value="Espresso">Espresso</option>
-              <option value="Mocha">Mocha</option>
-              <option value="Macchiato">Macchiato</option>
-              <option value="Americano">Americano</option>
-              <option value="Cortado">Cortado</option>
-              <option value="Piccolo">Piccolo</option>
-            </optgroup>
-            <optgroup label="Non-coffee">
-              <option value="Hot Chocolate">Hot Chocolate</option>
-              <option value="Chai Latte">Chai Latte</option>
-              <option value="Matcha Latte">Matcha Latte</option>
-              <option value="Hot Tea">Hot Tea</option>
-              <option value="English Breakfast Tea">English Breakfast Tea</option>
-              <option value="Earl Grey Tea">Earl Grey Tea</option>
-              <option value="Peppermint Tea">Peppermint Tea</option>
-            </optgroup>
-          </select>
+          {/* Drinks are loaded from /api/catalog/drink — the single
+              source of truth that capability editor, walk-in dialog
+              etc. also read. To add a new drink, POST to the catalog
+              once and it shows up everywhere. No hardcoded list. */}
+          <CatalogDrinkSelect
+            value={defaults.default_coffee_type}
+            onChange={(v) => setDefaults(d => ({ ...d, default_coffee_type: v }))}
+          />
         </label>
         <label className="text-sm">
           <span className="block text-gray-600">Default size</span>
-          <select
-            value={defaults.default_size || 'Small (8oz)'}
-            onChange={(e) => setDefaults(d => ({ ...d, default_size: e.target.value }))}
-            className="w-full px-2 py-1 border border-gray-300 rounded"
-          >
-            <option value="Small (8oz)">Small (8oz)</option>
-            <option value="Medium (12oz)">Medium (12oz)</option>
-            <option value="Large (16oz)">Large (16oz)</option>
-            <option value="Regular">Regular</option>
-          </select>
+          <CatalogSimpleSelect
+            category="size"
+            value={defaults.default_size}
+            onChange={(v) => setDefaults(d => ({ ...d, default_size: v }))}
+            fallback="Small (8oz)"
+          />
         </label>
         <label className="text-sm">
           <span className="block text-gray-600">Default shots</span>
@@ -1298,6 +1272,110 @@ const WalkinDefaultsSection = () => {
       </button>
       {savedMsg && <span className="ml-3 text-sm text-green-700">{savedMsg}</span>}
     </div>
+  );
+};
+
+// --- Catalog-backed select primitives -----------------------------
+// Tiny wrappers around useCatalog so dropdowns read from the
+// canonical option lists rather than embedded hardcoded arrays.
+// See useCatalog.js and migrations.py _m009_catalog_items.
+
+const CatalogSimpleSelect = ({ category, value, onChange, fallback }) => {
+  const { items, loading, error } = useCatalog(category);
+
+  if (loading && items.length === 0) {
+    return (
+      <select disabled className="w-full px-2 py-1 border border-gray-300 rounded bg-gray-50">
+        <option>Loading…</option>
+      </select>
+    );
+  }
+
+  // If the catalog failed entirely, fall back to a degenerate select
+  // showing the current value so the operator can still save.
+  if (error && items.length === 0) {
+    return (
+      <input
+        type="text"
+        value={value || fallback || ''}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full px-2 py-1 border border-amber-300 rounded"
+        title={`Catalog unavailable (${error}) — typing freely`}
+      />
+    );
+  }
+
+  const currentMatches = items.some(i => i.name === value);
+  const displayValue = currentMatches ? value : (items[0]?.name || fallback || '');
+
+  return (
+    <select
+      value={displayValue}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full px-2 py-1 border border-gray-300 rounded"
+    >
+      {items.map(i => (
+        <option key={i.id} value={i.name}>{i.name}</option>
+      ))}
+    </select>
+  );
+};
+
+// Drinks pick: grouped by subcategory (espresso / tea / other).
+const CatalogDrinkSelect = ({ value, onChange }) => {
+  const { items, loading, error } = useCatalog('drink');
+
+  if (loading && items.length === 0) {
+    return (
+      <select disabled className="w-full px-2 py-1 border border-gray-300 rounded bg-gray-50">
+        <option>Loading…</option>
+      </select>
+    );
+  }
+
+  if (error && items.length === 0) {
+    return (
+      <input
+        type="text"
+        value={value || 'Flat White'}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full px-2 py-1 border border-amber-300 rounded"
+        title={`Catalog unavailable (${error}) — typing freely`}
+      />
+    );
+  }
+
+  // Group by subcategory for the optgroup labels.
+  const groups = items.reduce((acc, item) => {
+    const sub = item.subcategory || 'other';
+    if (!acc[sub]) acc[sub] = [];
+    acc[sub].push(item);
+    return acc;
+  }, {});
+  const groupOrder = ['espresso', 'other', 'tea'];
+  const subLabels = {
+    espresso: 'Espresso drinks',
+    other: 'Non-coffee',
+    tea: 'Teas',
+  };
+
+  const currentMatches = items.some(i => i.name === value);
+  const displayValue = currentMatches ? value : (items[0]?.name || 'Flat White');
+
+  return (
+    <select
+      value={displayValue}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full px-2 py-1 border border-gray-300 rounded"
+    >
+      {groupOrder.filter(g => groups[g]?.length).map(sub => (
+        <optgroup key={sub} label={subLabels[sub] || sub}>
+          {groups[sub].map(item => (
+            <option key={item.id} value={item.name}>{item.name}</option>
+          ))}
+        </optgroup>
+      ))}
+    </select>
   );
 };
 
