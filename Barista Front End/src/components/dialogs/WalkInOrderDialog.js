@@ -150,81 +150,115 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
           lastUpdated: new Date().toISOString()
         };
         
-        console.log(`🔄 Loading inventory directly from barista stock for station ${targetStation.id}...`);
-        
-        try {
-          // Load from localStorage stock data (this is what baristas actually see)
-          const stockKey = `coffee_stock_station_${targetStation.id}`;
-          const stockData = localStorage.getItem(stockKey);
-          
-          if (stockData) {
-            const stock = JSON.parse(stockData);
-            console.log(`✅ Found stock data for station ${targetStation.id}:`, Object.keys(stock));
+        // ARCHITECTURE NOTE
+        // -----------------
+        // Used to read localStorage first, API as fallback. That meant
+        // stale localStorage (drink names in 'coffee' category, typos
+        // like 'Whoel Milk', items deleted in Inventory Management
+        // that lingered locally) poisoned the dialog for sessions
+        // until the operator manually cleared it.
+        //
+        // FLIP: API is the source of truth. localStorage is an offline
+        // cache. On API success, we OVERWRITE the localStorage stock
+        // so the next dialog open sees the fresh data. Threshold
+        // metadata (capacity, lowThreshold, criticalThreshold) is
+        // preserved per-item from whatever localStorage had.
+        //
+        // Stale-while-revalidate: if there's localStorage data, show
+        // it instantly (no spinner flash), then refresh from API in
+        // the background. If API confirms different data, the form-
+        // validity useEffect re-runs and the dropdown updates.
+        const stockKey = `coffee_stock_station_${targetStation.id}`;
 
-            // Copy all categories from stock to inventory. DON'T strip
-            // drink-named 'coffee' rows here — other code paths use
-            // `inventory.coffee.length > 0` as a proxy for 'espresso
-            // drinks available' and stripping would falsely hide
-            // Latte/Cappuccino etc. from the menu. The bean-name
-            // heuristic is applied later, only when populating
-            // availableBeanTypes — that's the right place.
-            Object.keys(stock).forEach(category => {
-              if (Array.isArray(stock[category])) {
-                inventory[category] = stock[category].filter(item => item.amount > 0);
-                console.log(`  - ${category}: ${inventory[category].length} items with stock`);
-              }
+        // Read cached localStorage immediately so the dialog has
+        // SOMETHING to show while the API call is in flight.
+        let cachedStock = null;
+        try {
+          const raw = localStorage.getItem(stockKey);
+          if (raw) cachedStock = JSON.parse(raw);
+        } catch (e) {
+          console.warn('Could not parse cached stock:', e);
+        }
+        if (cachedStock) {
+          Object.keys(cachedStock).forEach(category => {
+            if (Array.isArray(cachedStock[category])) {
+              inventory[category] = cachedStock[category].filter(item => item && item.amount > 0);
+            }
+          });
+        }
+
+        // Now hit the API for the canonical view. If it succeeds,
+        // overwrite inventory + cache with the fresh data.
+        try {
+          const { default: ApiServiceClass } = await import('../../services/ApiService');
+          const apiService = new ApiServiceClass();
+          const data = await apiService.get(`/inventory?station_id=${targetStation.id}`);
+
+          if (data && Array.isArray(data.items)) {
+            // Build category map keyed by lowercased name so we can
+            // merge per-item with cached threshold metadata.
+            const cachedById = {};
+            if (cachedStock) {
+              ['milk', 'coffee', 'cups', 'sweeteners', 'drinks', 'other'].forEach(cat => {
+                if (Array.isArray(cachedStock[cat])) {
+                  cachedStock[cat].forEach(it => {
+                    if (it && it.id) cachedById[it.id] = it;
+                  });
+                }
+              });
+            }
+
+            const fresh = {
+              milk: [], coffee: [], cups: [], sweeteners: [], drinks: [], other: [],
+              lastUpdated: new Date().toISOString(),
+            };
+            data.items.forEach(item => {
+              if (!item || !item.name) return;
+              const id = item.name.toLowerCase().replace(/\s+/g, '_');
+              const cached = cachedById[id];
+              const amount = parseFloat(item.amount);
+              const stockItem = {
+                id,
+                name: item.name,
+                // API amount is authoritative — use it. Cached thresholds
+                // / capacity preserved if we have them.
+                amount: isNaN(amount) ? (cached?.amount || 0) : amount,
+                capacity: cached?.capacity || (isNaN(amount) ? 0 : amount * 2),
+                unit: item.unit || cached?.unit || 'units',
+                status: item.status || cached?.status || 'good',
+                lowThreshold:      cached?.lowThreshold      || 5,
+                criticalThreshold: cached?.criticalThreshold || 2,
+                description:       cached?.description       || item.description,
+                category:          item.category             || cached?.category,
+                enabled: true,
+              };
+              if (stockItem.amount <= 0) return;
+              const cat = item.category;
+              if (fresh[cat]) fresh[cat].push(stockItem);
             });
 
-            console.log(`✅ Loaded inventory from barista stock for station ${targetStation.id}:`, inventory);
-          } else {
-            console.warn(`⚠️ No stock data found for station ${targetStation.id}, trying API fallback...`);
-
-            // Fallback to API if no stock data. We use ApiService
-            // rather than raw fetch so:
-            //   - the base URL comes from the same place every other
-            //     call does (no more hardcoded localhost that 404s on
-            //     Railway when offline-mode kicks in)
-            //   - auth header + refresh-on-401 inherit automatically
-            //   - if the token is wrong, the user gets the same
-            //     re-login flow they would anywhere else.
-            const { default: ApiServiceClass } = await import('../../services/ApiService');
-            const apiService = new ApiServiceClass();
-            let data = null;
+            inventory = { ...fresh };
+            // Overwrite the localStorage cache so next open is fresh.
             try {
-              data = await apiService.get(`/inventory?station_id=${targetStation.id}`);
-              console.log(`✅ API fallback inventory for station ${targetStation.id}:`, data);
-            } catch (apiErr) {
-              console.warn(`API fallback failed for station ${targetStation.id}:`, apiErr);
-            }
-
-            if (data) {
-              if (data.items) {
-                data.items.forEach(item => {
-                  const itemData = {
-                    id: item.name.toLowerCase().replace(/\s+/g, '_'),
-                    name: item.name,
-                    amount: parseFloat(item.amount) || 0,
-                    unit: item.unit || 'units',
-                    status: item.status
-                  };
-                  
-                  if (item.category === 'milk' && itemData.amount > 0) {
-                    inventory.milk.push(itemData);
-                  } else if (item.category === 'coffee' && itemData.amount > 0) {
-                    inventory.coffee.push(itemData);
-                  } else if (item.category === 'cups' && itemData.amount > 0) {
-                    inventory.cups.push(itemData);
-                  } else if (item.category === 'sweeteners' && itemData.amount > 0) {
-                    inventory.sweeteners.push(itemData);
-                  } else if (item.category === 'other' && itemData.amount > 0) {
-                    inventory.other.push(itemData);
-                  }
-                });
-              }
-            }
+              localStorage.setItem(stockKey, JSON.stringify(inventory));
+            } catch (e) { /* quota? ignore */ }
+            console.log(`✅ Inventory loaded from API for station ${targetStation.id} (cache refreshed)`);
+          } else if (!cachedStock) {
+            // API returned nothing useful AND we have no cache —
+            // leave inventory as the empty default. Dialog will
+            // show 'no items available' to the operator.
+            console.warn('No inventory from API and no cache for station', targetStation.id);
+          } else {
+            // API empty but cache exists — keep showing the cache.
+            console.log('API returned no items; keeping cached stock for station', targetStation.id);
           }
-        } catch (error) {
-          console.error('❌ Error loading inventory:', error);
+        } catch (apiErr) {
+          // Network down / auth failure. We already loaded cache
+          // above so the dialog stays functional.
+          console.warn(`API inventory fetch failed (using cache):`, apiErr?.message);
+          if (!cachedStock) {
+            setInventoryError('Could not load station inventory (network down + no cache)');
+          }
         }
         
         setStationInventory(inventory);
