@@ -43,8 +43,8 @@
       "expect_status": 200,
       "expect_keys": ["success", "orders"],
       "expect_item_keys_at": "orders[*]",
-      "expect_item_keys": ["id", "order_number", "customerName", "coffeeType", "milkType"],
-      "_note": "PendingOrdersSection reads camelCase, but order_number is the single field that's snake-case-only on this endpoint (inconsistent — backend should also expose orderNumber). Tracked in ROADMAP_HARDENING."
+      "expect_item_keys": ["id", "orderNumber", "customerName", "coffeeType", "milkType"],
+      "_note": "Backend now sends both camelCase and snake_case for all of these (was just snake-case for order_number)."
     },
     {
       "name": "GET /api/orders/in-progress",

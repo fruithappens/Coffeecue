@@ -708,8 +708,11 @@ def get_pending_orders():
             pending_orders.append({
                 'id': order_number,  # Use order_number as id for consistency
                 'order_number': order_number,
+                'orderNumber': order_number,  # camelCase alias for FE consistency
                 'customer_name': order_details.get('name', 'Customer'),
+                'customerName': order_details.get('name', 'Customer'),  # camelCase
                 'coffee_type': order_details.get('type', 'Coffee'),
+                'coffeeType': order_details.get('type', 'Coffee'),  # camelCase
                 'milk_type': order_details.get('milk', 'Standard'),
                 'milkType': order_details.get('milk', 'Standard'),  # camelCase
                 'sugar': order_details.get('sugar', 'No sugar'),
