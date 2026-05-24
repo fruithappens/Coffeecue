@@ -144,29 +144,16 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
             const stock = JSON.parse(stockData);
             console.log(`✅ Found stock data for station ${targetStation.id}:`, Object.keys(stock));
 
-            // Copy all categories from stock to inventory.
-            //
-            // The 'coffee' category historically (incorrectly) got
-            // seeded with DRINK names — 'Espresso', 'Cappuccino' etc.
-            // — written into localStorage long before the bean rename
-            // fix. Apply the same name heuristic we use elsewhere so
-            // drink-named rows never poison the Bean Type dropdown,
-            // even for users with stale localStorage from old sessions.
-            const _looksLikeBeanName = (s) => {
-              const x = (s || '').toLowerCase();
-              return /(bean|blend|roast|single\s*origin|decaf|colombian?|ethiopian?|brazilian?|kenyan?|guatemalan?)/.test(x);
-            };
+            // Copy all categories from stock to inventory. DON'T strip
+            // drink-named 'coffee' rows here — other code paths use
+            // `inventory.coffee.length > 0` as a proxy for 'espresso
+            // drinks available' and stripping would falsely hide
+            // Latte/Cappuccino etc. from the menu. The bean-name
+            // heuristic is applied later, only when populating
+            // availableBeanTypes — that's the right place.
             Object.keys(stock).forEach(category => {
               if (Array.isArray(stock[category])) {
-                let items = stock[category].filter(item => item.amount > 0);
-                if (category === 'coffee') {
-                  const before = items.length;
-                  items = items.filter(item => _looksLikeBeanName(item.name));
-                  if (items.length !== before) {
-                    console.log(`  - coffee: stripped ${before - items.length} non-bean rows from stale localStorage`);
-                  }
-                }
-                inventory[category] = items;
+                inventory[category] = stock[category].filter(item => item.amount > 0);
                 console.log(`  - ${category}: ${inventory[category].length} items with stock`);
               }
             });

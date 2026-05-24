@@ -1200,23 +1200,50 @@ const WalkinDefaultsSection = () => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         <label className="text-sm">
           <span className="block text-gray-600">Default drink</span>
-          <input
-            type="text"
-            value={defaults.default_coffee_type || ''}
+          {/* Dropdown of common drinks rather than free text, so the
+              operator can't typo a drink name that won't match the
+              station's menu. List mirrors backend _STANDARD_DRINK_MENU
+              plus common non-coffee options. */}
+          <select
+            value={defaults.default_coffee_type || 'Flat White'}
             onChange={(e) => setDefaults(d => ({ ...d, default_coffee_type: e.target.value }))}
-            placeholder="Flat White"
             className="w-full px-2 py-1 border border-gray-300 rounded"
-          />
+          >
+            <optgroup label="Espresso drinks">
+              <option value="Flat White">Flat White</option>
+              <option value="Cappuccino">Cappuccino</option>
+              <option value="Latte">Latte</option>
+              <option value="Long Black">Long Black</option>
+              <option value="Espresso">Espresso</option>
+              <option value="Mocha">Mocha</option>
+              <option value="Macchiato">Macchiato</option>
+              <option value="Americano">Americano</option>
+              <option value="Cortado">Cortado</option>
+              <option value="Piccolo">Piccolo</option>
+            </optgroup>
+            <optgroup label="Non-coffee">
+              <option value="Hot Chocolate">Hot Chocolate</option>
+              <option value="Chai Latte">Chai Latte</option>
+              <option value="Matcha Latte">Matcha Latte</option>
+              <option value="Hot Tea">Hot Tea</option>
+              <option value="English Breakfast Tea">English Breakfast Tea</option>
+              <option value="Earl Grey Tea">Earl Grey Tea</option>
+              <option value="Peppermint Tea">Peppermint Tea</option>
+            </optgroup>
+          </select>
         </label>
         <label className="text-sm">
           <span className="block text-gray-600">Default size</span>
-          <input
-            type="text"
-            value={defaults.default_size || ''}
+          <select
+            value={defaults.default_size || 'Small (8oz)'}
             onChange={(e) => setDefaults(d => ({ ...d, default_size: e.target.value }))}
-            placeholder="Small (8oz)"
             className="w-full px-2 py-1 border border-gray-300 rounded"
-          />
+          >
+            <option value="Small (8oz)">Small (8oz)</option>
+            <option value="Medium (12oz)">Medium (12oz)</option>
+            <option value="Large (16oz)">Large (16oz)</option>
+            <option value="Regular">Regular</option>
+          </select>
         </label>
         <label className="text-sm">
           <span className="block text-gray-600">Default shots</span>
