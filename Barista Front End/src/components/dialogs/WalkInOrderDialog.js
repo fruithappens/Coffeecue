@@ -1,7 +1,12 @@
 // components/dialogs/WalkInOrderDialog.js
 import React, { useState, useEffect } from 'react';
 import { XCircle, Search, Coffee, Users, Star, AlertTriangle } from 'lucide-react';
-import { DEFAULT_MILK_TYPES, getStandardMilks, getAlternativeMilks } from '../../utils/milkConfig';
+// DEFAULT_MILK_TYPES is the legacy hardcoded list; useCatalog('milk')
+// is the canonical source. The legacy import is kept as a fallback
+// for the brief moment before the catalog finishes loading on first
+// mount, and for offline/demo mode where /api/catalog isn't reachable.
+import { DEFAULT_MILK_TYPES } from '../../utils/milkConfig';
+import useCatalog from '../../hooks/useCatalog';
 import SettingsService from '../../services/SettingsService';
 import StockService from '../../services/StockService';
 import useStations from '../../hooks/useStations';
@@ -19,6 +24,13 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
   const [loadingInventory, setLoadingInventory] = useState(true);
   const [inventoryError, setInventoryError] = useState(null);
   const [coffeeInventoryWarning, setCoffeeInventoryWarning] = useState(false);
+
+  // Catalog: canonical milk list with synonyms baked into properties.
+  // Source of truth for milk display names, ids, and matching. Falls
+  // back to DEFAULT_MILK_TYPES if the catalog endpoint is unreachable
+  // (offline / demo mode), which keeps the dialog working even without
+  // a backend.
+  const { items: catalogMilks } = useCatalog('milk');
 
   // Walk-in defaults loaded from /api/walkin-defaults. Operator
   // configures these once per event in Quick Setup → Walk-in defaults.
@@ -251,28 +263,76 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
                 zeroMilkItems.map(m => `${m.id} (${m.name})`));
             }
             
-            // STEP 1: Match inventory items to existing milk definitions
-            // For any items that don't match, create new definitions automatically
+            // STEP 1: Match inventory items to canonical milk definitions
+            // from the catalog (or DEFAULT_MILK_TYPES as offline fallback).
+            // For items that don't match either, create new definitions
+            // automatically.
+            //
+            // Catalog lookup is by ANY of: item_id, short_name,
+            // display_name, or properties.synonyms — so 'whole_milk' /
+            // 'whole milk' / 'Whole Milk' / 'full cream' / 'regular'
+            // all resolve to the same canonical row (full_cream). This
+            // is what kills the 'Whole Milk' vs 'full cream' bug at
+            // the dropdown level — the dropdown shows the canonical
+            // name regardless of how the inventory row spelled it.
+            const _norm = (s) => (s || '').toString().toLowerCase().trim().replace(/^milk_/, '').replace(/\s*milk$/, '');
+            const _catalogToMilkShape = (cat, inventoryItem) => ({
+              // Map catalog row to the shape the rest of this file expects.
+              id: cat.id,
+              name: cat.name,
+              category: cat.subcategory || 'standard',
+              available: true,
+              properties: {
+                dairyFree: !!cat.properties?.dairyFree,
+                lactoseFree: !!cat.properties?.lactoseFree,
+                vegan: !!cat.properties?.vegan,
+                lowFat: !!cat.properties?.lowFat,
+              },
+              inventoryAmount: inventoryItem.amount,
+              inventoryUnit: inventoryItem.unit,
+            });
+            const _findInCatalog = (rawId, rawName) => {
+              if (!Array.isArray(catalogMilks) || catalogMilks.length === 0) return null;
+              const idN = _norm(rawId);
+              const nameN = _norm(rawName);
+              for (const c of catalogMilks) {
+                if (_norm(c.id) === idN || _norm(c.id) === nameN) return c;
+                if (_norm(c.short_name) === idN || _norm(c.short_name) === nameN) return c;
+                if (_norm(c.name) === idN || _norm(c.name) === nameN) return c;
+                const syns = Array.isArray(c.properties?.synonyms) ? c.properties.synonyms : [];
+                for (const s of syns) {
+                  if (_norm(s) === idN || _norm(s) === nameN) return c;
+                }
+              }
+              return null;
+            };
+
             inStockMilkItems.forEach(inventoryItem => {
               // First, clean up and normalize the inventory item ID
               const itemId = inventoryItem.id;
-              
+
               // Determine base ID with or without milk_ prefix
               const baseId = itemId.startsWith('milk_') ? itemId.substring(5) : itemId;
               const prefixedId = itemId.startsWith('milk_') ? itemId : `milk_${itemId}`;
-              
-              // Try to find a matching milk type in DEFAULT_MILK_TYPES
-              let matchingMilk = DEFAULT_MILK_TYPES.find(milk => 
-                milk.id === baseId || milk.id === prefixedId || 
-                milk.id === itemId
-              );
-              
+
+              // Catalog first — this is the canonical match. Falls back
+              // to DEFAULT_MILK_TYPES if the catalog hasn't loaded yet.
+              const catalogMatch = _findInCatalog(itemId, inventoryItem.name);
+              let matchingMilk = catalogMatch
+                ? _catalogToMilkShape(catalogMatch, inventoryItem)
+                : null;
+              if (!matchingMilk) {
+                const legacyMatch = DEFAULT_MILK_TYPES.find(milk =>
+                  milk.id === baseId || milk.id === prefixedId ||
+                  milk.id === itemId
+                );
+                if (legacyMatch) matchingMilk = { ...legacyMatch };
+              }
+
               if (matchingMilk) {
-                // We found a matching milk definition, use it
-                console.log(`Found matching milk type for inventory item ${itemId}: ${matchingMilk.name}`);
+                console.log(`Resolved milk for inventory item ${itemId}: ${matchingMilk.name} (${catalogMatch ? 'catalog' : 'legacy'})`);
                 stationMilkTypes.push({
                   ...matchingMilk,
-                  // Add inventory information for reference
                   inventoryAmount: inventoryItem.amount,
                   inventoryUnit: inventoryItem.unit
                 });
@@ -333,12 +393,16 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
             // STEP 3: Set the available milk types
             console.log('FINAL MILK OPTIONS:', filteredMilkTypes.map(m => `${m.name} [ID: ${m.id}]`));
             
-            // Compare against all milk types to see what's being excluded
-            const excludedMilkTypes = DEFAULT_MILK_TYPES.filter(defaultMilk => 
-              !filteredMilkTypes.some(milk => 
-                milk.id === defaultMilk.id || 
-                (defaultMilk.id.startsWith('milk_') && milk.id === defaultMilk.id.substring(5)) ||
-                (!defaultMilk.id.startsWith('milk_') && milk.id === `milk_${defaultMilk.id}`)
+            // Diagnostic: which catalog milks are NOT in this station's
+            // filtered list. Helpful when an operator expects to see a
+            // milk and doesn't ("we stock oat but dropdown doesn't show
+            // it" → check this log to see if it was filtered out).
+            const _master = (Array.isArray(catalogMilks) && catalogMilks.length > 0)
+              ? catalogMilks
+              : DEFAULT_MILK_TYPES;
+            const excludedMilkTypes = _master.filter(m =>
+              !filteredMilkTypes.some(fm =>
+                fm.id === m.id || fm.id === `milk_${m.id}` || `milk_${fm.id}` === m.id
               )
             );
             
@@ -725,7 +789,10 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
     };
     
     loadStationInventory();
-  }, [targetStation, orderDetails.collectionStation]);
+    // catalogMilks is in deps so once the catalog arrives we re-run
+    // and milk dropdown labels switch from synthesised guesses to
+    // canonical names.
+  }, [targetStation, orderDetails.collectionStation, catalogMilks]);
 
   // Reset form values to valid defaults when available options change
   useEffect(() => {
@@ -980,22 +1047,32 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
     
     // Resolve the milk object from the dropdown selection.
     //
-    // The previous version looked up ONLY in DEFAULT_MILK_TYPES, but
-    // the dropdown is populated from `availableMilks` which is built
-    // dynamically from the station's inventory (with potentially custom
-    // IDs that aren't in the default list — e.g. when Quick Setup
-    // adds Lactose-Free milk on the fly). Custom milks always fell back
-    // to DEFAULT_MILK_TYPES[0] (full cream) regardless of what the user
-    // picked. Steve flagged: "milk type does not change despite what
-    // I select."
-    //
     // Look-up order: availableMilks (the same list the dropdown
-    // renders) → DEFAULT_MILK_TYPES (back-compat for older flows) →
-    // a synthesized fallback that at least preserves the ID/name.
+    // renders, already enriched from catalog/DEFAULT_MILK_TYPES in
+    // loadStationInventory) → catalog by id/synonym → DEFAULT_MILK_TYPES
+    // for offline mode → synthesized fallback.
+    const _milkFromCatalog = (id) => {
+      if (!Array.isArray(catalogMilks) || catalogMilks.length === 0 || !id) return null;
+      const n = id.toString().toLowerCase().trim();
+      for (const c of catalogMilks) {
+        if ((c.id || '').toLowerCase() === n) return c;
+        if ((c.short_name || '').toLowerCase() === n) return c;
+        const syns = Array.isArray(c.properties?.synonyms) ? c.properties.synonyms : [];
+        if (syns.some(s => (s || '').toLowerCase() === n)) return c;
+      }
+      return null;
+    };
+    const _catalogMatch = _milkFromCatalog(orderDetails.milkType);
     const selectedMilk = orderDetails.milkType === 'no_milk'
       ? { id: 'no_milk', name: 'No milk', properties: { dairyFree: true, lactoseFree: true, vegan: true } }
       : (
           availableMilks.find(milk => milk.id === orderDetails.milkType)
+          || (_catalogMatch && {
+                id: _catalogMatch.id,
+                name: _catalogMatch.name,
+                category: _catalogMatch.subcategory || 'standard',
+                properties: _catalogMatch.properties || {},
+              })
           || DEFAULT_MILK_TYPES.find(milk => milk.id === orderDetails.milkType)
           || {
               id: orderDetails.milkType,
