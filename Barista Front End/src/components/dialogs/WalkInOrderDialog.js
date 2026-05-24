@@ -1691,15 +1691,30 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
               <span className="text-sm font-medium text-gray-700">Extra hot</span>
             </label>
 
-            <label className="flex items-center">
+            {/* VIP checkbox — when ticked, gets a loud red bg + border
+                so the operator can't miss that this order will be
+                charged free / treated as priority. Operators have
+                accidentally ticked this and not noticed until the
+                order appeared in the VIP queue. */}
+            <label
+              className={`flex items-center px-2 py-1 rounded transition-colors cursor-pointer ${
+                orderDetails.priority
+                  ? 'bg-red-100 border-2 border-red-500 ring-2 ring-red-200'
+                  : 'border-2 border-transparent hover:bg-red-50'
+              }`}
+            >
               <input
                 type="checkbox"
                 name="priority"
                 checked={orderDetails.priority}
                 onChange={handleChange}
-                className="mr-2"
+                className="mr-2 h-4 w-4 accent-red-600"
               />
-              <span className="text-sm font-medium text-red-600 font-semibold">VIP / Staff Priority</span>
+              <span className={`text-sm font-semibold ${
+                orderDetails.priority ? 'text-red-800' : 'text-red-600'
+              }`}>
+                VIP / Staff Priority {orderDetails.priority && '⚠ ON'}
+              </span>
             </label>
           </div>
           
