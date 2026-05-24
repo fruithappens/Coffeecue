@@ -46,6 +46,37 @@ const SystemHealthTab = () => {
       status: 'unknown',
       metrics: { 'Status': 'Loading…' },
     },
+    // Tiles populated from /api/health/full (added 2026-05-25).
+    // Each one is a rollup of a distinct subsystem; status comes
+    // from the check, metrics are the most useful 2-3 fields.
+    {
+      id: 'queue',
+      name: 'Order Queue',
+      icon: <Activity className="w-6 h-6" />,
+      status: 'unknown',
+      metrics: { 'Status': 'Loading…' },
+    },
+    {
+      id: 'catalog',
+      name: 'Catalog',
+      icon: <HardDrive className="w-6 h-6" />,
+      status: 'unknown',
+      metrics: { 'Status': 'Loading…' },
+    },
+    {
+      id: 'stations',
+      name: 'Stations',
+      icon: <Globe className="w-6 h-6" />,
+      status: 'unknown',
+      metrics: { 'Status': 'Loading…' },
+    },
+    {
+      id: 'migrations',
+      name: 'Schema Migrations',
+      icon: <MemoryStick className="w-6 h-6" />,
+      status: 'unknown',
+      metrics: { 'Status': 'Loading…' },
+    },
   ]);
 
 
@@ -126,6 +157,79 @@ const SystemHealthTab = () => {
       };
     } catch (e) {
       updates.host = { status: 'warning', metrics: { 'Error': String(e?.message || e) } };
+    }
+
+    // --- Rich health endpoint: queue / catalog / stations / migrations
+    // ----------------------------------------------------------------
+    // /api/health/full reports {checks: {subsystem: {status, detail,
+    // ...extra}}}. Maps subsystems → tile ids 1:1. ok/warn/fail there
+    // → healthy/warning/error here.
+    const _mapStatus = (s) =>
+      s === 'ok' ? 'healthy' : s === 'warn' ? 'warning' : s === 'fail' ? 'error' : 'unknown';
+    try {
+      const full = await _apiService.get('/health/full');
+      const checks = (full && full.checks) || {};
+
+      if (checks.database) {
+        const q = checks.database.queue || {};
+        updates.queue = {
+          status: _mapStatus(checks.database.status),
+          metrics: {
+            'Pending':       q.pending != null ? String(q.pending) : '—',
+            'In progress':   q.in_progress != null ? String(q.in_progress) : '—',
+            'Ready for pickup': q.ready_for_pickup != null ? String(q.ready_for_pickup) : '—',
+            'Last hour':     q.created_last_hour != null ? `${q.created_last_hour} new` : '—',
+          },
+        };
+      }
+      if (checks.catalog) {
+        const by = checks.catalog.by_category || {};
+        updates.catalog = {
+          status: _mapStatus(checks.catalog.status),
+          metrics: {
+            'Milks':       by.milk != null ? String(by.milk) : '—',
+            'Drinks':      by.drink != null ? String(by.drink) : '—',
+            'Sizes':       by.size != null ? String(by.size) : '—',
+            'Sweeteners':  by.sweetener != null ? String(by.sweetener) : '—',
+          },
+        };
+      }
+      if (checks.stations) {
+        updates.stations = {
+          status: _mapStatus(checks.stations.status),
+          metrics: {
+            'Active':      String(checks.stations.active ?? '—'),
+            'Inactive':    String(checks.stations.inactive ?? '—'),
+            'Maintenance': String(checks.stations.maintenance ?? '—'),
+            'Total':       String(checks.stations.total ?? '—'),
+          },
+        };
+      }
+      if (checks.migrations) {
+        updates.migrations = {
+          status: _mapStatus(checks.migrations.status),
+          metrics: {
+            'Applied': String(checks.migrations.applied_count ?? '—'),
+            'Pending': (checks.migrations.pending_versions || []).join(', ') || 'none',
+          },
+        };
+      }
+      // Backfill twilio from /health/full if /diagnostics/sms failed.
+      if (checks.twilio && (!updates.twilio || updates.twilio.status === 'error')) {
+        updates.twilio = {
+          status: _mapStatus(checks.twilio.status),
+          metrics: {
+            'Mode': checks.twilio.testing_mode ? 'Testing (stubbed)' : 'Live',
+            ...(checks.twilio.phone_number ? { 'Phone': checks.twilio.phone_number } : {}),
+            ...(checks.twilio.detail ? { 'Detail': checks.twilio.detail } : {}),
+          },
+        };
+      }
+    } catch (e) {
+      // /api/health/full unreachable — leave the new tiles at 'unknown'.
+      // The classic /diagnostics/* fetches above already populated the
+      // legacy tiles, so the panel isn't blank.
+      console.warn('/api/health/full failed:', e?.message);
     }
 
     // Merge updates onto whichever tile id matches. Anything we don't
