@@ -293,15 +293,26 @@ class OrderDataService {
   }
 
   /**
-   * Create walk-in order
-   * @param {object} orderData - Walk-in order details
+   * Create walk-in order.
+   *
+   * IMPORTANT: don't force `priority: true` here. The dialog's VIP
+   * checkbox is the source of truth; clobbering it meant every
+   * walk-in was being saved with vip=true (Steve's bug: 'Bob didn't
+   * have VIP when I added him'). The backend then promoted the order
+   * to queue_priority=1 and the Barista UI showed Bob under VIP
+   * ORDERS even though only Steve was meant to be VIP.
+   *
+   * Pass the dialog's priority through unchanged — that means the
+   * checkbox actually controls VIP status now.
+   *
+   * @param {object} orderData - Walk-in order details (must include
+   *   .priority bool from the dialog's VIP checkbox)
    * @returns {Promise<object>} Created order
    */
   async createWalkInOrder(orderData) {
     return this.createOrder({
       ...orderData,
       source: 'walkin',
-      priority: true
     });
   }
 
