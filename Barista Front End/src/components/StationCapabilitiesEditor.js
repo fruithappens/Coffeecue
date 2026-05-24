@@ -27,35 +27,73 @@ import { Save, RotateCcw, AlertCircle, Check } from 'lucide-react';
 import ApiServiceClass from '../services/ApiService';
 import StationsService from '../services/StationsService';
 import EventInventoryService from '../services/EventInventoryService';
+import useCatalog from '../hooks/useCatalog';
 
 const api = new ApiServiceClass();
 
-// Fallback option lists used when event_inventory is empty (fresh
-// install, or operator hasn't run Quick Setup yet). These match the
-// canonical names the backend's `_assign_station` recognises.
-const FALLBACK_MILKS = [
+// Static fallbacks for when both event_inventory AND the catalog
+// endpoint are unreachable (fresh install with no network, demo mode).
+// Catalog is preferred — these are last-resort.
+const STATIC_FALLBACK_MILKS = [
   'full cream', 'skim', 'oat', 'almond', 'soy',
   'lactose free', 'coconut', 'macadamia',
 ];
-const FALLBACK_DRINKS = [
-  'espresso drinks',     // covers latte/cappuccino/flat white/etc
-  'hot chocolate', 'chai latte', 'matcha latte',
+const STATIC_FALLBACK_DRINKS = [
+  'espresso drinks', 'hot chocolate', 'chai latte', 'matcha latte',
   'hot tea', 'english breakfast tea', 'earl grey tea',
   'green tea', 'peppermint tea', 'chamomile tea',
 ];
-const FALLBACK_SIZES = ['small', 'medium', 'large'];
+const STATIC_FALLBACK_SIZES = ['small', 'medium', 'large'];
 
 // Translate the inventory blob's category arrays into name lists
 // that match the canonical strings the backend uses. Lowercased so
-// the checkboxes line up with what _assign_station reads.
-const namesFromInventory = (inventory) => {
-  if (!inventory) return { milks: FALLBACK_MILKS, drinks: FALLBACK_DRINKS, sizes: FALLBACK_SIZES };
-  const lc = (s) => (s || '').toString().toLowerCase();
+// the checkboxes line up with what _assign_station reads. Catalog
+// is passed in to canonicalise names (so 'Whole Milk' in inventory
+// becomes 'full cream' in the checkbox list, matching what the
+// backend's capability check is comparing against).
+const namesFromInventory = (inventory, catalog) => {
+  // Build a name → canonical short_name map from catalog. Used to
+  // collapse synonyms (Whole Milk → full cream, etc.).
+  const lc = (s) => (s || '').toString().toLowerCase().trim();
+  const synonymMap = {};
+  for (const cat of (catalog.milks || [])) {
+    const canon = cat.short_name || cat.id || cat.name;
+    if (canon) {
+      synonymMap[lc(cat.id)] = canon;
+      synonymMap[lc(cat.short_name)] = canon;
+      synonymMap[lc(cat.name)] = canon;
+      synonymMap[lc(cat.name).replace(/\s+milk$/, '')] = canon;
+      for (const syn of (cat.properties?.synonyms || [])) {
+        synonymMap[lc(syn)] = canon;
+      }
+    }
+  }
+  const canonMilk = (raw) => {
+    const t = lc(raw).replace(/\s+milk$/, '').trim();
+    return synonymMap[t] || t;
+  };
+
+  // Catalog-driven defaults take precedence over the static fallback.
+  const catalogMilkNames = (catalog.milks || []).map(m => m.short_name || m.id);
+  const catalogDrinkNames = ['espresso drinks',
+    ...(catalog.drinks || [])
+      .filter(d => d.subcategory !== 'espresso')
+      .map(d => d.short_name || d.id),
+  ];
+  const catalogSizeNames = (catalog.sizes || []).map(s => s.short_name || s.id);
+
+  if (!inventory) {
+    return {
+      milks: catalogMilkNames.length ? catalogMilkNames : STATIC_FALLBACK_MILKS,
+      drinks: catalogDrinkNames.length > 1 ? catalogDrinkNames : STATIC_FALLBACK_DRINKS,
+      sizes: catalogSizeNames.length ? catalogSizeNames : STATIC_FALLBACK_SIZES,
+    };
+  }
+
   const enabled = (arr) => Array.isArray(arr) ? arr.filter(i => i && i.enabled !== false) : [];
-  // Milks: strip the " milk" suffix the InventoryManagement defaults add
-  const milks = enabled(inventory.milk).map(m =>
-    lc(m.name).replace(/\s+milk$/, '').trim()
-  );
+  // Milks: canonicalised through catalog synonyms so 'Whole Milk'
+  // and 'full cream' both end up as 'full cream' on the checkbox row.
+  const milks = enabled(inventory.milk).map(m => canonMilk(m.name));
   // Drinks: include both non-coffee drinks and tea flavours. Espresso
   // drinks are implicit (no inventory row); we always offer the
   // "espresso drinks" toggle as one bundle since SMS-bot treats them
@@ -74,7 +112,7 @@ const namesFromInventory = (inventory) => {
   return {
     milks: [...new Set(milks)],
     drinks: [...new Set(drinks)],
-    sizes: [...new Set(sizes.length ? sizes : FALLBACK_SIZES)],
+    sizes: [...new Set(sizes.length ? sizes : (catalogSizeNames.length ? catalogSizeNames : STATIC_FALLBACK_SIZES))],
   };
 };
 
@@ -309,7 +347,16 @@ const StationCapabilitiesEditor = () => {
     return () => { cancelled = true; };
   }, []);
 
-  const choices = useMemo(() => namesFromInventory(inventory), [inventory]);
+  // Pull the canonical catalog lists so the capability checkboxes
+  // show the same names the order pipeline uses end-to-end.
+  const { items: catalogMilks } = useCatalog('milk');
+  const { items: catalogDrinks } = useCatalog('drink');
+  const { items: catalogSizes } = useCatalog('size');
+  const catalog = useMemo(() => ({
+    milks: catalogMilks || [], drinks: catalogDrinks || [], sizes: catalogSizes || [],
+  }), [catalogMilks, catalogDrinks, catalogSizes]);
+
+  const choices = useMemo(() => namesFromInventory(inventory, catalog), [inventory, catalog]);
 
   if (loading) {
     return <div className="p-4 text-sm text-gray-500">Loading stations and inventory…</div>;
