@@ -6,6 +6,20 @@ import {
 import InventoryIntegrationService from '../services/InventoryIntegrationService';
 import EventInventoryService from '../services/EventInventoryService';
 import QuickSetupStatusBanner from './QuickSetupStatusBanner';
+import useCatalog from '../hooks/useCatalog';
+
+// Inventory categories that map cleanly to a catalog category. When
+// the operator is adding an item in one of these, the name input
+// gets a datalist of catalog options so they don't typo names that
+// then fail to match station capabilities ('Whoel Milk').
+//
+// 'coffee' (beans), 'cups', and 'syrups' don't map — they have no
+// catalog category — so they keep the plain text input.
+const INVENTORY_TO_CATALOG = {
+  milk: 'milk',
+  sweeteners: 'sweetener',
+  drinks: 'drink',
+};
 
 /**
  * Comprehensive Inventory Management Component
@@ -458,12 +472,16 @@ const InventoryManagement = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Item Name
                     </label>
-                    <input
-                      type="text"
+                    {/* CatalogNameInput shows a datalist of canonical
+                        names for milk / sweetener / drink categories
+                        so the operator gets autocomplete and can't
+                        typo a name that won't match capabilities.
+                        Other categories (beans, cups, syrups) keep
+                        the plain text input. */}
+                    <CatalogNameInput
+                      categoryKey={activeCategory}
                       value={newItem.name}
-                      onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Enter item name..."
+                      onChange={(v) => setNewItem({ ...newItem, name: v })}
                     />
                   </div>
                   <div>
@@ -698,6 +716,54 @@ const EditItemForm = ({ item, onSave, onCancel, category, categories }) => {
         </button>
       </div>
     </div>
+  );
+};
+
+// --- Catalog-aware name input ---------------------------------------
+// Renders a regular text input with a <datalist> of canonical names
+// when the active category maps to a catalog category. The operator
+// can still type a custom name (catalog autocompletes; doesn't force).
+//
+// Important: keep this as <input list="..."> rather than <select> so
+// the operator can still add items the catalog doesn't know about.
+// The catalog suggestion is a guardrail, not a gate.
+const CatalogNameInput = ({ categoryKey, value, onChange }) => {
+  const catalogCategory = INVENTORY_TO_CATALOG[categoryKey] || null;
+  const { items: catalogItems } = useCatalog(catalogCategory || 'milk');
+  // Only attach datalist if this category maps to a catalog one.
+  const useDatalist = !!catalogCategory && Array.isArray(catalogItems) && catalogItems.length > 0;
+  const listId = useDatalist ? `catalog-${catalogCategory}-suggestions` : undefined;
+
+  return (
+    <>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        placeholder={useDatalist
+          ? `Type or pick a ${catalogCategory}…`
+          : 'Enter item name...'}
+        list={listId}
+        autoComplete="off"
+      />
+      {useDatalist && (
+        <datalist id={listId}>
+          {catalogItems.map(i => (
+            <option key={i.id} value={i.name}>
+              {i.subcategory ? `${i.subcategory}` : ''}{i.short_name && i.short_name !== i.name.toLowerCase() ? ` · ${i.short_name}` : ''}
+            </option>
+          ))}
+        </datalist>
+      )}
+      {catalogCategory && (
+        <p className="text-xs text-gray-500 mt-1">
+          Suggestions from the canonical {catalogCategory} catalog. You
+          can still type a custom name — it'll be added to the event's
+          inventory but won't auto-appear in other dropdowns.
+        </p>
+      )}
+    </>
   );
 };
 
