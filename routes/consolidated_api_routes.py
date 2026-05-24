@@ -926,11 +926,17 @@ def get_completed_orders():
             completed_orders.append({
                 'id': order_number,
                 'order_number': order_number,
+                'orderNumber': order_number,            # camelCase
                 'customer_name': order_details.get('name', 'Customer'),
+                'customerName': order_details.get('name', 'Customer'),  # camelCase
                 'phone_number': phone,
+                'phoneNumber': phone,                   # camelCase
                 'coffee_type': order_details.get('type', 'Coffee'),
+                'coffeeType': order_details.get('type', 'Coffee'),     # camelCase
                 'milk_type': order_details.get('milk', 'Standard'),
+                'milkType': order_details.get('milk', 'Standard'),     # camelCase
                 'completed_at': completed_at,
+                'completedAt': completed_at.isoformat() if hasattr(completed_at, 'isoformat') else completed_at,
                 'picked_up_at': picked_up_at,
                 'pickedUpAt': picked_up_at,
                 'status': status,
@@ -939,6 +945,12 @@ def get_completed_orders():
                 'station_id': station_id,
                 'stationId': station_id,
                 'ready_for_pickup': status == 'completed',
+                # Pricing — completed orders need the price tag for
+                # the Ready-for-Pickup column. Mirrors the pattern
+                # in /orders/in-progress.
+                'price': order_details.get('price'),
+                'price_formatted': order_details.get('price_formatted'),
+                'priceFormatted': order_details.get('price_formatted'),
             })
         
         return jsonify({
@@ -1211,16 +1223,25 @@ def get_order_history():
             orders.append({
                 'id': order_number,  # Use order_number as id for consistency
                 'order_number': order_number,
+                'orderNumber': order_number,            # camelCase
                 'customer_name': order_details.get('name', 'Customer'),
+                'customerName': order_details.get('name', 'Customer'),  # camelCase
                 'phone_number': phone,
+                'phoneNumber': phone,                   # camelCase
                 'coffee_type': order_details.get('type', 'Coffee'),
+                'coffeeType': order_details.get('type', 'Coffee'),     # camelCase
                 'milk_type': order_details.get('milk', 'Standard'),
+                'milkType': order_details.get('milk', 'Standard'),     # camelCase
                 'sugar': order_details.get('sugar', 'No sugar'),
                 'status': status,
                 'station_id': station_id,
+                'stationId': station_id,
                 'created_at': created_at,
+                'createdAt': created_at.isoformat() if hasattr(created_at, 'isoformat') else created_at,
                 'updated_at': updated_at,
+                'updatedAt': updated_at.isoformat() if hasattr(updated_at, 'isoformat') else updated_at,
                 'completed_at': completed_at,
+                'completedAt': completed_at.isoformat() if (completed_at and hasattr(completed_at, 'isoformat')) else completed_at,
                 'notes': order_details.get('notes', '')
             })
         
@@ -2567,11 +2588,19 @@ def get_display_orders():
             in_progress_orders.append({
                 'id': order_number,
                 'order_number': order_number,
+                'orderNumber': order_number,            # camelCase
+                'customer_name': customer_name,
                 'customerName': customer_name,
                 'displayPhone': display_phone,
+                'phone_number': phone,
+                'phoneNumber': phone,
+                'coffee_type': order_details.get('type', 'Coffee'),
                 'coffeeType': order_details.get('type', 'Coffee'),
+                'milk_type': order_details.get('milk', 'Standard'),
+                'milkType': order_details.get('milk', 'Standard'),
                 'status': status,
-                'stationId': station_id
+                'stationId': station_id,
+                'station_id': station_id,
             })
         
         # Get completed orders that are ready for pickup (limited to most recent 10)
@@ -2608,11 +2637,21 @@ def get_display_orders():
             ready_orders.append({
                 'id': order_number,
                 'order_number': order_number,
+                'orderNumber': order_number,            # camelCase
+                'customer_name': customer_name,
                 'customerName': customer_name,
                 'displayPhone': display_phone,
+                'phone_number': phone,
+                'phoneNumber': phone,
+                'coffee_type': order_details.get('type', 'Coffee'),
                 'coffeeType': order_details.get('type', 'Coffee'),
+                'milk_type': order_details.get('milk', 'Standard'),
+                'milkType': order_details.get('milk', 'Standard'),
                 'status': status,
-                'stationId': station_id
+                'stationId': station_id,
+                'station_id': station_id,
+                'completed_at': completed_at,
+                'completedAt': completed_at.isoformat() if (completed_at and hasattr(completed_at, 'isoformat')) else completed_at,
             })
         
         # Return real order data
