@@ -312,26 +312,62 @@ const QuickSetup = () => {
   // Build the per-station inventory config (which items are
   // enabled at which station). Same shape used by
   // StationInventoryConfig and the sweetener-availability check in
-  // WalkInOrderDialog. When all_stations_same is on every station
-  // gets every enabled item; when off we preserve existing
-  // per-station configs (the operator wants fine-grained control).
+  // WalkInOrderDialog.
+  //
+  // Three modes:
+  //   - all_stations_same=true → overwrite ALL stations with the
+  //     enabled-everywhere config (clean slate from Quick Setup)
+  //   - all_stations_same=false AND station has an existing config
+  //     → preserve it (operator wants per-station control)
+  //   - all_stations_same=false AND station has NO config (or empty)
+  //     → seed it with the enabled-everywhere config (so new stations
+  //     or untouched ones get something rather than zero items)
+  //
+  // The third case is what Steve hit: opening Station 1's inventory
+  // tab showed 0/18 items after Quick Setup because all_stations_same
+  // was off and the function returned without touching anything.
   const rebuildStationConfigs = (stations, eventInventory) => {
     if (!Array.isArray(stations) || stations.length === 0) return;
     const allSame = !!config.all_stations_same_capabilities;
-    if (!allSame) return;  // preserve existing per-station configs
+
+    // Build the canonical "enabled everywhere" config from event inventory.
+    const enabledEverywhereCfg = {};
+    Object.entries(eventInventory).forEach(([cat, items]) => {
+      if (!Array.isArray(items)) return;
+      enabledEverywhereCfg[cat] = {};
+      items.forEach(item => {
+        enabledEverywhereCfg[cat][item.id] = !!item.enabled;
+      });
+    });
+
+    // Load existing configs so we know which stations to preserve vs seed.
+    let existing = {};
+    try {
+      existing = JSON.parse(localStorage.getItem('station_inventory_configs') || '{}') || {};
+    } catch { existing = {}; }
+
+    const _isEmpty = (cfg) => {
+      if (!cfg || typeof cfg !== 'object') return true;
+      // Empty if no category has any item set to true.
+      return !Object.values(cfg).some(catObj =>
+        catObj && typeof catObj === 'object' &&
+        Object.values(catObj).some(v => v === true));
+    };
 
     const cfg = {};
     stations.forEach(station => {
-      const stationCfg = {};
-      Object.entries(eventInventory).forEach(([cat, items]) => {
-        if (!Array.isArray(items)) return;
-        stationCfg[cat] = {};
-        items.forEach(item => {
-          // Every enabled item is on for every station.
-          stationCfg[cat][item.id] = !!item.enabled;
-        });
-      });
-      cfg[station.id] = stationCfg;
+      const existingForStation = existing[station.id];
+      if (allSame) {
+        // Overwrite mode — every station gets the canonical config.
+        cfg[station.id] = JSON.parse(JSON.stringify(enabledEverywhereCfg));
+      } else if (_isEmpty(existingForStation)) {
+        // Seed mode — station has nothing enabled, give it the default.
+        // Without this, Station 1 stayed at 0/18 after Quick Setup.
+        cfg[station.id] = JSON.parse(JSON.stringify(enabledEverywhereCfg));
+      } else {
+        // Preserve mode — operator has set this one up manually.
+        cfg[station.id] = existingForStation;
+      }
     });
 
     localStorage.setItem('station_inventory_configs', JSON.stringify(cfg));

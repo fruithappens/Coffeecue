@@ -565,15 +565,44 @@ const StationInventoryConfig = ({ stations }) => {
                       return `${stats.available} of ${stats.total} items available`;
                     })()}
                   </div>
+                  {/* Copy THIS station's enabled items to every other
+                      station. Steve hit the previous version: the old
+                      'Sync to Stations' just re-ran the per-station
+                      sync — useless when the other stations had empty
+                      configs (the common case after Quick Setup runs
+                      with all_stations_same off). Confirmation guard
+                      prevents accidental overwrite. */}
                   <button
                     onClick={() => {
-                      console.log('Manual sync triggered');
+                      const otherStations = stations.filter(s => s.id !== selectedStation.id);
+                      if (otherStations.length === 0) {
+                        alert('No other stations to copy to.');
+                        return;
+                      }
+                      const stationNames = otherStations.map(s => s.name || `Station ${s.id}`).join(', ');
+                      if (!window.confirm(
+                        `Copy ${selectedStation.name}'s inventory configuration to all other stations?\n\n` +
+                        `Will overwrite: ${stationNames}\n\n` +
+                        `(Each station's stock quantities are preserved — only which items are AVAILABLE is copied.)`
+                      )) {
+                        return;
+                      }
+                      const sourceCfg = stationConfigs[selectedStation.id] || {};
+                      const newConfigs = { ...stationConfigs };
+                      otherStations.forEach(s => {
+                        // Deep clone so subsequent edits to one station
+                        // don't mutate another through shared object refs.
+                        newConfigs[s.id] = JSON.parse(JSON.stringify(sourceCfg));
+                      });
+                      saveStationConfigs(newConfigs);
+                      // Then re-sync stock from the new configs.
                       InventoryIntegrationService.forceSyncAllStations();
+                      alert(`Copied to ${otherStations.length} station(s).`);
                     }}
                     className="px-3 py-1 text-sm bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
-                    title="Sync configurations to barista stations"
+                    title="Copy this station's enabled items to all other stations (overwrites)"
                   >
-                    Sync to Stations
+                    Apply to all stations
                   </button>
                 </div>
               </div>
