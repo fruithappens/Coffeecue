@@ -189,22 +189,48 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
                     )}
                     <div className="flex items-center mt-1">
                       <div className={`w-2 h-2 rounded-full mr-2 ${
-                        station.status === 'active' ? 'bg-green-500' : 'bg-red-500'
+                        station.status === 'active' ? 'bg-green-500' :
+                        station.status === 'maintenance' ? 'bg-amber-500' : 'bg-red-500'
                       }`} />
-                      <span className="text-xs text-gray-500">
-                        {station.status === 'active' ? 'Active' : 'Inactive'}
+                      <span className="text-xs text-gray-500 capitalize">
+                        {station.status || 'unknown'}
                       </span>
                     </div>
                   </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteStation(station.id);
-                    }}
-                    className="text-red-600 hover:bg-red-100 p-1 rounded"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    {/* Quick disable/enable — operators expect a one-click
+                        toggle. The 'Edit then change status' flow inside
+                        the form is still there for the maintenance state. */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const newStatus = station.status === 'active' ? 'inactive' : 'active';
+                        if (onStationUpdate) {
+                          onStationUpdate(station.id, { ...station, status: newStatus });
+                        }
+                      }}
+                      className={`px-2 py-1 text-xs rounded ${
+                        station.status === 'active'
+                          ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+                          : 'bg-green-100 text-green-800 hover:bg-green-200'
+                      }`}
+                      title={station.status === 'active'
+                        ? 'Take this station offline (no new orders will be routed here)'
+                        : 'Bring this station back online'}
+                    >
+                      {station.status === 'active' ? 'Disable' : 'Activate'}
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteStation(station.id);
+                      }}
+                      className="text-red-600 hover:bg-red-100 p-1 rounded"
+                      title="Delete station (permanent)"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}

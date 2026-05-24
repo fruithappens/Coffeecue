@@ -181,13 +181,19 @@ const StationDefaults = () => {
   const getStationBeanTypes = (stationId) => {
     const beanTypes = [];
     const stationInventory = stationInventories[stationId];
-    
-    if (stationInventory && stationInventory.coffee) {
-      // Get coffee items from station inventory
-      stationInventory.coffee.forEach(item => {
-        if (item.enabled) {
-          // Extract bean type from coffee item name
-          let beanName = item.name
+
+    // Guard: stationInventory.coffee can be undefined OR an object
+    // (older shape) instead of an array. Steve hit the crash:
+    // 'stationInventory.coffee.forEach is not a function'. Treat
+    // anything non-array as no-data and bail safely.
+    const coffeeList = stationInventory && Array.isArray(stationInventory.coffee)
+      ? stationInventory.coffee
+      : null;
+
+    if (coffeeList) {
+      coffeeList.forEach(item => {
+        if (item && item.enabled) {
+          let beanName = (item.name || '')
             .replace(/\s*(Coffee\s*)?Beans?\s*$/i, '')
             .trim();
           if (beanName && !beanTypes.includes(beanName)) {
@@ -196,28 +202,29 @@ const StationDefaults = () => {
         }
       });
     }
-    
-    // Return found bean types or empty array (no fallback to hardcoded values)
+
     return beanTypes;
   };
   
   const getStationSweetenerTypes = (stationId) => {
     const sweetenerTypes = ['None']; // Always include None option
     const stationInventory = stationInventories[stationId];
-    
+
     if (stationInventory) {
-      // Check sweeteners category (new)
-      if (stationInventory.sweeteners) {
-        stationInventory.sweeteners.forEach(item => {
-          if (item.enabled) {
-            sweetenerTypes.push(item.name);
-          }
+      // Same Array.isArray guards as getStationBeanTypes — these
+      // category fields can be undefined or non-array shapes depending
+      // on which stock source populated them.
+      const sweeteners = Array.isArray(stationInventory.sweeteners)
+        ? stationInventory.sweeteners : null;
+      const other = Array.isArray(stationInventory.other)
+        ? stationInventory.other : null;
+      if (sweeteners) {
+        sweeteners.forEach(item => {
+          if (item && item.enabled) sweetenerTypes.push(item.name);
         });
-      }
-      // Check other category for backward compatibility
-      else if (stationInventory.other) {
-        stationInventory.other.forEach(item => {
-          if (item.enabled && (
+      } else if (other) {
+        other.forEach(item => {
+          if (item && item.enabled && (
             item.name.toLowerCase().includes('sugar') ||
             item.name.toLowerCase().includes('honey') ||
             item.name.toLowerCase().includes('sweetener')
@@ -227,19 +234,19 @@ const StationDefaults = () => {
         });
       }
     }
-    
+
     return sweetenerTypes;
   };
-  
+
   const getStationCupSizes = (stationId) => {
     const cupSizes = [];
     const stationInventory = stationInventories[stationId];
-    
-    if (stationInventory && stationInventory.cups) {
-      stationInventory.cups.forEach(item => {
-        if (item.enabled) {
-          cupSizes.push(item.name);
-        }
+
+    const cupsList = stationInventory && Array.isArray(stationInventory.cups)
+      ? stationInventory.cups : null;
+    if (cupsList) {
+      cupsList.forEach(item => {
+        if (item && item.enabled) cupSizes.push(item.name);
       });
     }
     

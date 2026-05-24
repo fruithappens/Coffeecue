@@ -317,25 +317,44 @@ const QuickSetup = () => {
           if (catKey === 'cups') return name.toLowerCase().replace(/[^a-z0-9]+/g, '_');
           return name.toLowerCase().replace(/\s+/g, '_');
         };
-        // 1. QS-enabled items: preserve if exists, seed if new.
+        // 1. QS-enabled items: preserve if exists (normal mode), or
+        //    overwrite with 999 amounts (unlimited mode). Steve's
+        //    expectation: ticking 'unlimited stock' should put every
+        //    item to high amounts even on a re-run. Preserve-mode is
+        //    only right when the operator is tracking real quantities.
         enabledNames.forEach(name => {
           const id = idFromName(name);
           const prior = existingById.get(id);
-          if (prior) {
-            // Preserve operator-tuned amount/capacity but make sure
-            // it's marked enabled and the name matches the latest
-            // (in case the catalog renamed it).
+          if (prior && !unlimited) {
+            // Normal mode: keep operator-tuned amount/capacity.
             stockData[catKey].push({ ...prior, name, enabled: true });
             existingById.delete(id);
+          } else if (prior && unlimited) {
+            // Unlimited mode: force to 999 so the operator's intent
+            // ('don't reject orders for stock') actually takes effect.
+            // Preserve id (for stable React keys) but overwrite the
+            // amount fields from buildStockItem.
+            const fresh = buildStockItem(id, name, catKey, unlimited);
+            stockData[catKey].push({ ...prior, ...fresh, name, enabled: true });
+            existingById.delete(id);
           } else {
+            // No prior — seed with default amount.
             stockData[catKey].push(buildStockItem(id, name, catKey, unlimited));
           }
         });
         // 2. What's left in existingById is either:
-        //    (a) a custom operator-added item — KEEP
-        //    (b) something QS just disabled — DROP (operator intent)
+        //    (a) a custom operator-added item — KEEP (still respect
+        //        unlimited mode by bumping amounts)
+        //    (b) something QS just disabled — DROP
         existingById.forEach((item, id) => {
-          if (_isCustom(id)) stockData[catKey].push(item);
+          if (_isCustom(id)) {
+            if (unlimited) {
+              const fresh = buildStockItem(id, item.name, catKey, true);
+              stockData[catKey].push({ ...item, ...fresh, name: item.name, enabled: true });
+            } else {
+              stockData[catKey].push(item);
+            }
+          }
         });
       };
 
