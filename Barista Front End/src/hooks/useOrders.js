@@ -477,22 +477,58 @@ export default function useOrders(stationId = null) {
         }
       }
       
-      // Add any local orders from localStorage to pending orders
+      // Add any local orders from localStorage to pending orders.
+      //
+      // These are optimistic placeholders from addWalkInOrder while
+      // the server-confirm round-trip is in flight. Once the server
+      // responds, addWalkInOrder prunes them. But the network can
+      // fail, the page can reload mid-submit, etc. — so we ALSO
+      // expire any placeholder older than STALE_LOCAL_ORDER_MS as a
+      // belt-and-braces measure. A server-confirmed walk-in always
+      // appears via the server fetch within seconds, so anything
+      // local that's been hanging around for a couple of minutes is
+      // either a duplicate of a server order or a failed submit that
+      // the operator has already moved on from.
+      const STALE_LOCAL_ORDER_MS = 2 * 60 * 1000;  // 2 minutes
       let localPendingOrders = [...filteredPending];
       try {
         const localOrdersKey = `local_orders_station_${currentStationId}`;
-        const localOrders = JSON.parse(localStorage.getItem(localOrdersKey) || '[]');
-        
-        if (localOrders.length > 0) {
-          console.log(`Found ${localOrders.length} local orders for station ${currentStationId}`);
-          
-          // Make sure we aren't duplicating any orders that came from the server
+        const allLocal = JSON.parse(localStorage.getItem(localOrdersKey) || '[]');
+        const now = Date.now();
+        const fresh = [];
+        const stale = [];
+        for (const o of allLocal) {
+          const ts = o.createdAt ? new Date(o.createdAt).getTime() : 0;
+          if (ts && (now - ts) < STALE_LOCAL_ORDER_MS) {
+            fresh.push(o);
+          } else {
+            stale.push(o);
+          }
+        }
+        if (stale.length > 0) {
+          console.log(`Pruning ${stale.length} stale local order(s) from station ${currentStationId}`);
+          localStorage.setItem(localOrdersKey, JSON.stringify(fresh));
+        }
+
+        if (fresh.length > 0) {
+          // Dedup against server orders. Server orders have integer
+          // ids and short order numbers (e.g. 26); local placeholders
+          // have 'local_order_<ts>' ids and 'WI<...>' order numbers,
+          // so id-based dedup never matched. Also dedup by
+          // (customerName + coffeeType) so if the server's already
+          // returned the matching real order, we drop the placeholder.
           const existingIds = new Set(filteredPending.map(o => o.id));
-          const uniqueLocalOrders = localOrders.filter(o => !existingIds.has(o.id));
-          
-          // Add our local orders to the result
+          const existingSignatures = new Set(
+            filteredPending.map(o => `${(o.customerName || '').toLowerCase()}|${(o.coffeeType || '').toLowerCase()}`)
+          );
+          const uniqueLocalOrders = fresh.filter(o => {
+            if (existingIds.has(o.id)) return false;
+            const sig = `${(o.customerName || '').toLowerCase()}|${(o.coffeeType || '').toLowerCase()}`;
+            return !existingSignatures.has(sig);
+          });
+
           if (uniqueLocalOrders.length > 0) {
-            console.log(`Adding ${uniqueLocalOrders.length} unique local orders to pending orders`);
+            console.log(`Adding ${uniqueLocalOrders.length} unique local order(s) to pending`);
             localPendingOrders = [...filteredPending, ...uniqueLocalOrders];
           }
         }
@@ -2069,18 +2105,51 @@ export default function useOrders(stationId = null) {
         }
       }
       
-      // Try server save but keep local order regardless
+      // Try server save. Critical: when the server confirms, REMOVE
+      // the local optimistic placeholder from BOTH localStorage and
+      // the in-memory pending list. Otherwise the placeholder lingers
+      // forever — the next fetch merges it back in alongside the real
+      // server order and you see EACH walk-in twice (once with WI
+      // prefix, once with the real seq number). Steve hit this:
+      // 'I added 2 orders and 4 appeared.'
       try {
         console.log('Sending to server:', orderWithStation);
         const result = await OrderDataService.addWalkInOrder(orderWithStation);
         console.log('Server response:', result);
-        
-        if (result.success && result.id) {
-          console.log('Server save successful, linking local order to server ID');
-          // Store the order creation information in localStorage for filtering
-          // Use targetStationId to ensure consistency
-          console.log(`Storing order_created_at_station_${result.id} = ${targetStationId}`);
-          localStorage.setItem(`order_created_at_station_${result.id}`, String(targetStationId));
+
+        if (result && result.success) {
+          // Strip the local placeholder — server now owns this order.
+          try {
+            const localKey = `local_orders_station_${targetStationId}`;
+            const cur = JSON.parse(localStorage.getItem(localKey) || '[]');
+            const pruned = cur.filter(o => o.id !== persistentId);
+            if (pruned.length !== cur.length) {
+              localStorage.setItem(localKey, JSON.stringify(pruned));
+              console.log(`✓ Removed local placeholder ${persistentId} after server confirm`);
+            }
+          } catch (e) {
+            console.warn('Could not prune local placeholder:', e);
+          }
+          try {
+            const cacheKey = `orders_cache_station_${targetStationId}`;
+            const cache = JSON.parse(localStorage.getItem(cacheKey) || '{}');
+            if (Array.isArray(cache.pendingOrders)) {
+              cache.pendingOrders = cache.pendingOrders.filter(o => o.id !== persistentId);
+              localStorage.setItem(cacheKey, JSON.stringify(cache));
+            }
+          } catch (e) { /* ignore */ }
+          // Drop from the in-memory list too so the optimistic row
+          // disappears even before the next backend fetch arrives.
+          if (targetStationId === currentStationId) {
+            setPendingOrders(prev => prev.filter(o => o.id !== persistentId));
+          }
+
+          if (result.id) {
+            localStorage.setItem(`order_created_at_station_${result.id}`, String(targetStationId));
+          }
+          // Pull the canonical order in immediately so the UI reflects
+          // the real server-assigned order number.
+          setTimeout(() => refreshData(), 250);
         } else {
           console.log('Server call failed but keeping client-side order for UI consistency');
         }
