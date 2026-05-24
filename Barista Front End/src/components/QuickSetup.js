@@ -871,6 +871,8 @@ const QuickSetup = () => {
 
       <PricingSection />
 
+      <WalkinDefaultsSection />
+
       <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
         <h3 className="font-semibold text-lg mb-3">Event-wide options</h3>
         <Checkbox
@@ -1125,6 +1127,147 @@ const PricingSection = () => {
         className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded disabled:opacity-50"
       >
         {saving ? 'Saving…' : 'Save pricing'}
+      </button>
+      {savedMsg && <span className="ml-3 text-sm text-green-700">{savedMsg}</span>}
+    </div>
+  );
+};
+
+
+// --- Walk-in defaults --------------------------------------------------
+// The walk-in dialog used to hardcode 'Flat White', 'Small (8oz)', and
+// a milk-priority order ('whole milk' > 'full cream' > ...). Different
+// markets prefer different defaults — Australian events want 'full
+// cream' first, US events 'whole milk', oat-heavy crowds 'oat'. This
+// section moves those choices out of the JS into a setting per event.
+//
+// Backend: /api/walkin-defaults (GET/PUT). Default blob is in
+// consolidated_api_routes.py DEFAULT_WALKIN_DEFAULTS.
+const WalkinDefaultsSection = () => {
+  const [loaded, setLoaded] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+  const [savedMsg, setSavedMsg] = React.useState('');
+  const [defaults, setDefaults] = React.useState({
+    default_coffee_type: 'Flat White',
+    default_size: 'Small (8oz)',
+    default_shots: '1',
+    default_milk_preference_order: [],
+    default_sweetener_qty: 0,
+  });
+
+  React.useEffect(() => {
+    let cancelled = false;
+    api.request('/walkin-defaults', { method: 'GET' })
+       .then(resp => { if (!cancelled && resp) { setDefaults(d => ({ ...d, ...resp })); setLoaded(true); } })
+       .catch(() => setLoaded(true));
+    return () => { cancelled = true; };
+  }, []);
+
+  const save = async () => {
+    setSaving(true); setSavedMsg('');
+    try {
+      await api.request('/walkin-defaults', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(defaults),
+      });
+      setSavedMsg('Saved');
+      setTimeout(() => setSavedMsg(''), 2500);
+    } catch (e) {
+      setSavedMsg('Save failed: ' + (e.message || 'unknown'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Milk preference: edited as a single comma-separated string for
+  // simplicity. Spaces in milk names ('full cream') are preserved.
+  // Order matters — first match wins when the dialog picks a default.
+  const milkPrefAsString = (defaults.default_milk_preference_order || []).join(', ');
+  const setMilkPrefFromString = (s) => {
+    const list = s.split(',').map(x => x.trim()).filter(Boolean);
+    setDefaults(d => ({ ...d, default_milk_preference_order: list }));
+  };
+
+  return (
+    <div className="bg-white rounded-lg shadow-sm p-6 mb-4">
+      <h3 className="font-semibold text-lg mb-1">Walk-in defaults</h3>
+      <p className="text-sm text-gray-500 mb-3">
+        What the walk-in dialog pre-fills before the operator confirms
+        and submits. Set these to your most common values to cut clicks.
+      </p>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+        <label className="text-sm">
+          <span className="block text-gray-600">Default drink</span>
+          <input
+            type="text"
+            value={defaults.default_coffee_type || ''}
+            onChange={(e) => setDefaults(d => ({ ...d, default_coffee_type: e.target.value }))}
+            placeholder="Flat White"
+            className="w-full px-2 py-1 border border-gray-300 rounded"
+          />
+        </label>
+        <label className="text-sm">
+          <span className="block text-gray-600">Default size</span>
+          <input
+            type="text"
+            value={defaults.default_size || ''}
+            onChange={(e) => setDefaults(d => ({ ...d, default_size: e.target.value }))}
+            placeholder="Small (8oz)"
+            className="w-full px-2 py-1 border border-gray-300 rounded"
+          />
+        </label>
+        <label className="text-sm">
+          <span className="block text-gray-600">Default shots</span>
+          <select
+            value={defaults.default_shots || '1'}
+            onChange={(e) => setDefaults(d => ({ ...d, default_shots: e.target.value }))}
+            className="w-full px-2 py-1 border border-gray-300 rounded"
+          >
+            <option value="0.5">1/2 shot</option>
+            <option value="1">1 (single)</option>
+            <option value="2">2 (double)</option>
+            <option value="3">3 (triple)</option>
+          </select>
+        </label>
+        <label className="text-sm">
+          <span className="block text-gray-600">Default sugar qty</span>
+          <input
+            type="number"
+            min="0"
+            max="6"
+            value={defaults.default_sweetener_qty ?? 0}
+            onChange={(e) => setDefaults(d => ({ ...d, default_sweetener_qty: parseInt(e.target.value) || 0 }))}
+            className="w-full px-2 py-1 border border-gray-300 rounded"
+          />
+        </label>
+      </div>
+
+      <div className="mb-4">
+        <label className="text-sm">
+          <span className="block text-gray-600">Milk preference order</span>
+          <input
+            type="text"
+            value={milkPrefAsString}
+            onChange={(e) => setMilkPrefFromString(e.target.value)}
+            placeholder="full cream, whole milk, dairy, skim, oat"
+            className="w-full px-2 py-1 border border-gray-300 rounded"
+          />
+          <span className="block text-xs text-gray-500 mt-1">
+            Comma-separated, in order of preference. The dialog picks the
+            first one stocked at the station. Anything not in this list
+            is only chosen if nothing in the list is available.
+          </span>
+        </label>
+      </div>
+
+      <button
+        onClick={save}
+        disabled={saving || !loaded}
+        className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded disabled:opacity-50"
+      >
+        {saving ? 'Saving…' : 'Save walk-in defaults'}
       </button>
       {savedMsg && <span className="ml-3 text-sm text-green-700">{savedMsg}</span>}
     </div>

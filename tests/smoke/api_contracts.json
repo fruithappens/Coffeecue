@@ -132,6 +132,20 @@
       "expect_status": 200,
       "expect_keys": ["enabled", "vip_free", "per_drink", "milk_surcharge"],
       "_note": "vip_free is the comp-VIP toggle. Missing it = regression of the VIP-free feature."
+    },
+    {
+      "name": "GET /api/walkin-defaults",
+      "method": "GET",
+      "path": "/api/walkin-defaults",
+      "expect_status": 200,
+      "expect_keys": [
+        "default_coffee_type",
+        "default_size",
+        "default_shots",
+        "default_milk_preference_order",
+        "default_sweetener_qty"
+      ],
+      "_note": "Walk-in dialog reads from this to seed initial values. Missing fields = regression of the per-event walk-in defaults feature."
     }
   ]
 }

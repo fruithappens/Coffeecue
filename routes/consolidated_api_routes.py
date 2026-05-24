@@ -6346,6 +6346,93 @@ def upsert_pricing_settings():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+# ============================================================================
+# WALK-IN DEFAULTS
+# ============================================================================
+# When the operator opens the walk-in dialog, what should already be filled
+# in so they only need to confirm the customer name and Submit? This blob
+# moves a pile of hardcoded literals out of WalkInOrderDialog.js (default
+# coffee type, default size, milk preference order) into a single
+# event-configurable setting. Edited via QuickSetup → Walk-in Defaults.
+#
+# Stored in settings KV under 'walkin_defaults'.
+
+DEFAULT_WALKIN_DEFAULTS = {
+    # The drink the dialog opens with. Australian default is Flat White;
+    # US events might prefer Latte. Has to be a string that matches one
+    # of the items in the station's drinks menu — invalid values fall
+    # back to the first available drink at render time.
+    'default_coffee_type': 'Flat White',
+
+    # Size that's pre-selected. 'Small (8oz)' is the most-common
+    # walk-in drink at events.
+    'default_size': 'Small (8oz)',
+
+    # Espresso shots default. Mostly 1 except for double-shot crowds.
+    'default_shots': '1',
+
+    # Milk preference order — the dialog picks the FIRST one in this
+    # list that's actually stocked at the station. Australian events
+    # set 'full cream' first; US events 'whole milk'; oat-heavy
+    # crowds can lead with 'oat'. Tokens are matched case-insensitive
+    # against the milk's id and name. Falls back to whatever's
+    # available if none of the preferences are stocked.
+    'default_milk_preference_order': [
+        'whole milk', 'full cream', 'regular', 'standard',
+        'dairy', 'milk', 'skim', 'low fat',
+    ],
+
+    # When the customer doesn't ask for sugar, the dialog still has
+    # to send SOME sweetener quantity. 0 = silent default; the
+    # 'No sugar' string is built at submit time when qty=0.
+    'default_sweetener_qty': 0,
+}
+
+
+@bp.route('/walkin-defaults', methods=['GET'])
+@jwt_required_with_demo()
+def get_walkin_defaults():
+    """Get the per-event walk-in dialog defaults.
+
+    Deep-merges saved values on top of the defaults so adding a new
+    field here doesn't force the operator to re-save their existing
+    config.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        saved = _kv_get(coffee_system.db, 'walkin_defaults', default=None) or {}
+        merged = {**DEFAULT_WALKIN_DEFAULTS, **saved}
+        # Lists shouldn't be deep-merged — saved value replaces default.
+        if isinstance(saved.get('default_milk_preference_order'), list):
+            merged['default_milk_preference_order'] = saved['default_milk_preference_order']
+        return jsonify(merged)
+    except Exception as e:
+        logger.error(f"get_walkin_defaults error: {e}")
+        return jsonify(DEFAULT_WALKIN_DEFAULTS), 200
+
+
+@bp.route('/walkin-defaults', methods=['PUT', 'POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def upsert_walkin_defaults():
+    """Save the walk-in dialog defaults. Accepts a partial blob —
+    fields not included keep their current saved value (or fall back
+    to DEFAULT_WALKIN_DEFAULTS if never saved).
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        data = request.get_json() or {}
+        # Merge with current saved (not just defaults), so PUT with one
+        # field doesn't blow away the other fields.
+        current = _kv_get(coffee_system.db, 'walkin_defaults', default=None) or {}
+        merged = {**DEFAULT_WALKIN_DEFAULTS, **current, **data}
+        _kv_put(coffee_system.db, 'walkin_defaults', merged)
+        return jsonify({'success': True, 'walkin_defaults': merged})
+    except Exception as e:
+        logger.error(f"upsert_walkin_defaults error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @bp.route('/order-prefix', methods=['GET'])
 @jwt_required_with_demo()
 def get_order_prefix():

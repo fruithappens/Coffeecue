@@ -19,6 +19,43 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
   const [loadingInventory, setLoadingInventory] = useState(true);
   const [inventoryError, setInventoryError] = useState(null);
   const [coffeeInventoryWarning, setCoffeeInventoryWarning] = useState(false);
+
+  // Walk-in defaults loaded from /api/walkin-defaults. Operator
+  // configures these once per event in Quick Setup → Walk-in defaults.
+  // Replaces hardcoded 'Flat White' / 'Small (8oz)' / milk priority
+  // regex that used to live in this file. Null until loaded; the
+  // form-validity useEffect waits for both this AND the inventory.
+  const [walkinDefaults, setWalkinDefaults] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { default: ApiServiceClass } = await import('../../services/ApiService');
+        const api = new ApiServiceClass();
+        const resp = await api.get('/walkin-defaults');
+        if (!cancelled && resp) {
+          setWalkinDefaults(resp);
+        }
+      } catch (e) {
+        // Backend unreachable or settings missing — fall back to the
+        // shape used by the rest of this file. Doesn't block the dialog.
+        console.warn('walkin-defaults load failed, using built-in defaults:', e?.message);
+        if (!cancelled) {
+          setWalkinDefaults({
+            default_coffee_type: 'Flat White',
+            default_size: 'Small (8oz)',
+            default_shots: '1',
+            default_milk_preference_order: [
+              'whole milk', 'full cream', 'regular', 'standard',
+              'dairy', 'milk', 'skim', 'low fat',
+            ],
+            default_sweetener_qty: 0,
+          });
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
   
   const [orderDetails, setOrderDetails] = useState({
     customerName: '',
@@ -106,15 +143,34 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
           if (stockData) {
             const stock = JSON.parse(stockData);
             console.log(`✅ Found stock data for station ${targetStation.id}:`, Object.keys(stock));
-            
-            // Copy all categories from stock to inventory
+
+            // Copy all categories from stock to inventory.
+            //
+            // The 'coffee' category historically (incorrectly) got
+            // seeded with DRINK names — 'Espresso', 'Cappuccino' etc.
+            // — written into localStorage long before the bean rename
+            // fix. Apply the same name heuristic we use elsewhere so
+            // drink-named rows never poison the Bean Type dropdown,
+            // even for users with stale localStorage from old sessions.
+            const _looksLikeBeanName = (s) => {
+              const x = (s || '').toLowerCase();
+              return /(bean|blend|roast|single\s*origin|decaf|colombian?|ethiopian?|brazilian?|kenyan?|guatemalan?)/.test(x);
+            };
             Object.keys(stock).forEach(category => {
               if (Array.isArray(stock[category])) {
-                inventory[category] = stock[category].filter(item => item.amount > 0);
+                let items = stock[category].filter(item => item.amount > 0);
+                if (category === 'coffee') {
+                  const before = items.length;
+                  items = items.filter(item => _looksLikeBeanName(item.name));
+                  if (items.length !== before) {
+                    console.log(`  - coffee: stripped ${before - items.length} non-bean rows from stale localStorage`);
+                  }
+                }
+                inventory[category] = items;
                 console.log(`  - ${category}: ${inventory[category].length} items with stock`);
               }
             });
-            
+
             console.log(`✅ Loaded inventory from barista stock for station ${targetStation.id}:`, inventory);
           } else {
             console.warn(`⚠️ No stock data found for station ${targetStation.id}, trying API fallback...`);
@@ -681,51 +737,80 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
 
   // Reset form values to valid defaults when available options change
   useEffect(() => {
-    // Only update if we have finished loading inventory
+    // Only update if we have finished loading inventory AND have the
+    // operator-configured defaults. Without the defaults we'd seed
+    // with stale hardcoded values and then re-flip when they arrive.
     if (loadingInventory) return;
-    
+    if (!walkinDefaults) return;
+
     let updatedDetails = { ...orderDetails };
     let hasChanges = false;
+
+    // Shots + sweetener qty come from the configured defaults if the
+    // operator hasn't touched them yet (i.e. they still hold the
+    // hardcoded initial state values). Re-checking against the
+    // configured defaults means changing them in Quick Setup updates
+    // the dialog without a full reload.
+    if (orderDetails.shots === '1' && walkinDefaults.default_shots && walkinDefaults.default_shots !== '1') {
+      updatedDetails.shots = String(walkinDefaults.default_shots);
+      hasChanges = true;
+    }
+    if (orderDetails.sweetenerQuantity === '0' && walkinDefaults.default_sweetener_qty != null
+        && String(walkinDefaults.default_sweetener_qty) !== '0') {
+      updatedDetails.sweetenerQuantity = String(walkinDefaults.default_sweetener_qty);
+      hasChanges = true;
+    }
 
     console.log('Checking form validity after inventory load:');
     console.log('- Current orderDetails.milkType:', orderDetails.milkType);
     console.log('- Available milks:', availableMilks.map(m => m.id));
 
-    // Check if selected coffee type is still available
+    // Coffee type default: prefer the operator-configured default
+    // (walkin_defaults.default_coffee_type) if it's available at this
+    // station; otherwise fall through to the first available drink.
     if (availableCoffeeTypes.length > 0 && !availableCoffeeTypes.includes(orderDetails.coffeeType)) {
-      console.log('Coffee type not available, updating from', orderDetails.coffeeType, 'to', availableCoffeeTypes[0]);
-      updatedDetails.coffeeType = availableCoffeeTypes[0] || 'Flat White';
+      const configuredDefault = walkinDefaults?.default_coffee_type;
+      const useConfigured = configuredDefault && availableCoffeeTypes.includes(configuredDefault);
+      updatedDetails.coffeeType = useConfigured
+        ? configuredDefault
+        : (availableCoffeeTypes[0] || 'Flat White');
       hasChanges = true;
     }
 
-    // Check if selected size is still available
+    // Size default: same pattern — operator's pick if stocked, else
+    // first available. Avoids the dialog flipping to a weird size
+    // when the configured default isn't on this station's menu.
     if (availableSizes.length > 0 && !availableSizes.includes(orderDetails.size)) {
-      console.log('Size not available, updating from', orderDetails.size, 'to', availableSizes[0]);
-      updatedDetails.size = availableSizes[0] || 'Regular';
+      const configuredSize = walkinDefaults?.default_size;
+      const useConfigured = configuredSize && availableSizes.includes(configuredSize);
+      updatedDetails.size = useConfigured
+        ? configuredSize
+        : (availableSizes[0] || 'Regular');
       hasChanges = true;
     }
 
     // Check if selected milk is still available - be more careful here.
     //
-    // Default milk: pick the most-common milk (whole / full cream /
-    // regular dairy) rather than whatever happens to be at position 0
-    // — which is sometimes Lactose-Free or Oat just because of how
-    // the inventory was sorted, and that's a confusing default for a
-    // walk-in operator who'll serve dairy 80%+ of the time. Falls
-    // back to first available if no "standard" milk is stocked.
+    // Default milk: walk through the operator-configured preference
+    // list (walkin_defaults.default_milk_preference_order) and pick
+    // the first one stocked at this station. Falls back to first
+    // available milk if none of the preferences are stocked. This
+    // replaces a hardcoded regex with a per-event setting — Aussie
+    // events can lead with 'full cream', US events with 'whole milk',
+    // oat-heavy crowds with 'oat'.
     const _pickDefaultMilk = (milks) => {
       if (!milks || milks.length === 0) return 'no_milk';
-      // Priority: whole / full cream / regular / dairy first, then
-      // skim / low-fat, then anything else. Match against id or name.
-      const score = (m) => {
-        const t = `${m.id || ''} ${m.name || ''}`.toLowerCase();
-        if (/(whole|full[\s_-]?cream|regular)/.test(t)) return 0;
-        if (/^milk$|^dairy$|standard/.test(t)) return 1;
-        if (/(skim|low[\s_-]?fat|trim)/.test(t)) return 2;
-        return 3;
-      };
-      const sorted = [...milks].sort((a, b) => score(a) - score(b));
-      return sorted[0]?.id || milks[0]?.id || 'no_milk';
+      const prefs = (walkinDefaults?.default_milk_preference_order || [])
+        .map(p => (p || '').toLowerCase().trim())
+        .filter(Boolean);
+      for (const pref of prefs) {
+        const match = milks.find(m => {
+          const t = `${m.id || ''} ${m.name || ''}`.toLowerCase();
+          return t.includes(pref);
+        });
+        if (match) return match.id;
+      }
+      return milks[0]?.id || 'no_milk';
     };
 
     if (availableMilks.length > 0 && !availableMilks.some(milk => milk.id === orderDetails.milkType)) {
@@ -775,7 +860,7 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
       console.log('Form updates needed, applying changes:', updatedDetails);
       setOrderDetails(updatedDetails);
     }
-  }, [availableCoffeeTypes, availableSizes, availableMilks, availableSweeteners, availableBeanTypes, loadingInventory]);
+  }, [availableCoffeeTypes, availableSizes, availableMilks, availableSweeteners, availableBeanTypes, loadingInventory, walkinDefaults]);
   
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
