@@ -7,6 +7,7 @@ import { XCircle, Search, Coffee, Users, Star, AlertTriangle } from 'lucide-reac
 // mount, and for offline/demo mode where /api/catalog isn't reachable.
 import { DEFAULT_MILK_TYPES } from '../../utils/milkConfig';
 import useCatalog from '../../hooks/useCatalog';
+import useWalkinDefaults from '../../hooks/useWalkinDefaults';
 import SettingsService from '../../services/SettingsService';
 import StockService from '../../services/StockService';
 import useStations from '../../hooks/useStations';
@@ -34,40 +35,15 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
 
   // Walk-in defaults loaded from /api/walkin-defaults. Operator
   // configures these once per event in Quick Setup → Walk-in defaults.
-  // Replaces hardcoded 'Flat White' / 'Small (8oz)' / milk priority
-  // regex that used to live in this file. Null until loaded; the
-  // form-validity useEffect waits for both this AND the inventory.
-  const [walkinDefaults, setWalkinDefaults] = useState(null);
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const { default: ApiServiceClass } = await import('../../services/ApiService');
-        const api = new ApiServiceClass();
-        const resp = await api.get('/walkin-defaults');
-        if (!cancelled && resp) {
-          setWalkinDefaults(resp);
-        }
-      } catch (e) {
-        // Backend unreachable or settings missing — fall back to the
-        // shape used by the rest of this file. Doesn't block the dialog.
-        console.warn('walkin-defaults load failed, using built-in defaults:', e?.message);
-        if (!cancelled) {
-          setWalkinDefaults({
-            default_coffee_type: 'Flat White',
-            default_size: 'Small (8oz)',
-            default_shots: '1',
-            default_milk_preference_order: [
-              'whole milk', 'full cream', 'regular', 'standard',
-              'dairy', 'milk', 'skim', 'low fat',
-            ],
-            default_sweetener_qty: 0,
-          });
-        }
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
+  // Hook handles fetch + module-level caching + fallback when the
+  // endpoint is unreachable. See hooks/useWalkinDefaults.js.
+  // Used to be ~30 lines of inline useEffect; extracted 2026-05-25.
+  const { defaults: walkinDefaults, loaded: walkinDefaultsLoaded } = useWalkinDefaults();
+  // The rest of this file still checks `walkinDefaults` for null in
+  // a couple of spots — that's fine because the hook returns the
+  // fallback object immediately, so it's never null.
+  // eslint-disable-next-line no-unused-vars
+  void walkinDefaultsLoaded;
   
   const [orderDetails, setOrderDetails] = useState({
     customerName: '',
