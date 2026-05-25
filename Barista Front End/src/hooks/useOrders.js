@@ -1,4 +1,17 @@
 // hooks/useOrders.js
+//
+// Order state hook — the load-bearing one for the barista UI.
+// Returns pending / in-progress / completed / previous lists +
+// actions (start, complete, pickup, reassign, etc.) + auto-refresh
+// machinery.
+//
+// JSDoc types here exist primarily for IDE help — hover any
+// `order` parameter and you'll see the Order shape with
+// autocomplete. No runtime cost, no build change.
+/**
+ * @typedef {import('../types').Order} Order
+ * @typedef {import('../types').Station} Station
+ */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import OrderDataService from '../services/OrderDataService';
 import StockService from '../services/StockService';

@@ -492,10 +492,15 @@ chip away at. Sorted by impact.
     etc. — mostly snapshots from previous fix sessions. Worth a
     sweep to delete or fold into this onboarding doc.
 
-15. **No frontend type-safety**
-    No TypeScript, no PropTypes, no JSDoc types on most functions.
-    Catalog work would benefit from a `Catalog` type definition
-    even if it's just JSDoc.
+15. **Limited frontend type-safety** *(partly addressed 2026-05-25)*
+    Core shapes (Order, Station, CatalogItem, User, WalkinDefaults,
+    HealthReport) now have JSDoc types in
+    `Barista Front End/src/types/index.js`. `jsconfig.json` makes
+    VS Code surface IDE warnings. Hooks consuming those shapes
+    (useOrders, useStations, useCatalog) import the types via
+    `@typedef {import('../types').Order} Order`. Rest of the
+    codebase still untyped — opportunistic conversion as files
+    get touched.
 
 ---
 

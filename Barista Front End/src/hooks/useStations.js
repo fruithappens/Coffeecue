@@ -1,4 +1,7 @@
 // src/hooks/useStations.js
+/**
+ * @typedef {import('../types').Station} Station
+ */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAppMode } from '../context/AppContext';
 import StationsService from '../services/StationsService';

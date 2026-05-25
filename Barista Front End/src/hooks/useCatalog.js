@@ -1,4 +1,8 @@
 // hooks/useCatalog.js
+/**
+ * @typedef {import('../types').CatalogItem} CatalogItem
+ * @typedef {import('../types').CatalogCategory} CatalogCategory
+ */
 //
 // Read canonical option lists from the backend's /api/catalog endpoint.
 // This is the source of truth for milk / drink / size / sweetener
