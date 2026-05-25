@@ -5,6 +5,7 @@ import {
   CheckCircle, Circle, Trash2, Copy, Globe, Monitor
 } from 'lucide-react';
 import useStations from '../hooks/useStations';
+import useCatalog from '../hooks/useCatalog';
 import QuickSetupStatusBanner from './QuickSetupStatusBanner';
 
 // Menu version for auto-updates. Bumping forces existing operator
@@ -789,6 +790,11 @@ const MenuManagement = () => {
   const [availableCups, setAvailableCups] = useState([]);
   const [showAddSize, setShowAddSize] = useState(null); // drinkId when adding new size
   const [globalMenuEnabled, setGlobalMenuEnabled] = useState(true); // Global toggle for station restrictions
+  const [syncBanner, setSyncBanner] = useState(null);  // {missing: [...], msg: '...'}
+
+  // Catalog drinks — used to surface 'drinks in catalog not yet in
+  // menu' and to enable the 'Sync from catalog' action.
+  const { items: catalogDrinks } = useCatalog('drink');
   
   // Load menu and cups on mount
   useEffect(() => {
@@ -881,6 +887,81 @@ const MenuManagement = () => {
     localStorage.setItem('event_menu', JSON.stringify(menu));
     localStorage.setItem('event_menu_version', MENU_VERSION);
     setMenuItems(menu);
+  };
+
+  // Sync from catalog: add any catalog drinks not yet in the menu.
+  //
+  // Doesn't modify existing menu drinks — that's important because
+  // the menu stores rich per-drink data (sizes/prices/recipes) that
+  // shouldn't be clobbered by a sync. Only ADDS rows.
+  //
+  // Adds with sensible defaults (one Regular size at AU$4.50, no
+  // ratios — operator fills the recipe in afterwards via Edit). The
+  // drink is enabled by default but with no station availability
+  // ticked, so it won't accidentally show on a barista's menu until
+  // the operator deliberately turns it on.
+  const _catalogToMenuId = (cat) => {
+    // Catalog ids use underscores ('flat_white'); menu uses dashed
+    // ids ('flat-white'). Translate.
+    return (cat.id || cat.short_name || '').toLowerCase().replace(/[_\s]+/g, '-');
+  };
+
+  const _menuCategoryFor = (cat) => {
+    // catalog subcategory → menu category
+    if (cat.subcategory === 'espresso') return 'espresso-based';
+    if (cat.subcategory === 'tea')      return 'tea';
+    return 'non-coffee';
+  };
+
+  const _missingCatalogDrinks = () => {
+    if (!Array.isArray(catalogDrinks) || catalogDrinks.length === 0) return [];
+    const existingIds = new Set(Object.keys(menuItems || {}));
+    return catalogDrinks.filter(cat => {
+      const id = _catalogToMenuId(cat);
+      return id && !existingIds.has(id);
+    });
+  };
+
+  const syncFromCatalog = () => {
+    const missing = _missingCatalogDrinks();
+    if (missing.length === 0) {
+      setSyncBanner({ kind: 'info', msg: 'Menu already has every catalog drink.' });
+      setTimeout(() => setSyncBanner(null), 4000);
+      return;
+    }
+
+    const updated = { ...menuItems };
+    missing.forEach(cat => {
+      const id = _catalogToMenuId(cat);
+      const category = _menuCategoryFor(cat);
+      updated[id] = {
+        id,
+        name: cat.name,
+        category,
+        enabled: true,
+        description: `Added from catalog ${new Date().toLocaleDateString()}`,
+        requiresMilk: cat.subcategory === 'espresso',
+        sizes: {
+          regular: {
+            enabled: true,
+            shots: cat.subcategory === 'espresso' ? 1 : 0,
+            cupSize: 'medium-12oz',
+            price: 4.50,
+          },
+        },
+        stationAvailability: {},   // operator opts in per-station
+        customizable: cat.subcategory === 'espresso'
+          ? { extraShot: true, decaf: true }
+          : {},
+        isFromCatalog: true,       // breadcrumb for the operator
+      };
+    });
+    saveMenu(updated);
+    setSyncBanner({
+      kind: 'success',
+      msg: `Added ${missing.length} drink${missing.length === 1 ? '' : 's'} from catalog: ${missing.map(m => m.name).join(', ')}. Each has one Regular size at $4.50 by default — edit prices / sizes / recipe as needed.`,
+    });
+    setTimeout(() => setSyncBanner(null), 8000);
   };
   
   // Toggle global menu enabled
@@ -1098,6 +1179,34 @@ const MenuManagement = () => {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-800">Menu Management</h2>
         <div className="flex space-x-2">
+          {/* Sync from catalog — adds any catalog drinks not yet in
+              the menu, with sensible defaults. Doesn't touch existing
+              drinks. Solves the 'I added Cold Brew to catalog but it
+              doesn't appear in Menu Items' pain. */}
+          {(() => {
+            const missingCount = _missingCatalogDrinks().length;
+            return (
+              <button
+                onClick={syncFromCatalog}
+                className={`px-4 py-2 rounded-md flex items-center ${
+                  missingCount > 0
+                    ? 'bg-blue-500 text-white hover:bg-blue-600'
+                    : 'bg-blue-100 text-blue-800 hover:bg-blue-200'
+                }`}
+                title={missingCount > 0
+                  ? `Add ${missingCount} drink(s) from catalog to the menu`
+                  : 'Menu already has every catalog drink'}
+              >
+                <Plus size={20} className="mr-2" />
+                Sync from catalog
+                {missingCount > 0 && (
+                  <span className="ml-2 px-1.5 py-0.5 bg-white text-blue-700 rounded text-xs font-bold">
+                    +{missingCount}
+                  </span>
+                )}
+              </button>
+            );
+          })()}
           <button
             onClick={restoreDefaultMenu}
             className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 flex items-center"
@@ -1115,6 +1224,26 @@ const MenuManagement = () => {
           </button>
         </div>
       </div>
+
+      {/* Sync result banner */}
+      {syncBanner && (
+        <div className={`mb-4 p-3 rounded border-l-4 ${
+          syncBanner.kind === 'success'
+            ? 'bg-green-50 border-green-500 text-green-900'
+            : 'bg-blue-50 border-blue-500 text-blue-900'
+        }`}>
+          <div className="flex justify-between items-start">
+            <p className="text-sm">{syncBanner.msg}</p>
+            <button
+              onClick={() => setSyncBanner(null)}
+              className="ml-3 text-gray-500 hover:text-gray-700"
+              aria-label="Dismiss"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
       
       {/* Search and Filters */}
       <div className="grid grid-cols-2 gap-4 mb-6">
