@@ -37,7 +37,8 @@ if (_isProd && typeof window !== 'undefined') {
     info:  console.info,
     trace: console.trace,
   };
-  const _noop = () => {};
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
+  const _noop = () => { /* intentional no-op for production console silencing */ };
   console.log = _noop;
   console.debug = _noop;
   console.info = _noop;
