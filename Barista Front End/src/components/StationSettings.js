@@ -198,9 +198,17 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
-                    {/* Quick disable/enable — operators expect a one-click
-                        toggle. The 'Edit then change status' flow inside
-                        the form is still there for the maintenance state. */}
+                    {/* Quick one-tap toggle. Steve hit the previous
+                        version: 'Activate' button on an inactive
+                        station was GREEN — read as 'this is active'
+                        because the green next to the red Inactive dot
+                        was confusing. Now:
+                          - Active station   → RED 'Take offline' (warns
+                            you're about to remove it from the rota)
+                          - Inactive station → BLUE 'Bring online'
+                            (clearly an action, not a status)
+                        The verbs are unambiguous and the colours
+                        match the action's tone, not the future state. */}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -209,16 +217,16 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
                           onStationUpdate(station.id, { ...station, status: newStatus });
                         }
                       }}
-                      className={`px-2 py-1 text-xs rounded ${
+                      className={`px-2 py-1 text-xs rounded font-medium ${
                         station.status === 'active'
-                          ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
-                          : 'bg-green-100 text-green-800 hover:bg-green-200'
+                          ? 'bg-red-100 text-red-800 hover:bg-red-200 border border-red-300'
+                          : 'bg-blue-100 text-blue-800 hover:bg-blue-200 border border-blue-300'
                       }`}
                       title={station.status === 'active'
                         ? 'Take this station offline (no new orders will be routed here)'
                         : 'Bring this station back online'}
                     >
-                      {station.status === 'active' ? 'Disable' : 'Activate'}
+                      {station.status === 'active' ? 'Take offline' : 'Bring online'}
                     </button>
                     <button
                       onClick={(e) => {
@@ -252,42 +260,54 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-xl font-semibold">Configure Station</h3>
                 <div className="flex space-x-2">
-                  {isEditing ? (
-                    <>
-                      <button
-                        onClick={() => {
-                          setIsEditing(false);
-                          setStationData({
-                            name: selectedStation.name || '',
-                            location: selectedStation.location || '',
-                            status: selectedStation.status || 'active',
-                            description: selectedStation.description || '',
-                            maxConcurrentOrders: selectedStation.maxConcurrentOrders || 3
-                          });
-                        }}
-                        className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 flex items-center"
-                      >
-                        <X size={16} className="mr-2" />
-                        Cancel
-                      </button>
-                      <button
-                        onClick={handleSave}
-                        disabled={isSaving}
-                        className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 flex items-center disabled:opacity-50"
-                      >
-                        <Save size={16} className="mr-2" />
-                        {isSaving ? 'Saving...' : 'Save Changes'}
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      onClick={() => setIsEditing(true)}
-                      className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 flex items-center"
-                    >
-                      <Edit3 size={16} className="mr-2" />
-                      Edit Station
-                    </button>
-                  )}
+                  {/* Always-editable form. Save button enables only
+                      when there are unsaved changes (compare current
+                      stationData against the loaded selectedStation).
+                      Removed the Edit → Save → View dance — settings
+                      panels should just be directly editable. */}
+                  {(() => {
+                    const dirty = !!selectedStation && (
+                      stationData.name !== (selectedStation.name || '') ||
+                      stationData.location !== (selectedStation.location || '') ||
+                      stationData.status !== (selectedStation.status || 'active') ||
+                      stationData.description !== (selectedStation.description || '') ||
+                      Number(stationData.maxConcurrentOrders || 0) !== Number(selectedStation.maxConcurrentOrders || 3)
+                    );
+                    return (
+                      <>
+                        {dirty && (
+                          <button
+                            onClick={() => {
+                              setStationData({
+                                name: selectedStation.name || '',
+                                location: selectedStation.location || '',
+                                status: selectedStation.status || 'active',
+                                description: selectedStation.description || '',
+                                maxConcurrentOrders: selectedStation.maxConcurrentOrders || 3
+                              });
+                            }}
+                            className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 flex items-center"
+                          >
+                            <X size={16} className="mr-2" />
+                            Discard
+                          </button>
+                        )}
+                        <button
+                          onClick={handleSave}
+                          disabled={isSaving || !dirty}
+                          className={`px-4 py-2 rounded-md flex items-center ${
+                            !dirty
+                              ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                              : 'bg-blue-500 text-white hover:bg-blue-600'
+                          } disabled:opacity-50`}
+                          title={!dirty ? 'No changes to save' : 'Save the changes you made'}
+                        >
+                          <Save size={16} className="mr-2" />
+                          {isSaving ? 'Saving...' : (dirty ? 'Save Changes' : 'Saved')}
+                        </button>
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -304,7 +324,7 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
                         type="text"
                         value={stationData.name}
                         onChange={(e) => setStationData({ ...stationData, name: e.target.value })}
-                        disabled={!isEditing}
+                        
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
                         placeholder="Enter station name..."
                       />
@@ -317,7 +337,7 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
                         type="text"
                         value={stationData.location}
                         onChange={(e) => setStationData({ ...stationData, location: e.target.value })}
-                        disabled={!isEditing}
+                        
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
                         placeholder="Enter location..."
                       />
@@ -331,7 +351,7 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
                     <textarea
                       value={stationData.description}
                       onChange={(e) => setStationData({ ...stationData, description: e.target.value })}
-                      disabled={!isEditing}
+                      
                       rows={3}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
                       placeholder="Optional description..."
@@ -350,7 +370,7 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
                       <select
                         value={stationData.status}
                         onChange={(e) => setStationData({ ...stationData, status: e.target.value })}
-                        disabled={!isEditing}
+                        
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
                       >
                         <option value="active">Active</option>
@@ -368,7 +388,7 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
                         max="10"
                         value={stationData.maxConcurrentOrders}
                         onChange={(e) => setStationData({ ...stationData, maxConcurrentOrders: parseInt(e.target.value) || 1 })}
-                        disabled={!isEditing}
+                        
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
                       />
                     </div>
