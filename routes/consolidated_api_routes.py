@@ -479,7 +479,7 @@ def orders():
         try:
             data = request.json
             logger.info(f"Creating new order with data: {data}")
-            
+
             # Validate required fields
             required_fields = ['customer_name', 'coffee_type', 'size']
             for field in required_fields:
@@ -488,10 +488,19 @@ def orders():
                         "status": "error",
                         "message": f"Missing required field: {field}"
                     }), 400
-            
+
             # Get coffee system from app context
             coffee_system = current_app.config.get('coffee_system')
             db = coffee_system.db
+
+            # Defensive rollback — if a previous request left this
+            # singleton connection in aborted-transaction state, every
+            # subsequent query would silently fail. before_request
+            # also does this, but belt-and-braces.
+            try:
+                db.rollback()
+            except Exception:
+                pass
             
             # Generate a unique order number. Steve wanted shorter,
             # event-prefixed codes ("C1", "C2", …) rather than the old
@@ -606,7 +615,74 @@ def orders():
                 station_id = int(station_id)
             except (TypeError, ValueError):
                 station_id = 1
-            
+
+            # Capability gate.
+            #
+            # Three things to validate before we write the order:
+            #
+            # (1) The station_id actually exists. Without this, we
+            #     happily wrote orders to station 99 — they became
+            #     ghost orders that no barista UI could see.
+            # (2) The requested milk is in that station's milk_types.
+            #     This was the coconut bug: the SMS bot offered Steve's
+            #     "usual = coconut latte", no station has coconut, the
+            #     order got created anyway, then no barista could
+            #     start it because the start handler's capability gate
+            #     blocked them. Net effect: customer notified, drink
+            #     unmakeable.
+            # (3) The requested drink is in catalog OR in the
+            #     station's coffee_types. Stops "nuclear chai blast"
+            #     from being accepted.
+            #
+            # Lenient mode: if station_stats has no entry for this
+            # station, or capabilities is empty, we don't block —
+            # treat it as "no restriction" so brand-new deployments
+            # work before the Capabilities editor has been touched.
+            try:
+                cap_check_cursor = db.cursor()
+                cap_check_cursor.execute(
+                    "SELECT 1 FROM stations WHERE station_id = %s",
+                    (station_id,),
+                )
+                station_exists = cap_check_cursor.fetchone()
+                if not station_exists:
+                    return jsonify({
+                        "status": "error",
+                        "message": (
+                            f"Station {station_id} doesn't exist. "
+                            "Pick a valid station from the dropdown."
+                        ),
+                        "code": "STATION_NOT_FOUND",
+                    }), 400
+            except Exception as e:
+                # Don't block order creation on a stations-table read
+                # failure; log and continue. Worst case: order lands
+                # at a fictional station and barista UI surfaces it.
+                logger.warning(f"Station existence check failed (continuing): {e}")
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+
+            cap_result = _station_can_make_order(
+                db,
+                station_id,
+                {
+                    'type': order_details.get('type'),
+                    'milk': order_details.get('milk'),
+                },
+            )
+            if cap_result.get('blocked'):
+                logger.warning(
+                    f"Refused walk-in order create for station {station_id}: "
+                    f"{cap_result.get('reason')}"
+                )
+                return jsonify({
+                    "status": "error",
+                    "message": cap_result.get('reason'),
+                    "code": "STATION_CAPABILITY_MISMATCH",
+                }), 400
+
             # Insert order into database
             cursor = db.cursor()
             cursor.execute('''
@@ -1547,6 +1623,32 @@ def start_order(order_id):
         else:
             _, order_phone, order_details, current_status = order_row
 
+        # State machine guard. Without this, /start on a picked_up order
+        # pulled it BACK into in-progress — the collected coffee
+        # re-appeared on the barista queue. Bug Steve hit in QC.
+        #
+        # Treat these as terminal: refusing further state changes.
+        #   - picked_up  → already collected, don't resurrect.
+        #   - cancelled  → customer cancelled, don't restart.
+        if current_status in ('picked_up', 'cancelled'):
+            return jsonify({
+                "success": False,
+                "message": (
+                    f"Cannot start order {clean_id}: already {current_status}."
+                ),
+                "code": "STATE_TERMINAL",
+                "current_status": current_status,
+            }), 409
+        # Idempotent: already in-progress is a no-op success (don't
+        # re-fire the started SMS or re-emit the WS event).
+        if current_status == 'in-progress':
+            return jsonify({
+                "success": True,
+                "message": "Order already in progress",
+                "current_status": current_status,
+                "noop": True,
+            })
+
         # Parse order_details if it came back as JSON text.
         parsed_details = order_details
         if isinstance(parsed_details, str):
@@ -1855,12 +1957,15 @@ def complete_order(order_id):
         coffee_system = current_app.config.get('coffee_system')
         db = coffee_system.db
 
-        # Check if order exists — fetch details + phone too so we
+        # Check if order exists — fetch details + phone + status too so we
         # can decrement stock at completion AND send the customer a
-        # "your drink is ready" SMS once the status flip succeeds.
+        # "your drink is ready" SMS once the status flip succeeds, AND
+        # so we can guard against re-completing an already-completed
+        # order (which would re-fire the SMS, the bug Steve hit on
+        # triple-tap during QC).
         cursor = db.cursor()
         cursor.execute(
-            'SELECT id, station_id, order_details, phone FROM orders WHERE order_number = %s',
+            'SELECT id, station_id, order_details, phone, status FROM orders WHERE order_number = %s',
             (clean_id,),
         )
         order_row = cursor.fetchone()
@@ -1873,10 +1978,31 @@ def complete_order(order_id):
             station_id_for_stock = order_row.get('station_id') or 1
             order_details_raw = order_row.get('order_details') or {}
             order_phone = order_row.get('phone') or ''
+            current_status = order_row.get('status')
         else:
-            _, station_id_for_stock, order_details_raw, order_phone = order_row
+            _, station_id_for_stock, order_details_raw, order_phone, current_status = order_row
             station_id_for_stock = station_id_for_stock or 1
             order_phone = order_phone or ''
+
+        # State guards (same shape as /start). picked_up is terminal —
+        # don't fire ready SMS for an order that's already collected.
+        if current_status == 'cancelled':
+            return jsonify({
+                "success": False,
+                "message": f"Order {clean_id} was cancelled.",
+                "code": "STATE_TERMINAL",
+                "current_status": current_status,
+            }), 409
+        # Idempotent: already completed → no-op success. CRITICAL: do
+        # NOT re-send the ready SMS or re-decrement stock. This was the
+        # source of duplicate "your coffee is ready" texts on misclick.
+        if current_status in ('completed', 'picked_up'):
+            return jsonify({
+                "success": True,
+                "message": f"Order already {current_status}",
+                "current_status": current_status,
+                "noop": True,
+            })
 
         # Get current time
         completed_at = datetime.now().isoformat()
@@ -2038,18 +2164,47 @@ def pickup_order(order_id):
         coffee_system = current_app.config.get('coffee_system')
         db = coffee_system.db
         
-        # Check if order exists first to provide better error handling
+        # Check if order exists + fetch current status so we can be
+        # idempotent: a second /pickup tap on an already-picked-up
+        # order shouldn't error, but it also shouldn't re-emit WS or
+        # re-update timestamps (which would mask "when was this
+        # actually collected" in the audit history).
         cursor = db.cursor()
-        cursor.execute('SELECT id FROM orders WHERE order_number = %s', (clean_id,))
-        order_exists = cursor.fetchone()
-        
-        if not order_exists:
+        cursor.execute(
+            'SELECT id, status FROM orders WHERE order_number = %s',
+            (clean_id,),
+        )
+        order_row = cursor.fetchone()
+
+        if not order_row:
             logger.error(f"Order not found: {clean_id}")
             return jsonify({"success": False, "message": f"Order {clean_id} not found"})
-        
+
+        if isinstance(order_row, dict):
+            current_status = order_row.get('status')
+        else:
+            _, current_status = order_row
+
+        # State guards.
+        if current_status == 'cancelled':
+            return jsonify({
+                "success": False,
+                "message": f"Order {clean_id} was cancelled.",
+                "code": "STATE_TERMINAL",
+                "current_status": current_status,
+            }), 409
+        # Idempotent — already picked up. No DB change, no WS emit.
+        if current_status == 'picked_up':
+            return jsonify({
+                "success": True,
+                "message": "Order already picked up",
+                "current_status": current_status,
+                "noop": True,
+            })
+
         # Get current time
         pickup_at = datetime.now().isoformat()
-        
+
         # Update order: status → 'picked_up' AND set timestamps.
         # The status change is critical: without it the order stays
         # as status='completed' forever, so the customer Display
