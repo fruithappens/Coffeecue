@@ -195,12 +195,25 @@ def get_db_connection(db_url=None):
         return conn
 
 def close_connection(conn):
-    """Return a connection to the pool or close SQLite connection"""
+    """Return a connection to the pool or close SQLite connection.
+
+    For Postgres, ALWAYS rollback before returning to the pool. If we don't,
+    a connection that died mid-transaction (e.g. a query raised an error
+    and the handler returned without calling commit() or rollback()) goes
+    back into the pool in 'transaction aborted' state. The next request
+    grabs that connection from the pool, and every query it runs gets:
+
+      current transaction is aborted, commands ignored until end of
+      transaction block
+
+    The fix is cheap (rollback is a no-op on a clean connection) and
+    catastrophic to skip (one bad request poisons subsequent ones).
+    """
     global connection_pool
-    
+
     if not conn:
         return
-        
+
     try:
         # Check if it's an SQLite connection
         if isinstance(conn, sqlite3.Connection):
@@ -212,10 +225,32 @@ def close_connection(conn):
             # Close the connection
             conn.close()
         elif connection_pool:
+            # Defensive rollback before putconn — see docstring above.
+            try:
+                conn.rollback()
+            except Exception as e:
+                logger.warning(f"rollback before putconn failed (continuing): {e}")
             # Return PostgreSQL connection to the pool
             connection_pool.putconn(conn)
     except Exception as e:
         logger.error(f"Error closing connection: {str(e)}")
+
+
+def ensure_clean_connection(conn):
+    """Defensive: rollback any in-flight transaction on a long-lived
+    connection. Call at the start of a request handler when using
+    coffee_system.db (which is a singleton connection, not pooled).
+
+    Same poisoning rationale as close_connection() — if a previous
+    handler errored and didn't rollback, this conn is in aborted state
+    and every query will fail until something rolls it back.
+    """
+    if conn is None:
+        return
+    try:
+        conn.rollback()
+    except Exception as e:
+        logger.warning(f"ensure_clean_connection: rollback failed (continuing): {e}")
 
 def execute_query(conn, query, params=None, fetch_all=False, fetch_one=False):
     """

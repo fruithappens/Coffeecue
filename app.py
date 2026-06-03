@@ -582,6 +582,31 @@ def create_app():
         # This is now handled in the auth module's load_user_from_jwt function
         # Keep it empty for backward compatibility
         pass
+
+    # Defensive DB-state reset before every request.
+    #
+    # coffee_system.db is a SINGLETON connection shared by every handler.
+    # If a previous request errored after running a query and didn't call
+    # commit() or rollback(), Postgres leaves the connection in
+    # "transaction aborted" state — every subsequent query returns
+    # "current transaction is aborted, commands ignored until end of
+    # transaction block". One bad request poisons the whole app until
+    # the container restarts.
+    #
+    # This hook rolls back any in-flight transaction at the START of
+    # every request. Rollback on a clean connection is a no-op (free);
+    # rollback on a poisoned connection unsticks it. Net effect: a single
+    # failing handler can no longer take the rest of the app down.
+    @app.before_request
+    def _ensure_db_not_poisoned():
+        try:
+            from utils.database import ensure_clean_connection
+            cs = app.config.get('coffee_system')
+            if cs is not None and getattr(cs, 'db', None) is not None:
+                ensure_clean_connection(cs.db)
+        except Exception:
+            # Never block a request just because the defensive cleanup failed.
+            pass
     
     # Authentication API endpoints
     @app.route('/api/auth/login', methods=['POST'])
