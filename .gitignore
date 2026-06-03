@@ -81,7 +81,24 @@ diagnostics/*_results.json
 *token*
 *key*
 
+# …except templates (no real values inside, safe to commit)
+!.env.example
+!.env.production.example
+
 # Railway deployment files - OK to commit
 !Procfile
 !railway.json
 !runtime.txt
+
+# Rogue venv installed AT REPO ROOT
+# (Someone once ran `python -m venv .` at the project root, which dumped
+# bin/, lib/, include/, pyvenv.cfg etc. straight into the working tree
+# and 2200+ site-packages files into git. These ignores prevent that
+# from re-tracking. The leading / anchors at repo root only — does not
+# affect `Barista Front End/.../bin/` etc.)
+/bin/
+/lib/
+/lib64/
+/include/
+/share/
+/pyvenv.cfg

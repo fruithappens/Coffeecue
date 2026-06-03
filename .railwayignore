@@ -1,12 +1,35 @@
-# Ignore frontend directory during backend deployment
-Barista Front End/
+# Railway upload exclusions.
+#
+# IMPORTANT: do NOT exclude 'Barista Front End/' — the Dockerfile's
+# multi-stage build needs that directory to compile the React app into
+# the static/ folder served by Flask. Excluding it = no UI in prod.
+#
+# We DO exclude node_modules (rebuilt during Docker build), Python
+# venvs (rebuilt from requirements.txt), logs, and local-only files.
+
 node_modules/
+**/node_modules/
 *.log
 .git/
 .DS_Store
 __pycache__/
+**/__pycache__/
 *.pyc
 .pytest_cache/
 venv/
+.venv/
+env/
 .env
+.env.local
 logs/
+debug_logs/
+
+# Local-only dev tooling
+.claude/
+.cypress/
+cypress/screenshots/
+cypress/videos/
+
+# Frontend build artifacts — Dockerfile rebuilds these
+"Barista Front End/build/"
+"Barista Front End/node_modules/"

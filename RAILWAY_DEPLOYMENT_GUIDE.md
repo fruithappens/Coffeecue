@@ -34,20 +34,33 @@
 
 #### **Security & App Settings:**
 ```
-SECRET_KEY=bd3ba241c6e45da87920ca94025f9a275fec9c650bb3d1cc9813c9f8f9161b7c
-JWT_SECRET_KEY=c016adcc900eee0fc23d164f61efcc071ec2a447b2807901acc41f0a0a2d019c
+SECRET_KEY=<paste freshly-generated 64-char hex string>
+JWT_SECRET_KEY=<paste freshly-generated 64-char hex string>
 DEBUG=False
 TESTING_MODE=False
 JWT_COOKIE_SECURE=True
 LOG_LEVEL=INFO
 ```
 
+To generate the two keys, run locally:
+```bash
+python3 -c "import secrets; print('SECRET_KEY=' + secrets.token_hex(32)); print('JWT_SECRET_KEY=' + secrets.token_hex(32))"
+```
+
+⚠ The two values that were previously committed in this file
+(`bd3b…1b7c` / `c016…d019c`) are now in git history publicly and must
+be regarded as compromised. Do not reuse them.
+
 #### **Twilio Configuration (REPLACE WITH YOUR ACTUAL VALUES):**
 ```
-TWILIO_ACCOUNT_SID=AC02d0fa069d8f0c345d97187e15af3f2a
-TWILIO_AUTH_TOKEN=2d6f169c20be165735554fe978e92e69
+TWILIO_ACCOUNT_SID=<from console.twilio.com → Account Info>
+TWILIO_AUTH_TOKEN=<from console.twilio.com → Account Info>
 TWILIO_PHONE_NUMBER=+61489263333
 ```
+
+⚠ The old Account SID + Auth Token that were committed here
+(`AC02d0…f3f2a` / `2d6f…2e69`) are likewise in git history publicly.
+Rotate the auth token in the Twilio console before redeploying.
 
 #### **CORS - UPDATE AFTER DEPLOYMENT:**
 ```
