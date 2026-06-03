@@ -475,76 +475,24 @@ const ModernBaristaInterface = () => {
       const isOrderCompleteSuccess = result && (result.success === true || !Object.prototype.hasOwnProperty.call(result, 'success'));
       
       if (isOrderCompleteSuccess) {
-        console.log('Order marked as complete in backend. Sending notification...');
-        
-        let notificationSuccess = false;
-        let notificationError = null;
-        
-        // Attempt 1: Use the notification handler
-        try {
-          await notificationHandler.completeWithNotification(orderWithStation);
-          console.log('Primary notification sent successfully for order:', orderId);
-          notificationSuccess = true;
-        } catch (error1) {
-          console.error('Primary notification failed:', error1);
-          notificationError = error1;
-          
-          // Attempt 2: Use a multi-layered fallback approach for maximum reliability
-          try {
-            // First try with MessageService, which already has its own fallbacks
-            const smsResult = await MessageService.sendReadyNotification(orderWithStation);
-            console.log('MessageService notification result:', smsResult);
-            
-            if (smsResult && smsResult.success) {
-              console.log('MessageService notification sent successfully for order:', orderId);
-              notificationSuccess = true;
-            } else {
-              // If MessageService fails, try OrderDataService as a backup
-              console.log('MessageService failed, falling back to OrderDataService');
-              const orderServiceResult = await OrderDataService.sendReadyNotification(orderWithStation);
-              console.log('OrderDataService notification result:', orderServiceResult);
-              
-              if (orderServiceResult && orderServiceResult.success) {
-                console.log('OrderDataService notification sent successfully for order:', orderId);
-                notificationSuccess = true;
-              } else {
-                throw new Error(orderServiceResult?.error || smsResult?.error || 'All notification attempts failed');
-              }
-            }
-          
-          } catch (error2) {
-            console.error('Secondary notification failed:', error2);
-            
-            // Attempt 3: Try direct OrderDataService
-            try {
-              console.log('Attempting direct OrderDataService.sendMessageToCustomer as last resort');
-              const directResult = await OrderDataService.sendMessageToCustomer(
-                orderId,
-                `🔔 YOUR COFFEE IS READY! Your ${orderWithStation.coffeeType || 'coffee'} is now ready for collection. Enjoy! ☕`
-              );
-              
-              console.log('Direct SMS result:', directResult);
-              
-              if (directResult && (directResult.success === true || !Object.prototype.hasOwnProperty.call(directResult, 'success'))) {
-                console.log('Last resort notification sent successfully');
-                notificationSuccess = true;
-              } else {
-                throw new Error(directResult?.error || 'Final notification attempt failed without details');
-              }
-            } catch (error3) {
-              console.error('All notification attempts failed:', error3);
-              notificationError = error3;
-            }
-          }
-        }
-        
+        console.log('Order marked as complete in backend. Backend sends the "your coffee is ready" SMS — no frontend follow-up needed.');
+
+        // SMS notification is owned by the BACKEND now.
+        // See identical comment in BaristaInterface.js for context —
+        // tl;dr: the backend /complete handler sends the ready SMS,
+        // so triple-firing it from here (notificationHandler +
+        // MessageService + OrderDataService) is what caused Steve
+        // to receive multiple "ready" texts for a single order.
+        const notificationSuccess = true;
+        const notificationError = null;
+
         // Update message status UI to reflect notification status
         setMessageStatus(prev => ({
           ...prev,
-          [orderId]: { 
-            status: notificationSuccess ? 'sent' : 'failed', 
+          [orderId]: {
+            status: notificationSuccess ? 'sent' : 'failed',
             error: notificationSuccess ? null : (notificationError?.message || 'Failed to send notification'),
-            timestamp: new Date() 
+            timestamp: new Date()
           }
         }));
         

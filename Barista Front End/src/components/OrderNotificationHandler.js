@@ -22,38 +22,35 @@ const OrderNotificationHandler = ({ onSendMessage, onUpdateSettings }) => {
     }
   };
   
-  // Method to handle order completion notification
+  // Method to handle order completion notification.
+  //
+  // SMS notifications used to be sent from here via
+  // MessageService.sendReadyNotification + a setTimeout reminder.
+  // The BACKEND now owns both — _notify_customer_order_ready in
+  // routes/consolidated_api_routes.py fires the "your coffee is
+  // ready" SMS from POST /api/orders/<id>/complete, and
+  // services/pickup_reminder.py handles uncollected reminders
+  // server-side with proper time gating + status re-check.
+  //
+  // Doing the SMS from BOTH sides caused:
+  //  - Customer received two "ready" texts (the backend's "☕ Hi"
+  //    and the frontend's "🔔 YOUR COFFEE IS READY!")
+  //  - Setting reminderDelay=30 (seconds) fired a "⏰ REMINDER:
+  //    has been ready for 0 minutes" text 30s after completion,
+  //    even if the customer had already collected.
+  //
+  // This handler is now ONLY responsible for the local Display
+  // screen pop-up. SMS is single-sourced to the backend.
   const completeWithNotification = async (order) => {
     try {
-      console.log('Completing order with notification:', order);
-      
-      // Show on display if enabled
+      console.log('Completing order with notification (display-only; SMS is backend-owned):', order);
+
+      // Show on display if enabled.
       if (settings.showNameOnDisplay) {
         MessageService.showOnDisplay(order);
       }
-      
-      // Force SMS notification regardless of setting
-      // This ensures message is always sent when order is completed
-      await MessageService.sendReadyNotification(order);
-      console.log('SMS notification sent for order:', order.id);
-      
-      // If reminder is enabled, start a timer
-      if (settings.remindAfterDelay && settings.reminderDelay > 0) {
-        setTimeout(() => {
-          // Check if order is still completed (not picked up yet)
-          // This should be implemented based on your app's logic
-          const isStillCompleted = true; // Placeholder logic
-          
-          if (isStillCompleted) {
-            MessageService.sendReminderNotification(
-              order, 
-              Math.floor(settings.reminderDelay / 60)
-            );
-          }
-        }, settings.reminderDelay * 1000);
-      }
     } catch (error) {
-      console.error('Failed to send order completion notification:', error);
+      console.error('Failed to display order completion notification:', error);
     }
   };
   

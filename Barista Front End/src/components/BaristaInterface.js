@@ -716,77 +716,31 @@ const BaristaInterface = () => {
       const isOrderCompleteSuccess = result && (result.success === true || !Object.prototype.hasOwnProperty.call(result, 'success'));
       
       if (isOrderCompleteSuccess) {
-        console.log('Order marked as complete in backend. Sending notification...');
-        
-        // We already have the order with station info, now send notifications
-        // Multiple SMS delivery attempts for maximum reliability
-        
-        let notificationSuccess = false;
-        let notificationError = null;
-        
-        // Attempt 1: Use the notification handler
-        try {
-          await notificationHandler.completeWithNotification(orderWithStation);
-          console.log('Primary notification sent successfully for order:', orderId);
-          notificationSuccess = true;
-        } catch (error1) {
-          console.error('Primary notification failed:', error1);
-          notificationError = error1;
-          
-          // Attempt 2: Use a multi-layered fallback approach for maximum reliability
-          try {
-            // First try with MessageService, which already has its own fallbacks
-            const smsResult = await MessageService.sendReadyNotification(orderWithStation);
-            console.log('MessageService notification result:', smsResult);
-            
-            if (smsResult && smsResult.success) {
-              console.log('MessageService notification sent successfully for order:', orderId);
-              notificationSuccess = true;
-            } else {
-              // If MessageService fails, try OrderDataService as a backup
-              console.log('MessageService failed, falling back to OrderDataService');
-              const orderServiceResult = await OrderDataService.sendReadyNotification(orderWithStation);
-              console.log('OrderDataService notification result:', orderServiceResult);
-              
-              if (orderServiceResult && orderServiceResult.success) {
-                console.log('OrderDataService notification sent successfully for order:', orderId);
-                notificationSuccess = true;
-              } else {
-                throw new Error(orderServiceResult?.error || smsResult?.error || 'All notification attempts failed');
-              }
-            }
-          
-          } catch (error2) {
-            console.error('Secondary notification failed:', error2);
-            
-            // Attempt 3: Try direct OrderDataService
-            try {
-              console.log('Attempting direct OrderDataService.sendMessageToCustomer as last resort');
-              const directResult = await OrderDataService.sendMessageToCustomer(
-                orderId,
-                `🔔 YOUR COFFEE IS READY! Your ${orderWithStation.coffeeType || 'coffee'} is now ready for collection. Enjoy! ☕`
-              );
-              
-              console.log('Direct SMS result:', directResult);
-              
-              if (directResult && (directResult.success === true || !Object.prototype.hasOwnProperty.call(directResult, 'success'))) {
-                console.log('Last resort notification sent successfully');
-                notificationSuccess = true;
-              } else {
-                throw new Error(directResult?.error || 'Final notification attempt failed without details');
-              }
-            } catch (error3) {
-              console.error('All notification attempts failed:', error3);
-              notificationError = error3;
-            }
-          }
-        }
-        
+        console.log('Order marked as complete in backend. Backend sends the "your coffee is ready" SMS — no frontend follow-up needed.');
+
+        // SMS notification is owned by the BACKEND now.
+        //
+        // The /api/orders/<id>/complete endpoint calls
+        // _notify_customer_order_ready() server-side. We used to ALSO
+        // fire the same notification from here via three different
+        // fallback paths (notificationHandler → MessageService →
+        // OrderDataService), each of which hit /sms/send with its own
+        // template. Net result: customer got TWO "ready" SMS for one
+        // order (Steve hit this during QC: "☕ Hi Steve!" then "🔔
+        // YOUR COFFEE IS READY!"). And the reminder scheduling below
+        // fired a third "0 minutes" reminder 30 seconds later.
+        //
+        // Treating the backend as the single source of truth fixes
+        // all three. Local UI status still updates from completeOrder()
+        // — the frontend doesn't need to do anything else.
+        const notificationSuccess = true;
+        const notificationError = null;
+
         // Update message status UI to reflect notification status
         setMessageStatus(prev => ({
           ...prev,
-          [orderId]: { 
-            status: notificationSuccess ? 'sent' : 'failed', 
+          [orderId]: {
+            status: notificationSuccess ? 'sent' : 'failed',
             error: notificationSuccess ? null : (notificationError?.message || 'Failed to send notification'),
             timestamp: new Date() 
           }

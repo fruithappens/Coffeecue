@@ -609,55 +609,23 @@ class MessageService {
   }
   
   /**
-   * Schedule a reminder SMS for an order
-   * @param {Object} order - Order object
+   * Schedule a reminder SMS for an order.
+   *
+   * DEPRECATED — no-op since the backend's services/pickup_reminder.py
+   * runs the reminder loop server-side with proper status-recheck
+   * before sending. The previous frontend implementation defaulted to
+   * a 30-second timer (reminderDelay=30 in SMS settings) and fired
+   * a "your order has been ready for 0 minutes" reminder even when
+   * the order had just been collected — Steve hit this during QC.
+   *
+   * Kept as a no-op (rather than deleted) so any straggling caller
+   * doesn't throw a ReferenceError mid-render.
+   *
+   * @param {Object} order - Order object (ignored)
    */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   scheduleReminderSMS(order) {
-    if (!order || !order.id) {
-      console.warn('Cannot schedule reminder SMS: Invalid order');
-      return;
-    }
-    
-    // Cancel any existing reminder for this order
-    this.cancelReminderSMS(order.id);
-    
-    // Validate reminder delay
-    if (!this.settings.reminderDelay || this.settings.reminderDelay <= 0) {
-      console.warn(`Invalid reminder delay: ${this.settings.reminderDelay}, skipping reminder`);
-      return;
-    }
-    
-    console.log(`📅 Scheduling reminder SMS for order ${order.id} in ${this.settings.reminderDelay} seconds`);
-    
-    const timerId = setTimeout(async () => {
-      try {
-        // Check if order is still completed (not picked up)
-        const isStillCompleted = !this.isOrderPickedUp(order.id);
-        
-        if (isStillCompleted) {
-          // Calculate actual wait time since completion
-          const completionTime = order.completedAt ? new Date(order.completedAt) : new Date();
-          const now = new Date();
-          const actualWaitMinutes = Math.floor((now - completionTime) / 60000);
-          
-          console.log(`⏰ Sending reminder for order ${order.id} - actual wait time: ${actualWaitMinutes} minutes`);
-          
-          await this.sendReminderNotification(order, actualWaitMinutes);
-          console.log(`✅ Reminder SMS sent for order ${order.id}`);
-        } else {
-          console.log(`⏭️ Order ${order.id} was picked up, skipping reminder`);
-        }
-      } catch (error) {
-        console.error(`❌ Failed to send reminder for order ${order.id}:`, error);
-      } finally {
-        // Clean up the timer reference
-        this.reminderTimers.delete(order.id);
-      }
-    }, this.settings.reminderDelay * 1000);
-    
-    // Store the timer ID so we can cancel it later
-    this.reminderTimers.set(order.id, timerId);
-    console.log(`📅 Reminder timer ${timerId} set for order ${order.id}`);
+    // Intentional no-op. See JSDoc above.
   }
   
   /**
