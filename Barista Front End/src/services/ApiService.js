@@ -807,6 +807,19 @@ class ApiService {
     webSocketService.on('new_message', (data) => {
       window.dispatchEvent(new CustomEvent('new_message', { detail: data }));
     });
+
+    // "BARISTA" customer-question events — see
+    // services/coffee_system._handle_barista_command (server) and
+    // components/CustomerQuestionsButton.js (listener).
+    webSocketService.on('customer_question', (data) => {
+      window.dispatchEvent(new CustomEvent('customer_question', { detail: data }));
+    });
+    webSocketService.on('customer_question_answered', (data) => {
+      window.dispatchEvent(new CustomEvent('customer_question_answered', { detail: data }));
+    });
+    webSocketService.on('customer_question_timed_out', (data) => {
+      window.dispatchEvent(new CustomEvent('customer_question_timed_out', { detail: data }));
+    });
   }
 
   /**

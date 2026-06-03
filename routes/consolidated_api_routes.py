@@ -2381,6 +2381,187 @@ def batch_process_orders():
         logger.error(f"Error batch processing orders: {str(e)}")
         return jsonify({"success": False, "message": f"Error processing request: {str(e)}"})
 
+# ---------------------------------------------------------------------------
+# Customer-question escape hatch ("BARISTA" SMS command)
+# ---------------------------------------------------------------------------
+# Customer texts BARISTA → coffee_system.py inserts a row in
+# customer_questions → these endpoints let the Barista UI list pending
+# rows and reply (which SMSes the response back to the customer).
+# Background timeout sweeper lives in services/question_timeout.py.
+
+@bp.route('/customer-questions', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def list_customer_questions():
+    """List customer questions. Default = pending only (what the
+    Barista UI's badge polls). Pass ?status=all for the full history."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+        wanted = (request.args.get('status') or 'pending').strip().lower()
+        cursor = db.cursor()
+        if wanted == 'all':
+            cursor.execute(
+                "SELECT id, phone, customer_name, question, status, response, "
+                "responded_by, created_at, responded_at "
+                "FROM customer_questions ORDER BY created_at DESC LIMIT 100"
+            )
+        else:
+            cursor.execute(
+                "SELECT id, phone, customer_name, question, status, response, "
+                "responded_by, created_at, responded_at "
+                "FROM customer_questions WHERE status = %s "
+                "ORDER BY created_at ASC LIMIT 50",
+                (wanted,),
+            )
+        rows = cursor.fetchall() or []
+        items = []
+        for r in rows:
+            if isinstance(r, dict):
+                items.append({
+                    **r,
+                    'created_at': r['created_at'].isoformat() + 'Z' if hasattr(r.get('created_at'), 'isoformat') else r.get('created_at'),
+                    'createdAt': r['created_at'].isoformat() + 'Z' if hasattr(r.get('created_at'), 'isoformat') else r.get('created_at'),
+                    'customerName': r.get('customer_name'),
+                })
+            else:
+                (rid, phone, name, question, status, response,
+                 responded_by, created_at, responded_at) = r
+                ca_iso = created_at.isoformat() + 'Z' if hasattr(created_at, 'isoformat') else (created_at or '')
+                ra_iso = responded_at.isoformat() + 'Z' if hasattr(responded_at, 'isoformat') else (responded_at or '')
+                items.append({
+                    'id': rid,
+                    'phone': phone,
+                    'customer_name': name,
+                    'customerName': name,
+                    'question': question,
+                    'status': status,
+                    'response': response,
+                    'responded_by': responded_by,
+                    'respondedBy': responded_by,
+                    'created_at': ca_iso,
+                    'createdAt': ca_iso,
+                    'responded_at': ra_iso,
+                    'respondedAt': ra_iso,
+                })
+        return jsonify({
+            'success': True,
+            'data': items,
+            'count': len(items),
+        })
+    except Exception as e:
+        logger.error(f"list_customer_questions error: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@bp.route('/customer-questions/<int:qid>/reply', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def reply_to_customer_question(qid):
+    """Barista answers the customer's question. Marks the row
+    'answered' AND sends the response as an SMS to the customer.
+
+    Body: { "response": "yes, our beans are organic single-origin" }
+    Optional: { "responded_by": "Station 1" }  (defaults to JWT user)
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        response_text = (data.get('response') or '').strip()
+        if not response_text:
+            return jsonify({
+                "success": False,
+                "message": "response text is required",
+            }), 400
+
+        responded_by = (
+            data.get('responded_by')
+            or data.get('respondedBy')
+            or 'barista'
+        )
+
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        cursor = db.cursor()
+
+        # Race-safe: only flip from 'pending' → 'answered'. If the row
+        # already timed out OR another barista answered first, the
+        # UPDATE matches 0 rows and we surface a clean message.
+        cursor.execute(
+            """
+            UPDATE customer_questions
+               SET status = 'answered',
+                   response = %s,
+                   responded_by = %s,
+                   responded_at = %s
+             WHERE id = %s
+               AND status = 'pending'
+            RETURNING phone, customer_name, question
+            """,
+            (response_text, responded_by, datetime.now(), qid),
+        )
+        row = cursor.fetchone()
+        db.commit()
+
+        if not row:
+            return jsonify({
+                "success": False,
+                "message": (
+                    "This question is no longer pending — it was already "
+                    "answered, timed out, or doesn't exist."
+                ),
+                "code": "QUESTION_NOT_PENDING",
+            }), 409
+
+        if isinstance(row, dict):
+            phone = row.get('phone')
+        else:
+            phone, _name, _question = row
+
+        # Send SMS reply.
+        messaging_service = current_app.config.get('messaging_service')
+        if messaging_service and phone:
+            try:
+                # Plain text — no template wrapping. The barista's words
+                # are the customer's answer.
+                messaging_service.send_message(phone, response_text)
+            except Exception as sms_err:
+                logger.error(f"Failed to SMS reply for q{qid}: {sms_err}")
+
+        # Push a WS event so OTHER baristas' UIs remove the row from
+        # their pending list (it's now answered).
+        try:
+            socketio = current_app.config.get('socketio')
+            if socketio:
+                socketio.emit(
+                    'customer_question_answered',
+                    {'id': qid, 'status': 'answered', 'responded_by': responded_by},
+                    room='orders',
+                )
+        except Exception as ws_err:
+            logger.debug(f"customer_question_answered WS emit skipped: {ws_err}")
+
+        return jsonify({
+            "success": True,
+            "message": "Reply sent to customer",
+        })
+    except Exception as e:
+        logger.error(f"reply_to_customer_question error: {e}")
+        try:
+            current_app.config.get('coffee_system').db.rollback()
+        except Exception:
+            pass
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
 @bp.route('/orders/<order_id>/message', methods=['POST'])
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff', 'barista'])

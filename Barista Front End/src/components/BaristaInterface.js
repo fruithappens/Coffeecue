@@ -41,6 +41,7 @@ import MessageDialog from './dialogs/MessageDialog';
 import MoveOrderDialog from './dialogs/MoveOrderDialog';
 import WaitTimeDialog from './dialogs/WaitTimeDialog';
 import WalkInOrderDialog from './dialogs/WalkInOrderDialog';
+import CustomerQuestionsButton from './CustomerQuestionsButton';
 // Using inline help dialog instead of importing external component
 import StationChat from './StationChat';
 import OrderNotificationHandler from './OrderNotificationHandler';
@@ -1633,7 +1634,10 @@ const BaristaInterface = () => {
           <div className="px-4 py-1 rounded-full bg-green-500">
             Wait: {waitTime} min
           </div>
-          <button 
+          {/* Customer-question badge — pings when an SMS customer texts
+              BARISTA. See services/coffee_system._handle_barista_command. */}
+          <CustomerQuestionsButton />
+          <button
             className="px-4 py-1 rounded-full bg-red-500 flex items-center font-medium hover:bg-red-600 transition-colors"
             onClick={() => setShowHelpDialog(true)}
           >

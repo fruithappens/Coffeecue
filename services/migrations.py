@@ -286,6 +286,48 @@ def _m006_customer_preferences_shots_and_decaf(cur):
     """)
 
 
+def _m010_customer_questions(cur):
+    """The 'BARISTA' SMS escape hatch table.
+
+    Customer texts BARISTA → bot pushes their question here →
+    Barista UI surfaces it via WebSocket → first barista to respond
+    SMSes the answer back. If 60 seconds pass with no answer, the
+    background timeout sweeper marks the row 'timed_out' and the
+    bot SMSes the customer a fallback ("all busy, want to continue
+    ordering?").
+
+    Status values:
+      - pending     : received, no barista has replied yet
+      - answered    : barista responded; their reply went out as SMS
+      - timed_out   : 60s passed; fallback SMS sent
+      - dismissed   : barista marked it as "no action needed"
+
+    `responded_by` records who answered (admin/staff/barista user
+    or station_id) for audit + leaderboards.
+    """
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS customer_questions (
+            id            SERIAL PRIMARY KEY,
+            phone         VARCHAR(20)  NOT NULL,
+            customer_name VARCHAR(100),
+            question      TEXT         NOT NULL,
+            station_id    INTEGER,
+            status        VARCHAR(20)  NOT NULL DEFAULT 'pending',
+            response      TEXT,
+            responded_by  VARCHAR(100),
+            created_at    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+            responded_at  TIMESTAMP,
+            timeout_at    TIMESTAMP
+        )
+    """)
+    # Polling indexes — the barista UI polls "pending only" frequently,
+    # and the timeout sweeper polls "pending older than 60s" every 10s.
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_customer_questions_status
+        ON customer_questions(status, created_at)
+    """)
+
+
 # Master list. Append new migrations at the bottom — DO NOT renumber
 # existing ones, and DO NOT change `version`. The runner trusts the
 # version number to determine which migrations to skip.
@@ -301,6 +343,7 @@ MIGRATIONS: list[Migration] = [
     Migration(9, 'catalog_items',              _m009_catalog_items),
     Migration(8, 'clear_capabilities_json_from_equipment_notes',
               _m008_clear_capabilities_json_from_equipment_notes),
+    Migration(10, 'customer_questions',        _m010_customer_questions),
 ]
 
 

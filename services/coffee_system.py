@@ -399,7 +399,21 @@ class CoffeeOrderSystem:
         # Check if this is a greeting or help command
         if self._is_greeting_or_help(message_body):
             return self._handle_greeting(phone, message_body, state)
-        
+
+        # BARISTA escape hatch: if the previous message was "BARISTA",
+        # we're capturing the customer's question. Their THIS message
+        # is the question — not a command. Handle this BEFORE
+        # _handle_commands so "STATUS" / "MENU" etc don't intercept.
+        if state.get('state') == 'awaiting_barista_question':
+            # Pop the state — the bare BARISTA prompt is one-shot.
+            # We restore to whatever they were doing before (default
+            # to 'completed' so the next message starts fresh).
+            prev = (state.get('temp_data') or {}).get('previous_state')
+            self._set_conversation_state(
+                phone, prev or 'completed', state.get('temp_data') or {},
+            )
+            return self._forward_question_to_baristas(phone, message_body, state)
+
         # Check for special commands like STATUS, CANCEL, etc.
         command_response = self._handle_commands(phone, message_body, state)
         if command_response:
@@ -745,6 +759,27 @@ class CoffeeOrderSystem:
         elif message_upper == 'FORGETME':
             return self._handle_forgetme_command(phone)
 
+        # BARISTA escape hatch — "I need to talk to a human".
+        #
+        # Format options:
+        #   BARISTA                  → bot asks for the question next
+        #   BARISTA is the milk fresh? → question = "is the milk fresh?"
+        #   STAFF / HELPME           → aliases (HELP is Twilio-reserved)
+        #
+        # The question gets queued in customer_questions; the Barista UI
+        # sees a badge + modal via WebSocket; first barista to answer
+        # SMSes the customer back. After 60s of no answer the timeout
+        # sweeper sends the "all busy" fallback.
+        elif message_upper == 'BARISTA' or message_upper == 'STAFF' or message_upper == 'HELPME':
+            return self._handle_barista_command(phone, message, state, question_text=None)
+        elif message_upper.startswith('BARISTA ') or message_upper.startswith('STAFF ') or message_upper.startswith('HELPME '):
+            # Extract everything after the keyword as the question.
+            for kw in ('BARISTA ', 'STAFF ', 'HELPME '):
+                if message_upper.startswith(kw):
+                    question_text = message[len(kw):].strip()
+                    break
+            return self._handle_barista_command(phone, message, state, question_text=question_text)
+
         # Check for VIP code
         elif self._is_vip_code(message_upper):
             return self._handle_vip_code(phone, message_upper)
@@ -921,6 +956,126 @@ class CoffeeOrderSystem:
             logger.error(f"Error cancelling order: {str(e)}")
             return "Sorry, we couldn't cancel your order. Please try again or contact the coffee station directly."
     
+    def _handle_barista_command(self, phone, message, state, question_text=None):
+        """Customer wants to talk to a real person.
+
+        Two entry shapes:
+          1. Bare "BARISTA" → question_text is None → ask the customer
+             to type their question. Conversation state switches to
+             'awaiting_barista_question'. Their NEXT message becomes the
+             question (handled in handle_sms below by checking the state).
+          2. "BARISTA <question>" → forward the question immediately.
+
+        Forwarding writes to customer_questions, emits a WebSocket
+        event so the Barista UI shows the badge, and tells the customer
+        we've sent it. The 60-second timeout sweeper (services/
+        question_timeout.py) handles the no-answer fallback.
+        """
+        if not question_text:
+            # Bare command — pivot conversation to capture the question.
+            self._set_conversation_state(
+                phone, 'awaiting_barista_question',
+                {**(state.get('temp_data') or {})},
+            )
+            return (
+                "👋 Sure — type your question and I'll send it straight to the "
+                "team. They'll text back within a minute."
+            )
+
+        return self._forward_question_to_baristas(phone, question_text, state)
+
+    def _forward_question_to_baristas(self, phone, question_text, state):
+        """Insert the question into customer_questions, push a WS event,
+        and reply to the customer. Shared between the inline-question
+        path and the awaiting_barista_question state handler.
+
+        Never raises — a failure here means the customer gets a soft
+        error instead of the bot crashing.
+        """
+        # Pull the customer's name if we know it (from preferences or
+        # the current conversation's temp_data), so the barista UI can
+        # show "Steve asked: ..." rather than just a phone number.
+        customer_name = ''
+        try:
+            customer = self.get_customer(phone)
+            if customer:
+                customer_name = customer.get('name', '') or ''
+        except Exception:
+            pass
+        if not customer_name:
+            customer_name = (
+                (state.get('temp_data') or {}).get('name', '')
+                if isinstance(state, dict) else ''
+            )
+
+        question_text = (question_text or '').strip()
+        if not question_text:
+            return (
+                "Didn't catch a question. Just text it again, e.g. "
+                "'BARISTA is the milk fresh today?'"
+            )
+
+        try:
+            cursor = self.db.cursor()
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            cursor.execute(
+                """
+                INSERT INTO customer_questions
+                  (phone, customer_name, question, status, created_at)
+                VALUES (%s, %s, %s, 'pending', %s)
+                RETURNING id, created_at
+                """,
+                (phone, customer_name, question_text, datetime.now()),
+            )
+            row = cursor.fetchone()
+            self.db.commit()
+            question_id = row[0] if row else None
+            created_at = row[1] if row else datetime.now()
+        except Exception as e:
+            logger.error(f"_forward_question_to_baristas: insert failed: {e}")
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            return (
+                "Sorry, our system hiccuped sending your question — "
+                "try again in a moment, or ask at the counter."
+            )
+
+        # Push a WebSocket event so any open Barista UI lights up the
+        # badge without waiting for its 15s poll cycle.
+        try:
+            from flask import current_app as _ca
+            socketio = _ca.config.get('socketio') if _ca else None
+            if socketio:
+                payload = {
+                    'id': question_id,
+                    'phone': phone,
+                    'customer_name': customer_name,
+                    'customerName': customer_name,
+                    'question': question_text,
+                    'created_at': created_at.isoformat() + 'Z' if hasattr(created_at, 'isoformat') else str(created_at),
+                    'createdAt': created_at.isoformat() + 'Z' if hasattr(created_at, 'isoformat') else str(created_at),
+                    'status': 'pending',
+                }
+                # Broadcast to all stations — first to answer wins.
+                socketio.emit('customer_question', payload, room='orders')
+        except Exception as ws_err:
+            logger.debug(f"customer_question WS emit skipped: {ws_err}")
+
+        # Acknowledge to the customer. Keep their conversation state as
+        # whatever it was BEFORE the BARISTA detour, so their next
+        # message picks up where they left off (e.g. they were
+        # mid-order). The barista's reply lands as a separate SMS, no
+        # state churn needed.
+        return (
+            "✅ Sent your question to the team. They'll text back within "
+            "60 seconds. (If they're slammed, I'll let you know.)"
+        )
+
     def _handle_forgetme_command(self, phone):
         """Handle FORGETME command — wipe this phone's customer record.
 

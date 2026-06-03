@@ -338,9 +338,27 @@ def create_app():
                 f"Failed to start pickup-reminder service (non-fatal): {reminder_err}"
             )
             pickup_reminder = None
+
+        # Customer-question timeout sweeper. Marks pending questions as
+        # timed_out after QUESTION_TIMEOUT_SECONDS (default 60) and SMSes
+        # the customer the "all busy" fallback. See
+        # services/question_timeout.py.
+        try:
+            from services.question_timeout import QuestionTimeoutService
+            question_timeout = QuestionTimeoutService(
+                db, messaging_service, vars(config),
+            )
+            question_timeout.set_app(app)
+            question_timeout.start()
+        except Exception as qto_err:
+            logger.error(
+                f"Failed to start question-timeout service (non-fatal): {qto_err}"
+            )
+            question_timeout = None
     else:
-        logger.info("Skipping pickup-reminder start in reloader parent process")
+        logger.info("Skipping background services in reloader parent process")
         pickup_reminder = None
+        question_timeout = None
     
     # Register route blueprints
     app.register_blueprint(admin_bp)
