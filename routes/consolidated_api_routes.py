@@ -640,8 +640,13 @@ def orders():
             # work before the Capabilities editor has been touched.
             try:
                 cap_check_cursor = db.cursor()
+                # The `stations` table primary key is `id` (not
+                # station_id — that's the FK name on station_stats).
+                # Worth confirming: schema in
+                # database_migration_system.py:165 and
+                # create_test_stations.py:81 both use `id`.
                 cap_check_cursor.execute(
-                    "SELECT 1 FROM stations WHERE station_id = %s",
+                    "SELECT 1 FROM stations WHERE id = %s",
                     (station_id,),
                 )
                 station_exists = cap_check_cursor.fetchone()

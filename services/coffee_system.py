@@ -506,10 +506,14 @@ class CoffeeOrderSystem:
         """
         try:
             cursor = self.db.cursor()
-            cursor.execute(
-                "SELECT capabilities FROM station_stats WHERE station_id IN "
-                "(SELECT station_id FROM stations WHERE status = 'active')"
-            )
+            # Read capabilities from EVERY station, not just active —
+            # the schema is inconsistent (some installs have stations.active
+            # BOOL, some have stations.status TEXT) and we don't want a
+            # schema-shape mismatch to silently disable the gate. An
+            # inactive station's capabilities still tell us what milks
+            # COULD be served, which is the right thing for the SMS
+            # "is this even on the menu?" check.
+            cursor.execute("SELECT capabilities FROM station_stats")
             rows = cursor.fetchall() or []
         except Exception as e:
             logger.warning(
