@@ -7,14 +7,28 @@ WORKDIR /app/frontend
 # Copy package files
 COPY ["Barista Front End/package*.json", "./"]
 
-# Install dependencies (use npm install instead of ci to handle lock file issues)
-RUN npm install --omit=dev
+# Install dependencies. We DON'T pass --omit=dev because autoprefixer +
+# postcss are in devDependencies but ARE needed at build time for Tailwind
+# CSS processing. The final image only copies the compiled output (static/),
+# so dev deps don't bloat the runtime image.
+# Using `npm install` instead of `npm ci` to tolerate package-lock churn.
+RUN npm install
 
 # Copy frontend source
 COPY ["Barista Front End/", "./"]
 
 # Set environment to production
 ENV NODE_ENV=production
+
+# Disable CRA's eslint plugin during prod build.
+# Why: our .eslintrc.json extends @typescript-eslint/recommended and applies
+# TS rules (e.g. explicit-function-return-type) to .js files. With CI=true
+# (which Railway often sets), those warnings become errors and brick the
+# build. We rely on local lint during dev; prod build doesn't need it.
+ENV DISABLE_ESLINT_PLUGIN=true
+# Belt-and-braces: ensure CI is unset so even if the platform exports it,
+# CRA doesn't treat warnings as errors.
+ENV CI=false
 
 # Build React app
 RUN npm run build
