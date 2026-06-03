@@ -724,7 +724,27 @@ class CoffeeOrderSystem:
         # Check for FRIEND command to add a friend order
         elif message_upper == 'FRIEND':
             return self._handle_friend_command(phone, state)
-        
+
+        # Demo-only "forget me" command.
+        #
+        # Steve uses one phone for demos. Without this, every demo SMS
+        # gets greeted "Hi Steve! Your usual...?" because of the saved
+        # preference + order history. That's the right UX for real
+        # regulars but wrecks a first-time-customer demo.
+        #
+        # FORGETME (single word, case-insensitive) wipes:
+        #   - customer_preferences row for this phone (name + saved drink)
+        #   - all past orders for this phone (so the order-history
+        #     fallback in _get_usual_order_suggestion has nothing to
+        #     suggest from)
+        #   - in-memory conversation state so the next message restarts
+        #     from "What's your first name?"
+        #
+        # Distinctive single word so a real customer is very unlikely
+        # to type it by accident.
+        elif message_upper == 'FORGETME':
+            return self._handle_forgetme_command(phone)
+
         # Check for VIP code
         elif self._is_vip_code(message_upper):
             return self._handle_vip_code(phone, message_upper)
@@ -901,6 +921,119 @@ class CoffeeOrderSystem:
             logger.error(f"Error cancelling order: {str(e)}")
             return "Sorry, we couldn't cancel your order. Please try again or contact the coffee station directly."
     
+    def _handle_forgetme_command(self, phone):
+        """Handle FORGETME command — wipe this phone's customer record.
+
+        Used for demos. Deletes:
+          1. customer_preferences row (name, saved drink, milk, size, etc).
+          2. All past orders for this phone (so the order-history fallback
+             in _get_usual_order_suggestion has nothing to mine).
+          3. In-memory conversation state (so the next message restarts at
+             the "What's your first name?" welcome).
+
+        After this returns, the very next SMS from `phone` should be
+        treated by the system as if it came from a brand-new number.
+
+        Returns a short confirmation SMS. Never raises — a failure here
+        is annoying (customer keeps being recognised) but not blocking.
+        """
+        try:
+            cursor = self.db.cursor()
+
+            # Defensive rollback in case the singleton connection is
+            # mid-transaction from a prior failed read.
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+
+            # Count what we're about to delete so the confirmation
+            # message can show "wiped 3 orders + 1 preference row".
+            try:
+                cursor.execute(
+                    "SELECT COUNT(*) FROM customer_preferences WHERE phone = %s",
+                    (phone,),
+                )
+                pref_count = (cursor.fetchone() or [0])[0]
+            except Exception:
+                pref_count = 0
+                try:
+                    self.db.rollback()
+                except Exception:
+                    pass
+
+            try:
+                cursor.execute(
+                    "SELECT COUNT(*) FROM orders WHERE phone = %s",
+                    (phone,),
+                )
+                order_count = (cursor.fetchone() or [0])[0]
+            except Exception:
+                order_count = 0
+                try:
+                    self.db.rollback()
+                except Exception:
+                    pass
+
+            # Delete customer preferences.
+            try:
+                cursor.execute(
+                    "DELETE FROM customer_preferences WHERE phone = %s",
+                    (phone,),
+                )
+            except Exception as e:
+                logger.warning(f"FORGETME: pref delete failed for {phone}: {e}")
+                try:
+                    self.db.rollback()
+                except Exception:
+                    pass
+
+            # Delete past orders. Foreign-key references (e.g.
+            # conversation_history) could in theory block this; we
+            # swallow any failure so the user still gets a response.
+            try:
+                cursor.execute(
+                    "DELETE FROM orders WHERE phone = %s",
+                    (phone,),
+                )
+            except Exception as e:
+                logger.warning(f"FORGETME: order delete failed for {phone}: {e}")
+                try:
+                    self.db.rollback()
+                except Exception:
+                    pass
+
+            self.db.commit()
+
+            # Clear in-memory conversation state.
+            try:
+                if isinstance(self.conversation_states, dict):
+                    self.conversation_states.pop(phone, None)
+            except Exception:
+                pass
+
+            logger.info(
+                "FORGETME: wiped %d pref row(s), %d order(s) for %s",
+                pref_count, order_count, phone,
+            )
+
+            return (
+                "🧹 Forgotten! Your saved name, preferences, and "
+                f"{order_count} past order(s) have been wiped. "
+                "Text us again to start fresh as a new customer."
+            )
+
+        except Exception as e:
+            logger.error(f"FORGETME failed for {phone}: {e}")
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            return (
+                "Sorry — couldn't fully reset your record right now. "
+                "Try again in a moment."
+            )
+
     def _handle_help_command(self):
         """Handle INFO command - provide instructions (avoiding HELP as Twilio uses it for opt-out)"""
         return (
