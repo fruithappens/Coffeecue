@@ -490,6 +490,53 @@ class CoffeeOrderSystem:
             # Replace event_name placeholder with actual event name
             return welcome_message.replace('{event_name}', self.event_name)
     
+    def _all_available_milks_lowercased(self):
+        """Return a set of milk names (lowercase) available at ANY
+        currently-active station.
+
+        Used by _get_usual_order_suggestion to gate "your usual"
+        proposals against what stations actually serve today. Without
+        this, the SMS flow happily suggested a milk no station had
+        configured and the customer got an order that no barista
+        could fulfil.
+
+        Returns None on read failure — the caller treats that as "no
+        restriction" so the bot stays responsive when the stations
+        table is briefly unreadable.
+        """
+        try:
+            cursor = self.db.cursor()
+            cursor.execute(
+                "SELECT capabilities FROM station_stats WHERE station_id IN "
+                "(SELECT station_id FROM stations WHERE status = 'active')"
+            )
+            rows = cursor.fetchall() or []
+        except Exception as e:
+            logger.warning(
+                "_all_available_milks_lowercased: read failed: %s", e,
+            )
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            return None
+
+        milks = set()
+        for row in rows:
+            caps = row[0] if not isinstance(row, dict) else row.get('capabilities')
+            if not caps:
+                continue
+            if isinstance(caps, str):
+                try:
+                    caps = json.loads(caps)
+                except Exception:
+                    continue
+            if not isinstance(caps, dict):
+                continue
+            for m in (caps.get('milk_types') or caps.get('milks') or []):
+                milks.add(str(m).strip().lower())
+        return milks
+
     def _get_usual_order_suggestion(self, phone, name):
         """Get usual order suggestions based on previous orders.
 
@@ -548,6 +595,45 @@ class CoffeeOrderSystem:
                         drink, milk, size, sugar = row
                 else:
                     drink = milk = size = sugar = None
+
+            # Capability gate: don't offer a usual we can't make.
+            #
+            # Without this, the SMS bot suggests the customer's saved
+            # preferred drink + milk regardless of what stations are
+            # actually serving today. Steve hit it with "Your usual
+            # medium latte with coconut" when no station had coconut
+            # configured — the order was created anyway and then no
+            # barista could start it.
+            #
+            # If the saved milk isn't available at any active station,
+            # silently fall back to the "What can I get you today?"
+            # opener WITHOUT pre-filling the unavailable milk. The
+            # customer types their actual order; the regular validation
+            # downstream picks an appropriate station.
+            if drink and milk:
+                try:
+                    available_milks = self._all_available_milks_lowercased()
+                except Exception:
+                    available_milks = None  # Treat unknown as "no restriction"
+                if available_milks is not None and milk:
+                    milk_lc = str(milk).strip().lower()
+                    # Canonicalise common synonyms before comparing
+                    milk_canon = {
+                        'whole milk': 'full cream', 'whole': 'full cream',
+                        'regular': 'full cream', 'standard': 'full cream',
+                        'dairy': 'full cream',
+                    }.get(milk_lc, milk_lc)
+                    if milk_canon not in available_milks and milk_lc not in available_milks:
+                        logger.info(
+                            "_get_usual_order_suggestion: preferred milk %r "
+                            "is not stocked at any active station; suppressing "
+                            "usual suggestion for %s", milk, phone,
+                        )
+                        return (
+                            f"Hi {name}! What can I get you today? "
+                            f"(Just letting you know — {milk} isn't on at any "
+                            f"station right now.)"
+                        )
 
             if drink:
                 # Build a suggestion message with full fidelity
@@ -3062,10 +3148,48 @@ class CoffeeOrderSystem:
                     fresh_conn.commit()
                 
                 logger.info(f"Created order {order_number} with ID {order_id}")
-                
+
                 # Verify order was created correctly
                 if not order_id:
                     raise ValueError("Failed to get order ID after insertion")
+
+                # Push WS event so Barista UI shows the SMS order
+                # in real time. Without this, an SMS order sat
+                # invisible in the queue until the next 15s poll —
+                # Steve hit this in QC: "SMS came back but no order
+                # in the app" because the poll hadn't fired yet.
+                # Inline rather than importing the route helper to
+                # avoid a circular import (route already imports
+                # this module).
+                try:
+                    from flask import current_app as _ca
+                    socketio = _ca.config.get('socketio') if _ca else None
+                    if socketio:
+                        new_order_payload = {
+                            'order_number': order_number,
+                            'id': order_number,
+                            'status': 'pending',
+                            'station_id': station_id,
+                            'stationId': station_id,
+                            'customer_name': processed_details.get('name'),
+                            'customerName': processed_details.get('name'),
+                            'coffee_type': processed_details.get('type'),
+                            'coffeeType': processed_details.get('type'),
+                            'milk_type': processed_details.get('milk'),
+                            'milkType': processed_details.get('milk'),
+                            'sugar': processed_details.get('sugar'),
+                            'size': processed_details.get('size'),
+                            'vip': processed_details.get('vip', False),
+                        }
+                        socketio.emit('order_created', new_order_payload, room='orders')
+                        if station_id is not None:
+                            socketio.emit(
+                                'new_order', new_order_payload,
+                                room=f'station_{station_id}',
+                            )
+                except Exception as ws_err:
+                    # Never let WS failures break the order flow.
+                    logger.debug(f"WS new-order emit skipped (SMS path): {ws_err}")
                     
             except Exception as order_error:
                 logger.error(f"Error creating order: {str(order_error)}")

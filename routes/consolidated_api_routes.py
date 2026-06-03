@@ -708,7 +708,29 @@ def orders():
             if result:
                 order_id, order_number = result
                 logger.info(f"Created order {order_number} with ID {order_id}")
-                
+
+                # Push WS event so connected Barista UIs see the new
+                # order without waiting for the next 15s poll. Steve
+                # hit "SMS came back but no order in the app" because
+                # the only refresh signal was that poll — and a fresh
+                # order looked invisible for up to 15 seconds.
+                _emit_new_order({
+                    'order_number': order_number,
+                    'id': order_number,
+                    'status': 'pending',
+                    'station_id': station_id,
+                    'stationId': station_id,
+                    'customer_name': order_details.get('name'),
+                    'customerName': order_details.get('name'),
+                    'coffee_type': order_details.get('type'),
+                    'coffeeType': order_details.get('type'),
+                    'milk_type': order_details.get('milk'),
+                    'milkType': order_details.get('milk'),
+                    'sugar': order_details.get('sugar'),
+                    'size': order_details.get('size'),
+                    'vip': order_details.get('vip', False),
+                })
+
                 return jsonify({
                     'status': 'success',
                     'data': {
@@ -1886,6 +1908,39 @@ def _emit_order_status_change(order_number, status):
     except Exception as e:
         # Never let a WS emit failure break the request.
         logger.debug(f"socketio emit skipped: {e}")
+
+
+def _emit_new_order(order_payload):
+    """Fire-and-forget SocketIO emit when a NEW order is created.
+
+    Steve hit this in QC: SMS customer placed an order, the order
+    appeared in the database, but the Barista UI's Upcoming Orders
+    list stayed empty until the next poll (or a manual Refresh tap).
+    Reason: POST /api/orders only inserted the row — never emitted
+    a 'new_order'/'order_created' event for the WS layer to forward
+    to the React UI's listeners.
+
+    Frontend listener is ApiService.js webSocketService.on('order_created').
+    We also emit 'new_order' to a station-scoped room so a barista
+    UI filtered to one station can show fresh orders without seeing
+    every station's traffic.
+
+    Pass a dict containing at minimum order_number, status, and
+    station_id; the frontend handler will merge into its local
+    queue and re-render.
+    """
+    try:
+        socketio = current_app.config.get('socketio')
+        if not socketio:
+            return
+        socketio.emit('order_created', order_payload, room='orders')
+        station_id = order_payload.get('station_id') or order_payload.get('stationId')
+        if station_id is not None:
+            socketio.emit(
+                'new_order', order_payload, room=f'station_{station_id}',
+            )
+    except Exception as e:
+        logger.debug(f"socketio new-order emit skipped: {e}")
 
 
 def _notify_customer_order_started(phone, order_number, order_details):
