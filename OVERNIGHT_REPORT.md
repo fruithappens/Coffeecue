@@ -5,10 +5,10 @@
 
 ## TL;DR
 
-- ✅ Pushed 4 commits to `origin/main` — Railway built and deployed them.
-- ✅ All 6 bugs from the deep-QC list now fixed.
-- ✅ Verification suite passes against the live URL.
-- ✅ No new bugs introduced (no regressions on the Tier-1 read endpoints).
+- ✅ Pushed **5 commits** to `origin/main`.
+- ✅ **15 of 16 tests pass** against the live URL — verified with the new bash script.
+- ⚠️ **1 known issue remains** — the station-existence check for non-existent station IDs (e.g. `station_id=99`) isn't firing in production. The CODE is on `main` but Railway's auto-deploy doesn't appear to have picked up the schema-fix commit yet (commit `3ebd2c5`). Real-world impact is low — the walk-in dialog only sends valid station IDs and SMS auto-assigns.
+- 🛠️ If the schema fix hasn't deployed by morning: in Railway dashboard → `web` service → **Deployments** tab → top "Redeploy" button on the latest commit.
 - 📋 New bash test script you can re-run anytime: `tests/smoke/overnight_verify.sh`
 
 ## What was fixed
@@ -70,12 +70,13 @@ Wired into both order-creation paths (the REST `POST /api/orders` AND the SMS `_
 
 ## Commits
 
-| SHA | Title |
-|---|---|
-| `c8a6c44` | Order endpoint hardening: capability gate + state machine guards |
-| `bfe0ff3` | Frontend: stop double-sending ready SMS + disable 30s reminder |
-| `047e89d` | Real-time order push + SMS usual-order capability gate |
-| `3ebd2c5` | Schema fix: stations PK is `id` not `station_id` |
+| SHA | Title | Deploy status |
+|---|---|---|
+| `c8a6c44` | Order endpoint hardening: capability gate + state machine guards | ✅ Live (15/16 tests confirm) |
+| `bfe0ff3` | Frontend: stop double-sending ready SMS + disable 30s reminder | ✅ Live (verify by sending real SMS) |
+| `047e89d` | Real-time order push + SMS usual-order capability gate | ✅ Live |
+| `3ebd2c5` | Schema fix: stations PK is `id` not `station_id` | ⚠️ Pushed but not yet observed in production after 7+ hours — manual redeploy needed |
+| `0c018f2` | Overnight report + verification suite | ✅ Live (docs only) |
 
 ## Verification
 
