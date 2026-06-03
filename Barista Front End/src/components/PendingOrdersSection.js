@@ -230,7 +230,13 @@ const PendingOrdersSection = ({
                 
                 <div className="mt-2 p-2 bg-gray-100 rounded">
                   <div className="font-medium flex justify-between items-center gap-2">
-                    <span>{order.coffeeType}, {order.milkType}, {order.sugar}</span>
+                    {/* Show size on the front so the barista knows the cup. Bug Steve hit:
+                        SMS "Large oat latte" landed in the queue rendered as just
+                        "latte, oat, no sugar" — barista couldn't see the size. */}
+                    <span>
+                      {order.size ? `${order.size} ` : ''}
+                      {order.coffeeType}, {order.milkType}, {order.sugar}
+                    </span>
                     {/* Honor-system price tag. Only renders when
                         pricing is enabled — the backend stamps
                         priceFormatted onto the order at confirm time. */}

@@ -725,6 +725,16 @@ def orders():
                     'status': 'pending',
                     'station_id': station_id,
                     'stationId': station_id,
+                    # createdAt / waitTime: without these, the WS-pushed
+                    # order on the Barista UI rendered with the JS
+                    # client computing wait from a missing field — Steve
+                    # saw "571 min" (= 9.5h, the AEST→UTC offset) when
+                    # the order had just been placed. Sending UTC "Z"
+                    # suffix forces the browser to parse as UTC.
+                    'created_at': now.isoformat() + 'Z',
+                    'createdAt': now.isoformat() + 'Z',
+                    'wait_time': 0,
+                    'waitTime': 0,
                     'customer_name': order_details.get('name'),
                     'customerName': order_details.get('name'),
                     'coffee_type': order_details.get('type'),

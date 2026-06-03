@@ -1114,43 +1114,96 @@ class CoffeeOrderSystem:
             milk_station_map = self._milk_to_stations_map() if not self._is_unlimited_stock_mode() else {}
             single_station_milks = [m for m, ids in milk_station_map.items() if len(ids) == 1]
 
+            # Steve's MENU concision request: customers don't need to
+            # see "0,1,2,3,4 sugars" enumerated; they don't need every
+            # methodology-named espresso variant either. Strip and
+            # summarise.
+            #
+            # 1. Dedup tea/extras out of the Coffee line. _STANDARD_DRINK_MENU
+            #    pulls chai latte etc from catalog AND we re-list them
+            #    under "Other drinks" — show each once.
+            # 2. Coffee: top 5 most-common drinks the customer will
+            #    actually recognise; hint that we accept the rest by
+            #    name. Avoids "americano, cortado, espresso, flat white,
+            #    latte, long black, macchiato, mocha, piccolo" wall of text.
+            # 3. Sweetener: collapse consecutive integer sugars to a
+            #    range like "0-3 sugars". Customers don't need every
+            #    enumeration; they just text the number.
+
+            POPULAR_COFFEE = ['latte', 'flat white', 'cappuccino', 'espresso', 'long black']
+            extra_drinks_lower = {(d or '').lower() for d in extra_drinks}
+            available_coffees_lower = {(c or '').lower() for c in available_coffees}
+
+            # Filter out anything that's actually a tea or "other drink"
+            # to avoid duplication. e.g. "chai latte" lives under "Other".
+            coffee_only = [
+                c for c in available_coffees
+                if (c or '').lower() not in extra_drinks_lower
+                and 'tea' not in (c or '').lower()
+            ]
+            # Pick popular ones first, then add any others the operator
+            # has configured but cap at ~6 for readability.
+            shown = [c for c in POPULAR_COFFEE if c in available_coffees_lower]
+            remaining = [c for c in coffee_only if c.lower() not in {s.lower() for s in shown}]
+            extra_count = max(0, len(remaining))
+            # Take up to 1 extra "interesting" drink (e.g. mocha) so the
+            # operator's customisation isn't completely hidden.
+            shown += remaining[:1]
+            coffee_line_tail = ''
+            if extra_count > 1:
+                coffee_line_tail = f" (+{extra_count - 1} more — just text the name)"
+
             # Build the message
-            lines = ['☕ Menu (current stock):']
-            if available_coffees:
-                lines.append(f"Coffee: {', '.join(sorted(available_coffees))}")
+            lines = ['☕ Menu:']
+            if shown:
+                lines.append(f"Coffee: {', '.join(shown)}{coffee_line_tail}")
+            elif available_coffees:
+                lines.append(f"Coffee: {', '.join(sorted(available_coffees)[:6])}")
             else:
                 lines.append("Coffee: (none in stock — check back soon)")
 
-            # Split out teas as their own line — the operator now
-            # stocks multiple flavors and they cluster more usefully
-            # for the customer than a flat "Other drinks: ..." list.
+            # Split out teas as their own line.
             teas = [d for d in extra_drinks if 'tea' in d.lower()]
             other_drinks = [d for d in extra_drinks if 'tea' not in d.lower()]
             if teas:
-                lines.append(f"🍵 Tea: {', '.join(teas)}")
+                # Drop the trailing " tea" since the line is already "Tea:"
+                teas_short = [t.lower().replace(' tea', '').strip() or t for t in teas]
+                lines.append(f"🍵 Tea: {', '.join(teas_short)}")
             if other_drinks:
-                lines.append(f"Other drinks: {', '.join(other_drinks)}")
+                lines.append(f"Other: {', '.join(other_drinks)}")
 
             if available_milks:
-                lines.append(f"🥛 Milk: {', '.join(sorted(available_milks))}")
+                # Cap at 6 for visual cleanliness; if more configured,
+                # hint that we accept others.
+                milks_sorted = sorted(available_milks)
+                milk_tail = ''
+                if len(milks_sorted) > 6:
+                    milk_tail = f" (+{len(milks_sorted) - 6} more)"
+                    milks_sorted = milks_sorted[:6]
+                lines.append(f"🥛 Milk: {', '.join(milks_sorted)}{milk_tail}")
             else:
                 lines.append("🥛 Milk: (none in stock)")
 
             if available_sweeteners:
-                sweetener_names = [s[0] for s in available_sweeteners]
-                lines.append(f"🍯 Sweetener: {', '.join(sweetener_names)}")
+                lines.append(f"🍯 {self._summarise_sweeteners(available_sweeteners)}")
 
             lines.append(f"📏 Size: {', '.join(sizes)}")
 
             if single_station_milks:
                 lines.append('')
                 lines.append(
-                    f"💡 Note: {', '.join(single_station_milks)} only at certain stations — "
-                    f"we'll route your order automatically."
+                    f"💡 {', '.join(single_station_milks)} only at certain stations — "
+                    f"we'll route automatically."
                 )
 
             lines.append('')
-            lines.append("Reply with your order, e.g. 'large oat latte 1 sugar'")
+            # Build a context-aware example using a real available size+milk.
+            example_size = (sizes[0] if sizes else 'medium')
+            example_milk = next(
+                (m for m in ['oat', 'full cream', 'skim', 'almond', 'lactose free'] if m in available_milks),
+                'full cream',
+            )
+            lines.append(f"Reply with your order, e.g. '{example_size} {example_milk} latte 1 sugar'")
             return '\n'.join(lines)
 
         except Exception as e:
@@ -1381,9 +1434,27 @@ class CoffeeOrderSystem:
         # which advertised behaviour the bot doesn't actually do — the
         # state machine asks for each missing field (apply_defaults=False).
         # Replaced with a more honest example.
+        #
+        # The "large oat latte" example was hardcoded — but if the
+        # operator only configured Medium in Quick Setup (Steve's case),
+        # the example invited customers to order a size we don't have.
+        # Build the example from what's actually available.
+        try:
+            sizes = self._get_available_sizes() or ['medium']
+            milks = self._get_available_milk_types() or ['full cream']
+            example_size = sizes[0]
+            example_milk = next(
+                (m for m in ['oat', 'full cream', 'skim', 'almond', 'lactose free']
+                 if m in milks),
+                milks[0] if milks else 'full cream',
+            )
+        except Exception:
+            example_size, example_milk = 'medium', 'full cream'
+
         return (
             f"Hi {name}! What can I get you?\n"
-            f"Examples: \"large oat latte 1 sugar\", \"flat white\", \"earl grey tea\"\n"
+            f"Examples: \"{example_size} {example_milk} latte 1 sugar\", "
+            f"\"flat white\", \"earl grey tea\"\n"
             f"Reply MENU to see what's on offer."
         )
     
@@ -2046,10 +2117,16 @@ class CoffeeOrderSystem:
                            "lactose free", "soy"]
 
     def _get_available_milk_types(self):
-        """Get list of available milk types from inventory management."""
-        # Unlimited-stock mode: bypass inventory lookup entirely.
-        if self._is_unlimited_stock_mode():
-            return list(self._STANDARD_MILK_MENU)
+        """Get list of available milk types from inventory management.
+
+        Unlimited-stock mode still respects what the operator
+        CONFIGURED. Quick Setup with only "full cream, skim, oat" ticked
+        means the bot offers only those three even in unlimited mode.
+        The previous early-return to _STANDARD_MILK_MENU was the bug
+        Steve hit on the demo (coconut suggested when no station
+        configured had it).
+        """
+        unlimited = self._is_unlimited_stock_mode()
         # Recover the connection from any prior aborted transaction. If we
         # don't do this, an unrelated upstream error silently changes the
         # customer's available milk options to the hard-coded
@@ -2062,15 +2139,25 @@ class CoffeeOrderSystem:
 
         try:
             cursor = self.db.cursor()
-            cursor.execute("""
-                SELECT name FROM inventory_items
-                WHERE category = 'milk'
-                AND (amount IS NULL OR amount > COALESCE(minimum_threshold, 0))
-                ORDER BY name
-            """)
+            if unlimited:
+                cursor.execute("""
+                    SELECT name FROM inventory_items
+                    WHERE category = 'milk'
+                    ORDER BY name
+                """)
+            else:
+                cursor.execute("""
+                    SELECT name FROM inventory_items
+                    WHERE category = 'milk'
+                    AND (amount IS NULL OR amount > COALESCE(minimum_threshold, 0))
+                    ORDER BY name
+                """)
             milk_types = [row[0].lower() for row in cursor.fetchall()]
 
             if not milk_types:
+                # No milks configured yet — only happens on a brand-new
+                # deploy before Quick Setup runs. Return canonical
+                # defaults so the bot doesn't refuse all orders.
                 logger.warning("No milk types found in inventory_items table, using defaults")
                 return ["full cream", "skim"]
 
@@ -2107,27 +2194,97 @@ class CoffeeOrderSystem:
                                 ("2 sugar", "sugar"), ("3 sugar", "sugar"),
                                 ("half sugar", "sugar")]
 
+    def _summarise_sweeteners(self, sweeteners):
+        """Compact one-line description of available sweeteners.
+
+        Steve flagged the verbose MENU: "0, 1, 2, 3 sugars" enumerated
+        feels overwrought when the customer just wants to know "how
+        do I ask for sugar". Collapse consecutive integer sugars to a
+        range ("0-3 sugars"), preserve quirks (half sugar, artificial
+        sweetener names).
+
+        Input: list of (name, category) tuples from
+        _get_available_sweeteners.
+        Output: e.g. "Sugar: 0-3 (just text the number)"
+        """
+        if not sweeteners:
+            return "Sweetener: none"
+
+        names = [s[0] for s in sweeteners if s and s[0]]
+        # Pull out the "N sugar" variants — extract the integer.
+        sugar_ints = []
+        non_sugar_names = []
+        has_no_sugar = False
+        has_half_sugar = False
+        for n in names:
+            nl = (n or '').strip().lower()
+            if nl == 'no sugar':
+                has_no_sugar = True
+                continue
+            if nl == 'half sugar':
+                has_half_sugar = True
+                continue
+            # "1 sugar", "2 sugar", etc.
+            parts = nl.split()
+            if len(parts) >= 2 and parts[0].isdigit() and 'sugar' in parts[1]:
+                sugar_ints.append(int(parts[0]))
+                continue
+            non_sugar_names.append(n)
+
+        # Build the sugar range string.
+        sugar_part = ''
+        if sugar_ints or has_no_sugar:
+            ints = sorted(set(sugar_ints))
+            lo = 0 if has_no_sugar else (ints[0] if ints else 0)
+            hi = ints[-1] if ints else lo
+            if lo == hi:
+                sugar_part = f"{lo} sugar"
+            else:
+                sugar_part = f"{lo}-{hi} sugars"
+            if has_half_sugar:
+                sugar_part += " or half"
+
+        bits = []
+        if sugar_part:
+            bits.append(sugar_part)
+        if non_sugar_names:
+            bits.append(', '.join(non_sugar_names))
+
+        return f"Sugar: {', '.join(bits)} (just text the number)" if bits else "Sweetener: none"
+
     def _get_available_sweeteners(self):
-        """Get list of available sweeteners from inventory management"""
-        # Unlimited-stock mode: skip inventory lookup.
-        if self._is_unlimited_stock_mode():
-            return list(self._STANDARD_SWEETENER_MENU)
+        """Get list of available sweeteners from inventory management.
+
+        Unlimited-stock mode still respects what the operator
+        CONFIGURED — if Quick Setup only ticked "no sugar, 1 sugar,
+        2 sugar", the bot only offers those three. The previous
+        early-return to _STANDARD_SWEETENER_MENU was the bug Steve
+        flagged: MENU listed "0,1,2,3,4 sugars" even though Quick
+        Setup excluded 3-sugar and half-sugar.
+        """
+        unlimited = self._is_unlimited_stock_mode()
         try:
             cursor = self.db.cursor()
-            # Check for both 'sweetener' and 'sugar' categories
-            cursor.execute("""
-                SELECT name, category FROM inventory_items 
-                WHERE category IN ('sweetener', 'sugar', 'artificial_sweetener') 
-                AND (amount IS NULL OR amount > COALESCE(minimum_threshold, 0))
-                ORDER BY category, name
-            """)
+            if unlimited:
+                cursor.execute("""
+                    SELECT name, category FROM inventory_items
+                    WHERE category IN ('sweetener', 'sugar', 'artificial_sweetener')
+                    ORDER BY category, name
+                """)
+            else:
+                cursor.execute("""
+                    SELECT name, category FROM inventory_items
+                    WHERE category IN ('sweetener', 'sugar', 'artificial_sweetener')
+                    AND (amount IS NULL OR amount > COALESCE(minimum_threshold, 0))
+                    ORDER BY category, name
+                """)
             sweeteners = [(row[0].lower(), row[1]) for row in cursor.fetchall()]
-            
+
             # If no sweeteners defined, return basic defaults
             if not sweeteners:
                 logger.warning("No sweeteners found in inventory_items table, using defaults")
                 return [("sugar", "sugar"), ("no sugar", "sugar")]
-            
+
             logger.info(f"Available sweeteners: {sweeteners}")
             return sweeteners
         except Exception as e:
@@ -2185,22 +2342,32 @@ class CoffeeOrderSystem:
         Normalizes operator-facing names ("Regular") to customer-facing
         canonical names ("medium") so the bot's reply matches the
         vocabulary in services/nlp.py.
-        """
-        # Unlimited-stock mode: every size is available.
-        if self._is_unlimited_stock_mode():
-            return ['small', 'medium', 'large']
 
+        Unlimited-stock mode: still respects what the operator
+        CONFIGURED in Quick Setup / Inventory — just skips the
+        stock-level check. So if you only ticked Medium in Quick
+        Setup, the bot still only offers Medium even though
+        "unlimited stock" is on. Bug Steve hit on the demo: only
+        Medium was ticked but the SMS bot accepted "Large oat latte".
+        """
+        unlimited = self._is_unlimited_stock_mode()
         try:
             try:
                 self.db.rollback()
             except Exception:
                 pass
             cursor = self.db.cursor()
-            cursor.execute("""
-                SELECT name FROM inventory_items
-                WHERE category = 'cups'
-                  AND (amount IS NULL OR amount > COALESCE(minimum_threshold, 0))
-            """)
+            if unlimited:
+                cursor.execute("""
+                    SELECT name FROM inventory_items
+                    WHERE category = 'cups'
+                """)
+            else:
+                cursor.execute("""
+                    SELECT name FROM inventory_items
+                    WHERE category = 'cups'
+                      AND (amount IS NULL OR amount > COALESCE(minimum_threshold, 0))
+                """)
             raw_names = [row[0] for row in cursor.fetchall()]
         except Exception as e:
             logger.error(f"Error getting available sizes: {e}")
@@ -3308,6 +3475,13 @@ class CoffeeOrderSystem:
                             'status': 'pending',
                             'station_id': station_id,
                             'stationId': station_id,
+                            # See identical comment in consolidated_api_routes:
+                            # 'Z' suffix forces browser to parse as UTC,
+                            # avoiding the 9.5h AEST offset Steve hit.
+                            'created_at': now.isoformat() + 'Z' if hasattr(now, 'isoformat') else str(now),
+                            'createdAt':  now.isoformat() + 'Z' if hasattr(now, 'isoformat') else str(now),
+                            'wait_time':  0,
+                            'waitTime':   0,
                             'customer_name': processed_details.get('name'),
                             'customerName': processed_details.get('name'),
                             'coffee_type': processed_details.get('type'),
