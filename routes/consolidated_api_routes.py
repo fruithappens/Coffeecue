@@ -1638,12 +1638,13 @@ def start_order(order_id):
         payload = request.get_json(silent=True) or {}
         claiming_station_id = payload.get('station_id') or payload.get('stationId')
 
-        # Fetch the row up-front: we want phone + details *before* we
-        # change status, so the notification has the right context even if
-        # something else races us.
+        # Fetch the row up-front: we want phone + details + created_at
+        # *before* we change status, so the notification has the right
+        # context AND the started-SMS policy can compute order age.
         cursor = db.cursor()
         cursor.execute(
-            'SELECT id, phone, order_details, status FROM orders WHERE order_number = %s',
+            'SELECT id, phone, order_details, status, created_at '
+            'FROM orders WHERE order_number = %s',
             (clean_id,),
         )
         order_row = cursor.fetchone()
@@ -1657,8 +1658,9 @@ def start_order(order_id):
             order_phone = order_row.get('phone')
             order_details = order_row.get('order_details') or {}
             current_status = order_row.get('status')
+            order_created_at = order_row.get('created_at')
         else:
-            _, order_phone, order_details, current_status = order_row
+            _, order_phone, order_details, current_status, order_created_at = order_row
 
         # State machine guard. Without this, /start on a picked_up order
         # pulled it BACK into in-progress — the collected coffee
@@ -1738,8 +1740,10 @@ def start_order(order_id):
         # Send the "your barista just started your X" SMS. We only do this
         # on the pending → in-progress transition (not on re-starts) to
         # avoid double-notifying the customer if a barista taps Start more
-        # than once.
-        if current_status == 'pending':
+        # than once. AND we apply the policy gate: at small events with no
+        # queue, the "started" SMS just adds noise between confirm and
+        # ready — see _should_send_started_sms for the rules.
+        if current_status == 'pending' and _should_send_started_sms(db, order_created_at):
             _notify_customer_order_started(order_phone, clean_id, order_details)
 
         # Push a WS event so any open Barista UI / Display refreshes
@@ -1923,6 +1927,132 @@ def _emit_order_status_change(order_number, status):
     except Exception as e:
         # Never let a WS emit failure break the request.
         logger.debug(f"socketio emit skipped: {e}")
+
+
+# Default policy for the "started" SMS.
+#
+# Setting key: sms_started_policy  (settings table, JSON)
+# Shape: {"policy": "always" | "queue_only" | "never",
+#         "threshold_seconds": 60 }
+#
+# Default = queue_only at 60s: skip the started SMS for orders that
+# were started within 60s of being created (no real queue happened).
+# Saves a wasted SMS for instant-fulfilment walk-ins and SMS orders.
+_SMS_STARTED_POLICY_DEFAULT = {
+    'policy': 'queue_only',
+    'threshold_seconds': 60,
+}
+
+
+def _should_send_started_sms(db, created_at):
+    """Apply the operator's started-SMS policy.
+
+    Args:
+        db: the singleton DB connection (for settings lookup).
+        created_at: when the order was created (datetime or naive
+                    ISO string from Postgres).
+
+    Returns:
+        bool — True if the SMS should fire, False if suppressed.
+
+    Behaviour:
+      - policy='always'     → always send.
+      - policy='never'      → never send.
+      - policy='queue_only' → only send if the order has been
+                              waiting > threshold_seconds. Orders
+                              started instantly (empty queue) skip
+                              the SMS; the ready SMS follows soon
+                              enough.
+
+    Soft-fails safely: if the settings read errors, we fall back to
+    'queue_only' default (the smart behaviour). Never raises.
+    """
+    try:
+        cfg = _kv_get(db, 'sms_started_policy', default=None)
+    except Exception as e:
+        logger.debug(f"sms_started_policy read failed (default applied): {e}")
+        cfg = None
+    if not isinstance(cfg, dict):
+        cfg = dict(_SMS_STARTED_POLICY_DEFAULT)
+    policy = (cfg.get('policy') or 'queue_only').strip().lower()
+    if policy == 'always':
+        return True
+    if policy == 'never':
+        return False
+    # queue_only — compute age.
+    try:
+        threshold = int(cfg.get('threshold_seconds', 60))
+    except (TypeError, ValueError):
+        threshold = 60
+    if not created_at:
+        # Unknown age — be safe, send. (Better one extra SMS than
+        # silently suppressing a customer who's actually waiting.)
+        return True
+    try:
+        if isinstance(created_at, str):
+            ca = datetime.fromisoformat(created_at.replace('Z', ''))
+        else:
+            ca = created_at
+        age_seconds = (datetime.now() - ca).total_seconds()
+    except Exception:
+        return True
+    return age_seconds >= threshold
+
+
+@bp.route('/settings/sms-policy', methods=['GET'])
+@jwt_required_with_demo()
+def get_sms_policy():
+    """Return current SMS notification policy (defaults to queue_only/60s).
+
+    Lets the Quick Setup / Settings UI render the right radio button
+    selection and threshold input.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        cfg = _kv_get(coffee_system.db, 'sms_started_policy', default=None)
+        if not isinstance(cfg, dict):
+            cfg = dict(_SMS_STARTED_POLICY_DEFAULT)
+        return jsonify({'success': True, 'data': cfg})
+    except Exception as e:
+        logger.error(f"get_sms_policy error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@bp.route('/settings/sms-policy', methods=['PUT'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def put_sms_policy():
+    """Persist the SMS notification policy.
+
+    Body: {"policy": "always" | "queue_only" | "never",
+           "threshold_seconds": int}
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        policy = (data.get('policy') or 'queue_only').strip().lower()
+        if policy not in ('always', 'queue_only', 'never'):
+            return jsonify({
+                'success': False,
+                'message': "policy must be 'always', 'queue_only', or 'never'",
+            }), 400
+        try:
+            threshold = int(data.get('threshold_seconds', 60))
+            threshold = max(0, min(threshold, 600))  # clamp 0-10 min
+        except (TypeError, ValueError):
+            threshold = 60
+
+        coffee_system = current_app.config.get('coffee_system')
+        _kv_put(coffee_system.db, 'sms_started_policy', {
+            'policy': policy,
+            'threshold_seconds': threshold,
+        })
+        return jsonify({
+            'success': True,
+            'data': {'policy': policy, 'threshold_seconds': threshold},
+        })
+    except Exception as e:
+        logger.error(f"put_sms_policy error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 
 def _emit_new_order(order_payload):

@@ -128,6 +128,10 @@ const DEFAULT_STATE = {
   // Flip every station status to 'active' on apply. Saves the new
   // operator from going into Stations and toggling each one.
   activate_all_stations: true,
+  // SMS "started" policy. queue_only = smart suppression for small
+  // events; default per Steve. Persisted to settings/sms-policy via
+  // a side-call from apply(); not part of the main quick-setup payload.
+  started_sms_policy: 'queue_only',
 };
 
 // localStorage key for the in-progress Quick Setup form. Persisting
@@ -833,6 +837,24 @@ const QuickSetup = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ preset: config }),
       });
+
+      // Persist the "started" SMS policy separately — it lives in its
+      // own settings/sms-policy endpoint so the policy gate can read
+      // it from anywhere (not just after Quick Setup runs).
+      try {
+        await api.request('/settings/sms-policy', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            policy: config.started_sms_policy || 'queue_only',
+            threshold_seconds: 60,
+          }),
+        });
+      } catch (smsPolErr) {
+        // Non-fatal — the main Quick Setup still succeeded.
+        console.warn('Could not save started_sms_policy:', smsPolErr);
+      }
+
       // Mirror the selections into localStorage so the Inventory
       // Management UI reflects the same enabled-set, AND so each
       // station's `coffee_stock_station_N` blob shows the same
@@ -1057,6 +1079,49 @@ const QuickSetup = () => {
               Leave blank to keep whatever code is currently saved.
             </span>
           </label>
+        </div>
+
+        {/* "Started" SMS policy — Steve flagged that small events
+            don't want to text the customer every 30 seconds when
+            there's no real queue. Default 'queue_only' suppresses
+            the started SMS for orders <60s old; 'always' restores
+            the legacy behaviour for big events; 'never' kills it
+            entirely. See _should_send_started_sms in
+            routes/consolidated_api_routes.py. */}
+        <div className="mt-4">
+          <span className="block text-gray-600 mb-1 text-sm">
+            "Started" SMS policy
+          </span>
+          <div className="flex flex-wrap gap-3">
+            {[
+              { value: 'queue_only', label: 'Queue only', sub: 'skip if started <60s after order' },
+              { value: 'always',     label: 'Always',     sub: 'every order gets a "started" SMS' },
+              { value: 'never',      label: 'Never',      sub: 'no "started" SMS at all' },
+            ].map(opt => (
+              <label
+                key={opt.value}
+                className={`px-3 py-2 border rounded-lg cursor-pointer text-sm ${
+                  (config.started_sms_policy || 'queue_only') === opt.value
+                    ? 'border-amber-500 bg-amber-50'
+                    : 'border-gray-300 hover:border-gray-400'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="started_sms_policy"
+                  value={opt.value}
+                  checked={(config.started_sms_policy || 'queue_only') === opt.value}
+                  onChange={() => setConfig(c => ({ ...c, started_sms_policy: opt.value }))}
+                  className="mr-2"
+                />
+                <span className="font-medium">{opt.label}</span>
+                <span className="block text-xs text-gray-500 ml-5">{opt.sub}</span>
+              </label>
+            ))}
+          </div>
+          <span className="block text-xs text-gray-500 mt-1">
+            Order confirmation and "ready for pickup" SMS always fire — this only controls the "your barista just started your X" one.
+          </span>
         </div>
       </div>
 
