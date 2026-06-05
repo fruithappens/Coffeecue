@@ -12,42 +12,32 @@
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
     <title>Coffee Cue Ordering System</title>
-    
-    <!-- Coffee Cue Sound System -->
+
+    <!-- Coffee Cue Sound System (audio chime when new orders arrive) -->
     <script src="%PUBLIC_URL%/coffee-sounds.js"></script>
-    
-    <!-- Fix localStorage on load -->
-    <script src="%PUBLIC_URL%/fix-localstorage.js"></script>
-    
-    <!-- Automated UI Test Script -->
-    <script src="%PUBLIC_URL%/auto-test.js"></script>
-    
-    <!-- Conditionally disable WebSocket if flag is set -->
-    <script>
-      if (localStorage.getItem('websocket_disabled') === 'true') {
-        document.write('<script src="%PUBLIC_URL%/disable-websocket.js"><\/script>');
-      }
-    </script>
-    
-    <!-- Display Scaling CSS for External Displays -->
+
+    <!-- Display Scaling CSS / Helper (only used by the customer /display screen) -->
     <link rel="stylesheet" href="%PUBLIC_URL%/display-scaling.css">
-    
-    <!-- Display Helper for External Display Management -->
     <script src="%PUBLIC_URL%/display-helper.js"></script>
-    
-    <!-- Initialize config settings and apply branding -->
+
+    <!--
+      Removed in cleanup-20260605 (kept in public/_archive/cleanup-20260605/):
+        - fix-localstorage.js — runtime localStorage patch, redundant in prod
+        - auto-test.js — automated UI test harness, should NEVER be in prod
+        - disable-websocket.js conditional — debug-only kill switch
+        - inline localStorage.setItem coffee_system_config with apiBaseUrl='http://localhost:5001/api'
+          (ConfigService.js overrides this with '/api' in NODE_ENV=production,
+          so it was dead config — but the fresh-eyes audit flagged it as
+          alarming and confusing in DevTools. Gone.)
+        - inline 'use_fallback_data: false' write (set elsewhere if needed)
+    -->
+
     <script>
-      // Ensure config is set
-      localStorage.setItem('coffee_system_config', JSON.stringify({
-        apiBaseUrl: 'http://localhost:5001/api',
-        defaultWaitTime: 15,
-        notificationTimeout: 30
-      }));
-      
-      // Reset any error counters on fresh page load
-      localStorage.removeItem('auth_error_count');
-      
-      // Apply branding from localStorage if available
+      // Apply branding from localStorage if available — sets the
+      // document title before the React shell mounts so the tab
+      // shows "Coffee Cue at Hills Baptist Lobethal" instead of
+      // the default "Coffee Cue Ordering System". Wrapped in
+      // try/catch because branding may be missing or malformed.
       try {
         const branding = localStorage.getItem('coffee_system_branding');
         if (branding) {
@@ -57,11 +47,8 @@
           }
         }
       } catch (e) {
-        // Ignore branding errors
+        // Branding read failed — leave the default title. Not fatal.
       }
-      
-      // Disable fallback mode by default
-      localStorage.setItem('use_fallback_data', 'false');
     </script>
   </head>
   <body>

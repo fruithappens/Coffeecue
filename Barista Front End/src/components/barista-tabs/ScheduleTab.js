@@ -87,17 +87,13 @@ const ScheduleTab = ({
 }) => {
   return (
     <div className="p-4">
-      {/* API Not Implemented Notification */}
-      <DismissibleInfoPanel
-        id="scheduleInfoPanel"
-        title="Schedule API Not Implemented"
-        message="The schedule backend API has not been implemented yet. This section will show real data once the backend API is connected."
-        borderColor="amber"
-        bgColor="amber"
-        isDismissed={dismissedPanels.scheduleInfoPanel}
-        onDismiss={dismissPanel}
-      />
-    
+      {/* Removed in cleanup-20260605: the "Schedule API Not Implemented"
+          banner was stale — the schedule API DOES exist (this component
+          renders real shifts from it). Banner predated the implementation
+          and stuck around. Anyone reading it would (rightly) think the
+          schedule on screen wasn't real, which is exactly the wrong
+          signal. */}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-white rounded-lg shadow-md p-4">
           <h2 className="text-xl font-bold mb-4">Today's Schedule</h2>

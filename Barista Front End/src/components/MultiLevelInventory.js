@@ -22,6 +22,34 @@ const MultiLevelInventory = () => {
     orderLeadTime: 24 // hours
   });
 
+  // Unlimited-stock mode: when on, inventory rows have NULL amounts
+  // and the totals all render as "0.0L / 0.0kg / 0 cups" — which the
+  // fresh-eyes audit flagged as misleading ("looks like nothing's in
+  // stock"). When this flag is true we render "Unlimited" / "∞" on
+  // the totals tiles instead.
+  const [unlimitedStockMode, setUnlimitedStockMode] = useState(false);
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = localStorage.getItem('authToken') || localStorage.getItem('coffee_system_token');
+        const resp = await fetch('/api/settings', {
+          headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          const flag = data?.unlimited_stock_mode ?? data?.unlimitedStockMode ?? data?.unlimited_stock ?? data?.data?.unlimited_stock_mode;
+          if (flag && typeof flag === 'object') {
+            setUnlimitedStockMode(!!flag.enabled);
+          } else {
+            setUnlimitedStockMode(!!flag);
+          }
+        }
+      } catch (_) {
+        // Soft fail — default to "show numbers" if we can't check.
+      }
+    })();
+  }, []);
+
   // Load inventory data from API
   const loadInventoryData = useCallback(async () => {
     try {
@@ -423,9 +451,13 @@ const MultiLevelInventory = () => {
               <h3 className="text-lg font-semibold">Total Milk Stock</h3>
               <Package className="text-blue-500" size={24} />
             </div>
-            <div className="text-3xl font-bold text-gray-900">{totals.milk.toFixed(1)}L</div>
+            <div className="text-3xl font-bold text-gray-900">
+              {unlimitedStockMode ? '∞' : `${totals.milk.toFixed(1)}L`}
+            </div>
             <div className="mt-2 text-sm text-gray-500">
-              Across {Object.keys(inventoryData.stationLevel).length} stations
+              {unlimitedStockMode
+                ? 'Unlimited stock mode is on'
+                : `Across ${Object.keys(inventoryData.stationLevel).length} stations`}
             </div>
           </div>
 
@@ -434,9 +466,13 @@ const MultiLevelInventory = () => {
               <h3 className="text-lg font-semibold">Total Coffee Stock</h3>
               <Coffee className="text-brown-500" size={24} />
             </div>
-            <div className="text-3xl font-bold text-gray-900">{totals.coffee.toFixed(1)}kg</div>
+            <div className="text-3xl font-bold text-gray-900">
+              {unlimitedStockMode ? '∞' : `${totals.coffee.toFixed(1)}kg`}
+            </div>
             <div className="mt-2 text-sm text-gray-500">
-              {inventoryData.predictions?.stockoutRisk?.filter(r => r.type === 'coffee').length || 0} items at risk
+              {unlimitedStockMode
+                ? 'No stock tracking this event'
+                : `${inventoryData.predictions?.stockoutRisk?.filter(r => r.type === 'coffee').length || 0} items at risk`}
             </div>
           </div>
 
@@ -445,9 +481,11 @@ const MultiLevelInventory = () => {
               <h3 className="text-lg font-semibold">Total Cups</h3>
               <Package className="text-green-500" size={24} />
             </div>
-            <div className="text-3xl font-bold text-gray-900">{totals.cups}</div>
+            <div className="text-3xl font-bold text-gray-900">
+              {unlimitedStockMode ? '∞' : totals.cups}
+            </div>
             <div className="mt-2 text-sm text-gray-500">
-              All sizes combined
+              {unlimitedStockMode ? 'Cups not depleted' : 'All sizes combined'}
             </div>
           </div>
         </div>

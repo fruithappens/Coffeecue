@@ -295,40 +295,58 @@ const BrandingSettings = () => {
               />
             </div>
 
+            {/* EVENT IDENTITY — what your event is called everywhere.
+                Previously grouped under "Customer Display Screen" which
+                misled operators (Steve hit this: labelled the field
+                "Hills Baptist Lobethal Test Display Screen" thinking
+                it only affected /display, then SMS customers got
+                greeted with that string). Promoting to its own
+                top-level section makes the breadth explicit. */}
             <div className="border-t border-gray-200 pt-4 mt-2">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                Customer Display Screen
+                Event identity
               </p>
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Event Name <span className="text-gray-400">(header on /display)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={settings.event_name}
-                    onChange={(e) => setSettings({...settings, event_name: e.target.value})}
-                    placeholder="ANZCA ASM 2025 Cairns"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Big heading on the customer-facing display screen.</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    SMS Order Number <span className="text-gray-400">(footer on /display)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={settings.smsNumber}
-                    onChange={(e) => setSettings({...settings, smsNumber: e.target.value})}
-                    placeholder="+61 412 345 678"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Number customers text to place an order. Falls back to the
-                    backend's <code>TWILIO_PHONE_NUMBER</code> env var if blank.
-                  </p>
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Event name
+                </label>
+                <input
+                  type="text"
+                  value={settings.event_name}
+                  onChange={(e) => setSettings({...settings, event_name: e.target.value})}
+                  placeholder="ANZCA ASM 2025 Cairns"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Used in <strong>every customer-facing place</strong>:
+                  the SMS welcome (<em>"Welcome to [event name]!"</em>),
+                  the order-confirmation SMS, AND the big header on
+                  the /display screen. Not just the display.
+                </p>
+              </div>
+            </div>
+
+            <div className="border-t border-gray-200 pt-4 mt-2">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                Customer SMS channel
+              </p>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  SMS order number
+                </label>
+                <input
+                  type="text"
+                  value={settings.smsNumber}
+                  onChange={(e) => setSettings({...settings, smsNumber: e.target.value})}
+                  placeholder="+61 412 345 678"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Number customers text to place an order. Appears in
+                  the footer of the /display screen and on the landing
+                  page. Falls back to the backend's <code>TWILIO_PHONE_NUMBER</code>
+                  env var if blank.
+                </p>
               </div>
             </div>
 
