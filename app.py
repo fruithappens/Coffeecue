@@ -181,6 +181,33 @@ def create_app():
     """Application factory function"""
     app = Flask(__name__, static_folder='static', static_url_path='/static')
     app.secret_key = config.SECRET_KEY
+
+    # Railway (and any other reverse-proxy host) terminates SSL at the
+    # edge and forwards the request to the backend container over HTTP.
+    # Without ProxyFix, Flask's url_for() and any 308/redirect responses
+    # emit `http://...` URLs based on the request it saw — which is the
+    # internal HTTP one, not the customer-facing HTTPS one.
+    #
+    # Symptom the fresh-eyes audit caught:
+    #   GET https://.../barista  → 308 Location: http://.../barista/
+    # i.e. an HTTPS request gets bounced to an HTTP URL, triggering
+    # mixed-content warnings and (in some browsers) outright blocks.
+    #
+    # ProxyFix tells Flask to trust X-Forwarded-Proto / X-Forwarded-Host
+    # set by the Railway proxy, so generated URLs match the original
+    # scheme. x_proto=1 says "trust one hop of X-Forwarded-Proto"
+    # (Railway is the only proxy in front of us).
+    try:
+        from werkzeug.middleware.proxy_fix import ProxyFix
+        app.wsgi_app = ProxyFix(
+            app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1,
+        )
+        logger.info("ProxyFix applied (x_for=1, x_proto=1, x_host=1, x_prefix=1)")
+    except Exception as e:
+        # ProxyFix is shipped with Werkzeug; missing it would be wild.
+        # If it ever fails, log loudly and continue — bad redirects are
+        # cosmetic, not blocking, so don't take the app down for this.
+        logger.warning(f"Could not apply ProxyFix: {e}")
     
     # JWT configuration - use the JWT_SECRET_KEY from config
     app.config['JWT_SECRET_KEY'] = config.JWT_SECRET_KEY
