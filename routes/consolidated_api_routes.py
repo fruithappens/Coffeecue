@@ -2468,8 +2468,14 @@ def pickup_order(order_id):
         # re-update timestamps (which would mask "when was this
         # actually collected" in the audit history).
         cursor = db.cursor()
+        # Pull station_id too so we can decrement station_stats.current_load
+        # on a successful pickup. Was: orders incremented current_load on
+        # confirm but nothing ever decremented it on the way out (the
+        # audit found Station 1 reporting current_load=3 after 10+ orders
+        # had been processed and picked up). Pickup is the right place
+        # for the decrement — that's when the cup leaves the station.
         cursor.execute(
-            'SELECT id, status FROM orders WHERE order_number = %s',
+            'SELECT id, status, station_id FROM orders WHERE order_number = %s',
             (clean_id,),
         )
         order_row = cursor.fetchone()
@@ -2480,8 +2486,9 @@ def pickup_order(order_id):
 
         if isinstance(order_row, dict):
             current_status = order_row.get('status')
+            pickup_station_id = order_row.get('station_id')
         else:
-            _, current_status = order_row
+            _, current_status, pickup_station_id = order_row
 
         # State guards.
         if current_status == 'cancelled':
@@ -2536,6 +2543,28 @@ def pickup_order(order_id):
         
         if rows_affected > 0:
             logger.info(f"Successfully marked order as picked up: {clean_id}")
+
+            # Decrement station_stats.current_load.
+            # See SELECT comment above for the rationale.
+            if pickup_station_id:
+                try:
+                    cursor.execute("""
+                        UPDATE station_stats
+                        SET current_load = GREATEST(0, current_load - 1),
+                            last_updated = CURRENT_TIMESTAMP
+                        WHERE station_id = %s
+                    """, (pickup_station_id,))
+                    db.commit()
+                except Exception as load_err:
+                    logger.warning(
+                        f"current_load decrement failed (non-fatal) for "
+                        f"order {clean_id}, station {pickup_station_id}: {load_err}"
+                    )
+                    try:
+                        db.rollback()
+                    except Exception:
+                        pass
+
             _emit_order_status_change(clean_id, 'picked_up')
             return jsonify({"success": True, "message": "Order marked as picked up successfully"})
         else:
