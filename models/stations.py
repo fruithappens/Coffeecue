@@ -255,7 +255,16 @@ class Station:
                 'notes', 'equipment_notes', 'status', 'barista_name',
                 'current_load', 'avg_completion_time', 'wait_time',
                 'specialist_drinks', 'equipment_status', 'capacity',
+                # `capabilities` is a JSONB column on station_stats.
+                # Was missing from the allowlist → every PATCH on the
+                # Capabilities tab silently returned success with the
+                # OLD value echoed back. Fresh-eyes audit caught the
+                # no-op. JSONB requires json.dumps on the way in.
+                'capabilities',
             }
+            # Columns that store JSONB on the DB side. We serialise
+            # dict/list values for these before binding.
+            jsonb_columns = {'capabilities'}
 
             set_clauses = []
             params = []
@@ -271,6 +280,11 @@ class Station:
                 if db_field in seen_columns:
                     continue
                 seen_columns.add(db_field)
+                # JSONB columns need a JSON-serialised string when value
+                # arrives as a dict or list.
+                if db_field in jsonb_columns and isinstance(value, (dict, list)):
+                    import json as _json
+                    value = _json.dumps(value)
                 set_clauses.append(f"{db_field} = %s")
                 params.append(value)
 

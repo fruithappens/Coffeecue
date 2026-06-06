@@ -640,17 +640,18 @@ def orders():
             # work before the Capabilities editor has been touched.
             try:
                 cap_check_cursor = db.cursor()
-                # The `stations` table primary key is `id` (not
-                # station_id — that's the FK name on station_stats).
-                # Worth confirming: schema in
-                # database_migration_system.py:165 and
-                # create_test_stations.py:81 both use `id`.
+                # Existence + status check in one query. Before this,
+                # POST /api/orders silently accepted orders at:
+                #   - station_id=99 (doesn't exist), and
+                #   - stations explicitly marked status='inactive'.
+                # Reassign properly rejected both. Asymmetric. The
+                # fresh-eyes audit reproduced both. Symmetrising here.
                 cap_check_cursor.execute(
-                    "SELECT 1 FROM stations WHERE id = %s",
+                    "SELECT status FROM stations WHERE id = %s",
                     (station_id,),
                 )
-                station_exists = cap_check_cursor.fetchone()
-                if not station_exists:
+                station_row = cap_check_cursor.fetchone()
+                if not station_row:
                     return jsonify({
                         "status": "error",
                         "message": (
@@ -658,6 +659,26 @@ def orders():
                             "Pick a valid station from the dropdown."
                         ),
                         "code": "STATION_NOT_FOUND",
+                    }), 400
+                station_status = (
+                    station_row[0] if not isinstance(station_row, dict)
+                    else station_row.get('status')
+                )
+                # Treat NULL/missing status as "active" so brand-new
+                # rows don't fail open. Only explicit 'inactive' /
+                # 'maintenance' refuse new work.
+                if station_status and station_status.lower() in (
+                    'inactive', 'maintenance'
+                ):
+                    return jsonify({
+                        "status": "error",
+                        "message": (
+                            f"Station {station_id} is {station_status} "
+                            "and isn't accepting orders right now. "
+                            "Pick a different station, or activate this "
+                            "one in the Stations tab."
+                        ),
+                        "code": "STATION_NOT_ACTIVE",
                     }), 400
             except Exception as e:
                 # Don't block order creation on a stations-table read
@@ -698,7 +719,13 @@ def orders():
                 RETURNING id, order_number
             ''', (
                 order_number,
-                data.get('phone', ''),  # Phone can be empty for walk-in orders
+                # Accept BOTH `phone` and `phone_number` as the input key.
+                # The walk-in dialog and the audit script both send
+                # `phone_number`; legacy callers send `phone`. The
+                # previous handler only checked `phone`, so any walk-in
+                # operator entering a phone got `""` saved, breaking
+                # the "send message to customer" feature.
+                (data.get('phone') or data.get('phone_number') or '').strip(),
                 json.dumps(order_details),
                 'pending',
                 station_id,
@@ -767,7 +794,15 @@ def orders():
 @bp.route('/orders/pending', methods=['GET'])
 @jwt_required_with_demo()
 def get_pending_orders():
-    """Get all pending orders"""
+    """Get all pending orders, optionally filtered by station.
+
+    `?station_id=N` filters to that station only. The fresh-eyes audit
+    found that BEFORE this fix the query param was silently ignored —
+    a barista logged in to Station 2 saw Station 1's orders mixed into
+    their pending queue. With three baristas at three stations, every
+    drink would have shown up in every queue. Goal 2 of the product
+    ("each station sees its own orders") was broken.
+    """
     try:
         # Get coffee system from app context
         coffee_system = current_app.config.get('coffee_system')
@@ -782,15 +817,37 @@ def get_pending_orders():
         except Exception:
             pass
 
+        # Read optional ?station_id=N filter. Reject anything non-int
+        # so a typo like '?station_id=abc' doesn't silently 500.
+        station_filter = request.args.get('station_id')
+        station_param = None
+        if station_filter is not None and station_filter != '':
+            try:
+                station_param = int(station_filter)
+            except (TypeError, ValueError):
+                return jsonify({
+                    'success': False,
+                    'message': "station_id must be an integer if provided",
+                }), 400
+
         # Query database for pending orders
         cursor = db.cursor()
-        cursor.execute('''
-            SELECT id, order_number, status, station_id, 
-                   created_at, phone, order_details, queue_priority
-            FROM orders 
-            WHERE status = 'pending'
-            ORDER BY queue_priority, created_at DESC
-        ''')
+        if station_param is not None:
+            cursor.execute('''
+                SELECT id, order_number, status, station_id,
+                       created_at, phone, order_details, queue_priority
+                FROM orders
+                WHERE status = 'pending' AND station_id = %s
+                ORDER BY queue_priority, created_at DESC
+            ''', (station_param,))
+        else:
+            cursor.execute('''
+                SELECT id, order_number, status, station_id,
+                       created_at, phone, order_details, queue_priority
+                FROM orders
+                WHERE status = 'pending'
+                ORDER BY queue_priority, created_at DESC
+            ''')
         
         # Process orders
         pending_orders = []
@@ -894,14 +951,37 @@ def get_in_progress_orders():
         coffee_system = current_app.config.get('coffee_system')
         db = coffee_system.db
 
+        # Optional ?station_id=N filter. Same fix as /orders/pending —
+        # the param was being silently ignored, so every station saw
+        # every other station's in-progress orders.
+        station_filter = request.args.get('station_id')
+        station_param = None
+        if station_filter is not None and station_filter != '':
+            try:
+                station_param = int(station_filter)
+            except (TypeError, ValueError):
+                return jsonify({
+                    'success': False,
+                    'message': "station_id must be an integer if provided",
+                }), 400
+
         cursor = db.cursor()
-        cursor.execute('''
-            SELECT id, order_number, status, station_id,
-                   created_at, phone, order_details, queue_priority
-            FROM orders
-            WHERE status = 'in-progress'
-            ORDER BY created_at
-        ''')
+        if station_param is not None:
+            cursor.execute('''
+                SELECT id, order_number, status, station_id,
+                       created_at, phone, order_details, queue_priority
+                FROM orders
+                WHERE status = 'in-progress' AND station_id = %s
+                ORDER BY created_at
+            ''', (station_param,))
+        else:
+            cursor.execute('''
+                SELECT id, order_number, status, station_id,
+                       created_at, phone, order_details, queue_priority
+                FROM orders
+                WHERE status = 'in-progress'
+                ORDER BY created_at
+            ''')
 
         in_progress_orders = []
         for order in cursor.fetchall():
@@ -2238,6 +2318,24 @@ def complete_order(order_id):
                 stock_result = coffee_system._decrement_stock_for_order(
                     db, db_type, station_id_for_stock, order_details_parsed,
                 ) or stock_result
+                # Commit the inventory UPDATEs.
+                #
+                # CRITICAL BUG without this: _decrement_stock_for_order
+                # runs UPDATE inventory_items SET amount = amount - X
+                # against the cursor, but never commits. The order-status
+                # commit at line 2217 happened BEFORE this — those
+                # inventory UPDATEs sat in an uncommitted transaction
+                # and disappeared on the next request's defensive
+                # rollback. Net effect: stock NEVER decremented in
+                # production (audit verified). Goal 3 of the product
+                # was silently broken since launch.
+                try:
+                    db.commit()
+                except Exception as commit_err:
+                    logger.error(
+                        "Stock-decrement commit failed for order "
+                        f"{clean_id}: {commit_err}"
+                    )
                 if stock_result.get('skipped'):
                     logger.warning(
                         f"Stock decrement on complete: skipped items for "
@@ -5077,19 +5175,83 @@ def create_inventory_item():
 
 @bp.route('/sms/send', methods=['POST'])
 @jwt_required_with_demo()
-@role_required_with_demo(['admin', 'staff', 'barista'])
+@role_required_with_demo(['admin', 'staff'])
 def send_sms():
-    """Send an SMS message directly"""
+    """Send an SMS message directly.
+
+    Locked down after the fresh-eyes audit caught it as a Twilio-bill
+    abuse vector:
+      - role_required: was admin/staff/barista; now admin/staff only.
+        Baristas don't need direct SMS-send; they have the per-order
+        Message button which goes through a separate validated path.
+      - audit log: every call is logged with WHO sent WHAT to WHICH
+        number. (Logger writes to api_access; ops can grep.)
+      - rate limit: 10 sends per minute per user. A real operator
+        broadcasting an outage stays under it; a runaway loop or
+        compromised token hits the wall fast.
+
+    Doesn't validate the recipient number against a list — operators
+    legitimately text customers whose phone is in the orders table —
+    but the audit log + rate limit make abuse traceable and bounded.
+    """
+    import time
+
     try:
-        data = request.json
-        to_number = data.get('to')
-        message = data.get('message', '')
-        order_id = data.get('order_id')
-        
+        data = request.json or {}
+        to_number = (data.get('to') or '').strip()
+        message = (data.get('message') or '').strip()
+
+        if not to_number or not message:
+            return jsonify({
+                'success': False,
+                'message': "Both 'to' and 'message' are required",
+            }), 400
+
+        # Rate limit per user — in-memory window, sufficient for a
+        # single-container Railway deploy. Reset hourly via process
+        # restart. Move to Redis if we ever scale horizontally.
+        try:
+            from flask_jwt_extended import get_jwt_identity
+            actor = get_jwt_identity() or 'unknown'
+        except Exception:
+            actor = 'unknown'
+
+        global _SMS_SEND_WINDOW
+        if '_SMS_SEND_WINDOW' not in globals():
+            _SMS_SEND_WINDOW = {}
+        now_ts = int(time.time())
+        window_start = now_ts - 60
+        # Prune old entries opportunistically.
+        if len(_SMS_SEND_WINDOW) > 1000:
+            _SMS_SEND_WINDOW = {
+                k: [t for t in v if t >= window_start]
+                for k, v in _SMS_SEND_WINDOW.items()
+            }
+        actor_sends = [t for t in _SMS_SEND_WINDOW.get(actor, []) if t >= window_start]
+        if len(actor_sends) >= 10:
+            logger.warning(
+                f"sms/send rate-limit hit: actor={actor!r}, "
+                f"{len(actor_sends)} sends in last 60s"
+            )
+            return jsonify({
+                'success': False,
+                'message': "Rate limit: max 10 SMS per minute per user.",
+                'code': 'RATE_LIMITED',
+            }), 429
+        actor_sends.append(now_ts)
+        _SMS_SEND_WINDOW[actor] = actor_sends
+
+        # Audit log — always, before the send. Even a failure to send
+        # tells ops there was an attempt.
+        logger.info(
+            f"AUDIT sms/send: actor={actor!r} to={to_number!r} "
+            f"msg_len={len(message)} msg_preview={message[:40]!r}"
+        )
+
         # Forward to the actual implementation
         from routes.sms_routes import send_sms as sms_handler
         return sms_handler()
-    
+
     except Exception as e:
         logger.error(f"Error sending SMS: {str(e)}")
         return jsonify({
