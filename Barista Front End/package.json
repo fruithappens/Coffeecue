@@ -22,7 +22,9 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "smoke": "cypress run --spec cypress/e2e/organiser-clickthrough.cy.js",
+    "smoke:open": "cypress open"
   },
   "eslintConfig": {
     "extends": [
@@ -44,6 +46,7 @@
   },
   "devDependencies": {
     "autoprefixer": "^10.4.20",
+    "cypress": "^13.17.0",
     "http-proxy-middleware": "^3.0.3",
     "postcss": "^8.5.3"
   }

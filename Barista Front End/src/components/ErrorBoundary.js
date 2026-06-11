@@ -59,11 +59,54 @@ class ErrorBoundary extends React.Component {
       }
       
       localStorage.setItem('coffee_system_errors', JSON.stringify(existingErrors));
-      
+
       // Also log to console for debugging
       console.error('Error Boundary caught error:', errorData);
-      
-      // If available, send to backend error tracking
+
+      // Phone home to the backend so I find out about crashes the
+      // same minute they happen, instead of waiting for Steve to
+      // screenshot the page. Best-effort: fire-and-forget, no auth
+      // required (crashes can happen at the login screen before any
+      // token exists), and any failure stays silent — error reporting
+      // must never become the new error.
+      //
+      // Field names match the backend's INSERT shape in
+      // routes/consolidated_api_routes.py — component_stack with an
+      // underscore, not the camelCase componentStack we receive from
+      // React.
+      try {
+        const payload = {
+          component: errorData.component,
+          message: errorData.error.message,
+          stack: errorData.error.stack,
+          component_stack: errorInfo && errorInfo.componentStack,
+          url: errorData.url,
+          user_id: errorData.userId,
+          user_agent: errorData.userAgent,
+          retry_count: errorData.retryCount,
+        };
+        // Use sendBeacon when available — survives a tab close and
+        // doesn't tie up the main thread while React is mid-unmount.
+        const body = JSON.stringify(payload);
+        const endpoint = '/api/client-errors';
+        if (navigator.sendBeacon) {
+          const blob = new Blob([body], { type: 'application/json' });
+          navigator.sendBeacon(endpoint, blob);
+        } else {
+          // Older browsers / iPad Safari fallback. Don't await; we're
+          // already in a broken render, no point blocking on the post.
+          fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body,
+            keepalive: true,
+            // eslint-disable-next-line @typescript-eslint/no-empty-function
+          }).catch(() => { /* error reporting must never throw */ });
+        }
+      } catch (_) { /* error reporting must never throw */ }
+
+      // Legacy hook — kept for any existing wiring that still sets
+      // window.errorTrackingService externally (e.g. for testing).
       if (window.errorTrackingService) {
         window.errorTrackingService.logError(errorData);
       }

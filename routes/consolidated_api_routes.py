@@ -7815,3 +7815,151 @@ def get_sms_templates_api():
     except Exception as e:
         logger.error(f"get_sms_templates_api error: {e}")
         return jsonify({'status': 'success', 'templates': {}})
+
+
+# ----------------------------------------------------------------------
+# Client-side error capture.
+#
+# When a React Error Boundary fires, the user sees a polite fallback
+# UI — but until this endpoint existed, neither the operator nor I knew
+# anything had broken. Crashes lived and died in localStorage on the
+# offending iPad. The UserManagement edit-pencil crash made it to
+# production for exactly this reason.
+#
+# Frontend posts here from ErrorBoundary.componentDidCatch. No auth —
+# crashes can happen at the login screen before any token exists, and
+# silently dropping them defeats the whole point. Lightly rate-limited
+# in the table layer (one row per occurrence; even a thrashing loop
+# adds ~10 rows/sec, manageable). Read endpoint IS auth'd so logs
+# aren't world-readable.
+# ----------------------------------------------------------------------
+
+@bp.route('/client-errors', methods=['POST'])
+def report_client_error():
+    """Receive a React Error Boundary crash report from the frontend.
+
+    Body shape (everything optional; we take whatever we can get):
+      {
+        component:       "UserManagementTab",
+        message:          "Cannot read properties of undefined...",
+        stack:            "TypeError: ...\\n    at startEdit (...)",
+        component_stack:  "at UserManagementTab\\n    at ...",
+        url:              "https://.../organiser",
+        user_id:          "coffeecue",
+        user_agent:       "Mozilla/5.0 ...",
+        retry_count:      0
+      }
+
+    Returns 204 fast — the frontend doesn't care, we just want the
+    row written. Failures are swallowed so error reporting never
+    becomes the new error.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        if not coffee_system:
+            return ('', 204)
+        data = request.get_json(silent=True) or {}
+        # Cap each text field at 5KB so a runaway stack can't fill the
+        # row to the moon. Stacks above this are almost always recursive.
+        def trunc(v, n=5000):
+            if v is None:
+                return None
+            s = str(v)
+            return s[:n] if len(s) > n else s
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        cur = db.cursor()
+        cur.execute(
+            """
+            INSERT INTO client_errors (
+                component, message, stack, component_stack,
+                url, user_id, user_agent, retry_count
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                trunc(data.get('component'), 100),
+                trunc(data.get('message')),
+                trunc(data.get('stack')),
+                trunc(data.get('component_stack')),
+                trunc(data.get('url'), 500),
+                trunc(data.get('user_id'), 100),
+                trunc(data.get('user_agent'), 500),
+                int(data.get('retry_count') or 0),
+            ),
+        )
+        db.commit()
+        # Also log so it shows up in the Railway tail. Operator may not
+        # check the DB; tailing logs is more natural for "what just broke".
+        logger.error(
+            "Client error from %s in %s: %s",
+            data.get('user_id') or 'anonymous',
+            data.get('component') or 'unknown',
+            (data.get('message') or '')[:200],
+        )
+        return ('', 204)
+    except Exception as e:
+        # Don't bubble — error reporting must never become an error.
+        logger.warning(f"report_client_error failed: {e}")
+        return ('', 204)
+
+
+@bp.route('/client-errors', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def list_client_errors():
+    """Most recent client crashes, newest first.
+
+    Default 50 rows; ?limit=N up to 500. Used by the Support tab and
+    by Claude when answering "what's been crashing?" in a future session.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        limit = min(int(request.args.get('limit', 50)), 500)
+        cur = db.cursor()
+        cur.execute(
+            """
+            SELECT id, occurred_at, component, message, url,
+                   user_id, retry_count
+              FROM client_errors
+             ORDER BY occurred_at DESC
+             LIMIT %s
+            """,
+            (limit,),
+        )
+        rows = cur.fetchall() or []
+        errors = []
+        for r in rows:
+            # Tolerate both DictCursor and tuple cursor shapes — the
+            # rest of the codebase isn't consistent about it.
+            if isinstance(r, dict):
+                errors.append({
+                    'id': r['id'],
+                    'occurred_at': r['occurred_at'].isoformat() if r['occurred_at'] else None,
+                    'component': r['component'],
+                    'message': r['message'],
+                    'url': r['url'],
+                    'user_id': r['user_id'],
+                    'retry_count': r['retry_count'],
+                })
+            else:
+                errors.append({
+                    'id': r[0],
+                    'occurred_at': r[1].isoformat() if r[1] else None,
+                    'component': r[2],
+                    'message': r[3],
+                    'url': r[4],
+                    'user_id': r[5],
+                    'retry_count': r[6],
+                })
+        return jsonify({'success': True, 'errors': errors})
+    except Exception as e:
+        logger.error(f"list_client_errors error: {e}")
+        return jsonify({'success': False, 'errors': [], 'error': str(e)}), 200

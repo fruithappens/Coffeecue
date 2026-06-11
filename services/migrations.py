@@ -328,6 +328,42 @@ def _m010_customer_questions(cur):
     """)
 
 
+def _m011_client_errors(cur):
+    """Capture React Error Boundary crashes from real-world browser
+    sessions.
+
+    Why: the UserManagement edit-pencil crash made it to production
+    because there was no way for a frontend crash to phone home — the
+    Error Boundary saved the user from a white screen, but neither
+    Steve nor I knew it had fired until he screenshotted the page.
+    With this table, every catch posts here automatically: the next
+    crash surfaces in the Support tab (or a log query) immediately.
+
+    Stack and component_stack are stored verbatim so I can locate the
+    file/line without a screenshot. Captured cap is 5000 chars each
+    so a runaway stack doesn't fill the row to the moon.
+    """
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS client_errors (
+            id              SERIAL PRIMARY KEY,
+            occurred_at     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+            component       VARCHAR(100),
+            message         TEXT,
+            stack           TEXT,
+            component_stack TEXT,
+            url             TEXT,
+            user_id         VARCHAR(100),
+            user_agent      TEXT,
+            retry_count     INTEGER      DEFAULT 0
+        )
+    """)
+    # Most recent first — what we want when answering "what just broke?"
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_client_errors_occurred
+        ON client_errors(occurred_at DESC)
+    """)
+
+
 # Master list. Append new migrations at the bottom — DO NOT renumber
 # existing ones, and DO NOT change `version`. The runner trusts the
 # version number to determine which migrations to skip.
@@ -344,6 +380,7 @@ MIGRATIONS: list[Migration] = [
     Migration(8, 'clear_capabilities_json_from_equipment_notes',
               _m008_clear_capabilities_json_from_equipment_notes),
     Migration(10, 'customer_questions',        _m010_customer_questions),
+    Migration(11, 'client_errors',             _m011_client_errors),
 ]
 
 
