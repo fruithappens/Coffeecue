@@ -57,6 +57,44 @@ tracker, added end-goal-aligned items the prior roadmap didn't see.
   returns a print-styled HTML page (no PDF lib needed; browser's
   Save-as-PDF handles it). "Print / save as PDF" link in Support →
   Dashboard next to Today's Report.
+- **Quick Setup drift preview** — `POST /api/quick-setup/dry-run`
+  returns a side-by-side diff (inventory added/removed/unchanged +
+  capability overwrites + setting changes). The Apply button now
+  opens a preview modal first — no more "did that just wipe my custom
+  stock amounts?" surprise. Falls back to a window.confirm prompt if
+  the dry-run endpoint is missing (older backend). Smoke check added.
+- **Event_name in page title** — `document.title` syncs to the live
+  `event_name` from `/api/display/config` on mount, on
+  `branding_updated` event, and every 60s. Multi-tab operators can
+  finally tell which event window is which.
+- **Walk-in: pre-fill last customer name** — previous customer name
+  shows as a placeholder + a "Same as last walk-in: X" chip. One tap
+  re-fills; focus on the field clears the prefill.
+- **Walk-in: keyboard shortcuts 1–9** — press 1–9 to jump straight
+  to the first 9 available drinks. Visible kbd hints under the picker.
+  Ignored while typing into a text field.
+- **Catalog-first milk lookups** — `getCatalogMilks()` reads from a
+  module-level cache that `useCatalog('milk')` populates after every
+  fetch. `getMilkTypeById`, `getMilkTypeByName`, `getStandardMilks`,
+  `getAlternativeMilks`, `getAvailableMilks`, `getSimilarMilkSuggestions`
+  all now prefer the catalog over the legacy `DEFAULT_MILK_TYPES`
+  constant. The constant stays as the offline / pre-fetch fallback;
+  callers in `orderUtils`, `OrderDataService`, `AvailableMilkOptions`
+  no longer import it directly.
+- **Post-event summary view** — `/api/reports/today/print?view=post`
+  adds peak hour + busiest station to the stat grid, renames the
+  heading "Post-event summary", and inlines a "share with the client"
+  CTA. New button in Support → Dashboard. Same data, repeat-business
+  framing.
+- **Structured logging** — `services/logging_utils.py` event(code,
+  **fields) emits stable SCREAMING_SNAKE_CASE codes in logfmt
+  format (greppable + Datadog/Loki-parseable). Frontend mirror at
+  `services/logging.js` (sendBeacon → `/api/client-events`, fire-
+  and-forget). Migration 13 adds `client_events` table. First call
+  sites wired: Twilio webhook sig fails (`SMS_WEBHOOK_SIG_FAIL`),
+  walk-in submit/shortcuts (`WALKIN_SUBMIT`, `WALKIN_SHORTCUT_USED`),
+  Quick Setup preview/apply (`QUICK_SETUP_PREVIEW_OPEN`,
+  `QUICK_SETUP_APPLIED`, `QUICK_SETUP_PREVIEW_FAIL`).
 
 ---
 
@@ -66,15 +104,7 @@ tracker, added end-goal-aligned items the prior roadmap didn't see.
 ### ✅ Event template save / apply — DONE 2026-06-12
 ### ✅ Send-test-SMS button — DONE 2026-06-12 (in Readiness tab)
 ### ✅ Send-test-order button — DONE 2026-06-12 (in Readiness tab)
-
-### [M] Surface event_inventory drift in Organiser (still open)
-After Quick Setup applies, operators tweak stock by hand. If they
-re-run Quick Setup later (e.g. to add a new milk), the new round
-should call out *what would change* before it changes anything — a
-diff view. Backend: `POST /api/quick-setup/dry-run` returns the same
-payload as `/quick-setup` apply would write, paired with what's
-currently stored. Frontend: confirm modal with side-by-side
-"current → proposed" rows before the real Apply runs.
+### ✅ Quick Setup drift preview — DONE 2026-06-12 (POST /api/quick-setup/dry-run + preview modal)
 
 <details><summary>Earlier description of the now-done items, for context</summary>
 
@@ -146,21 +176,39 @@ Cheap Bluetooth printers (Phomemo M120 etc) won't work — iOS
 Safari has no Web Bluetooth. Network printers are ~$300, do AirPrint
 + raw socket, same family every café POS uses.
 
-### [M] Structured logging with event_codes
-Today: `logger.error("Something broke: %s", e)` — ungreppable.
-Better: every logger.error/warning gets a stable `event_code`
-(SMS_PARSE_FAIL, STOCK_DECREMENT_FAIL, etc.). A future log
-collector (Datadog/Logflare) can alert on rate-of-event_code.
-Backend: introduce `services/logging_utils.py:event(code, **fields)`.
-Frontend: `services/logging.js:event(code, payload)` that POSTs to
-`/api/client-events` (sibling of `/api/client-errors`).
+### ✅ Structured logging with event_codes — DONE 2026-06-12
+`services/logging_utils.event(code, **fields)` emits logfmt-style
+`event=CODE k=v` lines for cheap grep + Datadog/Loki parsing.
+Frontend `services/logging.js` mirrors it via sendBeacon →
+`/api/client-events` (migration 13). First call sites wired:
+`SMS_WEBHOOK_SIG_FAIL`, `WALKIN_SUBMIT`, `WALKIN_SHORTCUT_USED`,
+`QUICK_SETUP_PREVIEW_OPEN`, `QUICK_SETUP_APPLIED`,
+`QUICK_SETUP_PREVIEW_FAIL`. Future call sites add by importing the
+helper — no further infra needed.
 
-### [M] Consolidate startup scripts
-6 shell scripts (`start_expresso.sh`, `_fast.sh`, `_complete.sh`,
-`_with_twilio.sh`, `_enhanced.sh`, `quick_start.sh`) — operators
-have no idea which to run. Replace with ONE `start.sh` with flags:
-`--with-ngrok`, `--with-twilio`, `--fast`, `--background`. Delete
-the rest. Update README.
+### ✅ Per-event post-event summary — DONE 2026-06-12
+Same `/api/reports/today/print` endpoint, `?view=post` adds peak
+hour + busiest station + "share with the client" CTA. New
+"Post-event summary" button in Support → Dashboard. Cmd+P → Save
+as PDF → email to client. Email auto-send deferred until SMTP infra
+is configured (EMAIL_ENABLED is False by default).
+
+### [M] Thermal sticker printer integration (network printer path)
+Brother QL-820NWB or equivalent. Per-station label printing on
+"Start" so baristas track cups by order number + customer name +
+drink details + event branding. Reprint button on the order card.
+Spec:
+- Backend `POST /api/orders/<id>/print-label` accepts station_id,
+  builds a 62mm raster image, POSTs to the printer's IP (per-station
+  configured in Station Settings).
+- Frontend toggle in Station Settings: "Auto-print on Start"
+- Reprint button on Pending and In-Progress order cards.
+- Logo + event_name come from branding_settings.
+- Failure mode: printer offline → toast, don't block the order.
+
+Cheap Bluetooth printers (Phomemo M120 etc) won't work — iOS
+Safari has no Web Bluetooth. Network printers are ~$300, do AirPrint
++ raw socket, same family every café POS uses.
 
 ### [S] Customer-facing PDF receipt / Apple Wallet pass
 When the order's ready, the SMS can include a link to a PDF receipt
@@ -169,11 +217,12 @@ reimbursable record). Apple Wallet pass = "Add to wallet" link,
 QR for pickup. Cheap to build (already have PDFKit-equivalent
 options), high client-perceived polish.
 
-### [S] Per-event post-event summary email
-At event close, generate a one-page PDF: total orders, peak hour,
-top drinks, busiest station, avg wait. Email to the operator
-(and optionally to the client). Sells the next event. Same template
-engine as the receipt.
+### [S] Post-event summary email auto-send (follow-up)
+Requires SMTP config (`EMAIL_ENABLED=true`, `SMTP_*` env vars).
+Backend: render the same `/api/reports/today/print?view=post` HTML
+into an SMTP MIME message and POST to a `/api/reports/post-event/email`
+endpoint with the recipient. Bell rings when post-event is generated,
+operator clicks "Email this to the client" → one round-trip.
 
 ---
 
@@ -196,11 +245,16 @@ Plan:
 
 Big project. Worth doing once Steve has 2 paying clients, not before.
 
-### [S] Delete DEFAULT_MILK_TYPES constant
-Now only used by legacy helpers. Refactor `milkConfig.js` to call
-`useCatalog` internally, expose a sync `getCatalogMilks()` from the
-module-level cache, delete the constant. Touch: `milkConfig.js`,
-`orderUtils.js`, `AvailableMilkOptions.js`, `OrderDataService.js`.
+### ✅ Catalog-first milk lookups (DEFAULT_MILK_TYPES demotion) — DONE 2026-06-12
+`milkConfig.js` now exposes a sync `getCatalogMilks()` reading from a
+module-level cache populated by `useCatalog('milk')`. All helpers
+(`getMilkTypeById`, `getMilkTypeByName`, `getStandardMilks`,
+`getAlternativeMilks`, `getAvailableMilks`, `getSimilarMilkSuggestions`)
+prefer catalog. Hot call sites (`orderUtils`, `OrderDataService`,
+`AvailableMilkOptions`) no longer import `DEFAULT_MILK_TYPES` directly.
+The constant remains as the offline / pre-fetch fallback; mark
+`@deprecated` and remove in a follow-up once we're confident the
+catalog is universally reachable.
 
 ### [S] Move components into subdirs
 80 top-level components in `Barista Front End/src/components/`.
@@ -209,31 +263,18 @@ Already partially organised (`barista-tabs/`, `organiser-tabs/`,
 `barista/`, `organiser/`, `display/`, `support/`, `shared/`, `auth/`.
 
 ### [S] Smoke-test write paths for orders + users
-We've now got a smoke for catalog POST. Add: `POST /api/orders`
-(walk-in create), `POST /api/users/` (account create). Both are
-high-traffic write paths that have had recent regressions.
+We've now got smokes for catalog POST, walk-in POST, and quick-setup
+dry-run. Still needed: `POST /api/users/` (account create) — recent
+regressions in this path that the catalog/order smokes wouldn't catch.
 
 ---
 
 ## P3 — UX polish
 
-### [S] "Send test order" button for Quick Setup demo
-After Quick Setup applies, a "Place a test walk-in order" button
-that fires a sample order through the system end-to-end. Demos
-in one click.
-
-### [S] Show event_name in the page title
-Currently the browser tab just says "Coffee Cue". `${event_name} —
-Coffee Cue` makes it obvious which event window is which when an
-operator has three tabs open.
-
-### [S] Walk-in dialog: pre-fill last customer name when re-opening
-Often the next walk-in is from the same group. Pre-fill the field
-with the previous order's customer name, dimmed. Tap once to clear.
-
-### [S] Drink picker: keyboard shortcut numbers
-1–9 along the bottom of the walk-in dialog map to the first 9 drinks.
-Speeds up high-volume events significantly.
+### ✅ "Send test order" button — DONE 2026-06-12 (in Readiness tab)
+### ✅ event_name in page title — DONE 2026-06-12
+### ✅ Walk-in: pre-fill last customer name — DONE 2026-06-12
+### ✅ Drink picker: keyboard shortcut numbers — DONE 2026-06-12
 
 ---
 
