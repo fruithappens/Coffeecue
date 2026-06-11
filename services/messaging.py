@@ -58,23 +58,52 @@ class MessagingService:
     
     def send_message(self, to, body):
         """
-        Send an SMS message
-        
+        Send an SMS message.
+
+        Outbound provider selection:
+        - If SMS_USE_PROVIDER_FACTORY=true (opt-in for now), delegate
+          to services.sms.get_outbound_provider() which respects
+          SMS_PROVIDER=twilio|clicksend|cellcast. This is how Steve
+          swaps to ClickSend/Cellcast — set the env vars, flip
+          SMS_PROVIDER, redeploy. No code change.
+        - Otherwise the legacy Twilio code path runs (current default,
+          lowest risk). Once we've shaken down the factory in staging,
+          this opt-in flips to default-on.
+
         Args:
             to: Recipient phone number
             body: Message body
-            
+
         Returns:
             Message SID if successful, None otherwise
         """
+        # Opt-in to the provider factory. Default off — preserves the
+        # exact behaviour every production deploy has today.
+        if os.getenv('SMS_USE_PROVIDER_FACTORY', 'false').lower() == 'true':
+            try:
+                from services.sms import get_outbound_provider
+                provider = get_outbound_provider()
+                result = provider.send(to, body)
+                if result.ok:
+                    logger.info("Sent SMS to %s via %s", to, result.provider)
+                    return result.message_id
+                logger.error("SMS via %s failed: %s", result.provider, result.error)
+                return None
+            except Exception as e:
+                logger.error(
+                    "SMS provider factory crashed: %s — falling back to legacy Twilio path",
+                    e,
+                )
+                # Fall through to legacy below.
+
         if self.testing_mode:
             logger.info(f"TESTING MODE - Would send to {to}: {body}")
             return "testing_mode_message_sid"
-        
+
         if not self.client:
             logger.warning("No Twilio client available, skipping SMS notification")
             return None
-        
+
         try:
             message = self.client.messages.create(
                 body=body,

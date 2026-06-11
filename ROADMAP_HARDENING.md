@@ -95,6 +95,28 @@ tracker, added end-goal-aligned items the prior roadmap didn't see.
   walk-in submit/shortcuts (`WALKIN_SUBMIT`, `WALKIN_SHORTCUT_USED`),
   Quick Setup preview/apply (`QUICK_SETUP_PREVIEW_OPEN`,
   `QUICK_SETUP_APPLIED`, `QUICK_SETUP_PREVIEW_FAIL`).
+- **Load test harness** — `tests/load/run_load_test.py` simulates
+  event-style burst traffic (reads + walk-in writes + opt-in inbound
+  SMS) with weighted scenarios, per-iteration think-time stagger,
+  and p50/p95/p99/max latency per endpoint. Pure stdlib + requests,
+  no new deps. Synthetic walk-ins marked `notes='LOADTEST'` so cleanup
+  is one DELETE.
+- **Australian SMS provider research** — `SMS_PROVIDERS_AU.md`
+  compares 7 AU SMS providers vs Twilio: pricing, feature parity,
+  migration effort, recommendation. ClickSend best ergonomics
+  (~14% saving + free inbound + AUD billing); Cellcast cheapest
+  (~60% saving, less mature Python SDK).
+- **SMS provider abstraction** — `services/sms/` package with a
+  common `SMSProvider` interface, Twilio + ClickSend + Cellcast
+  implementations, per-provider webhook URLs so all three can run
+  simultaneously. `SMS_PROVIDER` env var picks outbound primary;
+  inbound is routed by URL (`/api/sms` Twilio, `/api/sms/clicksend`,
+  `/api/sms/cellcast`). Opt-in via `SMS_USE_PROVIDER_FACTORY=true`
+  for now — legacy Twilio path stays default until shaken down in
+  staging. Disaster-recovery story: flip env, redeploy, outbound
+  swaps provider with no code change. Per-provider health checks
+  in `/api/health/full` + `.env.example` documented + smokes added
+  for the new inbound routes. See `services/sms/README.md`.
 
 ---
 

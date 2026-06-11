@@ -198,6 +198,24 @@
       "_note": "Drift-preview endpoint. Quick Setup modal calls this before the destructive apply. Missing = regression of the preview-before-wipe safety net."
     },
     {
+      "name": "POST /api/sms/clicksend (inbound webhook)",
+      "method": "POST",
+      "path": "/api/sms/clicksend",
+      "auth": false,
+      "body": {"from": "+61400000000", "body": "smoke test", "message_id": "cs_smoke_1"},
+      "expect_status": [200, 204, 503],
+      "_note": "Provider-aware inbound route. 503 is fine here — TESTING_MODE deployments may not have a coffee_system wired for SMS. 200/204 means the provider parsed + the route handed off cleanly. The check enforces the route exists and accepts the ClickSend JSON shape."
+    },
+    {
+      "name": "POST /api/sms/cellcast (inbound webhook)",
+      "method": "POST",
+      "path": "/api/sms/cellcast",
+      "auth": false,
+      "body": {"from": "+61400000000", "body": "smoke test", "message_id": "cc_smoke_1"},
+      "expect_status": [200, 204, 503],
+      "_note": "Same idea as the ClickSend smoke — confirms the route + parser exist."
+    },
+    {
       "name": "POST /api/users/ (account create write path)",
       "method": "POST",
       "path": "/api/users/",

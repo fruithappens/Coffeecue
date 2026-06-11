@@ -306,6 +306,128 @@ def sms_webhook():
         resp.message("Sorry, our system is experiencing issues. Please try again shortly.")
         return str(resp)
 
+def _process_inbound_via_provider(provider_name: str):
+    """Shared handler for non-Twilio inbound webhooks (ClickSend, Cellcast,
+    future providers).
+
+    Twilio is special: it replies in-band via TwiML on the webhook response.
+    Every other provider expects a 200/204 and replies via a separate
+    outbound API call. This helper:
+      1. Looks up the provider, verifies the inbound, parses the payload.
+      2. Runs the message through the same coffee_system.handle_sms() flow
+         the legacy Twilio route uses.
+      3. Sends the response back via the SAME provider's send() — that way
+         a customer who texted the ClickSend number gets a reply from the
+         ClickSend number, not from the Twilio number.
+
+    Returns Flask response tuples.
+    """
+    from services.sms import get_provider
+    provider = get_provider(provider_name)
+    if not provider:
+        logger.error(f"Unknown SMS provider in webhook: {provider_name!r}")
+        return ('', 404)
+
+    if not provider.verify_inbound(request):
+        try:
+            from services.logging_utils import event as _event
+            _event('SMS_WEBHOOK_SIG_FAIL', provider=provider_name,
+                   remote_addr=request.remote_addr)
+        except Exception:
+            pass
+        return ('Unauthorized', 403)
+
+    inbound = provider.parse_inbound(request)
+    if inbound is None:
+        logger.warning(f"{provider_name} inbound payload couldn't be parsed")
+        # 200 anyway — most providers DON'T retry on 4xx, and a malformed
+        # message isn't actionable. We've already logged it.
+        return ('', 200)
+
+    coffee_system = current_app.config.get('coffee_system')
+    messaging_service = current_app.config.get('messaging_service')
+    if not coffee_system or not messaging_service:
+        logger.error(f"{provider_name} inbound: coffee_system/messaging_service unavailable")
+        return ('', 503)
+
+    # Persist the inbound — same shape the Twilio path writes.
+    try:
+        cur = coffee_system.db.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS sms_messages (
+                id SERIAL PRIMARY KEY,
+                phone_number VARCHAR(20) NOT NULL,
+                message_body TEXT NOT NULL,
+                sender_name VARCHAR(100),
+                station_id INTEGER,
+                received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                processed BOOLEAN DEFAULT FALSE,
+                response_sent TEXT
+            )
+        """)
+        cur.execute("""
+            INSERT INTO sms_messages (phone_number, message_body, sender_name)
+            VALUES (%s, %s, %s)
+        """, (inbound.from_number, inbound.body, None))
+        coffee_system.db.commit()
+    except Exception as e:
+        logger.error(f"{provider_name} inbound DB save failed: {e}")
+        try:
+            coffee_system.db.rollback()
+        except Exception:
+            pass
+
+    # Run NLP / conversation flow.
+    metadata = {'sms_provider': provider_name}
+    response_text = ''
+    try:
+        response_text = coffee_system.handle_sms(
+            inbound.from_number, inbound.body, messaging_service, metadata,
+        ) or ''
+    except Exception as e:
+        logger.exception(f"{provider_name} handle_sms failed: {e}")
+        response_text = (
+            "Sorry, our system is having a moment. Please try again."
+        )
+
+    # Reply via the same provider that received the message (so the
+    # customer's reply chain stays on one number). Out-of-band: this
+    # is a separate outbound API call, not an in-band webhook response.
+    if response_text:
+        result = provider.send(inbound.from_number, response_text)
+        if not result.ok:
+            logger.error(
+                f"{provider_name} outbound reply to {inbound.from_number} failed: %s",
+                result.error,
+            )
+
+    # Acknowledge the webhook with the provider's expected shape.
+    body, status, headers = provider.reply_response('')
+    return (body, status, headers)
+
+
+@bp.route('/sms/clicksend', methods=['POST'])
+def sms_webhook_clicksend():
+    """Inbound from ClickSend. Auth: shared-secret header.
+
+    Configure ClickSend's inbound webhook to POST here with the custom
+    header X-Coffee-Cue-Webhook-Secret matching CLICKSEND_WEBHOOK_SECRET.
+    """
+    logger.info("ClickSend inbound webhook called")
+    return _process_inbound_via_provider('clicksend')
+
+
+@bp.route('/sms/cellcast', methods=['POST'])
+def sms_webhook_cellcast():
+    """Inbound from Cellcast. Auth: shared-secret header.
+
+    Configure Cellcast's inbound webhook to POST here with the custom
+    header X-Coffee-Cue-Webhook-Secret matching CELLCAST_WEBHOOK_SECRET.
+    """
+    logger.info("Cellcast inbound webhook called")
+    return _process_inbound_via_provider('cellcast')
+
+
 @bp.route('/sms/test')
 def sms_test():
     """Test SMS functionality"""
