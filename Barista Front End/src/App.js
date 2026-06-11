@@ -355,6 +355,42 @@ function App() {
     };
   }, [handleFallbackEnabled, handleFallbackDisabled, handleOnline, handleOffline]);
 
+  // Page title sync. Operators commonly run 2-3 events in parallel
+  // browser windows; the default "React App" / static "Coffee Cue"
+  // title made it impossible to tell which window is which. Fetch
+  // the live event_name from the public /display/config endpoint
+  // (no auth required) and set the tab title accordingly. Re-fetched
+  // when branding changes via the existing branding_updated event.
+  useEffect(() => {
+    let cancelled = false;
+    const refreshTitle = async () => {
+      try {
+        const resp = await fetch('/api/display/config', {
+          headers: { 'Accept': 'application/json' },
+          signal: AbortSignal.timeout(4000),
+        });
+        if (!resp.ok || cancelled) return;
+        const data = await resp.json();
+        const evt = (data?.config?.event_name || '').trim();
+        const sys = (data?.config?.system_name || 'Coffee Cue').trim();
+        document.title = evt && evt !== sys ? `${evt} — ${sys}` : sys;
+      } catch (_) {
+        // Endpoint unreachable / aborted — leave the title as-is.
+      }
+    };
+    refreshTitle();
+    const onBrandingUpdated = () => refreshTitle();
+    window.addEventListener('branding_updated', onBrandingUpdated);
+    // Poll periodically. Cheap; covers the case where a different
+    // tab edits branding and our window doesn't get the event.
+    const id = setInterval(refreshTitle, 60_000);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('branding_updated', onBrandingUpdated);
+      clearInterval(id);
+    };
+  }, []);
+
   // Test API connection specifically for authentication
   const testApiForAuth = useCallback(async () => {
     if (apiStatus.fallbackEnabled) {

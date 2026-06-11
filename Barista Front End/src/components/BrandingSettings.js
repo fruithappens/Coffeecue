@@ -162,6 +162,11 @@ const BrandingSettings = () => {
       } else {
         setSuccess('Saved locally — server save did not confirm. Settings may not sync across devices.');
       }
+      // Nudge App.js to refresh the page title with the new event_name
+      // without waiting for its 60s poll.
+      try {
+        window.dispatchEvent(new CustomEvent('branding_updated', { detail: settings }));
+      } catch (_) { /* CustomEvent unavailable in very old browsers */ }
       
       // Apply theme colors to document
       if (settings.customBranding) {
