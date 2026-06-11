@@ -6938,6 +6938,236 @@ def apply_quick_setup():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+def _compute_proposed_inventory(preset):
+    """Compute the inventory_items rows that _apply_quick_setup WOULD
+    insert, given the preset. Mirrors the INSERT logic above; if this
+    drifts from _apply_quick_setup, the dry-run lies. Keep them in sync.
+
+    Returns list of (category, name) tuples, lowercased for comparison.
+    """
+    rows = []
+    for milk in preset.get('milks', []) or []:
+        rows.append(('milk', str(milk).lower().strip()))
+    rows.append(('coffee', 'house blend beans'))
+    rows.append(('coffee', 'decaf beans'))
+    for size in preset.get('sizes', []) or []:
+        rows.append(('cups', str(size).lower().strip()))
+    for s in preset.get('sweeteners', []) or []:
+        rows.append(('sugar', str(s).lower().strip()))
+    drinks_cfg = preset.get('drinks', {}) or {}
+    for key, drink_rows in EXTRA_DRINKS.items():
+        if drinks_cfg.get(key):
+            for name, category in drink_rows:
+                rows.append((category, name.lower().strip()))
+    teas_cfg = preset.get('teas', {}) or {}
+    for key, name in TEA_FLAVORS.items():
+        if teas_cfg.get(key):
+            rows.append(('drinks', name.lower().strip()))
+    custom_raw = (preset.get('custom_teas') or '').strip()
+    if custom_raw:
+        for chunk in custom_raw.replace('\n', ',').split(','):
+            t = chunk.strip()
+            if not t:
+                continue
+            if 'tea' not in t.lower():
+                t = f"{t} Tea"
+            rows.append(('drinks', t.lower()))
+    return rows
+
+
+@bp.route('/quick-setup/dry-run', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def dry_run_quick_setup():
+    """Return what an Apply would change, without changing anything.
+
+    The biggest worry operators have re-running Quick Setup is "did
+    that just wipe my custom stock amounts?" — because the real apply
+    DELETEs inventory_items before inserting. This endpoint shows them
+    the diff so they can confirm before pulling the trigger.
+
+    Response shape:
+      {
+        success: true,
+        inventory: {
+          added:   [{category, name}],   # rows the apply will insert
+          removed: [{category, name, amount, unit}],  # current rows that will disappear
+          unchanged: [{category, name}], # both lists have it
+        },
+        capabilities: {
+          will_overwrite_all: bool,
+          stations: [{station_id, current, proposed}],
+        },
+        settings: {
+          vip_code:        {current, proposed, changed},
+          unlimited_stock: {current, proposed, changed},
+          activate_all_stations: {will_activate: int},
+          always_open_schedule:  {breaks_to_delete: int},
+        },
+      }
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        body = request.get_json() or {}
+        preset = body.get('preset') if isinstance(body.get('preset'), dict) else body or DEFAULT_QUICK_PRESET
+        merged = {**DEFAULT_QUICK_PRESET, **(preset or {})}
+        if isinstance(preset.get('drinks'), dict):
+            merged['drinks'] = {**DEFAULT_QUICK_PRESET['drinks'], **preset['drinks']}
+        if isinstance(preset.get('teas'), dict):
+            merged['teas'] = {**DEFAULT_QUICK_PRESET['teas'], **preset['teas']}
+
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        cur = db.cursor()
+
+        proposed_inv = _compute_proposed_inventory(merged)
+        proposed_set = {(c, n) for c, n in proposed_inv}
+
+        current_rows = []
+        try:
+            cur.execute("""
+                SELECT category, COALESCE(name, ''), amount, COALESCE(unit, '')
+                  FROM inventory_items
+            """)
+            for r in cur.fetchall() or []:
+                if isinstance(r, dict):
+                    current_rows.append({
+                        'category': r['category'],
+                        'name': r.get('name') or '',
+                        'amount': r.get('amount'),
+                        'unit': r.get('unit') or '',
+                    })
+                else:
+                    current_rows.append({
+                        'category': r[0],
+                        'name': r[1] or '',
+                        'amount': r[2],
+                        'unit': r[3] or '',
+                    })
+        except Exception as e:
+            logger.warning(f"dry-run: could not read inventory_items: {e}")
+
+        current_set = {((row['category'] or '').lower(), (row['name'] or '').lower().strip())
+                       for row in current_rows}
+
+        added = [
+            {'category': c, 'name': n}
+            for (c, n) in proposed_inv
+            if (c, n) not in current_set
+        ]
+        removed = [
+            row for row in current_rows
+            if ((row['category'] or '').lower(), (row['name'] or '').lower().strip()) not in proposed_set
+        ]
+        unchanged = [
+            {'category': c, 'name': n}
+            for (c, n) in proposed_inv
+            if (c, n) in current_set
+        ]
+
+        capabilities_diff = {
+            'will_overwrite_all': bool(merged.get('all_stations_same_capabilities')),
+            'stations': [],
+        }
+        if merged.get('all_stations_same_capabilities'):
+            proposed_caps = {
+                'milk_types': merged.get('milks', []),
+                'coffee_types': ESPRESSO_DRINKS,
+                'sizes': merged.get('sizes', []),
+                'alt_milk': True,
+            }
+            try:
+                cur.execute("SELECT station_id, capabilities FROM station_stats ORDER BY station_id")
+                for r in cur.fetchall() or []:
+                    if isinstance(r, dict):
+                        sid = r['station_id']
+                        cur_caps = r.get('capabilities') or {}
+                    else:
+                        sid = r[0]
+                        cur_caps = r[1] or {}
+                    capabilities_diff['stations'].append({
+                        'station_id': sid,
+                        'current': cur_caps,
+                        'proposed': proposed_caps,
+                    })
+            except Exception as e:
+                logger.warning(f"dry-run: capabilities read failed: {e}")
+
+        settings_diff = {}
+
+        current_vip = ''
+        try:
+            cur.execute("SELECT value FROM settings WHERE key = 'vip_code'")
+            row = cur.fetchone()
+            if row:
+                current_vip = (row['value'] if isinstance(row, dict) else row[0]) or ''
+        except Exception:
+            pass
+        proposed_vip = (merged.get('vip_code') or '').strip()
+        settings_diff['vip_code'] = {
+            'current': current_vip,
+            'proposed': proposed_vip if proposed_vip else current_vip,
+            'changed': bool(proposed_vip) and proposed_vip != current_vip,
+        }
+
+        current_unlimited = bool(_kv_get(db, 'unlimited_stock_mode', default={}).get('enabled', False))
+        proposed_unlimited = bool(merged.get('unlimited_stock'))
+        settings_diff['unlimited_stock'] = {
+            'current': current_unlimited,
+            'proposed': proposed_unlimited,
+            'changed': current_unlimited != proposed_unlimited,
+        }
+
+        will_activate = 0
+        try:
+            cur.execute("SELECT COUNT(*) FROM station_stats WHERE status != 'active'")
+            row = cur.fetchone()
+            will_activate = int((row['count'] if isinstance(row, dict) else row[0]) or 0)
+        except Exception:
+            pass
+        settings_diff['activate_all_stations'] = {
+            'will_activate': will_activate if merged.get('activate_all_stations') else 0,
+        }
+
+        breaks_to_delete = 0
+        if merged.get('always_open_schedule'):
+            try:
+                cur.execute("SELECT COUNT(*) FROM event_breaks")
+                row = cur.fetchone()
+                breaks_to_delete = int((row['count'] if isinstance(row, dict) else row[0]) or 0)
+            except Exception:
+                pass
+        settings_diff['always_open_schedule'] = {
+            'breaks_to_delete': breaks_to_delete,
+        }
+
+        return jsonify({
+            'success': True,
+            'inventory': {
+                'added': added,
+                'removed': [
+                    {'category': r['category'], 'name': r['name'],
+                     'amount': r['amount'], 'unit': r['unit']}
+                    for r in removed
+                ],
+                'unchanged': unchanged,
+                'destructive': len(removed) > 0,
+            },
+            'capabilities': capabilities_diff,
+            'settings': settings_diff,
+        })
+    except Exception as e:
+        logger.exception(f"dry_run_quick_setup failed: {e}")
+        try:
+            current_app.config.get('coffee_system').db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 # ---------------------------------------------------------------------------
 # Source-of-truth event inventory
 # ---------------------------------------------------------------------------
@@ -7089,6 +7319,32 @@ def get_today_report():
         """)
         top_drinks = [{'drink': r[0], 'orders': int(r[1])} for r in cur.fetchall()]
 
+        # Peak hour — which hour of the day had the most orders. The
+        # post-event summary leans on this ("you handled 47 orders in
+        # the 10am hour"), and it's a one-liner aggregate.
+        cur.execute("""
+            SELECT EXTRACT(HOUR FROM created_at)::int AS hour, COUNT(*) AS n
+            FROM orders
+            WHERE created_at::date = CURRENT_DATE
+            GROUP BY hour
+            ORDER BY n DESC
+            LIMIT 1
+        """)
+        peak_row = cur.fetchone()
+        peak_hour = None
+        if peak_row:
+            peak_hour = {
+                'hour': int(peak_row[0]) if peak_row[0] is not None else None,
+                'orders': int(peak_row[1]),
+            }
+
+        # Busiest station — most orders today. Convenience field so the
+        # printable doesn't have to sort per_station to find it.
+        busiest_station_id = None
+        if per_station:
+            busiest = max(per_station, key=lambda ps: ps['orders'])
+            busiest_station_id = busiest['station_id']
+
         # Pricing currency (for nicer formatting client-side)
         currency_symbol = '$'
         try:
@@ -7107,6 +7363,8 @@ def get_today_report():
             'currency_symbol': currency_symbol,
             'per_station': per_station,
             'top_drinks': top_drinks,
+            'peak_hour': peak_hour,
+            'busiest_station_id': busiest_station_id,
         })
     except Exception as e:
         logger.error(f"get_today_report error: {e}")
@@ -7191,6 +7449,34 @@ def print_today_report():
         avg_wait = data.get('avg_wait_min')
         avg_wait_display = f"{avg_wait} min" if avg_wait is not None else '—'
 
+        # Post-event summary additions — peak hour + busiest station,
+        # formatted for the headline row.
+        peak = data.get('peak_hour') or {}
+        if peak.get('hour') is not None:
+            h = peak['hour']
+            am_pm = 'am' if h < 12 else 'pm'
+            h12 = h if 1 <= h <= 12 else (12 if h == 0 else h - 12)
+            peak_display = f"{h12}{am_pm} ({peak.get('orders', 0)})"
+        else:
+            peak_display = '—'
+
+        busiest_id = data.get('busiest_station_id')
+        busiest_display = f"Station {busiest_id}" if busiest_id else '—'
+
+        # The post-event framing changes the heading and adds a CTA
+        # block. Toggled via ?view=post — same data, different copy.
+        from flask import request as _flask_request
+        is_post_event = (_flask_request.args.get('view') == 'post')
+        heading_kind = 'Post-event summary' if is_post_event else 'Event summary'
+        post_event_cta = (
+            '<div style="margin-top:32px;background:#f0f7ff;border:1px solid #c7dffd;'
+            'border-radius:8px;padding:16px 20px;">'
+            '<strong>Share with the client.</strong> Email this page as a PDF '
+            '(Cmd+P → Save as PDF) so they see the numbers from the event you '
+            'just ran for them. Repeat clients are the cheapest ones to win.'
+            '</div>'
+        ) if is_post_event else ''
+
         logo_html = (f'<img src="{logo}" alt="" style="max-height:60px;margin-bottom:10px"/>'
                      if logo else '')
 
@@ -7199,13 +7485,13 @@ def print_today_report():
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<title>{event_name} — Event summary {data.get('date', '')}</title>
+<title>{event_name} — {heading_kind} {data.get('date', '')}</title>
 <style>
   body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
           max-width: 720px; margin: 40px auto; padding: 0 24px; color: #222; }}
   h1 {{ margin: 0 0 4px 0; }}
   .subtitle {{ color: #666; margin-bottom: 24px; }}
-  .stat-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 24px 0; }}
+  .stat-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin: 24px 0; }}
   .stat {{ background: #f7f5f0; border-radius: 8px; padding: 16px; }}
   .stat-label {{ font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }}
   .stat-value {{ font-size: 28px; font-weight: bold; margin-top: 4px; }}
@@ -7224,7 +7510,7 @@ def print_today_report():
   </div>
   {logo_html}
   <h1>{event_name}</h1>
-  <p class="subtitle">Event summary — {data.get('date', '')}</p>
+  <p class="subtitle">{heading_kind} — {data.get('date', '')}</p>
 
   <div class="stat-grid">
     <div class="stat">
@@ -7239,7 +7525,16 @@ def print_today_report():
       <div class="stat-label">Revenue</div>
       <div class="stat-value">{symbol}{data.get('revenue_total', 0):.2f}</div>
     </div>
+    <div class="stat">
+      <div class="stat-label">Peak hour</div>
+      <div class="stat-value" style="font-size:22px">{peak_display}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Busiest station</div>
+      <div class="stat-value" style="font-size:22px">{busiest_display}</div>
+    </div>
   </div>
+  {post_event_cta}
 
   <h2>By status</h2>
   <table><thead><tr><th>Status</th><th>Orders</th></tr></thead>
@@ -8111,6 +8406,124 @@ def list_client_errors():
     except Exception as e:
         logger.error(f"list_client_errors error: {e}")
         return jsonify({'success': False, 'errors': [], 'error': str(e)}), 200
+
+
+# ----------------------------------------------------------------------
+# Frontend structured events — sibling of /client-errors. Used for
+# non-crash signals (feature usage, recoverable failures, slow timings).
+# See services/logging_utils.py for the backend-side equivalent.
+# ----------------------------------------------------------------------
+@bp.route('/client-events', methods=['POST'])
+def report_client_event():
+    """Sink for sendBeacon()/fetch() POSTs from services/logging.js.
+
+    Wide-open auth (no JWT decorator) so unauthenticated screens (login
+    page, landing page) can report events too — same pattern as
+    /client-errors. Body shape:
+      {code: 'SOME_CODE', payload: {...}, url: '...', user_id: '...'}
+    Returns 204 fast — fire-and-forget for the caller.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        if not coffee_system:
+            return ('', 204)
+        data = request.get_json(silent=True) or {}
+        code = (data.get('code') or '').strip()[:100]
+        if not code:
+            return ('', 204)
+        import json as _json
+        payload = data.get('payload') or {}
+        if not isinstance(payload, dict):
+            payload = {'value': payload}
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        cur = db.cursor()
+        cur.execute(
+            """
+            INSERT INTO client_events (code, payload, url, user_id, user_agent)
+            VALUES (%s, %s::jsonb, %s, %s, %s)
+            """,
+            (
+                code,
+                _json.dumps(payload),
+                (data.get('url') or '')[:500],
+                (data.get('user_id') or '')[:100],
+                (data.get('user_agent') or '')[:500],
+            ),
+        )
+        db.commit()
+        return ('', 204)
+    except Exception as e:
+        # Logging must never become an error itself.
+        logger.warning(f"report_client_event failed: {e}")
+        return ('', 204)
+
+
+@bp.route('/client-events', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def list_client_events():
+    """Recent client events, newest first. Optional ?code=X filter
+    for hunting one event type."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        limit = min(int(request.args.get('limit', 50)), 500)
+        code_filter = (request.args.get('code') or '').strip()[:100]
+        cur = db.cursor()
+        if code_filter:
+            cur.execute(
+                """
+                SELECT id, occurred_at, code, payload, url, user_id
+                  FROM client_events
+                 WHERE code = %s
+                 ORDER BY occurred_at DESC
+                 LIMIT %s
+                """,
+                (code_filter, limit),
+            )
+        else:
+            cur.execute(
+                """
+                SELECT id, occurred_at, code, payload, url, user_id
+                  FROM client_events
+                 ORDER BY occurred_at DESC
+                 LIMIT %s
+                """,
+                (limit,),
+            )
+        rows = cur.fetchall() or []
+        events = []
+        for r in rows:
+            if isinstance(r, dict):
+                events.append({
+                    'id': r['id'],
+                    'occurred_at': r['occurred_at'].isoformat() if r['occurred_at'] else None,
+                    'code': r['code'],
+                    'payload': r['payload'],
+                    'url': r['url'],
+                    'user_id': r['user_id'],
+                })
+            else:
+                events.append({
+                    'id': r[0],
+                    'occurred_at': r[1].isoformat() if r[1] else None,
+                    'code': r[2],
+                    'payload': r[3],
+                    'url': r[4],
+                    'user_id': r[5],
+                })
+        return jsonify({'success': True, 'events': events})
+    except Exception as e:
+        logger.error(f"list_client_events error: {e}")
+        return jsonify({'success': False, 'events': [], 'error': str(e)}), 200
 
 
 # ----------------------------------------------------------------------

@@ -181,6 +181,23 @@
       "_note": "Saved Quick Setup presets. Empty list is fine — we just need the shape. Catches regressions in the template feature that would otherwise only show up as a broken Templates dropdown in Quick Setup."
     },
     {
+      "name": "GET /api/client-events (structured event log)",
+      "method": "GET",
+      "path": "/api/client-events?limit=5",
+      "expect_status": 200,
+      "expect_keys": ["success", "events"],
+      "_note": "Sibling of /client-errors — non-crash signals (feature usage, recoverable failures). Backend sink for services/logging.js. Empty events list is fine; we just need the shape."
+    },
+    {
+      "name": "POST /api/quick-setup/dry-run",
+      "method": "POST",
+      "path": "/api/quick-setup/dry-run",
+      "body": {"preset": {"milks": ["full cream"], "sizes": ["medium"]}},
+      "expect_status": 200,
+      "expect_keys": ["success", "inventory", "capabilities", "settings"],
+      "_note": "Drift-preview endpoint. Quick Setup modal calls this before the destructive apply. Missing = regression of the preview-before-wipe safety net."
+    },
+    {
       "name": "POST /api/orders (walk-in write path)",
       "method": "POST",
       "path": "/api/orders",
