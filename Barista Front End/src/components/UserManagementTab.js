@@ -307,10 +307,63 @@ const UserManagementTab = () => {
   };
 
   const startEdit = (user) => {
+    // Backfill any shape-defining fields the API doesn't return.
+    //
+    // /api/users returns identity only — id, username, email, role,
+    // is_active. The form deep-reads userForm.skills[key],
+    // userForm.availability.monday.available, etc. Without a default
+    // shape, opening Edit on an API-created user (anyone not created
+    // through this UI) crashes the whole Organiser Interface with
+    // "Cannot read properties of undefined" — Steve hit this on every
+    // user he tried to edit.
+    //
+    // Strategy: start from a fresh default shape, then overlay the
+    // user's actual fields. The user's values win; missing fields
+    // get safe defaults.
+    const defaults = {
+      username: '',
+      email: '',
+      fullName: '',
+      role: 'barista',
+      phone: '',
+      experience: 'beginner',
+      skills: {
+        espresso: false,
+        latte_art: false,
+        customer_service: false,
+        inventory_management: false,
+        speed: false,
+        training_others: false,
+      },
+      availability: {
+        monday:    { available: false, start: '08:00', end: '17:00' },
+        tuesday:   { available: false, start: '08:00', end: '17:00' },
+        wednesday: { available: false, start: '08:00', end: '17:00' },
+        thursday:  { available: false, start: '08:00', end: '17:00' },
+        friday:    { available: false, start: '08:00', end: '17:00' },
+        saturday:  { available: false, start: '08:00', end: '17:00' },
+        sunday:    { available: false, start: '08:00', end: '17:00' },
+      },
+      preferredStation: '',
+      certifications: [],
+      notes: '',
+      active: true,
+    };
     setUserForm({
+      ...defaults,
       ...user,
+      // Nested objects need a deeper merge — `...user` shallow-copies
+      // and would replace `skills`/`availability` with whatever (or
+      // nothing) the API returned, re-introducing the bug for any
+      // user with a partial shape.
+      skills: { ...defaults.skills, ...(user.skills || {}) },
+      availability: { ...defaults.availability, ...(user.availability || {}) },
+      // Also normalise the "active" field — the API uses is_active
+      // but the form reads `active`. Without this, every API-created
+      // user toggles to "inactive" when you save.
+      active: user.active !== undefined ? user.active : (user.is_active !== false),
       password: '',
-      confirmPassword: ''
+      confirmPassword: '',
     });
     setEditingUser(user.id);
     setShowAddUser(false);
