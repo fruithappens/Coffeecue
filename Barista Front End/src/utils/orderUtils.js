@@ -1,7 +1,7 @@
 // utils/orderUtils.js
 // Common utility functions for working with orders
 
-import { DEFAULT_MILK_TYPES, getMilkTypeById, getMilkTypeByName } from './milkConfig';
+import { getCatalogMilks, getMilkTypeById, getMilkTypeByName } from './milkConfig';
 
 /**
  * Calculate time ratio color for wait time indicators
@@ -194,7 +194,7 @@ export const getMilkColor = (milkType, settings) => {
   // If still not found, try to determine milk type from our config
   if (!milkTypeObj) {
     // Find milk type by partial name match
-    milkTypeObj = DEFAULT_MILK_TYPES.find(milk => 
+    milkTypeObj = getCatalogMilks().find(milk =>
       milk.name.toLowerCase().includes(milkType.toLowerCase()) ||
       milkType.toLowerCase().includes(milk.name.toLowerCase())
     );

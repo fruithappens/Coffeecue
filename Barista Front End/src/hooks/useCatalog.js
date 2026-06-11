@@ -20,6 +20,7 @@
 // flow through every UI without redeploys.
 import { useState, useEffect, useCallback, useRef } from 'react';
 import ApiService from '../services/ApiService';
+import { setCachedCatalogMilks } from '../utils/milkConfig';
 
 // Module-level cache so multiple components calling useCatalog('milk')
 // share one network round-trip. Keyed by category + include_inactive
@@ -74,6 +75,12 @@ export default function useCatalog(category, options = {}) {
 
       const list = (resp && resp.items) || [];
       _cache.set(key, list);
+      // Mirror milk catalog into the sync cache used by non-React
+      // callers (utils, services). Other categories don't have a
+      // legacy module-level cache so nothing else to push.
+      if (category === 'milk' && list.length > 0) {
+        try { setCachedCatalogMilks(list); } catch (_) { /* non-fatal */ }
+      }
       setItems(list);
     } catch (err) {
       _inflight.delete(key);

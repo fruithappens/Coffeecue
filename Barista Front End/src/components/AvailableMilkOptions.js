@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import SettingsService from '../services/SettingsService';
-import { 
-  DEFAULT_MILK_TYPES, 
-  getStandardMilks, 
+import {
+  getCatalogMilks,
+  getStandardMilks,
   getAlternativeMilks,
   getSimilarMilkSuggestions,
-  formatMilkListForSMS 
+  formatMilkListForSMS
 } from '../utils/milkConfig';
 
 /**
@@ -33,7 +33,7 @@ const AvailableMilkOptions = () => {
           setAvailableMilks(settings.availableMilks);
         } else {
           // Otherwise, set defaults (all milk types available)
-          DEFAULT_MILK_TYPES.forEach(milk => {
+          getCatalogMilks().forEach(milk => {
             initialAvailability[milk.id] = true;
           });
           setAvailableMilks(initialAvailability);
@@ -44,7 +44,7 @@ const AvailableMilkOptions = () => {
         
         // Set defaults on error
         const initialAvailability = {};
-        DEFAULT_MILK_TYPES.forEach(milk => {
+        getCatalogMilks().forEach(milk => {
           initialAvailability[milk.id] = true;
         });
         setAvailableMilks(initialAvailability);
@@ -66,7 +66,7 @@ const AvailableMilkOptions = () => {
     setAvailableMilks(newAvailability);
     
     // Check if we need to show alternative suggestion preview
-    const milk = DEFAULT_MILK_TYPES.find(m => m.id === milkId);
+    const milk = getCatalogMilks().find(m => m.id === milkId);
     
     if (milk && newAvailability[milkId] === false) {
       // When disabling a milk, show a preview of what suggestions would be
@@ -117,7 +117,7 @@ const AvailableMilkOptions = () => {
   // Reset to defaults (all available)
   const resetToDefaults = () => {
     const defaultAvailability = {};
-    DEFAULT_MILK_TYPES.forEach(milk => {
+    getCatalogMilks().forEach(milk => {
       defaultAvailability[milk.id] = true;
     });
     setAvailableMilks(defaultAvailability);

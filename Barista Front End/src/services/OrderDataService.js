@@ -1,6 +1,6 @@
 // services/OrderDataService.refactored.js
 import ApiService from './ApiService';
-import { DEFAULT_MILK_TYPES } from '../utils/milkConfig';
+import { getCatalogMilks } from '../utils/milkConfig';
 import { ORDER_STATUS, isPending, isInProgress, isCompleted, isPickedUp } from '../constants/orderStatus';
 
 /**
@@ -283,7 +283,7 @@ class OrderDataService {
 
     // Default settings
     return {
-      milkTypes: DEFAULT_MILK_TYPES,
+      milkTypes: getCatalogMilks(),
       coffeeTypes: ['Flat White', 'Cappuccino', 'Latte', 'Long Black', 'Short Black'],
       sizes: ['Small', 'Regular', 'Large']
     };
