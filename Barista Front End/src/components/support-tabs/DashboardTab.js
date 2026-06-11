@@ -390,6 +390,20 @@ const TodayReport = () => {
     };
   }, [load]);
 
+  // Opens the printable summary in a new tab. The backend renders an
+  // inline-styled HTML page; operator hits Cmd+P → Save as PDF → emails
+  // the file to the client. Cheaper than adding a server-side PDF lib.
+  const handlePrint = () => {
+    // Use the JWT-aware URL. Authorization header isn't sent on
+    // window.open, so we add the token as a fallback query param —
+    // backend's jwt_required_with_demo decorator accepts ?jwt=… via
+    // flask_jwt_extended's locations config in app.py. If not, the
+    // operator will be prompted to log in (acceptable demo UX).
+    const token = localStorage.getItem('coffee_auth_token') || '';
+    const url = `/api/reports/today/print${token ? `?jwt=${encodeURIComponent(token)}` : ''}`;
+    window.open(url, '_blank', 'noopener');
+  };
+
   if (loading && !data) {
     return (
       <div className="mt-6 bg-white rounded-lg shadow-sm p-4">
@@ -417,7 +431,16 @@ const TodayReport = () => {
     <div className="mt-6 bg-white rounded-lg shadow-sm p-4">
       <div className="flex justify-between items-center mb-4">
         <h3 className="font-semibold text-lg">Today's Report</h3>
-        <span className="text-xs text-gray-400">{data?.date}</span>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handlePrint}
+            className="text-xs text-amber-700 hover:text-amber-900 underline"
+            title="Open a printable summary in a new tab — Cmd+P → Save as PDF"
+          >
+            Print / save as PDF
+          </button>
+          <span className="text-xs text-gray-400">{data?.date}</span>
+        </div>
       </div>
 
       {/* Headline numbers */}

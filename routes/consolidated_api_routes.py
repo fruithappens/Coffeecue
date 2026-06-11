@@ -7117,6 +7117,154 @@ def get_today_report():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@bp.route('/reports/today/print', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def print_today_report():
+    """Browser-printable event summary. Pure HTML — no PDF lib needed,
+    operator hits Cmd+P → "Save as PDF" → emails the file to the client.
+
+    Why HTML instead of a real PDF library:
+      1. No new backend dep. reportlab is 25MB; we don't need 25MB
+         to render six numbers and a table.
+      2. The browser's PDF engine handles fonts, margins, page breaks
+         consistently across platforms — better than anything we'd
+         hand-roll.
+      3. Operator can tweak before saving (e.g. delete a station that
+         was for testing) — a PDF can't be edited.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+        # Re-use the same query logic by calling the JSON endpoint
+        # function directly. Re-running the queries here would
+        # duplicate logic; calling the Flask route function gives us
+        # the same response shape with one source of truth.
+        report_resp = get_today_report()
+        # Flask response → JSON dict for templating.
+        if hasattr(report_resp, 'get_json'):
+            data = report_resp.get_json() or {}
+        else:
+            data = report_resp[0].get_json() or {}
+        if not data.get('success'):
+            return ('<h1>Report failed</h1>'
+                    f'<p>{data.get("error", "unknown")}</p>'), 500
+
+        # Pull branding for the header. Falls back to "Coffee Cue" so
+        # an event with no name set still renders sensibly.
+        try:
+            branding = _kv_get(db, 'branding_settings', default={}) or {}
+            event_name = (branding.get('event_name')
+                          or _kv_get(db, 'event_name', default='Coffee Cue')
+                          or 'Coffee Cue')
+            logo = branding.get('logo') or branding.get('clientLogo') or ''
+        except Exception:
+            event_name = 'Coffee Cue'
+            logo = ''
+
+        # Build the HTML. Inline CSS so the operator can open the file
+        # offline and have it still look right.
+        symbol = data.get('currency_symbol', '$')
+        per_station_rows = ''.join(
+            f"<tr><td>Station {ps['station_id']}</td>"
+            f"<td>{ps['orders']}</td>"
+            f"<td>{ps['avg_wait_min'] if ps['avg_wait_min'] is not None else '—'}</td></tr>"
+            for ps in data.get('per_station', [])
+        ) or '<tr><td colspan="3" style="text-align:center;color:#888">No orders yet</td></tr>'
+
+        top_drinks_rows = ''.join(
+            f"<tr><td>{td['drink'].title()}</td><td>{td['orders']}</td></tr>"
+            for td in data.get('top_drinks', [])
+        ) or '<tr><td colspan="2" style="text-align:center;color:#888">No orders yet</td></tr>'
+
+        status = data.get('status_breakdown') or {}
+        status_rows = ''.join(
+            f"<tr><td>{s.replace('_', ' ').title()}</td><td>{n}</td></tr>"
+            for s, n in status.items()
+        ) or '<tr><td colspan="2" style="text-align:center;color:#888">No orders yet</td></tr>'
+
+        avg_wait = data.get('avg_wait_min')
+        avg_wait_display = f"{avg_wait} min" if avg_wait is not None else '—'
+
+        logo_html = (f'<img src="{logo}" alt="" style="max-height:60px;margin-bottom:10px"/>'
+                     if logo else '')
+
+        # The body. Browser's print stylesheet handles page breaks.
+        html = f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>{event_name} — Event summary {data.get('date', '')}</title>
+<style>
+  body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+          max-width: 720px; margin: 40px auto; padding: 0 24px; color: #222; }}
+  h1 {{ margin: 0 0 4px 0; }}
+  .subtitle {{ color: #666; margin-bottom: 24px; }}
+  .stat-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 24px 0; }}
+  .stat {{ background: #f7f5f0; border-radius: 8px; padding: 16px; }}
+  .stat-label {{ font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }}
+  .stat-value {{ font-size: 28px; font-weight: bold; margin-top: 4px; }}
+  h2 {{ font-size: 16px; margin-top: 32px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }}
+  table {{ width: 100%; border-collapse: collapse; margin: 8px 0 16px 0; }}
+  th, td {{ text-align: left; padding: 8px 12px; border-bottom: 1px solid #eee; }}
+  th {{ background: #f7f5f0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }}
+  td:nth-child(2), th:nth-child(2), td:nth-child(3), th:nth-child(3) {{ text-align: right; }}
+  .footer {{ margin-top: 40px; color: #888; font-size: 12px; text-align: center; }}
+  @media print {{ body {{ margin: 0; }} .no-print {{ display: none; }} }}
+</style>
+</head>
+<body>
+  <div class="no-print" style="background:#fffbe6;border:1px solid #ffe58f;border-radius:6px;padding:10px 12px;margin-bottom:20px;font-size:13px;">
+    <strong>Tip:</strong> hit Cmd+P (Mac) or Ctrl+P (Win) → "Save as PDF" → email the file to the client.
+  </div>
+  {logo_html}
+  <h1>{event_name}</h1>
+  <p class="subtitle">Event summary — {data.get('date', '')}</p>
+
+  <div class="stat-grid">
+    <div class="stat">
+      <div class="stat-label">Total orders</div>
+      <div class="stat-value">{data.get('total_orders', 0)}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Avg wait</div>
+      <div class="stat-value">{avg_wait_display}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Revenue</div>
+      <div class="stat-value">{symbol}{data.get('revenue_total', 0):.2f}</div>
+    </div>
+  </div>
+
+  <h2>By status</h2>
+  <table><thead><tr><th>Status</th><th>Orders</th></tr></thead>
+  <tbody>{status_rows}</tbody></table>
+
+  <h2>By station</h2>
+  <table><thead><tr><th>Station</th><th>Orders</th><th>Avg wait (min)</th></tr></thead>
+  <tbody>{per_station_rows}</tbody></table>
+
+  <h2>Top drinks</h2>
+  <table><thead><tr><th>Drink</th><th>Orders</th></tr></thead>
+  <tbody>{top_drinks_rows}</tbody></table>
+
+  <div class="footer">
+    Generated by Coffee Cue. To regenerate, visit Support → Operations → Print summary.
+  </div>
+</body>
+</html>"""
+        from flask import Response
+        return Response(html, mimetype='text/html')
+    except Exception as e:
+        logger.error(f"print_today_report error: {e}")
+        return f'<h1>Report failed</h1><pre>{e}</pre>', 500
+
+
 DEFAULT_PRICING = {
     'enabled': False,
     'currency': 'AUD',
