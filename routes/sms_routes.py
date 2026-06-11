@@ -103,6 +103,15 @@ def sms_webhook():
                 logger.warning(f"Invalid Twilio webhook signature from {request.remote_addr}")
                 logger.warning(f"URL used for validation: {url}")
                 logger.warning(f"Parameters: {params}")
+                try:
+                    from services.logging_utils import event as _event
+                    _event(
+                        'SMS_WEBHOOK_SIG_FAIL',
+                        remote_addr=request.remote_addr,
+                        url=url,
+                    )
+                except Exception:
+                    pass
                 return "Unauthorized", 403
             else:
                 logger.info("✅ Twilio webhook signature validation successful")
