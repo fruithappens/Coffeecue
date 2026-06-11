@@ -173,7 +173,14 @@ class SmokeRunner:
         method = check.get("method", "GET").upper()
         path = check["path"]
         want_auth = check.get("auth", True)
+        # expect_status accepts an int OR a list (any-of) so write-path
+        # smokes that are 201 on first run and 400 ("already exists") on
+        # re-run can be marked passing in both cases.
         expect_status = check.get("expect_status", 200)
+        if isinstance(expect_status, list):
+            allowed_statuses = set(expect_status)
+        else:
+            allowed_statuses = {expect_status}
         expect_keys = check.get("expect_keys", [])
         item_path = check.get("expect_item_keys_at")
         item_keys = check.get("expect_item_keys", [])
@@ -205,9 +212,14 @@ class SmokeRunner:
             return result
 
         result["status_code"] = r.status_code
-        if r.status_code != expect_status:
+        if r.status_code not in allowed_statuses:
+            want_display = (
+                f"one of {sorted(allowed_statuses)}"
+                if len(allowed_statuses) > 1
+                else str(next(iter(allowed_statuses)))
+            )
             result["errors"].append(
-                f"status {r.status_code} (want {expect_status}); "
+                f"status {r.status_code} (want {want_display}); "
                 f"body[:200]: {r.text[:200]}"
             )
             # No point checking keys if status is wrong.

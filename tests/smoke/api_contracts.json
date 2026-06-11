@@ -198,6 +198,20 @@
       "_note": "Drift-preview endpoint. Quick Setup modal calls this before the destructive apply. Missing = regression of the preview-before-wipe safety net."
     },
     {
+      "name": "POST /api/users/ (account create write path)",
+      "method": "POST",
+      "path": "/api/users/",
+      "body": {
+        "username": "smoke_test_user",
+        "password": "SmokeTestPw1!",
+        "email": "smoke_test_user@local",
+        "full_name": "Smoke Test User",
+        "role": "barista"
+      },
+      "expect_status": [201, 400],
+      "_note": "Idempotent across runs: 201 on first run, 400 ('Username already exists') on every subsequent run. Both pass — what we're really checking is that the route still routes, accepts the field shape (username/password/email/full_name/role), and doesn't 500 / 308 / 401 / 422. The Quick Setup event-accounts flow and Organiser User Management both POST here; recent regressions in this path (308-on-trailing-slash, fullName vs full_name camelcase) would have been caught here."
+    },
+    {
       "name": "POST /api/orders (walk-in write path)",
       "method": "POST",
       "path": "/api/orders",
