@@ -3,7 +3,7 @@ import {
   Coffee, Users, Clock, Calendar, Settings,
   LogOut, Bell, Sliders,
   FileText, Activity, Brain, Zap, LineChart,
-  Radio, Shield, Package, ArrowLeft
+  Radio, Shield, Package, ArrowLeft, CheckCircle
 } from 'lucide-react';
 // MessageSquare, TrendingUp, BarChart, Layers, UserPlus were imported
 // but unused — left in the original sprawl. Trimmed in batch G of the
@@ -28,6 +28,7 @@ import EnhancedScheduleManagement from './EnhancedScheduleManagement';
 import MenuManagement from './MenuManagement';
 import StationDefaults from './StationDefaults';
 import QuickSetup from './QuickSetup';
+import ReadinessTab from './ReadinessTab';
 import InventoryIntegrationService from '../services/InventoryIntegrationService';
 import StationsService from '../services/StationsService';
 import OrderDataService from '../services/OrderDataService';
@@ -110,6 +111,21 @@ const OrganiserInterface = () => {
             >
               <Zap size={20} className="mr-3" />
               {sidebarOpen && <span>⚡ Quick Setup</span>}
+            </button>
+
+            {/* Event Readiness — pairs with Quick Setup. Operator runs
+                this just before doors open to verify SMS + stations +
+                inventory + capabilities are all green. */}
+            <button
+              className={`w-full flex items-center px-3 py-2 rounded-md ${
+                activeSection === 'readiness'
+                  ? 'bg-amber-100 text-amber-800'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+              onClick={() => setActiveSection('readiness')}
+            >
+              <CheckCircle size={20} className="mr-3" />
+              {sidebarOpen && <span>✅ Readiness</span>}
             </button>
 
             {/* Live Operations Dashboard */}
@@ -291,6 +307,7 @@ const OrganiserInterface = () => {
         <header className="bg-white shadow-sm p-4 flex justify-between items-center">
           <h1 className="text-xl font-bold text-gray-800">
             {activeSection === 'quickSetup' && '⚡ Quick Setup'}
+            {activeSection === 'readiness' && '✅ Event Readiness'}
             {activeSection === 'dashboard' && '🚀 Live Operations Command Center'}
             {activeSection === 'stations' && 'Station Management'}
             {activeSection === 'queuePsychology' && 'Queue Psychology & Customer Intelligence'}
@@ -320,6 +337,10 @@ const OrganiserInterface = () => {
           {/* Quick Setup */}
           {activeSection === 'quickSetup' && (
             <QuickSetup />
+          )}
+
+          {activeSection === 'readiness' && (
+            <ReadinessTab />
           )}
 
           {/* Dashboard */}

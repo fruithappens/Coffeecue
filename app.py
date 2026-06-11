@@ -149,6 +149,15 @@ except ImportError:
     has_health_api = False
 
 try:
+    # Event-readiness aggregator + send-test-SMS endpoint. Optional
+    # import so a missing/broken file doesn't blow up boot — Readiness
+    # tab will just 404 until fixed.
+    from routes.readiness_api import bp as readiness_bp
+    has_readiness_api = True
+except ImportError:
+    has_readiness_api = False
+
+try:
     from routes.support_api_routes import support_api_bp
     has_support_api = True
 except ImportError:
@@ -506,6 +515,10 @@ def create_app():
     if has_health_api:
         app.register_blueprint(health_bp)
         logger.info("Health API routes registered")
+
+    if has_readiness_api:
+        app.register_blueprint(readiness_bp)
+        logger.info("Readiness API routes registered")
         
     if has_support_api:
         app.register_blueprint(support_api_bp)
