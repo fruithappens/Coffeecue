@@ -7963,3 +7963,195 @@ def list_client_errors():
     except Exception as e:
         logger.error(f"list_client_errors error: {e}")
         return jsonify({'success': False, 'errors': [], 'error': str(e)}), 200
+
+
+# ----------------------------------------------------------------------
+# Event templates — save a Quick Setup preset, re-apply to a new event.
+#
+# The friction "every new event is 30 clicks" became "every new event
+# is 5 clicks" with Quick Setup. With templates it's 1 click: load the
+# saved preset, hit Apply. Templates store the Quick Setup config
+# shape (milks, sizes, drinks, teas, pricing, walkin defaults, SMS
+# policy) — same JSON the /api/quick-setup endpoint accepts.
+# ----------------------------------------------------------------------
+
+@bp.route('/event-templates', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def list_event_templates():
+    """Return all saved event templates, newest first."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        cur = db.cursor()
+        cur.execute("""
+            SELECT id, name, description, saved_by, saved_at, updated_at
+              FROM event_templates
+             ORDER BY updated_at DESC
+        """)
+        rows = cur.fetchall() or []
+        templates = []
+        for r in rows:
+            if isinstance(r, dict):
+                templates.append({
+                    'id':          r['id'],
+                    'name':        r['name'],
+                    'description': r['description'],
+                    'saved_by':    r['saved_by'],
+                    'saved_at':    r['saved_at'].isoformat() if r['saved_at'] else None,
+                    'updated_at':  r['updated_at'].isoformat() if r['updated_at'] else None,
+                })
+            else:
+                templates.append({
+                    'id': r[0], 'name': r[1], 'description': r[2],
+                    'saved_by': r[3],
+                    'saved_at':   r[4].isoformat() if r[4] else None,
+                    'updated_at': r[5].isoformat() if r[5] else None,
+                })
+        return jsonify({'success': True, 'templates': templates})
+    except Exception as e:
+        logger.error(f"list_event_templates error: {e}")
+        return jsonify({'success': False, 'templates': [], 'error': str(e)}), 200
+
+
+@bp.route('/event-templates/<int:template_id>', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def get_event_template(template_id):
+    """Return a single template's full payload — used to populate the
+    Quick Setup form when the operator clicks 'Load template'."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        cur = db.cursor()
+        cur.execute("""
+            SELECT id, name, description, payload, saved_by, saved_at, updated_at
+              FROM event_templates
+             WHERE id = %s
+        """, (template_id,))
+        row = cur.fetchone()
+        if not row:
+            return jsonify({'success': False, 'error': 'Not found'}), 404
+        if isinstance(row, dict):
+            payload = row['payload']
+            saved_at = row['saved_at']
+            updated_at = row['updated_at']
+            data = {
+                'id': row['id'], 'name': row['name'],
+                'description': row['description'],
+                'payload': payload, 'saved_by': row['saved_by'],
+                'saved_at':   saved_at.isoformat() if saved_at else None,
+                'updated_at': updated_at.isoformat() if updated_at else None,
+            }
+        else:
+            data = {
+                'id': row[0], 'name': row[1], 'description': row[2],
+                'payload': row[3], 'saved_by': row[4],
+                'saved_at':   row[5].isoformat() if row[5] else None,
+                'updated_at': row[6].isoformat() if row[6] else None,
+            }
+        return jsonify({'success': True, 'template': data})
+    except Exception as e:
+        logger.error(f"get_event_template error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/event-templates', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def save_event_template():
+    """Save (or overwrite, if same name) a Quick Setup preset.
+
+    Body: {name, description (optional), payload}
+
+    Idempotent on name: re-saving with the same name updates the
+    existing row + bumps updated_at. This is the "Save current config
+    as template" flow — operator types a name, clicks Save, done.
+
+    Strips the per-event fields (event_name, event_password,
+    event_slug, num_event_baristas) from the payload before storing
+    so a template doesn't carry one event's identity into another.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        data = request.get_json() or {}
+        name = (data.get('name') or '').strip()
+        if not name:
+            return jsonify({'success': False, 'error': 'name required'}), 400
+        if len(name) > 120:
+            return jsonify({'success': False, 'error': 'name too long (max 120)'}), 400
+        payload = data.get('payload') or {}
+        if not isinstance(payload, dict):
+            return jsonify({'success': False, 'error': 'payload must be a JSON object'}), 400
+
+        # Strip per-event identity — a template applies across events,
+        # so carrying the last event's name/password would be confusing
+        # (and a credential leak).
+        stripped = dict(payload)
+        for key in ('event_name', 'event_slug', 'event_password',
+                    'num_event_baristas'):
+            stripped.pop(key, None)
+
+        description = (data.get('description') or '').strip() or None
+        try:
+            from flask_jwt_extended import get_jwt_identity
+            saved_by = get_jwt_identity() or 'unknown'
+        except Exception:
+            saved_by = 'unknown'
+
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        cur = db.cursor()
+        cur.execute(
+            """
+            INSERT INTO event_templates (name, description, payload, saved_by)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (name) DO UPDATE
+                SET description = EXCLUDED.description,
+                    payload     = EXCLUDED.payload,
+                    saved_by    = EXCLUDED.saved_by,
+                    updated_at  = NOW()
+            RETURNING id
+            """,
+            (name, description, json.dumps(stripped), saved_by),
+        )
+        row = cur.fetchone()
+        db.commit()
+        new_id = row[0] if not isinstance(row, dict) else row['id']
+        return jsonify({'success': True, 'id': new_id, 'name': name})
+    except Exception as e:
+        logger.error(f"save_event_template error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/event-templates/<int:template_id>', methods=['DELETE'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin'])
+def delete_event_template(template_id):
+    """Delete a saved template. Admin only — staff can save but not
+    delete (less destructive default)."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        cur = db.cursor()
+        cur.execute("DELETE FROM event_templates WHERE id = %s", (template_id,))
+        db.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"delete_event_template error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500

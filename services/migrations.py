@@ -364,6 +364,38 @@ def _m011_client_errors(cur):
     """)
 
 
+def _m012_event_templates(cur):
+    """Saved Quick Setup presets that can be re-applied to a new event.
+
+    Steve's framing: "every new event is 30 clicks." Quick Setup got
+    that down to 5 clicks, a saved template gets it to 1. Template
+    payload is the Quick Setup preset JSON — same shape the
+    /api/quick-setup endpoint accepts — so applying a template just
+    means POSTing the payload back to quick-setup.
+
+    Templates store: milks, sizes, drinks, teas, pricing mode, walkin
+    defaults, SMS policy, event_name (optional). They do NOT store:
+    stations (per-venue), accounts (per-event), inventory levels
+    (per-event). Those are deliberately per-event so a template can
+    be applied across venues without surprises.
+    """
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS event_templates (
+            id          SERIAL PRIMARY KEY,
+            name        VARCHAR(120) UNIQUE NOT NULL,
+            description TEXT,
+            payload     JSONB NOT NULL,
+            saved_by    VARCHAR(100),
+            saved_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_event_templates_name
+        ON event_templates(name)
+    """)
+
+
 # Master list. Append new migrations at the bottom — DO NOT renumber
 # existing ones, and DO NOT change `version`. The runner trusts the
 # version number to determine which migrations to skip.
@@ -381,6 +413,7 @@ MIGRATIONS: list[Migration] = [
               _m008_clear_capabilities_json_from_equipment_notes),
     Migration(10, 'customer_questions',        _m010_customer_questions),
     Migration(11, 'client_errors',             _m011_client_errors),
+    Migration(12, 'event_templates',           _m012_event_templates),
 ]
 
 

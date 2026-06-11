@@ -1055,6 +1055,12 @@ const QuickSetup = () => {
         </div>
       </div>
 
+      {/* Event templates — load a previously-saved preset, or save the
+          current form state as a template for future events. Templates
+          strip per-event identity (event_name, password, slug) before
+          saving so they apply cleanly across venues. */}
+      <EventTemplatesSection config={config} setConfig={setConfig} />
+
       {/* Event identity — the human name of THIS event. Promoted from
           Branding into Quick Setup because it's the first thing every
           new operator types and it drives SMS welcome copy + display
@@ -1389,6 +1395,133 @@ const QuickSetup = () => {
     </div>
   );
 };
+
+// --- Event templates ------------------------------------
+// Load a saved Quick Setup preset to populate the form, or save the
+// current form state for re-use at the next event. Per-event
+// identity fields (event_name, event_slug, event_password,
+// num_event_baristas) are stripped before save by the backend —
+// templates apply across venues without carrying the previous
+// event's name or credentials.
+const EventTemplatesSection = ({ config, setConfig }) => {
+  const [templates, setTemplates] = React.useState([]);
+  const [loading, setLoading] = React.useState(false);
+  const [selected, setSelected] = React.useState('');
+  const [saving, setSaving] = React.useState(false);
+  const [status, setStatus] = React.useState(null);
+
+  const loadList = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const resp = await api.request('/event-templates', { method: 'GET' });
+      setTemplates(Array.isArray(resp?.templates) ? resp.templates : []);
+    } catch (e) {
+      // Endpoint missing (not yet deployed) — silent, the dropdown
+      // just stays empty. Mirrors the pattern used elsewhere.
+      console.warn('EventTemplatesSection: loadList failed', e);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => { loadList(); }, [loadList]);
+
+  const handleLoad = async () => {
+    if (!selected) return;
+    setStatus(null);
+    try {
+      const resp = await api.request(`/event-templates/${selected}`, { method: 'GET' });
+      if (resp?.template?.payload) {
+        // Merge over current config so unrelated fields (event_name etc)
+        // aren't wiped. The backend strips per-event identity before
+        // saving, so payload won't carry stale credentials.
+        setConfig(prev => ({ ...prev, ...resp.template.payload }));
+        setStatus({ ok: true, msg: `Loaded "${resp.template.name}" — review and click Apply.` });
+      } else {
+        setStatus({ ok: false, msg: 'Template payload was empty.' });
+      }
+    } catch (e) {
+      setStatus({ ok: false, msg: e?.message || 'Load failed' });
+    }
+  };
+
+  const handleSave = async () => {
+    const name = window.prompt(
+      'Save current Quick Setup config as a template.\n\n' +
+      'Name (e.g. "Hills Baptist standard", "Café cart default"):'
+    );
+    if (!name || !name.trim()) return;
+    setSaving(true);
+    setStatus(null);
+    try {
+      // The whole `config` object IS the payload — the backend strips
+      // per-event identity fields itself, so we don't need to filter here.
+      const resp = await api.request('/event-templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), payload: config }),
+      });
+      if (resp?.success) {
+        setStatus({ ok: true, msg: `Saved as "${name.trim()}".` });
+        await loadList();
+        setSelected(String(resp.id || ''));
+      } else {
+        setStatus({ ok: false, msg: resp?.error || 'Save failed' });
+      }
+    } catch (e) {
+      setStatus({ ok: false, msg: e?.message || 'Save failed' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-lg shadow-sm p-6 mb-4">
+      <h3 className="font-semibold text-lg mb-1">Templates</h3>
+      <p className="text-sm text-gray-500 mb-3">
+        Save the current selections as a reusable template, or load one
+        you saved earlier. Templates omit per-event details (name,
+        accounts) so they apply cleanly to new events.
+      </p>
+      <div className="flex flex-wrap gap-2 items-center">
+        <select
+          value={selected}
+          onChange={e => setSelected(e.target.value)}
+          className="px-3 py-2 border border-gray-300 rounded min-w-[220px]"
+        >
+          <option value="">
+            {loading ? 'Loading…' : (templates.length ? '— choose a template —' : '— no templates yet —')}
+          </option>
+          {templates.map(t => (
+            <option key={t.id} value={t.id}>{t.name}</option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={handleLoad}
+          disabled={!selected}
+          className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded text-sm disabled:opacity-50"
+        >
+          Load into form
+        </button>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className="px-3 py-2 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded text-sm disabled:opacity-50"
+        >
+          {saving ? 'Saving…' : 'Save current as template'}
+        </button>
+      </div>
+      {status && (
+        <div className={`text-sm mt-3 ${status.ok ? 'text-green-700' : 'text-red-700'}`}>
+          {status.ok ? '✓ ' : '✗ '}{status.msg}
+        </div>
+      )}
+    </div>
+  );
+};
+
 
 // --- Pricing (honor-system) ------------------------------------
 // Talks directly to /api/pricing-settings rather than going through
