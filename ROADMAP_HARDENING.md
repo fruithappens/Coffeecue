@@ -38,10 +38,45 @@ tracker, added end-goal-aligned items the prior roadmap didn't see.
   origins.
 - **Catalog POST + /client-errors GET smoke checks** added to
   `tests/smoke/api_contracts.json`.
+- **Event Readiness tab** — new Organiser sidebar entry. 8 checks
+  (SMS, stations, event name, capability coverage, inventory,
+  migrations, Quick Setup recency, recent crashes) + embedded
+  send-test-SMS form + place-test-order button. `/api/readiness` +
+  `/api/sms/test`. The "before doors open" page that prevents demo
+  surprises.
+- **Event templates** — save current Quick Setup as a reusable
+  template, load into next event with one click. Migration 12,
+  `/api/event-templates` CRUD, per-event identity stripped on save
+  so credentials don't bleed across events. New section at the top
+  of Quick Setup.
+- **Startup scripts consolidated** — 6 scripts → one `dev.sh` with
+  flags (`--with-ngrok`, `--with-twilio`, `--background`, `--skip-db`,
+  `--backend-only`). Originals moved to `_archive_startup_scripts/`
+  for muscle-memory cases.
+- **Printable event summary** — `GET /api/reports/today/print`
+  returns a print-styled HTML page (no PDF lib needed; browser's
+  Save-as-PDF handles it). "Print / save as PDF" link in Support →
+  Dashboard next to Today's Report.
 
 ---
 
-## P0 — demo readiness (do next)
+## P0 — demo readiness
+
+### ✅ Pre-event readiness check page — DONE 2026-06-12
+### ✅ Event template save / apply — DONE 2026-06-12
+### ✅ Send-test-SMS button — DONE 2026-06-12 (in Readiness tab)
+### ✅ Send-test-order button — DONE 2026-06-12 (in Readiness tab)
+
+### [M] Surface event_inventory drift in Organiser (still open)
+After Quick Setup applies, operators tweak stock by hand. If they
+re-run Quick Setup later (e.g. to add a new milk), the new round
+should call out *what would change* before it changes anything — a
+diff view. Backend: `POST /api/quick-setup/dry-run` returns the same
+payload as `/quick-setup` apply would write, paired with what's
+currently stored. Frontend: confirm modal with side-by-side
+"current → proposed" rows before the real Apply runs.
+
+<details><summary>Earlier description of the now-done items, for context</summary>
 
 ### [M] Pre-event "readiness check" page
 The single most demo-killing thing is showing up to an event and
@@ -87,6 +122,8 @@ moment in a demo.
 One field, one button. Sends the welcome SMS to the supplied
 number using the current template. Catches misconfigured Twilio
 in seconds instead of when the first customer doesn't get a reply.
+
+</details>
 
 ---
 

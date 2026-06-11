@@ -57,6 +57,9 @@ const ReadinessTab = () => {
   const [testResult, setTestResult] = useState(null);
   const [testSending, setTestSending] = useState(false);
 
+  const [testOrderResult, setTestOrderResult] = useState(null);
+  const [testOrderSending, setTestOrderSending] = useState(false);
+
   const load = useCallback(async () => {
     try {
       const resp = await api.request('/readiness', { method: 'GET' });
@@ -80,6 +83,47 @@ const ReadinessTab = () => {
   const handleRefresh = () => {
     setRefreshing(true);
     load();
+  };
+
+  const handleSendTestOrder = async () => {
+    if (testOrderSending) return;
+    setTestOrderSending(true);
+    setTestOrderResult(null);
+    try {
+      // Walk-in payload — minimal but enough to flow through the
+      // pipeline. The backend assigns a station; we don't pick one
+      // here so the test exercises the routing logic too.
+      const payload = {
+        type: 'walk_in',
+        customer_name: 'Demo Customer',
+        coffee_type: 'latte',
+        milk_type: 'full cream',
+        size: 'medium',
+        sugar: 'no sugar',
+        notes: 'Test order placed from Readiness tab. Safe to cancel.',
+        phone: '+61400000000',
+        priority: false,
+      };
+      const resp = await api.request('/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const orderNum = resp?.order_number || resp?.orderNumber || resp?.id;
+      setTestOrderResult({
+        success: !!(resp?.success !== false),
+        message: orderNum
+          ? `Created order #${orderNum}. Check the Barista screen — it should appear in Pending.`
+          : (resp?.message || 'Order created.'),
+      });
+    } catch (e) {
+      setTestOrderResult({
+        success: false,
+        message: e?.message || 'Could not create test order',
+      });
+    } finally {
+      setTestOrderSending(false);
+    }
   };
 
   const handleSendTest = async (e) => {
@@ -243,6 +287,39 @@ const ReadinessTab = () => {
             </div>
           )}
         </form>
+      </div>
+
+      {/* Send a test order — verifies the whole walk-in pipeline:
+          station assignment, stock decrement, WebSocket broadcast to
+          the Barista screen, customer record creation. If the order
+          shows up in Pending, the system is healthy end-to-end. */}
+      <div className="rounded-lg border border-gray-200 bg-white p-5 mt-4">
+        <div className="flex items-center gap-2 mb-1">
+          <Zap className="text-amber-600" size={20} />
+          <h3 className="font-semibold text-lg">Send a test order</h3>
+        </div>
+        <p className="text-sm text-gray-600 mb-3">
+          Places a sample walk-in order through the live pipeline.
+          Should appear in Pending on the Barista screen within
+          seconds. Cancel or complete after demoing.
+        </p>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleSendTestOrder}
+            disabled={testOrderSending}
+            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-md disabled:opacity-50 flex items-center gap-2"
+          >
+            {testOrderSending
+              ? (<><RefreshCw size={16} className="animate-spin" /> Placing…</>)
+              : (<><Zap size={16} /> Place a test order</>)}
+          </button>
+          {testOrderResult && (
+            <span className={`text-sm ${testOrderResult.success ? 'text-green-700' : 'text-red-700'}`}>
+              {testOrderResult.success ? '✓ ' : '✗ '}{testOrderResult.message}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Demo helper: link back to Quick Setup. Operators land on Readiness
