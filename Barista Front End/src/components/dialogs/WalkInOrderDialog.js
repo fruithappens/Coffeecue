@@ -1042,13 +1042,34 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
+
     // Prevent duplicate submissions
     if (isSubmitting) {
       console.log('Walk-in order submission already in progress, ignoring duplicate');
       return;
     }
-    
+
+    // VIP tap-to-confirm. VIP orders skip the queue, often go free
+    // (when pricing is on), and turn red on the barista board — all
+    // of which are EXPENSIVE if the box was ticked by accident on a
+    // touchscreen. One short confirm is cheap insurance. Skipped if
+    // VIP isn't on, and skipped entirely on group orders (those have
+    // their own group-VIP path with its own checks).
+    if (orderDetails.priority) {
+      const customerLabel = (orderDetails.customerName || '').trim() || 'this customer';
+      const confirmed = window.confirm(
+        `Mark ${customerLabel}'s order as VIP?\n\n` +
+        `VIP orders skip the queue and may be free (if event pricing is on). ` +
+        `Cancel if the box was ticked by accident.`
+      );
+      if (!confirmed) {
+        // Untick the box so the operator sees they backed out — clearer
+        // than silently submitting with priority=false.
+        setOrderDetails(prev => ({ ...prev, priority: false }));
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     
     // Debug logging for milk selection

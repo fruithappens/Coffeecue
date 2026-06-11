@@ -274,10 +274,51 @@ def create_app():
     if os.getenv('RAILWAY_ENVIRONMENT'):
         allowed_origins.append('*')
     
-    CORS(app, 
-         resources={r"/*": {"origins": allowed_origins}}, 
+    CORS(app,
+         resources={r"/*": {"origins": allowed_origins}},
          supports_credentials=config.CORS_SUPPORTS_CREDENTIALS)
     logger.info(f"CORS initialized with origins: {allowed_origins}")
+
+    # Startup-time CORS smell check. We can't refuse to boot — Railway's
+    # health probe needs us up — but a loud warning lets a reviewer
+    # (Steve or me, in the next session) catch a misconfigured deploy
+    # before it serves a real customer.
+    #
+    # The two smells we care about:
+    #   1. '*' in origins WITH credentials=True — CORS spec forbids this
+    #      combination; Flask-CORS works around it by echoing Origin,
+    #      but operationally it means "any site can hit our API with the
+    #      user's session cookie." For a coffee app the blast radius
+    #      is small, but worth flagging.
+    #   2. A production environment with no explicit allowed origins
+    #      (only the wildcard, only localhost). Means someone forgot to
+    #      set CORS_ALLOWED_ORIGINS in Railway env vars.
+    try:
+        env_name = (os.getenv('FLASK_ENV') or os.getenv('APP_ENV') or '').lower()
+        is_prod = env_name in ('production', 'prod') or bool(os.getenv('RAILWAY_ENVIRONMENT'))
+        non_wildcard = [o for o in allowed_origins if o and o != '*']
+        only_local = all(
+            ('localhost' in o or '127.0.0.1' in o) for o in non_wildcard
+        ) if non_wildcard else True
+
+        if '*' in allowed_origins and config.CORS_SUPPORTS_CREDENTIALS:
+            logger.warning(
+                "CORS: wildcard '*' origin combined with credentials=True. "
+                "Spec-forbidden — Flask-CORS papers over it by echoing the "
+                "Origin header, but any site can carry the user's session "
+                "to /api. Set CORS_ALLOWED_ORIGINS to the explicit frontend "
+                "URL(s) for production."
+            )
+        if is_prod and only_local:
+            logger.warning(
+                "CORS: production-looking environment but no non-localhost "
+                "origins are configured. Set CORS_ALLOWED_ORIGINS in Railway "
+                "to your frontend URL (e.g. https://yourapp.up.railway.app)."
+            )
+    except Exception as cors_warn_err:
+        # Defensive: if anything in the smell-check throws, do NOT fail
+        # startup. The warning is a nicety, not a critical path.
+        logger.debug(f"CORS smell-check skipped: {cors_warn_err}")
     
     # Add CORS headers manually for all responses
     @app.after_request

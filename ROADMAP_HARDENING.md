@@ -1,214 +1,233 @@
-# Hardening roadmap
+# Coffee Cue — production hardening roadmap
 
-Prioritised follow-up work from the 2026-05-22 brittleness audit
-(see `CLAUDE_ONBOARDING.md` §8). Sized by effort: S = under 1h,
-M = half-day, L = full day, XL = multi-day.
+End goal: a white-label, multi-event coffee platform you deploy to
+the cloud, hand to a client, and walk away. Pay-per-hour billing.
+Steve operates events, baristas run stations, customers SMS in.
 
-Pick from the top — items higher up unblock items below them.
+Sized by effort: S = under 1h, M = half-day, L = full day, XL = multi-day.
+Pick from the top — items higher up unblock items below them, and
+"top" reflects what helps Steve demo + sign clients soonest, not what
+the academic priority would say.
 
----
-
-## P0 — catalog migration
-
-DONE this round (2026-05-25):
-- ✅ WalkInOrderDialog uses useCatalog('milk') — canonical names in dropdown
-- ✅ InventoryManagement Add form has catalog-backed datalist autocomplete
-- ✅ StationCapabilitiesEditor uses catalog for checkbox lists + name canonicalisation
-- ✅ StationDefaults + GroupOrdersTab use useCatalog('milk')
-- ✅ coffee_system._STANDARD_DRINK_MENU now reads from catalog_items
-- ✅ /api/orders/pending exposes orderNumber camelCase alias
-
-STILL PENDING:
-
-### [M] Wire MenuManagement to /api/catalog/drink (refactor)
-MenuManagement has rich per-drink metadata (sizes, prices, recipes,
-shots, milkRatio) that doesn't map cleanly to catalog. Proper fix:
-catalog provides the master drink list (which drinks exist), menu
-stores per-drink overrides (which sizes/prices for THIS event).
-Refactor; not a one-line wireup. Touch:
-`Barista Front End/src/components/MenuManagement.js`,
-introduce `event_drink_config` table.
-
-### [S] Delete DEFAULT_MILK_TYPES
-Now only used by:
-- `milkConfig.js` helpers (getMilkTypeById, getStandardMilks, etc.)
-- `orderUtils.js` (one normalisation lookup)
-- `AvailableMilkOptions.js` (utility component, internal use)
-- `OrderDataService.js` (passes the list as part of a settings blob)
-- WalkInOrderDialog + StationDefaults + GroupOrdersTab as offline
-  fallback only
-
-Refactor the helpers in milkConfig.js to call useCatalog internally,
-or expose a sync `getCatalogMilks()` from the module-level cache.
-Then delete the constant.
-
-### [S] Delete `_STATIC_FALLBACK` synonym map
-The capability check has a static fallback used only when
-catalog_items query fails. Keep it for resilience; not blocking.
+Updated 2026-06-12 by Claude (1M context) — reconciled against task
+tracker, added end-goal-aligned items the prior roadmap didn't see.
 
 ---
 
-## P1 — structural cleanups that prevent whole bug classes
+## Just shipped (2026-06-12)
 
-### [S] Add `orderNumber` to `/api/orders/pending` response
-Smoke-test discovery: this endpoint sends `customerName` + `customer_name`
-dual-cased for most fields but only `order_number` (snake) for the
-order number — no `orderNumber` camelCase variant. Frontend currently
-works because something is mapping it, but the inconsistency means the
-contract test had to accept the snake-case version. Add the camelCase
-alias for consistency with the rest of the payload. Touch:
-`routes/consolidated_api_routes.py` lines ~660-700 (orders/pending).
+- **UserManagement edit-pencil crash** — `startEdit` now merges API
+  user into a full default form shape; nested `skills` / `availability`
+  no longer come back `undefined` and crash the whole Organiser.
+- **Quick Setup: event identity + event accounts** — single-page
+  flow now creates `{slug}admin` + `{slug}1..N` logins in one apply.
+  Idempotent (re-runs safely skip existing usernames).
+- **Frontend crash visibility** — `POST /api/client-errors` +
+  `client_errors` table (migration 11) + ErrorBoundary →
+  `navigator.sendBeacon`. Surfaced in **Support → Diagnose** as a
+  colour-coded panel that auto-refreshes every 30s.
+- **Cypress organiser-clickthrough smoke** — `npm run smoke` walks
+  every sidebar tab, every Edit pencil, every Add button; fails loud
+  if any Error Boundary fires. The exact bug class that hit Steve last
+  week — won't ship again silently.
+- **VIP tap-to-confirm** — single confirm before submit if the VIP
+  box is on. Cheap insurance against touchscreen mis-taps that would
+  otherwise comp the order.
+- **CORS production smell-check** — startup warns if `*` is combined
+  with credentials, or if a prod-looking env has no non-localhost
+  origins.
+- **Catalog POST + /client-errors GET smoke checks** added to
+  `tests/smoke/api_contracts.json`.
 
-### [M] Frontend `ORDER_STATUS` enum + backend constant
-Status strings `'pending'`, `'in-progress'`, `'completed'`,
-`'picked_up'` appear as string literals across 100+ sites. A
-typo (`'in_progress'` underscore) silently breaks queries. Add:
-- `Barista Front End/src/constants/orderStatus.js` exports the
-  enum + helpers (`isPending(o)`, etc.)
-- Python equivalent in `services/order_status.py`
-- Search/replace literal strings (carefully — some are DB values
-  that must stay literal).
+---
 
-### ~~[M] Drop notes-keyword VIP auto-detection~~ — DONE 2026-05-25
-Removed from handleChange + handleSubmit. Group-lookup keeps a
-tightened word-boundary regex version (operator-typed notes are
-more trustworthy than free-text customer notes).
+## P0 — demo readiness (do next)
 
-### [L] Backend hot-reload in dev mode
-Add Flask dev mode toggle (`FLASK_ENV=development` + `app.run(debug=True)`)
-behind an env flag. Avoid in production. This eliminates the
-"need to restart for every backend change" friction. Watch out:
-double-instantiates background services (Twilio reminder thread),
-so guard those with `WERKZEUG_RUN_MAIN` check.
+### [M] Pre-event "readiness check" page
+The single most demo-killing thing is showing up to an event and
+discovering at customer #3 that SMS isn't wired, or no station
+capabilities allow oat milk. A `/organiser/readiness` page that
+runs 8–12 checks and shows green/amber/red dots:
+- SMS: Twilio creds set, webhook URL reachable, TESTING_MODE off
+- Stations: at least one active, capabilities cover every catalog drink
+- Inventory: stock levels positive (or unlimited mode on)
+- Quick Setup: was applied within the last 24h
+- Branding: event_name set, logo loaded
+- Pricing: matches the event's revenue model
+- Backup: last successful pg_dump within last 24h
+- Migrations: all applied
+- Recent crashes: zero in last hour (use `/api/client-errors`)
+
+Add a "Send test SMS to my number" button right at the top. Operator
+sees green-all-round before doors open. Touch: new file
+`Barista Front End/src/components/organiser-tabs/ReadinessTab.js` +
+backend aggregator `GET /api/readiness` that calls the same
+sub-checks `/api/health/full` already does, plus new ones.
+
+### [M] Event template — "Save current as template" / "Apply template"
+Steve says "every new event is 30 clicks." Quick Setup already brings
+that to 5 clicks, but a saved template brings it to 1. Schema:
+`event_templates(id, name, payload_json, saved_by, saved_at)`.
+Backend: `POST /api/event-templates/save?from=current`,
+`POST /api/event-templates/<id>/apply`. UI: a dropdown in Quick
+Setup → "Load template" + a button at the bottom → "Save current
+state as template." Templates store: milks, sizes, drinks, teas,
+pricing mode, walkin defaults, SMS policy. NOT: stations
+(per-venue), accounts (per-event), inventory levels (per-event).
+
+### [M] Surface event_inventory drift in Organiser
+After Quick Setup applies, operators tweak stock by hand. If they
+re-run Quick Setup later (e.g. to add a new milk), the new round
+should call out *what would change* before it changes anything —
+a diff view. Currently the apply is "trust the new preset." A
+preview prevents the "wait, did that just wipe my oat milk stock?"
+moment in a demo.
+
+### [S] "Send test SMS" button in Branding settings
+One field, one button. Sends the welcome SMS to the supplied
+number using the current template. Catches misconfigured Twilio
+in seconds instead of when the first customer doesn't get a reply.
+
+---
+
+## P1 — operational confidence
+
+### [M] Thermal sticker printer integration (network printer path)
+Brother QL-820NWB or equivalent. Per-station label printing on
+"Start" so baristas track cups by order number + customer name +
+drink details + event branding. Reprint button on the order card.
+Spec:
+- Backend `POST /api/orders/<id>/print-label` accepts station_id,
+  builds a 62mm raster image, POSTs to the printer's IP (per-station
+  configured in Station Settings).
+- Frontend toggle in Station Settings: "Auto-print on Start"
+- Reprint button on Pending and In-Progress order cards.
+- Logo + event_name come from branding_settings.
+- Failure mode: printer offline → toast, don't block the order.
+
+Cheap Bluetooth printers (Phomemo M120 etc) won't work — iOS
+Safari has no Web Bluetooth. Network printers are ~$300, do AirPrint
++ raw socket, same family every café POS uses.
+
+### [M] Structured logging with event_codes
+Today: `logger.error("Something broke: %s", e)` — ungreppable.
+Better: every logger.error/warning gets a stable `event_code`
+(SMS_PARSE_FAIL, STOCK_DECREMENT_FAIL, etc.). A future log
+collector (Datadog/Logflare) can alert on rate-of-event_code.
+Backend: introduce `services/logging_utils.py:event(code, **fields)`.
+Frontend: `services/logging.js:event(code, payload)` that POSTs to
+`/api/client-events` (sibling of `/api/client-errors`).
 
 ### [M] Consolidate startup scripts
-Replace `start_expresso.sh`, `start_expresso_fast.sh`,
-`start_expresso_complete.sh`, `start_expresso_with_twilio.sh`,
-`start_expresso_enhanced.sh`, `quick_start.sh` with ONE script
-that takes flags: `--with-ngrok`, `--with-twilio`, `--fast`,
-`--background`. Delete the duplicates.
+6 shell scripts (`start_expresso.sh`, `_fast.sh`, `_complete.sh`,
+`_with_twilio.sh`, `_enhanced.sh`, `quick_start.sh`) — operators
+have no idea which to run. Replace with ONE `start.sh` with flags:
+`--with-ngrok`, `--with-twilio`, `--fast`, `--background`. Delete
+the rest. Update README.
 
-### [L] Type-safety pass on the frontend
-Adopt JSDoc types or migrate to TypeScript incrementally. Start
-with shared types: `Order`, `Station`, `CatalogItem`, `User`. The
-catalog work would benefit immediately because passing a string
-where an `id` is expected (or vice versa) is a class of bug we
-keep hitting.
+### [S] Customer-facing PDF receipt / Apple Wallet pass
+When the order's ready, the SMS can include a link to a PDF receipt
+with the event branding (and, for VIPs / corporate events, a
+reimbursable record). Apple Wallet pass = "Add to wallet" link,
+QR for pickup. Cheap to build (already have PDFKit-equivalent
+options), high client-perceived polish.
 
----
-
-## P2 — code organisation
-
-### [M] Split WalkInOrderDialog.js (~1600 lines → ~400 + 3 hooks)
-- Extract `useStationInventory(stationId)` — currently inline in dialog
-- Extract `useWalkinDefaults()` — currently inline
-- Extract `useGroupLookup()` — group code lookup state
-- Render component becomes pure / declarative
-
-### [M] Replace localStorage primary-store for stock
-`coffee_stock_station_<id>` is read FIRST, API is fallback. Should
-be the other way around. Use stale-while-revalidate: render
-localStorage immediately for instant paint, refetch in background,
-overwrite localStorage with API response. Touch:
-`WalkInOrderDialog.loadStationInventory`, `useStock.js`,
-`StockService.js`.
-
-### [S] Move 80 top-level components into subdirs
-`barista/`, `organiser/`, `display/`, `support/`, `shared/`,
-`auth/`. Already partially done — finish it.
-
-### [M] Strip `console.log`s from prod build
-Babel plugin `babel-plugin-transform-remove-console` configured to
-strip in production builds, leave in dev. Currently the prod bundle
-ships hundreds of console statements.
+### [S] Per-event post-event summary email
+At event close, generate a one-page PDF: total orders, peak hour,
+top drinks, busiest station, avg wait. Email to the operator
+(and optionally to the client). Sells the next event. Same template
+engine as the receipt.
 
 ---
 
-## P3 — observability
+## P2 — structural cleanups
 
-### [M] Replace ad-hoc try/catch console.error with structured logging
-Both backend (`logger.error` patterns) and frontend (`console.error`)
-should produce structured events that something could ship to a log
-collector (Datadog, etc.). Minimum bar: every error has a stable
-`event_code` so we can grep production logs.
+### [M] Multi-tenant support
+Right now: one event per deployment. Multi-tenant lets one Railway
+deployment serve N events. Adds `tenant_id` everywhere. Required
+before pay-per-hour billing means anything — until then every client
+needs their own Railway project.
 
-### [M] Add health-check endpoint richer than /api/health
-Current `/api/health` returns `{status: 'ok'}`. Add a `/api/health/full`
-that checks: DB reachable, Twilio configured, pending migrations,
-recent error rate, queue depth. Surface in the Support → System
-Health tab.
+Plan:
+1. Migration adds `tenant_id` to orders, stations, settings,
+   inventory, customer_questions, client_errors. NULL = legacy
+   default tenant.
+2. JWT carries tenant_id; every query gets a `WHERE tenant_id = %s`
+   filter via a session-level Postgres setting or middleware.
+3. Tenant management UI: super-admin role can create/edit tenants,
+   assign Twilio numbers, etc.
 
-### [S] Smoke-test the catalog endpoint contract
-Already done (added 2026-05-22). Should also add a smoke for
-POST /api/catalog (creating a custom item) — currently no test
-exercises the write path.
+Big project. Worth doing once Steve has 2 paying clients, not before.
 
----
+### [S] Delete DEFAULT_MILK_TYPES constant
+Now only used by legacy helpers. Refactor `milkConfig.js` to call
+`useCatalog` internally, expose a sync `getCatalogMilks()` from the
+module-level cache, delete the constant. Touch: `milkConfig.js`,
+`orderUtils.js`, `AvailableMilkOptions.js`, `OrderDataService.js`.
 
-## P4 — UX polish
+### [S] Move components into subdirs
+80 top-level components in `Barista Front End/src/components/`.
+Already partially organised (`barista-tabs/`, `organiser-tabs/`,
+`support-tabs/`, `dialogs/`, `ui/`). Finish: move the rest into
+`barista/`, `organiser/`, `display/`, `support/`, `shared/`, `auth/`.
 
-### [S] Make VIP checkbox visually loud when ticked
-Red border + red bg when on, so accidental ticks are obvious before
-submit. Cheap.
-
-### [S] Tap-to-confirm for VIP submissions
-Modal: "Submit this as a VIP order? Yes / No / Cancel".
-
-### [M] Drink-category picker → catalog-driven
-The walk-in dialog already has a category-then-drink picker but the
-categories are hardcoded (`'tea'`, `'hot_chocolate'`, etc.). Should
-derive from `catalog_items.subcategory` so new subcategories appear
-automatically.
-
-### [S] Cleanup stale `.md` docs
-20+ docs in root. Most are snapshots of prior fix sessions. Delete
-or fold into CLAUDE_ONBOARDING.md. Keep: CLAUDE.md, ARCHITECTURE.md,
-API-REFERENCE.md, this file, CLAUDE_ONBOARDING.md.
+### [S] Smoke-test write paths for orders + users
+We've now got a smoke for catalog POST. Add: `POST /api/orders`
+(walk-in create), `POST /api/users/` (account create). Both are
+high-traffic write paths that have had recent regressions.
 
 ---
 
-## P5 — operational
+## P3 — UX polish
 
-### [M] Daily backup script + restore-tested
-The DB has months of order data. There's no scheduled backup
-visible in cron. Add a `pg_dump` cron + S3 upload, plus a
-documented restore procedure.
+### [S] "Send test order" button for Quick Setup demo
+After Quick Setup applies, a "Place a test walk-in order" button
+that fires a sample order through the system end-to-end. Demos
+in one click.
 
-### [L] Multi-tenant support
-Right now the app is single-event-per-deployment. Multi-tenant
-would let one deployment serve N events without database swaps.
-Requires: tenant_id on all rows, settings scoped to tenant,
-station_id namespaced. Big project.
+### [S] Show event_name in the page title
+Currently the browser tab just says "Coffee Cue". `${event_name} —
+Coffee Cue` makes it obvious which event window is which when an
+operator has three tabs open.
 
-### [S] Production-mode CORS config
-`CORS_ALLOWED_ORIGINS` is a comma list in `.env`. Document the
-production values. Add a startup warning if the production deploy
-is using `*` as origin.
+### [S] Walk-in dialog: pre-fill last customer name when re-opening
+Often the next walk-in is from the same group. Pre-fill the field
+with the previous order's customer name, dimmed. Tap once to clear.
+
+### [S] Drink picker: keyboard shortcut numbers
+1–9 along the bottom of the walk-in dialog map to the first 9 drinks.
+Speeds up high-volume events significantly.
 
 ---
 
-## Done so far (for orientation)
+## P4 — done so far (for orientation)
 
-- 2026-05-25 overnight: Catalog wireup completed for WalkInOrderDialog,
+- 2026-06-12: Frontend crash visibility (`/api/client-errors`,
+  ClientCrashesPanel, Cypress smoke, sendBeacon wiring), VIP
+  tap-to-confirm, CORS smell-check, UserManagement edit crash fix,
+  Quick Setup event identity + event accounts.
+- 2026-06-10: BARISTA SMS escape hatch.
+- 2026-06-09 batch: per-station queue filter, stock decrement
+  commit fix, capabilities PATCH no-op fix, inactive station check,
+  walk-in phone field tolerance, `/api/sms/send` rate limit + audit,
+  pickup current_load decrement, ProxyFix middleware, ScheduleTab
+  banner removal, Display screen size in order card.
+- 2026-05-25 onwards: Catalog wireup (WalkInOrderDialog,
   InventoryManagement, StationCapabilitiesEditor, StationDefaults,
-  GroupOrdersTab. Backend coffee_system._STANDARD_DRINK_MENU now
-  reads from catalog_items. Notes-keyword VIP auto-detection
-  removed. orderNumber camelCase alias added to /api/orders/pending.
-- 2026-05-22: Catalog architecture (backend + Quick Setup wired)
-- 2026-05-22: Synonym table in capability check (interim, will be
-  replaced by full catalog wireup)
-- 2026-05-22: `OrderDataService.createWalkInOrder` no longer forces
-  `priority: true`
-- 2026-05-22: Walk-in dialog reshape — wider, sticky footer,
-  group lookup at bottom
-- 2026-05-22: Walk-in dialog category-then-drink picker
-- 2026-05-22: Drink-name filter for Bean Type dropdown
-- 2026-05-22: Walk-in placeholder dedup fix (2-min auto-expiry)
-- 2026-05-22: Walkin defaults setting (per-event configurable)
-- 2026-05-22: VIP-free pricing toggle
-- 2026-05-21: Order reassign endpoint + Move dialog
-- 2026-05-21: Smoke test framework (`tests/smoke/`)
-- 2026-05-20: Self-test + repair proposal (`SELF_TEST_REPAIR_PROPOSAL.md`)
+  GroupOrdersTab) + coffee_system catalog read. orderNumber
+  camelCase aliases. ORDER_STATUS enum (frontend + backend).
+  WalkInOrderDialog split. localStorage flipped to cache.
+  console.log strip in prod. /api/health/full. Daily pg_dump.
+  Backend hot-reload. JSDoc types. MenuManagement catalog sync.
+- 2026-05-22 onwards: Catalog architecture + endpoints.
+  Quick Setup wired. VIP-free pricing. Order reassign endpoint.
+  Walk-in dialog reshape (category-then-drink, group lookup,
+  walkin_defaults). Drink-name filter for Bean dropdown.
+- 2026-05-21: Smoke test framework (`tests/smoke/`).
+- Twilio webhook signature validation: ALREADY DONE (sms_routes.py
+  line 71+). Earlier roadmap and CLAUDE.md flagged this as critical
+  but it's been in place — kept here for the record so the next
+  session doesn't re-investigate.
 
 ---
 

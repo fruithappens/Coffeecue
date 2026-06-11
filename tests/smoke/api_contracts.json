@@ -144,6 +144,23 @@
         "default_sweetener_qty"
       ],
       "_note": "Walk-in dialog reads from this to seed initial values. Missing fields = regression of the per-event walk-in defaults feature."
+    },
+    {
+      "name": "POST /api/catalog/milk (write path)",
+      "method": "POST",
+      "path": "/api/catalog/milk",
+      "body": {"name": "Smoke Test Milk", "short_name": "smoke_test"},
+      "expect_status": 200,
+      "expect_keys": ["success", "item"],
+      "_note": "Idempotent: item_id is derived from name, so re-running the smoke is safe (no duplicate rows). Catches breakage in the InventoryManagement 'Add custom milk' flow + the Quick Setup 'apply custom blend' flow, both of which hit this endpoint."
+    },
+    {
+      "name": "GET /api/client-errors (recent crashes)",
+      "method": "GET",
+      "path": "/api/client-errors?limit=5",
+      "expect_status": 200,
+      "expect_keys": ["success", "errors"],
+      "_note": "Surfaces React Error Boundary catches from real iPads. Missing = the crash visibility feature regressed; ClientCrashesPanel in Support → Diagnose will silently show 'no crashes' when in fact the endpoint is broken."
     }
   ]
 }

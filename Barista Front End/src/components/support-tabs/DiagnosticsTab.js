@@ -22,6 +22,7 @@ import {
   MessageSquare
 } from 'lucide-react';
 import ApiServiceClass from '../../services/ApiService';
+import ClientCrashesPanel from './ClientCrashesPanel';
 
 // Create an instance of ApiService
 const ApiService = new ApiServiceClass();
@@ -243,6 +244,11 @@ const DiagnosticsTab = () => {
 
   return (
     <div className="space-y-6">
+      {/* Frontend crashes captured by ErrorBoundary. Lives at the top
+          because it's the most actionable "is anything broken right
+          now?" signal — colour-coded, refreshes every 30s. */}
+      <ClientCrashesPanel />
+
       {/* System Status */}
       <Card>
         <CardHeader>
