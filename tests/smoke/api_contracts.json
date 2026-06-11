@@ -161,6 +161,42 @@
       "expect_status": 200,
       "expect_keys": ["success", "errors"],
       "_note": "Surfaces React Error Boundary catches from real iPads. Missing = the crash visibility feature regressed; ClientCrashesPanel in Support → Diagnose will silently show 'no crashes' when in fact the endpoint is broken."
+    },
+    {
+      "name": "GET /api/readiness",
+      "method": "GET",
+      "path": "/api/readiness",
+      "expect_status": 200,
+      "expect_keys": ["status", "checks"],
+      "expect_item_keys_at": "checks[*]",
+      "expect_item_keys": ["name", "label", "status"],
+      "_note": "Operator-facing readiness aggregator. Drives the Organiser → Readiness page; missing = a regression of the demo-readiness gate (Steve will find out only when an event fails)."
+    },
+    {
+      "name": "GET /api/event-templates",
+      "method": "GET",
+      "path": "/api/event-templates",
+      "expect_status": 200,
+      "expect_keys": ["success", "templates"],
+      "_note": "Saved Quick Setup presets. Empty list is fine — we just need the shape. Catches regressions in the template feature that would otherwise only show up as a broken Templates dropdown in Quick Setup."
+    },
+    {
+      "name": "POST /api/orders (walk-in write path)",
+      "method": "POST",
+      "path": "/api/orders",
+      "body": {
+        "type": "walk_in",
+        "customer_name": "Smoke Test",
+        "coffee_type": "latte",
+        "milk_type": "full cream",
+        "size": "medium",
+        "sugar": "no sugar",
+        "notes": "smoke test order — safe to delete",
+        "phone": "+61400000000",
+        "priority": false
+      },
+      "expect_status": 200,
+      "_note": "The Readiness 'Send test order' button and every walk-in submit hit this. Returns vary in shape (success+order_number or order_id), so we only assert status — not keys. A non-200 here means the walk-in pipeline is broken at the door."
     }
   ]
 }
