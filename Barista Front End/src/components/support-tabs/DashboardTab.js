@@ -404,6 +404,15 @@ const TodayReport = () => {
     window.open(url, '_blank', 'noopener');
   };
 
+  // Same printable, post-event framing (heading + "share with client"
+  // CTA). One-click "I'm done, give me a summary I can email" path.
+  const handlePostEvent = () => {
+    const token = localStorage.getItem('coffee_auth_token') || '';
+    const base = '/api/reports/today/print?view=post';
+    const url = `${base}${token ? `&jwt=${encodeURIComponent(token)}` : ''}`;
+    window.open(url, '_blank', 'noopener');
+  };
+
   if (loading && !data) {
     return (
       <div className="mt-6 bg-white rounded-lg shadow-sm p-4">
@@ -438,6 +447,13 @@ const TodayReport = () => {
             title="Open a printable summary in a new tab — Cmd+P → Save as PDF"
           >
             Print / save as PDF
+          </button>
+          <button
+            onClick={handlePostEvent}
+            className="text-xs text-amber-700 hover:text-amber-900 underline"
+            title="Post-event summary with share-with-client framing (peak hour, busiest station, repeat-business CTA)"
+          >
+            Post-event summary
           </button>
           <span className="text-xs text-gray-400">{data?.date}</span>
         </div>
