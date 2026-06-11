@@ -132,6 +132,19 @@ const DEFAULT_STATE = {
   // events; default per Steve. Persisted to settings/sms-policy via
   // a side-call from apply(); not part of the main quick-setup payload.
   started_sms_policy: 'queue_only',
+  // Event identity — the human-readable name that shows up in welcome
+  // SMS, display screens, and the header. First thing a new operator
+  // sees in Quick Setup. Empty = preserve whatever is already saved.
+  event_name: '',
+  // Event accounts. If filled in, apply() creates one admin and N
+  // barista accounts using a naming convention so a single event has
+  // tiered access without sharing the admin login. Empty slug or empty
+  // password skips account creation.
+  // Example: slug=treenet, password=Tree2026, count=3 →
+  //   treenetadmin (admin), treenet1, treenet2, treenet3 (baristas)
+  event_slug: '',
+  event_password: '',
+  num_event_baristas: 3,
 };
 
 // localStorage key for the in-progress Quick Setup form. Persisting
@@ -855,6 +868,104 @@ const QuickSetup = () => {
         console.warn('Could not save started_sms_policy:', smsPolErr);
       }
 
+      // Event identity — only push if the operator actually typed a
+      // name. Blank means "preserve existing", which matters when
+      // re-running Quick Setup to add a new milk without wiping the
+      // event branding.
+      //
+      // Two endpoints, two stores: SMS welcome copy reads from the
+      // top-level `settings` table (admin_routes.py:692 hardcodes
+      // SELECT value FROM settings WHERE key = 'event_name'), while
+      // the Branding tab UI reads from the `branding_settings` JSON
+      // blob via _kv_get. Push to both so neither view goes stale.
+      const eventName = (config.event_name || '').trim();
+      if (eventName) {
+        try {
+          await api.request('/settings', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ event_name: eventName }),
+          });
+        } catch (brandErr) {
+          console.warn('Could not save event_name to /settings:', brandErr);
+        }
+        try {
+          // _kv_put REPLACES the blob, not merges. If we just sent
+          // {event_name}, it would wipe out logo/colours/taglines that
+          // the Branding tab manages. Read-merge-write keeps everything
+          // else intact.
+          const existing = await api.request('/settings/branding', { method: 'GET' });
+          const merged = {
+            ...((existing && existing.settings) || {}),
+            event_name: eventName,
+          };
+          await api.request('/settings/branding', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ settings: merged }),
+          });
+        } catch (brandErr) {
+          console.warn('Could not save event_name to /settings/branding:', brandErr);
+        }
+      }
+
+      // Event accounts — create one {slug}admin and N {slug}1..N. We
+      // POST sequentially because /api/users/ doesn't do bulk and
+      // ordering keeps the audit log readable. Each request is wrapped
+      // in its own try so a duplicate-username error (which is the
+      // expected re-run case) doesn't break later accounts.
+      const accountsCreated = [];
+      const accountsSkipped = [];
+      const slug = (config.event_slug || '').trim().toLowerCase();
+      const pw = config.event_password || '';
+      const baristaCount = Math.max(1, Math.min(10, config.num_event_baristas || 3));
+      if (slug && pw) {
+        const accounts = [
+          {
+            username: `${slug}admin`,
+            fullName: `${slug} Admin`,
+            role: 'admin',
+            email: `${slug}admin@local`,
+          },
+          ...Array.from({ length: baristaCount }, (_, i) => ({
+            username: `${slug}${i + 1}`,
+            fullName: `${slug} Barista ${i + 1}`,
+            role: 'barista',
+            email: `${slug}${i + 1}@local`,
+          })),
+        ];
+        for (const acct of accounts) {
+          try {
+            // Trailing slash matters — /api/users 308-redirects to
+            // /api/users/ and the redirect drops the JWT header on
+            // some browsers, producing a confusing 401.
+            await api.request('/users/', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                username: acct.username,
+                password: pw,
+                full_name: acct.fullName,
+                email: acct.email,
+                role: acct.role,
+              }),
+            });
+            accountsCreated.push(acct.username);
+          } catch (acctErr) {
+            // Duplicate username is the expected re-run case. Anything
+            // else (e.g. password too weak) gets logged but doesn't
+            // abort — partial success is better than zero on re-run.
+            const msg = (acctErr && acctErr.message) || '';
+            if (/already|exist|duplicate|409/i.test(msg)) {
+              accountsSkipped.push(`${acct.username} (exists)`);
+            } else {
+              accountsSkipped.push(`${acct.username} (${msg.slice(0, 40)})`);
+              console.warn(`Could not create ${acct.username}:`, acctErr);
+            }
+          }
+        }
+      }
+
       // Mirror the selections into localStorage so the Inventory
       // Management UI reflects the same enabled-set, AND so each
       // station's `coffee_stock_station_N` blob shows the same
@@ -881,10 +992,17 @@ const QuickSetup = () => {
         window.dispatchEvent(new CustomEvent('quick_setup_applied', { detail: stamp }));
       } catch (_) { /* localStorage may be full / disabled */ }
 
+      // Merge account-creation outcome into the summary so the
+      // operator gets one consolidated success card instead of having
+      // to dig through the network tab to see if their logins were made.
+      const applied = [...(resp.applied || [])];
+      if (eventName) applied.push(`Event name: ${eventName}`);
+      if (accountsCreated.length) applied.push(`Created accounts: ${accountsCreated.join(', ')}`);
+      if (accountsSkipped.length) applied.push(`Skipped accounts: ${accountsSkipped.join(', ')}`);
       setResult({
         success: !!resp.success,
-        summary: resp.summary || (resp.applied || []).join('; '),
-        applied: resp.applied || [],
+        summary: resp.summary || applied.join('; '),
+        applied,
         error: resp.error,
       });
     } catch (err) {
@@ -935,6 +1053,107 @@ const QuickSetup = () => {
             below.
           </p>
         </div>
+      </div>
+
+      {/* Event identity — the human name of THIS event. Promoted from
+          Branding into Quick Setup because it's the first thing every
+          new operator types and it drives SMS welcome copy + display
+          screen header. Empty = preserve existing setting (so re-running
+          Quick Setup doesn't wipe the name). */}
+      <div className="bg-white rounded-lg shadow-sm p-6 mb-4">
+        <h3 className="font-semibold text-lg mb-1">Event identity</h3>
+        <p className="text-sm text-gray-500 mb-3">
+          The name of this event. Shows up in welcome SMS ("Welcome to
+          {' '}<em>Hills Baptist 2026</em>"), the Display screen header,
+          and the Organiser sidebar. Leave blank to keep the existing name.
+        </p>
+        <input
+          type="text"
+          value={config.event_name || ''}
+          onChange={(e) => setConfig(c => ({ ...c, event_name: e.target.value }))}
+          placeholder="e.g. Hills Baptist 2026, Treenet Conference"
+          className="w-full max-w-md px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-amber-500"
+          maxLength={80}
+        />
+      </div>
+
+      {/* Event accounts — Steve's pattern. One admin account with full
+          control + N barista accounts with limited control, all sharing
+          one password per event. Naming convention: {slug}admin gets
+          full access; {slug}1, {slug}2, {slug}3 are baristas (can take
+          orders but can't change stock or setup). Skipped if slug or
+          password is blank. Idempotent on the backend — re-applying
+          with the same slug returns "already exists" rather than
+          erroring, so this is safe to re-run. */}
+      <div className="bg-white rounded-lg shadow-sm p-6 mb-4">
+        <h3 className="font-semibold text-lg mb-1">Event accounts</h3>
+        <p className="text-sm text-gray-500 mb-3">
+          Create one admin + N barista logins for this event in one go.
+          They all share the same password (simpler for a single event;
+          rotate after). Leave the slug or password blank to skip.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <label className="text-sm">
+            <span className="block text-gray-600 mb-1">Event slug</span>
+            <input
+              type="text"
+              value={config.event_slug || ''}
+              onChange={(e) => setConfig(c => ({
+                ...c,
+                // Sanitise to lowercase alphanumerics — usernames need
+                // to be URL/login-safe. Strip spaces and punctuation.
+                event_slug: e.target.value
+                  .toLowerCase()
+                  .replace(/[^a-z0-9]/g, '')
+                  .slice(0, 20),
+              }))}
+              placeholder="treenet"
+              className="w-full px-2 py-1 border border-gray-300 rounded font-mono"
+              maxLength={20}
+            />
+          </label>
+          <label className="text-sm">
+            <span className="block text-gray-600 mb-1">Shared password</span>
+            <input
+              type="text"
+              value={config.event_password || ''}
+              onChange={(e) => setConfig(c => ({ ...c, event_password: e.target.value }))}
+              placeholder="Tree2026"
+              className="w-full px-2 py-1 border border-gray-300 rounded font-mono"
+              maxLength={64}
+            />
+          </label>
+          <label className="text-sm">
+            <span className="block text-gray-600 mb-1">Barista accounts</span>
+            <input
+              type="number"
+              min={1}
+              max={10}
+              value={config.num_event_baristas || 3}
+              onChange={(e) => setConfig(c => ({
+                ...c,
+                num_event_baristas: Math.max(1, Math.min(10, parseInt(e.target.value, 10) || 1)),
+              }))}
+              className="w-full px-2 py-1 border border-gray-300 rounded font-mono"
+            />
+          </label>
+        </div>
+        {config.event_slug && config.event_password && (
+          <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded text-sm">
+            <div className="font-medium text-gray-700 mb-1">Will create:</div>
+            <ul className="text-gray-600 font-mono text-xs space-y-0.5">
+              <li>{config.event_slug}admin <span className="text-gray-400">— full control (stock, setup, etc.)</span></li>
+              {Array.from({ length: config.num_event_baristas || 3 }, (_, i) => (
+                <li key={i}>
+                  {config.event_slug}{i + 1} <span className="text-gray-400">— barista (take orders only)</span>
+                </li>
+              ))}
+            </ul>
+            <div className="text-xs text-gray-500 mt-2">
+              All accounts use the same password. Already-existing usernames are skipped (safe to re-run).
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded-lg shadow-sm p-6 mb-4">
