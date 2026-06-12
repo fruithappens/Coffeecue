@@ -84,7 +84,10 @@ const EnhancedLiveOperationsDashboard = () => {
       activeStations,
       loadPercentage: Math.round(loadPercentage),
       ordersPerHour: recentCompleted,
-      customerSatisfaction: 94, // This would be calculated from real feedback
+      // No feedback-collection pipeline exists yet, so there's no real
+      // satisfaction number. Was hardcoded 94 and shown as "94%" — that's
+      // a fabricated metric in front of a client. null → renders "--".
+      customerSatisfaction: null,
       totalRevenue,
       peakTime: peakHour ? `${peakHour[0]}:00` : null
     };
@@ -389,7 +392,7 @@ const EnhancedLiveOperationsDashboard = () => {
         <div className="bg-white rounded-lg shadow-sm p-4">
           <div className="flex items-center justify-between mb-2">
             <Coffee className="text-gray-400" size={20} />
-            <span className="text-xs text-green-600">+12%</span>
+            {/* removed hardcoded "+12%" — no prev-period comparison */}
           </div>
           <div className="text-2xl font-bold">{systemMetrics.totalOrders}</div>
           <div className="text-xs text-gray-500">Active Orders</div>
@@ -444,7 +447,7 @@ const EnhancedLiveOperationsDashboard = () => {
           <div className="flex items-center justify-between mb-2">
             <Target className="text-gray-400" size={20} />
           </div>
-          <div className="text-2xl font-bold text-green-600">{systemMetrics.customerSatisfaction}%</div>
+          <div className="text-2xl font-bold text-green-600">{systemMetrics.customerSatisfaction != null ? `${systemMetrics.customerSatisfaction}%` : '--'}</div>
           <div className="text-xs text-gray-500">Satisfaction</div>
         </div>
         

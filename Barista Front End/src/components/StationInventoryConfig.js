@@ -169,8 +169,14 @@ const StationInventoryConfig = ({ stations }) => {
       return;
     }
     
-    // Create configurations for stations 1, 2, and 3 if they don't exist
-    const stationsToInitialize = ['1', '2', '3'];
+    // Create configurations for EVERY real station, not a hardcoded
+    // 1/2/3. The old hardcode silently dropped inventory config for
+    // station 4+, so events with more than three stations had
+    // unconfigured stations that looked empty. Derive from the actual
+    // stations prop; fall back to 1/2/3 only if the list isn't loaded.
+    const stationsToInitialize = (Array.isArray(stations) && stations.length > 0)
+      ? stations.map(s => String(s.id))
+      : ['1', '2', '3'];
     let needsUpdate = false;
     let updatedConfigs = { ...stationConfigs };
 

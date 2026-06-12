@@ -83,22 +83,23 @@ const DashboardTab = () => {
     return 'Caches refreshed';
   }, setQuickStatus);
   
+  // systemUptime / customerSatisfaction removed — they were hardcoded
+  // (99.8 / 4.5), never updated from any data source, and shown as real.
+  // There's no uptime tracking or feedback-collection pipeline yet; when
+  // those exist, add the fields back wired to real endpoints.
   const [metrics, setMetrics] = useState({
     totalOrders: 0,
     activeOrders: 0,
     avgWaitTime: 0,
     errorRate: 0,
     revenue: 0,
-    ordersPerHour: 0,
-    systemUptime: 99.8,
-    customerSatisfaction: 4.5
+    ordersPerHour: 0
   });
-  
-  const [alerts, setAlerts] = useState([
-    { id: 1, type: 'warning', message: 'High queue at Station 1', time: '2 min ago' },
-    { id: 2, type: 'error', message: 'Station 3 offline', time: '5 min ago' },
-    { id: 3, type: 'success', message: 'Backup completed successfully', time: '1 hour ago' }
-  ]);
+
+  // Real alerts feed: surfaces actual recent frontend crashes from
+  // /api/client-errors instead of the three hardcoded fake alerts
+  // ("Station 3 offline" etc.) that used to render unconditionally.
+  const [alerts, setAlerts] = useState([]);
   
   useEffect(() => {
     // Calculate metrics
@@ -113,6 +114,27 @@ const DashboardTab = () => {
       activeOrders
     }));
   }, [pendingOrders, inProgressOrders, completedOrders]);
+
+  // Real alerts: pull recent frontend crashes from /api/client-errors
+  // (the same feed Support → Diagnose uses). Replaces the three
+  // hardcoded fake alerts. Empty is the honest, healthy state.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await api.request('/client-errors?limit=5', { method: 'GET' });
+        if (cancelled) return;
+        const errs = (r && r.errors) || [];
+        setAlerts(errs.map((e, i) => ({
+          id: e.id || i,
+          type: 'error',
+          message: `${e.component || 'App'}: ${(e.message || 'error').slice(0, 80)}`,
+          time: e.occurred_at ? new Date(e.occurred_at).toLocaleTimeString() : '',
+        })));
+      } catch (_) { /* leave alerts empty on failure */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
   
   const getAlertIcon = (type) => {
     switch (type) {
@@ -136,9 +158,8 @@ const DashboardTab = () => {
             <div className="w-3 h-3 bg-green-500 rounded-full mr-2 animate-pulse"></div>
             <span className="font-semibold">System Status: Online</span>
           </div>
-          <div className="text-sm text-gray-600">
-            Uptime: {metrics.systemUptime}%
-          </div>
+          {/* Uptime % removed — was hardcoded 99.8 with no real uptime
+              tracking behind it. */}
           <div className="text-sm text-gray-600">
             Last Update: {new Date().toLocaleTimeString()}
           </div>
@@ -150,33 +171,27 @@ const DashboardTab = () => {
       
       {/* Metrics Grid */}
       <div className="grid grid-cols-4 gap-4 mb-6">
+        {/* Trend props removed — they were hardcoded ("+12%", "-2 min",
+            "0%", "+8%") with no prev-period comparison behind them. */}
         <MetricCard
           title="Active Orders"
           value={metrics.activeOrders}
           icon={<Coffee className="w-6 h-6 text-orange-600" />}
-          trend="+12%"
-          trendUp={true}
         />
         <MetricCard
           title="Avg Wait Time"
           value={`${metrics.avgWaitTime} min`}
           icon={<Clock className="w-6 h-6 text-blue-600" />}
-          trend="-2 min"
-          trendUp={false}
         />
         <MetricCard
           title="Error Rate"
           value={`${metrics.errorRate}%`}
           icon={<AlertTriangle className="w-6 h-6 text-red-600" />}
-          trend="0%"
-          trendUp={false}
         />
         <MetricCard
           title="Today's Revenue"
           value={`$${metrics.revenue.toLocaleString()}`}
           icon={<DollarSign className="w-6 h-6 text-green-600" />}
-          trend="+8%"
-          trendUp={true}
         />
       </div>
       
@@ -189,7 +204,9 @@ const DashboardTab = () => {
             Recent Alerts
           </h3>
           <div className="space-y-3">
-            {alerts.map(alert => (
+            {alerts.length === 0 ? (
+              <p className="text-sm text-gray-500 py-3">No recent alerts — system healthy.</p>
+            ) : alerts.map(alert => (
               <div key={alert.id} className="flex items-start space-x-3 p-3 hover:bg-gray-50 rounded">
                 {getAlertIcon(alert.type)}
                 <div className="flex-1">
@@ -324,9 +341,14 @@ const MetricCard = ({ title, value, icon, trend, trendUp }) => (
   <div className="bg-white rounded-lg shadow-sm p-4">
     <div className="flex items-center justify-between mb-2">
       {icon}
-      <span className={`text-sm ${trendUp ? 'text-green-600' : 'text-red-600'}`}>
-        {trend}
-      </span>
+      {/* Only render a trend when one is actually supplied. Hardcoded
+          fake trends ("+12%", "+8%") were removed — there's no
+          prev-period comparison yet, so showing one was invented. */}
+      {trend ? (
+        <span className={`text-sm ${trendUp ? 'text-green-600' : 'text-red-600'}`}>
+          {trend}
+        </span>
+      ) : null}
     </div>
     <div className="text-2xl font-bold">{value}</div>
     <div className="text-sm text-gray-600">{title}</div>

@@ -1,6 +1,7 @@
 // components/BaristaInterface.js
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ToastManager, showToast } from './Toast';
+import AuthService from '../services/AuthService';
 import { 
   Coffee, Package, Calendar, Check, Monitor, Settings,
   MessageCircle, Printer, Plus, Clock,
@@ -138,7 +139,23 @@ const BaristaInterface = () => {
   };
   
   const [activeTab, setActiveTabState] = useState(loadActiveTab());
-  
+
+  // Role gate for manager-only tabs. A plain BARISTA on the floor should
+  // see order-flow tools only (Orders, Stock, Inventory AI, Schedule,
+  // Completed). Event-configuration tabs — Display, Queue AI (routing),
+  // Balance, Capabilities (drives SMS routing!), Staff, Settings — are
+  // organiser/admin concerns and are hidden from plain baristas. The
+  // /barista route is also used by admin/staff, who keep full access.
+  // Audit 2026-06-12: a barista editing Capabilities could silently
+  // misroute every SMS order, so this gate is a real safety fix, not
+  // just tidiness.
+  const _currentRole = (() => {
+    try { return (AuthService.getCurrentUser()?.role || '').toLowerCase(); }
+    catch (_) { return ''; }
+  })();
+  const isManager = ['admin', 'staff', 'organizer', 'organiser'].includes(_currentRole);
+  const MANAGER_ONLY_TABS = ['display', 'queue', 'balance', 'capabilities', 'staff', 'settings'];
+
   // Wrapper function to persist active tab when it changes
   const setActiveTab = (tab) => {
     setActiveTabState(tab);
@@ -149,6 +166,16 @@ const BaristaInterface = () => {
       console.error('Error saving active tab to localStorage:', error);
     }
   };
+
+  // If a plain barista has a stale active tab pointing at a now-hidden
+  // manager-only tab (e.g. restored from localStorage), bounce them to
+  // Orders so they don't land on a blank/gated view.
+  useEffect(() => {
+    if (!isManager && MANAGER_ONLY_TABS.includes(activeTab)) {
+      setActiveTab('orders');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isManager, activeTab]);
   
   // State to track dismissed info panels
   const [dismissedPanels, setDismissedPanels] = useState(() => {
@@ -1683,48 +1710,55 @@ const BaristaInterface = () => {
           <Check size={18} className="mr-1" />
           Completed
         </button>
-        <button 
+        {/* Manager-only tabs (admin/staff/organiser). Hidden from a
+            plain barista — these are event-configuration concerns, and
+            Capabilities in particular drives SMS order routing. */}
+        {isManager && (
+        <>
+        <button
           className={`py-4 px-6 font-medium flex items-center ${activeTab === 'display' ? 'border-b-2 border-amber-600 bg-white text-amber-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
           onClick={() => setActiveTab('display')}
         >
           <Monitor size={18} className="mr-1" />
           Display
         </button>
-        <button 
+        <button
           className={`py-4 px-6 font-medium flex items-center ${activeTab === 'queue' ? 'border-b-2 border-amber-600 bg-white text-amber-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
           onClick={() => setActiveTab('queue')}
         >
           <Brain size={18} className="mr-1" />
           Queue AI
         </button>
-        <button 
+        <button
           className={`py-4 px-6 font-medium flex items-center ${activeTab === 'balance' ? 'border-b-2 border-amber-600 bg-white text-amber-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
           onClick={() => setActiveTab('balance')}
         >
           <Scale size={18} className="mr-1" />
           Balance
         </button>
-        <button 
+        <button
           className={`py-4 px-6 font-medium flex items-center ${activeTab === 'capabilities' ? 'border-b-2 border-amber-600 bg-white text-amber-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
           onClick={() => setActiveTab('capabilities')}
         >
           <Settings size={18} className="mr-1" />
           Capabilities
         </button>
-        <button 
+        <button
           className={`py-4 px-6 font-medium flex items-center ${activeTab === 'staff' ? 'border-b-2 border-amber-600 bg-white text-amber-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
           onClick={() => setActiveTab('staff')}
         >
           <Users size={18} className="mr-1" />
           Staff
         </button>
-        <button 
+        <button
           className={`py-4 px-6 font-medium flex items-center ${activeTab === 'settings' ? 'border-b-2 border-amber-600 bg-white text-amber-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
           onClick={() => setActiveTab('settings')}
         >
           <Settings size={18} className="mr-1" />
           Settings
         </button>
+        </>
+        )}
       </div>
 
       {/* Main Content */}
