@@ -11,11 +11,11 @@ that drove this design.
 
 ```
                                                  ┌──────────────┐
-        +61 489 COFFEE  ───  Twilio  ──── /api/sms ─────────────┐│
+        +61 489 COFFEE  ───  Twilio  ──── /sms ─────────────┐│
                                                                 ││
-        +61 4XX XXXX    ───  ClickSend ─── /api/sms/clicksend ──┼┤
+        +61 4XX XXXX    ───  ClickSend ─── /sms/clicksend ──┼┤
                                                                 ││ same NLP
-        +61 4XX XXXX    ───  Cellcast  ─── /api/sms/cellcast ───┘│
+        +61 4XX XXXX    ───  Cellcast  ─── /sms/cellcast ───┘│
                                                                  │
                                                           coffee_system.handle_sms()
                                                                  │
@@ -49,7 +49,7 @@ SMS_USE_PROVIDER_FACTORY=true   # if not already on
 ```
 
 Restart the backend (Railway: redeploy with new env vars). Outbound sends
-now go via ClickSend's number. Inbound webhooks at `/api/sms` keep working
+now go via ClickSend's number. Inbound webhooks at `/sms` keep working
 the whole time — Twilio's just receiving them, replying via ClickSend.
 
 Caveat: customers' active conversations are mid-flow. They get a reply
@@ -65,7 +65,7 @@ from our backup line — please reply here to continue your order."
 3. Add credential env vars (e.g. `MYPROV_API_KEY`).
 4. Add an inbound webhook route in `routes/sms_routes.py` that calls
    `_process_inbound_via_provider('<name>')`.
-5. Configure the provider's portal to POST to `https://<host>/api/sms/<name>`.
+5. Configure the provider's portal to POST to `https://<host>/sms/<name>`.
 
 ## Env var reference
 
@@ -82,14 +82,14 @@ from our backup line — please reply here to continue your order."
 - `TWILIO_ACCOUNT_SID`
 - `TWILIO_AUTH_TOKEN`
 - `TWILIO_PHONE_NUMBER`
-- Webhook: `/api/sms`
+- Webhook: `/sms`
 
 ### ClickSend (`clicksend`)
 - `CLICKSEND_USERNAME`
 - `CLICKSEND_API_KEY`
 - `CLICKSEND_FROM_NUMBER` (E.164, e.g. `+61480000000`)
 - `CLICKSEND_WEBHOOK_SECRET` (optional but strongly recommended)
-- Webhook: `/api/sms/clicksend` — POST, JSON, add custom header
+- Webhook: `/sms/clicksend` — POST, JSON, add custom header
   `X-Coffee-Cue-Webhook-Secret: <CLICKSEND_WEBHOOK_SECRET>` in the
   provider portal.
 
@@ -97,7 +97,7 @@ from our backup line — please reply here to continue your order."
 - `CELLCAST_API_KEY`
 - `CELLCAST_FROM_NUMBER` (E.164)
 - `CELLCAST_WEBHOOK_SECRET` (optional but strongly recommended)
-- Webhook: `/api/sms/cellcast` — POST, JSON, add custom header
+- Webhook: `/sms/cellcast` — POST, JSON, add custom header
   `X-Coffee-Cue-Webhook-Secret: <CELLCAST_WEBHOOK_SECRET>`.
 
 ## How to test without spending real money
@@ -112,7 +112,7 @@ curl -s http://localhost:5001/api/health/full | jq '.checks[] | select(.name | s
 # all 'ok' under TESTING_MODE.
 
 # Simulate a ClickSend inbound (no real secret needed in TESTING_MODE):
-curl -X POST http://localhost:5001/api/sms/clicksend \
+curl -X POST http://localhost:5001/sms/clicksend \
   -H 'Content-Type: application/json' \
   -d '{"from":"+61400000000","body":"latte oat","message_id":"cs_test_1"}'
 # Backend should log the inbound, run it through the NLP, and stub the

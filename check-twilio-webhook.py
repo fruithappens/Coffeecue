@@ -62,8 +62,9 @@ def check_webhook_needs_update():
         phone_number = client.incoming_phone_numbers(phone_number_sid).fetch()
         current_webhook = phone_number.sms_url
         
-        # Expected webhook URL
-        expected_webhook = f"{ngrok_url}/api/sms/webhook"
+        # Expected webhook URL. /sms (NOT /api/sms/webhook) — see
+        # update-twilio-webhook.py for why; the route lives at root.
+        expected_webhook = f"{ngrok_url}/sms"
         
         # Return True if they don't match
         return current_webhook != expected_webhook

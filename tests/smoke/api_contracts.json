@@ -198,22 +198,22 @@
       "_note": "Drift-preview endpoint. Quick Setup modal calls this before the destructive apply. Missing = regression of the preview-before-wipe safety net."
     },
     {
-      "name": "POST /api/sms/clicksend (inbound webhook)",
+      "name": "POST /sms/clicksend (inbound webhook)",
       "method": "POST",
-      "path": "/api/sms/clicksend",
+      "path": "/sms/clicksend",
       "auth": false,
       "body": {"from": "+61400000000", "body": "smoke test", "message_id": "cs_smoke_1"},
       "expect_status": [200, 204, 503],
-      "_note": "Provider-aware inbound route. 503 is fine here — TESTING_MODE deployments may not have a coffee_system wired for SMS. 200/204 means the provider parsed + the route handed off cleanly. The check enforces the route exists and accepts the ClickSend JSON shape."
+      "_note": "Provider-aware inbound route. NOTE the path has NO /api prefix — the sms_routes blueprint mounts at root, same as the Twilio webhook at /sms (Flask serves all paths directly; Railway runs run_server.py with no /api-stripping proxy). 503 is fine here — a TESTING_MODE deploy may not have a coffee_system wired for SMS. 200/204 means the provider parsed + the route handed off cleanly."
     },
     {
-      "name": "POST /api/sms/cellcast (inbound webhook)",
+      "name": "POST /sms/cellcast (inbound webhook)",
       "method": "POST",
-      "path": "/api/sms/cellcast",
+      "path": "/sms/cellcast",
       "auth": false,
       "body": {"from": "+61400000000", "body": "smoke test", "message_id": "cc_smoke_1"},
       "expect_status": [200, 204, 503],
-      "_note": "Same idea as the ClickSend smoke — confirms the route + parser exist."
+      "_note": "Same idea as the ClickSend smoke — confirms the route + parser exist. Path has NO /api prefix (see ClickSend note above)."
     },
     {
       "name": "POST /api/users/ (account create write path)",
