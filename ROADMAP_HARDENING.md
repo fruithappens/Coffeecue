@@ -255,6 +255,36 @@ that's now shipped — revisit only if a corporate client asks.
 
 ---
 
+## Integrations
+
+### [XL] EventsAir ↔ Coffee Cue (scaffold DONE 2026-06-12, Phase 1+ needs an API key)
+Attendees order coffee from the EventsAir app → orders land in Coffee
+Cue's pipeline + stock control; status pushes back via EventsAir
+notifications alongside SMS. Full design + open questions in
+`EVENTSAIR_INTEGRATION.md`.
+
+- **Phase 0 — scaffold (DONE).** `services/eventsair/` client (stubbed),
+  config CRUD, inbound order endpoint reusing the real /api/orders
+  pipeline (idempotent, stock control), outbound push hook on both
+  ready paths, health check, 4 smokes. Verified end-to-end with a
+  mock. Nothing talks to live EA yet.
+- **Phase 1 — identity.** `event_attendees` table + webhook receiver +
+  attendee lookup in the SMS/order flow (skip name prompt, auto-VIP by
+  registration category). **Needs: an EventsAir API key (Client ID +
+  Secret), even sandbox.**
+- **Phase 2 — ordering in the EA app.** Build the Coffee Cue mobile
+  ordering page; get EA to surface it (embedded web view is the likely
+  mechanism). **Needs: confirmation of how the EA Attendee App hosts a
+  custom order action.**
+- **Phase 3 — real notifications.** Wire `push_notification()` to EA's
+  push API. **Needs: confirmation of EA's 3rd-party push trigger.**
+
+The ask list for Steve (from the design doc): (1) an EA API key,
+(2) how the attendee app surfaces a custom order action, (3) the push
+API shape, (4) which registration categories map to VIP.
+
+---
+
 ## P2 — structural cleanups
 
 ### [M] Multi-tenant support
