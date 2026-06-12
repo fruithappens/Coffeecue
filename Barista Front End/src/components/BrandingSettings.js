@@ -31,7 +31,16 @@ const BrandingSettings = () => {
     event_name: '',
     smsNumber: '',
     clientLogo: brandingConfig.logo || '',
-    
+
+    // Sponsor / "free coffee thanks". The display screen and SMS order
+    // confirmations already render these (read by /api/display/config
+    // as showSponsor / sponsorName / sponsorMessage from branding_settings) —
+    // this is the UI to set them. Use case: "Coffees today proudly
+    // sponsored by Acme Corp" on the display + in the ready SMS.
+    showSponsor: false,
+    sponsorName: '',
+    sponsorMessage: '',
+
     // Color Theme
     primaryColor: brandingConfig.primaryColor || '#D97706',
     secondaryColor: brandingConfig.primaryColorHover || '#B45309',
@@ -353,6 +362,60 @@ const BrandingSettings = () => {
                   env var if blank.
                 </p>
               </div>
+            </div>
+
+            {/* Sponsor / free-coffee thanks. Renders on the customer
+                display screen + in order-ready SMS when enabled. */}
+            <div className="md:col-span-2 border-t pt-4 mt-2">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                Sponsor / free-coffee thanks
+              </p>
+              <label className="flex items-center mb-3">
+                <input
+                  type="checkbox"
+                  checked={!!settings.showSponsor}
+                  onChange={(e) => setSettings({...settings, showSponsor: e.target.checked})}
+                  className="mr-2"
+                />
+                <span className="text-sm font-medium text-gray-700">
+                  Show a sponsor thank-you on the display screen
+                </span>
+              </label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Sponsor name
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.sponsorName}
+                    onChange={(e) => setSettings({...settings, sponsorName: e.target.value})}
+                    placeholder="Acme Corp"
+                    disabled={!settings.showSponsor}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Sponsor message
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.sponsorMessage}
+                    onChange={(e) => setSettings({...settings, sponsorMessage: e.target.value})}
+                    placeholder="Coffees today proudly sponsored by {sponsor} ☕"
+                    disabled={!settings.showSponsor}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Shows on the customer-facing /display screen (and in the
+                "your coffee is ready" SMS). Use <code>{'{sponsor}'}</code> in
+                the message to insert the sponsor name. Leave the box
+                unticked to hide it. Tip: change the sponsor between
+                sessions for a "this session sponsored by…" rotation.
+              </p>
             </div>
 
             <div>

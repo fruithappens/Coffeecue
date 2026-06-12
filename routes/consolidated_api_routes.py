@@ -6595,6 +6595,39 @@ def upsert_branding_settings():
         # Frontend wraps as {settings: {...}}; tolerate either form.
         payload = data.get('settings') if isinstance(data.get('settings'), dict) else data
         _kv_put(coffee_system.db, 'branding_settings', payload)
+
+        # Sponsor lives in TWO places: the display reads it from this
+        # branding blob (showSponsor/sponsorName/sponsorMessage), but the
+        # SMS path reads separate top-level settings keys
+        # (sponsor_display_enabled/sponsor_name/sponsor_message) via
+        # coffee_system.get_sponsor_info(). Mirror the branding sponsor
+        # fields to those keys so ONE save drives both channels, then
+        # refresh the cached sponsor_info (it's loaded once at init).
+        if isinstance(payload, dict) and (
+            'sponsorName' in payload or 'showSponsor' in payload or 'sponsorMessage' in payload
+        ):
+            try:
+                cur = coffee_system.db.cursor()
+                for k, v in (
+                    ('sponsor_display_enabled', 'true' if payload.get('showSponsor') else 'false'),
+                    ('sponsor_name', payload.get('sponsorName') or ''),
+                    ('sponsor_message', payload.get('sponsorMessage') or ''),
+                ):
+                    cur.execute("""
+                        INSERT INTO settings(key, value) VALUES(%s, %s)
+                        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+                    """, (k, v))
+                coffee_system.db.commit()
+                # Refresh the in-memory sponsor cache so SMS picks it up
+                # without a restart.
+                if hasattr(coffee_system, '_load_sponsor_info'):
+                    coffee_system._load_sponsor_info()
+            except Exception as se:
+                logger.warning(f"sponsor mirror to top-level keys failed: {se}")
+                try:
+                    coffee_system.db.rollback()
+                except Exception:
+                    pass
         return jsonify({'success': True})
     except Exception as e:
         logger.error(f"upsert_branding_settings error: {e}")
