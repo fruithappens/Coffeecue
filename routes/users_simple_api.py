@@ -163,8 +163,10 @@ def create_user():
                     'message': f'Missing required field: {field}'
                 }), 400
 
-        # Check if username exists
-        cursor.execute("SELECT id FROM users WHERE username = %s", (data['username'],))
+        # Check if username exists (case-insensitive — login matches on
+        # LOWER(username), so we must block "Treenet1" when "treenet1" exists,
+        # otherwise two accounts would collide at login time).
+        cursor.execute("SELECT id FROM users WHERE LOWER(username) = LOWER(%s)", (data['username'],))
         if cursor.fetchone():
             return jsonify({
                 'status': 'error',

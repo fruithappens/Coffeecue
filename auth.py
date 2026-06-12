@@ -302,7 +302,11 @@ def verify_login(username, password):
         cursor = conn.cursor()
         
         # Get user from database
-        cursor.execute('SELECT id, username, email, password_hash, role, full_name FROM users WHERE username = %s', (username,))
+        # Case-insensitive username match: baristas at an event will type
+        # their login with inconsistent capitalisation (Treenet1 vs treenet1).
+        # Usernames are stored lowercase, but matching on LOWER() means any
+        # case works. Passwords stay case-sensitive.
+        cursor.execute('SELECT id, username, email, password_hash, role, full_name FROM users WHERE LOWER(username) = LOWER(%s)', (username,))
         user = cursor.fetchone()
         
         if not user:
