@@ -109,6 +109,26 @@ The flow:
 3. Update CORS_ALLOWED_ORIGINS with both URLs.
 4. Trigger redeploy (Variables tab → "Redeploy").
 
+### Optional — new-feature env vars (added 2026-06-12)
+
+None of these are required to boot. Add them to turn features on.
+
+| Variable | Value / purpose |
+|---|---|
+| `PUBLIC_BASE_URL` | Your Railway URL (no trailing slash). Turns on the customer **receipt link** in the "order ready" SMS. e.g. `https://<your>.up.railway.app` |
+| `EMAIL_ENABLED` | `true` to enable the **post-event summary email** button. Needs the SMTP vars below. |
+| `SMTP_SERVER` / `SMTP_PORT` / `SMTP_USERNAME` / `SMTP_PASSWORD` / `SMTP_FROM` | SMTP creds for the email. SendGrid: `smtp.sendgrid.net`, user `apikey`, pass = API key. |
+| `SMS_PROVIDER` | `twilio` (default), `clicksend`, or `cellcast`. Picks the outbound SMS provider. |
+| `SMS_USE_PROVIDER_FACTORY` | `false` (default — legacy Twilio path). Set `true` only when swapping providers. |
+| `CLICKSEND_*` / `CELLCAST_*` | Only if using those providers — see `.env.example`. Their inbound webhooks are `/sms/clicksend` and `/sms/cellcast`. |
+| `EVENTSAIR_ENABLED` | `false` (default). The EventsAir integration is opt-in and needs an API key — see `EVENTSAIR_INTEGRATION.md`. |
+
+**Deploy-readiness fixes also landed this session** (no action needed,
+just FYI): `railway.json` had corrupt JSON (fixed), `.dockerignore` was
+empty so `railway up` would have baked `.env`/DB into the image (fixed),
+and `Pillow` was missing from `requirements.txt` so QR codes + receipts
++ labels would have crashed in prod (fixed).
+
 ### Confirm the database
 
 Railway should auto-provision `DATABASE_URL` if a PostgreSQL plugin is

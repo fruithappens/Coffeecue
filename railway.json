@@ -9,33 +9,3 @@
     "restartPolicyType": "ON_FAILURE"
   }
 }
-```
-
-5. Click **"Commit new file"**
-
----
-
-### **File #2: .dockerignore**
-
-1. Click **"Add file"** → **"Create new file"** again
-2. Name: `.dockerignore` (with the dot!)
-3. Paste this:
-```
-__pycache__
-*.pyc
-*.pyo
-.git
-.gitignore
-.DS_Store
-*.log
-*.md
-test_*.py
-*_test.py
-.vscode
-.idea
-node_modules
-*.sqlite
-*.db
-logs/
-debug_logs/
-.env
