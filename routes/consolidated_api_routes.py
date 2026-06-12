@@ -8132,6 +8132,57 @@ def put_station_printer_config(station_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+# ----------------------------------------------------------------------
+# Per-station stock persistence (backstop for the barista StockTab).
+# The barista's manual stock edits used to live ONLY in localStorage
+# (key coffee_stock_station_N) — invisible to the Organiser and wiped on
+# reload. These endpoints give that data a durable home in the settings
+# KV (key 'coffee_stock_station_<id>'); StockService write-throughs here
+# on save and reads it back when localStorage is empty.
+# ----------------------------------------------------------------------
+@bp.route('/stations/<int:station_id>/stock', methods=['GET'])
+@jwt_required_with_demo()
+def get_station_stock(station_id):
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        stock = _kv_get(db, f'coffee_stock_station_{station_id}', default=None)
+        return jsonify({'success': True, 'station_id': station_id, 'stock': stock or {}})
+    except Exception as e:
+        logger.error(f"get_station_stock error: {e}")
+        return jsonify({'success': False, 'stock': {}, 'error': str(e)}), 200
+
+
+@bp.route('/stations/<int:station_id>/stock', methods=['PUT', 'POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def put_station_stock(station_id):
+    """Persist a station's stock blob (the same shape StockService keeps
+    in localStorage). Whole-blob replace. Best-effort backstop — the
+    barista UI still works off localStorage; this just makes edits
+    durable + visible to the Organiser."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        data = request.get_json(silent=True) or {}
+        stock = data.get('stock') if isinstance(data.get('stock'), dict) else data
+        if not isinstance(stock, dict):
+            return jsonify({'success': False, 'error': 'stock must be an object'}), 400
+        _kv_put(db, f'coffee_stock_station_{station_id}', stock)
+        return jsonify({'success': True, 'station_id': station_id})
+    except Exception as e:
+        logger.error(f"put_station_stock error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 DEFAULT_PRICING = {
     'enabled': False,
     'currency': 'AUD',

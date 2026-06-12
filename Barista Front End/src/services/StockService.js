@@ -107,8 +107,41 @@ class StockService {
     this.stationName = stationName;
     this.initialized = true;
     
-    // Load initial stock data for this station
+    // Was there local stock for this station BEFORE we load? Used to
+    // decide whether the backend backstop should hydrate (only when the
+    // device has none — e.g. after a reload — so we don't clobber live
+    // local depletion).
+    const hadLocal = !!localStorage.getItem(this._getStationStockKey());
+
+    // Load initial stock data for this station (sync; localStorage-first).
     this._loadLocalStockData();
+
+    // If this device had no local stock, try to restore the station's
+    // last-saved stock from the backend (barista edits persisted via the
+    // write-through). Async + best-effort; applies only if the backend
+    // has a non-empty blob.
+    if (!hadLocal) {
+      this._hydrateFromBackend();
+    }
+  }
+
+  /**
+   * Pull the station's persisted stock from the backend and apply it if
+   * present. Only meaningful right after init on a device with no local
+   * stock (reload / new device). Fire-and-forget.
+   * @private
+   */
+  _hydrateFromBackend() {
+    if (!this.stationId) return;
+    this.apiService.request(`/stations/${this.stationId}/stock`, { method: 'GET' })
+      .then(resp => {
+        const stock = resp && resp.stock;
+        if (stock && typeof stock === 'object' && Object.keys(stock).length > 0) {
+          console.log(`☁️ Restored stock for station ${this.stationId} from backend`);
+          this._saveLocalStockData(stock);
+        }
+      })
+      .catch(() => { /* offline / none stored — keep what load() produced */ });
   }
   
   /**
@@ -240,16 +273,42 @@ class StockService {
       // Save the station-specific stock data
       const stockKey = this._getStationStockKey();
       localStorage.setItem(stockKey, JSON.stringify(stockData));
-      
+
       // Notify listeners
       this._notifyListeners(stockData);
-      
+
       console.log(`Saved stock data for station ${this.stationId}`);
+
+      // Write-through to the backend (best-effort, non-blocking) so the
+      // Organiser can see barista stock edits and they survive a reload.
+      // Previously stock lived ONLY here in localStorage — invisible to
+      // the backend and wiped on reload. Failures are swallowed: the
+      // local save already succeeded, the UI keeps working offline.
+      this._persistStockToBackend(stockData);
       return true;
     } catch (error) {
       console.error('Error saving local stock data:', error);
       return false;
     }
+  }
+
+  /**
+   * Push the station's stock blob to the backend (PUT /api/stations/N/stock).
+   * Debounced so rapid edits collapse into one write. Fire-and-forget.
+   * @private
+   */
+  _persistStockToBackend(stockData) {
+    if (!this.stationId) return;
+    try {
+      clearTimeout(this._persistTimer);
+      this._persistTimer = setTimeout(() => {
+        this.apiService.request(`/stations/${this.stationId}/stock`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ stock: stockData }),
+        }).catch(() => { /* offline / non-fatal — localStorage is the cache */ });
+      }, 800);
+    } catch (_) { /* never let persistence break the local save */ }
   }
   
   /**
