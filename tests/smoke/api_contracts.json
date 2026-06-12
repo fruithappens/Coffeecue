@@ -254,6 +254,21 @@
       "auth": false,
       "expect_status": 404,
       "_note": "Customer-facing branded receipt (browser → Save-as-PDF), linked from the 'order ready' SMS when PUBLIC_BASE_URL is set. Public (no JWT) since customers open it from a phone. We assert a clean 404 for a non-existent order number — that confirms the route is wired and the not-found branch works without needing to mint a real order in the smoke. A 405/500 here would mean the route regressed."
+    },
+    {
+      "name": "GET /api/stations/1/printer-config (thermal printer config)",
+      "method": "GET",
+      "path": "/api/stations/1/printer-config",
+      "expect_status": 200,
+      "expect_keys": ["success", "printer"],
+      "_note": "Per-station network-printer config (ip/port/enabled/auto_print) for the thermal label feature. Returns a default config when none is set, so this is safe on any DB. Confirms the printer-config route is wired without needing a configured printer."
+    },
+    {
+      "name": "GET /api/orders/NOPE/label.png (label render route)",
+      "method": "GET",
+      "path": "/api/orders/SMOKE_NO_SUCH_ORDER/label.png",
+      "expect_status": 404,
+      "_note": "Thermal label PNG render (open in browser → AirPrint to a Brother QL). Asserts a clean 404 for a missing order — confirms the route + Pillow rendering path are wired without minting an order. A 500 here would mean Pillow is missing or the renderer regressed."
     }
   ]
 }

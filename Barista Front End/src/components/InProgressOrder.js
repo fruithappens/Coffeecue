@@ -60,10 +60,45 @@ const InProgressOrder = ({
     onSendMessage(order);
   };
 
-  // Handle printing label
-  const handlePrintLabel = () => {
-    onPrintLabel(order);
-    success(`Label printed for ${order.coffeeType}`);
+  // Handle printing label.
+  //
+  // Previously this called onPrintLabel(order) — a prop NO parent ever
+  // passed, so the click threw and the success toast lied. Now it hits
+  // the real backend: POST /api/orders/<n>/print-label sends to the
+  // station's configured network printer; if none is configured (or the
+  // raw-socket transport isn't validated yet) it opens the label PNG in
+  // a new tab so the barista can AirPrint it. Either way the order is
+  // never blocked.
+  const handlePrintLabel = async () => {
+    const orderNumber = order.orderNumber || order.order_number || order.id;
+    // Back-compat: if a parent DID pass a handler, honour it too.
+    if (typeof onPrintLabel === 'function') {
+      try { onPrintLabel(order); } catch (_) { /* non-fatal */ }
+    }
+    try {
+      const ApiService = (await import('../services/ApiService')).default;
+      const api = new ApiService();
+      const resp = await api.request(`/orders/${orderNumber}/print-label`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ station_id: order.stationId || order.station_id }),
+      });
+      if (resp?.printed) {
+        success(`Label sent to printer for #${orderNumber}`);
+      } else {
+        // No printer / transport pending → AirPrint fallback.
+        const token = localStorage.getItem('coffee_auth_token') || '';
+        const url = `/api/orders/${orderNumber}/label.png${token ? `?jwt=${encodeURIComponent(token)}` : ''}`;
+        window.open(url, '_blank', 'noopener');
+        success(`Opened label for #${orderNumber} — print from the new tab`);
+      }
+    } catch (err) {
+      // Last-ditch: still try to open the label image.
+      const token = localStorage.getItem('coffee_auth_token') || '';
+      const url = `/api/orders/${orderNumber}/label.png${token ? `?jwt=${encodeURIComponent(token)}` : ''}`;
+      window.open(url, '_blank', 'noopener');
+      error(`Printer unreachable — opened label to print manually`);
+    }
   };
 
   // Debug what milk color is being used

@@ -7841,6 +7841,193 @@ def order_receipt(order_number):
         return f'<h1>Receipt error</h1><pre>{e}</pre>', 500
 
 
+# ----------------------------------------------------------------------
+# Thermal label printing (network printer path)
+# ----------------------------------------------------------------------
+# Per-station printer config lives in settings KV under 'printer_config'
+# as {"<station_id>": {"ip","port","enabled","auto_print"}}. No schema
+# migration needed.
+
+def _get_printer_config(db, station_id=None):
+    cfg = _kv_get(db, 'printer_config', default={}) or {}
+    if station_id is not None:
+        return cfg.get(str(station_id), {})
+    return cfg
+
+
+def _fetch_order_for_label(db, order_number):
+    cur = db.cursor()
+    cur.execute("""
+        SELECT id, order_number, order_details, status, station_id
+          FROM orders WHERE order_number = %s LIMIT 1
+    """, (order_number,))
+    row = cur.fetchone()
+    if not row:
+        return None
+    if isinstance(row, dict):
+        return {
+            'id': row['id'], 'order_number': row['order_number'],
+            'order_details': row['order_details'], 'status': row['status'],
+            'station_id': row['station_id'],
+        }
+    return {
+        'id': row[0], 'order_number': row[1], 'order_details': row[2],
+        'status': row[3], 'station_id': row[4],
+    }
+
+
+def _branding_for_label(db):
+    try:
+        b = _kv_get(db, 'branding_settings', default={}) or {}
+        return {'event_name': (b.get('event_name') or b.get('eventName')
+                               or _kv_get(db, 'event_name', default='') or '')}
+    except Exception:
+        return {}
+
+
+@bp.route('/orders/<order_number>/label.png', methods=['GET'])
+@jwt_required_with_demo()
+def order_label_png(order_number):
+    """Render the order label as a PNG.
+
+    This is the supported, hardware-free path: open this in a browser
+    and Cmd+P to AirPrint to a Brother QL-820NWB (or any AirPrint label
+    printer). Also used by the auto-print path to build the bytes.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        order = _fetch_order_for_label(db, order_number)
+        if not order:
+            return ('order not found', 404)
+        branding = _branding_for_label(db)
+        host = request.host_url.rstrip('/')
+        qr_url = f"{host}/track/{order_number}"
+        from services.label_printer import render_label_png
+        png = render_label_png(order, branding, qr_url=qr_url)
+        from flask import Response
+        return Response(png, mimetype='image/png')
+    except Exception as e:
+        logger.error(f"order_label_png error: {e}")
+        return (f'label error: {e}', 500)
+
+
+@bp.route('/orders/<order_number>/print-label', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def print_order_label(order_number):
+    """Send the order label to the station's configured network printer.
+
+    Body (optional): {"station_id": N} to override which station's
+    printer config to use (defaults to the order's station).
+
+    Failure mode: printer offline / unconfigured → returns success:false
+    with a message, never blocks. The barista UI shows a toast and the
+    order proceeds regardless.
+
+    NOTE: the raw-socket transport is hardware-pending (see
+    services/label_printer.py). Until validated against the real
+    printer, the reliable path is GET .../label.png → AirPrint.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        order = _fetch_order_for_label(db, order_number)
+        if not order:
+            return jsonify({'success': False, 'error': 'order not found'}), 404
+
+        body = request.get_json(silent=True) or {}
+        station_id = body.get('station_id') or order.get('station_id')
+        pcfg = _get_printer_config(db, station_id)
+        if not pcfg or not pcfg.get('enabled'):
+            return jsonify({
+                'success': False,
+                'printed': False,
+                'message': f'No printer configured/enabled for station {station_id}. '
+                           f'Use the label.png AirPrint path, or set a printer in Station Settings.',
+                'label_url': f'/api/orders/{order_number}/label.png',
+            })
+        ip = pcfg.get('ip')
+        port = int(pcfg.get('port') or 9100)
+
+        branding = _branding_for_label(db)
+        host = request.host_url.rstrip('/')
+        from services.label_printer import render_label_png, send_png_to_printer
+        png = render_label_png(order, branding, qr_url=f"{host}/track/{order_number}")
+        ok, detail = send_png_to_printer(ip, port, png)
+        return jsonify({
+            'success': ok,
+            'printed': ok,
+            'message': detail,
+            'label_url': f'/api/orders/{order_number}/label.png',
+            'transport_note': 'raw-socket transport is hardware-pending; '
+                              'if the label is blank/garbled use the label.png AirPrint path',
+        })
+    except Exception as e:
+        logger.error(f"print_order_label error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/stations/<int:station_id>/printer-config', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def get_station_printer_config(station_id):
+    """Return the per-station printer config (ip/port/enabled/auto_print)."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        cfg = _get_printer_config(db, station_id)
+        return jsonify({'success': True, 'station_id': station_id,
+                        'printer': cfg or {'enabled': False, 'port': 9100, 'auto_print': False}})
+    except Exception as e:
+        logger.error(f"get_station_printer_config error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/stations/<int:station_id>/printer-config', methods=['PUT'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def put_station_printer_config(station_id):
+    """Upsert the per-station printer config.
+
+    Body: {"ip": "192.168.1.50", "port": 9100, "enabled": true,
+           "auto_print": false}
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        body = request.get_json() or {}
+        all_cfg = _get_printer_config(db)  # whole blob
+        all_cfg[str(station_id)] = {
+            'ip': (body.get('ip') or '').strip(),
+            'port': int(body.get('port') or 9100),
+            'enabled': bool(body.get('enabled')),
+            'auto_print': bool(body.get('auto_print')),
+        }
+        _kv_put(db, 'printer_config', all_cfg)
+        return jsonify({'success': True, 'station_id': station_id,
+                        'printer': all_cfg[str(station_id)]})
+    except Exception as e:
+        logger.error(f"put_station_printer_config error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 DEFAULT_PRICING = {
     'enabled': False,
     'currency': 'AUD',
