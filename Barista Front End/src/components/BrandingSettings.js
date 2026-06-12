@@ -254,6 +254,36 @@ const BrandingSettings = () => {
       reader.readAsText(file);
     }
   };
+
+  // Logo / display-graphic upload. Reads the image to a base64 data URI
+  // entirely client-side and stores it in settings.clientLogo — which
+  // the branding save persists to branding_settings and the display
+  // screen + login read. No backend upload endpoint or writable volume
+  // needed (Railway containers have ephemeral disk, so a data URI in the
+  // DB is the robust choice). Capped so a giant image can't bloat the
+  // settings row.
+  const MAX_LOGO_BYTES = 400 * 1024; // 400KB
+  const handleLogoUpload = (event) => {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setError('Please choose an image file (PNG, JPG, SVG).');
+      return;
+    }
+    if (file.size > MAX_LOGO_BYTES) {
+      setError(`Logo is ${(file.size / 1024).toFixed(0)}KB — please use an image under 400KB `
+        + '(resize/compress it). Big images slow the display screen.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setSettings(prev => ({ ...prev, clientLogo: e.target.result }));
+      setSuccess('Logo loaded — click Save to apply it to the display + login.');
+      setError('');
+    };
+    reader.onerror = () => setError('Could not read that image file.');
+    reader.readAsDataURL(file);
+  };
   
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -361,6 +391,53 @@ const BrandingSettings = () => {
                   page. Falls back to the backend's <code>TWILIO_PHONE_NUMBER</code>
                   env var if blank.
                 </p>
+              </div>
+            </div>
+
+            {/* Logo / display graphic. Uploaded as a data URI (no server
+                storage needed) and shown on the /display screen header +
+                login + printable report. */}
+            <div className="md:col-span-2 border-t pt-4 mt-2">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                Logo / display graphic
+              </p>
+              <div className="flex items-center gap-4">
+                {settings.clientLogo ? (
+                  <img
+                    src={settings.clientLogo}
+                    alt="Logo preview"
+                    className="h-16 w-auto max-w-[160px] object-contain border border-gray-200 rounded bg-white p-1"
+                  />
+                ) : (
+                  <div className="h-16 w-28 flex items-center justify-center border border-dashed border-gray-300 rounded text-xs text-gray-400">
+                    No logo
+                  </div>
+                )}
+                <div className="flex flex-col gap-2">
+                  <label className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center cursor-pointer text-sm w-fit">
+                    <Upload className="mr-2" size={16} />
+                    {settings.clientLogo ? 'Replace logo' : 'Upload logo'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleLogoUpload}
+                      className="hidden"
+                    />
+                  </label>
+                  {settings.clientLogo && (
+                    <button
+                      type="button"
+                      onClick={() => setSettings(prev => ({ ...prev, clientLogo: '' }))}
+                      className="text-xs text-red-600 hover:underline w-fit"
+                    >
+                      Remove logo
+                    </button>
+                  )}
+                  <p className="text-xs text-gray-500">
+                    PNG/JPG/SVG under 400KB. Shows on the customer display
+                    screen and the login page. Click Save to apply.
+                  </p>
+                </div>
               </div>
             </div>
 

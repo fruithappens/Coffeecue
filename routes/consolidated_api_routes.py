@@ -3192,6 +3192,10 @@ def get_display_config():
                 "event_name": event_name,
                 "sms_number": config.get('TWILIO_PHONE_NUMBER', '') or branding.get('smsNumber', ''),
                 "sponsor": sponsor,
+                # Logo for the display screen header. Uploaded via the
+                # Branding panel as a data URI (clientLogo). 'logo' is the
+                # legacy key; accept either.
+                "logo": branding.get('clientLogo') or branding.get('logo') or '',
                 "wait_time": branding.get('waitTime', '10-15'),
                 "header_color": branding.get('headerColor') or branding.get('primaryColor') or '#1e40af',
                 "custom_message": branding.get('customMessage') or branding.get('footerText') or '',
