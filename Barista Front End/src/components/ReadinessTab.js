@@ -60,6 +60,42 @@ const ReadinessTab = () => {
   const [testOrderResult, setTestOrderResult] = useState(null);
   const [testOrderSending, setTestOrderSending] = useState(false);
 
+  // Admin alerts config (get-texted-on-issues). Loaded from
+  // /api/settings/admin-alerts.
+  const [alertCfg, setAlertCfg] = useState({ enabled: false, phone: '', min_severity: 'critical', cooldown_minutes: 15 });
+  const [alertSaving, setAlertSaving] = useState(false);
+  const [alertStatus, setAlertStatus] = useState(null);
+
+  useEffect(() => {
+    api.request('/settings/admin-alerts', { method: 'GET' })
+      .then(r => { if (r?.config) setAlertCfg(c => ({ ...c, ...r.config })); })
+      .catch(() => {});
+  }, []);
+
+  const saveAlertCfg = async () => {
+    setAlertSaving(true); setAlertStatus(null);
+    try {
+      const r = await api.request('/settings/admin-alerts', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(alertCfg),
+      });
+      setAlertStatus(r?.success ? { ok: true, msg: 'Saved.' } : { ok: false, msg: r?.error || 'Save failed' });
+    } catch (e) {
+      setAlertStatus({ ok: false, msg: e?.message || 'Save failed' });
+    } finally { setAlertSaving(false); }
+  };
+
+  const testAlert = async () => {
+    setAlertStatus(null);
+    try {
+      const r = await api.request('/settings/admin-alerts/test', { method: 'POST' });
+      setAlertStatus(r?.sent ? { ok: true, msg: 'Test alert sent.' } : { ok: false, msg: r?.error || r?.message || 'Not sent' });
+    } catch (e) {
+      setAlertStatus({ ok: false, msg: e?.message || 'Test failed' });
+    }
+  };
+
   const load = useCallback(async () => {
     try {
       const resp = await api.request('/readiness', { method: 'GET' });
@@ -319,6 +355,91 @@ const ReadinessTab = () => {
               {testOrderResult.success ? '✓ ' : '✗ '}{testOrderResult.message}
             </span>
           )}
+        </div>
+      </div>
+
+      {/* Admin alerts — get texted when something breaks, without being
+          spammed. Severity threshold + per-issue cooldown. */}
+      <div className="rounded-lg border border-gray-200 bg-white p-5 mt-4">
+        <div className="flex items-center gap-2 mb-1">
+          <Phone className="text-amber-600" size={20} />
+          <h3 className="font-semibold text-lg">Admin alerts</h3>
+        </div>
+        <p className="text-sm text-gray-600 mb-4">
+          Text a number when something goes wrong (e.g. SMS webhook
+          rejected, stock decrement failed, Quick Setup error). Choose the
+          severity so you're not spammed all day — and each issue type only
+          texts once per cooldown window.
+        </p>
+        <div className="space-y-3">
+          <label className="flex items-center text-sm">
+            <input
+              type="checkbox"
+              checked={!!alertCfg.enabled}
+              onChange={e => setAlertCfg(c => ({ ...c, enabled: e.target.checked }))}
+              className="mr-2"
+            />
+            <span className="font-medium text-gray-700">Enable admin alerts</span>
+          </label>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <label className="text-sm">
+              <span className="block text-gray-600 mb-1">Alert phone (E.164)</span>
+              <input
+                type="tel"
+                value={alertCfg.phone}
+                onChange={e => setAlertCfg(c => ({ ...c, phone: e.target.value }))}
+                placeholder="+61400000000"
+                disabled={!alertCfg.enabled}
+                className="w-full px-3 py-2 border border-gray-300 rounded font-mono disabled:bg-gray-100"
+              />
+            </label>
+            <label className="text-sm">
+              <span className="block text-gray-600 mb-1">Alert on</span>
+              <select
+                value={alertCfg.min_severity}
+                onChange={e => setAlertCfg(c => ({ ...c, min_severity: e.target.value }))}
+                disabled={!alertCfg.enabled}
+                className="w-full px-3 py-2 border border-gray-300 rounded disabled:bg-gray-100"
+              >
+                <option value="critical">Critical only</option>
+                <option value="error">Error + Critical</option>
+              </select>
+            </label>
+            <label className="text-sm">
+              <span className="block text-gray-600 mb-1">Cooldown (min/issue)</span>
+              <input
+                type="number"
+                min="1"
+                value={alertCfg.cooldown_minutes}
+                onChange={e => setAlertCfg(c => ({ ...c, cooldown_minutes: parseInt(e.target.value) || 15 }))}
+                disabled={!alertCfg.enabled}
+                className="w-full px-3 py-2 border border-gray-300 rounded disabled:bg-gray-100"
+              />
+            </label>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={saveAlertCfg}
+              disabled={alertSaving}
+              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-md disabled:opacity-50"
+            >
+              {alertSaving ? 'Saving…' : 'Save'}
+            </button>
+            <button
+              type="button"
+              onClick={testAlert}
+              disabled={!alertCfg.enabled || !alertCfg.phone}
+              className="px-4 py-2 bg-white border border-gray-300 hover:bg-gray-100 rounded-md disabled:opacity-50 text-gray-700"
+            >
+              Send test alert
+            </button>
+            {alertStatus && (
+              <span className={`text-sm ${alertStatus.ok ? 'text-green-700' : 'text-red-700'}`}>
+                {alertStatus.ok ? '✓ ' : '✗ '}{alertStatus.msg}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 

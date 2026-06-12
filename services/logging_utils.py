@@ -63,13 +63,17 @@ def _fmt_value(v):
     return s
 
 
-def event(code: str, level: int = logging.WARNING, **fields) -> None:
+def event(code: str, level: int = logging.WARNING, severity: str = None, **fields) -> None:
     """Emit a structured event log line.
 
     code: a stable SCREAMING_SNAKE_CASE token from CODES (or new). Logged
           as `event=CODE` at the start of the line.
     level: log level (logging.WARNING by default — most events worth
            tracking are not full-on ERRORs).
+    severity: 'info'|'warning'|'error'|'critical'. When 'error' or
+          'critical' (and admin alerts are configured at/below that
+          threshold), an admin SMS is dispatched — rate-limited per code.
+          Defaults from the log level if not given.
     fields: arbitrary kwargs serialised as `key=value` pairs.
 
     Unknown codes are still emitted; they just log a debug-level warning
@@ -82,7 +86,24 @@ def event(code: str, level: int = logging.WARNING, **fields) -> None:
         parts = [f"event={code}"]
         for k, v in fields.items():
             parts.append(f"{k}={_fmt_value(v)}")
-        logger.log(level, ' '.join(parts))
+        line = ' '.join(parts)
+        logger.log(level, line)
+
+        # Derive severity from the log level if the caller didn't pass one.
+        sev = severity
+        if sev is None:
+            sev = ('critical' if level >= logging.CRITICAL
+                   else 'error' if level >= logging.ERROR
+                   else 'warning' if level >= logging.WARNING
+                   else 'info')
+        # Dispatch an admin SMS for error/critical events (rate-limited,
+        # config-gated inside send_admin_alert). Best-effort.
+        if sev in ('error', 'critical'):
+            try:
+                from services.admin_alerts import send_admin_alert
+                send_admin_alert(code, sev, line)
+            except Exception:
+                pass
     except Exception as e:  # noqa: BLE001
         # Last-ditch fallback — never let the logger itself crash a request.
         try:

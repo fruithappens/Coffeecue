@@ -6635,6 +6635,73 @@ def upsert_branding_settings():
 
 
 # ----------------------------------------------------------------------
+# Admin SMS alerts — text a nominated number on error/critical events.
+# See services/admin_alerts.py. Config in settings KV 'admin_alerts'.
+# ----------------------------------------------------------------------
+@bp.route('/settings/admin-alerts', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def get_admin_alerts():
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        from services.admin_alerts import load_config
+        return jsonify({'success': True, 'config': load_config(coffee_system.db)})
+    except Exception as e:
+        logger.error(f"get_admin_alerts error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/settings/admin-alerts', methods=['PUT', 'POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def put_admin_alerts():
+    """Body: {enabled, phone, min_severity('error'|'critical'),
+    cooldown_minutes}."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        body = request.get_json() or {}
+        cfg = {
+            'enabled': bool(body.get('enabled')),
+            'phone': (body.get('phone') or '').strip(),
+            'min_severity': (body.get('min_severity') or 'critical').lower(),
+            'cooldown_minutes': int(body.get('cooldown_minutes') or 15),
+        }
+        if cfg['min_severity'] not in ('error', 'critical'):
+            cfg['min_severity'] = 'critical'
+        from services.admin_alerts import CONFIG_KEY
+        _kv_put(coffee_system.db, CONFIG_KEY, cfg)
+        return jsonify({'success': True, 'config': cfg})
+    except Exception as e:
+        logger.error(f"put_admin_alerts error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/settings/admin-alerts/test', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def test_admin_alert():
+    """Send a test alert SMS to the configured number, bypassing the
+    severity gate + cooldown (but still respecting enabled + phone)."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        from services.admin_alerts import load_config
+        cfg = load_config(coffee_system.db)
+        if not cfg.get('phone'):
+            return jsonify({'success': False, 'error': 'No admin alert phone set.'}), 400
+        from services.sms import get_outbound_provider
+        result = get_outbound_provider().send(
+            cfg['phone'],
+            "[Coffee Cue TEST] Admin alerts are working. You'll get a text "
+            "here on error/critical events (rate-limited so you're not spammed).",
+        )
+        return jsonify({'success': result.ok, 'sent': result.ok,
+                        'provider': result.provider, 'message': result.error or 'sent'})
+    except Exception as e:
+        logger.error(f"test_admin_alert error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ----------------------------------------------------------------------
 # Quick Setup — single-call "café in 30 seconds" wizard.
 #
 # Operators ran into a wall the first time they set up an event: every

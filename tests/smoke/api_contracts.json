@@ -271,6 +271,14 @@
       "_note": "Thermal label PNG render (open in browser → AirPrint to a Brother QL). Asserts a clean 404 for a missing order — confirms the route + Pillow rendering path are wired without minting an order. A 500 here would mean Pillow is missing or the renderer regressed."
     },
     {
+      "name": "GET /api/settings/admin-alerts (alert config)",
+      "method": "GET",
+      "path": "/api/settings/admin-alerts",
+      "expect_status": 200,
+      "expect_keys": ["success", "config"],
+      "_note": "Admin SMS alert config (enabled/phone/min_severity/cooldown). Returns defaults when unset. Drives the 'get texted on issues' feature in the Readiness tab; the dispatcher fires from services/logging_utils.event() on error/critical, rate-limited per code."
+    },
+    {
       "name": "GET /api/integrations/eventsair/config (EventsAir config)",
       "method": "GET",
       "path": "/api/integrations/eventsair/config",
