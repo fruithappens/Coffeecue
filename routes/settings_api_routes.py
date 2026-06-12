@@ -8,6 +8,14 @@ from datetime import datetime, timedelta
 import json
 import logging
 
+# Lenient auth used by the canonical settings routes in
+# consolidated_api_routes. Imported so the duplicate branding GET below
+# can match it — see the branding GET docstring.
+try:
+    from auth import jwt_required_with_demo
+except Exception:  # pragma: no cover - auth always present in app context
+    jwt_required_with_demo = jwt_required
+
 logger = logging.getLogger(__name__)
 
 settings_api_bp = Blueprint('settings_api', __name__, url_prefix='/api/settings')
@@ -122,9 +130,24 @@ def update_event_settings():
         return jsonify({'status': 'error', 'message': 'Failed to update settings'}), 500
 
 @settings_api_bp.route('/branding', methods=['GET'])
-@jwt_required()
+@jwt_required_with_demo()
 def get_branding_settings():
-    """Get branding settings specifically"""
+    """Get branding settings specifically.
+
+    NOTE: this route DUPLICATES consolidated_api_routes.py's
+    GET /api/settings/branding (same path). Whichever blueprint wins
+    the URL-map match serves the request. This version previously used
+    strict @jwt_required() AND read the wrong settings key
+    ('event_branding'), so when it won it returned 401 "Invalid crypto
+    padding" for tokens that worked everywhere else — branding never
+    loaded in the browser and every screen fell back to placeholder
+    copy ("Landing Page Title", "Footer Text", "Admin Panel Title").
+    Now it matches the canonical route: lenient auth + the
+    'branding_settings' key the Branding panel actually writes to. Found
+    via Chrome-extension self-testing 2026-06-12. The real cleanup is to
+    delete one of the two duplicate routes, but aligning behaviour is
+    the zero-risk fix.
+    """
     try:
         # Get coffee system from app context
         coffee_system = current_app.config.get('coffee_system')
@@ -134,16 +157,19 @@ def get_branding_settings():
                 'status': 'error',
                 'message': 'Coffee system not available'
             }), 500
-        
+
         db = coffee_system.db
         cursor = db.cursor()
-        
-        # Get branding settings from database
-        cursor.execute("SELECT value FROM settings WHERE key = 'event_branding'")
+
+        # Read the SAME key the Branding panel writes to (consolidated
+        # uses 'branding_settings'). Was 'event_branding' — a key nothing
+        # writes, so this always returned defaults even after a save.
+        cursor.execute("SELECT value FROM settings WHERE key = 'branding_settings'")
         result = cursor.fetchone()
-        
+
         if result:
-            branding_data = json.loads(result[0])
+            raw = result[0] if not isinstance(result, dict) else result.get('value')
+            branding_data = json.loads(raw) if isinstance(raw, str) else (raw or {})
         else:
             # Default branding settings
             branding_data = {
