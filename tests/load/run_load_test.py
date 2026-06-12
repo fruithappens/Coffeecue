@@ -77,7 +77,12 @@ class EndpointStats:
     latencies_ms: list[float] = field(default_factory=list)
     errors: int = 0
     statuses: dict[int, int] = field(default_factory=dict)
-    _lock: threading.Lock = field(default_factory=threading.Lock)
+    # RLock (not Lock): summary() holds the lock and calls percentile(),
+    # which re-acquires it. A plain Lock is non-reentrant and would
+    # self-deadlock the reporting phase (workers finish, report hangs
+    # forever). RLock lets the same thread re-enter. Found via stack
+    # dump during the first real load run.
+    _lock: threading.RLock = field(default_factory=threading.RLock)
 
     def record(self, latency_ms: float, status_code: int, ok: bool):
         with self._lock:
@@ -86,16 +91,20 @@ class EndpointStats:
             if not ok:
                 self.errors += 1
 
+    def _percentile_locked(self, p: float) -> float | None:
+        """Percentile assuming the caller already holds self._lock."""
+        if not self.latencies_ms:
+            return None
+        xs = sorted(self.latencies_ms)
+        # Linear-interp percentile so we're not biased by tiny samples.
+        k = (len(xs) - 1) * (p / 100)
+        f = int(k)
+        c = min(f + 1, len(xs) - 1)
+        return xs[f] + (xs[c] - xs[f]) * (k - f)
+
     def percentile(self, p: float) -> float | None:
         with self._lock:
-            if not self.latencies_ms:
-                return None
-            xs = sorted(self.latencies_ms)
-            # Linear-interp percentile so we're not biased by tiny samples.
-            k = (len(xs) - 1) * (p / 100)
-            f = int(k)
-            c = min(f + 1, len(xs) - 1)
-            return xs[f] + (xs[c] - xs[f]) * (k - f)
+            return self._percentile_locked(p)
 
     def summary(self) -> dict:
         with self._lock:
@@ -105,9 +114,9 @@ class EndpointStats:
                 'requests': n,
                 'errors': self.errors,
                 'error_rate': (self.errors / n) if n else 0.0,
-                'p50_ms': self.percentile(50),
-                'p95_ms': self.percentile(95),
-                'p99_ms': self.percentile(99),
+                'p50_ms': self._percentile_locked(50),
+                'p95_ms': self._percentile_locked(95),
+                'p99_ms': self._percentile_locked(99),
                 'max_ms': max(self.latencies_ms) if self.latencies_ms else None,
                 'mean_ms': statistics.mean(self.latencies_ms) if self.latencies_ms else None,
                 'statuses': dict(self.statuses),
@@ -168,8 +177,18 @@ class Client:
 # ---------------------------------------------------------------------------
 
 DRINKS = ['Latte', 'Flat White', 'Cappuccino', 'Long Black', 'Espresso', 'Mocha']
-MILKS = ['full cream', 'skim', 'oat', 'almond', 'soy', 'lactose free']
-SIZES = ['small', 'medium', 'large']
+# Only milks the DEFAULT Quick Setup preset stocks. If you generate
+# orders for a milk the station doesn't carry, the backend correctly
+# refuses with 400 ("This station doesn't stock soy") — which is right
+# behaviour but pollutes the load-test error rate with false positives.
+# Keep this in sync with DEFAULT_QUICK_PRESET['milks'] in
+# routes/consolidated_api_routes.py, or pass --milks to override.
+# (First real load run reported a phantom ~15% error rate purely from
+# randomly picking 'soy', which the default preset doesn't stock.)
+MILKS = ['full cream', 'skim', 'oat', 'almond', 'lactose free']
+# Default station catalog also doesn't stock every size — 'medium' is
+# the only size the default preset seeds, so bias toward it.
+SIZES = ['medium', 'medium', 'small', 'large']
 NAMES = ['Alex', 'Sam', 'Jordan', 'Casey', 'Morgan', 'Riley', 'Taylor',
          'Avery', 'Quinn', 'Skyler', 'Drew', 'Emerson', 'Hayden']
 
