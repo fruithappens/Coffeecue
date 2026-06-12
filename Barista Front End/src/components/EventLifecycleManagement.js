@@ -412,9 +412,15 @@ const EventLifecycleManagement = () => {
             />
             <span>Automated Transitions</span>
           </label>
-          <button className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
-            Configure Phases
-          </button>
+          {/* The old "Configure Phases" button had no handler and did
+              nothing — removed rather than ship a dead control. This
+              panel is a read-only, real-data timeline (the disclaimer
+              above says transitions are informational only). When a real
+              phase engine exists (persist + drive routing/menu), a
+              working Configure action goes here. */}
+          <span className="text-xs px-3 py-1.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200">
+            Read-only preview
+          </span>
         </div>
       </div>
 

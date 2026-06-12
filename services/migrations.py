@@ -364,6 +364,34 @@ def _m011_client_errors(cur):
     """)
 
 
+def _m013_client_events(cur):
+    """Frontend structured-event sink.
+
+    Mirrors client_errors (m011) but for non-crash signals: feature
+    usage, recoverable failures, slow API calls, etc. The frontend
+    services/logging.js event() POSTs here. Same retention pattern;
+    keep small with periodic prune if it grows.
+
+    code is the SCREAMING_SNAKE_CASE event identifier; payload is a
+    free-form JSONB blob for whatever the call site wanted to carry.
+    """
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS client_events (
+            id          SERIAL PRIMARY KEY,
+            occurred_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            code        VARCHAR(100) NOT NULL,
+            payload     JSONB DEFAULT '{}'::jsonb,
+            url         TEXT,
+            user_id     VARCHAR(100),
+            user_agent  TEXT
+        )
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_client_events_code_occurred
+        ON client_events(code, occurred_at DESC)
+    """)
+
+
 def _m012_event_templates(cur):
     """Saved Quick Setup presets that can be re-applied to a new event.
 
@@ -414,6 +442,7 @@ MIGRATIONS: list[Migration] = [
     Migration(10, 'customer_questions',        _m010_customer_questions),
     Migration(11, 'client_errors',             _m011_client_errors),
     Migration(12, 'event_templates',           _m012_event_templates),
+    Migration(13, 'client_events',             _m013_client_events),
 ]
 
 

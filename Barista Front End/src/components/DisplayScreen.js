@@ -179,6 +179,7 @@ const DisplayScreen = () => {
     sponsor: { enabled: false, name: '', message: '' },
     header_color: '#1e40af',
     custom_message: '',
+    logo: '',
   });
 
   // --- Fetch display config from backend ---
@@ -196,6 +197,7 @@ const DisplayScreen = () => {
             event_name: c.event_name || settings?.displaySettings?.eventName || 'Coffee Event',
             sms_number: c.sms_number || '',
             sponsor: c.sponsor || prev.sponsor,
+            logo: c.logo || prev.logo,
           }));
         }
       } catch (e) { /* defaults OK if backend silent */ }
@@ -482,7 +484,15 @@ const DisplayScreen = () => {
           >
             <ArrowLeft size={24} />
           </button>
-          <Coffee size={36} className="mr-3" />
+          {config.logo ? (
+            <img
+              src={config.logo}
+              alt=""
+              className={`${isPortrait ? 'h-12' : 'h-14'} w-auto max-w-[200px] object-contain mr-3`}
+            />
+          ) : (
+            <Coffee size={36} className="mr-3" />
+          )}
           <div className="min-w-0">
             <h1 className={`${isPortrait ? 'text-3xl' : 'text-4xl'} font-extrabold tracking-tight leading-tight truncate`}>
               {config.event_name || config.system_name}

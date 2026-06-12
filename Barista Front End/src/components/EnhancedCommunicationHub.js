@@ -9,6 +9,9 @@ import {
 import MessageService from '../services/MessageService';
 import useOrders from '../hooks/useOrders';
 import useSettings from '../hooks/useSettings';
+import ApiServiceClass from '../services/ApiService';
+
+const api = new ApiServiceClass();
 
 /**
  * Enhanced Communication Hub Integration
@@ -38,6 +41,45 @@ const EnhancedCommunicationHub = () => {
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [newMessage, setNewMessage] = useState('');
   const [showBroadcastModal, setShowBroadcastModal] = useState(false);
+  // Real broadcast state. The "New Broadcast" button used to open a
+  // modal that didn't exist (dead button). Now it opens a working modal
+  // wired to POST /api/support/broadcast/customers (audience-targeted,
+  // capped at 500 recipients server-side, with a dry-run preview).
+  const [bcMessage, setBcMessage] = useState('');
+  const [bcAudience, setBcAudience] = useState('today');
+  const [bcSending, setBcSending] = useState(false);
+  const [bcResult, setBcResult] = useState(null);
+
+  const runBroadcast = async (dryRun) => {
+    if (!bcMessage.trim()) { setBcResult({ ok: false, msg: 'Enter a message first.' }); return; }
+    setBcSending(true); setBcResult(null);
+    try {
+      const r = await api.request('/support/broadcast/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: bcMessage.trim(), audience: bcAudience, dry_run: dryRun }),
+      });
+      // Endpoint returns {status:'success', recipient_count} on dry-run
+      // and {status:'success', sent, failed, capped} on a real send.
+      const okStatus = r && (r.status === 'success' || r.dry_run || typeof r.sent === 'number');
+      if (okStatus) {
+        if (dryRun) {
+          const n = r.recipient_count ?? 0;
+          setBcResult({ ok: true,
+            msg: `${n} recipient(s) would receive this (${bcAudience})${r.capped ? ', capped at 500' : ''}. Not sent yet.` });
+        } else {
+          setBcResult({ ok: true,
+            msg: `Sent to ${r.sent ?? 0}${r.failed ? `, ${r.failed} failed` : ''} recipient(s).` });
+        }
+      } else {
+        setBcResult({ ok: false, msg: r?.message || r?.error || 'Broadcast failed' });
+      }
+    } catch (e) {
+      setBcResult({ ok: false, msg: e?.message || 'Broadcast failed' });
+    } finally {
+      setBcSending(false);
+    }
+  };
   const messageEndRef = useRef(null);
   
   // Channel configurations
@@ -619,9 +661,8 @@ const EnhancedCommunicationHub = () => {
               {messages.filter(m => m.timestamp > new Date(Date.now() - 24*60*60*1000)).length}
             </p>
             <p className="text-sm text-gray-600">Messages Today</p>
-            <p className="text-xs text-blue-600 mt-1">
-              <TrendingUp className="w-3 h-3 inline" /> +12% vs yesterday
-            </p>
+            {/* removed hardcoded "+12% vs yesterday" — no day-over-day
+                comparison is computed. */}
           </div>
           
           <div className="text-center p-4 bg-green-50 rounded-lg">
@@ -633,18 +674,75 @@ const EnhancedCommunicationHub = () => {
           </div>
           
           <div className="text-center p-4 bg-amber-50 rounded-lg">
-            <p className="text-3xl font-bold text-amber-600">1.8s</p>
+            <p className="text-3xl font-bold text-amber-600">—</p>
             <p className="text-sm text-gray-600">Avg Response Time</p>
-            <p className="text-xs text-amber-600 mt-1">Within SLA</p>
+            <p className="text-xs text-gray-400 mt-1">not yet measured</p>
           </div>
-          
+
           <div className="text-center p-4 bg-purple-50 rounded-lg">
-            <p className="text-3xl font-bold text-purple-600">4.8</p>
+            <p className="text-3xl font-bold text-purple-600">—</p>
             <p className="text-sm text-gray-600">Satisfaction Score</p>
-            <p className="text-xs text-purple-600 mt-1">Based on feedback</p>
+            <p className="text-xs text-gray-400 mt-1">no feedback pipeline yet</p>
           </div>
         </div>
       </div>
+
+      {/* Broadcast modal — sends a real SMS to a customer audience via
+          POST /api/support/broadcast/customers (server caps at 500). */}
+      {showBroadcastModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold flex items-center">
+                <Radio className="mr-2 text-amber-600" size={20} /> New broadcast
+              </h3>
+              <button onClick={() => { setShowBroadcastModal(false); setBcResult(null); }}
+                      className="text-gray-400 hover:text-gray-700">✕</button>
+            </div>
+            <label className="block text-sm text-gray-600 mb-1">Audience</label>
+            <select
+              value={bcAudience}
+              onChange={e => setBcAudience(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded mb-3"
+            >
+              <option value="today">Everyone who ordered today</option>
+              <option value="active_today">Today's customers with an open order</option>
+              <option value="in_progress">Only orders being made now</option>
+            </select>
+            <label className="block text-sm text-gray-600 mb-1">Message</label>
+            <textarea
+              value={bcMessage}
+              onChange={e => setBcMessage(e.target.value)}
+              rows={3}
+              maxLength={480}
+              placeholder="e.g. Coffee service wraps up in 15 minutes — last orders now!"
+              className="w-full px-3 py-2 border border-gray-300 rounded mb-1"
+            />
+            <p className="text-xs text-gray-400 mb-3">{bcMessage.length}/480 — capped at 500 recipients per send.</p>
+            {bcResult && (
+              <div className={`mb-3 text-sm px-3 py-2 rounded ${bcResult.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                {bcResult.msg}
+              </div>
+            )}
+            <div className="flex items-center justify-end gap-2">
+              <button
+                onClick={() => runBroadcast(true)}
+                disabled={bcSending}
+                className="px-4 py-2 rounded border border-gray-300 hover:bg-gray-100 text-gray-700 disabled:opacity-50"
+              >
+                Preview recipients
+              </button>
+              <button
+                onClick={() => runBroadcast(false)}
+                disabled={bcSending || !bcMessage.trim()}
+                className="px-4 py-2 rounded bg-amber-600 hover:bg-amber-700 text-white disabled:opacity-50 flex items-center gap-2"
+              >
+                {bcSending ? (<><RefreshCw size={16} className="animate-spin" /> Sending…</>) : (<><Send size={16} /> Send broadcast</>)}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

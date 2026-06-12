@@ -1,9 +1,50 @@
-// Milk type configuration constants
-// This file provides centralized configuration for milk types
-// across the application to ensure consistency
+// Milk type configuration.
+//
+// The canonical milk list is the backend catalog (`/api/catalog/milk`,
+// seeded by services/migrations.py _m009_catalog_items). useCatalog
+// fetches it; this module mirrors the latest fetched list into a
+// module-level cache so non-React callers (utils, services) can read
+// it synchronously.
+//
+// DEFAULT_MILK_TYPES is the offline / pre-fetch fallback only — kept
+// around so the dialog has SOMETHING to show before the catalog
+// resolves and so demo/offline mode still works. Direct imports of
+// DEFAULT_MILK_TYPES in component code are deprecated; new code should
+// use getCatalogMilks() instead.
+
+// Mutable mirror of the most recent /api/catalog/milk response, in the
+// {id, name, category, properties, available} shape callers expect.
+// useCatalog calls setCachedCatalogMilks() after every successful fetch.
+let _cachedCatalogMilks = null;
+
+/** Push a fresh catalog payload into the sync cache. Called by useCatalog. */
+export const setCachedCatalogMilks = (items) => {
+  if (!Array.isArray(items) || items.length === 0) return;
+  _cachedCatalogMilks = items.map(item => ({
+    id: item.id || item.item_id,
+    name: item.name || item.display_name,
+    short_name: item.short_name,
+    category: item.subcategory === 'alternative' ? 'alternative' : 'standard',
+    available: item.is_active !== false,
+    properties: item.properties || {},
+  }));
+};
 
 /**
- * Default milk types with their properties
+ * Sync access to the canonical milk list. Returns the catalog cache
+ * if loaded, falls back to DEFAULT_MILK_TYPES otherwise. Safe to call
+ * from any context (React, services, utils, tests).
+ */
+export const getCatalogMilks = () => {
+  if (_cachedCatalogMilks && _cachedCatalogMilks.length > 0) {
+    return _cachedCatalogMilks;
+  }
+  return DEFAULT_MILK_TYPES;
+};
+
+/**
+ * @deprecated Prefer getCatalogMilks(). Kept as the offline fallback
+ * list and for legacy callers that haven't been migrated yet.
  */
 export const DEFAULT_MILK_TYPES = [
   // Standard Milks
@@ -173,7 +214,7 @@ export const DEFAULT_MILK_TYPES = [
  * @returns {Object|null} - Milk type object or null if not found
  */
 export const getMilkTypeById = (id) => {
-  return DEFAULT_MILK_TYPES.find(milk => milk.id === id) || null;
+  return getCatalogMilks().find(milk => milk.id === id) || null;
 };
 
 /**
@@ -182,7 +223,7 @@ export const getMilkTypeById = (id) => {
  * @returns {Object|null} - Milk type object or null if not found
  */
 export const getMilkTypeByName = (name) => {
-  return DEFAULT_MILK_TYPES.find(milk => milk.name === name) || null;
+  return getCatalogMilks().find(milk => milk.name === name) || null;
 };
 
 /**
@@ -190,7 +231,7 @@ export const getMilkTypeByName = (name) => {
  * @returns {Array} - Array of standard milk types
  */
 export const getStandardMilks = () => {
-  return DEFAULT_MILK_TYPES.filter(milk => milk.category === 'standard');
+  return getCatalogMilks().filter(milk => milk.category === 'standard');
 };
 
 /**
@@ -198,7 +239,7 @@ export const getStandardMilks = () => {
  * @returns {Array} - Array of alternative milk types
  */
 export const getAlternativeMilks = () => {
-  return DEFAULT_MILK_TYPES.filter(milk => milk.category === 'alternative');
+  return getCatalogMilks().filter(milk => milk.category === 'alternative');
 };
 
 /**
@@ -207,13 +248,14 @@ export const getAlternativeMilks = () => {
  * @returns {Array} - Array of available milk types based on settings
  */
 export const getAvailableMilks = (settings) => {
+  const allMilks = getCatalogMilks();
   if (!settings || !settings.availableMilks) {
     // Default to all milks if no settings provided
-    return DEFAULT_MILK_TYPES;
+    return allMilks;
   }
-  
+
   // Filter based on the availableMilks setting
-  return DEFAULT_MILK_TYPES.filter(milk => 
+  return allMilks.filter(milk =>
     settings.availableMilks[milk.id] === true
   );
 };
@@ -246,13 +288,14 @@ export const getSimilarMilkSuggestions = (requestedMilk, settings, limit = 3) =>
     const normalizedName = requestedMilk.toLowerCase();
     
     // Try exact match first
-    requestedMilkObj = DEFAULT_MILK_TYPES.find(
+    const allMilks = getCatalogMilks();
+    requestedMilkObj = allMilks.find(
       milk => milk.name.toLowerCase() === normalizedName
     );
-    
+
     // If still not found, try partial match
     if (!requestedMilkObj) {
-      requestedMilkObj = DEFAULT_MILK_TYPES.find(
+      requestedMilkObj = allMilks.find(
         milk => milk.name.toLowerCase().includes(normalizedName) ||
                normalizedName.includes(milk.name.toLowerCase())
       );

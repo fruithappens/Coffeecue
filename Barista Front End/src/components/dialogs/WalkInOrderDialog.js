@@ -11,6 +11,7 @@ import useWalkinDefaults from '../../hooks/useWalkinDefaults';
 import SettingsService from '../../services/SettingsService';
 import StockService from '../../services/StockService';
 import useStations from '../../hooks/useStations';
+import { event as logEvent } from '../../services/logging';
 
 const WalkInOrderDialog = ({ onSubmit, onClose }) => {
   const { getCurrentStation, stations } = useStations();
@@ -45,6 +46,18 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
   // eslint-disable-next-line no-unused-vars
   void walkinDefaultsLoaded;
   
+  // Remember the previous walk-in customer name. Often the next
+  // walk-in is from the same group (a colleague picking up a round)
+  // so showing the previous name as a suggestion saves a re-type.
+  // Persisted in localStorage so it survives reload + dialog close.
+  const [lastCustomerName, setLastCustomerName] = useState(() => {
+    try {
+      return localStorage.getItem('walkin_last_customer_name') || '';
+    } catch (_) {
+      return '';
+    }
+  });
+
   const [orderDetails, setOrderDetails] = useState({
     customerName: '',
     phoneNumber: '',
@@ -103,6 +116,30 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
       StockService.initialize(targetStation.id, targetStation.name);
     }
   }, [targetStation]);
+
+  // Numeric quick-pick keyboard shortcuts. Press 1-9 to jump to the
+  // first 9 available drinks. Ignored while typing into a text input
+  // (otherwise typing a name with a digit would silently change the
+  // drink — a real footgun in high-volume mode).
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      // Ignore modified keys (ctrl/cmd/alt) so we don't clobber browser
+      // shortcuts. Shift+digit is fine — keeps Caps Lock cases working.
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const tag = (e.target?.tagName || '').toLowerCase();
+      const editable = e.target?.isContentEditable;
+      if (tag === 'input' || tag === 'textarea' || tag === 'select' || editable) return;
+      const n = parseInt(e.key, 10);
+      if (!Number.isInteger(n) || n < 1 || n > 9) return;
+      const drink = availableCoffeeTypes[n - 1];
+      if (!drink) return;
+      e.preventDefault();
+      setOrderDetails(prev => ({ ...prev, coffeeType: drink }));
+      logEvent('WALKIN_SHORTCUT_USED', { key: n, drink });
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [availableCoffeeTypes]);
 
   // Load station inventory and available options
   useEffect(() => {
@@ -1226,7 +1263,28 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
     };
     
     console.log('Final order object being submitted:', newOrder);
-    
+
+    // Remember the customer name for the next walk-in (suggested-name
+    // chip in the empty field). Skipped if blank.
+    const trimmedName = (orderDetails.customerName || '').trim();
+    if (trimmedName) {
+      try {
+        localStorage.setItem('walkin_last_customer_name', trimmedName);
+        setLastCustomerName(trimmedName);
+      } catch (_) { /* private mode / quota — non-fatal */ }
+    }
+
+    // Telemetry — counts walk-in submissions per session. Tiny payload.
+    try {
+      logEvent('WALKIN_SUBMIT', {
+        drink: orderDetails.coffeeType,
+        size: orderDetails.size,
+        milk: selectedMilk?.id,
+        priority: !!isPriority,
+        is_tea: isTea,
+      });
+    } catch (_) { /* logging never breaks submit */ }
+
     // Wrap onSubmit in try/catch to ensure we reset submission state
     try {
       onSubmit(newOrder);
@@ -1332,14 +1390,37 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Customer Name*
               </label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 name="customerName"
                 value={orderDetails.customerName}
                 onChange={handleChange}
+                onFocus={(e) => {
+                  // Auto-clear the pre-filled "last customer" placeholder
+                  // on focus. Operators told us tapping the field to
+                  // "edit" the suggested name and accidentally appending
+                  // is worse than just clearing it. They can paste it
+                  // back via the suggested-name chip below if needed.
+                  if (e.target.dataset.prefilled === 'true') {
+                    setOrderDetails(prev => ({ ...prev, customerName: '' }));
+                    e.target.dataset.prefilled = 'false';
+                  }
+                }}
+                data-prefilled={lastCustomerName && orderDetails.customerName === lastCustomerName ? 'true' : 'false'}
+                placeholder={lastCustomerName ? `e.g. ${lastCustomerName}` : ''}
                 className="w-full p-2 border rounded"
                 required
               />
+              {lastCustomerName && !orderDetails.customerName && (
+                <button
+                  type="button"
+                  onClick={() => setOrderDetails(prev => ({ ...prev, customerName: lastCustomerName }))}
+                  className="text-xs text-blue-600 hover:underline mt-1"
+                  title="Re-use the previous walk-in customer name"
+                >
+                  Same as last walk-in: {lastCustomerName}
+                </button>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1480,6 +1561,30 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
                     <div className="mt-1 text-xs text-red-600 flex items-center">
                       <AlertTriangle size={12} className="inline mr-1" />
                       Warning: No coffee beans in inventory
+                    </div>
+                  )}
+                  {/* Numeric quick-pick row. High-volume events lose
+                      seconds per order when baristas have to dig through
+                      a dropdown — keys 1-9 jump straight to the most
+                      common drinks. The handler is wired in a useEffect
+                      below, this row just shows the hints. */}
+                  {availableCoffeeTypes.length > 1 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {availableCoffeeTypes.slice(0, 9).map((d, i) => (
+                        <button
+                          key={d}
+                          type="button"
+                          onClick={() => setOrderDetails(prev => ({ ...prev, coffeeType: d }))}
+                          className={`text-xs px-2 py-1 rounded border ${
+                            orderDetails.coffeeType === d
+                              ? 'bg-amber-100 border-amber-400 text-amber-900'
+                              : 'bg-white border-gray-300 hover:bg-gray-50'
+                          }`}
+                          title={`Press ${i + 1} on the keyboard`}
+                        >
+                          <kbd className="font-mono text-gray-500 mr-1">{i + 1}</kbd>{d}
+                        </button>
+                      ))}
                     </div>
                   )}
                 </div>

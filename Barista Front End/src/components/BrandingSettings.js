@@ -31,7 +31,16 @@ const BrandingSettings = () => {
     event_name: '',
     smsNumber: '',
     clientLogo: brandingConfig.logo || '',
-    
+
+    // Sponsor / "free coffee thanks". The display screen and SMS order
+    // confirmations already render these (read by /api/display/config
+    // as showSponsor / sponsorName / sponsorMessage from branding_settings) —
+    // this is the UI to set them. Use case: "Coffees today proudly
+    // sponsored by Acme Corp" on the display + in the ready SMS.
+    showSponsor: false,
+    sponsorName: '',
+    sponsorMessage: '',
+
     // Color Theme
     primaryColor: brandingConfig.primaryColor || '#D97706',
     secondaryColor: brandingConfig.primaryColorHover || '#B45309',
@@ -162,6 +171,11 @@ const BrandingSettings = () => {
       } else {
         setSuccess('Saved locally — server save did not confirm. Settings may not sync across devices.');
       }
+      // Nudge App.js to refresh the page title with the new event_name
+      // without waiting for its 60s poll.
+      try {
+        window.dispatchEvent(new CustomEvent('branding_updated', { detail: settings }));
+      } catch (_) { /* CustomEvent unavailable in very old browsers */ }
       
       // Apply theme colors to document
       if (settings.customBranding) {
@@ -239,6 +253,36 @@ const BrandingSettings = () => {
       };
       reader.readAsText(file);
     }
+  };
+
+  // Logo / display-graphic upload. Reads the image to a base64 data URI
+  // entirely client-side and stores it in settings.clientLogo — which
+  // the branding save persists to branding_settings and the display
+  // screen + login read. No backend upload endpoint or writable volume
+  // needed (Railway containers have ephemeral disk, so a data URI in the
+  // DB is the robust choice). Capped so a giant image can't bloat the
+  // settings row.
+  const MAX_LOGO_BYTES = 400 * 1024; // 400KB
+  const handleLogoUpload = (event) => {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setError('Please choose an image file (PNG, JPG, SVG).');
+      return;
+    }
+    if (file.size > MAX_LOGO_BYTES) {
+      setError(`Logo is ${(file.size / 1024).toFixed(0)}KB — please use an image under 400KB `
+        + '(resize/compress it). Big images slow the display screen.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setSettings(prev => ({ ...prev, clientLogo: e.target.result }));
+      setSuccess('Logo loaded — click Save to apply it to the display + login.');
+      setError('');
+    };
+    reader.onerror = () => setError('Could not read that image file.');
+    reader.readAsDataURL(file);
   };
   
   return (
@@ -348,6 +392,107 @@ const BrandingSettings = () => {
                   env var if blank.
                 </p>
               </div>
+            </div>
+
+            {/* Logo / display graphic. Uploaded as a data URI (no server
+                storage needed) and shown on the /display screen header +
+                login + printable report. */}
+            <div className="md:col-span-2 border-t pt-4 mt-2">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                Logo / display graphic
+              </p>
+              <div className="flex items-center gap-4">
+                {settings.clientLogo ? (
+                  <img
+                    src={settings.clientLogo}
+                    alt="Logo preview"
+                    className="h-16 w-auto max-w-[160px] object-contain border border-gray-200 rounded bg-white p-1"
+                  />
+                ) : (
+                  <div className="h-16 w-28 flex items-center justify-center border border-dashed border-gray-300 rounded text-xs text-gray-400">
+                    No logo
+                  </div>
+                )}
+                <div className="flex flex-col gap-2">
+                  <label className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center cursor-pointer text-sm w-fit">
+                    <Upload className="mr-2" size={16} />
+                    {settings.clientLogo ? 'Replace logo' : 'Upload logo'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleLogoUpload}
+                      className="hidden"
+                    />
+                  </label>
+                  {settings.clientLogo && (
+                    <button
+                      type="button"
+                      onClick={() => setSettings(prev => ({ ...prev, clientLogo: '' }))}
+                      className="text-xs text-red-600 hover:underline w-fit"
+                    >
+                      Remove logo
+                    </button>
+                  )}
+                  <p className="text-xs text-gray-500">
+                    PNG/JPG/SVG under 400KB. Shows on the customer display
+                    screen and the login page. Click Save to apply.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Sponsor / free-coffee thanks. Renders on the customer
+                display screen + in order-ready SMS when enabled. */}
+            <div className="md:col-span-2 border-t pt-4 mt-2">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                Sponsor / free-coffee thanks
+              </p>
+              <label className="flex items-center mb-3">
+                <input
+                  type="checkbox"
+                  checked={!!settings.showSponsor}
+                  onChange={(e) => setSettings({...settings, showSponsor: e.target.checked})}
+                  className="mr-2"
+                />
+                <span className="text-sm font-medium text-gray-700">
+                  Show a sponsor thank-you on the display screen
+                </span>
+              </label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Sponsor name
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.sponsorName}
+                    onChange={(e) => setSettings({...settings, sponsorName: e.target.value})}
+                    placeholder="Acme Corp"
+                    disabled={!settings.showSponsor}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Sponsor message
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.sponsorMessage}
+                    onChange={(e) => setSettings({...settings, sponsorMessage: e.target.value})}
+                    placeholder="Coffees today proudly sponsored by {sponsor} ☕"
+                    disabled={!settings.showSponsor}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Shows on the customer-facing /display screen (and in the
+                "your coffee is ready" SMS). Use <code>{'{sponsor}'}</code> in
+                the message to insert the sponsor name. Leave the box
+                unticked to hide it. Tip: change the sponsor between
+                sessions for a "this session sponsored by…" rotation.
+              </p>
             </div>
 
             <div>

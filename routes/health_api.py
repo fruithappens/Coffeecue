@@ -100,29 +100,54 @@ def health_check_full():
         logger.warning(f"DB health check failed: {e}")
         _set_check('database', 'fail', f'query error: {e}')
 
-    # --- 2. Twilio configuration presence ---
-    # We don't actually call Twilio — that costs money + adds latency.
-    # Just confirm the env vars are populated.
-    twilio_sid   = os.environ.get('TWILIO_ACCOUNT_SID', '').strip()
-    twilio_token = os.environ.get('TWILIO_AUTH_TOKEN', '').strip()
-    twilio_phone = os.environ.get('TWILIO_PHONE_NUMBER', '').strip()
-    testing_mode = (os.environ.get('TESTING_MODE', 'true').lower() == 'true')
-    if testing_mode:
-        _set_check('twilio', 'ok', 'TESTING_MODE=true; SMS calls stubbed', {
-            'testing_mode': True,
-        })
-    elif twilio_sid and twilio_token and twilio_phone:
-        _set_check('twilio', 'ok', 'configured', {
-            'testing_mode': False,
-            'phone_number': twilio_phone,
-        })
-    else:
-        missing = []
-        if not twilio_sid: missing.append('TWILIO_ACCOUNT_SID')
-        if not twilio_token: missing.append('TWILIO_AUTH_TOKEN')
-        if not twilio_phone: missing.append('TWILIO_PHONE_NUMBER')
-        _set_check('twilio', 'fail',
-                   f'live mode but missing env: {", ".join(missing)}')
+    # --- 2. SMS provider configuration presence ---
+    # We don't actually call the providers — that costs money + adds
+    # latency. Each provider's health() inspects its env vars. The
+    # primary outbound provider (SMS_PROVIDER, defaults to twilio) gets
+    # an `sms_primary` check; every registered provider gets its own
+    # named check so the Support tab can show "twilio: ok, clicksend:
+    # not configured, cellcast: not configured" side-by-side.
+    primary_name = (os.environ.get('SMS_PROVIDER') or 'twilio').lower()
+    try:
+        from services.sms import all_providers, get_outbound_provider
+        for p in all_providers():
+            h = p.health()
+            status = 'ok' if h.configured else (
+                # An unconfigured non-primary provider is fine — it just
+                # means Steve hasn't set those creds. The PRIMARY one
+                # being unconfigured is a fail.
+                'fail' if p.name == primary_name else 'warn'
+            )
+            _set_check(f'sms_{p.name}', status, h.detail, h.extras)
+        # Roll up a single "is the primary SMS path actually wired?"
+        # check that Readiness can use.
+        primary = get_outbound_provider()
+        ph = primary.health()
+        _set_check('sms_primary',
+                   'ok' if ph.configured else 'fail',
+                   f'primary={primary.name} — {ph.detail}',
+                   {'primary': primary.name, **ph.extras})
+    except Exception as e:
+        logger.warning(f"SMS provider health probe failed: {e}")
+        _set_check('sms_primary', 'fail', f'probe error: {e}')
+
+    # --- 2b. EventsAir integration (optional) ---
+    # 'ok' when disabled (it's opt-in) or configured; 'warn' only when
+    # enabled-but-not-fully-configured. Never 'fail' — it's an add-on.
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        from services.eventsair import get_client, is_enabled
+        if coffee_system and is_enabled(coffee_system.db):
+            h = get_client(coffee_system.db).health()
+            _set_check('eventsair',
+                       'ok' if h.get('configured') else 'warn',
+                       h.get('detail', ''),
+                       {'stub': h.get('stub')})
+        else:
+            _set_check('eventsair', 'ok', 'disabled (opt-in)', {'enabled': False})
+    except Exception as e:
+        logger.warning(f"EventsAir health probe failed: {e}")
+        _set_check('eventsair', 'warn', f'probe error: {e}')
 
     # --- 3. Pending schema migrations ---
     try:

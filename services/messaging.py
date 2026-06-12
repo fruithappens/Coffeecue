@@ -58,23 +58,52 @@ class MessagingService:
     
     def send_message(self, to, body):
         """
-        Send an SMS message
-        
+        Send an SMS message.
+
+        Outbound provider selection:
+        - If SMS_USE_PROVIDER_FACTORY=true (opt-in for now), delegate
+          to services.sms.get_outbound_provider() which respects
+          SMS_PROVIDER=twilio|clicksend|cellcast. This is how Steve
+          swaps to ClickSend/Cellcast — set the env vars, flip
+          SMS_PROVIDER, redeploy. No code change.
+        - Otherwise the legacy Twilio code path runs (current default,
+          lowest risk). Once we've shaken down the factory in staging,
+          this opt-in flips to default-on.
+
         Args:
             to: Recipient phone number
             body: Message body
-            
+
         Returns:
             Message SID if successful, None otherwise
         """
+        # Opt-in to the provider factory. Default off — preserves the
+        # exact behaviour every production deploy has today.
+        if os.getenv('SMS_USE_PROVIDER_FACTORY', 'false').lower() == 'true':
+            try:
+                from services.sms import get_outbound_provider
+                provider = get_outbound_provider()
+                result = provider.send(to, body)
+                if result.ok:
+                    logger.info("Sent SMS to %s via %s", to, result.provider)
+                    return result.message_id
+                logger.error("SMS via %s failed: %s", result.provider, result.error)
+                return None
+            except Exception as e:
+                logger.error(
+                    "SMS provider factory crashed: %s — falling back to legacy Twilio path",
+                    e,
+                )
+                # Fall through to legacy below.
+
         if self.testing_mode:
             logger.info(f"TESTING MODE - Would send to {to}: {body}")
             return "testing_mode_message_sid"
-        
+
         if not self.client:
             logger.warning("No Twilio client available, skipping SMS notification")
             return None
-        
+
         try:
             message = self.client.messages.create(
                 body=body,
@@ -227,6 +256,7 @@ class MessagingService:
         
         # Get order details to make the message more specific
         coffee_type = "coffee"
+        order_details = None
         try:
             from flask import current_app
             if hasattr(current_app, 'config'):
@@ -235,20 +265,86 @@ class MessagingService:
                     order = coffee_system.get_order_by_number(order_number)
                     if order and 'order_details' in order:
                         details = order['order_details']
+                        order_details = details
                         if 'type' in details:
                             coffee_type = details['type']
         except:
             pass
-        
+
+        # EventsAir push (alongside SMS): if this order came from the
+        # EventsAir app, also push the "ready" status to the attendee's
+        # EA device. Best-effort — never blocks the SMS or the order.
+        try:
+            self._maybe_push_eventsair(order_details, order_number, station_id, coffee_type)
+        except Exception as ea_err:
+            logger.warning(f"EventsAir push (ready) failed, non-fatal: {ea_err}")
+
         message = (
             f"🔔 YOUR COFFEE IS READY! 🔔\n\n"
             f"Your {coffee_type} (order #{order_number}){friend_text} is now ready "
             f"for collection from Station {station_id}.\n\n"
             f"Enjoy! ☕"
         )
-        
+
+        # Optional branded receipt link. Only appended when PUBLIC_BASE_URL
+        # is configured — background reminder threads have no request
+        # context to derive a host, and a localhost link is useless to a
+        # customer. Adds one short line; for corporate/VIP events the
+        # customer can Save-as-PDF for reimbursement.
+        receipt_link = self._receipt_link(order_number)
+        if receipt_link:
+            message += f"\n\nReceipt: {receipt_link}"
+
         # Send the message
         return self.send_message(to, message)
+
+    @staticmethod
+    def _maybe_push_eventsair(order_details, order_number, station_id, coffee_type):
+        """If the order originated from EventsAir AND the integration is
+        enabled, push a 'ready' notification to the attendee's EA device.
+
+        order_details carries eventsair_contact_id (stamped by the
+        inbound order endpoint). No-op when the order isn't from EA, the
+        integration is off, or there's no contact id. Currently the EA
+        client is stubbed (logs) until a real API key exists.
+        """
+        if not isinstance(order_details, dict):
+            return
+        if (order_details.get('source') != 'eventsair'
+                and not order_details.get('eventsair_contact_id')):
+            return
+        contact_id = order_details.get('eventsair_contact_id')
+        if not contact_id:
+            return
+        try:
+            from flask import current_app
+            coffee_system = current_app.config.get('coffee_system')
+            if not coffee_system:
+                return
+            from services.eventsair import get_client, is_enabled
+            if not is_enabled(coffee_system.db):
+                return
+            client = get_client(coffee_system.db)
+            client.push_notification(
+                str(contact_id),
+                title='Your coffee is ready ☕',
+                body=f"Order #{order_number} ({coffee_type}) is ready at Station {station_id}.",
+            )
+        except Exception as e:
+            logger.warning(f"EventsAir push_notification error (non-fatal): {e}")
+
+    @staticmethod
+    def _receipt_link(order_number):
+        """Build the public receipt URL if PUBLIC_BASE_URL is set, else ''.
+
+        PUBLIC_BASE_URL should be the externally-reachable origin
+        (https://coffee-cue.up.railway.app or the ngrok URL), no
+        trailing slash required.
+        """
+        base = (os.getenv('PUBLIC_BASE_URL', '') or '').strip().rstrip('/')
+        if not base:
+            return ''
+        return f"{base}/api/orders/{order_number}/receipt"
     
     def send_reminder(self, to, order_number, station_id, wait_time):
         """

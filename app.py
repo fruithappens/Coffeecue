@@ -222,7 +222,17 @@ def create_app():
     app.config['JWT_SECRET_KEY'] = config.JWT_SECRET_KEY
     app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(seconds=config.JWT_ACCESS_TOKEN_EXPIRES)
     app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(seconds=config.JWT_REFRESH_TOKEN_EXPIRES)
-    app.config['JWT_TOKEN_LOCATION'] = ['headers', 'cookies']
+    # 'query_string' added so authenticated GET links opened via
+    # window.open(...?jwt=TOKEN) work — window.open can't set an
+    # Authorization header, and no JWT cookie is issued at login, so
+    # the printable report links (Support → Dashboard: "Print / save
+    # as PDF", "Post-event summary") were silently 401-ing in the
+    # browser. The frontend already appends ?jwt=; this makes the
+    # backend accept it. Tokens are short-lived access tokens opened
+    # by an already-authenticated operator — acceptable URL exposure
+    # for a same-tab GET.
+    app.config['JWT_TOKEN_LOCATION'] = ['headers', 'cookies', 'query_string']
+    app.config['JWT_QUERY_STRING_NAME'] = 'jwt'
     app.config['JWT_COOKIE_SECURE'] = config.JWT_COOKIE_SECURE
     app.config['JWT_COOKIE_CSRF_PROTECT'] = config.JWT_COOKIE_CSRF_PROTECT
     

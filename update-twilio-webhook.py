@@ -75,8 +75,12 @@ def update_twilio_webhook(ngrok_url):
     # Initialize Twilio client
     client = Client(account_sid, auth_token)
     
-    # Update the phone number webhook
-    webhook_url = f"{ngrok_url}/api/sms/webhook"
+    # Update the phone number webhook.
+    # Path is /sms (NOT /api/sms/webhook) — the sms_routes blueprint
+    # mounts at root with no /api prefix. /api/sms/webhook returns 405
+    # (verified 2026-06-12); pointing Twilio there silently breaks
+    # inbound SMS. Keep this in sync with routes/sms_routes.py:sms_webhook.
+    webhook_url = f"{ngrok_url}/sms"
     
     try:
         phone_number = client.incoming_phone_numbers(phone_number_sid).update(

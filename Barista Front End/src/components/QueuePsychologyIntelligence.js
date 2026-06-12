@@ -90,10 +90,15 @@ const QueuePsychologyIntelligence = () => {
     const pending = ordersData.pending;
     const inProgress = ordersData.inProgress;
     
-    // Average and longest wait
-    const waitTimes = pending.map(o => o.waitTime || 0);
-    const averageWait = waitTimes.length > 0 
-      ? waitTimes.reduce((sum, time) => sum + time, 0) / waitTimes.length 
+    // Average and longest wait — exclude stale/abandoned pending orders
+    // (waiting > 2h) so leftover/test orders don't produce a bogus
+    // multi-hour "average wait". Matches the Live Ops dashboard fix.
+    const FRESH_WAIT_CAP_MIN = 120;
+    const waitTimes = pending
+      .map(o => o.waitTime || 0)
+      .filter(t => t <= FRESH_WAIT_CAP_MIN);
+    const averageWait = waitTimes.length > 0
+      ? waitTimes.reduce((sum, time) => sum + time, 0) / waitTimes.length
       : 0;
     const longestWait = Math.max(...waitTimes, 0);
     

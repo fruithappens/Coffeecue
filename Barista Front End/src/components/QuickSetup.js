@@ -14,6 +14,7 @@ import { Zap, Check, AlertTriangle, RefreshCw } from 'lucide-react';
 import ApiServiceClass from '../services/ApiService';
 import EventInventoryService from '../services/EventInventoryService';
 import useCatalog from '../hooks/useCatalog';
+import { event as logEvent } from '../services/logging';
 
 const api = new ApiServiceClass();
 
@@ -186,6 +187,11 @@ const QuickSetup = () => {
   });
   const [applying, setApplying] = useState(false);
   const [result, setResult] = useState(null);
+  // Drift-preview modal state. opened by the Apply button; the real
+  // apply is gated behind the operator confirming the diff.
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [preview, setPreview] = useState(null);
+  const [previewError, setPreviewError] = useState(null);
 
   // Fetch the server's suggested defaults on mount. We ONLY apply
   // them when there's no draft — if the operator has ticks in
@@ -828,20 +834,55 @@ const QuickSetup = () => {
     }
   };
 
+  // Step 1: fetch the dry-run diff. Opens the preview modal; operator
+  // confirms there before the destructive apply runs. Replaces the old
+  // window.confirm() prompt that just said "trust me."
+  const openPreview = async () => {
+    setPreviewLoading(true);
+    setPreviewError(null);
+    setPreview(null);
+    logEvent('QUICK_SETUP_PREVIEW_OPEN');
+    try {
+      const resp = await api.request('/quick-setup/dry-run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ preset: config }),
+      });
+      if (resp && resp.success) {
+        setPreview(resp);
+      } else {
+        logEvent('QUICK_SETUP_PREVIEW_FAIL', { reason: 'no_success_flag' });
+        // Endpoint missing on older backends — fall back to the old
+        // window.confirm so we don't block the operator.
+        if (window.confirm(
+          'Could not preview changes (dry-run endpoint unavailable).\n\n' +
+          'Apply Quick Setup anyway? This rebuilds inventory and may ' +
+          'change stock amounts.'
+        )) {
+          await applyForReal();
+        }
+      }
+    } catch (err) {
+      setPreviewError(err.message || String(err));
+      logEvent('QUICK_SETUP_PREVIEW_FAIL', { reason: err?.message || 'exception' });
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const closePreview = () => {
+    setPreview(null);
+    setPreviewError(null);
+  };
+
   const apply = async () => {
-    if (!window.confirm(
-      'Apply Quick Setup?\n\n' +
-      'This will SEED any missing defaults across inventory, station ' +
-      'configs, stock, and menu items based on the selections above. ' +
-      'It will:\n\n' +
-      '  ✓ Add items you selected that aren\'t already enabled\n' +
-      '  ✓ Disable QS-managed items you UN-selected\n' +
-      '  ✓ Seed empty stations with the same items\n' +
-      '  ✓ Leave operator-tuned stock amounts alone (existing items keep their quantities)\n' +
-      '  ✓ Leave custom items you added in Inventory Management alone\n\n' +
-      'Existing orders, customers, and station setup are kept.\n\n' +
-      'Continue?'
-    )) return;
+    // Old entry point — kept for back-compat with anything calling
+    // apply() directly. Now goes through the preview modal.
+    await openPreview();
+  };
+
+  const applyForReal = async () => {
+    closePreview();
     setApplying(true);
     setResult(null);
     try {
@@ -1005,6 +1046,12 @@ const QuickSetup = () => {
         applied,
         error: resp.error,
       });
+      if (resp.success) {
+        logEvent('QUICK_SETUP_APPLIED', {
+          appliedCount: applied.length,
+          accountsCreated: accountsCreated.length,
+        });
+      }
     } catch (err) {
       setResult({ success: false, error: err.message });
     } finally {
@@ -1392,6 +1439,175 @@ const QuickSetup = () => {
           </div>
         </div>
       )}
+
+      {(previewLoading || preview || previewError) && (
+        <QuickSetupPreviewModal
+          loading={previewLoading}
+          preview={preview}
+          error={previewError}
+          onConfirm={applyForReal}
+          onCancel={closePreview}
+        />
+      )}
+    </div>
+  );
+};
+
+// --- Drift-preview modal ---------------------------------
+// Side-by-side "current → proposed" before the apply runs. The big
+// thing it answers: "will this wipe my custom stock amounts?" Yes,
+// removed items list shows exactly which rows get DELETEd.
+const QuickSetupPreviewModal = ({ loading, preview, error, onConfirm, onCancel }) => {
+  const inv = preview?.inventory;
+  const caps = preview?.capabilities;
+  const settings = preview?.settings;
+  const destructive = inv?.destructive;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-white rounded-lg max-w-3xl w-full max-h-[85vh] overflow-y-auto shadow-xl">
+        <div className="p-5 border-b sticky top-0 bg-white">
+          <h3 className="text-lg font-semibold">Review changes before applying</h3>
+          <p className="text-sm text-gray-600 mt-1">
+            Nothing has been written yet. This is what an Apply would do.
+          </p>
+        </div>
+        <div className="p-5 space-y-4">
+          {loading && (
+            <div className="flex items-center text-gray-600">
+              <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Computing diff…
+            </div>
+          )}
+          {error && (
+            <div className="p-3 border-l-4 border-red-500 bg-red-50 text-sm text-red-800">
+              {error}
+            </div>
+          )}
+
+          {inv && (
+            <div>
+              <h4 className="font-semibold text-sm mb-2 flex items-center">
+                Inventory items
+                {destructive && (
+                  <span className="ml-2 text-xs px-2 py-0.5 bg-amber-100 text-amber-800 rounded">
+                    destructive — rebuilds the inventory_items table
+                  </span>
+                )}
+              </h4>
+              <div className="grid grid-cols-3 gap-3 text-xs">
+                <div>
+                  <div className="font-medium text-green-700 mb-1">
+                    Adding ({inv.added.length})
+                  </div>
+                  <div className="border rounded bg-green-50 p-2 max-h-48 overflow-y-auto">
+                    {inv.added.length === 0
+                      ? <span className="text-gray-400">none</span>
+                      : inv.added.map((r, i) => (
+                          <div key={i}>{r.category}: {r.name}</div>
+                        ))}
+                  </div>
+                </div>
+                <div>
+                  <div className="font-medium text-red-700 mb-1">
+                    Removing ({inv.removed.length})
+                  </div>
+                  <div className="border rounded bg-red-50 p-2 max-h-48 overflow-y-auto">
+                    {inv.removed.length === 0
+                      ? <span className="text-gray-400">none</span>
+                      : inv.removed.map((r, i) => (
+                          <div key={i}>
+                            {r.category}: {r.name}
+                            {r.amount != null && (
+                              <span className="text-gray-500"> ({r.amount}{r.unit ? ' ' + r.unit : ''})</span>
+                            )}
+                          </div>
+                        ))}
+                  </div>
+                </div>
+                <div>
+                  <div className="font-medium text-gray-700 mb-1">
+                    Unchanged ({inv.unchanged.length})
+                  </div>
+                  <div className="border rounded bg-gray-50 p-2 max-h-48 overflow-y-auto">
+                    {inv.unchanged.length === 0
+                      ? <span className="text-gray-400">none</span>
+                      : inv.unchanged.map((r, i) => (
+                          <div key={i}>{r.category}: {r.name}</div>
+                        ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {caps && caps.will_overwrite_all && caps.stations?.length > 0 && (
+            <div>
+              <h4 className="font-semibold text-sm mb-2">
+                Station capabilities — {caps.stations.length} station(s) will be overwritten
+              </h4>
+              <div className="text-xs text-gray-600 border rounded p-2 bg-amber-50">
+                All stations will be given identical capabilities (same milks,
+                espresso drinks, sizes). Per-station capability tweaks will be lost.
+              </div>
+            </div>
+          )}
+
+          {settings && (
+            <div>
+              <h4 className="font-semibold text-sm mb-2">Other settings</h4>
+              <ul className="text-sm space-y-1">
+                {settings.vip_code?.changed && (
+                  <li>
+                    <span className="text-gray-600">VIP code:</span>{' '}
+                    <span className="line-through text-red-700">
+                      {settings.vip_code.current || '(unset)'}
+                    </span>{' '}→{' '}
+                    <span className="text-green-700">{settings.vip_code.proposed}</span>
+                  </li>
+                )}
+                {settings.unlimited_stock?.changed && (
+                  <li>
+                    <span className="text-gray-600">Unlimited stock:</span>{' '}
+                    {settings.unlimited_stock.current ? 'ON' : 'OFF'} →{' '}
+                    <strong>{settings.unlimited_stock.proposed ? 'ON' : 'OFF'}</strong>
+                  </li>
+                )}
+                {settings.activate_all_stations?.will_activate > 0 && (
+                  <li>
+                    <span className="text-gray-600">Stations to activate:</span>{' '}
+                    <strong>{settings.activate_all_stations.will_activate}</strong>
+                  </li>
+                )}
+                {settings.always_open_schedule?.breaks_to_delete > 0 && (
+                  <li>
+                    <span className="text-gray-600">Scheduled breaks to delete:</span>{' '}
+                    <strong>{settings.always_open_schedule.breaks_to_delete}</strong>
+                  </li>
+                )}
+              </ul>
+            </div>
+          )}
+        </div>
+        <div className="p-4 border-t bg-gray-50 flex items-center justify-end gap-2 sticky bottom-0">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 rounded bg-white border border-gray-300 hover:bg-gray-100 text-gray-700"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={loading || !!error}
+            className={`px-5 py-2 rounded text-white font-semibold disabled:opacity-50 ${
+              destructive
+                ? 'bg-amber-600 hover:bg-amber-700'
+                : 'bg-green-600 hover:bg-green-700'
+            }`}
+          >
+            {destructive ? 'Apply (destructive)' : 'Apply changes'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 };

@@ -86,7 +86,15 @@ def refresh_token():
             }), 400
         
         refresh_token = data['refreshToken']
-        
+
+        # Tracked so the finally can return it to the pool. The previous
+        # code acquired a pooled Postgres connection here and NEVER
+        # returned it — not on success, not on 401, not on error. Every
+        # token refresh leaked one connection; after ~DB_POOL_MAX (30)
+        # refreshes the pool was exhausted, getconn failed, and (before
+        # the database.py fix) it silently fell back to SQLite — the
+        # split-brain that broke logins under load (2026-06-12).
+        conn = None
         try:
             # Decode the refresh token to get user identity
             logger.debug(f"Attempting to decode refresh token: {refresh_token[:50]}...")
@@ -149,6 +157,12 @@ def refresh_token():
                 'status': 'error',
                 'message': f'Invalid refresh token: {str(e)}'
             }), 401
+        finally:
+            # ALWAYS return the connection to the pool (rolls back any
+            # in-flight transaction first — see close_connection). This
+            # is the fix for the leak described above.
+            if conn is not None:
+                close_connection(conn)
             
     except Exception as e:
         logger.error(f"Error during token refresh: {str(e)}")

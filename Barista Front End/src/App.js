@@ -53,15 +53,9 @@ const ApiTestComponent = ({ apiStatus, onFallbackToggle }) => {
       setTestResults({ error: error.message });
       setConnectionStatus('disconnected');
       
-      // Enable fallback mode on connection failure if not already enabled
-      if (!apiStatus?.fallbackEnabled) {
-        const confirm = window.confirm(
-          'Connection to the API server failed. Would you like to enable fallback mode?'
-        );
-        if (confirm) {
-          onFallbackToggle();
-        }
-      }
+      // Connection failed — do NOT auto-prompt to enable sample-data
+      // mode (see note on the auth-init path). Just record the status.
+      console.warn('API connection test failed; not auto-enabling fallback.');
     } finally {
       setIsLoading(false);
     }
@@ -206,15 +200,9 @@ function App() {
       message: 'Network connection lost'
     }));
     
-    // If not already in fallback mode, ask user if they want to enable it
-    if (!OfflineDataHelper.isFallbackModeEnabled()) {
-      const confirm = window.confirm(
-        'Network connection has been lost. Would you like to enable fallback mode?'
-      );
-      if (confirm) {
-        OfflineDataHelper.enableFallbackMode();
-      }
-    }
+    // Network lost — the reconnect banner handles retry. We don't pop a
+    // confirm to switch to sample data (would show fake orders as real).
+    console.warn('Network connection lost; showing reconnect status, not enabling sample data.');
   }, []);
   
   // Handle browser going online
@@ -288,18 +276,11 @@ function App() {
         // Simple validation of token format
         const tokenParts = token.split('.');
         if (tokenParts.length !== 3) {
-          console.warn('Invalid token format detected during initialization');
-          
-          // Only offer fallback if not already enabled
-          if (!useFallback) {
-            const confirm = window.confirm(
-              'Invalid authentication token detected. Would you like to enable fallback mode?'
-            );
-            
-            if (confirm) {
-              OfflineDataHelper.enableFallbackMode();
-            }
-          }
+          console.warn('Invalid token format detected during initialization — '
+            + 'clearing it so the user re-logs in (not switching to sample data).');
+          // A malformed token means "log in again", not "show fake data".
+          // Clearing it routes the user to the login screen via AuthGuard.
+          try { AuthService.logout && AuthService.logout(); } catch (_) { /* logout best-effort */ }
         }
       }
     } catch (e) {
@@ -355,6 +336,42 @@ function App() {
     };
   }, [handleFallbackEnabled, handleFallbackDisabled, handleOnline, handleOffline]);
 
+  // Page title sync. Operators commonly run 2-3 events in parallel
+  // browser windows; the default "React App" / static "Coffee Cue"
+  // title made it impossible to tell which window is which. Fetch
+  // the live event_name from the public /display/config endpoint
+  // (no auth required) and set the tab title accordingly. Re-fetched
+  // when branding changes via the existing branding_updated event.
+  useEffect(() => {
+    let cancelled = false;
+    const refreshTitle = async () => {
+      try {
+        const resp = await fetch('/api/display/config', {
+          headers: { 'Accept': 'application/json' },
+          signal: AbortSignal.timeout(4000),
+        });
+        if (!resp.ok || cancelled) return;
+        const data = await resp.json();
+        const evt = (data?.config?.event_name || '').trim();
+        const sys = (data?.config?.system_name || 'Coffee Cue').trim();
+        document.title = evt && evt !== sys ? `${evt} — ${sys}` : sys;
+      } catch (_) {
+        // Endpoint unreachable / aborted — leave the title as-is.
+      }
+    };
+    refreshTitle();
+    const onBrandingUpdated = () => refreshTitle();
+    window.addEventListener('branding_updated', onBrandingUpdated);
+    // Poll periodically. Cheap; covers the case where a different
+    // tab edits branding and our window doesn't get the event.
+    const id = setInterval(refreshTitle, 60_000);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('branding_updated', onBrandingUpdated);
+      clearInterval(id);
+    };
+  }, []);
+
   // Test API connection specifically for authentication
   const testApiForAuth = useCallback(async () => {
     if (apiStatus.fallbackEnabled) {
@@ -404,14 +421,9 @@ function App() {
             message: `Authentication error: ${errorMsg}`
           }));
           
-          // Ask user to switch to fallback mode
-          const shouldEnableFallback = window.confirm(
-            `Authentication error: ${errorMsg}. Would you like to enable fallback mode?`
-          );
-          
-          if (shouldEnableFallback) {
-            OfflineDataHelper.enableFallbackMode();
-          }
+          // A signature/auth error means re-authenticate, NOT switch to
+          // sample data. Surface the status; AuthGuard handles re-login.
+          console.warn('Auth signature error — prompting re-login via status, not sample data.');
         } else {
           setApiStatus(prev => ({
             ...prev,
@@ -475,17 +487,19 @@ function App() {
             // Token format looks good, now test API connection
             const apiReachable = await testApiForAuth();
             
-            // If API is unreachable and not in fallback mode, offer to enable fallback
+            // API unreachable: surface a non-blocking status and let the
+            // reconnect banner retry. We deliberately do NOT pop a
+            // window.confirm offering "fallback mode" — saying yes there
+            // switches the whole app to SAMPLE data (fake orders shown as
+            // real), which is the root of the demo-breaking sample-data
+            // problem. Sample/fallback mode stays available as an explicit
+            // opt-in, never an auto-prompt on a transient blip.
             if (!apiReachable && !OfflineDataHelper.isFallbackModeEnabled()) {
-              // API unreachable and not in fallback mode, offer to enable fallback
-              // Note: We may have already offered in testApiForAuth, but offer again as a fallback
-              const confirm = window.confirm(
-                'Cannot connect to the API server. Would you like to enable fallback mode?'
-              );
-              
-              if (confirm) {
-                OfflineDataHelper.enableFallbackMode();
-              }
+              setApiStatus(prev => ({
+                ...prev,
+                isConnected: false,
+                message: 'Reconnecting to the server…',
+              }));
             }
           } catch (tokenError) {
             // Token format is invalid, offer fallback immediately
@@ -498,15 +512,9 @@ function App() {
               message: `Authentication error: ${tokenError.message}`
             }));
             
-            if (!OfflineDataHelper.isFallbackModeEnabled()) {
-              const confirm = window.confirm(
-                `Authentication error: ${tokenError.message}. Would you like to enable fallback mode?`
-              );
-              
-              if (confirm) {
-                OfflineDataHelper.enableFallbackMode();
-              }
-            }
+            // Don't auto-prompt to enable sample-data mode on a token
+            // problem — surface the status; the user can re-login.
+            console.warn('Auth token problem:', tokenError.message);
           }
         }
         
@@ -517,16 +525,9 @@ function App() {
         console.error('Auth check failed:', error);
         setIsAuthenticated(false);
         
-        // Offer fallback mode if not already enabled
-        if (!OfflineDataHelper.isFallbackModeEnabled()) {
-          const confirm = window.confirm(
-            'Authentication failed. Would you like to enable fallback mode?'
-          );
-          
-          if (confirm) {
-            OfflineDataHelper.enableFallbackMode();
-          }
-        }
+        // Auth check failed — surface it; AuthGuard routes to login.
+        // No auto-prompt to switch to sample data.
+        console.warn('Auth check failed; routing to login rather than sample data.');
       } finally {
         setIsCheckingAuth(false);
       }

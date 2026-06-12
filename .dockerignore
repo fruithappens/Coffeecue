@@ -1,1 +1,56 @@
+# Keep the Docker build context lean AND keep secrets / local junk out
+# of the image. The Dockerfile does `COPY . .`, so without this file a
+# `railway up` (CLI) deploy from the local directory would bake .env
+# (secrets!), the local SQLite DB, the venv symlink, caches, and every
+# test/backup file into the image. Railway GitHub builds already exclude
+# gitignored files, but CLI deploys upload the working dir verbatim.
 
+# Secrets + local config
+.env
+.env.*
+!.env.example
+!.env.production.example
+
+# Python caches / build
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# Local virtualenv (it's a symlink in this repo)
+venv/
+.venv/
+
+# Local databases + logs
+*.sqlite
+*.sqlite3
+*.db
+coffee_orders.db
+logs/
+*.log
+
+# Frontend deps (rebuilt in the frontend-builder stage)
+Barista Front End/node_modules/
+node_modules/
+
+# Archives, backups, screenshots — not needed at runtime
+_archive*/
+backend_backup_*/
+backups/
+test_screenshots/
+test-results/
+test_results/
+
+# VCS + editor + OS cruft
+.git/
+.gitignore
+.vscode/
+.idea/
+.DS_Store
+
+# Worktrees (this repo is being worked on inside .claude/worktrees)
+.claude/

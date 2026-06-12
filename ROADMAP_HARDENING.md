@@ -57,6 +57,88 @@ tracker, added end-goal-aligned items the prior roadmap didn't see.
   returns a print-styled HTML page (no PDF lib needed; browser's
   Save-as-PDF handles it). "Print / save as PDF" link in Support →
   Dashboard next to Today's Report.
+- **Quick Setup drift preview** — `POST /api/quick-setup/dry-run`
+  returns a side-by-side diff (inventory added/removed/unchanged +
+  capability overwrites + setting changes). The Apply button now
+  opens a preview modal first — no more "did that just wipe my custom
+  stock amounts?" surprise. Falls back to a window.confirm prompt if
+  the dry-run endpoint is missing (older backend). Smoke check added.
+- **Event_name in page title** — `document.title` syncs to the live
+  `event_name` from `/api/display/config` on mount, on
+  `branding_updated` event, and every 60s. Multi-tab operators can
+  finally tell which event window is which.
+- **Walk-in: pre-fill last customer name** — previous customer name
+  shows as a placeholder + a "Same as last walk-in: X" chip. One tap
+  re-fills; focus on the field clears the prefill.
+- **Walk-in: keyboard shortcuts 1–9** — press 1–9 to jump straight
+  to the first 9 available drinks. Visible kbd hints under the picker.
+  Ignored while typing into a text field.
+- **Catalog-first milk lookups** — `getCatalogMilks()` reads from a
+  module-level cache that `useCatalog('milk')` populates after every
+  fetch. `getMilkTypeById`, `getMilkTypeByName`, `getStandardMilks`,
+  `getAlternativeMilks`, `getAvailableMilks`, `getSimilarMilkSuggestions`
+  all now prefer the catalog over the legacy `DEFAULT_MILK_TYPES`
+  constant. The constant stays as the offline / pre-fetch fallback;
+  callers in `orderUtils`, `OrderDataService`, `AvailableMilkOptions`
+  no longer import it directly.
+- **Post-event summary view** — `/api/reports/today/print?view=post`
+  adds peak hour + busiest station to the stat grid, renames the
+  heading "Post-event summary", and inlines a "share with the client"
+  CTA. New button in Support → Dashboard. Same data, repeat-business
+  framing.
+- **Structured logging** — `services/logging_utils.py` event(code,
+  **fields) emits stable SCREAMING_SNAKE_CASE codes in logfmt
+  format (greppable + Datadog/Loki-parseable). Frontend mirror at
+  `services/logging.js` (sendBeacon → `/api/client-events`, fire-
+  and-forget). Migration 13 adds `client_events` table. First call
+  sites wired: Twilio webhook sig fails (`SMS_WEBHOOK_SIG_FAIL`),
+  walk-in submit/shortcuts (`WALKIN_SUBMIT`, `WALKIN_SHORTCUT_USED`),
+  Quick Setup preview/apply (`QUICK_SETUP_PREVIEW_OPEN`,
+  `QUICK_SETUP_APPLIED`, `QUICK_SETUP_PREVIEW_FAIL`).
+- **Load test harness** — `tests/load/run_load_test.py` simulates
+  event-style burst traffic (reads + walk-in writes + opt-in inbound
+  SMS) with weighted scenarios, per-iteration think-time stagger,
+  and p50/p95/p99/max latency per endpoint. Pure stdlib + requests,
+  no new deps. Synthetic walk-ins marked `notes='LOADTEST'` so cleanup
+  is one DELETE.
+- **Australian SMS provider research** — `SMS_PROVIDERS_AU.md`
+  compares 7 AU SMS providers vs Twilio: pricing, feature parity,
+  migration effort, recommendation. ClickSend best ergonomics
+  (~14% saving + free inbound + AUD billing); Cellcast cheapest
+  (~60% saving, less mature Python SDK).
+- **SMS provider abstraction** — `services/sms/` package with a
+  common `SMSProvider` interface, Twilio + ClickSend + Cellcast
+  implementations, per-provider webhook URLs so all three can run
+  simultaneously. `SMS_PROVIDER` env var picks outbound primary;
+  inbound is routed by URL (`/sms` Twilio, `/sms/clicksend`,
+  `/sms/cellcast` — no `/api` prefix; the blueprint mounts at root).
+  Opt-in via `SMS_USE_PROVIDER_FACTORY=true` for now — legacy Twilio
+  path stays default until shaken down in staging. Disaster-recovery
+  story: flip env, redeploy, outbound swaps provider with no code
+  change. Per-provider health checks in `/api/health/full` +
+  `.env.example` documented + smokes added. See `services/sms/README.md`.
+
+### Session 2 (2026-06-12 PM) — deep testing + load + remaining P1
+
+- **Deep testing pass** — booted the backend, ran the 27-contract smoke
+  suite, fixed real bugs it surfaced: SMS inbound webhook paths
+  (`/sms/...` not `/api/sms/...`), the dead Twilio webhook-updater path,
+  and the silently-401-ing print-report links (added `query_string`
+  JWT location so `window.open(...?jwt=)` actually authenticates — the
+  existing Print button had been broken in the browser).
+- **Load testing** — ran the harness for the first time. It had two
+  bugs (never been run): a reporting-phase RLock deadlock and a phantom
+  ~15% error rate from generating orders for un-stocked milk. Both
+  fixed. Real numbers in `tests/load/RESULTS.md`: single instance does
+  112 req/s at 25 concurrent workers, 0 errors, p99 < 48ms.
+- **Customer receipt** — `GET /api/orders/<n>/receipt`, branded HTML +
+  QR, linked from the ready SMS when `PUBLIC_BASE_URL` set.
+- **Post-event email** — `POST /api/reports/post-event/email` +
+  `services/email_utils.py`, "Email to client" button, EMAIL_ENABLED
+  gate.
+- **Thermal labels** — `render_label_png()` + label.png (AirPrint) +
+  print-label (raw socket, hardware-pending) + printer-config CRUD +
+  fixed the lying reprint button.
 
 ---
 
@@ -66,15 +148,7 @@ tracker, added end-goal-aligned items the prior roadmap didn't see.
 ### ✅ Event template save / apply — DONE 2026-06-12
 ### ✅ Send-test-SMS button — DONE 2026-06-12 (in Readiness tab)
 ### ✅ Send-test-order button — DONE 2026-06-12 (in Readiness tab)
-
-### [M] Surface event_inventory drift in Organiser (still open)
-After Quick Setup applies, operators tweak stock by hand. If they
-re-run Quick Setup later (e.g. to add a new milk), the new round
-should call out *what would change* before it changes anything — a
-diff view. Backend: `POST /api/quick-setup/dry-run` returns the same
-payload as `/quick-setup` apply would write, paired with what's
-currently stored. Frontend: confirm modal with side-by-side
-"current → proposed" rows before the real Apply runs.
+### ✅ Quick Setup drift preview — DONE 2026-06-12 (POST /api/quick-setup/dry-run + preview modal)
 
 <details><summary>Earlier description of the now-done items, for context</summary>
 
@@ -129,51 +203,85 @@ in seconds instead of when the first customer doesn't get a reply.
 
 ## P1 — operational confidence
 
-### [M] Thermal sticker printer integration (network printer path)
-Brother QL-820NWB or equivalent. Per-station label printing on
-"Start" so baristas track cups by order number + customer name +
-drink details + event branding. Reprint button on the order card.
-Spec:
-- Backend `POST /api/orders/<id>/print-label` accepts station_id,
-  builds a 62mm raster image, POSTs to the printer's IP (per-station
-  configured in Station Settings).
-- Frontend toggle in Station Settings: "Auto-print on Start"
-- Reprint button on Pending and In-Progress order cards.
-- Logo + event_name come from branding_settings.
-- Failure mode: printer offline → toast, don't block the order.
+### ✅ Structured logging with event_codes — DONE 2026-06-12
+`services/logging_utils.event(code, **fields)` emits logfmt-style
+`event=CODE k=v` lines for cheap grep + Datadog/Loki parsing.
+Frontend `services/logging.js` mirrors it via sendBeacon →
+`/api/client-events` (migration 13). First call sites wired:
+`SMS_WEBHOOK_SIG_FAIL`, `WALKIN_SUBMIT`, `WALKIN_SHORTCUT_USED`,
+`QUICK_SETUP_PREVIEW_OPEN`, `QUICK_SETUP_APPLIED`,
+`QUICK_SETUP_PREVIEW_FAIL`. Future call sites add by importing the
+helper — no further infra needed.
 
-Cheap Bluetooth printers (Phomemo M120 etc) won't work — iOS
-Safari has no Web Bluetooth. Network printers are ~$300, do AirPrint
-+ raw socket, same family every café POS uses.
+### ✅ Per-event post-event summary — DONE 2026-06-12
+Same `/api/reports/today/print` endpoint, `?view=post` adds peak
+hour + busiest station + "share with the client" CTA. New
+"Post-event summary" button in Support → Dashboard. Cmd+P → Save
+as PDF → email to client. Email auto-send deferred until SMTP infra
+is configured (EMAIL_ENABLED is False by default).
 
-### [M] Structured logging with event_codes
-Today: `logger.error("Something broke: %s", e)` — ungreppable.
-Better: every logger.error/warning gets a stable `event_code`
-(SMS_PARSE_FAIL, STOCK_DECREMENT_FAIL, etc.). A future log
-collector (Datadog/Logflare) can alert on rate-of-event_code.
-Backend: introduce `services/logging_utils.py:event(code, **fields)`.
-Frontend: `services/logging.js:event(code, payload)` that POSTs to
-`/api/client-events` (sibling of `/api/client-errors`).
+### ✅ Customer-facing branded receipt — DONE 2026-06-12
+`GET /api/orders/<n>/receipt` — public, print-styled HTML with event
+branding, order details, total (when pricing on), and a pickup QR.
+The "order ready" SMS appends the link when `PUBLIC_BASE_URL` is set.
+Apple Wallet pass not done (lower value than the PDF receipt; revisit
+if a corporate client asks).
 
-### [M] Consolidate startup scripts
-6 shell scripts (`start_expresso.sh`, `_fast.sh`, `_complete.sh`,
-`_with_twilio.sh`, `_enhanced.sh`, `quick_start.sh`) — operators
-have no idea which to run. Replace with ONE `start.sh` with flags:
-`--with-ngrok`, `--with-twilio`, `--fast`, `--background`. Delete
-the rest. Update README.
+### ✅ Post-event summary email auto-send — DONE 2026-06-12
+`POST /api/reports/post-event/email` renders the post-event HTML and
+emails it (`services/email_utils.py`, gated behind `EMAIL_ENABLED`).
+"Email to client" button in Support → Dashboard; graceful "Save as
+PDF instead" when SMTP is off. Also fixed the print-link auth (the
+`?jwt=` window.open links were 401-ing — added `query_string` JWT
+location).
 
-### [S] Customer-facing PDF receipt / Apple Wallet pass
-When the order's ready, the SMS can include a link to a PDF receipt
-with the event branding (and, for VIPs / corporate events, a
-reimbursable record). Apple Wallet pass = "Add to wallet" link,
-QR for pickup. Cheap to build (already have PDFKit-equivalent
-options), high client-perceived polish.
+### ✅ Thermal label printing (network printer path) — DONE 2026-06-12 (raw-socket transport hardware-pending)
+`render_label_png()` builds a 62mm label (order #, name, drink,
+options, station, branding, QR) via Pillow. `GET /api/orders/<n>/label.png`
+→ open + AirPrint (Brother QL-820NWB supports AirPrint) — the supported
+path, works with no raster code. `POST /api/orders/<n>/print-label`
+sends to the station's configured printer (raw socket 9100) and fails
+soft to the AirPrint fallback. `GET/PUT /api/stations/<id>/printer-config`
+stores ip/port/enabled/auto_print in the settings KV. Reprint button on
+the In-Progress card now actually works (it called an undefined prop
+before). **Remaining (needs hardware):** validate/convert the raw-socket
+raster for the specific printer; build the Station Settings UI for
+entering the printer IP (config endpoints are ready). "Auto-print on
+Start" toggle is stored but not yet triggered on Start.
 
-### [S] Per-event post-event summary email
-At event close, generate a one-page PDF: total orders, peak hour,
-top drinks, busiest station, avg wait. Email to the operator
-(and optionally to the client). Sells the next event. Same template
-engine as the receipt.
+### [S] Apple Wallet pass (deferred)
+"Add to wallet" link with pickup QR. Lower value than the receipt
+that's now shipped — revisit only if a corporate client asks.
+
+---
+
+## Integrations
+
+### [XL] EventsAir ↔ Coffee Cue (scaffold DONE 2026-06-12, Phase 1+ needs an API key)
+Attendees order coffee from the EventsAir app → orders land in Coffee
+Cue's pipeline + stock control; status pushes back via EventsAir
+notifications alongside SMS. Full design + open questions in
+`EVENTSAIR_INTEGRATION.md`.
+
+- **Phase 0 — scaffold (DONE).** `services/eventsair/` client (stubbed),
+  config CRUD, inbound order endpoint reusing the real /api/orders
+  pipeline (idempotent, stock control), outbound push hook on both
+  ready paths, health check, 4 smokes. Verified end-to-end with a
+  mock. Nothing talks to live EA yet.
+- **Phase 1 — identity.** `event_attendees` table + webhook receiver +
+  attendee lookup in the SMS/order flow (skip name prompt, auto-VIP by
+  registration category). **Needs: an EventsAir API key (Client ID +
+  Secret), even sandbox.**
+- **Phase 2 — ordering in the EA app.** Build the Coffee Cue mobile
+  ordering page; get EA to surface it (embedded web view is the likely
+  mechanism). **Needs: confirmation of how the EA Attendee App hosts a
+  custom order action.**
+- **Phase 3 — real notifications.** Wire `push_notification()` to EA's
+  push API. **Needs: confirmation of EA's 3rd-party push trigger.**
+
+The ask list for Steve (from the design doc): (1) an EA API key,
+(2) how the attendee app surfaces a custom order action, (3) the push
+API shape, (4) which registration categories map to VIP.
 
 ---
 
@@ -196,11 +304,16 @@ Plan:
 
 Big project. Worth doing once Steve has 2 paying clients, not before.
 
-### [S] Delete DEFAULT_MILK_TYPES constant
-Now only used by legacy helpers. Refactor `milkConfig.js` to call
-`useCatalog` internally, expose a sync `getCatalogMilks()` from the
-module-level cache, delete the constant. Touch: `milkConfig.js`,
-`orderUtils.js`, `AvailableMilkOptions.js`, `OrderDataService.js`.
+### ✅ Catalog-first milk lookups (DEFAULT_MILK_TYPES demotion) — DONE 2026-06-12
+`milkConfig.js` now exposes a sync `getCatalogMilks()` reading from a
+module-level cache populated by `useCatalog('milk')`. All helpers
+(`getMilkTypeById`, `getMilkTypeByName`, `getStandardMilks`,
+`getAlternativeMilks`, `getAvailableMilks`, `getSimilarMilkSuggestions`)
+prefer catalog. Hot call sites (`orderUtils`, `OrderDataService`,
+`AvailableMilkOptions`) no longer import `DEFAULT_MILK_TYPES` directly.
+The constant remains as the offline / pre-fetch fallback; mark
+`@deprecated` and remove in a follow-up once we're confident the
+catalog is universally reachable.
 
 ### [S] Move components into subdirs
 80 top-level components in `Barista Front End/src/components/`.
@@ -208,32 +321,39 @@ Already partially organised (`barista-tabs/`, `organiser-tabs/`,
 `support-tabs/`, `dialogs/`, `ui/`). Finish: move the rest into
 `barista/`, `organiser/`, `display/`, `support/`, `shared/`, `auth/`.
 
-### [S] Smoke-test write paths for orders + users
-We've now got a smoke for catalog POST. Add: `POST /api/orders`
-(walk-in create), `POST /api/users/` (account create). Both are
-high-traffic write paths that have had recent regressions.
+### ✅ Smoke-test write paths for orders + users — DONE 2026-06-12
+`POST /api/users/` smoke added (idempotent: 201 first run, 400 on
+re-run). The runner now accepts a list of allowed statuses. Smoke
+suite is up to 27 contracts: also covers quick-setup dry-run,
+client-events, both SMS inbound webhooks, the customer receipt route,
+the thermal label render, and printer-config.
+
+---
+
+## Known issues (found during deep testing 2026-06-12)
+
+- **Frontend jest suite is broken at the harness level.** `react-scripts
+  test` fails every test in `InProgressOrder.test.js` with
+  `Cannot read properties of undefined (reading 'Provider')` — a
+  test-setup/mock problem (a context Provider isn't mocked), present on
+  the base branch, NOT caused by recent work. Raw `jest` fails even
+  earlier (JSX not enabled). Until this is fixed, frontend changes are
+  verified by babel-parse + the Cypress organiser smoke + manual run,
+  not unit tests. Worth a dedicated fix: restore the test render
+  wrapper / context mocks so the unit suite runs again.
+- **Twilio webhook path was wrong in two scripts (fixed).**
+  `update-twilio-webhook.py` / `check-twilio-webhook.py` pointed Twilio
+  at `/api/sms/webhook` (405). Corrected to `/sms`. If inbound SMS ever
+  "stops working" after running those scripts, this was why.
 
 ---
 
 ## P3 — UX polish
 
-### [S] "Send test order" button for Quick Setup demo
-After Quick Setup applies, a "Place a test walk-in order" button
-that fires a sample order through the system end-to-end. Demos
-in one click.
-
-### [S] Show event_name in the page title
-Currently the browser tab just says "Coffee Cue". `${event_name} —
-Coffee Cue` makes it obvious which event window is which when an
-operator has three tabs open.
-
-### [S] Walk-in dialog: pre-fill last customer name when re-opening
-Often the next walk-in is from the same group. Pre-fill the field
-with the previous order's customer name, dimmed. Tap once to clear.
-
-### [S] Drink picker: keyboard shortcut numbers
-1–9 along the bottom of the walk-in dialog map to the first 9 drinks.
-Speeds up high-volume events significantly.
+### ✅ "Send test order" button — DONE 2026-06-12 (in Readiness tab)
+### ✅ event_name in page title — DONE 2026-06-12
+### ✅ Walk-in: pre-fill last customer name — DONE 2026-06-12
+### ✅ Drink picker: keyboard shortcut numbers — DONE 2026-06-12
 
 ---
 

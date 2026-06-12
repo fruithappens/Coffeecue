@@ -3192,6 +3192,10 @@ def get_display_config():
                 "event_name": event_name,
                 "sms_number": config.get('TWILIO_PHONE_NUMBER', '') or branding.get('smsNumber', ''),
                 "sponsor": sponsor,
+                # Logo for the display screen header. Uploaded via the
+                # Branding panel as a data URI (clientLogo). 'logo' is the
+                # legacy key; accept either.
+                "logo": branding.get('clientLogo') or branding.get('logo') or '',
                 "wait_time": branding.get('waitTime', '10-15'),
                 "header_color": branding.get('headerColor') or branding.get('primaryColor') or '#1e40af',
                 "custom_message": branding.get('customMessage') or branding.get('footerText') or '',
@@ -6595,9 +6599,109 @@ def upsert_branding_settings():
         # Frontend wraps as {settings: {...}}; tolerate either form.
         payload = data.get('settings') if isinstance(data.get('settings'), dict) else data
         _kv_put(coffee_system.db, 'branding_settings', payload)
+
+        # Sponsor lives in TWO places: the display reads it from this
+        # branding blob (showSponsor/sponsorName/sponsorMessage), but the
+        # SMS path reads separate top-level settings keys
+        # (sponsor_display_enabled/sponsor_name/sponsor_message) via
+        # coffee_system.get_sponsor_info(). Mirror the branding sponsor
+        # fields to those keys so ONE save drives both channels, then
+        # refresh the cached sponsor_info (it's loaded once at init).
+        if isinstance(payload, dict) and (
+            'sponsorName' in payload or 'showSponsor' in payload or 'sponsorMessage' in payload
+        ):
+            try:
+                cur = coffee_system.db.cursor()
+                for k, v in (
+                    ('sponsor_display_enabled', 'true' if payload.get('showSponsor') else 'false'),
+                    ('sponsor_name', payload.get('sponsorName') or ''),
+                    ('sponsor_message', payload.get('sponsorMessage') or ''),
+                ):
+                    cur.execute("""
+                        INSERT INTO settings(key, value) VALUES(%s, %s)
+                        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+                    """, (k, v))
+                coffee_system.db.commit()
+                # Refresh the in-memory sponsor cache so SMS picks it up
+                # without a restart.
+                if hasattr(coffee_system, '_load_sponsor_info'):
+                    coffee_system._load_sponsor_info()
+            except Exception as se:
+                logger.warning(f"sponsor mirror to top-level keys failed: {se}")
+                try:
+                    coffee_system.db.rollback()
+                except Exception:
+                    pass
         return jsonify({'success': True})
     except Exception as e:
         logger.error(f"upsert_branding_settings error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ----------------------------------------------------------------------
+# Admin SMS alerts — text a nominated number on error/critical events.
+# See services/admin_alerts.py. Config in settings KV 'admin_alerts'.
+# ----------------------------------------------------------------------
+@bp.route('/settings/admin-alerts', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def get_admin_alerts():
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        from services.admin_alerts import load_config
+        return jsonify({'success': True, 'config': load_config(coffee_system.db)})
+    except Exception as e:
+        logger.error(f"get_admin_alerts error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/settings/admin-alerts', methods=['PUT', 'POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def put_admin_alerts():
+    """Body: {enabled, phone, min_severity('error'|'critical'),
+    cooldown_minutes}."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        body = request.get_json() or {}
+        cfg = {
+            'enabled': bool(body.get('enabled')),
+            'phone': (body.get('phone') or '').strip(),
+            'min_severity': (body.get('min_severity') or 'critical').lower(),
+            'cooldown_minutes': int(body.get('cooldown_minutes') or 15),
+        }
+        if cfg['min_severity'] not in ('error', 'critical'):
+            cfg['min_severity'] = 'critical'
+        from services.admin_alerts import CONFIG_KEY
+        _kv_put(coffee_system.db, CONFIG_KEY, cfg)
+        return jsonify({'success': True, 'config': cfg})
+    except Exception as e:
+        logger.error(f"put_admin_alerts error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/settings/admin-alerts/test', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def test_admin_alert():
+    """Send a test alert SMS to the configured number, bypassing the
+    severity gate + cooldown (but still respecting enabled + phone)."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        from services.admin_alerts import load_config
+        cfg = load_config(coffee_system.db)
+        if not cfg.get('phone'):
+            return jsonify({'success': False, 'error': 'No admin alert phone set.'}), 400
+        from services.sms import get_outbound_provider
+        result = get_outbound_provider().send(
+            cfg['phone'],
+            "[Coffee Cue TEST] Admin alerts are working. You'll get a text "
+            "here on error/critical events (rate-limited so you're not spammed).",
+        )
+        return jsonify({'success': result.ok, 'sent': result.ok,
+                        'provider': result.provider, 'message': result.error or 'sent'})
+    except Exception as e:
+        logger.error(f"test_admin_alert error: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -6938,6 +7042,236 @@ def apply_quick_setup():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+def _compute_proposed_inventory(preset):
+    """Compute the inventory_items rows that _apply_quick_setup WOULD
+    insert, given the preset. Mirrors the INSERT logic above; if this
+    drifts from _apply_quick_setup, the dry-run lies. Keep them in sync.
+
+    Returns list of (category, name) tuples, lowercased for comparison.
+    """
+    rows = []
+    for milk in preset.get('milks', []) or []:
+        rows.append(('milk', str(milk).lower().strip()))
+    rows.append(('coffee', 'house blend beans'))
+    rows.append(('coffee', 'decaf beans'))
+    for size in preset.get('sizes', []) or []:
+        rows.append(('cups', str(size).lower().strip()))
+    for s in preset.get('sweeteners', []) or []:
+        rows.append(('sugar', str(s).lower().strip()))
+    drinks_cfg = preset.get('drinks', {}) or {}
+    for key, drink_rows in EXTRA_DRINKS.items():
+        if drinks_cfg.get(key):
+            for name, category in drink_rows:
+                rows.append((category, name.lower().strip()))
+    teas_cfg = preset.get('teas', {}) or {}
+    for key, name in TEA_FLAVORS.items():
+        if teas_cfg.get(key):
+            rows.append(('drinks', name.lower().strip()))
+    custom_raw = (preset.get('custom_teas') or '').strip()
+    if custom_raw:
+        for chunk in custom_raw.replace('\n', ',').split(','):
+            t = chunk.strip()
+            if not t:
+                continue
+            if 'tea' not in t.lower():
+                t = f"{t} Tea"
+            rows.append(('drinks', t.lower()))
+    return rows
+
+
+@bp.route('/quick-setup/dry-run', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def dry_run_quick_setup():
+    """Return what an Apply would change, without changing anything.
+
+    The biggest worry operators have re-running Quick Setup is "did
+    that just wipe my custom stock amounts?" — because the real apply
+    DELETEs inventory_items before inserting. This endpoint shows them
+    the diff so they can confirm before pulling the trigger.
+
+    Response shape:
+      {
+        success: true,
+        inventory: {
+          added:   [{category, name}],   # rows the apply will insert
+          removed: [{category, name, amount, unit}],  # current rows that will disappear
+          unchanged: [{category, name}], # both lists have it
+        },
+        capabilities: {
+          will_overwrite_all: bool,
+          stations: [{station_id, current, proposed}],
+        },
+        settings: {
+          vip_code:        {current, proposed, changed},
+          unlimited_stock: {current, proposed, changed},
+          activate_all_stations: {will_activate: int},
+          always_open_schedule:  {breaks_to_delete: int},
+        },
+      }
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        body = request.get_json() or {}
+        preset = body.get('preset') if isinstance(body.get('preset'), dict) else body or DEFAULT_QUICK_PRESET
+        merged = {**DEFAULT_QUICK_PRESET, **(preset or {})}
+        if isinstance(preset.get('drinks'), dict):
+            merged['drinks'] = {**DEFAULT_QUICK_PRESET['drinks'], **preset['drinks']}
+        if isinstance(preset.get('teas'), dict):
+            merged['teas'] = {**DEFAULT_QUICK_PRESET['teas'], **preset['teas']}
+
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        cur = db.cursor()
+
+        proposed_inv = _compute_proposed_inventory(merged)
+        proposed_set = {(c, n) for c, n in proposed_inv}
+
+        current_rows = []
+        try:
+            cur.execute("""
+                SELECT category, COALESCE(name, ''), amount, COALESCE(unit, '')
+                  FROM inventory_items
+            """)
+            for r in cur.fetchall() or []:
+                if isinstance(r, dict):
+                    current_rows.append({
+                        'category': r['category'],
+                        'name': r.get('name') or '',
+                        'amount': r.get('amount'),
+                        'unit': r.get('unit') or '',
+                    })
+                else:
+                    current_rows.append({
+                        'category': r[0],
+                        'name': r[1] or '',
+                        'amount': r[2],
+                        'unit': r[3] or '',
+                    })
+        except Exception as e:
+            logger.warning(f"dry-run: could not read inventory_items: {e}")
+
+        current_set = {((row['category'] or '').lower(), (row['name'] or '').lower().strip())
+                       for row in current_rows}
+
+        added = [
+            {'category': c, 'name': n}
+            for (c, n) in proposed_inv
+            if (c, n) not in current_set
+        ]
+        removed = [
+            row for row in current_rows
+            if ((row['category'] or '').lower(), (row['name'] or '').lower().strip()) not in proposed_set
+        ]
+        unchanged = [
+            {'category': c, 'name': n}
+            for (c, n) in proposed_inv
+            if (c, n) in current_set
+        ]
+
+        capabilities_diff = {
+            'will_overwrite_all': bool(merged.get('all_stations_same_capabilities')),
+            'stations': [],
+        }
+        if merged.get('all_stations_same_capabilities'):
+            proposed_caps = {
+                'milk_types': merged.get('milks', []),
+                'coffee_types': ESPRESSO_DRINKS,
+                'sizes': merged.get('sizes', []),
+                'alt_milk': True,
+            }
+            try:
+                cur.execute("SELECT station_id, capabilities FROM station_stats ORDER BY station_id")
+                for r in cur.fetchall() or []:
+                    if isinstance(r, dict):
+                        sid = r['station_id']
+                        cur_caps = r.get('capabilities') or {}
+                    else:
+                        sid = r[0]
+                        cur_caps = r[1] or {}
+                    capabilities_diff['stations'].append({
+                        'station_id': sid,
+                        'current': cur_caps,
+                        'proposed': proposed_caps,
+                    })
+            except Exception as e:
+                logger.warning(f"dry-run: capabilities read failed: {e}")
+
+        settings_diff = {}
+
+        current_vip = ''
+        try:
+            cur.execute("SELECT value FROM settings WHERE key = 'vip_code'")
+            row = cur.fetchone()
+            if row:
+                current_vip = (row['value'] if isinstance(row, dict) else row[0]) or ''
+        except Exception:
+            pass
+        proposed_vip = (merged.get('vip_code') or '').strip()
+        settings_diff['vip_code'] = {
+            'current': current_vip,
+            'proposed': proposed_vip if proposed_vip else current_vip,
+            'changed': bool(proposed_vip) and proposed_vip != current_vip,
+        }
+
+        current_unlimited = bool(_kv_get(db, 'unlimited_stock_mode', default={}).get('enabled', False))
+        proposed_unlimited = bool(merged.get('unlimited_stock'))
+        settings_diff['unlimited_stock'] = {
+            'current': current_unlimited,
+            'proposed': proposed_unlimited,
+            'changed': current_unlimited != proposed_unlimited,
+        }
+
+        will_activate = 0
+        try:
+            cur.execute("SELECT COUNT(*) FROM station_stats WHERE status != 'active'")
+            row = cur.fetchone()
+            will_activate = int((row['count'] if isinstance(row, dict) else row[0]) or 0)
+        except Exception:
+            pass
+        settings_diff['activate_all_stations'] = {
+            'will_activate': will_activate if merged.get('activate_all_stations') else 0,
+        }
+
+        breaks_to_delete = 0
+        if merged.get('always_open_schedule'):
+            try:
+                cur.execute("SELECT COUNT(*) FROM event_breaks")
+                row = cur.fetchone()
+                breaks_to_delete = int((row['count'] if isinstance(row, dict) else row[0]) or 0)
+            except Exception:
+                pass
+        settings_diff['always_open_schedule'] = {
+            'breaks_to_delete': breaks_to_delete,
+        }
+
+        return jsonify({
+            'success': True,
+            'inventory': {
+                'added': added,
+                'removed': [
+                    {'category': r['category'], 'name': r['name'],
+                     'amount': r['amount'], 'unit': r['unit']}
+                    for r in removed
+                ],
+                'unchanged': unchanged,
+                'destructive': len(removed) > 0,
+            },
+            'capabilities': capabilities_diff,
+            'settings': settings_diff,
+        })
+    except Exception as e:
+        logger.exception(f"dry_run_quick_setup failed: {e}")
+        try:
+            current_app.config.get('coffee_system').db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 # ---------------------------------------------------------------------------
 # Source-of-truth event inventory
 # ---------------------------------------------------------------------------
@@ -7089,6 +7423,32 @@ def get_today_report():
         """)
         top_drinks = [{'drink': r[0], 'orders': int(r[1])} for r in cur.fetchall()]
 
+        # Peak hour — which hour of the day had the most orders. The
+        # post-event summary leans on this ("you handled 47 orders in
+        # the 10am hour"), and it's a one-liner aggregate.
+        cur.execute("""
+            SELECT EXTRACT(HOUR FROM created_at)::int AS hour, COUNT(*) AS n
+            FROM orders
+            WHERE created_at::date = CURRENT_DATE
+            GROUP BY hour
+            ORDER BY n DESC
+            LIMIT 1
+        """)
+        peak_row = cur.fetchone()
+        peak_hour = None
+        if peak_row:
+            peak_hour = {
+                'hour': int(peak_row[0]) if peak_row[0] is not None else None,
+                'orders': int(peak_row[1]),
+            }
+
+        # Busiest station — most orders today. Convenience field so the
+        # printable doesn't have to sort per_station to find it.
+        busiest_station_id = None
+        if per_station:
+            busiest = max(per_station, key=lambda ps: ps['orders'])
+            busiest_station_id = busiest['station_id']
+
         # Pricing currency (for nicer formatting client-side)
         currency_symbol = '$'
         try:
@@ -7107,6 +7467,8 @@ def get_today_report():
             'currency_symbol': currency_symbol,
             'per_station': per_station,
             'top_drinks': top_drinks,
+            'peak_hour': peak_hour,
+            'busiest_station_id': busiest_station_id,
         })
     except Exception as e:
         logger.error(f"get_today_report error: {e}")
@@ -7134,6 +7496,27 @@ def print_today_report():
          was for testing) — a PDF can't be edited.
     """
     try:
+        from flask import request as _flask_request
+        is_post_event = (_flask_request.args.get('view') == 'post')
+        html, err = _render_event_summary_html(is_post_event=is_post_event)
+        if err:
+            return (f'<h1>Report failed</h1><p>{err}</p>'), 500
+        from flask import Response
+        return Response(html, mimetype='text/html')
+    except Exception as e:
+        logger.error(f"print_today_report error: {e}")
+        return f'<h1>Report failed</h1><pre>{e}</pre>', 500
+
+
+def _render_event_summary_html(is_post_event: bool = False):
+    """Build the event-summary HTML. Returns (html, error_or_None).
+
+    Single source of truth for both the printable route
+    (/api/reports/today/print) and the email route
+    (/api/reports/post-event/email). is_post_event flips the heading +
+    adds the share-with-client CTA.
+    """
+    try:
         coffee_system = current_app.config.get('coffee_system')
         db = coffee_system.db
         try:
@@ -7142,18 +7525,14 @@ def print_today_report():
             pass
 
         # Re-use the same query logic by calling the JSON endpoint
-        # function directly. Re-running the queries here would
-        # duplicate logic; calling the Flask route function gives us
-        # the same response shape with one source of truth.
+        # function directly. One source of truth for the metrics.
         report_resp = get_today_report()
-        # Flask response → JSON dict for templating.
         if hasattr(report_resp, 'get_json'):
             data = report_resp.get_json() or {}
         else:
             data = report_resp[0].get_json() or {}
         if not data.get('success'):
-            return ('<h1>Report failed</h1>'
-                    f'<p>{data.get("error", "unknown")}</p>'), 500
+            return None, data.get('error', 'unknown')
 
         # Pull branding for the header. Falls back to "Coffee Cue" so
         # an event with no name set still renders sensibly.
@@ -7191,6 +7570,32 @@ def print_today_report():
         avg_wait = data.get('avg_wait_min')
         avg_wait_display = f"{avg_wait} min" if avg_wait is not None else '—'
 
+        # Post-event summary additions — peak hour + busiest station,
+        # formatted for the headline row.
+        peak = data.get('peak_hour') or {}
+        if peak.get('hour') is not None:
+            h = peak['hour']
+            am_pm = 'am' if h < 12 else 'pm'
+            h12 = h if 1 <= h <= 12 else (12 if h == 0 else h - 12)
+            peak_display = f"{h12}{am_pm} ({peak.get('orders', 0)})"
+        else:
+            peak_display = '—'
+
+        busiest_id = data.get('busiest_station_id')
+        busiest_display = f"Station {busiest_id}" if busiest_id else '—'
+
+        # The post-event framing changes the heading and adds a CTA
+        # block — controlled by the is_post_event param.
+        heading_kind = 'Post-event summary' if is_post_event else 'Event summary'
+        post_event_cta = (
+            '<div style="margin-top:32px;background:#f0f7ff;border:1px solid #c7dffd;'
+            'border-radius:8px;padding:16px 20px;">'
+            '<strong>Share with the client.</strong> Email this page as a PDF '
+            '(Cmd+P → Save as PDF) so they see the numbers from the event you '
+            'just ran for them. Repeat clients are the cheapest ones to win.'
+            '</div>'
+        ) if is_post_event else ''
+
         logo_html = (f'<img src="{logo}" alt="" style="max-height:60px;margin-bottom:10px"/>'
                      if logo else '')
 
@@ -7199,13 +7604,13 @@ def print_today_report():
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<title>{event_name} — Event summary {data.get('date', '')}</title>
+<title>{event_name} — {heading_kind} {data.get('date', '')}</title>
 <style>
   body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
           max-width: 720px; margin: 40px auto; padding: 0 24px; color: #222; }}
   h1 {{ margin: 0 0 4px 0; }}
   .subtitle {{ color: #666; margin-bottom: 24px; }}
-  .stat-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 24px 0; }}
+  .stat-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin: 24px 0; }}
   .stat {{ background: #f7f5f0; border-radius: 8px; padding: 16px; }}
   .stat-label {{ font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }}
   .stat-value {{ font-size: 28px; font-weight: bold; margin-top: 4px; }}
@@ -7224,7 +7629,7 @@ def print_today_report():
   </div>
   {logo_html}
   <h1>{event_name}</h1>
-  <p class="subtitle">Event summary — {data.get('date', '')}</p>
+  <p class="subtitle">{heading_kind} — {data.get('date', '')}</p>
 
   <div class="stat-grid">
     <div class="stat">
@@ -7239,7 +7644,16 @@ def print_today_report():
       <div class="stat-label">Revenue</div>
       <div class="stat-value">{symbol}{data.get('revenue_total', 0):.2f}</div>
     </div>
+    <div class="stat">
+      <div class="stat-label">Peak hour</div>
+      <div class="stat-value" style="font-size:22px">{peak_display}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Busiest station</div>
+      <div class="stat-value" style="font-size:22px">{busiest_display}</div>
+    </div>
   </div>
+  {post_event_cta}
 
   <h2>By status</h2>
   <table><thead><tr><th>Status</th><th>Orders</th></tr></thead>
@@ -7258,11 +7672,515 @@ def print_today_report():
   </div>
 </body>
 </html>"""
+        return html, None
+    except Exception as e:
+        logger.error(f"_render_event_summary_html error: {e}")
+        return None, str(e)
+
+
+@bp.route('/reports/post-event/email', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def email_post_event_summary():
+    """Email the post-event summary to a recipient (the client).
+
+    Body: {"to": "client@example.com", "subject": "optional override"}
+
+    Renders the same post-event HTML the print route produces and sends
+    it via SMTP. Gated behind EMAIL_ENABLED — when SMTP isn't configured
+    the endpoint returns success:false with a clear "email not enabled"
+    message (HTTP 200, not an error) so the UI can tell the operator to
+    Cmd+P → Save as PDF instead. Never 500s on a config gap.
+    """
+    try:
+        body = request.get_json() or {}
+        to = (body.get('to') or '').strip()
+        if not to or '@' not in to:
+            return jsonify({'success': False,
+                            'error': 'A valid recipient email is required.'}), 400
+
+        html, err = _render_event_summary_html(is_post_event=True)
+        if err or not html:
+            return jsonify({'success': False,
+                            'error': f'Could not build summary: {err}'}), 500
+
+        # Event name for the subject line.
+        try:
+            coffee_system = current_app.config.get('coffee_system')
+            branding = _kv_get(coffee_system.db, 'branding_settings', default={}) or {}
+            event_name = (branding.get('event_name')
+                          or _kv_get(coffee_system.db, 'event_name', default='Coffee Cue')
+                          or 'Coffee Cue')
+        except Exception:
+            event_name = 'Coffee Cue'
+
+        subject = (body.get('subject') or '').strip() or \
+            f"{event_name} — event summary"
+
+        from services.email_utils import send_html_email, email_enabled
+        result = send_html_email(
+            to=to,
+            subject=subject,
+            html_body=html,
+            text_fallback=(
+                f"{event_name} event summary attached as HTML. "
+                f"View in an HTML-capable mail client."
+            ),
+        )
+        return jsonify({
+            'success': result.ok,
+            'sent': result.sent,
+            'email_enabled': email_enabled(),
+            'message': result.detail,
+            'to': to,
+        })
+    except Exception as e:
+        logger.error(f"email_post_event_summary error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/orders/<order_number>/receipt', methods=['GET'])
+def order_receipt(order_number):
+    """Customer-facing branded receipt for a single order.
+
+    Public (no JWT): the customer reaches this from a link in their
+    "order ready" SMS, so it can't require a login. Order numbers are
+    short, human-friendly ('C42') — so to stop trivial enumeration we
+    require the order to be in a *terminal-ish* state (in-progress,
+    completed, or picked up). A pending order's receipt is meaningless
+    anyway. No PII beyond the customer's own first name + drink (which
+    they already know); phone is NOT shown.
+
+    Pure HTML, browser → Save-as-PDF, no PDF lib — same approach as the
+    event summary. Renders the event branding, order details, total
+    (if pricing is on), and a pickup QR via the existing track route.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        cur = db.cursor()
+        cur.execute("""
+            SELECT order_number, order_details, status, station_id,
+                   created_at, completed_at, price, for_friend
+              FROM orders
+             WHERE order_number = %s
+             LIMIT 1
+        """, (order_number,))
+        row = cur.fetchone()
+        if not row:
+            return ('<h1>Receipt not found</h1>'
+                    '<p>We could not find that order.</p>'), 404
+        if isinstance(row, dict):
+            od = row['order_details'] or {}
+            status = row['status']
+            station_id = row['station_id']
+            created_at = row['created_at']
+            completed_at = row['completed_at']
+            price = row['price']
+            for_friend = row['for_friend']
+        else:
+            od = row[1] or {}
+            status = row[2]
+            station_id = row[3]
+            created_at = row[4]
+            completed_at = row[5]
+            price = row[6]
+            for_friend = row[7]
+
+        # Guard against pending-order / enumeration peeking.
+        if status not in ('in-progress', 'in_progress', 'completed', 'picked_up'):
+            return ('<h1>Receipt not ready</h1>'
+                    '<p>This receipt becomes available once your order is '
+                    'being prepared.</p>'), 403
+
+        # od is JSONB → already a dict on most cursors; tolerate str.
+        if isinstance(od, str):
+            try:
+                od = json.loads(od)
+            except Exception:
+                od = {}
+
+        # Branding.
+        try:
+            branding = _kv_get(db, 'branding_settings', default={}) or {}
+            event_name = (branding.get('event_name')
+                          or branding.get('eventName')
+                          or _kv_get(db, 'event_name', default='Coffee Cue')
+                          or 'Coffee Cue')
+            logo = branding.get('logo') or branding.get('clientLogo') or ''
+        except Exception:
+            event_name = 'Coffee Cue'
+            logo = ''
+
+        # Build a human drink description from order_details.
+        name = od.get('name') or od.get('customer_name') or 'Customer'
+        drink = od.get('type') or od.get('coffee_type') or 'Coffee'
+        size = od.get('size') or ''
+        milk = od.get('milk') or od.get('milk_type') or ''
+        sugar = od.get('sugar') or ''
+        strength = od.get('strength') or ''
+        desc_bits = [b for b in [size, drink] if b]
+        drink_desc = ' '.join(desc_bits)
+        extras = []
+        if milk and milk not in ('no milk', 'standard', 'none', 'None'):
+            extras.append(f"{milk} milk")
+        if strength:
+            extras.append(str(strength))
+        if sugar and sugar not in ('no sugar', 'none', 'None', '0'):
+            extras.append(str(sugar))
+        extras_str = (', '.join(extras)) if extras else ''
+
+        # Pricing — only show a total if pricing is enabled AND this
+        # order has a non-zero stamped price.
+        symbol = '$'
+        try:
+            pricing_blob = _kv_get(db, 'pricing_settings', default={}) or {}
+            symbol = pricing_blob.get('symbol', '$')
+        except Exception:
+            pass
+        try:
+            price_val = float(price) if price is not None else 0.0
+        except (TypeError, ValueError):
+            price_val = 0.0
+        price_html = (
+            f'<div class="row"><span>Total</span>'
+            f'<strong>{symbol}{price_val:.2f}</strong></div>'
+            if price_val > 0 else ''
+        )
+
+        # Pickup QR — link to the existing track page for this order.
+        # The track route resolves /track/<code>; we use the order
+        # number as the code so the QR is self-contained.
+        host = request.host_url.rstrip('/')
+        track_url = f"{host}/track/{order_number}"
+        # Reuse MessagingService.generate_qr_code (base64 data URI).
+        qr_data_uri = ''
+        try:
+            from services.messaging import MessagingService
+            qr_data_uri = MessagingService.generate_qr_code(track_url, size=6) or ''
+        except Exception as e:
+            logger.warning(f"receipt QR generation failed: {e}")
+
+        when = ''
+        try:
+            stamp = completed_at or created_at
+            if stamp:
+                when = stamp.strftime('%-d %b %Y, %-I:%M %p')
+        except Exception:
+            pass
+
+        logo_html = (f'<img src="{logo}" alt="" style="max-height:54px;margin-bottom:8px"/>'
+                     if logo else '')
+        qr_html = (f'<img src="{qr_data_uri}" alt="Pickup QR" '
+                   f'style="width:140px;height:140px"/>' if qr_data_uri else '')
+        friend_html = (f'<div class="row"><span>For</span><span>{for_friend}</span></div>'
+                       if for_friend else '')
+        extras_html = (f'<div class="row"><span>Options</span><span>{extras_str}</span></div>'
+                       if extras_str else '')
+
+        html = f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>{event_name} — Receipt #{order_number}</title>
+<style>
+  body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+          max-width: 420px; margin: 24px auto; padding: 0 20px; color: #1a1a1a; }}
+  .card {{ border: 1px solid #e5e5e5; border-radius: 12px; padding: 24px; }}
+  .head {{ text-align: center; margin-bottom: 16px; }}
+  .head h1 {{ font-size: 18px; margin: 4px 0; }}
+  .ordernum {{ font-size: 34px; font-weight: 800; letter-spacing: 1px; margin: 8px 0; }}
+  .drink {{ font-size: 20px; font-weight: 600; text-align: center; margin: 6px 0 4px; }}
+  .row {{ display: flex; justify-content: space-between; padding: 8px 0;
+          border-bottom: 1px solid #f0f0f0; font-size: 14px; }}
+  .row span:first-child {{ color: #777; }}
+  .qr {{ text-align: center; margin-top: 18px; }}
+  .foot {{ text-align: center; color: #999; font-size: 12px; margin-top: 16px; }}
+  .badge {{ display:inline-block; background:#eafaf0; color:#1a7f4b; border-radius:20px;
+            padding:3px 12px; font-size:12px; font-weight:600; }}
+  @media print {{ body {{ margin: 0; }} .no-print {{ display:none; }} }}
+</style>
+</head>
+<body>
+  <div class="no-print" style="background:#fffbe6;border:1px solid #ffe58f;border-radius:6px;padding:8px 10px;margin-bottom:14px;font-size:12px;text-align:center;">
+    Save this receipt: tap Share → Print → Save as PDF.
+  </div>
+  <div class="card">
+    <div class="head">
+      {logo_html}
+      <h1>{event_name}</h1>
+      <div class="badge">{'Ready for pickup' if status in ('completed','picked_up') else 'Being prepared'}</div>
+      <div class="ordernum">#{order_number}</div>
+    </div>
+    <div class="drink">{drink_desc}</div>
+    <div style="margin-top:14px;">
+      <div class="row"><span>Name</span><span>{name}</span></div>
+      {friend_html}
+      {extras_html}
+      <div class="row"><span>Station</span><span>#{station_id}</span></div>
+      <div class="row"><span>Time</span><span>{when}</span></div>
+      {price_html}
+    </div>
+    <div class="qr">
+      {qr_html}
+      <div style="font-size:11px;color:#999;margin-top:4px">Scan to track your order</div>
+    </div>
+  </div>
+  <div class="foot">Thank you — enjoy your coffee ☕</div>
+</body>
+</html>"""
         from flask import Response
         return Response(html, mimetype='text/html')
     except Exception as e:
-        logger.error(f"print_today_report error: {e}")
-        return f'<h1>Report failed</h1><pre>{e}</pre>', 500
+        logger.error(f"order_receipt error: {e}")
+        try:
+            current_app.config.get('coffee_system').db.rollback()
+        except Exception:
+            pass
+        return f'<h1>Receipt error</h1><pre>{e}</pre>', 500
+
+
+# ----------------------------------------------------------------------
+# Thermal label printing (network printer path)
+# ----------------------------------------------------------------------
+# Per-station printer config lives in settings KV under 'printer_config'
+# as {"<station_id>": {"ip","port","enabled","auto_print"}}. No schema
+# migration needed.
+
+def _get_printer_config(db, station_id=None):
+    cfg = _kv_get(db, 'printer_config', default={}) or {}
+    if station_id is not None:
+        return cfg.get(str(station_id), {})
+    return cfg
+
+
+def _fetch_order_for_label(db, order_number):
+    cur = db.cursor()
+    cur.execute("""
+        SELECT id, order_number, order_details, status, station_id
+          FROM orders WHERE order_number = %s LIMIT 1
+    """, (order_number,))
+    row = cur.fetchone()
+    if not row:
+        return None
+    if isinstance(row, dict):
+        return {
+            'id': row['id'], 'order_number': row['order_number'],
+            'order_details': row['order_details'], 'status': row['status'],
+            'station_id': row['station_id'],
+        }
+    return {
+        'id': row[0], 'order_number': row[1], 'order_details': row[2],
+        'status': row[3], 'station_id': row[4],
+    }
+
+
+def _branding_for_label(db):
+    try:
+        b = _kv_get(db, 'branding_settings', default={}) or {}
+        return {'event_name': (b.get('event_name') or b.get('eventName')
+                               or _kv_get(db, 'event_name', default='') or '')}
+    except Exception:
+        return {}
+
+
+@bp.route('/orders/<order_number>/label.png', methods=['GET'])
+@jwt_required_with_demo()
+def order_label_png(order_number):
+    """Render the order label as a PNG.
+
+    This is the supported, hardware-free path: open this in a browser
+    and Cmd+P to AirPrint to a Brother QL-820NWB (or any AirPrint label
+    printer). Also used by the auto-print path to build the bytes.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        order = _fetch_order_for_label(db, order_number)
+        if not order:
+            return ('order not found', 404)
+        branding = _branding_for_label(db)
+        host = request.host_url.rstrip('/')
+        qr_url = f"{host}/track/{order_number}"
+        from services.label_printer import render_label_png
+        png = render_label_png(order, branding, qr_url=qr_url)
+        from flask import Response
+        return Response(png, mimetype='image/png')
+    except Exception as e:
+        logger.error(f"order_label_png error: {e}")
+        return (f'label error: {e}', 500)
+
+
+@bp.route('/orders/<order_number>/print-label', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def print_order_label(order_number):
+    """Send the order label to the station's configured network printer.
+
+    Body (optional): {"station_id": N} to override which station's
+    printer config to use (defaults to the order's station).
+
+    Failure mode: printer offline / unconfigured → returns success:false
+    with a message, never blocks. The barista UI shows a toast and the
+    order proceeds regardless.
+
+    NOTE: the raw-socket transport is hardware-pending (see
+    services/label_printer.py). Until validated against the real
+    printer, the reliable path is GET .../label.png → AirPrint.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        order = _fetch_order_for_label(db, order_number)
+        if not order:
+            return jsonify({'success': False, 'error': 'order not found'}), 404
+
+        body = request.get_json(silent=True) or {}
+        station_id = body.get('station_id') or order.get('station_id')
+        pcfg = _get_printer_config(db, station_id)
+        if not pcfg or not pcfg.get('enabled'):
+            return jsonify({
+                'success': False,
+                'printed': False,
+                'message': f'No printer configured/enabled for station {station_id}. '
+                           f'Use the label.png AirPrint path, or set a printer in Station Settings.',
+                'label_url': f'/api/orders/{order_number}/label.png',
+            })
+        ip = pcfg.get('ip')
+        port = int(pcfg.get('port') or 9100)
+
+        branding = _branding_for_label(db)
+        host = request.host_url.rstrip('/')
+        from services.label_printer import render_label_png, send_png_to_printer
+        png = render_label_png(order, branding, qr_url=f"{host}/track/{order_number}")
+        ok, detail = send_png_to_printer(ip, port, png)
+        return jsonify({
+            'success': ok,
+            'printed': ok,
+            'message': detail,
+            'label_url': f'/api/orders/{order_number}/label.png',
+            'transport_note': 'raw-socket transport is hardware-pending; '
+                              'if the label is blank/garbled use the label.png AirPrint path',
+        })
+    except Exception as e:
+        logger.error(f"print_order_label error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/stations/<int:station_id>/printer-config', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def get_station_printer_config(station_id):
+    """Return the per-station printer config (ip/port/enabled/auto_print)."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        cfg = _get_printer_config(db, station_id)
+        return jsonify({'success': True, 'station_id': station_id,
+                        'printer': cfg or {'enabled': False, 'port': 9100, 'auto_print': False}})
+    except Exception as e:
+        logger.error(f"get_station_printer_config error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/stations/<int:station_id>/printer-config', methods=['PUT'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def put_station_printer_config(station_id):
+    """Upsert the per-station printer config.
+
+    Body: {"ip": "192.168.1.50", "port": 9100, "enabled": true,
+           "auto_print": false}
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        body = request.get_json() or {}
+        all_cfg = _get_printer_config(db)  # whole blob
+        all_cfg[str(station_id)] = {
+            'ip': (body.get('ip') or '').strip(),
+            'port': int(body.get('port') or 9100),
+            'enabled': bool(body.get('enabled')),
+            'auto_print': bool(body.get('auto_print')),
+        }
+        _kv_put(db, 'printer_config', all_cfg)
+        return jsonify({'success': True, 'station_id': station_id,
+                        'printer': all_cfg[str(station_id)]})
+    except Exception as e:
+        logger.error(f"put_station_printer_config error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ----------------------------------------------------------------------
+# Per-station stock persistence (backstop for the barista StockTab).
+# The barista's manual stock edits used to live ONLY in localStorage
+# (key coffee_stock_station_N) — invisible to the Organiser and wiped on
+# reload. These endpoints give that data a durable home in the settings
+# KV (key 'coffee_stock_station_<id>'); StockService write-throughs here
+# on save and reads it back when localStorage is empty.
+# ----------------------------------------------------------------------
+@bp.route('/stations/<int:station_id>/stock', methods=['GET'])
+@jwt_required_with_demo()
+def get_station_stock(station_id):
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        stock = _kv_get(db, f'coffee_stock_station_{station_id}', default=None)
+        return jsonify({'success': True, 'station_id': station_id, 'stock': stock or {}})
+    except Exception as e:
+        logger.error(f"get_station_stock error: {e}")
+        return jsonify({'success': False, 'stock': {}, 'error': str(e)}), 200
+
+
+@bp.route('/stations/<int:station_id>/stock', methods=['PUT', 'POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def put_station_stock(station_id):
+    """Persist a station's stock blob (the same shape StockService keeps
+    in localStorage). Whole-blob replace. Best-effort backstop — the
+    barista UI still works off localStorage; this just makes edits
+    durable + visible to the Organiser."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        data = request.get_json(silent=True) or {}
+        stock = data.get('stock') if isinstance(data.get('stock'), dict) else data
+        if not isinstance(stock, dict):
+            return jsonify({'success': False, 'error': 'stock must be an object'}), 400
+        _kv_put(db, f'coffee_stock_station_{station_id}', stock)
+        return jsonify({'success': True, 'station_id': station_id})
+    except Exception as e:
+        logger.error(f"put_station_stock error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 DEFAULT_PRICING = {
@@ -8114,6 +9032,124 @@ def list_client_errors():
 
 
 # ----------------------------------------------------------------------
+# Frontend structured events — sibling of /client-errors. Used for
+# non-crash signals (feature usage, recoverable failures, slow timings).
+# See services/logging_utils.py for the backend-side equivalent.
+# ----------------------------------------------------------------------
+@bp.route('/client-events', methods=['POST'])
+def report_client_event():
+    """Sink for sendBeacon()/fetch() POSTs from services/logging.js.
+
+    Wide-open auth (no JWT decorator) so unauthenticated screens (login
+    page, landing page) can report events too — same pattern as
+    /client-errors. Body shape:
+      {code: 'SOME_CODE', payload: {...}, url: '...', user_id: '...'}
+    Returns 204 fast — fire-and-forget for the caller.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        if not coffee_system:
+            return ('', 204)
+        data = request.get_json(silent=True) or {}
+        code = (data.get('code') or '').strip()[:100]
+        if not code:
+            return ('', 204)
+        import json as _json
+        payload = data.get('payload') or {}
+        if not isinstance(payload, dict):
+            payload = {'value': payload}
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        cur = db.cursor()
+        cur.execute(
+            """
+            INSERT INTO client_events (code, payload, url, user_id, user_agent)
+            VALUES (%s, %s::jsonb, %s, %s, %s)
+            """,
+            (
+                code,
+                _json.dumps(payload),
+                (data.get('url') or '')[:500],
+                (data.get('user_id') or '')[:100],
+                (data.get('user_agent') or '')[:500],
+            ),
+        )
+        db.commit()
+        return ('', 204)
+    except Exception as e:
+        # Logging must never become an error itself.
+        logger.warning(f"report_client_event failed: {e}")
+        return ('', 204)
+
+
+@bp.route('/client-events', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def list_client_events():
+    """Recent client events, newest first. Optional ?code=X filter
+    for hunting one event type."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        limit = min(int(request.args.get('limit', 50)), 500)
+        code_filter = (request.args.get('code') or '').strip()[:100]
+        cur = db.cursor()
+        if code_filter:
+            cur.execute(
+                """
+                SELECT id, occurred_at, code, payload, url, user_id
+                  FROM client_events
+                 WHERE code = %s
+                 ORDER BY occurred_at DESC
+                 LIMIT %s
+                """,
+                (code_filter, limit),
+            )
+        else:
+            cur.execute(
+                """
+                SELECT id, occurred_at, code, payload, url, user_id
+                  FROM client_events
+                 ORDER BY occurred_at DESC
+                 LIMIT %s
+                """,
+                (limit,),
+            )
+        rows = cur.fetchall() or []
+        events = []
+        for r in rows:
+            if isinstance(r, dict):
+                events.append({
+                    'id': r['id'],
+                    'occurred_at': r['occurred_at'].isoformat() if r['occurred_at'] else None,
+                    'code': r['code'],
+                    'payload': r['payload'],
+                    'url': r['url'],
+                    'user_id': r['user_id'],
+                })
+            else:
+                events.append({
+                    'id': r[0],
+                    'occurred_at': r[1].isoformat() if r[1] else None,
+                    'code': r[2],
+                    'payload': r[3],
+                    'url': r[4],
+                    'user_id': r[5],
+                })
+        return jsonify({'success': True, 'events': events})
+    except Exception as e:
+        logger.error(f"list_client_events error: {e}")
+        return jsonify({'success': False, 'events': [], 'error': str(e)}), 200
+
+
+# ----------------------------------------------------------------------
 # Event templates — save a Quick Setup preset, re-apply to a new event.
 #
 # The friction "every new event is 30 clicks" became "every new event
@@ -8302,4 +9338,257 @@ def delete_event_template(template_id):
         return jsonify({'success': True})
     except Exception as e:
         logger.error(f"delete_event_template error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ======================================================================
+# EventsAir integration (scaffold — see EVENTSAIR_INTEGRATION.md)
+# ----------------------------------------------------------------------
+# Bidirectional: attendees order coffee from the EventsAir app → orders
+# land in Coffee Cue's normal pipeline (+ stock control); status updates
+# push back to attendees via EventsAir notifications (alongside SMS).
+#
+# Phase 0 (this scaffold): the inbound order endpoint reuses the EXISTING
+# /api/orders pipeline via an internal self-call — zero duplication of
+# the validated order path (price, station checks, capability, stock).
+# The EventsAir client is stubbed until a real API key exists.
+# ======================================================================
+
+def _eventsair_secret_ok(db):
+    """Shared-secret gate for EventsAir inbound webhooks. Same pattern
+    as the ClickSend/Cellcast SMS webhooks. Returns (ok, reason)."""
+    import os  # not imported at module top in this file
+    try:
+        from services.eventsair import load_config
+        cfg = load_config(db)
+    except Exception as e:
+        return False, f'config load failed: {e}'
+    if not cfg.get('enabled'):
+        return False, 'EventsAir integration is disabled'
+    secret = (cfg.get('webhook_secret') or '').strip()
+    testing = os.getenv('TESTING_MODE', 'false').lower() == 'true'
+    if not secret:
+        # No secret configured. Accept in TESTING_MODE, warn in prod.
+        if testing:
+            return True, 'testing-mode, no secret'
+        logger.warning("EventsAir inbound accepted without webhook_secret — set one in prod")
+        return True, 'no secret set'
+    provided = request.headers.get('X-Coffee-Cue-Webhook-Secret', '')
+    if provided != secret:
+        return False, 'secret mismatch'
+    return True, 'ok'
+
+
+def _normalize_eventsair_order(payload):
+    """Map an EventsAir order payload into the canonical /api/orders body.
+
+    The exact EA payload shape is an open question (see the design doc) —
+    this accepts the most likely field names and falls back gracefully.
+    Keeps the EA-specific quirks isolated to this one function.
+    """
+    od = payload or {}
+    # Attendee block may be nested or flat.
+    att = od.get('attendee') or od.get('contact') or {}
+    name = (od.get('customer_name') or att.get('name')
+            or f"{att.get('firstName','')} {att.get('lastName','')}".strip()
+            or 'EA Attendee')
+    return {
+        'customer_name': name,
+        'coffee_type': od.get('coffee_type') or od.get('drink') or od.get('type'),
+        'milk_type': od.get('milk_type') or od.get('milk') or 'full cream',
+        'size': od.get('size') or 'medium',
+        'sugar': od.get('sugar') or 'no sugar',
+        'notes': od.get('notes') or od.get('special_instructions') or 'Ordered via EventsAir',
+        'phone': od.get('phone') or att.get('mobile') or att.get('phone') or '',
+        'station_id': od.get('station_id') or od.get('collection_station'),
+        'priority': bool(od.get('vip') or od.get('priority')),
+        # Carry the EA identifiers so the outbound notifier can push back.
+        'source': 'eventsair',
+        'eventsair_order_id': od.get('id') or od.get('order_id'),
+        'eventsair_contact_id': att.get('id') or od.get('contact_id'),
+    }
+
+
+@bp.route('/integrations/eventsair/order', methods=['POST'])
+def eventsair_inbound_order():
+    """Receive an order placed from the EventsAir app and create it in
+    Coffee Cue's normal pipeline (with stock control).
+
+    Auth: shared-secret header (X-Coffee-Cue-Webhook-Secret).
+    Idempotent on eventsair_order_id so EA retries don't double-create.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+        ok, reason = _eventsair_secret_ok(db)
+        if not ok:
+            logger.warning(f"EventsAir inbound order rejected: {reason}")
+            return jsonify({'success': False, 'error': reason}), 403
+
+        payload = request.get_json(silent=True) or {}
+        canonical = _normalize_eventsair_order(payload)
+        if not canonical.get('coffee_type'):
+            return jsonify({'success': False, 'error': 'missing coffee_type/drink'}), 400
+
+        # Idempotency: if we've already created an order for this EA id,
+        # return the existing one instead of a duplicate.
+        ea_id = canonical.get('eventsair_order_id')
+        if ea_id:
+            cur = db.cursor()
+            cur.execute(
+                "SELECT order_number FROM orders "
+                "WHERE order_details->>'eventsair_order_id' = %s LIMIT 1",
+                (str(ea_id),),
+            )
+            existing = cur.fetchone()
+            if existing:
+                on = existing[0] if not isinstance(existing, dict) else existing.get('order_number')
+                return jsonify({'success': True, 'duplicate': True, 'order_number': on})
+
+        # Reuse the FULL existing order pipeline via an internal self-call.
+        # This is deliberate: /api/orders does price compute, station
+        # existence/status checks, capability gating, queue priority, WS
+        # emit and (at completion) stock decrement. Re-implementing any
+        # of that here would drift. We mint a short-lived service token
+        # for the internal call.
+        from flask_jwt_extended import create_access_token
+        service_token = create_access_token(
+            identity='eventsair-integration',
+            additional_claims={'role': 'staff', 'source': 'eventsair'},
+        )
+        # Stash EA identifiers in notes-adjacent fields by extending the
+        # body; /api/orders persists unknown keys it reads, and we add
+        # the EA ids onto order_details via a follow-up update below.
+        client = current_app.test_client()
+        resp = client.post(
+            '/api/orders',
+            json=canonical,
+            headers={'Authorization': f'Bearer {service_token}'},
+        )
+        if resp.status_code != 200:
+            body = resp.get_json(silent=True) or {}
+            return jsonify({'success': False,
+                            'error': body.get('message') or f'order create failed ({resp.status_code})',
+                            'detail': body}), resp.status_code
+        created = resp.get_json(silent=True) or {}
+        order_number = (created.get('data') or {}).get('order_number') or created.get('order_number')
+
+        # Persist the EA identifiers onto the order_details so the
+        # outbound notifier can push status back to the right attendee.
+        if order_number and (ea_id or canonical.get('eventsair_contact_id')):
+            try:
+                cur = db.cursor()
+                cur.execute(
+                    "UPDATE orders SET order_details = order_details "
+                    "|| %s::jsonb WHERE order_number = %s",
+                    (json.dumps({
+                        'eventsair_order_id': ea_id,
+                        'eventsair_contact_id': canonical.get('eventsair_contact_id'),
+                        'source': 'eventsair',
+                    }), order_number),
+                )
+                db.commit()
+            except Exception as e:
+                logger.warning(f"EventsAir id stamp failed (non-fatal): {e}")
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+
+        try:
+            from services.logging_utils import event as _event
+            _event('EVENTSAIR_ORDER_CREATED', order_number=order_number, ea_id=ea_id)
+        except Exception:
+            pass
+        return jsonify({'success': True, 'order_number': order_number})
+    except Exception as e:
+        logger.exception(f"eventsair_inbound_order failed: {e}")
+        try:
+            current_app.config.get('coffee_system').db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/integrations/eventsair/webhook', methods=['POST'])
+def eventsair_webhook():
+    """Receive EventsAir webhooks (registration created/updated, etc.).
+
+    Phase 0: acknowledge + log. Phase 1 will upsert into event_attendees
+    so the SMS/order flow can recognize attendees by phone. Shared-secret
+    gated.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        ok, reason = _eventsair_secret_ok(db)
+        if not ok:
+            return jsonify({'success': False, 'error': reason}), 403
+        payload = request.get_json(silent=True) or {}
+        logger.info("EventsAir webhook: %s", str(payload)[:300])
+        # TODO Phase 1: upsert event_attendees from the registration event.
+        return ('', 204)
+    except Exception as e:
+        logger.warning(f"eventsair_webhook failed: {e}")
+        return ('', 204)
+
+
+@bp.route('/integrations/eventsair/config', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def get_eventsair_config():
+    """Return EventsAir config with secrets redacted to *_set booleans."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        from services.eventsair import load_config, public_config
+        return jsonify({'success': True, 'config': public_config(load_config(db))})
+    except Exception as e:
+        logger.error(f"get_eventsair_config error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/integrations/eventsair/config', methods=['PUT'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def put_eventsair_config():
+    """Upsert EventsAir config. Blank secret fields are preserved (not
+    wiped). Body: {enabled, client_id, client_secret, event_id,
+    webhook_secret, vip_categories: [...]}"""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        from services.eventsair import save_config, public_config
+        body = request.get_json() or {}
+        cfg = save_config(db, body)
+        return jsonify({'success': True, 'config': public_config(cfg)})
+    except Exception as e:
+        logger.error(f"put_eventsair_config error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/integrations/eventsair/status', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def eventsair_status():
+    """Health: configured? token reachable? Used by the Organiser
+    Connect-EventsAir panel and /api/health/full."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        from services.eventsair import get_client, is_enabled
+        client = get_client(db)
+        return jsonify({'success': True, 'enabled': is_enabled(db),
+                        'health': client.health()})
+    except Exception as e:
+        logger.error(f"eventsair_status error: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500

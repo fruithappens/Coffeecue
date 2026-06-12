@@ -15,6 +15,11 @@ requests==2.31.0
 gunicorn==21.2.0
 twilio==8.5.0
 qrcode==7.4.2
+# Pillow is REQUIRED at runtime: qrcode only declares it under its
+# optional [pil] extra, so a bare `qrcode==7.4.2` install does NOT pull
+# it. Without Pillow every QR render (SMS order QR, customer receipt QR,
+# thermal labels) raises ImportError in production. Pin it explicitly.
+Pillow==10.1.0
 python-magic==0.4.27
 APScheduler==3.10.4
 python-jose==3.3.0
