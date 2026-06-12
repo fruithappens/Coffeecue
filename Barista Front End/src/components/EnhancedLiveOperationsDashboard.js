@@ -10,6 +10,13 @@ import useOrders from '../hooks/useOrders';
 import useStock from '../hooks/useStock';
 import useSettings from '../hooks/useSettings';
 
+// A pending order waiting longer than this is treated as stale/abandoned
+// (or leftover test data) and excluded from the live avg-wait calc and
+// the "orders waiting over N minutes" critical alert. Including such
+// orders produced a bogus "4320m avg wait" (72h). Module-scope so both
+// the metrics calc and the alerts effect can use it.
+const FRESH_WAIT_CAP_MIN = 120;
+
 const EnhancedLiveOperationsDashboard = () => {
   const { stations, updateStation } = useStations();
   const { 
@@ -52,8 +59,14 @@ const EnhancedLiveOperationsDashboard = () => {
     };
     
     const totalOrders = ordersData.pending.length + ordersData.inProgress.length;
-    const avgWaitTime = ordersData.pending.length > 0 
-      ? ordersData.pending.reduce((sum, order) => sum + (order.waitTime || 0), 0) / ordersData.pending.length
+    // Only "fresh" pending orders count toward the live average wait
+    // (see FRESH_WAIT_CAP_MIN at module scope — abandoned/test orders
+    // sitting for hours otherwise produced the bogus "4320m avg wait").
+    const freshPending = ordersData.pending.filter(
+      o => (o.waitTime || 0) <= FRESH_WAIT_CAP_MIN
+    );
+    const avgWaitTime = freshPending.length > 0
+      ? freshPending.reduce((sum, order) => sum + (order.waitTime || 0), 0) / freshPending.length
       : 0;
     const activeStations = stations.filter(s => s.status === 'active').length;
     const totalCapacity = stations.reduce((sum, s) => sum + (s.max_concurrent_orders || 5), 0);
@@ -134,9 +147,11 @@ const EnhancedLiveOperationsDashboard = () => {
       }
     });
     
-    // Long wait time alerts
-    const longWaitOrders = ordersData.pending.filter(o => o.waitTime > 15);
-    const criticalWaitOrders = ordersData.pending.filter(o => o.waitTime > 20);
+    // Long wait time alerts — bound to fresh orders (a stale/abandoned
+    // pending order shouldn't raise a "critical wait" alarm; same
+    // FRESH_WAIT_CAP_MIN reasoning as the avg-wait calc above).
+    const longWaitOrders = ordersData.pending.filter(o => o.waitTime > 15 && o.waitTime <= FRESH_WAIT_CAP_MIN);
+    const criticalWaitOrders = ordersData.pending.filter(o => o.waitTime > 20 && o.waitTime <= FRESH_WAIT_CAP_MIN);
     
     if (criticalWaitOrders.length > 0) {
       alerts.push({
