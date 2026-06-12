@@ -280,7 +280,7 @@ function App() {
             + 'clearing it so the user re-logs in (not switching to sample data).');
           // A malformed token means "log in again", not "show fake data".
           // Clearing it routes the user to the login screen via AuthGuard.
-          try { AuthService.logout && AuthService.logout(); } catch (_) {}
+          try { AuthService.logout && AuthService.logout(); } catch (_) { /* logout best-effort */ }
         }
       }
     } catch (e) {

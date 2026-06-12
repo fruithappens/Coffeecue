@@ -69,7 +69,7 @@ const ReadinessTab = () => {
   useEffect(() => {
     api.request('/settings/admin-alerts', { method: 'GET' })
       .then(r => { if (r?.config) setAlertCfg(c => ({ ...c, ...r.config })); })
-      .catch(() => {});
+      .catch(() => { /* keep defaults if endpoint unavailable */ });
   }, []);
 
   const saveAlertCfg = async () => {
