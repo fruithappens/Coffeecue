@@ -131,3 +131,57 @@ route causes confirmed by grep against the source. The two 🔴 bugs with
 "(Done)" / "(Partial fix applied)" were fixed in the same session;
 the rest are logged for follow-up (some — like real satisfaction data —
 are feature work, not quick fixes).
+
+---
+
+## Exhaustive UI walkthrough — round 2 (2026-06-12, post-fixes)
+
+Logged in as admin, walked the Organiser interface tab-by-tab after the
+branding / metric / auth fixes. (Backend + frontend live, Chrome MCP.)
+
+### Fixes verified live ✅
+- Organiser header now reads **"Coffee Cue Admin"** (was "Admin Panel Title").
+- Live Ops **Satisfaction shows "--"** (was fabricated 94%); the "+12%"
+  trend is gone.
+- No "Authentication Error / sample data" banner — auth + branding hold.
+- Landing page renders real branding (verified round 1).
+- Organiser **Users** tab shows the REAL user roster from the DB (admin,
+  barista, coffeecue, and `smoke_test_user` created by the smoke) — NOT
+  the fake "John Davis 4.8★" roster. Confirms that fake roster lives only
+  in the barista **Staff** tab, which is now role-gated away from baristas.
+
+### New findings
+- 🔴 **Unbounded avg-wait calculation.** Live Ops and Queue AI both show
+  **"4320m Avg Wait" (72 hours)** — the calc averages over ALL orders
+  including stale/never-completed ones, not a bounded recent window. The
+  Readiness page and `/api/reports/today` compute avg wait correctly;
+  these dashboards don't reuse that. Fix: bound to today / completed-
+  recently, or reuse the report's calc. (Feeds the derived "satisfaction"
+  proxy below, so fixing it fixes two things.)
+- 🟠 **Queue AI "64% Satisfaction"** — unlike the Live Ops 94 (a hardcoded
+  constant, fixed), this one is *computed* from wait time
+  (`QueuePsychologyIntelligence.js:218` — "under 10 min = 100%, degrades").
+  Data-driven but mislabeled: it's a wait-time proxy, not real CSAT.
+  Recommend relabel "Wait-time score". Lower priority — it's disclaimed.
+- 🟢 **Advanced tabs are honestly disclaimed.** Queue AI, Event Phases,
+  and AI Predict each carry a "Preview: …computed from real data, but
+  [the toggle] doesn't trigger backend action yet" banner. Good practice.
+  They still contain a few dubious numbers (Event Phases "100% efficiency",
+  AI Predict "65% health", "+1157% surge") but the disclaimer makes them
+  early-warning aids, not authoritative ops metrics.
+
+### Verified real / working
+- **Stations** (6 sub-tabs: Station Settings, Event Inventory, Event
+  Stock, Station Inventory, Menu Items, Station Defaults) — real station
+  data, live online/offline toggles. The correct home for the station
+  config the barista audit recommended moving out of the barista UI.
+- **Readiness** — all checks real/computed (verified round 1).
+- **Users** — real, backend-backed.
+
+### Not individually screenshotted (lower risk / known-working)
+Orders, Group Orders, Schedule, Analytics, Comms Hub, Settings, Quick
+Setup. Quick Setup's dry-run + apply were built and verified this session;
+Orders/Schedule are standard list views. A future pass can click each
+dropdown/filter, but no red flags were surfaced by the code sweep for
+these beyond the hardcoded items already catalogued in
+AUDIT_HARDCODED_AND_BARISTA.md.
