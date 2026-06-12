@@ -269,6 +269,31 @@
       "path": "/api/orders/SMOKE_NO_SUCH_ORDER/label.png",
       "expect_status": 404,
       "_note": "Thermal label PNG render (open in browser → AirPrint to a Brother QL). Asserts a clean 404 for a missing order — confirms the route + Pillow rendering path are wired without minting an order. A 500 here would mean Pillow is missing or the renderer regressed."
+    },
+    {
+      "name": "GET /api/integrations/eventsair/config (EventsAir config)",
+      "method": "GET",
+      "path": "/api/integrations/eventsair/config",
+      "expect_status": 200,
+      "expect_keys": ["success", "config"],
+      "_note": "EventsAir integration config (secrets redacted to *_set booleans). Returns a default/empty config when not set, so safe on any DB. Confirms the integration routes are registered. See EVENTSAIR_INTEGRATION.md."
+    },
+    {
+      "name": "GET /api/integrations/eventsair/status (EventsAir health)",
+      "method": "GET",
+      "path": "/api/integrations/eventsair/status",
+      "expect_status": 200,
+      "expect_keys": ["success", "enabled", "health"],
+      "_note": "EventsAir client health (configured? token reachable?). 'enabled':false when the integration is off (default). Confirms the client + factory load without a real API key."
+    },
+    {
+      "name": "POST /api/integrations/eventsair/order (disabled → 403)",
+      "method": "POST",
+      "path": "/api/integrations/eventsair/order",
+      "auth": false,
+      "body": {"id": "ea_smoke_1", "drink": "latte", "attendee": {"name": "Smoke EA"}},
+      "expect_status": 403,
+      "_note": "Inbound EA order is shared-secret gated AND requires the integration to be enabled. With EventsAir disabled by default it correctly 403s ('integration is disabled'). Confirms the route exists + the gate works without creating an order. When enabled+secret-matched it would create an order via the real pipeline."
     }
   ]
 }

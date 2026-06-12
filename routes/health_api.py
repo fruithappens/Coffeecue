@@ -131,6 +131,24 @@ def health_check_full():
         logger.warning(f"SMS provider health probe failed: {e}")
         _set_check('sms_primary', 'fail', f'probe error: {e}')
 
+    # --- 2b. EventsAir integration (optional) ---
+    # 'ok' when disabled (it's opt-in) or configured; 'warn' only when
+    # enabled-but-not-fully-configured. Never 'fail' — it's an add-on.
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        from services.eventsair import get_client, is_enabled
+        if coffee_system and is_enabled(coffee_system.db):
+            h = get_client(coffee_system.db).health()
+            _set_check('eventsair',
+                       'ok' if h.get('configured') else 'warn',
+                       h.get('detail', ''),
+                       {'stub': h.get('stub')})
+        else:
+            _set_check('eventsair', 'ok', 'disabled (opt-in)', {'enabled': False})
+    except Exception as e:
+        logger.warning(f"EventsAir health probe failed: {e}")
+        _set_check('eventsair', 'warn', f'probe error: {e}')
+
     # --- 3. Pending schema migrations ---
     try:
         from services.migrations import MIGRATIONS

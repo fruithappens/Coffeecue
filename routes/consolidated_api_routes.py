@@ -9184,3 +9184,256 @@ def delete_event_template(template_id):
     except Exception as e:
         logger.error(f"delete_event_template error: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ======================================================================
+# EventsAir integration (scaffold — see EVENTSAIR_INTEGRATION.md)
+# ----------------------------------------------------------------------
+# Bidirectional: attendees order coffee from the EventsAir app → orders
+# land in Coffee Cue's normal pipeline (+ stock control); status updates
+# push back to attendees via EventsAir notifications (alongside SMS).
+#
+# Phase 0 (this scaffold): the inbound order endpoint reuses the EXISTING
+# /api/orders pipeline via an internal self-call — zero duplication of
+# the validated order path (price, station checks, capability, stock).
+# The EventsAir client is stubbed until a real API key exists.
+# ======================================================================
+
+def _eventsair_secret_ok(db):
+    """Shared-secret gate for EventsAir inbound webhooks. Same pattern
+    as the ClickSend/Cellcast SMS webhooks. Returns (ok, reason)."""
+    import os  # not imported at module top in this file
+    try:
+        from services.eventsair import load_config
+        cfg = load_config(db)
+    except Exception as e:
+        return False, f'config load failed: {e}'
+    if not cfg.get('enabled'):
+        return False, 'EventsAir integration is disabled'
+    secret = (cfg.get('webhook_secret') or '').strip()
+    testing = os.getenv('TESTING_MODE', 'false').lower() == 'true'
+    if not secret:
+        # No secret configured. Accept in TESTING_MODE, warn in prod.
+        if testing:
+            return True, 'testing-mode, no secret'
+        logger.warning("EventsAir inbound accepted without webhook_secret — set one in prod")
+        return True, 'no secret set'
+    provided = request.headers.get('X-Coffee-Cue-Webhook-Secret', '')
+    if provided != secret:
+        return False, 'secret mismatch'
+    return True, 'ok'
+
+
+def _normalize_eventsair_order(payload):
+    """Map an EventsAir order payload into the canonical /api/orders body.
+
+    The exact EA payload shape is an open question (see the design doc) —
+    this accepts the most likely field names and falls back gracefully.
+    Keeps the EA-specific quirks isolated to this one function.
+    """
+    od = payload or {}
+    # Attendee block may be nested or flat.
+    att = od.get('attendee') or od.get('contact') or {}
+    name = (od.get('customer_name') or att.get('name')
+            or f"{att.get('firstName','')} {att.get('lastName','')}".strip()
+            or 'EA Attendee')
+    return {
+        'customer_name': name,
+        'coffee_type': od.get('coffee_type') or od.get('drink') or od.get('type'),
+        'milk_type': od.get('milk_type') or od.get('milk') or 'full cream',
+        'size': od.get('size') or 'medium',
+        'sugar': od.get('sugar') or 'no sugar',
+        'notes': od.get('notes') or od.get('special_instructions') or 'Ordered via EventsAir',
+        'phone': od.get('phone') or att.get('mobile') or att.get('phone') or '',
+        'station_id': od.get('station_id') or od.get('collection_station'),
+        'priority': bool(od.get('vip') or od.get('priority')),
+        # Carry the EA identifiers so the outbound notifier can push back.
+        'source': 'eventsair',
+        'eventsair_order_id': od.get('id') or od.get('order_id'),
+        'eventsair_contact_id': att.get('id') or od.get('contact_id'),
+    }
+
+
+@bp.route('/integrations/eventsair/order', methods=['POST'])
+def eventsair_inbound_order():
+    """Receive an order placed from the EventsAir app and create it in
+    Coffee Cue's normal pipeline (with stock control).
+
+    Auth: shared-secret header (X-Coffee-Cue-Webhook-Secret).
+    Idempotent on eventsair_order_id so EA retries don't double-create.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+        ok, reason = _eventsair_secret_ok(db)
+        if not ok:
+            logger.warning(f"EventsAir inbound order rejected: {reason}")
+            return jsonify({'success': False, 'error': reason}), 403
+
+        payload = request.get_json(silent=True) or {}
+        canonical = _normalize_eventsair_order(payload)
+        if not canonical.get('coffee_type'):
+            return jsonify({'success': False, 'error': 'missing coffee_type/drink'}), 400
+
+        # Idempotency: if we've already created an order for this EA id,
+        # return the existing one instead of a duplicate.
+        ea_id = canonical.get('eventsair_order_id')
+        if ea_id:
+            cur = db.cursor()
+            cur.execute(
+                "SELECT order_number FROM orders "
+                "WHERE order_details->>'eventsair_order_id' = %s LIMIT 1",
+                (str(ea_id),),
+            )
+            existing = cur.fetchone()
+            if existing:
+                on = existing[0] if not isinstance(existing, dict) else existing.get('order_number')
+                return jsonify({'success': True, 'duplicate': True, 'order_number': on})
+
+        # Reuse the FULL existing order pipeline via an internal self-call.
+        # This is deliberate: /api/orders does price compute, station
+        # existence/status checks, capability gating, queue priority, WS
+        # emit and (at completion) stock decrement. Re-implementing any
+        # of that here would drift. We mint a short-lived service token
+        # for the internal call.
+        from flask_jwt_extended import create_access_token
+        service_token = create_access_token(
+            identity='eventsair-integration',
+            additional_claims={'role': 'staff', 'source': 'eventsair'},
+        )
+        # Stash EA identifiers in notes-adjacent fields by extending the
+        # body; /api/orders persists unknown keys it reads, and we add
+        # the EA ids onto order_details via a follow-up update below.
+        client = current_app.test_client()
+        resp = client.post(
+            '/api/orders',
+            json=canonical,
+            headers={'Authorization': f'Bearer {service_token}'},
+        )
+        if resp.status_code != 200:
+            body = resp.get_json(silent=True) or {}
+            return jsonify({'success': False,
+                            'error': body.get('message') or f'order create failed ({resp.status_code})',
+                            'detail': body}), resp.status_code
+        created = resp.get_json(silent=True) or {}
+        order_number = (created.get('data') or {}).get('order_number') or created.get('order_number')
+
+        # Persist the EA identifiers onto the order_details so the
+        # outbound notifier can push status back to the right attendee.
+        if order_number and (ea_id or canonical.get('eventsair_contact_id')):
+            try:
+                cur = db.cursor()
+                cur.execute(
+                    "UPDATE orders SET order_details = order_details "
+                    "|| %s::jsonb WHERE order_number = %s",
+                    (json.dumps({
+                        'eventsair_order_id': ea_id,
+                        'eventsair_contact_id': canonical.get('eventsair_contact_id'),
+                        'source': 'eventsair',
+                    }), order_number),
+                )
+                db.commit()
+            except Exception as e:
+                logger.warning(f"EventsAir id stamp failed (non-fatal): {e}")
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+
+        try:
+            from services.logging_utils import event as _event
+            _event('EVENTSAIR_ORDER_CREATED', order_number=order_number, ea_id=ea_id)
+        except Exception:
+            pass
+        return jsonify({'success': True, 'order_number': order_number})
+    except Exception as e:
+        logger.exception(f"eventsair_inbound_order failed: {e}")
+        try:
+            current_app.config.get('coffee_system').db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/integrations/eventsair/webhook', methods=['POST'])
+def eventsair_webhook():
+    """Receive EventsAir webhooks (registration created/updated, etc.).
+
+    Phase 0: acknowledge + log. Phase 1 will upsert into event_attendees
+    so the SMS/order flow can recognize attendees by phone. Shared-secret
+    gated.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        ok, reason = _eventsair_secret_ok(db)
+        if not ok:
+            return jsonify({'success': False, 'error': reason}), 403
+        payload = request.get_json(silent=True) or {}
+        logger.info("EventsAir webhook: %s", str(payload)[:300])
+        # TODO Phase 1: upsert event_attendees from the registration event.
+        return ('', 204)
+    except Exception as e:
+        logger.warning(f"eventsair_webhook failed: {e}")
+        return ('', 204)
+
+
+@bp.route('/integrations/eventsair/config', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def get_eventsair_config():
+    """Return EventsAir config with secrets redacted to *_set booleans."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        from services.eventsair import load_config, public_config
+        return jsonify({'success': True, 'config': public_config(load_config(db))})
+    except Exception as e:
+        logger.error(f"get_eventsair_config error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/integrations/eventsair/config', methods=['PUT'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def put_eventsair_config():
+    """Upsert EventsAir config. Blank secret fields are preserved (not
+    wiped). Body: {enabled, client_id, client_secret, event_id,
+    webhook_secret, vip_categories: [...]}"""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        from services.eventsair import save_config, public_config
+        body = request.get_json() or {}
+        cfg = save_config(db, body)
+        return jsonify({'success': True, 'config': public_config(cfg)})
+    except Exception as e:
+        logger.error(f"put_eventsair_config error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/integrations/eventsair/status', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def eventsair_status():
+    """Health: configured? token reachable? Used by the Organiser
+    Connect-EventsAir panel and /api/health/full."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        from services.eventsair import get_client, is_enabled
+        client = get_client(db)
+        return jsonify({'success': True, 'enabled': is_enabled(db),
+                        'health': client.health()})
+    except Exception as e:
+        logger.error(f"eventsair_status error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500

@@ -161,14 +161,31 @@ def update_order_status(order_id):
                 if messaging_service:
                     customer_name = order_details.get('name', 'there')
                     station_name = f"Station {updated_order['station_id']}" if updated_order['station_id'] else "the counter"
-                    
+
                     message = f"Hi {customer_name}! Your order #{updated_order['order_number']} is ready for pickup at {station_name}. Enjoy your coffee!"
-                    
+
                     messaging_service.send_message(order_details['phone'], message)
                     logger.info(f"SMS notification sent for completed order {updated_order['order_number']}")
-                    
+
             except Exception as sms_error:
                 logger.error(f"Error sending SMS notification: {sms_error}")
+
+        # EventsAir push (alongside SMS) for EA-originated orders. This
+        # path builds its own SMS inline rather than going through
+        # MessagingService.send_order_ready_notification, so the EA push
+        # hook there doesn't fire — trigger it explicitly here too.
+        # Best-effort; never blocks the response.
+        if new_status == 'completed':
+            try:
+                from services.messaging import MessagingService
+                MessagingService._maybe_push_eventsair(
+                    order_details,
+                    updated_order.get('order_number'),
+                    updated_order.get('station_id'),
+                    (order_details or {}).get('type', 'coffee'),
+                )
+            except Exception as ea_err:
+                logger.warning(f"EventsAir push (status path) failed, non-fatal: {ea_err}")
                 
         # Format response
         response_data = dict(updated_order)
