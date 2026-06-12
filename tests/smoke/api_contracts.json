@@ -246,6 +246,14 @@
       },
       "expect_status": 200,
       "_note": "The Readiness 'Send test order' button and every walk-in submit hit this. Returns vary in shape (success+order_number or order_id), so we only assert status — not keys. A non-200 here means the walk-in pipeline is broken at the door."
+    },
+    {
+      "name": "GET /api/orders/NOPE/receipt (customer receipt route)",
+      "method": "GET",
+      "path": "/api/orders/SMOKE_NO_SUCH_ORDER/receipt",
+      "auth": false,
+      "expect_status": 404,
+      "_note": "Customer-facing branded receipt (browser → Save-as-PDF), linked from the 'order ready' SMS when PUBLIC_BASE_URL is set. Public (no JWT) since customers open it from a phone. We assert a clean 404 for a non-existent order number — that confirms the route is wired and the not-found branch works without needing to mint a real order in the smoke. A 405/500 here would mean the route regressed."
     }
   ]
 }

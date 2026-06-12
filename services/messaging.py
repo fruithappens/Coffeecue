@@ -275,9 +275,31 @@ class MessagingService:
             f"for collection from Station {station_id}.\n\n"
             f"Enjoy! ☕"
         )
-        
+
+        # Optional branded receipt link. Only appended when PUBLIC_BASE_URL
+        # is configured — background reminder threads have no request
+        # context to derive a host, and a localhost link is useless to a
+        # customer. Adds one short line; for corporate/VIP events the
+        # customer can Save-as-PDF for reimbursement.
+        receipt_link = self._receipt_link(order_number)
+        if receipt_link:
+            message += f"\n\nReceipt: {receipt_link}"
+
         # Send the message
         return self.send_message(to, message)
+
+    @staticmethod
+    def _receipt_link(order_number):
+        """Build the public receipt URL if PUBLIC_BASE_URL is set, else ''.
+
+        PUBLIC_BASE_URL should be the externally-reachable origin
+        (https://coffee-cue.up.railway.app or the ngrok URL), no
+        trailing slash required.
+        """
+        base = (os.getenv('PUBLIC_BASE_URL', '') or '').strip().rstrip('/')
+        if not base:
+            return ''
+        return f"{base}/api/orders/{order_number}/receipt"
     
     def send_reminder(self, to, order_number, station_id, wait_time):
         """

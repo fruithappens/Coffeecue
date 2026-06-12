@@ -7560,6 +7560,212 @@ def print_today_report():
         return f'<h1>Report failed</h1><pre>{e}</pre>', 500
 
 
+@bp.route('/orders/<order_number>/receipt', methods=['GET'])
+def order_receipt(order_number):
+    """Customer-facing branded receipt for a single order.
+
+    Public (no JWT): the customer reaches this from a link in their
+    "order ready" SMS, so it can't require a login. Order numbers are
+    short, human-friendly ('C42') — so to stop trivial enumeration we
+    require the order to be in a *terminal-ish* state (in-progress,
+    completed, or picked up). A pending order's receipt is meaningless
+    anyway. No PII beyond the customer's own first name + drink (which
+    they already know); phone is NOT shown.
+
+    Pure HTML, browser → Save-as-PDF, no PDF lib — same approach as the
+    event summary. Renders the event branding, order details, total
+    (if pricing is on), and a pickup QR via the existing track route.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        cur = db.cursor()
+        cur.execute("""
+            SELECT order_number, order_details, status, station_id,
+                   created_at, completed_at, price, for_friend
+              FROM orders
+             WHERE order_number = %s
+             LIMIT 1
+        """, (order_number,))
+        row = cur.fetchone()
+        if not row:
+            return ('<h1>Receipt not found</h1>'
+                    '<p>We could not find that order.</p>'), 404
+        if isinstance(row, dict):
+            od = row['order_details'] or {}
+            status = row['status']
+            station_id = row['station_id']
+            created_at = row['created_at']
+            completed_at = row['completed_at']
+            price = row['price']
+            for_friend = row['for_friend']
+        else:
+            od = row[1] or {}
+            status = row[2]
+            station_id = row[3]
+            created_at = row[4]
+            completed_at = row[5]
+            price = row[6]
+            for_friend = row[7]
+
+        # Guard against pending-order / enumeration peeking.
+        if status not in ('in-progress', 'in_progress', 'completed', 'picked_up'):
+            return ('<h1>Receipt not ready</h1>'
+                    '<p>This receipt becomes available once your order is '
+                    'being prepared.</p>'), 403
+
+        # od is JSONB → already a dict on most cursors; tolerate str.
+        if isinstance(od, str):
+            try:
+                od = json.loads(od)
+            except Exception:
+                od = {}
+
+        # Branding.
+        try:
+            branding = _kv_get(db, 'branding_settings', default={}) or {}
+            event_name = (branding.get('event_name')
+                          or branding.get('eventName')
+                          or _kv_get(db, 'event_name', default='Coffee Cue')
+                          or 'Coffee Cue')
+            logo = branding.get('logo') or branding.get('clientLogo') or ''
+        except Exception:
+            event_name = 'Coffee Cue'
+            logo = ''
+
+        # Build a human drink description from order_details.
+        name = od.get('name') or od.get('customer_name') or 'Customer'
+        drink = od.get('type') or od.get('coffee_type') or 'Coffee'
+        size = od.get('size') or ''
+        milk = od.get('milk') or od.get('milk_type') or ''
+        sugar = od.get('sugar') or ''
+        strength = od.get('strength') or ''
+        desc_bits = [b for b in [size, drink] if b]
+        drink_desc = ' '.join(desc_bits)
+        extras = []
+        if milk and milk not in ('no milk', 'standard', 'none', 'None'):
+            extras.append(f"{milk} milk")
+        if strength:
+            extras.append(str(strength))
+        if sugar and sugar not in ('no sugar', 'none', 'None', '0'):
+            extras.append(str(sugar))
+        extras_str = (', '.join(extras)) if extras else ''
+
+        # Pricing — only show a total if pricing is enabled AND this
+        # order has a non-zero stamped price.
+        symbol = '$'
+        try:
+            pricing_blob = _kv_get(db, 'pricing_settings', default={}) or {}
+            symbol = pricing_blob.get('symbol', '$')
+        except Exception:
+            pass
+        try:
+            price_val = float(price) if price is not None else 0.0
+        except (TypeError, ValueError):
+            price_val = 0.0
+        price_html = (
+            f'<div class="row"><span>Total</span>'
+            f'<strong>{symbol}{price_val:.2f}</strong></div>'
+            if price_val > 0 else ''
+        )
+
+        # Pickup QR — link to the existing track page for this order.
+        # The track route resolves /track/<code>; we use the order
+        # number as the code so the QR is self-contained.
+        host = request.host_url.rstrip('/')
+        track_url = f"{host}/track/{order_number}"
+        # Reuse MessagingService.generate_qr_code (base64 data URI).
+        qr_data_uri = ''
+        try:
+            from services.messaging import MessagingService
+            qr_data_uri = MessagingService.generate_qr_code(track_url, size=6) or ''
+        except Exception as e:
+            logger.warning(f"receipt QR generation failed: {e}")
+
+        when = ''
+        try:
+            stamp = completed_at or created_at
+            if stamp:
+                when = stamp.strftime('%-d %b %Y, %-I:%M %p')
+        except Exception:
+            pass
+
+        logo_html = (f'<img src="{logo}" alt="" style="max-height:54px;margin-bottom:8px"/>'
+                     if logo else '')
+        qr_html = (f'<img src="{qr_data_uri}" alt="Pickup QR" '
+                   f'style="width:140px;height:140px"/>' if qr_data_uri else '')
+        friend_html = (f'<div class="row"><span>For</span><span>{for_friend}</span></div>'
+                       if for_friend else '')
+        extras_html = (f'<div class="row"><span>Options</span><span>{extras_str}</span></div>'
+                       if extras_str else '')
+
+        html = f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>{event_name} — Receipt #{order_number}</title>
+<style>
+  body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+          max-width: 420px; margin: 24px auto; padding: 0 20px; color: #1a1a1a; }}
+  .card {{ border: 1px solid #e5e5e5; border-radius: 12px; padding: 24px; }}
+  .head {{ text-align: center; margin-bottom: 16px; }}
+  .head h1 {{ font-size: 18px; margin: 4px 0; }}
+  .ordernum {{ font-size: 34px; font-weight: 800; letter-spacing: 1px; margin: 8px 0; }}
+  .drink {{ font-size: 20px; font-weight: 600; text-align: center; margin: 6px 0 4px; }}
+  .row {{ display: flex; justify-content: space-between; padding: 8px 0;
+          border-bottom: 1px solid #f0f0f0; font-size: 14px; }}
+  .row span:first-child {{ color: #777; }}
+  .qr {{ text-align: center; margin-top: 18px; }}
+  .foot {{ text-align: center; color: #999; font-size: 12px; margin-top: 16px; }}
+  .badge {{ display:inline-block; background:#eafaf0; color:#1a7f4b; border-radius:20px;
+            padding:3px 12px; font-size:12px; font-weight:600; }}
+  @media print {{ body {{ margin: 0; }} .no-print {{ display:none; }} }}
+</style>
+</head>
+<body>
+  <div class="no-print" style="background:#fffbe6;border:1px solid #ffe58f;border-radius:6px;padding:8px 10px;margin-bottom:14px;font-size:12px;text-align:center;">
+    Save this receipt: tap Share → Print → Save as PDF.
+  </div>
+  <div class="card">
+    <div class="head">
+      {logo_html}
+      <h1>{event_name}</h1>
+      <div class="badge">{'Ready for pickup' if status in ('completed','picked_up') else 'Being prepared'}</div>
+      <div class="ordernum">#{order_number}</div>
+    </div>
+    <div class="drink">{drink_desc}</div>
+    <div style="margin-top:14px;">
+      <div class="row"><span>Name</span><span>{name}</span></div>
+      {friend_html}
+      {extras_html}
+      <div class="row"><span>Station</span><span>#{station_id}</span></div>
+      <div class="row"><span>Time</span><span>{when}</span></div>
+      {price_html}
+    </div>
+    <div class="qr">
+      {qr_html}
+      <div style="font-size:11px;color:#999;margin-top:4px">Scan to track your order</div>
+    </div>
+  </div>
+  <div class="foot">Thank you — enjoy your coffee ☕</div>
+</body>
+</html>"""
+        from flask import Response
+        return Response(html, mimetype='text/html')
+    except Exception as e:
+        logger.error(f"order_receipt error: {e}")
+        try:
+            current_app.config.get('coffee_system').db.rollback()
+        except Exception:
+            pass
+        return f'<h1>Receipt error</h1><pre>{e}</pre>', 500
+
+
 DEFAULT_PRICING = {
     'enabled': False,
     'currency': 'AUD',
