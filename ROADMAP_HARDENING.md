@@ -110,13 +110,35 @@ tracker, added end-goal-aligned items the prior roadmap didn't see.
   common `SMSProvider` interface, Twilio + ClickSend + Cellcast
   implementations, per-provider webhook URLs so all three can run
   simultaneously. `SMS_PROVIDER` env var picks outbound primary;
-  inbound is routed by URL (`/api/sms` Twilio, `/api/sms/clicksend`,
-  `/api/sms/cellcast`). Opt-in via `SMS_USE_PROVIDER_FACTORY=true`
-  for now — legacy Twilio path stays default until shaken down in
-  staging. Disaster-recovery story: flip env, redeploy, outbound
-  swaps provider with no code change. Per-provider health checks
-  in `/api/health/full` + `.env.example` documented + smokes added
-  for the new inbound routes. See `services/sms/README.md`.
+  inbound is routed by URL (`/sms` Twilio, `/sms/clicksend`,
+  `/sms/cellcast` — no `/api` prefix; the blueprint mounts at root).
+  Opt-in via `SMS_USE_PROVIDER_FACTORY=true` for now — legacy Twilio
+  path stays default until shaken down in staging. Disaster-recovery
+  story: flip env, redeploy, outbound swaps provider with no code
+  change. Per-provider health checks in `/api/health/full` +
+  `.env.example` documented + smokes added. See `services/sms/README.md`.
+
+### Session 2 (2026-06-12 PM) — deep testing + load + remaining P1
+
+- **Deep testing pass** — booted the backend, ran the 27-contract smoke
+  suite, fixed real bugs it surfaced: SMS inbound webhook paths
+  (`/sms/...` not `/api/sms/...`), the dead Twilio webhook-updater path,
+  and the silently-401-ing print-report links (added `query_string`
+  JWT location so `window.open(...?jwt=)` actually authenticates — the
+  existing Print button had been broken in the browser).
+- **Load testing** — ran the harness for the first time. It had two
+  bugs (never been run): a reporting-phase RLock deadlock and a phantom
+  ~15% error rate from generating orders for un-stocked milk. Both
+  fixed. Real numbers in `tests/load/RESULTS.md`: single instance does
+  112 req/s at 25 concurrent workers, 0 errors, p99 < 48ms.
+- **Customer receipt** — `GET /api/orders/<n>/receipt`, branded HTML +
+  QR, linked from the ready SMS when `PUBLIC_BASE_URL` set.
+- **Post-event email** — `POST /api/reports/post-event/email` +
+  `services/email_utils.py`, "Email to client" button, EMAIL_ENABLED
+  gate.
+- **Thermal labels** — `render_label_png()` + label.png (AirPrint) +
+  print-label (raw socket, hardware-pending) + printer-config CRUD +
+  fixed the lying reprint button.
 
 ---
 
@@ -181,23 +203,6 @@ in seconds instead of when the first customer doesn't get a reply.
 
 ## P1 — operational confidence
 
-### [M] Thermal sticker printer integration (network printer path)
-Brother QL-820NWB or equivalent. Per-station label printing on
-"Start" so baristas track cups by order number + customer name +
-drink details + event branding. Reprint button on the order card.
-Spec:
-- Backend `POST /api/orders/<id>/print-label` accepts station_id,
-  builds a 62mm raster image, POSTs to the printer's IP (per-station
-  configured in Station Settings).
-- Frontend toggle in Station Settings: "Auto-print on Start"
-- Reprint button on Pending and In-Progress order cards.
-- Logo + event_name come from branding_settings.
-- Failure mode: printer offline → toast, don't block the order.
-
-Cheap Bluetooth printers (Phomemo M120 etc) won't work — iOS
-Safari has no Web Bluetooth. Network printers are ~$300, do AirPrint
-+ raw socket, same family every café POS uses.
-
 ### ✅ Structured logging with event_codes — DONE 2026-06-12
 `services/logging_utils.event(code, **fields)` emits logfmt-style
 `event=CODE k=v` lines for cheap grep + Datadog/Loki parsing.
@@ -215,36 +220,38 @@ hour + busiest station + "share with the client" CTA. New
 as PDF → email to client. Email auto-send deferred until SMTP infra
 is configured (EMAIL_ENABLED is False by default).
 
-### [M] Thermal sticker printer integration (network printer path)
-Brother QL-820NWB or equivalent. Per-station label printing on
-"Start" so baristas track cups by order number + customer name +
-drink details + event branding. Reprint button on the order card.
-Spec:
-- Backend `POST /api/orders/<id>/print-label` accepts station_id,
-  builds a 62mm raster image, POSTs to the printer's IP (per-station
-  configured in Station Settings).
-- Frontend toggle in Station Settings: "Auto-print on Start"
-- Reprint button on Pending and In-Progress order cards.
-- Logo + event_name come from branding_settings.
-- Failure mode: printer offline → toast, don't block the order.
+### ✅ Customer-facing branded receipt — DONE 2026-06-12
+`GET /api/orders/<n>/receipt` — public, print-styled HTML with event
+branding, order details, total (when pricing on), and a pickup QR.
+The "order ready" SMS appends the link when `PUBLIC_BASE_URL` is set.
+Apple Wallet pass not done (lower value than the PDF receipt; revisit
+if a corporate client asks).
 
-Cheap Bluetooth printers (Phomemo M120 etc) won't work — iOS
-Safari has no Web Bluetooth. Network printers are ~$300, do AirPrint
-+ raw socket, same family every café POS uses.
+### ✅ Post-event summary email auto-send — DONE 2026-06-12
+`POST /api/reports/post-event/email` renders the post-event HTML and
+emails it (`services/email_utils.py`, gated behind `EMAIL_ENABLED`).
+"Email to client" button in Support → Dashboard; graceful "Save as
+PDF instead" when SMTP is off. Also fixed the print-link auth (the
+`?jwt=` window.open links were 401-ing — added `query_string` JWT
+location).
 
-### [S] Customer-facing PDF receipt / Apple Wallet pass
-When the order's ready, the SMS can include a link to a PDF receipt
-with the event branding (and, for VIPs / corporate events, a
-reimbursable record). Apple Wallet pass = "Add to wallet" link,
-QR for pickup. Cheap to build (already have PDFKit-equivalent
-options), high client-perceived polish.
+### ✅ Thermal label printing (network printer path) — DONE 2026-06-12 (raw-socket transport hardware-pending)
+`render_label_png()` builds a 62mm label (order #, name, drink,
+options, station, branding, QR) via Pillow. `GET /api/orders/<n>/label.png`
+→ open + AirPrint (Brother QL-820NWB supports AirPrint) — the supported
+path, works with no raster code. `POST /api/orders/<n>/print-label`
+sends to the station's configured printer (raw socket 9100) and fails
+soft to the AirPrint fallback. `GET/PUT /api/stations/<id>/printer-config`
+stores ip/port/enabled/auto_print in the settings KV. Reprint button on
+the In-Progress card now actually works (it called an undefined prop
+before). **Remaining (needs hardware):** validate/convert the raw-socket
+raster for the specific printer; build the Station Settings UI for
+entering the printer IP (config endpoints are ready). "Auto-print on
+Start" toggle is stored but not yet triggered on Start.
 
-### [S] Post-event summary email auto-send (follow-up)
-Requires SMTP config (`EMAIL_ENABLED=true`, `SMTP_*` env vars).
-Backend: render the same `/api/reports/today/print?view=post` HTML
-into an SMTP MIME message and POST to a `/api/reports/post-event/email`
-endpoint with the recipient. Bell rings when post-event is generated,
-operator clicks "Email this to the client" → one round-trip.
+### [S] Apple Wallet pass (deferred)
+"Add to wallet" link with pickup QR. Lower value than the receipt
+that's now shipped — revisit only if a corporate client asks.
 
 ---
 
@@ -284,10 +291,30 @@ Already partially organised (`barista-tabs/`, `organiser-tabs/`,
 `support-tabs/`, `dialogs/`, `ui/`). Finish: move the rest into
 `barista/`, `organiser/`, `display/`, `support/`, `shared/`, `auth/`.
 
-### [S] Smoke-test write paths for orders + users
-We've now got smokes for catalog POST, walk-in POST, and quick-setup
-dry-run. Still needed: `POST /api/users/` (account create) — recent
-regressions in this path that the catalog/order smokes wouldn't catch.
+### ✅ Smoke-test write paths for orders + users — DONE 2026-06-12
+`POST /api/users/` smoke added (idempotent: 201 first run, 400 on
+re-run). The runner now accepts a list of allowed statuses. Smoke
+suite is up to 27 contracts: also covers quick-setup dry-run,
+client-events, both SMS inbound webhooks, the customer receipt route,
+the thermal label render, and printer-config.
+
+---
+
+## Known issues (found during deep testing 2026-06-12)
+
+- **Frontend jest suite is broken at the harness level.** `react-scripts
+  test` fails every test in `InProgressOrder.test.js` with
+  `Cannot read properties of undefined (reading 'Provider')` — a
+  test-setup/mock problem (a context Provider isn't mocked), present on
+  the base branch, NOT caused by recent work. Raw `jest` fails even
+  earlier (JSX not enabled). Until this is fixed, frontend changes are
+  verified by babel-parse + the Cypress organiser smoke + manual run,
+  not unit tests. Worth a dedicated fix: restore the test render
+  wrapper / context mocks so the unit suite runs again.
+- **Twilio webhook path was wrong in two scripts (fixed).**
+  `update-twilio-webhook.py` / `check-twilio-webhook.py` pointed Twilio
+  at `/api/sms/webhook` (405). Corrected to `/sms`. If inbound SMS ever
+  "stops working" after running those scripts, this was why.
 
 ---
 
