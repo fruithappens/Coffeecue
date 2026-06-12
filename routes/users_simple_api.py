@@ -41,8 +41,11 @@ def get_users():
         # Get query parameters
         role = request.args.get('role')
         
-        # Build query
-        query = "SELECT id, username, email, full_name, role, created_at, last_login FROM users WHERE 1=1"
+        # Build query. COALESCE(is_active, true): the Support Users UI keys
+        # its Active/Inactive badge (and "Active Users" counts) on is_active,
+        # so omitting it made every account render as "Inactive" even though
+        # they're all enabled. An account is active unless explicitly disabled.
+        query = "SELECT id, username, email, full_name, role, created_at, last_login, COALESCE(is_active, true) AS is_active FROM users WHERE 1=1"
         params = []
         
         if role:
