@@ -7392,6 +7392,27 @@ def print_today_report():
          was for testing) — a PDF can't be edited.
     """
     try:
+        from flask import request as _flask_request
+        is_post_event = (_flask_request.args.get('view') == 'post')
+        html, err = _render_event_summary_html(is_post_event=is_post_event)
+        if err:
+            return (f'<h1>Report failed</h1><p>{err}</p>'), 500
+        from flask import Response
+        return Response(html, mimetype='text/html')
+    except Exception as e:
+        logger.error(f"print_today_report error: {e}")
+        return f'<h1>Report failed</h1><pre>{e}</pre>', 500
+
+
+def _render_event_summary_html(is_post_event: bool = False):
+    """Build the event-summary HTML. Returns (html, error_or_None).
+
+    Single source of truth for both the printable route
+    (/api/reports/today/print) and the email route
+    (/api/reports/post-event/email). is_post_event flips the heading +
+    adds the share-with-client CTA.
+    """
+    try:
         coffee_system = current_app.config.get('coffee_system')
         db = coffee_system.db
         try:
@@ -7400,18 +7421,14 @@ def print_today_report():
             pass
 
         # Re-use the same query logic by calling the JSON endpoint
-        # function directly. Re-running the queries here would
-        # duplicate logic; calling the Flask route function gives us
-        # the same response shape with one source of truth.
+        # function directly. One source of truth for the metrics.
         report_resp = get_today_report()
-        # Flask response → JSON dict for templating.
         if hasattr(report_resp, 'get_json'):
             data = report_resp.get_json() or {}
         else:
             data = report_resp[0].get_json() or {}
         if not data.get('success'):
-            return ('<h1>Report failed</h1>'
-                    f'<p>{data.get("error", "unknown")}</p>'), 500
+            return None, data.get('error', 'unknown')
 
         # Pull branding for the header. Falls back to "Coffee Cue" so
         # an event with no name set still renders sensibly.
@@ -7464,9 +7481,7 @@ def print_today_report():
         busiest_display = f"Station {busiest_id}" if busiest_id else '—'
 
         # The post-event framing changes the heading and adds a CTA
-        # block. Toggled via ?view=post — same data, different copy.
-        from flask import request as _flask_request
-        is_post_event = (_flask_request.args.get('view') == 'post')
+        # block — controlled by the is_post_event param.
         heading_kind = 'Post-event summary' if is_post_event else 'Event summary'
         post_event_cta = (
             '<div style="margin-top:32px;background:#f0f7ff;border:1px solid #c7dffd;'
@@ -7553,11 +7568,71 @@ def print_today_report():
   </div>
 </body>
 </html>"""
-        from flask import Response
-        return Response(html, mimetype='text/html')
+        return html, None
     except Exception as e:
-        logger.error(f"print_today_report error: {e}")
-        return f'<h1>Report failed</h1><pre>{e}</pre>', 500
+        logger.error(f"_render_event_summary_html error: {e}")
+        return None, str(e)
+
+
+@bp.route('/reports/post-event/email', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def email_post_event_summary():
+    """Email the post-event summary to a recipient (the client).
+
+    Body: {"to": "client@example.com", "subject": "optional override"}
+
+    Renders the same post-event HTML the print route produces and sends
+    it via SMTP. Gated behind EMAIL_ENABLED — when SMTP isn't configured
+    the endpoint returns success:false with a clear "email not enabled"
+    message (HTTP 200, not an error) so the UI can tell the operator to
+    Cmd+P → Save as PDF instead. Never 500s on a config gap.
+    """
+    try:
+        body = request.get_json() or {}
+        to = (body.get('to') or '').strip()
+        if not to or '@' not in to:
+            return jsonify({'success': False,
+                            'error': 'A valid recipient email is required.'}), 400
+
+        html, err = _render_event_summary_html(is_post_event=True)
+        if err or not html:
+            return jsonify({'success': False,
+                            'error': f'Could not build summary: {err}'}), 500
+
+        # Event name for the subject line.
+        try:
+            coffee_system = current_app.config.get('coffee_system')
+            branding = _kv_get(coffee_system.db, 'branding_settings', default={}) or {}
+            event_name = (branding.get('event_name')
+                          or _kv_get(coffee_system.db, 'event_name', default='Coffee Cue')
+                          or 'Coffee Cue')
+        except Exception:
+            event_name = 'Coffee Cue'
+
+        subject = (body.get('subject') or '').strip() or \
+            f"{event_name} — event summary"
+
+        from services.email_utils import send_html_email, email_enabled
+        result = send_html_email(
+            to=to,
+            subject=subject,
+            html_body=html,
+            text_fallback=(
+                f"{event_name} event summary attached as HTML. "
+                f"View in an HTML-capable mail client."
+            ),
+        )
+        return jsonify({
+            'success': result.ok,
+            'sent': result.sent,
+            'email_enabled': email_enabled(),
+            'message': result.detail,
+            'to': to,
+        })
+    except Exception as e:
+        logger.error(f"email_post_event_summary error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @bp.route('/orders/<order_number>/receipt', methods=['GET'])

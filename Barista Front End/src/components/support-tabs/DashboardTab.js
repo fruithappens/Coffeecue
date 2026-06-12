@@ -360,6 +360,8 @@ const TodayReport = () => {
   const [data, setData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(null);
+  const [emailing, setEmailing] = React.useState(false);
+  const [emailStatus, setEmailStatus] = React.useState(null);
 
   const load = React.useCallback(async () => {
     try {
@@ -413,6 +415,39 @@ const TodayReport = () => {
     window.open(url, '_blank', 'noopener');
   };
 
+  // Email the post-event summary straight to the client. Gracefully
+  // tells the operator to Save-as-PDF instead if SMTP isn't configured
+  // server-side (EMAIL_ENABLED off).
+  const handleEmail = async () => {
+    const to = window.prompt(
+      'Email the post-event summary to which address?\n' +
+      '(Requires SMTP configured on the server — otherwise use ' +
+      'Post-event summary → Save as PDF.)'
+    );
+    if (!to) return;
+    setEmailing(true);
+    setEmailStatus(null);
+    try {
+      const r = await api.request('/reports/post-event/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to }),
+      });
+      if (r?.sent) {
+        setEmailStatus({ ok: true, msg: `Sent to ${r.to}.` });
+      } else if (r?.success && !r?.email_enabled) {
+        setEmailStatus({ ok: false,
+          msg: 'Email is not enabled on the server. Use "Post-event summary" → Save as PDF and attach it manually.' });
+      } else {
+        setEmailStatus({ ok: false, msg: r?.message || r?.error || 'Could not send.' });
+      }
+    } catch (e) {
+      setEmailStatus({ ok: false, msg: e?.message || 'Could not send.' });
+    } finally {
+      setEmailing(false);
+    }
+  };
+
   if (loading && !data) {
     return (
       <div className="mt-6 bg-white rounded-lg shadow-sm p-4">
@@ -455,9 +490,24 @@ const TodayReport = () => {
           >
             Post-event summary
           </button>
+          <button
+            onClick={handleEmail}
+            disabled={emailing}
+            className="text-xs text-amber-700 hover:text-amber-900 underline disabled:opacity-50"
+            title="Email the post-event summary straight to the client (requires SMTP configured on the server)"
+          >
+            {emailing ? 'Emailing…' : 'Email to client'}
+          </button>
           <span className="text-xs text-gray-400">{data?.date}</span>
         </div>
       </div>
+      {emailStatus && (
+        <div className={`mb-3 text-xs px-3 py-2 rounded ${
+          emailStatus.ok ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-800'
+        }`}>
+          {emailStatus.msg}
+        </div>
+      )}
 
       {/* Headline numbers */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
