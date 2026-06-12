@@ -169,30 +169,30 @@ def get_db_connection(db_url=None):
         init_db_pool(db_url)
 
     try:
-        # Bounded wait — without this, an exhausted pool blocks the
-        # request thread forever. Five seconds is enough for a transient
-        # spike; if the pool is genuinely saturated the caller surfaces
-        # a 503 to the client instead of hanging.
         conn = connection_pool.getconn()
         return conn
     except Exception as e:
         logger.error(f"Error getting database connection: {str(e)}")
 
-        # In production, fail loudly. The previous behaviour silently
-        # swapped to SQLite, splitting writes across two databases that
-        # never get reconciled — the worst kind of data-loss bug. In
-        # TESTING_MODE the legacy fallback is preserved so dev tooling
-        # without Postgres still works.
-        if not _testing_mode_enabled():
+        # psycopg2 IS installed and a pool exists → Postgres is THE
+        # database. A getconn failure is a transient problem (pool died
+        # after a Postgres restart, all connections broken, momentary
+        # saturation) — recover by re-initialising the pool ONCE and
+        # retrying. We do NOT fall back to SQLite here, even in
+        # TESTING_MODE: the rest of the app holds a separate singleton
+        # Postgres connection (coffee_system.db), so a SQLite swap on
+        # this path splits the brain — auth/refresh read a stale SQLite
+        # users table (login starts 401-ing) while orders keep writing
+        # to Postgres. That exact split-brain was observed under load
+        # (2026-06-12). SQLite is only ever used when psycopg2 itself
+        # isn't installed (handled above), the genuine no-Postgres case.
+        try:
+            logger.warning("Re-initialising the connection pool after getconn failure")
+            init_db_pool(db_url)
+            return connection_pool.getconn()
+        except Exception as e2:
+            logger.error(f"Pool re-init + retry also failed: {e2}")
             raise
-
-        logger.warning("Falling back to SQLite after PostgreSQL connection failure (TESTING_MODE only)")
-        sqlite_db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'coffee_orders.db')
-        logger.info(f"SQLite fallback database path: {sqlite_db_path}")
-        conn = sqlite3.connect(sqlite_db_path)
-        conn.row_factory = sqlite3.Row
-        create_sqlite_tables(conn)
-        return conn
 
 def close_connection(conn):
     """Return a connection to the pool or close SQLite connection.
