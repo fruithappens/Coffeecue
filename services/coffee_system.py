@@ -2723,30 +2723,32 @@ class CoffeeOrderSystem:
         milk = order_details['milk']
         milk_phrase = '' if milk == 'no milk' else f" with {milk} milk"
 
+        # Size note is set (not returned) when there's exactly one size, so
+        # we FALL THROUGH to the sugar/confirm checks. The bug this fixes
+        # (caught in the live prod e2e, 2026-06-13): a one-size event jumped
+        # straight to "How much sugar?" even when the customer had ALREADY
+        # said it in the same message ("skim flat white 1 sugar"), dropping
+        # their answer and asking again.
+        size_note = ''
         if 'size' not in order_details:
-            # Offer the sizes the event actually stocks, not a hardcoded
-            # trio. One size configured → don't ask a one-answer question;
-            # disclose and move on (same pattern as _handle_awaiting_milk).
             available_sizes = self._get_available_sizes(
                 order_details.get('type', '')) or ['small', 'medium', 'large']
             if len(available_sizes) == 1:
                 order_details['size'] = available_sizes[0]
-                self._set_conversation_state(phone, 'awaiting_sugar', state_data)
+                size_note = f" (all drinks are {available_sizes[0]} today)"
+                # fall through — do NOT return; sugar may already be known
+            else:
+                self._set_conversation_state(phone, 'awaiting_size', state_data)
                 return (
-                    f"Got it — {order_details['type']}{milk_phrase} "
-                    f"(all drinks are {available_sizes[0]} today). "
-                    f"How much sugar? (none, 1, 2, 3, etc.)"
+                    f"Got it — {order_details['type']}{milk_phrase}. "
+                    f"What size? ({', '.join(available_sizes)})"
                 )
-            self._set_conversation_state(phone, 'awaiting_size', state_data)
-            return (
-                f"Got it — {order_details['type']}{milk_phrase}. "
-                f"What size? ({', '.join(available_sizes)})"
-            )
 
         if 'sugar' not in order_details:
             self._set_conversation_state(phone, 'awaiting_sugar', state_data)
             return (
-                f"Got it — {order_details['size']} {order_details['type']}{milk_phrase}. "
+                f"Got it — {order_details.get('size', '')} {order_details['type']}{milk_phrase}"
+                f"{size_note}. "
                 f"How much sugar? (none, 1, 2, 3, etc.)"
             )
 
@@ -2789,28 +2791,27 @@ class CoffeeOrderSystem:
             # awaiting_size (and its prompt hardcoded "(small, medium,
             # large)" regardless of what cups the event actually stocks).
             # Found by tests/sms_scenarios: size_in_first_message_respected.
+            # One-size events set the size and FALL THROUGH (don't return)
+            # so an already-known sugar isn't re-asked. See the matching
+            # fix + rationale in _handle_awaiting_coffee_type.
+            size_note = ''
             if 'size' not in order_details:
                 available_sizes = self._get_available_sizes(
                     order_details.get('type', '')) or ['small', 'medium', 'large']
                 if len(available_sizes) == 1:
-                    # Only one cup size configured — say so instead of
-                    # asking a question with a single possible answer.
                     order_details['size'] = available_sizes[0]
-                    self._set_conversation_state(phone, 'awaiting_sugar', state_data)
+                    size_note = f"All drinks are {available_sizes[0]} today. "
+                else:
+                    self._set_conversation_state(phone, 'awaiting_size', state_data)
                     return (
-                        f"All drinks are {available_sizes[0]} today. "
-                        f"How much sugar in your {order_details.get('type', 'coffee')}? (none, 1, 2, etc.)"
+                        f"What size {order_details.get('type', 'coffee')} would you like? "
+                        f"({', '.join(available_sizes)})"
                     )
-                self._set_conversation_state(phone, 'awaiting_size', state_data)
-                return (
-                    f"What size {order_details.get('type', 'coffee')} would you like? "
-                    f"({', '.join(available_sizes)})"
-                )
 
             if 'sugar' not in order_details:
                 self._set_conversation_state(phone, 'awaiting_sugar', state_data)
                 return (
-                    f"How much sugar in your {order_details.get('type', 'coffee')}? (none, 1, 2, etc.)"
+                    f"{size_note}How much sugar in your {order_details.get('type', 'coffee')}? (none, 1, 2, etc.)"
                 )
 
             # Everything known — read back and confirm.

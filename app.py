@@ -164,6 +164,12 @@ except ImportError:
     has_support_api = False
 
 try:
+    from routes.event_data_routes import bp as event_data_bp
+    has_event_data = True
+except ImportError:
+    has_event_data = False
+
+try:
     from routes.migration_api_routes import migration_api
     has_migration_api = True
 except ImportError:
@@ -533,7 +539,11 @@ def create_app():
     if has_support_api:
         app.register_blueprint(support_api_bp)
         logger.info("Support API routes registered")
-        
+
+    if has_event_data:
+        app.register_blueprint(event_data_bp)
+        logger.info("Event Data Lifecycle routes registered")
+
     if has_migration_api:
         app.register_blueprint(migration_api)
         logger.info("Migration API routes registered")

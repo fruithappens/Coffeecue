@@ -74,3 +74,56 @@ p50/p95 to rise by the RTT (~20–80ms depending on region); the error
 rate and relative endpoint ranking should hold. If `pending` p99 climbs
 past ~300ms under 25 workers on Railway, that's the signal to add the
 `idx_orders_status` index and/or bump `DB_POOL_MAX_CONNECTIONS`.
+
+---
+
+## SMS-conversation load (2026-06-13) — Phase 5 of DEEP_TEST_PLAN
+
+New scenario `conversation`: a full 7-turn SMS order per worker
+(hi→name→drink→milk→size→sugar→yes), the realistic "N concurrent coffee
+conversations". Needs `TESTING_MODE=true` (signature + outbound SMS stubbed).
+Run: `python tests/load/run_load_test.py --only conversation --workers N`.
+
+### Local baseline (single eventlet process, laptop Postgres)
+| Concurrency | turns | p50 | p95 | p99 | turn errors |
+|---|---|---|---|---|---|
+| 20  | 1841 | 9.3ms  | 21.2ms  | 29.9ms  | 0 |
+| 100 | 7833 | 186.7ms | 234.1ms | 273.2ms | 0 |
+
+Knee is clearly visible between 20 and 100 concurrent on a single local
+process — latency ~20×. This is the local app code's concurrency ceiling,
+NOT Railway's (Railway = separate managed Postgres + its own CPU). The
+Railway run (ramp 50→100→200→400) is the number that goes in the
+deployment-sizing decision; it requires flipping the Railway service to
+`TESTING_MODE=true` for the duration, then back.
+
+Cleanup (safe — matches the LOADTEST name, never a phone prefix):
+`DELETE FROM orders WHERE order_details::text LIKE '%LOADTEST%';`
+
+### Full ramp — local single eventlet process (2026-06-13)
+| Concurrency | turn p50 | turn p95 | turn p99 | turn errors | overall err | req/s |
+|---|---|---|---|---|---|---|
+| 50  | 21.7ms | 54.5ms | 69ms   | 0   | 0%    | 235 |
+| 100 | 206ms  | 277ms  | 316ms  | 0   | 0.2%  | 262 |
+| 200 | 282ms  | 479ms  | 6.1s   | 71  | 2.6%  | 328 |
+| 400 | 298ms  | 6.1s   | 7.8s   | 467 | 10.1% | 370 |
+
+**Read:** the knee is between 50 and 100 concurrent conversations — p50 jumps
+10× (22ms → 206ms) as the single greenlet serialises CPU-bound NLP + synchronous
+DB work. At 200 some turns queue past 6s; at 400 ~10% of turns time out. So on
+the CURRENT single-process Dockerfile deploy:
+- **≤ ~50 concurrent SMS conversations: comfortable** (sub-100ms, 0 errors)
+- **~100: usable but latency-degraded** (200ms+ per turn)
+- **200+: orders start timing out** — not safe for a large event
+
+**Deployment-sizing implication:** a single Railway instance with one worker
+handles a small/medium event well. For hundreds of simultaneous orders you need
+to scale OUT — multiple gunicorn workers and/or Railway replicas, plus the Redis
+SocketIO adapter (CLAUDE.md flags this) so WebSocket fan-out works across
+instances. The app code is correct under load (0 turn-errors up to 100; failures
+above are timeouts/saturation, not logic bugs — no 500s from the conversation
+engine itself).
+
+NOTE: these are LOCAL numbers (one process, laptop Postgres). The Railway run
+(same harness, --base-url the live URL, TESTING_MODE=true) will shift the knee
+per Railway's CPU + managed Postgres — that's the production-sizing number.

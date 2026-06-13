@@ -1393,6 +1393,13 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
               <input
                 type="text"
                 name="customerName"
+                // autoComplete off: without it the browser builds a saved
+                // history of every name typed here and offers it as a
+                // dropdown ("walkinsteve", "stever"…) — clutter for the
+                // barista and a small privacy leak of past customers'
+                // names. The app's own "last customer" chip (below) is the
+                // intended suggestion mechanism.
+                autoComplete="off"
                 value={orderDetails.customerName}
                 onChange={handleChange}
                 onFocus={(e) => {
