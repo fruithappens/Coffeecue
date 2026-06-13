@@ -2245,6 +2245,35 @@ class CoffeeOrderSystem:
             logger.warning(f"_format_price_tail failed (non-fatal): {e}")
             return ''
 
+    def _format_group_total(self, orders):
+        """Return a "\nGroup total: $X for N coffees — pay at the counter on
+        collection." line summing every coffee in a group order, or '' when
+        pricing is off / not shown in SMS. VIP-comped coffees count as $0, so a
+        group with free VIP drinks totals correctly."""
+        try:
+            pricing = self._get_pricing_settings()
+            if not pricing.get('enabled') or not pricing.get('show_in_sms', True):
+                return ''
+            total = 0.0
+            n = 0
+            any_priced = False
+            for od in (orders or []):
+                if not isinstance(od, dict):
+                    continue
+                n += 1
+                price_value, _ = self._compute_order_price(od)
+                if price_value is not None:
+                    total += price_value
+                    any_priced = True
+            if not any_priced or n == 0:
+                return ''
+            symbol = pricing.get('symbol', '$')
+            return (f"\nGroup total: {symbol}{total:.2f} for {n} "
+                    f"coffee{'s' if n != 1 else ''} — pay at the counter on collection.")
+        except Exception as e:
+            logger.warning(f"_format_group_total failed (non-fatal): {e}")
+            return ''
+
     def _compute_order_price(self, order_details):
         """Compute the total price for an order.
 
@@ -3452,7 +3481,9 @@ class CoffeeOrderSystem:
             total_orders = len(group_orders) + 1  # +1 for the primary order
             self._set_conversation_state(phone, 'completed')
             if total_orders > 1:
-                return f"Thanks, {primary_name}! Your group order of {total_orders} coffees has been confirmed.\nThey'll be ready together - we'll SMS you the pickup location."
+                total_line = self._format_group_total([primary_order] + list(group_orders))
+                return (f"Thanks, {primary_name}! Your group order of {total_orders} coffees has been confirmed."
+                        f"{total_line}\nThey'll be ready together - we'll SMS you the pickup location.")
             else:
                 return f"Thanks, {primary_name}! Your order has been confirmed.\nWe'll SMS you when it's ready with the pickup location."
         
@@ -3566,7 +3597,9 @@ class CoffeeOrderSystem:
             # Finish the group ordering process
             total_orders = len(group_orders) + 1  # +1 for the primary order
             self._set_conversation_state(phone, 'completed')
-            return f"Thanks, {primary_name}! Your group order of {total_orders} coffees has been confirmed.\nThey'll be ready together - we'll SMS you the pickup location."
+            total_line = self._format_group_total([primary_order] + list(group_orders))
+            return (f"Thanks, {primary_name}! Your group order of {total_orders} coffees has been confirmed."
+                    f"{total_line}\nThey'll be ready together - we'll SMS you the pickup location.")
         
         else:
             # Unrecognized response - prompt again
@@ -3656,6 +3689,23 @@ class CoffeeOrderSystem:
             
             # Check for station assignment in the order details
             specified_station = order_details.get('station_id') or order_details.get('stationId')
+
+            # A saved-VIP customer's orders are ALL VIP — not just the one
+            # placed right after they enter the code. Before this, the vip flag
+            # came only from the in-conversation state, so a VIP's later orders
+            # dropped back to normal priority and lost the "VIP orders are free"
+            # comp. (Only the customer's OWN orders inherit it — not coffees
+            # they order for friends.)
+            if not is_friend_order and not order_details.get('vip'):
+                try:
+                    _vc = self.db.cursor()
+                    _vc.execute("SELECT is_vip FROM customer_preferences WHERE phone = %s", (phone,))
+                    _vr = _vc.fetchone()
+                    if _vr and _vr[0]:
+                        order_details['vip'] = True
+                        logger.info(f"Order flagged VIP from saved customer status for {phone}")
+                except Exception as _ve:
+                    logger.warning(f"VIP-customer lookup failed (non-fatal): {_ve}")
 
             # Assign station based on available information
             is_vip = order_details.get('vip', False)
