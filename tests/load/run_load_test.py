@@ -270,11 +270,11 @@ def scenario_sms_conversation(client: Client, idx: int) -> None:
 
     Run as: --only conversation --workers 400  (→ 400 concurrent convos).
     """
-    # Name carries the LOADTEST sentinel so synthetic SMS orders are
-    # purgeable with the SAME pattern as walk-in load orders — and so prod
-    # cleanup never has to match on phone prefix (real AU mobiles are
-    # +614…, which would collide with a naive +6149% delete).
-    phone = f'+6149{(idx % 9000000) + 1000000:07d}'
+    # Phone uses the +61000… prefix, which CANNOT be a real Australian
+    # mobile (those are +614…) — so synthetic customers/conversation
+    # rows are safe to bulk-delete by `phone LIKE '+61000%'` with zero
+    # risk to real data. Name also carries the LOADTEST sentinel.
+    phone = f'+61000{idx % 1000000:06d}'
     name = f'LOADTEST{idx}'
     turns = [
         ('hi',     r'name'),

@@ -3,7 +3,7 @@ import {
   Coffee, Users, Clock, Calendar, Settings,
   LogOut, Bell, Sliders,
   FileText, Activity, Brain, Zap, LineChart,
-  Radio, Shield, Package, ArrowLeft, CheckCircle
+  Radio, Shield, Package, ArrowLeft, CheckCircle, Database
 } from 'lucide-react';
 // MessageSquare, TrendingUp, BarChart, Layers, UserPlus were imported
 // but unused — left in the original sprawl. Trimmed in batch G of the
@@ -20,6 +20,7 @@ import AnalyticsDashboard from './AnalyticsDashboard';
 import EnhancedCommunicationHub from './EnhancedCommunicationHub';
 import PredictiveIntelligence from './PredictiveIntelligence';
 import EventSettings from './EventSettings';
+import EventDataManagement from './EventDataManagement';
 import InventoryManagement from './InventoryManagement';
 import EventStockManagement from './EventStockManagement';
 import StationSettings from './StationSettings';
@@ -291,6 +292,19 @@ const OrganiserInterface = () => {
               <Settings size={20} className="mr-3" />
               {sidebarOpen && <span>Settings</span>}
             </button>
+
+            {/* Event Data — export / wipe / re-import (per-client lifecycle) */}
+            <button
+              className={`w-full flex items-center px-3 py-2 rounded-md ${
+                activeSection === 'eventData'
+                  ? 'bg-amber-100 text-amber-800'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+              onClick={() => setActiveSection('eventData')}
+            >
+              <Database size={20} className="mr-3" />
+              {sidebarOpen && <span>Event Data</span>}
+            </button>
           </div>
         </nav>
         
@@ -320,6 +334,7 @@ const OrganiserInterface = () => {
             {activeSection === 'schedule' && 'Event Schedule'}
             {activeSection === 'messages' && 'Message Center'}
             {activeSection === 'settings' && 'System Settings'}
+            {activeSection === 'eventData' && 'Event Data'}
           </h1>
           
           <div className="flex items-center space-x-4">
@@ -562,6 +577,11 @@ const OrganiserInterface = () => {
           {/* Settings - Branding */}
           {activeSection === 'settings' && (
             <EventSettings />
+          )}
+
+          {/* Event Data — export / wipe / re-import */}
+          {activeSection === 'eventData' && (
+            <EventDataManagement />
           )}
           
           {/* Schedule Management */}
