@@ -6,7 +6,7 @@
 // finally succeeded), slow renders, etc.
 //
 // Pattern:
-//   import { event } from '../services/logging';
+//   import { event } from './logging';
 //   event('WALKIN_PRESET_LOAD', { templateId: 42, ms: tookMs });
 //
 // Stable codes only — pick from KNOWN_CODES below or add a new one
