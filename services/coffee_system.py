@@ -2196,6 +2196,30 @@ class CoffeeOrderSystem:
         if pricing.get('vip_free') and order_details.get('vip'):
             return 0.0, "VIP — no charge"
 
+        # Flat-fee mode: a fixed price regardless of drink and milk
+        # (alt milk is free). Two shapes, checked in order:
+        #   1. flat_price_by_size — a per-size table, e.g. {small: 2.00,
+        #      medium: 2.50}. The event default Steve asked for.
+        #   2. flat_price — a single price for everything.
+        # Either ignores per-drink prices + all surcharges. Editable in the
+        # Pricing UI any time. Malformed values fall through to itemised.
+        symbol = pricing.get('symbol', '$')
+        flat_size = (order_details.get('size') or 'medium').strip().lower()
+        by_size = pricing.get('flat_price_by_size') or {}
+        if isinstance(by_size, dict) and by_size.get(flat_size) not in (None, ''):
+            try:
+                total = round(float(by_size[flat_size]), 2)
+                return total, f"{symbol}{total:.2f}"
+            except (ValueError, TypeError):
+                pass
+        flat = pricing.get('flat_price')
+        if flat not in (None, ''):
+            try:
+                total = round(float(flat), 2)
+                return total, f"{symbol}{total:.2f}"
+            except (ValueError, TypeError):
+                pass  # malformed flat_price → fall through to itemised pricing
+
         drink = (order_details.get('type') or '').strip().lower()
         milk = (order_details.get('milk') or '').strip().lower()
         size = (order_details.get('size') or 'medium').strip().lower()

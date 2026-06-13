@@ -187,9 +187,17 @@ const DisplayScreen = () => {
     let cancelled = false;
     (async () => {
       try {
-        const response = await ApiService.get('/display/config');
-        if (!cancelled && response && response.config) {
-          const c = response.config;
+        // Public customer-facing screen: fetch the config with a PLAIN
+        // fetch, not ApiService.get. ApiService routes through a
+        // mock/offline fallback when there's no auth token — and the
+        // display has none — so it was serving default "Coffee Event"
+        // config (no event name, no logo, no SMS number) instead of the
+        // real event. The endpoint is public + authoritative. Tolerate
+        // both {config:{...}} and flat shapes.
+        const _resp = await fetch('/api/display/config');
+        const _body = _resp.ok ? await _resp.json() : null;
+        const c = _body && (_body.config || _body);
+        if (!cancelled && c && (c.event_name || c.sms_number || c.logo || c.system_name)) {
           setSmsPhoneNumber(c.sms_number || '');
           setConfig(prev => ({
             ...prev,
