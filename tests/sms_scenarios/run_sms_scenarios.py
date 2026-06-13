@@ -264,6 +264,25 @@ def build_scenarios() -> list[tuple[Scenario, str, str]]:
     ))
 
     add(Scenario(
+        name="onesize_combined_order_keeps_sugar",
+        why="LIVE PROD BUG (found 2026-06-13): on a ONE-SIZE event, a "
+            "combined order that includes sugar ('skim flat white 1 sugar') "
+            "got its sugar dropped — the single-size branch jumped straight "
+            "to 'How much sugar?' instead of falling through to confirm. "
+            "Requires a single configured cup size to reproduce; the runner "
+            "sets that up via setup='one_size'.",
+        setup="one_size",
+        steps=[
+            Step("hi", expect_any=[r"name"]),
+            Step("{NAME}", expect_any=[GREET2]),
+            # all three of milk+drink+sugar in one message, one-size event:
+            Step("skim flat white 1 sugar",
+                 expect_any=[r"confirm|just to confirm|reply yes"],
+                 reject_all=[r"how much sugar"]),
+        ],
+    ))
+
+    add(Scenario(
         name="natural_no_sugar_phrasing",
         why="KNOWN BUG (found 2026-06-13): at the sugar prompt the customer "
             "says 'no sugar' — the parser only accepts none/1/2/3/half and "
@@ -437,6 +456,8 @@ def run(base_url: str, username: str, password: str, only: str | None,
 
         # ---- setup
         restore_needed = False
+        cups_disabled = []   # (item_id) cups we removed for one_size, to recreate
+        cups_snapshot = []
         if scenario.setup == "close_all_stations":
             ok_all = True
             for sid_, _status in station_snapshot:
@@ -445,6 +466,23 @@ def run(base_url: str, username: str, password: str, only: str | None,
             restore_needed = True
             if not ok_all:
                 problems.append("setup: could not close all stations via API")
+        elif scenario.setup == "one_size":
+            # Reduce the event to a SINGLE cup size by deleting the others,
+            # then recreate them in teardown. Reproduces the prod config
+            # (one size) that triggered the dropped-sugar bug.
+            code, payload = api.get("/api/inventory")
+            cups = [i for i in (payload.get("items") or payload.get("data") or [])
+                    if i.get("category") == "cups"]
+            cups_snapshot = [{k: c.get(k) for k in
+                              ("name", "category", "amount", "capacity", "unit", "minimum_threshold")}
+                             for c in cups]
+            # keep the first cup, delete the rest
+            for c in cups[1:]:
+                api.s.delete(f"{api.base}/api/inventory/{c['id']}", headers=api._h(), timeout=10)
+                cups_disabled.append(c["id"])
+            if len(cups) < 2:
+                # already one size — nothing to restore
+                cups_snapshot = []
 
         # ---- conversation
         try:
@@ -468,6 +506,16 @@ def run(base_url: str, username: str, password: str, only: str | None,
                 for sid_, status in station_snapshot:
                     if sid_ is not None and status:
                         api.set_station_status(sid_, status)
+            if cups_disabled and cups_snapshot:
+                # recreate the cups we deleted (all but the first kept one)
+                for c in cups_snapshot[1:]:
+                    api.s.post(f"{api.base}/api/inventory", json={
+                        "name": c["name"], "category": "cups",
+                        "amount": c.get("amount") or 200,
+                        "capacity": c.get("capacity") or 200,
+                        "unit": c.get("unit") or "pcs",
+                        "minimum_threshold": c.get("minimum_threshold") or 10,
+                    }, headers=api._h(), timeout=10)
 
         # ---- backend-state verification
         if scenario.verify and not problems:
