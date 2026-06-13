@@ -52,6 +52,7 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import re
 import statistics
 import sys
 import threading
@@ -246,7 +247,7 @@ def scenario_sms_inbound(client: Client, idx: int) -> None:
         'AccountSid': 'AC_LOADTEST',
     }
     # /api/sms expects form-urlencoded, NOT JSON.
-    url = f"{client.base_url}/api/sms"
+    url = f"{client.base_url}/sms"
     ep = client.stats.get('POST /api/sms (inbound)')
     t0 = time.monotonic()
     try:
@@ -258,12 +259,68 @@ def scenario_sms_inbound(client: Client, idx: int) -> None:
         ep.record(elapsed, 0, ok=False)
 
 
+def scenario_sms_conversation(client: Client, idx: int) -> None:
+    """A FULL multi-turn SMS order conversation for one fresh phone number.
+
+    This is the realistic "N concurrent coffee conversations" load: each
+    call walks the whole state machine (hi → name → drink → milk → size →
+    sugar → yes), 7 POSTs to /api/sms, and only counts as a completed
+    order if the final reply confirms. Needs TESTING_MODE=true at the
+    backend (signature validation + outbound SMS both stubbed).
+
+    Run as: --only conversation --workers 400  (→ 400 concurrent convos).
+    """
+    # Name carries the LOADTEST sentinel so synthetic SMS orders are
+    # purgeable with the SAME pattern as walk-in load orders — and so prod
+    # cleanup never has to match on phone prefix (real AU mobiles are
+    # +614…, which would collide with a naive +6149% delete).
+    phone = f'+6149{(idx % 9000000) + 1000000:07d}'
+    name = f'LOADTEST{idx}'
+    turns = [
+        ('hi',     r'name'),
+        (name,     r'what can i get|coffee|like'),
+        ('latte',  r'milk'),
+        ('oat',    r'size'),
+        ('medium', r'sugar|sweet'),
+        ('none',   r'confirm|yes'),
+        ('yes',    r'confirm|#|order|line|queue|ready'),
+    ]
+    ep = client.stats.get('POST /api/sms (convo turn)')
+    done = client.stats.get('SMS convo COMPLETED')
+    url = f"{client.base_url}/sms"
+    completed = False
+    for body_text, _expect in turns:
+        form = {
+            'Body': body_text,
+            'From': phone,
+            'MessageSid': f'SM_LOADCONVO_{idx}_{int(time.time()*1000)}_{body_text[:3]}',
+            'AccountSid': 'AC_LOADTEST',
+        }
+        t0 = time.monotonic()
+        try:
+            r = requests.post(url, data=form, timeout=client.timeout)
+            elapsed = (time.monotonic() - t0) * 1000
+            ok = r.status_code in (200, 201, 204)
+            ep.record(elapsed, r.status_code, ok=ok)
+            if not ok:
+                break
+            if body_text == 'yes' and re.search(r'confirm|#|line|queue|ready', r.text, re.I):
+                completed = True
+        except requests.RequestException:
+            ep.record((time.monotonic() - t0) * 1000, 0, ok=False)
+            break
+        # brief inter-message gap — a real human typing the next reply
+        time.sleep(random.uniform(0.05, 0.2))
+    done.record(0.0, 200 if completed else 0, ok=completed)
+
+
 SCENARIO_REGISTRY: dict[str, Callable[[Client, int], None]] = {
-    'walkin':    scenario_walkin,
-    'read':      scenario_read_burst,
-    'inventory': scenario_inventory_check,
-    'catalog':   scenario_catalog_check,
-    'sms':       scenario_sms_inbound,
+    'walkin':       scenario_walkin,
+    'read':         scenario_read_burst,
+    'inventory':    scenario_inventory_check,
+    'catalog':      scenario_catalog_check,
+    'sms':          scenario_sms_inbound,
+    'conversation': scenario_sms_conversation,
 }
 
 
@@ -376,8 +433,9 @@ def _print_report(stats: Stats, elapsed_s: float):
         emoji = '✓' if 200 <= code < 300 else ('!' if code == 0 else '✗')
         print(f"  {emoji} {code}: {by_status[code]}")
     print("=" * 88)
-    print("Cleanup: DELETE FROM orders WHERE notes LIKE '%LOADTEST%';")
-    print("         (run it on the load-tested database to drop the synthetic orders)")
+    print("Cleanup (drops ALL synthetic orders — walk-in AND SMS-conversation —")
+    print("matching on the LOADTEST sentinel in the order body, never on phone):")
+    print("  DELETE FROM orders WHERE order_details::text LIKE '%LOADTEST%';")
 
 
 def main():

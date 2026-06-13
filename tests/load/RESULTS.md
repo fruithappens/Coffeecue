@@ -74,3 +74,28 @@ p50/p95 to rise by the RTT (~20–80ms depending on region); the error
 rate and relative endpoint ranking should hold. If `pending` p99 climbs
 past ~300ms under 25 workers on Railway, that's the signal to add the
 `idx_orders_status` index and/or bump `DB_POOL_MAX_CONNECTIONS`.
+
+---
+
+## SMS-conversation load (2026-06-13) — Phase 5 of DEEP_TEST_PLAN
+
+New scenario `conversation`: a full 7-turn SMS order per worker
+(hi→name→drink→milk→size→sugar→yes), the realistic "N concurrent coffee
+conversations". Needs `TESTING_MODE=true` (signature + outbound SMS stubbed).
+Run: `python tests/load/run_load_test.py --only conversation --workers N`.
+
+### Local baseline (single eventlet process, laptop Postgres)
+| Concurrency | turns | p50 | p95 | p99 | turn errors |
+|---|---|---|---|---|---|
+| 20  | 1841 | 9.3ms  | 21.2ms  | 29.9ms  | 0 |
+| 100 | 7833 | 186.7ms | 234.1ms | 273.2ms | 0 |
+
+Knee is clearly visible between 20 and 100 concurrent on a single local
+process — latency ~20×. This is the local app code's concurrency ceiling,
+NOT Railway's (Railway = separate managed Postgres + its own CPU). The
+Railway run (ramp 50→100→200→400) is the number that goes in the
+deployment-sizing decision; it requires flipping the Railway service to
+`TESTING_MODE=true` for the duration, then back.
+
+Cleanup (safe — matches the LOADTEST name, never a phone prefix):
+`DELETE FROM orders WHERE order_details::text LIKE '%LOADTEST%';`
