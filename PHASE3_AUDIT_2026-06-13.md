@@ -45,35 +45,36 @@ twin) / DECORATIVE.
 - **Public surfaces**: clean after today's fixes. All display/landing data
   is live; endpoints verified.
 
-## Remaining ranked fix-list (tracked as task #45)
+## Fix-list resolution (second commit, same day)
 
-1. **Live Ops "Pause/Resume Ordering" + Event Phases transitions call
-   `/events/pause|resume|start|end` — none exist.** Cheapest real fix: wire
-   pause/resume to the existing `/api/emergency/stop-all` + `/resume`
-   (they do exactly this); hide the rest behind the existing preview labels.
-2. **Comms Hub "Send to Baristas" → `/api/support/broadcast/baristas`
-   missing** (customer broadcast works). Implement (station-chat fanout
-   exists as `/api/messages/announcement`) or point the button at that.
-3. **Barista stub buttons that LOOK real**: Edit Order (prompt, never
-   saves), Delay Order (alert, no-op), previous-order View Details (alert).
-   Wire or remove — a rushing barista can't tell theater from function.
-4. **Analytics Dashboard is 100% fabricated charts** — wire to
-   `/api/reports/today` + order stats, or stamp the same "Preview" banner
-   the other AI tabs carry.
-5. **Forgot Password is an alert stub** — either a real reset flow or
-   relabel to "Contact your organiser to reset".
-6. **Sweetener drift**: organiser store has "White Sugar" enabled but the
-   walk-in dialog offers only "None" (different models — products vs
-   quantity rows). Needs the same intersection treatment as coffees.
-7. **MenuManagement still localStorage-only** (existing chip/task) — drinks
-   menu doesn't survive device changes; backend KV endpoint per the
-   StockService pattern.
-8. **Inventory AI consumption rates are invented** (0.5L/hr etc.) — feed
-   from real order history or label as estimate.
-9. **Routing-rule toggles (Queue AI) don't affect backend routing** —
-   `_assign_station()` ignores them; either honour or disclaim.
-10. **CLAUDE.md doc drift**: token localStorage key is
-    `coffee_system_token` (docs say `coffee_auth_token`); update docs.
+1. ~~Live Ops Pause/Resume → `/events/pause`~~ — **agent hallucination**:
+   no such calls exist anywhere in src (verified by global grep). No action.
+2. ~~Comms Hub "Send to Baristas" → `/api/support/broadcast/baristas`~~ —
+   **agent hallucination**: no such call exists. No action.
+3. ✅ **Barista stub buttons fixed (honesty over theater)**: Delay Order no
+   longer claims "delayed by 5 minutes" while doing nothing — it now says
+   delaying isn't supported and points at Move/message; Edit Order no
+   longer prompt()s for notes it silently drops — it says editing isn't
+   supported and suggests cancel + re-create. (View Details alert was
+   already honest.)
+4. ✅ **Analytics Dashboard now carries the same "Preview: sample data"
+   banner** as Queue AI / AI Predict, pointing at Live Ops + Today's Report
+   for real numbers. (Wiring real stats remains task #45.)
+5. ✅ **Forgot Password** fake link replaced with plain guidance ("ask your
+   event organiser to reset it" — organisers have reset in the Users tab).
+6. **Sweetener drift** (open, task #45): organiser store has "White Sugar"
+   enabled but the walk-in dialog offers only "None" (different models —
+   products vs quantity rows). Needs the same intersection treatment as
+   coffees got.
+7. **MenuManagement still localStorage-only** (open — existing chip/task):
+   backend KV endpoint per the StockService pattern.
+8. **Inventory AI consumption rates are invented** (open, task #45): 0.5L/hr
+   etc. — feed from real order history or label as estimate.
+9. **Routing-rule toggles (Queue AI) don't affect backend routing** (open,
+   task #45): `_assign_station()` ignores them; honour or disclaim.
+10. ✅ **CLAUDE.md doc drift fixed**: token localStorage key documented as
+    `coffee_system_token` / `coffee_system_user` (was `coffee_auth_token`,
+    a key nothing reads — it cost this session a failed login-injection).
 
 ## Phase 2 browser-half results (closing out task #38)
 

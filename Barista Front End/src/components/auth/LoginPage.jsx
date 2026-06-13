@@ -193,16 +193,13 @@ const LoginPage = ({ onLoginSuccess }) => {
               >
                 {loading ? 'Logging in...' : 'Sign In'}
               </button>
-              <a
-                className="forgot-password"
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  alert('Please contact an administrator to reset your password.');
-                }}
-              >
-                Forgot Password?
-              </a>
+              {/* No self-service reset exists, so don't render a link that
+                  pretends one does (it was an href="#" + alert). Plain
+                  guidance instead — organisers reset passwords from the
+                  Users tab. */}
+              <span className="forgot-password text-sm text-gray-500">
+                Forgot your password? Ask your event organiser to reset it.
+              </span>
             </div>
           </form>
         </div>
