@@ -177,8 +177,44 @@ def wipe_event_data():
                 except Exception:
                     pass
         db.commit()
-        cursor.close()
         total = sum(v for v in deleted.values() if isinstance(v, int))
+
+        # Optionally clear event staff logins, keeping the master admin(s)
+        # so the operator is never locked out. The "reset for next client"
+        # case: the previous client's barista accounts (treenet1, hbl1, …)
+        # shouldn't linger. Done AFTER the main commit in its own
+        # transaction so a hiccup here can't undo the data wipe.
+        staff_msg = "users were kept"
+        if data.get("clear_staff"):
+            protected = ("coffeecue", "admin")  # never delete the master admin
+            try:
+                cursor.execute(
+                    "DELETE FROM user_permissions WHERE user_id IN "
+                    "(SELECT id FROM users WHERE LOWER(username) NOT IN %s)",
+                    (protected,),
+                )
+            except Exception:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+            try:
+                cursor.execute(
+                    "DELETE FROM users WHERE LOWER(username) NOT IN %s",
+                    (protected,),
+                )
+                deleted["users"] = cursor.rowcount
+                db.commit()
+                staff_msg = f"{cursor.rowcount} staff logins removed (master admin kept)"
+            except Exception as ue:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+                deleted["users"] = f"skipped ({str(ue)[:50]})"
+                staff_msg = "staff-login clear failed (master admin untouched)"
+
+        cursor.close()
         # Clear the in-process conversation cache so a wiped customer
         # isn't still mid-conversation in memory.
         try:
@@ -187,11 +223,11 @@ def wipe_event_data():
                 coffee_system._invalidate_unlimited_stock_cache()
         except Exception:
             pass
-        logger.warning(f"EVENT DATA WIPED: {total} rows across {len(deleted)} tables")
+        logger.warning(f"EVENT DATA WIPED: {total} rows across {len(deleted)} tables; {staff_msg}")
         return jsonify({
             "status": "success",
             "message": f"Wiped {total} rows of customer/transactional data. "
-                       "Stations, inventory config and users were kept.",
+                       f"Stations and inventory config kept; {staff_msg}.",
             "deleted": deleted,
             "total_rows": total,
         })
