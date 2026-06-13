@@ -2196,6 +2196,19 @@ class CoffeeOrderSystem:
         if pricing.get('vip_free') and order_details.get('vip'):
             return 0.0, "VIP — no charge"
 
+        # Flat-fee mode: one price for EVERY drink, ignoring per-drink
+        # prices and all surcharges. Common for events ("$2 a coffee, any
+        # kind"). A first-class toggle so the operator never has to fake it
+        # by abusing the unknown-drink fallback + zeroing every surcharge.
+        flat = pricing.get('flat_price')
+        if flat not in (None, ''):
+            try:
+                total = round(float(flat), 2)
+                symbol = pricing.get('symbol', '$')
+                return total, f"{symbol}{total:.2f}"
+            except (ValueError, TypeError):
+                pass  # malformed flat_price → fall through to itemised pricing
+
         drink = (order_details.get('type') or '').strip().lower()
         milk = (order_details.get('milk') or '').strip().lower()
         size = (order_details.get('size') or 'medium').strip().lower()

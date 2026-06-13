@@ -1818,6 +1818,36 @@ const PricingSection = () => {
 
       {pricing.enabled && (
         <>
+          {/* Flat-fee mode — one price for everything. The common event
+              case ("$2 a coffee, any kind"). When on, per-drink prices and
+              all surcharges are ignored, so the operator sets it in two
+              taps without zeroing a dozen fields. */}
+          <label className="flex items-center mb-3 cursor-pointer select-none bg-amber-50 border border-amber-200 rounded p-3">
+            <input
+              type="checkbox"
+              checked={pricing.flat_price != null && pricing.flat_price !== ''}
+              onChange={(e) => setPricing(p => ({
+                ...p,
+                flat_price: e.target.checked ? (p.flat_price || 2.00) : null,
+              }))}
+              className="mr-2 h-4 w-4 accent-amber-600"
+            />
+            <span className="font-medium mr-3">Flat fee — same price for every drink</span>
+            {pricing.flat_price != null && pricing.flat_price !== '' && (
+              <span className="inline-flex items-center">
+                <span className="mr-1 text-gray-600">{pricing.symbol || '$'}</span>
+                {numericInput(pricing.flat_price,
+                  v => setPricing(p => ({ ...p, flat_price: v })))}
+              </span>
+            )}
+          </label>
+          {pricing.flat_price != null && pricing.flat_price !== '' && (
+            <p className="text-sm text-amber-700 mb-4">
+              Every drink is {pricing.symbol || '$'}{Number(pricing.flat_price).toFixed(2)}.
+              Per-drink prices and surcharges below are ignored while flat fee is on.
+            </p>
+          )}
+
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
             <label className="text-sm">
               <span className="block text-gray-600">Currency symbol</span>
