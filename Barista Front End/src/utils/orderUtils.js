@@ -4,6 +4,25 @@
 import { getCatalogMilks, getMilkTypeById, getMilkTypeByName } from './milkConfig';
 
 /**
+ * Parse a backend timestamp into a Date, treating timezone-less strings as UTC.
+ *
+ * The backend serialises datetimes with `.isoformat()` on naive UTC values
+ * (e.g. "2026-06-13T11:20:00" — no trailing Z). `new Date()` parses those as
+ * LOCAL time, so on UTC+9:30 (Adelaide) every order looked ~570 minutes old
+ * ("571 min" wait on a 1-minute-old order) and the Display's "recently ready"
+ * window dropped freshly-completed orders. Appending 'Z' when no timezone
+ * marker is present makes the time correct in any timezone.
+ */
+export const parseServerDate = (value) => {
+  if (value instanceof Date) return value;
+  if (value == null) return new Date(NaN);
+  if (typeof value === 'number') return new Date(value);
+  const s = String(value).trim().replace(' ', 'T');
+  const hasTz = /[zZ]$|[+-]\d\d:?\d\d$/.test(s);
+  return new Date(hasTz ? s : s + 'Z');
+};
+
+/**
  * Calculate time ratio color for wait time indicators
  * @param {number} waitTime - Current wait time in minutes
  * @param {number} promisedTime - Promised delivery time in minutes

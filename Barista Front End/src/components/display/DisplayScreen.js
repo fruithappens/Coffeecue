@@ -30,6 +30,7 @@ import { useSearchParams } from 'react-router-dom';
 import OrderDataService from '../../services/OrderDataService';
 import StationsService from '../../services/StationsService';
 import ApiService from '../../services/ApiService';
+import { parseServerDate } from '../../utils/orderUtils';
 import { useSettings } from '../../hooks/useSettings';
 
 // Visual theme presets. Each provides bg, panel, text, accent.
@@ -303,14 +304,14 @@ const DisplayScreen = () => {
       // be parsed we keep the order (defensive — better to show
       // something than nothing for a freshly-completed drink).
       if (!o.completedAt) return true;
-      const t = new Date(o.completedAt).getTime();
+      const t = parseServerDate(o.completedAt).getTime();
       if (Number.isNaN(t)) return true;
       return t >= cutoff;
     });
     // Newest first. Items without a parseable timestamp sort last.
     return filtered.sort((a, b) => {
-      const ta = a.completedAt ? new Date(a.completedAt).getTime() : 0;
-      const tb = b.completedAt ? new Date(b.completedAt).getTime() : 0;
+      const ta = a.completedAt ? parseServerDate(a.completedAt).getTime() : 0;
+      const tb = b.completedAt ? parseServerDate(b.completedAt).getTime() : 0;
       return tb - ta;
     });
   };

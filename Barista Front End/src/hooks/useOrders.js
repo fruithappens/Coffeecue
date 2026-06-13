@@ -15,7 +15,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import OrderDataService from '../services/OrderDataService';
 import StockService from '../services/StockService';
-import { calculateWaitTime } from '../utils/orderUtils';
+import { calculateWaitTime, parseServerDate } from '../utils/orderUtils';
 
 // How long a local optimistic transition wins over backend fetches.
 // Long enough that any polling/WS replay can't bounce the order back
@@ -1026,16 +1026,11 @@ export default function useOrders(stationId = null) {
         
         return prevOrders.map(order => {
           try {
-            // Safely parse date strings to avoid errors
-            let createdAt = order.createdAt;
-            if (typeof createdAt === 'string') {
-              createdAt = new Date(createdAt);
-            } else if (!(createdAt instanceof Date)) {
-              createdAt = new Date(); // Fallback
-            }
-            
-            // Calculate wait time in minutes
-            const waitTime = Math.floor((new Date() - createdAt) / 60000);
+            // Parse as UTC (backend sends naive UTC timestamps) so the wait
+            // time is correct regardless of the viewer's timezone.
+            const createdAt = order.createdAt ? parseServerDate(order.createdAt) : new Date();
+            const _ms = createdAt.getTime();
+            const waitTime = Number.isNaN(_ms) ? 0 : Math.max(0, Math.floor((Date.now() - _ms) / 60000));
             
             // Only update if wait time changed
             if (order.waitTime !== waitTime) {
@@ -1054,16 +1049,11 @@ export default function useOrders(stationId = null) {
         
         return prevOrders.map(order => {
           try {
-            // Safely parse date strings to avoid errors
-            let createdAt = order.createdAt;
-            if (typeof createdAt === 'string') {
-              createdAt = new Date(createdAt);
-            } else if (!(createdAt instanceof Date)) {
-              createdAt = new Date(); // Fallback
-            }
-            
-            // Calculate wait time in minutes
-            const waitTime = Math.floor((new Date() - createdAt) / 60000);
+            // Parse as UTC (backend sends naive UTC timestamps) so the wait
+            // time is correct regardless of the viewer's timezone.
+            const createdAt = order.createdAt ? parseServerDate(order.createdAt) : new Date();
+            const _ms = createdAt.getTime();
+            const waitTime = Number.isNaN(_ms) ? 0 : Math.max(0, Math.floor((Date.now() - _ms) / 60000));
             
             // Only update if wait time changed
             if (order.waitTime !== waitTime) {
