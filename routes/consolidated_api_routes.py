@@ -5726,8 +5726,12 @@ def get_today_schedule():
             logger.warning(f"Error fetching rush periods: {str(e)}")
             rush_periods = []
         
-        # If we have no data, add some sample breaks and shifts for testing
-        if len(shifts) == 0 and len(breaks) == 0 and len(rush_periods) == 0:
+        # DISABLED: don't fabricate sample shifts/breaks when there's no
+        # real schedule (showed fake data forever — see station_api_routes
+        # get_todays_schedule). Empty stays empty; the UI shows an honest
+        # "no shifts" state. (This endpoint is shadowed by station_api's
+        # /api/schedule/today anyway, but disabled here too for consistency.)
+        if False:  # was: if len(shifts)==0 and len(breaks)==0 and len(rush_periods)==0
             # Create sample shifts and breaks
             try:
                 cursor.execute('''

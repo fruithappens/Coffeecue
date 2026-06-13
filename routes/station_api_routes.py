@@ -761,8 +761,14 @@ def get_todays_schedule():
                     except Exception:
                         pass
         
-        # Add shifts, breaks, and rush periods for demonstration
-        if len(schedules) == 0:
+        # DISABLED: this used to fabricate sample shifts ("Barista 1A
+        # 08:00-12:00", etc.) AND INSERT them into station_schedule when no
+        # real schedule existed — which then showed as fake data on every
+        # barista Schedule tab, on every station, forever (found in HB
+        # Lobethal live testing). Now an empty schedule stays empty and the
+        # UI shows its honest "no shifts scheduled" state. The block below
+        # is left under `if False:` and should be deleted in a cleanup pass.
+        if False:  # was: if len(schedules) == 0
             # Create some sample data for testing
             # This would normally come from the database
             now = datetime.now()

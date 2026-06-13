@@ -244,20 +244,20 @@ class SmokeRunner:
         # Per-item key check.
         if item_path and item_keys:
             leaves = _walk_path(payload, item_path)
-            if not leaves:
-                result["errors"].append(f"no items at path `{item_path}`")
-            else:
-                # If the list is empty (e.g. no orders in DB), skip the
-                # per-item check rather than fail. We're testing contract
-                # shape, not data presence.
-                non_empty = [(p, v) for (p, v) in leaves if v is not None]
-                if non_empty:
-                    for prefix, item in non_empty[:3]:  # sample
-                        miss = _missing_keys(item, item_keys)
-                        if miss:
-                            result["errors"].append(
-                                f"item at `{prefix}` missing keys: {miss}"
-                            )
+            # An EMPTY collection (e.g. no pending orders on a fresh event)
+            # is a valid response — this suite tests contract SHAPE, not
+            # data presence. So we only validate item keys on items that
+            # are actually present, and never fail just because the list is
+            # empty. (The top-level expect_keys check above still verifies
+            # the container/envelope is correct.) Without this, every run
+            # against a freshly-wiped event falsely failed orders/pending.
+            present = [(p, v) for (p, v) in (leaves or []) if isinstance(v, dict)]
+            for prefix, item in present[:3]:  # sample
+                miss = _missing_keys(item, item_keys)
+                if miss:
+                    result["errors"].append(
+                        f"item at `{prefix}` missing keys: {miss}"
+                    )
 
         result["ok"] = not result["errors"]
         return result
