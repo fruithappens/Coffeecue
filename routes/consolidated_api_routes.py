@@ -3196,6 +3196,11 @@ def get_display_config():
                 # Branding panel as a data URI (clientLogo). 'logo' is the
                 # legacy key; accept either.
                 "logo": branding.get('clientLogo') or branding.get('logo') or '',
+                # Full-screen Display backgrounds — one per orientation so a
+                # vertical OR horizontal screen gets a correctly-framed image.
+                # Uploaded via the Branding panel as data URIs.
+                "background_landscape": branding.get('bgLandscape') or branding.get('background_landscape') or '',
+                "background_portrait": branding.get('bgPortrait') or branding.get('background_portrait') or '',
                 "wait_time": branding.get('waitTime', '10-15'),
                 "header_color": branding.get('headerColor') or branding.get('primaryColor') or '#1e40af',
                 "custom_message": branding.get('customMessage') or branding.get('footerText') or '',

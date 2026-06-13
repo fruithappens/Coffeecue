@@ -180,6 +180,8 @@ const DisplayScreen = () => {
     header_color: '#1e40af',
     custom_message: '',
     logo: '',
+    background_landscape: '',
+    background_portrait: '',
   });
 
   // --- Fetch display config from backend ---
@@ -206,6 +208,9 @@ const DisplayScreen = () => {
             sms_number: c.sms_number || '',
             sponsor: c.sponsor || prev.sponsor,
             logo: c.logo || prev.logo,
+            header_color: c.header_color || prev.header_color,
+            background_landscape: c.background_landscape || prev.background_landscape,
+            background_portrait: c.background_portrait || prev.background_portrait,
           }));
         }
       } catch (e) { /* defaults OK if backend silent */ }
@@ -490,11 +495,23 @@ const DisplayScreen = () => {
   const onHeaderDim = _lum > 0.6 ? 'rgba(17,24,39,0.72)' : 'rgba(255,255,255,0.82)';
   const headerChip = _lum > 0.6 ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.16)';
 
+  // Full-screen Display background — pick the image matching the screen's
+  // orientation (fall back to the other if only one was uploaded). When set,
+  // the order columns become translucent panels that hug their content, so
+  // the image shows through when the queue is quiet and the boxes grow as
+  // orders arrive.
+  const bgImage = isPortrait
+    ? (config.background_portrait || config.background_landscape || '')
+    : (config.background_landscape || config.background_portrait || '');
+  const hasBg = !!bgImage;
+
   const content = (
-    <div className={`min-h-screen w-full ${theme.bg} ${theme.text}
+    <div className={`min-h-screen w-full ${hasBg ? '' : theme.bg} ${theme.text}
                      flex flex-col font-sans overflow-hidden`}
          onClick={tryFullscreen}
-         style={containerStyle}>
+         style={hasBg
+           ? { ...containerStyle, backgroundImage: `url("${bgImage}")`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }
+           : containerStyle}>
 
       {/* --- Header (brand band) --- */}
       <header className="px-6 md:px-10 pt-5 pb-5 flex items-center justify-between gap-4 shadow-md"
@@ -589,11 +606,11 @@ const DisplayScreen = () => {
            In landscape: side-by-side, full height.
            In portrait: stacked with Ready on top (customers care most
            about Ready). */}
-      <main className={`flex-grow grid gap-6 md:gap-8 px-6 md:px-10 pb-6
-                        ${isPortrait
-                          ? 'grid-cols-1 grid-rows-2'
-                          : (showCompleted ? 'grid-cols-2' : 'grid-cols-1')
-                        }`}>
+      <main className={hasBg
+        ? `flex-grow flex gap-6 md:gap-8 px-6 md:px-10 pb-6 ${isPortrait ? 'flex-col justify-end' : 'flex-row items-end'}`
+        : `flex-grow grid gap-6 md:gap-8 px-6 md:px-10 pb-6 ${isPortrait
+            ? 'grid-cols-1 grid-rows-2'
+            : (showCompleted ? 'grid-cols-2' : 'grid-cols-1')}`}>
 
         {/* In portrait we put Ready first (more important to
             customers waiting). In landscape we keep the natural
@@ -601,6 +618,7 @@ const DisplayScreen = () => {
         {isPortrait && showCompleted && (
           <Column
             kind="ready"
+            hasBg={hasBg}
             theme={theme}
             fonts={fonts}
             isPortrait={isPortrait}
@@ -614,6 +632,7 @@ const DisplayScreen = () => {
 
         <Column
           kind="brewing"
+          hasBg={hasBg}
           theme={theme}
           fonts={fonts}
           isPortrait={isPortrait}
@@ -627,6 +646,7 @@ const DisplayScreen = () => {
         {!isPortrait && showCompleted && (
           <Column
             kind="ready"
+            hasBg={hasBg}
             theme={theme}
             fonts={fonts}
             isPortrait={isPortrait}
@@ -708,15 +728,22 @@ const DisplayScreen = () => {
 };
 
 // --- Subcomponent: a column of orders ---
-const Column = ({ kind, theme, fonts, isPortrait, loading, orders,
-                  showCustomerName, showDetails, newReadyMap }) => {
+const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
+                  showCustomerName, showDetails, newReadyMap, hasBg }) => {
   const isReady = kind === 'ready';
+  // Over a full-screen background, render a frosted-white panel with dark
+  // text so cards stay legible whatever the image, and let the panel hug
+  // its content (compact when empty, growing as orders arrive).
+  const theme = hasBg
+    ? { ...baseTheme, panel: 'bg-white/90 backdrop-blur-md', text: 'text-gray-900', subtext: 'text-gray-500', border: 'border-gray-200' }
+    : baseTheme;
   const headerCls = isReady ? 'bg-green-600 text-white' : 'bg-amber-500 text-white';
   const icon = isReady ? <Check size={28} className="mr-2" /> : <Clock size={28} className="mr-2" />;
   const title = isReady ? 'Ready for Pickup' : 'Brewing';
 
   return (
-    <section className={`rounded-3xl overflow-hidden flex flex-col ${theme.panel} shadow-xl`}>
+    <section className={`rounded-3xl overflow-hidden flex flex-col ${theme.panel} shadow-xl
+                        ${hasBg ? (isPortrait ? 'w-full max-h-[42vh]' : 'flex-1 min-w-0 max-h-[78vh]') : ''}`}>
       <header className={`${headerCls} px-6 py-4 flex items-center justify-between flex-shrink-0`}>
         <div className="flex items-center">
           {icon}
@@ -724,12 +751,18 @@ const Column = ({ kind, theme, fonts, isPortrait, loading, orders,
         </div>
         <div className="text-lg font-bold opacity-90">{orders.length}</div>
       </header>
-      <div className={`p-4 md:p-6 flex-grow overflow-auto ${isPortrait ? '' : ''}`}>
+      <div className={hasBg ? 'px-4 py-3 overflow-auto' : 'p-4 md:p-6 flex-grow overflow-auto'}>
         {loading ? (
-          <Empty theme={theme} text="Loading…" pulse />
+          hasBg
+            ? <div className={`text-center ${theme.subtext} text-sm py-1`}>Loading…</div>
+            : <Empty theme={theme} text="Loading…" pulse />
         ) : orders.length === 0 ? (
-          <Empty theme={theme}
-                 text={isReady ? 'Nothing ready yet — keep an eye on the brewing list' : 'All caught up'} />
+          hasBg
+            ? <div className={`text-center ${theme.subtext} text-sm py-1`}>
+                {isReady ? 'Nothing ready yet' : 'All caught up'}
+              </div>
+            : <Empty theme={theme}
+                     text={isReady ? 'Nothing ready yet — keep an eye on the brewing list' : 'All caught up'} />
         ) : (
           <div className="grid grid-cols-1 gap-4 md:gap-6">
             {orders.slice(0, isPortrait ? 4 : 6).map(o => (
