@@ -9,8 +9,12 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Application name and branding
-EVENT_NAME = os.getenv('EVENT_NAME', 'ANZCA ASM 2025 Cairns')
+# Application name and branding.
+# Generic white-label default — must NOT be a specific past client's event.
+# The live event name is set per-event via the Branding panel / Quick Setup
+# (stored in the branding_settings KV) and only falls back to this when that
+# store is empty. A real client name here leaks into a new event's SMS.
+EVENT_NAME = os.getenv('EVENT_NAME', 'Coffee Event')
 APP_VERSION = '1.2.0'
 
 # Database configuration
