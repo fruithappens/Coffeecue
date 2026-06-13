@@ -418,7 +418,18 @@ const SMSTestSimulator = () => {
           )}
         </button>
       </div>
-      
+
+      {/* Honest-labelling banner: every stage of this tool runs in the
+          browser against mock data. Without this, "Run Test → all green"
+          reads like a real end-to-end SMS test, which it is not. */}
+      <div className="mb-6 p-3 bg-amber-50 border border-amber-300 rounded-lg text-sm text-amber-800">
+        <strong>Simulation only.</strong> This walkthrough runs entirely in your
+        browser with mock data — no SMS is sent, no order is created, and the
+        backend is never called. Use it to demo the order flow. To test the
+        real pipeline end-to-end, use <strong>Readiness → Send test SMS</strong>{' '}
+        or text the event number.
+      </div>
+
       <div className="grid grid-cols-2 gap-6">
         {/* Test Configuration */}
         <div className="space-y-6">

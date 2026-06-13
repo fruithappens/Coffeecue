@@ -8,7 +8,13 @@ including system diagnostics, emergency controls, and management features.
 from flask import Blueprint, jsonify, request, current_app, g
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime, timedelta
-import psutil
+# NOTE: psutil is imported lazily inside get_performance_metrics(), NOT here.
+# A top-level `import psutil` used to crash this whole module's import on any
+# host where psutil wasn't installed (it was missing from requirements.txt),
+# which silently de-registered the entire support_api blueprint — every
+# /api/diagnostics/*, /api/emergency/*, and the broadcast route 404'd. Keeping
+# the only optional dep lazy means one missing package degrades a single tile
+# instead of taking down all of Support.
 import logging
 import json
 import os
@@ -101,17 +107,26 @@ def check_sms_service():
 def get_performance_metrics():
     """Get system performance metrics"""
     try:
-        # Get CPU and memory usage
-        cpu_percent = psutil.cpu_percent(interval=1)
-        memory = psutil.virtual_memory()
-        
+        # Get CPU and memory usage. Import psutil lazily: if it's somehow
+        # missing, the host tile degrades to n/a (cpuUsage/memoryUsage null)
+        # rather than 500-ing — and crucially the module still imports so the
+        # rest of the support blueprint keeps working.
+        try:
+            import psutil
+            cpu_percent = psutil.cpu_percent(interval=1)
+            memory_percent = psutil.virtual_memory().percent
+        except Exception as perf_err:
+            logger.warning(f"psutil unavailable, host metrics degraded: {perf_err}")
+            cpu_percent = None
+            memory_percent = None
+
         # Calculate API response time (mock for now)
         api_response_time = 150  # ms
         db_query_time = 25  # ms
-        
+
         return jsonify({
             'cpuUsage': cpu_percent,
-            'memoryUsage': memory.percent,
+            'memoryUsage': memory_percent,
             'apiResponseTime': api_response_time,
             'dbQueryTime': db_query_time
         })

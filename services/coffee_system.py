@@ -1837,6 +1837,44 @@ class CoffeeOrderSystem:
     def _STANDARD_DRINK_MENU(self):
         return self._get_espresso_drink_menu()
 
+    def _get_event_enabled_coffees(self):
+        """Lowercased names of coffees ENABLED in the Organiser's
+        event-inventory store (settings KV 'event_inventory'), or None
+        when that store is absent/empty — None means "no filter".
+
+        Fix for: organiser disables a coffee (e.g. americano) but SMS
+        kept selling it. The espresso menu comes from catalog_items;
+        the per-EVENT on/off switches live in event_inventory['coffee'].
+        The two were never intersected.
+        (tests/persistence FINDINGS, task #44)
+
+        Reads the settings TABLE directly — _get_setting() caches values
+        for the process lifetime, which would make an Organiser toggle
+        invisible until restart. This must be live on the next SMS turn.
+        """
+        try:
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            cursor = self.db.cursor()
+            cursor.execute("SELECT value FROM settings WHERE key = 'event_inventory'")
+            row = cursor.fetchone()
+            raw = row[0] if row and row[0] else None
+            if not raw:
+                return None
+            data = json.loads(raw) if isinstance(raw, str) else raw
+            coffees = data.get('coffee') or []
+            names = {
+                str(c.get('name', '')).strip().lower()
+                for c in coffees
+                if isinstance(c, dict) and c.get('enabled', True)
+            }
+            return names or None
+        except Exception as e:
+            logger.debug(f"_get_event_enabled_coffees: {e}")
+            return None
+
     def _is_unlimited_stock_mode(self):
         """When the Quick Setup wizard sets 'unlimited_stock', the
         operator isn't tracking stock for this event — skip the
@@ -2209,8 +2247,22 @@ class CoffeeOrderSystem:
         # Unlimited-stock mode: skip the inventory check but STILL
         # pull configured tea/drinks rows so the menu is honest.
         extras = self._get_available_extra_drinks()
+
+        # Respect the Organiser's per-event on/off switches: intersect the
+        # catalogue espresso menu with event_inventory['coffee'] enabled
+        # names. Guarded so a naming mismatch can never empty the menu —
+        # if nothing intersects, serve the full catalogue menu (and the
+        # operator sees the drift in the persistence matrix instead of
+        # customers losing every drink).
+        espresso = list(self._STANDARD_DRINK_MENU)
+        enabled = self._get_event_enabled_coffees()
+        if enabled is not None:
+            filtered = [d for d in espresso if d.lower() in enabled]
+            if filtered:
+                espresso = filtered
+
         if self._is_unlimited_stock_mode():
-            return list(self._STANDARD_DRINK_MENU) + extras
+            return espresso + extras
         try:
             cursor = self.db.cursor()
             cursor.execute("""
@@ -2220,11 +2272,11 @@ class CoffeeOrderSystem:
             """)
             coffee_available = cursor.fetchone()[0] > 0
 
-            base = list(self._STANDARD_DRINK_MENU) if coffee_available else []
+            base = espresso if coffee_available else []
             return base + extras
         except Exception as e:
             logger.error(f"Error checking coffee availability: {str(e)}")
-            return list(self._STANDARD_DRINK_MENU) + extras
+            return espresso + extras
 
     def _get_available_extra_drinks(self):
         """Return the lowercased names of stocked drinks-category
@@ -2672,10 +2724,23 @@ class CoffeeOrderSystem:
         milk_phrase = '' if milk == 'no milk' else f" with {milk} milk"
 
         if 'size' not in order_details:
+            # Offer the sizes the event actually stocks, not a hardcoded
+            # trio. One size configured → don't ask a one-answer question;
+            # disclose and move on (same pattern as _handle_awaiting_milk).
+            available_sizes = self._get_available_sizes(
+                order_details.get('type', '')) or ['small', 'medium', 'large']
+            if len(available_sizes) == 1:
+                order_details['size'] = available_sizes[0]
+                self._set_conversation_state(phone, 'awaiting_sugar', state_data)
+                return (
+                    f"Got it — {order_details['type']}{milk_phrase} "
+                    f"(all drinks are {available_sizes[0]} today). "
+                    f"How much sugar? (none, 1, 2, 3, etc.)"
+                )
             self._set_conversation_state(phone, 'awaiting_size', state_data)
             return (
                 f"Got it — {order_details['type']}{milk_phrase}. "
-                f"What size? (small, medium, large)"
+                f"What size? ({', '.join(available_sizes)})"
             )
 
         if 'sugar' not in order_details:
@@ -2713,15 +2778,49 @@ class CoffeeOrderSystem:
         # If milk type was provided, update order details
         if milk_type:
             order_details['milk'] = milk_type
-            
-            # Update state and move to size
             state_data = {
                 'name': name,
                 'order_details': order_details
             }
-            self._set_conversation_state(phone, 'awaiting_size', state_data)
-            
-            return f"What size {order_details.get('type', 'coffee')} would you like? (small, medium, large)"
+
+            # Don't re-ask for fields the customer already gave in their
+            # first message — "large latte" used to get asked "what size?"
+            # anyway because this handler unconditionally moved to
+            # awaiting_size (and its prompt hardcoded "(small, medium,
+            # large)" regardless of what cups the event actually stocks).
+            # Found by tests/sms_scenarios: size_in_first_message_respected.
+            if 'size' not in order_details:
+                available_sizes = self._get_available_sizes(
+                    order_details.get('type', '')) or ['small', 'medium', 'large']
+                if len(available_sizes) == 1:
+                    # Only one cup size configured — say so instead of
+                    # asking a question with a single possible answer.
+                    order_details['size'] = available_sizes[0]
+                    self._set_conversation_state(phone, 'awaiting_sugar', state_data)
+                    return (
+                        f"All drinks are {available_sizes[0]} today. "
+                        f"How much sugar in your {order_details.get('type', 'coffee')}? (none, 1, 2, etc.)"
+                    )
+                self._set_conversation_state(phone, 'awaiting_size', state_data)
+                return (
+                    f"What size {order_details.get('type', 'coffee')} would you like? "
+                    f"({', '.join(available_sizes)})"
+                )
+
+            if 'sugar' not in order_details:
+                self._set_conversation_state(phone, 'awaiting_sugar', state_data)
+                return (
+                    f"How much sugar in your {order_details.get('type', 'coffee')}? (none, 1, 2, etc.)"
+                )
+
+            # Everything known — read back and confirm.
+            self._set_conversation_state(phone, 'awaiting_confirmation', state_data)
+            order_summary = self.nlp.format_order_summary(order_details)
+            return (
+                f"Just to confirm — {order_summary}."
+                f"{self._format_price_tail(order_details)}\n"
+                f"Reply YES to send to the barista, EDIT to change something, or NO to cancel."
+            )
         else:
             # If no milk type was found, prompt again
             return "I didn't recognize that milk type. Please choose from: full cream, skim, soy, almond, oat, lactose free, or no milk."
@@ -2735,18 +2834,27 @@ class CoffeeOrderSystem:
         # Get available sizes for this coffee type
         available_sizes = self._get_available_sizes(order_details.get('type', ''))
         
-        # If only one size is available, automatically select it
+        # If only one size is available, select it — but NEVER silently.
+        # Previously this branch ignored whatever the customer just typed:
+        # they answered "medium" and the confirmation read "small latte"
+        # (the only configured cup), i.e. the wrong cup at pickup with no
+        # warning. Found by tests/sms_scenarios: size_answer_respected.
+        # Now: if their answer differs from the only size, say so.
         if len(available_sizes) == 1:
-            order_details['size'] = available_sizes[0]
-            
-            # Update state and move to sugar
+            only_size = available_sizes[0]
+            requested = self.nlp.parse_order(message).get('size')
+            order_details['size'] = only_size
+
             state_data = {
                 'name': name,
                 'order_details': order_details
             }
             self._set_conversation_state(phone, 'awaiting_sugar', state_data)
-            
-            return f"How much sugar would you like in your {order_details.get('type', 'coffee')}? (none, 1, 2, etc.)"
+
+            note = ''
+            if requested and requested.lower() != only_size.lower():
+                note = f"We only have {only_size} cups today, so I've made it {only_size}. "
+            return f"{note}How much sugar would you like in your {order_details.get('type', 'coffee')}? (none, 1, 2, etc.)"
         
         # Use NLP to extract size
         new_details = self.nlp.parse_order(message)

@@ -13,7 +13,14 @@ logger = logging.getLogger("expresso.models.inventory")
 class InventoryItem:
     """Model for inventory items and stock management"""
     
-    CATEGORIES = ["milk", "coffee", "cups", "syrups", "other"]
+    # Must cover every category the rest of the system reads, or create()
+    # silently rewrites the row to 'other' and it disappears from all
+    # queries. That exact bug hid API-created drinks from the SMS bot:
+    # the whitelist predated the 'drinks' category (teas / hot chocolate /
+    # affogato, read by coffee_system._get_available_extra_drinks) and the
+    # 'sugar' category (sweetener rows written by Quick Setup). Found by
+    # tests/persistence/run_persistence_matrix.py.
+    CATEGORIES = ["milk", "coffee", "cups", "syrups", "drinks", "sugar", "sweetener", "extras", "other"]
     
     @classmethod
     def create_tables(cls, db):

@@ -739,8 +739,9 @@ def create_app():
             conn = get_db_connection()
             cursor = conn.cursor()
             
-            # Get user from database
-            cursor.execute('SELECT * FROM users WHERE username = %s', (username,))
+            # Get user from database (case-insensitive username match — see
+            # auth.verify_login; baristas type inconsistent capitalisation).
+            cursor.execute('SELECT * FROM users WHERE LOWER(username) = LOWER(%s)', (username,))
             user = cursor.fetchone()
             
             if not user:

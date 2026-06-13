@@ -23,8 +23,6 @@ import {
 import ApiServiceClass from '../../services/ApiService';
 import SettingsService from '../../services/SettingsService';
 import StationsService from '../../services/StationsService';
-import StationMenuAssignment from '../StationMenuAssignment';
-import MenuManagement from '../MenuManagement';
 
 // Create an instance of ApiService
 const ApiService = new ApiServiceClass();
@@ -361,29 +359,29 @@ const OperationsTab = () => {
         </CardContent>
       </Card>
 
-      {/* Menu Management */}
+      {/* Menu editing was removed from this tab. It embedded full copies of
+          MenuManagement + StationMenuAssignment, giving Support a second
+          editing surface for the same data the Organiser owns — edits here
+          could silently race a live event's menu. One source of truth. */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Coffee className="h-5 w-5" />
-            Menu Management
+            Menu &amp; station inventory
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <MenuManagement />
-        </CardContent>
-      </Card>
-
-      {/* Station Menu Assignment */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5" />
-            Station Menu Configuration
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <StationMenuAssignment />
+          <p className="text-sm text-gray-600">
+            The drinks menu and per-station inventory are managed in the{' '}
+            <button
+              onClick={() => { window.location.href = '/organiser'; }}
+              className="text-blue-600 underline hover:text-blue-800"
+            >
+              Organiser interface
+            </button>{' '}
+            (Inventory and Stations tabs) — the single source of truth the
+            SMS bot and baristas read from.
+          </p>
         </CardContent>
       </Card>
     </div>

@@ -6,8 +6,12 @@ import OfflineDataHelper from '../../utils/offlineDataHelper';
 import SettingsService from '../../services/SettingsService';
 
 const LoginPage = ({ onLoginSuccess }) => {
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('coffee123');
+  // SECURITY: never pre-fill credentials. These used to default to
+  // 'admin'/'coffee123', which broadcast working admin creds to anyone
+  // who opened the login page (found in the 2026-06-13 public-surfaces
+  // audit). Dev convenience is not worth shipping a master key.
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showFallbackOption, setShowFallbackOption] = useState(false);
@@ -189,16 +193,13 @@ const LoginPage = ({ onLoginSuccess }) => {
               >
                 {loading ? 'Logging in...' : 'Sign In'}
               </button>
-              <a
-                className="forgot-password"
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  alert('Please contact an administrator to reset your password.');
-                }}
-              >
-                Forgot Password?
-              </a>
+              {/* No self-service reset exists, so don't render a link that
+                  pretends one does (it was an href="#" + alert). Plain
+                  guidance instead — organisers reset passwords from the
+                  Users tab. */}
+              <span className="forgot-password text-sm text-gray-500">
+                Forgot your password? Ask your event organiser to reset it.
+              </span>
             </div>
           </form>
         </div>

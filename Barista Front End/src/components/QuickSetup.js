@@ -959,7 +959,7 @@ const QuickSetup = () => {
       const accountsSkipped = [];
       const slug = (config.event_slug || '').trim().toLowerCase();
       const pw = config.event_password || '';
-      const baristaCount = Math.max(1, Math.min(10, config.num_event_baristas || 3));
+      const baristaCount = Math.max(1, Math.min(30, config.num_event_baristas || 3));
       if (slug && pw) {
         const accounts = [
           {
@@ -1181,11 +1181,11 @@ const QuickSetup = () => {
             <input
               type="number"
               min={1}
-              max={10}
+              max={30}
               value={config.num_event_baristas || 3}
               onChange={(e) => setConfig(c => ({
                 ...c,
-                num_event_baristas: Math.max(1, Math.min(10, parseInt(e.target.value, 10) || 1)),
+                num_event_baristas: Math.max(1, Math.min(30, parseInt(e.target.value, 10) || 1)),
               }))}
               className="w-full px-2 py-1 border border-gray-300 rounded font-mono"
             />

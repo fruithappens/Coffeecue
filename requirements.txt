@@ -23,3 +23,11 @@ Pillow==10.1.0
 python-magic==0.4.27
 APScheduler==3.10.4
 python-jose==3.3.0
+# psutil powers the Support → Health "Application Host (CPU/Memory)" tile
+# (routes/support_api_routes.py). It was imported at module top-level but
+# never declared here, so on Railway the import failed and the ENTIRE
+# support_api blueprint silently failed to register — every /api/diagnostics/*,
+# /api/emergency/*, and the Comms Hub broadcast route 404'd. The import is now
+# also lazy (see support_api_routes.py) so a future missing dep can't repeat
+# this, but psutil is a real runtime dep for the perf tile, so pin it.
+psutil==5.9.5

@@ -665,21 +665,20 @@ const BaristaInterface = () => {
   // NEW: Handle delay order
   const handleDelayOrder = (order) => {
     if (!order || !order.id) {
-      // Use the clearError function from useOrders instead of undefined setError
       console.error('Cannot delay order: Missing order ID');
       return;
     }
-    
-    // Since we don't have a delayOrder function in useOrders,
-    // we'll just use the fallback for now
-    // In a real implementation, you would add delayOrder to useOrders.js
-    
-    // Fallback implementation
-    alert(`Order #${order.id} for ${order.customerName} delayed by 5 minutes`);
-    
-    // Optional: If you want to show this in the UI, you could update the order locally
-    // This would be temporary until the next data refresh
-    console.log(`Delayed order ${order.id} by 5 minutes`);
+
+    // HONESTY over theater: this used to claim "delayed by 5 minutes"
+    // while doing absolutely nothing — the order stayed exactly where it
+    // was, and a rushing barista had no way to tell. Until a real delay
+    // mechanism exists in the backend queue, say so and offer the
+    // workable alternative.
+    alert(
+      `Delaying orders isn't supported yet — order #${order.orderNumber || order.id} ` +
+      `has NOT been changed. To take it out of your queue, use Move to ` +
+      `send it to another station, or message the customer.`
+    );
   };
 
   // Open the move-to-station dialog. Just stages the order — the
@@ -699,16 +698,15 @@ const BaristaInterface = () => {
       console.error('Cannot edit order: Missing order ID');
       return;
     }
-    
-    // For now, show a simple prompt to edit the order
-    // In a real implementation, you would open an edit dialog
-    const newNotes = prompt(`Edit notes for order #${order.orderNumber}:`, order.notes || '');
-    
-    if (newNotes !== null && newNotes !== order.notes) {
-      // TODO: Implement order update API call
-      console.log(`Updated notes for order ${order.id}: ${newNotes}`);
-      alert(`Order #${order.orderNumber} notes updated. This will be saved when the order update API is implemented.`);
-    }
+
+    // HONESTY over theater: this used to prompt() for new notes and then
+    // claim they were "updated" — nothing was ever saved anywhere. Until
+    // a PATCH /orders/{id} exists, don't collect input we silently drop.
+    alert(
+      `Editing orders isn't supported yet — order #${order.orderNumber || order.id} ` +
+      `is unchanged. If the order is wrong, cancel it and place a new ` +
+      `walk-in order, or message the customer to confirm.`
+    );
   };
 
   // Enhanced order completion function with guaranteed notifications
@@ -2970,11 +2968,14 @@ const BaristaInterface = () => {
             </div>
             
             <div className="space-y-4">
-              <p>If you need assistance with the coffee station system, please contact:</p>
-              <ul className="list-disc pl-5 space-y-2">
-                <li><strong>Technical Support:</strong> 123-456-7890</li>
-                <li><strong>Event Manager:</strong> 098-765-4321</li>
-              </ul>
+              {/* No invented phone numbers here — the old placeholders
+                  (123-456-7890) looked real enough that a barista mid-rush
+                  might actually dial one. Point at the humans instead. */}
+              <p>
+                If you need assistance with the coffee station system, speak to
+                your event organiser, or use the station chat (bottom-right) to
+                message another station.
+              </p>
               
               <div className="bg-gray-100 p-4 rounded">
                 <h4 className="font-medium mb-2">Quick Tips:</h4>

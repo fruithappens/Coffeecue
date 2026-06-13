@@ -375,8 +375,10 @@ Detailed API documentation is available in:
 - Migration scripts in `migrations/` directory
 
 ### Authentication Token Flow
-- Access tokens: 15-minute expiry, stored in localStorage as `coffee_auth_token`
-- Refresh tokens: 7-day expiry, stored as `coffee_refresh_token`
+- Access tokens stored in localStorage as `coffee_system_token` (NOT
+  `coffee_auth_token` — that key is never read; see AuthService.js
+  `tokenKey`/`userKey`). Current-user JSON lives in `coffee_system_user`.
+- Refresh tokens stored as `coffee_system_refresh_token`
 - Auto-refresh handled by `ApiService.js` with retry logic
 - All API calls except `/api/auth/login` require `Authorization: Bearer <token>` header
 

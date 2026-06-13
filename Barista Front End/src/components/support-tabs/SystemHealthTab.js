@@ -82,6 +82,10 @@ const SystemHealthTab = () => {
 
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(new Date());
+  // Real host metrics + measured API round-trip, captured during
+  // checkSystemHealth(). null = not yet known / endpoint unavailable,
+  // rendered as "—" rather than a made-up number.
+  const [perf, setPerf] = useState({ cpu: null, mem: null, latencyMs: null });
   
   useEffect(() => {
     // Initial check on mount.
@@ -103,8 +107,13 @@ const SystemHealthTab = () => {
 
     // --- API + Database -------------------------------------------
     // Backend response shape: {status: 'healthy'|'error', message: ...}
+    // The round-trip is also timed — it doubles as the "API Latency"
+    // overview figure (a real measurement, not a hardcoded 12ms).
+    let latencyMs = null;
     try {
+      const _t0 = performance.now();
       const dbResp = await _apiService.get('/diagnostics/database');
+      latencyMs = performance.now() - _t0;
       const ok = dbResp?.status === 'healthy';
       updates.api = {
         status: ok ? 'healthy' : 'error',
@@ -155,8 +164,14 @@ const SystemHealthTab = () => {
           'Memory': typeof mem === 'number' ? `${mem.toFixed(0)}%` : 'n/a',
         },
       };
+      setPerf({
+        cpu: typeof cpu === 'number' ? cpu : null,
+        mem: typeof mem === 'number' ? mem : null,
+        latencyMs,
+      });
     } catch (e) {
       updates.host = { status: 'warning', metrics: { 'Error': String(e?.message || e) } };
+      setPerf({ cpu: null, mem: null, latencyMs });
     }
 
     // --- Rich health endpoint: queue / catalog / stations / migrations
@@ -306,12 +321,43 @@ const SystemHealthTab = () => {
         </div>
       </div>
       
-      {/* System Overview */}
+      {/* System Overview — every figure is computed from the live tile
+          statuses / measured calls below. Previously these were hardcoded
+          (98%, "1 incident", 42%, 12ms) which made the panel claim health
+          it never checked. "—" means not yet measured. */}
       <div className="grid grid-cols-4 gap-4 mb-6">
-        <OverviewCard label="Total Health Score" value="98%" status="healthy" />
-        <OverviewCard label="Active Incidents" value="1" status="warning" />
-        <OverviewCard label="System Load" value="42%" status="healthy" />
-        <OverviewCard label="Network Latency" value="12ms" status="healthy" />
+        {(() => {
+          const known = components.filter(c => c.status !== 'unknown');
+          const healthy = known.filter(c => c.status === 'healthy').length;
+          const score = known.length ? Math.round((healthy / known.length) * 100) : null;
+          const incidents = components.filter(c => c.status === 'error').length;
+          const cpu = perf.cpu;
+          const lat = perf.latencyMs;
+          return (
+            <>
+              <OverviewCard
+                label="Health Score"
+                value={score == null ? '—' : `${score}%`}
+                status={score == null ? 'warning' : score >= 90 ? 'healthy' : score >= 70 ? 'warning' : 'error'}
+              />
+              <OverviewCard
+                label="Components Failing"
+                value={String(incidents)}
+                status={incidents === 0 ? 'healthy' : 'error'}
+              />
+              <OverviewCard
+                label="CPU Load"
+                value={cpu == null ? '—' : `${Math.round(cpu)}%`}
+                status={cpu == null ? 'warning' : cpu > 90 ? 'error' : cpu > 70 ? 'warning' : 'healthy'}
+              />
+              <OverviewCard
+                label="API Latency"
+                value={lat == null ? '—' : `${Math.round(lat)}ms`}
+                status={lat == null ? 'warning' : lat < 500 ? 'healthy' : lat < 2000 ? 'warning' : 'error'}
+              />
+            </>
+          );
+        })()}
       </div>
       
       {/* Components Grid */}
@@ -333,55 +379,35 @@ const SystemHealthTab = () => {
           <Cpu className="w-5 h-5 mr-2" />
           System Resources
         </h3>
-        <div className="grid grid-cols-3 gap-6">
+        {/* Real values from /api/diagnostics/performance (psutil on the
+            host). Disk meter removed — the backend doesn't report disk,
+            and the old hardcoded 45GB/100GB was pure fiction. */}
+        <div className="grid grid-cols-2 gap-6">
           <ResourceMeter
             label="CPU Usage"
-            value={24}
+            value={perf.cpu == null ? 0 : Math.round(perf.cpu)}
             max={100}
             unit="%"
             color="blue"
           />
           <ResourceMeter
             label="Memory Usage"
-            value={6.2}
-            max={16}
-            unit="GB"
+            value={perf.mem == null ? 0 : Math.round(perf.mem)}
+            max={100}
+            unit="%"
             color="green"
           />
-          <ResourceMeter
-            label="Disk Usage"
-            value={45}
-            max={100}
-            unit="GB"
-            color="purple"
-          />
         </div>
+        {perf.cpu == null && (
+          <p className="text-xs text-gray-500 mt-3">
+            Live CPU/memory unavailable — /api/diagnostics/performance unreachable.
+          </p>
+        )}
       </div>
-      
-      {/* Recent Health Events */}
-      <div className="mt-6 bg-white rounded-lg shadow-sm p-6">
-        <h3 className="font-semibold text-lg mb-4">Recent Health Events</h3>
-        <div className="space-y-2">
-          <HealthEvent
-            time="2 min ago"
-            type="warning"
-            message="Redis memory usage exceeded 85% threshold"
-            component="Redis Cache"
-          />
-          <HealthEvent
-            time="15 min ago"
-            type="success"
-            message="Database backup completed successfully"
-            component="PostgreSQL"
-          />
-          <HealthEvent
-            time="1 hour ago"
-            type="error"
-            message="API server restarted due to high memory usage"
-            component="API Server"
-          />
-        </div>
-      </div>
+      {/* The old "Recent Health Events" feed was removed: every entry was a
+          hardcoded fake (Redis threshold, backup completed, API restart) for
+          services this stack doesn't even run. Real frontend crashes are in
+          Diagnose → Client crashes; real order/system state is in the tiles. */}
     </div>
   );
 };
@@ -463,22 +489,5 @@ const ResourceMeter = ({ label, value, max, unit, color }) => {
   );
 };
 
-const HealthEvent = ({ time, type, message, component }) => {
-  const typeIcons = {
-    success: <CheckCircle className="w-4 h-4 text-green-500" />,
-    warning: <AlertTriangle className="w-4 h-4 text-yellow-500" />,
-    error: <XCircle className="w-4 h-4 text-red-500" />
-  };
-  
-  return (
-    <div className="flex items-start space-x-3 p-3 hover:bg-gray-50 rounded">
-      {typeIcons[type]}
-      <div className="flex-1">
-        <p className="text-sm">{message}</p>
-        <p className="text-xs text-gray-500">{component} • {time}</p>
-      </div>
-    </div>
-  );
-};
 
 export default SystemHealthTab;

@@ -171,6 +171,15 @@ const AnalyticsDashboard = () => {
   
   return (
     <div className="space-y-6">
+      {/* Same honest labelling as Queue AI / AI Predict: this dashboard's
+          charts are SAMPLE data — none of it comes from the backend yet.
+          Without the banner it reads as authoritative event reporting.
+          Real numbers live in Live Ops and Dashboard → Today's Report. */}
+      <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg text-sm text-amber-800">
+        <strong>Preview:</strong> these charts show sample data, not your
+        event&apos;s real numbers. For live figures use <strong>Live Ops</strong>{' '}
+        or the Today&apos;s Report on the Dashboard tab.
+      </div>
       {/* Header with Controls */}
       <div className="bg-white rounded-lg shadow-sm p-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">

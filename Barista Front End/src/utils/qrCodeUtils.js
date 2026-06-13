@@ -96,17 +96,13 @@ export const createOrderTrackingSMS = (order, messageTemplate = "Your {coffeeTyp
       sponsorText = ` Thanks to our sponsor ${eventBranding.sponsor || branding.sponsor}!`;
     }
     
-    // Add useful tips
-    const tips = [
-      'TIP: SMS "Same" to reorder your usual coffee next time!',
-      'TIP: Peak hours are 8-10am. Order early to skip the wait!',
-      'TIP: Save this number for quick reorders!',
-      'TIP: Tell your colleagues about our SMS ordering system!'
-    ];
-    
-    // Select a random tip or use provided tip
+    // One standard tip, deterministic. This used to pick a RANDOM tip
+    // per message, so two customers placing identical orders got
+    // different copy — and "peak hours are 8-10am" was invented, not an
+    // event fact. Operators can override per-event via options.customTip.
+    const DEFAULT_TIP = 'TIP: SMS "Same" to reorder your usual coffee next time!';
     if (options.includeTip !== false) {
-      tipText = ' ' + (options.customTip || tips[Math.floor(Math.random() * tips.length)]);
+      tipText = ' ' + (options.customTip || DEFAULT_TIP);
     }
   } catch (error) {
     console.error('Error loading branding for SMS:', error);
