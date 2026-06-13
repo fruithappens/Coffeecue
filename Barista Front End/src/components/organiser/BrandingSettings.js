@@ -290,32 +290,65 @@ const BrandingSettings = () => {
     reader.readAsDataURL(file);
   };
 
-  // Full-screen Display background upload. Same data-URI approach as the
-  // logo but a larger cap (backgrounds are bigger). `which` is
-  // 'bgLandscape' (16:9) or 'bgPortrait' (9:16). Kept under ~1.5MB so the
-  // branding row (and the save request) stays a sane size — recommend a
-  // compressed JPG.
-  const MAX_BG_BYTES = 1500 * 1024; // 1.5MB
-  const handleBgUpload = (which) => (event) => {
+  // Downscale + JPEG-compress an image file to a data URI in the browser.
+  // Full-screen backgrounds straight off a phone/camera are multi-MB, which
+  // is too big to store in the settings row (the save silently failed and the
+  // background never reached the Display). A wallpaper only needs ~1920px, and
+  // JPEG at ~0.72 brings it to a few hundred KB — small enough to save and
+  // fast to render. Quality steps down until it's under the target size.
+  const compressImageFile = (file, maxDim = 1920, startQuality = 0.72, targetBytes = 700 * 1024) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          try {
+            const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+            const w = Math.max(1, Math.round(img.width * scale));
+            const h = Math.max(1, Math.round(img.height * scale));
+            const canvas = document.createElement('canvas');
+            canvas.width = w; canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+            let q = startQuality;
+            let dataUrl = canvas.toDataURL('image/jpeg', q);
+            while (dataUrl.length > targetBytes && q > 0.4) {
+              q -= 0.1;
+              dataUrl = canvas.toDataURL('image/jpeg', q);
+            }
+            resolve(dataUrl);
+          } catch (err) { reject(err); }
+        };
+        img.onerror = () => reject(new Error('Could not decode image'));
+        img.src = e.target.result;
+      };
+      reader.onerror = () => reject(new Error('Could not read file'));
+      reader.readAsDataURL(file);
+    });
+
+  // Full-screen Display background upload. `which` is 'bgLandscape' (16:9) or
+  // 'bgPortrait' (9:16). Large source files are fine now — they're downscaled
+  // + compressed client-side so the stored image is small enough to save.
+  const handleBgUpload = (which) => async (event) => {
     const file = event.target.files && event.target.files[0];
     if (!file) return;
     if (!file.type.startsWith('image/')) {
       setError('Please choose an image file (JPG or PNG).');
       return;
     }
-    if (file.size > MAX_BG_BYTES) {
-      setError(`Background is ${(file.size / 1024).toFixed(0)}KB — please use an image under 1.5MB `
-        + '(compress it / export as JPG). Big images slow the display + can fail to save.');
+    if (file.size > 25 * 1024 * 1024) {
+      setError('That image is over 25MB — please use a smaller file.');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setSettings(prev => ({ ...prev, [which]: e.target.result }));
-      setSuccess('Background loaded — click Save to apply it to the Display screen.');
+    try {
+      const dataUrl = await compressImageFile(file);
+      setSettings(prev => ({ ...prev, [which]: dataUrl }));
+      const kb = Math.round(dataUrl.length / 1024);
+      setSuccess(`Background loaded (${kb}KB after compression) — click Save to apply it to the Display screen.`);
       setError('');
-    };
-    reader.onerror = () => setError('Could not read that image file.');
-    reader.readAsDataURL(file);
+    } catch (err) {
+      setError('Could not process that image. Try a JPG or PNG.');
+    }
   };
 
   return (
@@ -486,7 +519,8 @@ const BrandingSettings = () => {
                 Optional. Upload a wide image for horizontal screens and a tall
                 one for vertical screens — the display auto-picks the right one.
                 Order boxes stay compact when quiet and expand over the image as
-                orders come in. Use compressed JPGs under 1.5MB.
+                orders come in. Any size photo is fine — it's automatically
+                resized &amp; compressed for fast, reliable saving.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {[
