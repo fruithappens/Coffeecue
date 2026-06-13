@@ -232,6 +232,10 @@ def wipe_event_data():
             identity_keys = (
                 "branding_settings", "pricing_settings", "event_name",
                 "sponsor_display_enabled", "sponsor_name", "sponsor_message",
+                # Clear the SMS welcome too — otherwise a wipe leaves the
+                # previous event's name in the welcome text. Deleting it makes
+                # the bot fall back to the {event_name} placeholder default.
+                "sms_welcome_message",
             )
             try:
                 cursor.execute("DELETE FROM settings WHERE key IN %s", (identity_keys,))

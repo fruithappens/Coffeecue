@@ -177,8 +177,14 @@ class CoffeeOrderSystem:
             """)
             
             # Define default settings
+            # IMPORTANT: keep {event_name} as a literal PLACEHOLDER here, not
+            # an f-string. An f-string bakes the current event name into the
+            # stored row, so renaming the event later never updates the SMS
+            # welcome (customers kept getting a previous event's name). The
+            # SMS handler substitutes {event_name} with the live event name
+            # at send time.
             default_settings = [
-                ('sms_welcome_message', f"Welcome to {self.event_name}! I'll take your coffee order. What's your first name?", 
+                ('sms_welcome_message', "Welcome to {event_name}! I'll take your coffee order. What's your first name?",
                  'Welcome message for SMS conversations'),
                 ('enable_web_tracking', 'false', 'Enable web tracking URLs for orders'),
                 ('web_tracking_url', 'https://coffee.example.com/order/', 'Base URL for order tracking web page'),
@@ -197,9 +203,32 @@ class CoffeeOrderSystem:
                         VALUES (%s, %s, %s)
                     """, (key, value, description))
                     logger.info(f"Created default setting: {key}")
-            
+
+            # Self-heal databases seeded by the old f-string bug: if the
+            # stored welcome message has the event name baked in (no
+            # {event_name} placeholder), reset it to the templated default so
+            # it tracks the live event again. No UI customises this message,
+            # so a placeholder-less value is always the stale seed — safe to
+            # restore. This is what fixes "still getting the old event name in
+            # the SMS welcome" on existing deployments.
+            try:
+                cursor.execute("SELECT value FROM settings WHERE key = 'sms_welcome_message'")
+                _wm = cursor.fetchone()
+                _wm_val = (_wm[0] if _wm else '') or ''
+                if _wm_val and '{event_name}' not in _wm_val:
+                    cursor.execute(
+                        "UPDATE settings SET value = %s WHERE key = 'sms_welcome_message'",
+                        ("Welcome to {event_name}! I'll take your coffee order. What's your first name?",),
+                    )
+                    logger.warning(
+                        "Healed sms_welcome_message: stripped baked-in event name, "
+                        "restored {event_name} placeholder"
+                    )
+            except Exception as _heal_err:
+                logger.warning(f"sms_welcome_message self-heal skipped: {_heal_err}")
+
             self.db.commit()
-            
+
             # Clear and reload settings cache
             self.settings_cache = {}
             
