@@ -1,5 +1,16 @@
 # SMS scenario harness — Phase 1 baseline findings (2026-06-13)
 
+> **STATUS UPDATE (same day): all four bugs below are FIXED — suite is
+> 15/15, contract smoke 31/31.** Root causes: (1) "white" inside "flat
+> white" matched both the full-cream milk alias AND the "1 sugar" alias —
+> parse_order now strips the matched drink name before extracting other
+> fields; (2+3) `_handle_awaiting_milk` unconditionally re-asked size
+> (hardcoding "small, medium, large"), and the one-size shortcut silently
+> overrode the customer's answer — both now respect known fields, offer
+> the real catalogue, and disclose substitutions; (4) /sms now dedupes
+> MessageSid with a 10-min TTL cache and replays the original reply on
+> Twilio retries. The text below is preserved as the original findings.
+
 Run: `python tests/sms_scenarios/run_sms_scenarios.py` against local backend
 (same code as the deployed branch). Baseline: **11/15 pass**. Every failure
 is a real product bug, kept as a deliberately-failing scenario so the suite

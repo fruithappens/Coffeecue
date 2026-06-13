@@ -274,29 +274,41 @@ class NLPService:
         coffee_type = self._extract_coffee_type(normalized_message)
         if coffee_type:
             order_details["type"] = coffee_type
-        
+
+        # Strip the matched drink's name (and all its aliases) before
+        # extracting the remaining fields. Words INSIDE a drink name must
+        # not leak into the other extractors — the canonical bug: in
+        # "small flat white", "white" matched both the full-cream milk
+        # alias AND the "1 sugar" alias, so the bot skipped every question
+        # and confirmed milk + sugar the customer never chose
+        # (tests/sms_scenarios: flat_white_no_silent_defaults).
+        residual_message = (
+            self._strip_drink_words(normalized_message, coffee_type)
+            if coffee_type else normalized_message
+        )
+
         # Extract size
-        size = self._extract_size(normalized_message)
+        size = self._extract_size(residual_message)
         if size:
             order_details["size"] = size
-        
+
         # Extract milk type
-        milk = self._extract_milk_type(normalized_message)
+        milk = self._extract_milk_type(residual_message)
         if milk:
             order_details["milk"] = milk
-        
+
         # Extract sugar preference
-        sugar = self._extract_sugar(normalized_message)
+        sugar = self._extract_sugar(residual_message)
         if sugar:
             order_details["sugar"] = sugar
-        
+
         # Extract strength
-        strength = self._extract_strength(normalized_message)
+        strength = self._extract_strength(residual_message)
         if strength:
             order_details["strength"] = strength
-        
+
         # Extract temperature
-        temp = self._extract_temperature(normalized_message)
+        temp = self._extract_temperature(residual_message)
         if temp:
             order_details["temp"] = temp
         
@@ -344,6 +356,18 @@ class NLPService:
 
         return order_details
     
+    def _strip_drink_words(self, message, coffee_type):
+        """Remove a matched drink's canonical name and aliases from message.
+
+        Longest phrases first so "flat white" goes before "flat" — otherwise
+        the partial alias leaves stray words behind.
+        """
+        phrases = [coffee_type] + list(self.coffee_types.get(coffee_type, []))
+        out = message
+        for phrase in sorted(phrases, key=len, reverse=True):
+            out = re.sub(r'\b' + re.escape(phrase) + r'\b', ' ', out)
+        return out
+
     def _normalize_message(self, message):
         """
         Normalize message by converting to lowercase and fixing common typos

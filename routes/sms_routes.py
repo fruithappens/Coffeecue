@@ -1,13 +1,14 @@
 """
 Routes for handling SMS messages from Twilio with PostgreSQL support
 """
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, Response
 from twilio.twiml.messaging_response import MessagingResponse
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from psycopg2.extras import RealDictCursor
 import logging
 import json
 import os
+import time
 from twilio.request_validator import RequestValidator
 
 # Create blueprint
@@ -15,6 +16,39 @@ bp = Blueprint("sms_routes", __name__)
 
 # Set up logging
 logger = logging.getLogger("expresso.routes.sms")
+
+# --- MessageSid idempotency cache -------------------------------------
+# Twilio retries a webhook that doesn't answer within ~15s. Without
+# dedupe, the retry was processed as a brand-new customer message and
+# double-advanced the conversation state machine (a retried "large
+# latte" got interpreted as a milk answer). Found by
+# tests/sms_scenarios: duplicate_message_sid.
+#
+# In-process cache is sufficient for the current single-instance
+# Railway deploy; if `web` ever scales horizontally, move this to
+# Redis/Postgres so replicas share it.
+_SID_CACHE = {}
+_SID_TTL_SECONDS = 600
+_SID_MAX_ENTRIES = 5000
+
+
+def _sid_cache_get(sid):
+    item = _SID_CACHE.get(sid)
+    if not item:
+        return None
+    ts, reply = item
+    if time.time() - ts > _SID_TTL_SECONDS:
+        _SID_CACHE.pop(sid, None)
+        return None
+    return reply
+
+
+def _sid_cache_put(sid, reply):
+    if len(_SID_CACHE) >= _SID_MAX_ENTRIES:
+        # Evict the oldest ~10% in one sweep to amortise the sort.
+        for k in sorted(_SID_CACHE, key=lambda k: _SID_CACHE[k][0])[:_SID_MAX_ENTRIES // 10]:
+            _SID_CACHE.pop(k, None)
+    _SID_CACHE[sid] = (time.time(), reply)
 
 @bp.route('/sms/debug', methods=['GET', 'POST'])
 def sms_debug():
@@ -28,6 +62,35 @@ def sms_debug():
 
 @bp.route('/sms', methods=['POST'])
 def sms_webhook():
+    """Twilio inbound webhook, wrapped with MessageSid idempotency.
+
+    A replayed MessageSid (Twilio retry) gets the SAME reply as the
+    original delivery and is NOT re-processed — see _SID_CACHE above.
+    Only successful (str TwiML) replies are cached, so auth failures
+    and error tuples are never replayed.
+    """
+    sid = request.values.get('MessageSid', '')
+    if sid:
+        cached = _sid_cache_get(sid)
+        if cached is not None:
+            logger.info(f"Duplicate MessageSid {sid} — replaying cached reply (Twilio retry)")
+            return Response(cached, mimetype='text/xml')
+    result = _sms_webhook_inner()
+    if sid:
+        # The inner handler returns either a TwiML string or a Flask
+        # Response (the main success path uses Response(..., text/xml)).
+        # Cache the BODY only — never error tuples / non-200s.
+        body = None
+        if isinstance(result, str):
+            body = result
+        elif isinstance(result, Response) and result.status_code == 200:
+            body = result.get_data(as_text=True)
+        if body is not None:
+            _sid_cache_put(sid, body)
+    return result
+
+
+def _sms_webhook_inner():
     """
     Handle incoming SMS messages from Twilio
     This is the main webhook that Twilio will POST to when a new SMS is received

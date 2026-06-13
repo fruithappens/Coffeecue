@@ -2672,10 +2672,23 @@ class CoffeeOrderSystem:
         milk_phrase = '' if milk == 'no milk' else f" with {milk} milk"
 
         if 'size' not in order_details:
+            # Offer the sizes the event actually stocks, not a hardcoded
+            # trio. One size configured → don't ask a one-answer question;
+            # disclose and move on (same pattern as _handle_awaiting_milk).
+            available_sizes = self._get_available_sizes(
+                order_details.get('type', '')) or ['small', 'medium', 'large']
+            if len(available_sizes) == 1:
+                order_details['size'] = available_sizes[0]
+                self._set_conversation_state(phone, 'awaiting_sugar', state_data)
+                return (
+                    f"Got it — {order_details['type']}{milk_phrase} "
+                    f"(all drinks are {available_sizes[0]} today). "
+                    f"How much sugar? (none, 1, 2, 3, etc.)"
+                )
             self._set_conversation_state(phone, 'awaiting_size', state_data)
             return (
                 f"Got it — {order_details['type']}{milk_phrase}. "
-                f"What size? (small, medium, large)"
+                f"What size? ({', '.join(available_sizes)})"
             )
 
         if 'sugar' not in order_details:
@@ -2713,15 +2726,49 @@ class CoffeeOrderSystem:
         # If milk type was provided, update order details
         if milk_type:
             order_details['milk'] = milk_type
-            
-            # Update state and move to size
             state_data = {
                 'name': name,
                 'order_details': order_details
             }
-            self._set_conversation_state(phone, 'awaiting_size', state_data)
-            
-            return f"What size {order_details.get('type', 'coffee')} would you like? (small, medium, large)"
+
+            # Don't re-ask for fields the customer already gave in their
+            # first message — "large latte" used to get asked "what size?"
+            # anyway because this handler unconditionally moved to
+            # awaiting_size (and its prompt hardcoded "(small, medium,
+            # large)" regardless of what cups the event actually stocks).
+            # Found by tests/sms_scenarios: size_in_first_message_respected.
+            if 'size' not in order_details:
+                available_sizes = self._get_available_sizes(
+                    order_details.get('type', '')) or ['small', 'medium', 'large']
+                if len(available_sizes) == 1:
+                    # Only one cup size configured — say so instead of
+                    # asking a question with a single possible answer.
+                    order_details['size'] = available_sizes[0]
+                    self._set_conversation_state(phone, 'awaiting_sugar', state_data)
+                    return (
+                        f"All drinks are {available_sizes[0]} today. "
+                        f"How much sugar in your {order_details.get('type', 'coffee')}? (none, 1, 2, etc.)"
+                    )
+                self._set_conversation_state(phone, 'awaiting_size', state_data)
+                return (
+                    f"What size {order_details.get('type', 'coffee')} would you like? "
+                    f"({', '.join(available_sizes)})"
+                )
+
+            if 'sugar' not in order_details:
+                self._set_conversation_state(phone, 'awaiting_sugar', state_data)
+                return (
+                    f"How much sugar in your {order_details.get('type', 'coffee')}? (none, 1, 2, etc.)"
+                )
+
+            # Everything known — read back and confirm.
+            self._set_conversation_state(phone, 'awaiting_confirmation', state_data)
+            order_summary = self.nlp.format_order_summary(order_details)
+            return (
+                f"Just to confirm — {order_summary}."
+                f"{self._format_price_tail(order_details)}\n"
+                f"Reply YES to send to the barista, EDIT to change something, or NO to cancel."
+            )
         else:
             # If no milk type was found, prompt again
             return "I didn't recognize that milk type. Please choose from: full cream, skim, soy, almond, oat, lactose free, or no milk."
@@ -2735,18 +2782,27 @@ class CoffeeOrderSystem:
         # Get available sizes for this coffee type
         available_sizes = self._get_available_sizes(order_details.get('type', ''))
         
-        # If only one size is available, automatically select it
+        # If only one size is available, select it — but NEVER silently.
+        # Previously this branch ignored whatever the customer just typed:
+        # they answered "medium" and the confirmation read "small latte"
+        # (the only configured cup), i.e. the wrong cup at pickup with no
+        # warning. Found by tests/sms_scenarios: size_answer_respected.
+        # Now: if their answer differs from the only size, say so.
         if len(available_sizes) == 1:
-            order_details['size'] = available_sizes[0]
-            
-            # Update state and move to sugar
+            only_size = available_sizes[0]
+            requested = self.nlp.parse_order(message).get('size')
+            order_details['size'] = only_size
+
             state_data = {
                 'name': name,
                 'order_details': order_details
             }
             self._set_conversation_state(phone, 'awaiting_sugar', state_data)
-            
-            return f"How much sugar would you like in your {order_details.get('type', 'coffee')}? (none, 1, 2, etc.)"
+
+            note = ''
+            if requested and requested.lower() != only_size.lower():
+                note = f"We only have {only_size} cups today, so I've made it {only_size}. "
+            return f"{note}How much sugar would you like in your {order_details.get('type', 'coffee')}? (none, 1, 2, etc.)"
         
         # Use NLP to extract size
         new_details = self.nlp.parse_order(message)
