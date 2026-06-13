@@ -1528,42 +1528,88 @@ class CoffeeOrderSystem:
             return False
     
     def _handle_vip_code(self, phone, code):
-        """Handle VIP code entry"""
+        """Handle VIP code entry.
+
+        Marks the customer VIP for future orders AND — if they just placed an
+        order that's still pending — bumps THAT order into the VIP lane too, so
+        a code entered right after ordering prioritises the order they're
+        already waiting on (not only their next one).
+        """
         try:
             # Mark this customer as VIP in their preferences
             cursor = self.db.cursor()
-            
+
             # Check if customer exists
             cursor.execute("SELECT phone FROM customer_preferences WHERE phone = %s", (phone,))
             result = cursor.fetchone()
-            
+
             if result:
                 # Update existing customer
                 cursor.execute("""
-                    UPDATE customer_preferences 
-                    SET is_vip = TRUE 
+                    UPDATE customer_preferences
+                    SET is_vip = TRUE
                     WHERE phone = %s
                 """, (phone,))
             else:
                 # Create new customer record
                 cursor.execute("""
-                    INSERT INTO customer_preferences 
-                    (phone, is_vip, first_order_date, last_order_date) 
+                    INSERT INTO customer_preferences
+                    (phone, is_vip, first_order_date, last_order_date)
                     VALUES (%s, TRUE, %s, %s)
                 """, (phone, datetime.now(), datetime.now()))
-            
+
+            # Bump the customer's most-recent PENDING order to VIP priority.
+            # (Only pending — once a barista has started it, re-prioritising
+            # is pointless.) order_details is a JSON text column, so read /
+            # modify / write it in Python.
+            bumped_number = None
+            try:
+                cursor.execute("""
+                    SELECT id, order_number, order_details
+                    FROM orders
+                    WHERE phone = %s AND status = 'pending'
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                """, (phone,))
+                row = cursor.fetchone()
+                if row:
+                    o_id, o_number, o_details = row[0], row[1], row[2]
+                    details = o_details
+                    if isinstance(details, str):
+                        try:
+                            details = json.loads(details)
+                        except Exception:
+                            details = {}
+                    if not isinstance(details, dict):
+                        details = {}
+                    details['vip'] = True
+                    cursor.execute(
+                        "UPDATE orders SET queue_priority = 1, order_details = %s, updated_at = %s WHERE id = %s",
+                        (json.dumps(details), datetime.now(), o_id),
+                    )
+                    bumped_number = o_number
+            except Exception as be:
+                logger.warning(f"VIP bump of current pending order failed: {be}")
+
             self.db.commit()
-            
-            # Get customer name
+
+            # Get customer name for a friendly reply
             customer = self.get_customer(phone)
             name = customer.get('name', '')
             name_greeting = f", {name}" if name else ""
-            
-            # Update conversation state
+
+            if bumped_number:
+                # They just ordered — prioritise that order; don't force them
+                # into a brand-new order flow.
+                self._set_conversation_state(phone, 'completed')
+                return (f"VIP status activated{name_greeting}! Your order "
+                        f"#{bumped_number} has been moved to priority — we'll make "
+                        f"it next. Text us anytime to order again.")
+
+            # No pending order — VIP applies to their next order.
             self._set_conversation_state(phone, 'awaiting_coffee_type', {'vip': True})
-            
             return f"VIP status activated{name_greeting}! Your orders will now be prioritized. What would you like to order?"
-            
+
         except Exception as e:
             logger.error(f"Error processing VIP code: {str(e)}")
             return "Sorry, we couldn't process your VIP code. Please try again or contact the help desk."
