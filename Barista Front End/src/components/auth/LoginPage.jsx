@@ -6,8 +6,12 @@ import OfflineDataHelper from '../../utils/offlineDataHelper';
 import SettingsService from '../../services/SettingsService';
 
 const LoginPage = ({ onLoginSuccess }) => {
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('coffee123');
+  // SECURITY: never pre-fill credentials. These used to default to
+  // 'admin'/'coffee123', which broadcast working admin creds to anyone
+  // who opened the login page (found in the 2026-06-13 public-surfaces
+  // audit). Dev convenience is not worth shipping a master key.
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showFallbackOption, setShowFallbackOption] = useState(false);

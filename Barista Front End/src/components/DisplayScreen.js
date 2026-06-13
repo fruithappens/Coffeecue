@@ -614,15 +614,21 @@ const DisplayScreen = () => {
       {/* --- Footer: SMS prompt + sponsor/custom message --- */}
       <footer className={`px-6 md:px-10 py-4 ${theme.panel} ${theme.border} border-t
                           flex items-center justify-between gap-6 flex-wrap`}>
-        <div className="flex items-center min-w-0">
-          <MessageCircle size={26} className="mr-3 flex-shrink-0" />
-          <div className="min-w-0">
-            <div className={`${fonts.label} font-bold`}>Order by SMS</div>
-            <div className={`${fonts.body} font-extrabold tracking-wide truncate`}>
-              {config.sms_number || 'Number coming soon'}
+        {/* Only advertise SMS ordering when a number is actually
+            configured. The old fallback showed "Number coming soon" to a
+            room full of customers — a dead feature on the most public
+            screen in the venue. */}
+        {config.sms_number && (
+          <div className="flex items-center min-w-0">
+            <MessageCircle size={26} className="mr-3 flex-shrink-0" />
+            <div className="min-w-0">
+              <div className={`${fonts.label} font-bold`}>Order by SMS</div>
+              <div className={`${fonts.body} font-extrabold tracking-wide truncate`}>
+                {config.sms_number}
+              </div>
             </div>
           </div>
-        </div>
+        )}
         <div className={`text-right max-w-[60%] ${fonts.body} font-medium truncate`}>
           {config.sponsor?.enabled && config.sponsor.name
             ? `${config.sponsor.name}: ${config.sponsor.message}`

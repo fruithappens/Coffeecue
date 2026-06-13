@@ -2970,11 +2970,14 @@ const BaristaInterface = () => {
             </div>
             
             <div className="space-y-4">
-              <p>If you need assistance with the coffee station system, please contact:</p>
-              <ul className="list-disc pl-5 space-y-2">
-                <li><strong>Technical Support:</strong> 123-456-7890</li>
-                <li><strong>Event Manager:</strong> 098-765-4321</li>
-              </ul>
+              {/* No invented phone numbers here — the old placeholders
+                  (123-456-7890) looked real enough that a barista mid-rush
+                  might actually dial one. Point at the humans instead. */}
+              <p>
+                If you need assistance with the coffee station system, speak to
+                your event organiser, or use the station chat (bottom-right) to
+                message another station.
+              </p>
               
               <div className="bg-gray-100 p-4 rounded">
                 <h4 className="font-medium mb-2">Quick Tips:</h4>
