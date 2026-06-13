@@ -65,6 +65,12 @@ _TRANSACTIONAL_TABLES = [
     "sms_messages",
     "sms_log",
     "conversation_states",
+    # event-specific schedule (shifts/breaks/rush) — client-specific, so it
+    # clears for the next client. Also flushes the old fabricated sample
+    # shifts that used to be auto-inserted.
+    "station_schedule",
+    "event_breaks",
+    "rush_periods",
     # parents last
     "orders",
     "customer_preferences",
