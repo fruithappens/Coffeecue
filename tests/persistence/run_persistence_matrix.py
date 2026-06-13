@@ -241,6 +241,47 @@ def run(base_url: str, username: str, password: str) -> int:
             _delete_inventory(api, item_id)
 
     # ------------------------------------------------------------------
+    # Case 3b: the Organiser's enable/disable switch (event-inventory
+    # store) controls what SMS sells. Disable an enabled espresso drink
+    # → bot refuses it; restore → bot sells it again. This was the
+    # "americano leak": _STANDARD_DRINK_MENU ignored the enabled flags.
+    # ------------------------------------------------------------------
+    case = "organiser_disable_removes_from_sms"
+    blob_code, blob = api.get("/api/event-inventory")
+    coffees = (blob or {}).get("coffee") or []
+    probe = next((c for c in coffees
+                  if isinstance(c, dict) and c.get("enabled", True)
+                  and str(c.get("name", "")).lower() in ("mocha", "latte", "cappuccino")), None)
+    if blob_code != 200 or not probe:
+        record(case, False, "no enabled espresso drink in event-inventory store to probe with")
+    else:
+        drink = str(probe["name"]).lower()
+        try:
+            probe["enabled"] = False
+            api.s.put(f"{api.base}/api/event-inventory", json=blob, headers=api._h(), timeout=10)
+
+            phone, name = fresh_identity()
+            _start_conversation(sms, phone, name)
+            _, during = sms.send(phone, drink)
+
+            probe["enabled"] = True
+            api.s.put(f"{api.base}/api/event-inventory", json=blob, headers=api._h(), timeout=10)
+
+            phone2, name2 = fresh_identity()
+            _start_conversation(sms, phone2, name2)
+            _, after = sms.send(phone2, drink)
+
+            problems = []
+            if not re.search(r"don'?t have", during, re.I):
+                problems.append(f"organiser disabled '{drink}' but bot still sells it: '{during[:90]}'")
+            if re.search(r"don'?t have", after, re.I):
+                problems.append(f"'{drink}' re-enabled but bot still refuses: '{after[:90]}'")
+            record(case, not problems, "; ".join(problems))
+        finally:
+            probe["enabled"] = True
+            api.s.put(f"{api.base}/api/event-inventory", json=blob, headers=api._h(), timeout=10)
+
+    # ------------------------------------------------------------------
     # Case 4: writes persist in the DATABASE (not some in-process cache):
     # a fresh API session sees the same catalogue.
     # ------------------------------------------------------------------
