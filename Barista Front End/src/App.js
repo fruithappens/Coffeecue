@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import LandingPage from './components/LandingPage';
-import BaristaInterface from './components/BaristaInterface';
-import Organiser from './components/Organiser';
-import DisplayScreen from './components/DisplayScreen';
-import DisplaySelector from './components/DisplaySelector';
-import SupportInterface from './components/SupportInterface';
+import LandingPage from './components/shared/LandingPage';
+import BaristaInterface from './components/barista/BaristaInterface';
+import Organiser from './components/organiser/Organiser';
+import DisplayScreen from './components/display/DisplayScreen';
+import DisplaySelector from './components/display/DisplaySelector';
+import SupportInterface from './components/support/SupportInterface';
 import LoginPage from './components/auth/LoginPage';
 import AuthService from './services/AuthService';
 import DeploymentService from './services/DeploymentService';
@@ -14,8 +14,8 @@ import { AppProvider } from './context/AppContext';
 import AuthGuard from './components/auth/AuthGuard';
 import UnauthorizedPage from './components/auth/UnauthorizedPage';
 import OfflineDataHelper from './utils/offlineDataHelper';
-import ApiNotificationBanner from './components/ApiNotificationBanner';
-import ErrorBoundary from './components/ErrorBoundary';
+import ApiNotificationBanner from './components/shared/ApiNotificationBanner';
+import ErrorBoundary from './components/shared/ErrorBoundary';
 import BasicBaristaInterface from './components/fallbacks/BasicBaristaInterface';
 
 // Simple API Test Component

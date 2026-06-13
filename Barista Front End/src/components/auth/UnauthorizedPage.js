@@ -2,7 +2,7 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import AuthService from '../../services/AuthService';
-import LogoutButton from '../LogoutButton';
+import LogoutButton from '../shared/LogoutButton';
 
 /**
  * Unauthorized access page displayed when a user doesn't have the required role

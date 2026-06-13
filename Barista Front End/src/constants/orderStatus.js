@@ -12,7 +12,7 @@
 //
 // USAGE
 // -----
-//   import { ORDER_STATUS, isInProgress } from '../constants/orderStatus';
+//   import { ORDER_STATUS, isInProgress } from './orderStatus';
 //
 //   if (order.status === ORDER_STATUS.PENDING) { ... }
 //   if (isInProgress(order)) { ... }

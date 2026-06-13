@@ -1,7 +1,7 @@
 // OrdersTab.js
 import React from 'react';
 import { Coffee } from 'lucide-react';
-import PendingOrdersSection from '../PendingOrdersSection';
+import PendingOrdersSection from '../barista/PendingOrdersSection';
 
 const OrdersTab = ({ 
   inProgressOrders,

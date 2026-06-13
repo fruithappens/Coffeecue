@@ -9,7 +9,7 @@
 // At the top of any file that takes/returns these shapes:
 //
 //   /**
-//    * @typedef {import('../types').Order} Order
+//    * @typedef {import('.').Order} Order
 //    */
 //
 // Then on functions:
@@ -184,7 +184,7 @@
  */
 
 // =============================================================
-// Re-export so callers can also do `import T from '../types'`
+// Re-export so callers can also do `import T from '.'`
 // (gives them a single value to namespace types under if they want).
 // =============================================================
 export default {};
