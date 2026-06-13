@@ -42,6 +42,7 @@ import MessageDialog from '../dialogs/MessageDialog';
 import MoveOrderDialog from '../dialogs/MoveOrderDialog';
 import WaitTimeDialog from '../dialogs/WaitTimeDialog';
 import WalkInOrderDialog from '../dialogs/WalkInOrderDialog';
+import EditOrderDialog from '../dialogs/EditOrderDialog';
 import CustomerQuestionsButton from './CustomerQuestionsButton';
 // Using inline help dialog instead of importing external component
 import StationChat from '../support/StationChat';
@@ -326,6 +327,8 @@ const BaristaInterface = () => {
   // another station rather than disappointing the customer).
   const [showMoveDialog, setShowMoveDialog] = useState(false);
   const [orderToMove, setOrderToMove] = useState(null);
+  const [editingOrder, setEditingOrder] = useState(null);
+  const [editSaving, setEditSaving] = useState(false);
   const [currentMessageOrder, setCurrentMessageOrder] = useState(null);
   const [showHelpDialog, setShowHelpDialog] = useState(false);
   
@@ -698,15 +701,47 @@ const BaristaInterface = () => {
       console.error('Cannot edit order: Missing order ID');
       return;
     }
+    // Opens the edit dialog (drink/milk/size/sugar override + cancel-order).
+    // Backed by PATCH /orders/{id} and POST /orders/{id}/cancel.
+    setEditingOrder(order);
+  };
 
-    // HONESTY over theater: this used to prompt() for new notes and then
-    // claim they were "updated" — nothing was ever saved anywhere. Until
-    // a PATCH /orders/{id} exists, don't collect input we silently drop.
-    alert(
-      `Editing orders isn't supported yet — order #${order.orderNumber || order.id} ` +
-      `is unchanged. If the order is wrong, cancel it and place a new ` +
-      `walk-in order, or message the customer to confirm.`
-    );
+  const handleSaveOrderEdit = async (fields) => {
+    if (!editingOrder) return;
+    setEditSaving(true);
+    try {
+      const id = editingOrder.orderNumber || editingOrder.id;
+      const res = await OrderDataService.updateOrder(id, fields);
+      if (res && res.success) {
+        setEditingOrder(null);
+        refreshData();
+      } else {
+        alert(`Could not update order: ${(res && res.message) || 'Unknown error'}`);
+      }
+    } catch (err) {
+      alert(`Error updating order: ${err.message || 'Unknown error'}`);
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const handleCancelOrderEdit = async () => {
+    if (!editingOrder) return;
+    setEditSaving(true);
+    try {
+      const id = editingOrder.orderNumber || editingOrder.id;
+      const res = await OrderDataService.cancelOrder(id);
+      if (res && res.success) {
+        setEditingOrder(null);
+        refreshData();
+      } else {
+        alert(`Could not cancel order: ${(res && res.message) || 'Unknown error'}`);
+      }
+    } catch (err) {
+      alert(`Error cancelling order: ${err.message || 'Unknown error'}`);
+    } finally {
+      setEditSaving(false);
+    }
   };
 
   // Enhanced order completion function with guaranteed notifications
@@ -2951,6 +2986,16 @@ const BaristaInterface = () => {
             setShowMoveDialog(false);
             setOrderToMove(null);
           }}
+        />
+      )}
+
+      {editingOrder && (
+        <EditOrderDialog
+          order={editingOrder}
+          saving={editSaving}
+          onSave={handleSaveOrderEdit}
+          onCancelOrder={handleCancelOrderEdit}
+          onClose={() => setEditingOrder(null)}
         />
       )}
 
