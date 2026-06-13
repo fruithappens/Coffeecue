@@ -584,6 +584,22 @@ class CoffeeOrderSystem:
                 milks.add(str(m).strip().lower())
         return milks
 
+    def _milk_is_makeable(self, milk_type):
+        """True if at least one station can make this milk. Tolerant match so
+        naming variants line up ('oat' ↔ 'oat milk'). Safe fallback: if no
+        station defines milk capabilities, everything is allowed (don't block
+        orders on a misconfig). 'no milk' / black is always allowed."""
+        mt = (milk_type or '').strip().lower()
+        if mt in ('', 'no milk', 'none', 'black'):
+            return True
+        makeable = self._all_available_milks_lowercased()
+        if not makeable:  # None or empty → no restriction
+            return True
+        for cap in makeable:
+            if mt == cap or mt in cap or cap in mt:
+                return True
+        return False
+
     def _get_usual_order_suggestion(self, phone, name):
         """Get usual order suggestions based on previous orders.
 
@@ -2504,7 +2520,11 @@ class CoffeeOrderSystem:
                 return ["full cream", "skim"]
 
             logger.info(f"Available milk types: {milk_types}")
-            return milk_types
+            # Only offer milks at least one station can make (drops e.g. soy /
+            # lactose-free / coconut that are stocked but no station carries).
+            # Safe fallback keeps the list non-empty on a misconfig.
+            makeable = [m for m in milk_types if self._milk_is_makeable(m)]
+            return makeable if makeable else milk_types
         except Exception as e:
             logger.error(f"Error getting available milk types: {str(e)}")
             try:
@@ -2968,7 +2988,17 @@ class CoffeeOrderSystem:
             # Use NLP to extract milk type
             new_details = self.nlp.parse_order(message)
             milk_type = new_details.get('milk', None)
-        
+
+        # Reject a milk no station can make (e.g. coconut when stations only
+        # carry full-cream/skim/oat/almond) — otherwise it's accepted and the
+        # order gets stuck un-startable. Tolerant + safe-fallback via
+        # _milk_is_makeable so valid milks are never wrongly rejected.
+        if milk_type and not self._milk_is_makeable(milk_type):
+            available = self._get_available_milk_types() or []
+            self._set_conversation_state(phone, 'awaiting_milk', {'name': name, 'order_details': order_details})
+            opts = (', '.join(available) + ", or 'no milk'") if available else "'no milk'"
+            return f"Sorry, we don't have {milk_type} at any station today. What milk would you like? ({opts})"
+
         # If milk type was provided, update order details
         if milk_type:
             order_details['milk'] = milk_type
@@ -3089,6 +3119,54 @@ class CoffeeOrderSystem:
             # If no size was found, prompt again with available options
             return f"I didn't recognize that size. Please choose from: {', '.join(available_sizes)}."
     
+    def _sugar_value_to_string(self, val):
+        """Map a numeric sugar value to a canonical sugar string."""
+        if val <= 0:
+            return 'no sugar'
+        if val > 12:
+            val = 12  # sane cap; nobody needs 13 sugars
+        if abs(val - 0.25) < 1e-9:
+            return 'quarter sugar'
+        if abs(val - 0.5) < 1e-9:
+            return 'half sugar'
+        if val == int(val):
+            return f"{int(val)} sugar"
+        return f"{val:g} sugar"
+
+    def _parse_sugar_input(self, message):
+        """Parse a sugar reply into a canonical sugar string. Accepts 0-9 (and
+        higher, capped at 12), 'none'/'no', number words (one..ten), 'half' /
+        'quarter', and fractions (1/2, 1/4, .5, .25, 1.5). Returns None when
+        nothing sugar-like is found so the caller can re-ask."""
+        s = (message or '').lower().strip()
+        if not s:
+            return None
+        if s in ('no', 'none', 'zero', 'n', 'no sugar', 'without sugar',
+                 'nil', 'nope', 'no thanks', 'no thank you'):
+            return 'no sugar'
+        if 'half' in s or s in ('1/2', '½', '.5', '0.5'):
+            return 'half sugar'
+        if 'quarter' in s or s in ('1/4', '¼', '.25', '0.25'):
+            return 'quarter sugar'
+        word_nums = {'ten': 10, 'nine': 9, 'eight': 8, 'seven': 7, 'six': 6,
+                     'five': 5, 'four': 4, 'three': 3, 'two': 2, 'one': 1}
+        for w, n in word_nums.items():
+            if w in s:
+                return f"{n} sugar"
+        frac = re.match(r'^\s*(\d+)\s*/\s*(\d+)\s*(?:sugars?)?\s*$', s)
+        if frac:
+            try:
+                return self._sugar_value_to_string(int(frac.group(1)) / int(frac.group(2)))
+            except (ValueError, ZeroDivisionError):
+                return None
+        m = re.search(r'(\d+(?:\.\d+)?)', s)
+        if m:
+            try:
+                return self._sugar_value_to_string(float(m.group(1)))
+            except ValueError:
+                return None
+        return None
+
     def _handle_awaiting_sugar(self, phone, message, state):
         """Handle sugar input"""
         # Get current order details from state
@@ -3099,27 +3177,18 @@ class CoffeeOrderSystem:
         if self.nlp.is_asking_for_usual(message):
             return self._process_usual_order(phone, name)
         
-        # Handle common "no sugar" responses
-        message_lower = message.lower().strip()
-        if message_lower in ['no', 'none', 'zero', '0', 'n', 'no sugar', 'without sugar']:
-            sugar = 'no sugar'
-        elif message_lower in ['1', 'one', 'one sugar', '1 sugar']:
-            sugar = '1 sugar'
-        elif message_lower in ['2', 'two', 'two sugar', '2 sugar']:
-            sugar = '2 sugar'
-        elif message_lower in ['3', 'three', 'three sugar', '3 sugar']:
-            sugar = '3 sugar'
-        else:
-            # Try NLP. apply_defaults=False so we get None (not 'no sugar')
-            # when the customer's reply doesn't match a known sugar pattern,
-            # and can ask them again instead of silently dropping their input.
+        # Parse sugar flexibly: any number (0-9 and beyond), fractions
+        # (1/2, 1/4, .5, .25, 1.5), "half"/"quarter", and number words.
+        # Falls back to NLP for phrasings like "two sugars please".
+        sugar = self._parse_sugar_input(message)
+        if not sugar:
             new_details = self.nlp.parse_order(message, apply_defaults=False)
             sugar = new_details.get('sugar')
 
         if not sugar:
             return (
                 "Sorry, I didn't catch that. How much sugar? "
-                "Reply 'none', '1', '2', '3', or 'half'."
+                "Reply a number (0-9), 'half', or 'quarter'."
             )
 
         # Update order details
