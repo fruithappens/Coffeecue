@@ -3,7 +3,7 @@ import {
   Coffee, Users, Clock, Calendar, Settings,
   LogOut, Bell, Sliders,
   FileText, Activity, Brain, Zap, LineChart,
-  Radio, Shield, Package, ArrowLeft, CheckCircle, Database
+  Radio, Shield, Package, ArrowLeft, CheckCircle, Database, MessageSquare
 } from 'lucide-react';
 // MessageSquare, TrendingUp, BarChart, Layers, UserPlus were imported
 // but unused — left in the original sprawl. Trimmed in batch G of the
@@ -30,6 +30,7 @@ import MenuManagement from './MenuManagement';
 import StationDefaults from './StationDefaults';
 import QuickSetup from './QuickSetup';
 import ReadinessTab from './ReadinessTab';
+import SmsFlowReference from './SmsFlowReference';
 import InventoryIntegrationService from '../../services/InventoryIntegrationService';
 import StationsService from '../../services/StationsService';
 import OrderDataService from '../../services/OrderDataService';
@@ -293,6 +294,21 @@ const OrganiserInterface = () => {
               {sidebarOpen && <span>Settings</span>}
             </button>
 
+            {/* How SMS Works — read-only reference explaining the SMS bot
+                conversation flow, what's event-driven vs built-in, and
+                what it remembers. Helps organisers understand/explain it. */}
+            <button
+              className={`w-full flex items-center px-3 py-2 rounded-md ${
+                activeSection === 'smsGuide'
+                  ? 'bg-amber-100 text-amber-800'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+              onClick={() => setActiveSection('smsGuide')}
+            >
+              <MessageSquare size={20} className="mr-3" />
+              {sidebarOpen && <span>How SMS Works</span>}
+            </button>
+
             {/* Event Data — export / wipe / re-import (per-client lifecycle) */}
             <button
               className={`w-full flex items-center px-3 py-2 rounded-md ${
@@ -334,6 +350,7 @@ const OrganiserInterface = () => {
             {activeSection === 'schedule' && 'Event Schedule'}
             {activeSection === 'messages' && 'Message Center'}
             {activeSection === 'settings' && 'System Settings'}
+            {activeSection === 'smsGuide' && '📱 How the SMS Bot Works'}
             {activeSection === 'eventData' && 'Event Data'}
           </h1>
           
@@ -577,6 +594,11 @@ const OrganiserInterface = () => {
           {/* Settings - Branding */}
           {activeSection === 'settings' && (
             <EventSettings />
+          )}
+
+          {/* How SMS Works — read-only reference for organisers */}
+          {activeSection === 'smsGuide' && (
+            <SmsFlowReference />
           )}
 
           {/* Event Data — export / wipe / re-import */}
