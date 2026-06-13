@@ -13,6 +13,7 @@ const EventDataManagement = () => {
   const [result, setResult] = useState(null);     // {ok, msg}
   const [wipeText, setWipeText] = useState('');
   const [clearStaff, setClearStaff] = useState(false);
+  const [resetBranding, setResetBranding] = useState(false);
   const [importFile, setImportFile] = useState(null);
   const [includeConfig, setIncludeConfig] = useState(false);
 
@@ -51,7 +52,7 @@ const EventDataManagement = () => {
       const resp = await api.request('/event-data/wipe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ confirm: 'WIPE', clear_staff: clearStaff }),
+        body: JSON.stringify({ confirm: 'WIPE', clear_staff: clearStaff, reset_branding: resetBranding }),
       });
       say(true, resp?.message || `Wiped ${resp?.total_rows ?? '?'} rows.`);
       setWipeText('');
@@ -159,10 +160,15 @@ const EventDataManagement = () => {
           next client can't see this one's. <strong>Export first if you want a
           copy.</strong> Stations, inventory config and logins are kept.
         </p>
-        <label className="flex items-center text-sm text-red-800 mb-3 cursor-pointer">
+        <label className="flex items-center text-sm text-red-800 mb-2 cursor-pointer">
           <input type="checkbox" className="mr-2"
             checked={clearStaff} onChange={(e) => setClearStaff(e.target.checked)} />
           Also remove this event's staff logins (keeps the master admin so you can still sign in)
+        </label>
+        <label className="flex items-center text-sm text-red-800 mb-3 cursor-pointer">
+          <input type="checkbox" className="mr-2"
+            checked={resetBranding} onChange={(e) => setResetBranding(e.target.checked)} />
+          Also reset event branding, logo &amp; pricing to default (so the next client doesn't see this one's)
         </label>
         <label className="block text-sm text-red-800 mb-1">Type <strong>WIPE</strong> to enable:</label>
         <div className="flex items-center gap-3">

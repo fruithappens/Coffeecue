@@ -220,6 +220,39 @@ def wipe_event_data():
                 deleted["users"] = f"skipped ({str(ue)[:50]})"
                 staff_msg = "staff-login clear failed (master admin untouched)"
 
+        # Optionally reset event IDENTITY to defaults — branding (company /
+        # event name, logo, colours), sponsor, and pricing. Without this the
+        # wipe keeps config, so the NEXT client would see the previous one's
+        # name/logo until manually changed. Clearing these KV rows makes the
+        # app fall back to its built-in defaults ("Coffee Cue System", no
+        # logo, no pricing) until reconfigured via Quick Setup. (Requested:
+        # "needs to be a new-event reset, not just people's details.")
+        identity_msg = "branding/pricing kept"
+        if data.get("reset_branding"):
+            identity_keys = (
+                "branding_settings", "pricing_settings", "event_name",
+                "sponsor_display_enabled", "sponsor_name", "sponsor_message",
+            )
+            try:
+                cursor.execute("DELETE FROM settings WHERE key IN %s", (identity_keys,))
+                deleted["identity_settings"] = cursor.rowcount
+                db.commit()
+                # refresh in-memory caches so the reset is immediate
+                cs = current_app.config.get("coffee_system")
+                if cs and hasattr(cs, "_load_sponsor_info"):
+                    try:
+                        cs._load_sponsor_info()
+                    except Exception:
+                        pass
+                identity_msg = "branding, logo & pricing reset to default"
+            except Exception as be:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+                deleted["identity_settings"] = f"skipped ({str(be)[:50]})"
+                identity_msg = "branding reset failed"
+
         cursor.close()
         # Clear the in-process conversation cache so a wiped customer
         # isn't still mid-conversation in memory.
@@ -229,11 +262,12 @@ def wipe_event_data():
                 coffee_system._invalidate_unlimited_stock_cache()
         except Exception:
             pass
-        logger.warning(f"EVENT DATA WIPED: {total} rows across {len(deleted)} tables; {staff_msg}")
+        logger.warning(f"EVENT DATA WIPED: {total} rows across {len(deleted)} tables; "
+                       f"{staff_msg}; {identity_msg}")
         return jsonify({
             "status": "success",
             "message": f"Wiped {total} rows of customer/transactional data. "
-                       f"Stations and inventory config kept; {staff_msg}.",
+                       f"Inventory config kept; {staff_msg}; {identity_msg}.",
             "deleted": deleted,
             "total_rows": total,
         })
