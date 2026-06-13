@@ -21,7 +21,7 @@ const BrandingSettings = () => {
     adminPanelTitle: brandingConfig.adminPanelTitle || 'Coffee Cue Admin',
     baristaPanelTitle: brandingConfig.baristaPanelTitle || 'Coffee Cue Barista',
     tagline: brandingConfig.tagline || 'Skip the Queue, Get Your Cue',
-    footerText: brandingConfig.footerText || '© 2025 Expresso Coffee System | ANZCA ASM 2025 Cairns',
+    footerText: brandingConfig.footerText || '© 2025 Coffee Cue',
     customBranding: true,
     clientName: '',
     // Display-screen fields. These show on the customer-facing /display
@@ -358,7 +358,7 @@ const BrandingSettings = () => {
                   type="text"
                   value={settings.event_name}
                   onChange={(e) => setSettings({...settings, event_name: e.target.value})}
-                  placeholder="ANZCA ASM 2025 Cairns"
+                  placeholder="e.g. Your Event Name"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <p className="text-xs text-gray-500 mt-1">
@@ -609,7 +609,7 @@ const BrandingSettings = () => {
                 type="text"
                 value={settings.footerText}
                 onChange={(e) => setSettings({...settings, footerText: e.target.value})}
-                placeholder="© 2025 Expresso Coffee System | ANZCA ASM 2025 Cairns"
+                placeholder="© 2025 Your Organisation"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <p className="text-xs text-gray-500 mt-1">

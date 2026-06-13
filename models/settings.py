@@ -194,7 +194,7 @@ def initialize_default_settings():
     defaults = [
         # General settings
         ('system_name', 'Expresso Coffee Ordering System', 'string', 'Name of the system'),
-        ('event_name', 'ANZCA ASM 2025 Cairns', 'string', 'Name of the event'),
+        ('event_name', 'Coffee Event', 'string', 'Name of the event'),
         ('display_access_code', '123456', 'string', 'Access code for display screens'),
         
         # SMS settings
@@ -218,7 +218,7 @@ def initialize_default_settings():
         
         # Payment and sponsor settings
         ('payment_enabled', 'false', 'bool', 'Enable/disable payment for coffee orders'),
-        ('sponsor_name', 'ANZCA ASM 2025 Cairns', 'string', 'Name of coffee sponsor when payment disabled'),
+        ('sponsor_name', '', 'string', 'Name of coffee sponsor when payment disabled'),
         ('sponsor_message', 'Coffee service proudly sponsored by {sponsor}', 'string', 'Message template for sponsor acknowledgment'),
         ('sponsor_display_enabled', 'true', 'bool', 'Show sponsor message in confirmations'),
         

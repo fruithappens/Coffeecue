@@ -61,7 +61,7 @@ def init_settings():
                 "description": "Whether to display sponsor information"
             },
             "sponsor_name": {
-                "value": "ANZCA",
+                "value": "",
                 "description": "Name of the sponsor"
             },
             "sponsor_message": {

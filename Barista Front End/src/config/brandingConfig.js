@@ -27,7 +27,7 @@ const defaultBranding = {
   landingSubtitle: 'Select your role to continue',
   adminPanelTitle: 'Coffee Cue Admin',
   baristaPanelTitle: 'Coffee Cue Barista',
-  footerText: '© 2025 Expresso Coffee System | ANZCA ASM 2025 Cairns',
+  footerText: '© 2025 Coffee Cue',
   
   // Colors (can be extended)
   primaryColor: '#D97706', // Amber-600

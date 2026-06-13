@@ -177,7 +177,7 @@ def get_branding_settings():
                 'secondary_color': '#92400E', 
                 'logo_url': '',
                 'custom_css': '',
-                'event_name': 'ANZCA ASM 2025 Cairns',
+                'event_name': 'Coffee Event',
                 'organization_name': 'Coffee Cue'
             }
         

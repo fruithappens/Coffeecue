@@ -426,7 +426,7 @@ def initialize_settings(conn):
     """Initialize default system settings"""
     settings = [
         ('system_name', 'Expresso Coffee System', 'Name of the system'),
-        ('event_name', 'ANZCA ASM 2025 Cairns', 'Name of the event'),
+        ('event_name', 'Coffee Event', 'Name of the event'),
         ('vip_code', ''.join(secrets.choice('ABCDEFGHJKLMNPQRSTUVWXYZ23456789') for _ in range(6)), 'Access code for VIP orders'),
         ('staff_code', ''.join(secrets.choice('ABCDEFGHJKLMNPQRSTUVWXYZ23456789') for _ in range(6)), 'Access code for staff'),
         ('sponsor_name', '', 'Name of the coffee sponsor'),

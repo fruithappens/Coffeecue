@@ -666,7 +666,7 @@ def system_settings():
     if request.method == 'POST':
         # Get form data
         system_name = request.form.get('system_name', 'Expresso Coffee System')
-        event_name = request.form.get('event_name', 'ANZCA ASM 2025 Cairns')
+        event_name = request.form.get('event_name', 'Coffee Event')
         sponsor_name = request.form.get('sponsor_name', '')
         sponsor_message = request.form.get('sponsor_message', 'Coffee service proudly sponsored by {sponsor}')
         sponsor_display_enabled = 'true' if request.form.get('sponsor_display_enabled') else 'false'
@@ -690,7 +690,7 @@ def system_settings():
     
     cursor.execute("SELECT value FROM settings WHERE key = 'event_name'")
     event_name_result = cursor.fetchone()
-    event_name = event_name_result['value'] if event_name_result else 'ANZCA ASM 2025 Cairns'
+    event_name = event_name_result['value'] if event_name_result else 'Coffee Event'
     
     cursor.execute("SELECT value FROM settings WHERE key = 'sponsor_name'")
     sponsor_name_result = cursor.fetchone()
