@@ -372,7 +372,9 @@ const DisplayScreen = () => {
       }
     };
     load();
-    timer = setInterval(load, 15000);
+    // 8s poll as a fallback; WebSocket order events (below) flip the board
+    // instantly when they fire — this just bounds the worst-case lag.
+    timer = setInterval(load, 8000);
     // Push refresh on WebSocket order events so the customer-facing
     // Display flips "Brewing → Ready" instantly when the barista
     // hits Complete, instead of waiting for the next 15s poll.
@@ -549,7 +551,7 @@ const DisplayScreen = () => {
               {showWaitTimes && (
                 <span className="ml-3 inline-flex items-center">
                   <Clock size={14} className="mr-1" />
-                  Live · refreshes every 15s
+                  Live · refreshes every 8s
                 </span>
               )}
             </div>

@@ -2390,21 +2390,28 @@ class CoffeeOrderSystem:
                 espresso = filtered
 
         if self._is_unlimited_stock_mode():
-            return espresso + extras
-        try:
-            cursor = self.db.cursor()
-            cursor.execute("""
-                SELECT COUNT(*) FROM inventory_items
-                WHERE category = 'coffee'
-                AND (amount IS NULL OR amount > COALESCE(minimum_threshold, 0))
-            """)
-            coffee_available = cursor.fetchone()[0] > 0
+            result = espresso + extras
+        else:
+            try:
+                cursor = self.db.cursor()
+                cursor.execute("""
+                    SELECT COUNT(*) FROM inventory_items
+                    WHERE category = 'coffee'
+                    AND (amount IS NULL OR amount > COALESCE(minimum_threshold, 0))
+                """)
+                coffee_available = cursor.fetchone()[0] > 0
 
-            base = espresso if coffee_available else []
-            return base + extras
-        except Exception as e:
-            logger.error(f"Error checking coffee availability: {str(e)}")
-            return espresso + extras
+                base = espresso if coffee_available else []
+                result = base + extras
+            except Exception as e:
+                logger.error(f"Error checking coffee availability: {str(e)}")
+                result = espresso + extras
+
+        # Only offer drinks at least one ACTIVE station can make — a drink no
+        # station is set up for (e.g. hot chocolate when stations only do
+        # espresso) shouldn't be offered, or it gets stuck pending. Safe
+        # fallback inside the helper keeps the menu non-empty on a misconfig.
+        return self._filter_to_station_makeable(result, 'coffee_types')
 
     def _get_available_extra_drinks(self):
         """Return the lowercased names of stocked drinks-category
@@ -2661,6 +2668,60 @@ class CoffeeOrderSystem:
         'large':  ['large', 'lg', 'l', '16oz', '16 oz', 'extra large', 'xl'],
     }
 
+    def _active_station_capability_set(self, dimension):
+        """Union (lowercased) of one capability dimension ('sizes' /
+        'coffee_types' / 'milk_types') across ACTIVE stations. Returns None
+        when no active station defines that dimension — callers then treat it
+        as 'no restriction' rather than 'nothing allowed'."""
+        try:
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            cursor = self.db.cursor()
+            cursor.execute("SELECT capabilities FROM station_stats WHERE status = 'active'")
+            rows = cursor.fetchall()
+            vals = set()
+            defined = False
+            for row in rows:
+                caps = row[0] if not isinstance(row, dict) else row.get('capabilities')
+                if isinstance(caps, str):
+                    try:
+                        caps = json.loads(caps)
+                    except Exception:
+                        caps = {}
+                if not isinstance(caps, dict):
+                    continue
+                lst = caps.get(dimension)
+                if lst:
+                    defined = True
+                    for v in lst:
+                        vals.add(str(v).strip().lower())
+            return vals if defined else None
+        except Exception as e:
+            logger.warning(f"_active_station_capability_set({dimension}) failed: {e}")
+            return None
+
+    def _filter_to_station_makeable(self, items, dimension):
+        """Keep only items at least one ACTIVE station can make for the given
+        capability dimension. Safe fallbacks: if no active station defines the
+        dimension, OR the filter would remove everything, return the original
+        list unchanged — never leave the SMS menu empty or over-restrict on a
+        misconfiguration. This is what stops the bot offering a size/drink no
+        station can make (which then gets stuck 'pending', un-startable at the
+        barista — the bug where a 'large hot chocolate' vanished)."""
+        try:
+            if not items:
+                return items
+            allowed = self._active_station_capability_set(dimension)
+            if not allowed:
+                return items
+            kept = [it for it in items if str(it).strip().lower() in allowed]
+            return kept if kept else items
+        except Exception as e:
+            logger.warning(f"_filter_to_station_makeable({dimension}) failed: {e}")
+            return items
+
     def _get_available_sizes(self, coffee_type=None):
         """Return the list of cup sizes currently in stock.
 
@@ -2730,7 +2791,10 @@ class CoffeeOrderSystem:
         # if the DB returned them in a different sequence.
         order = {'small': 0, 'medium': 1, 'large': 2}
         canonical.sort(key=lambda s: order.get(s, 99))
-        return canonical or ['small', 'medium', 'large']
+        canonical = canonical or ['small', 'medium', 'large']
+        # Only offer sizes at least one ACTIVE station can make — otherwise a
+        # customer can pick a size (e.g. large) no barista can start.
+        return self._filter_to_station_makeable(canonical, 'sizes')
 
     def _handle_awaiting_coffee_type(self, phone, message, state):
         """Handle coffee type input"""
