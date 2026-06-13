@@ -3110,6 +3110,127 @@ def reassign_order(order_id):
         }), 500
 
 
+@bp.route('/orders/<order_id>', methods=['PATCH'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def edit_order(order_id):
+    """Barista override: edit an order's drink/milk/size/sugar/notes when it
+    was taken down wrong. Only pending or in-progress orders can be edited —
+    a completed/picked-up/cancelled order is done."""
+    try:
+        if not order_id or order_id == 'undefined':
+            return jsonify({"success": False, "message": "Invalid order ID"}), 400
+        clean_id = clean_order_id(order_id)
+        payload = request.get_json(silent=True) or {}
+        coffee_system = current_app.config.get('coffee_system')
+        if not coffee_system or not getattr(coffee_system, 'db', None):
+            return jsonify({"success": False, "message": "Service unavailable"}), 503
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        cursor = db.cursor()
+        cursor.execute('SELECT id, status, order_details FROM orders WHERE order_number = %s', (clean_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"success": False, "message": f"Order {clean_id} not found"}), 404
+        o_id = row[0] if not isinstance(row, dict) else row['id']
+        status = row[1] if not isinstance(row, dict) else row['status']
+        details_raw = row[2] if not isinstance(row, dict) else row['order_details']
+        if status in ('completed', 'picked_up', 'cancelled'):
+            return jsonify({"success": False, "message": f"Can't edit a {status} order"}), 400
+        details = details_raw
+        if isinstance(details, str):
+            try:
+                details = json.loads(details)
+            except Exception:
+                details = {}
+        if not isinstance(details, dict):
+            details = {}
+        # Map the various field aliases the frontend may send onto the
+        # canonical order_details keys the rest of the pipeline reads.
+        field_map = {
+            'type': 'type', 'drink': 'type', 'coffee_type': 'type', 'coffeeType': 'type',
+            'milk': 'milk', 'milk_type': 'milk', 'milkType': 'milk',
+            'size': 'size',
+            'sugar': 'sugar',
+            'notes': 'notes', 'special_instructions': 'notes', 'specialInstructions': 'notes',
+        }
+        changed = {}
+        for k, v in payload.items():
+            key = field_map.get(k)
+            if key and v is not None:
+                details[key] = v
+                changed[key] = v
+        if not changed:
+            return jsonify({"success": False, "message": "No editable fields provided"}), 400
+        cursor.execute('UPDATE orders SET order_details = %s, updated_at = %s WHERE id = %s',
+                       (json.dumps(details), datetime.now(), o_id))
+        db.commit()
+        return jsonify({"success": True, "message": f"Order {clean_id} updated", "changed": changed})
+    except Exception as e:
+        logger.error(f"edit_order error: {e}")
+        try:
+            current_app.config.get('coffee_system').db.rollback()
+        except Exception:
+            pass
+        return jsonify({"success": False, "message": f"Error editing order: {e}"}), 500
+
+
+@bp.route('/orders/<order_id>/cancel', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def cancel_order_barista(order_id):
+    """Cancel an order from the barista screen (status='cancelled'). Drops it
+    from the active queue but keeps the record for reporting/revenue. Refuses
+    to cancel an already completed/picked-up order."""
+    try:
+        if not order_id or order_id == 'undefined':
+            return jsonify({"success": False, "message": "Invalid order ID"}), 400
+        clean_id = clean_order_id(order_id)
+        coffee_system = current_app.config.get('coffee_system')
+        if not coffee_system or not getattr(coffee_system, 'db', None):
+            return jsonify({"success": False, "message": "Service unavailable"}), 503
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        cursor = db.cursor()
+        cursor.execute('SELECT id, status, station_id FROM orders WHERE order_number = %s', (clean_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"success": False, "message": f"Order {clean_id} not found"}), 404
+        o_id = row[0] if not isinstance(row, dict) else row['id']
+        status = row[1] if not isinstance(row, dict) else row['status']
+        station_id = row[2] if not isinstance(row, dict) else row['station_id']
+        if status in ('completed', 'picked_up'):
+            return jsonify({"success": False, "message": f"Order already {status} — can't cancel"}), 400
+        if status == 'cancelled':
+            return jsonify({"success": True, "message": "Order already cancelled"})
+        cursor.execute('UPDATE orders SET status = %s, updated_at = %s WHERE id = %s',
+                       ('cancelled', datetime.now(), o_id))
+        if station_id is not None:
+            try:
+                cursor.execute(
+                    "UPDATE station_stats SET current_load = GREATEST(0, current_load - 1), last_updated = %s "
+                    "WHERE station_id = %s",
+                    (datetime.now(), station_id),
+                )
+            except Exception:
+                pass
+        db.commit()
+        return jsonify({"success": True, "message": f"Order {clean_id} cancelled"})
+    except Exception as e:
+        logger.error(f"cancel_order_barista error: {e}")
+        try:
+            current_app.config.get('coffee_system').db.rollback()
+        except Exception:
+            pass
+        return jsonify({"success": False, "message": f"Error cancelling order: {e}"}), 500
+
+
 # ============================================================================
 # DISPLAY ENDPOINTS (PUBLIC FACING)
 # ============================================================================

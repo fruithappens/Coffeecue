@@ -671,6 +671,40 @@ class OrderDataService {
   }
 
   /**
+   * Edit an order's details (barista override for a mis-taken order).
+   * @param {string} orderId - Order ID / number
+   * @param {object} fields - any of {type, milk, size, sugar, notes}
+   * @returns {Promise<object>} Result {success, message, data}
+   */
+  async updateOrder(orderId, fields) {
+    try {
+      const response = await this.apiService.patch(`/orders/${orderId}`, fields);
+      const isSuccess = response.success === true || response.status === 'success';
+      return { success: isSuccess, message: response.message, data: response.changed };
+    } catch (error) {
+      console.error('Error editing order:', error);
+      return { success: false, message: error.message || 'Network error' };
+    }
+  }
+
+  /**
+   * Cancel an order from the barista screen — drops it from the queue but
+   * keeps the record. Soft cancel (status='cancelled'), not a hard delete.
+   * @param {string} orderId - Order ID / number
+   * @returns {Promise<object>} Result {success, message}
+   */
+  async cancelOrder(orderId) {
+    try {
+      const response = await this.apiService.post(`/orders/${orderId}/cancel`, {});
+      const isSuccess = response.success === true || response.status === 'success';
+      return { success: isSuccess, message: response.message };
+    } catch (error) {
+      console.error('Error cancelling order:', error);
+      return { success: false, message: error.message || 'Network error' };
+    }
+  }
+
+  /**
    * Delay an order
    * @param {string} orderId - Order ID
    * @param {number} minutes - Minutes to delay
