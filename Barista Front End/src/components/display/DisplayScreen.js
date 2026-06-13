@@ -476,36 +476,54 @@ const DisplayScreen = () => {
   // --- Render ---
   // Rotation wrapper. When rotation === 0 we render the content
   // directly so the DOM stays simple in the common case.
+
+  // Brand header band: paint the header in the event's colour and pick a
+  // readable text colour (near-black or white) from its luminance, so the
+  // title stays legible whatever colour the operator picked.
+  const headerColor = config.header_color || '#1e40af';
+  const _hx = (headerColor || '').replace('#', '');
+  const _r = parseInt(_hx.substring(0, 2) || '1e', 16);
+  const _g = parseInt(_hx.substring(2, 4) || '40', 16);
+  const _b = parseInt(_hx.substring(4, 6) || 'af', 16);
+  const _lum = (0.299 * _r + 0.587 * _g + 0.114 * _b) / 255;
+  const onHeader = _lum > 0.6 ? '#111827' : '#ffffff';
+  const onHeaderDim = _lum > 0.6 ? 'rgba(17,24,39,0.72)' : 'rgba(255,255,255,0.82)';
+  const headerChip = _lum > 0.6 ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.16)';
+
   const content = (
     <div className={`min-h-screen w-full ${theme.bg} ${theme.text}
                      flex flex-col font-sans overflow-hidden`}
          onClick={tryFullscreen}
          style={containerStyle}>
 
-      {/* --- Header --- */}
-      <header className="px-6 md:px-10 pt-6 pb-4 flex items-center justify-between gap-4">
+      {/* --- Header (brand band) --- */}
+      <header className="px-6 md:px-10 pt-5 pb-5 flex items-center justify-between gap-4 shadow-md"
+              style={{ backgroundColor: headerColor, color: onHeader }}>
         <div className="flex items-center min-w-0">
           <button
             onClick={(e) => { e.stopPropagation(); window.location.href = '/'; }}
-            className={`mr-4 p-2 rounded-full ${theme.panel} hover:opacity-80 transition`}
+            className="mr-4 p-2 rounded-full hover:opacity-80 transition flex-shrink-0"
+            style={{ backgroundColor: headerChip, color: onHeader }}
             title="Back to home"
           >
             <ArrowLeft size={24} />
           </button>
           {config.logo ? (
-            <img
-              src={config.logo}
-              alt=""
-              className={`${isPortrait ? 'h-12' : 'h-14'} w-auto max-w-[200px] object-contain mr-3`}
-            />
+            <div className="bg-white rounded-xl p-2 mr-4 shadow-sm flex items-center flex-shrink-0">
+              <img
+                src={config.logo}
+                alt=""
+                className={`${isPortrait ? 'h-12' : 'h-16'} w-auto max-w-[220px] object-contain`}
+              />
+            </div>
           ) : (
-            <Coffee size={36} className="mr-3" />
+            <Coffee size={40} className="mr-4 flex-shrink-0" />
           )}
           <div className="min-w-0">
-            <h1 className={`${isPortrait ? 'text-3xl' : 'text-4xl'} font-extrabold tracking-tight leading-tight truncate`}>
+            <h1 className={`${isPortrait ? 'text-4xl' : 'text-5xl'} font-extrabold tracking-tight leading-tight truncate`}>
               {config.event_name || config.system_name}
             </h1>
-            <div className={`${theme.subtext} text-sm md:text-base flex items-center mt-1`}>
+            <div className="text-sm md:text-base flex items-center mt-1.5" style={{ color: onHeaderDim }}>
               <MapPin size={14} className="mr-1" />
               {currentStation
                 ? `${currentStation.name}${currentStation.location ? ` · ${currentStation.location}` : ''}`
@@ -519,7 +537,7 @@ const DisplayScreen = () => {
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           {stations.length > 1 && (
             <select
               value={currentStation?.id || ''}
@@ -533,7 +551,7 @@ const DisplayScreen = () => {
                 }
               }}
               onClick={(e) => e.stopPropagation()}
-              className={`px-3 py-2 rounded-lg ${theme.panel} ${theme.text} border ${theme.border} text-sm`}
+              className="px-3 py-2 rounded-lg text-sm border-0 bg-white/95 text-gray-800"
             >
               <option value="all">All Stations</option>
               {stations.map(s => (
@@ -543,14 +561,16 @@ const DisplayScreen = () => {
           )}
           <button
             onClick={(e) => { e.stopPropagation(); handleRefresh(); }}
-            className={`p-2 rounded-full ${theme.panel} hover:opacity-80`}
+            className="p-2 rounded-full hover:opacity-80"
+            style={{ backgroundColor: headerChip, color: onHeader }}
             title="Refresh"
           >
             <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); tryFullscreen(); }}
-            className={`p-2 rounded-full ${theme.panel} hover:opacity-80`}
+            className="p-2 rounded-full hover:opacity-80"
+            style={{ backgroundColor: headerChip, color: onHeader }}
             title="Fullscreen"
           >
             <Maximize2 size={20} />
@@ -627,10 +647,11 @@ const DisplayScreen = () => {
             room full of customers — a dead feature on the most public
             screen in the venue. */}
         {config.sms_number && (
-          <div className="flex items-center min-w-0">
-            <MessageCircle size={26} className="mr-3 flex-shrink-0" />
+          <div className="flex items-center min-w-0 rounded-2xl px-5 py-3 shadow-sm"
+               style={{ backgroundColor: headerColor, color: onHeader }}>
+            <MessageCircle size={30} className="mr-3 flex-shrink-0" />
             <div className="min-w-0">
-              <div className={`${fonts.label} font-bold`}>Order by SMS</div>
+              <div className={`${fonts.label} font-bold uppercase tracking-wide`} style={{ color: onHeaderDim }}>Order by SMS</div>
               <div className={`${fonts.body} font-extrabold tracking-wide truncate`}>
                 {config.sms_number}
               </div>
