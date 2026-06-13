@@ -34,6 +34,7 @@ import SmsFlowReference from './SmsFlowReference';
 import InventoryIntegrationService from '../../services/InventoryIntegrationService';
 import StationsService from '../../services/StationsService';
 import OrderDataService from '../../services/OrderDataService';
+import AuthService from '../../services/AuthService';
 import { useAppMode } from '../../context/AppContext';
 import useStations from '../../hooks/useStations';
 import brandingConfig from '../../config/brandingConfig';
@@ -48,6 +49,18 @@ const OrganiserInterface = () => {
   
   // Navigation state
   const [activeSection, setActiveSection] = useState('dashboard'); // Default to Live Ops Dashboard
+
+  // Account menu (the top-right avatar) + working log out. Both the avatar
+  // and the sidebar "Log out" were dead before — no handler at all.
+  const [accountOpen, setAccountOpen] = useState(false);
+  const currentUser = AuthService.getCurrentUser();
+  const userLabel = (currentUser && (currentUser.username || currentUser.full_name)) || 'admin';
+  const userInitial = (userLabel[0] || 'A').toUpperCase();
+  const handleLogout = () => {
+    if (window.confirm('Log out of Coffee Cue?')) {
+      AuthService.logout();
+    }
+  };
   const [stationTab, setStationTab] = useState(() => {
     // Force new interface by clearing any old tab state
     const newVersion = '2.0';
@@ -325,7 +338,7 @@ const OrganiserInterface = () => {
         </nav>
         
         <div className="p-4 border-t border-gray-200">
-          <button className="flex items-center text-gray-700 w-full">
+          <button onClick={handleLogout} className="flex items-center text-gray-700 w-full hover:text-red-600">
             <LogOut size={20} className="mr-3" />
             {sidebarOpen && <span>Log out</span>}
           </button>
@@ -355,12 +368,34 @@ const OrganiserInterface = () => {
           </h1>
           
           <div className="flex items-center space-x-4">
-            <button className="text-gray-500 hover:text-gray-800 relative">
-              <Bell size={20} />
-              <span className="absolute top-0 right-0 bg-red-500 rounded-full w-2 h-2"></span>
-            </button>
-            <div className="h-8 w-8 rounded-full bg-amber-200 flex items-center justify-center">
-              <span className="text-amber-800 font-medium">A</span>
+            {/* Account menu — click the avatar for the logged-in user +
+                a working Log out. (The old bell was a fake notification
+                placeholder with no feed behind it — removed.) */}
+            <div className="relative">
+              <button
+                onClick={() => setAccountOpen(o => !o)}
+                className="h-9 w-9 rounded-full bg-amber-200 flex items-center justify-center hover:bg-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                title={`Signed in as ${userLabel}`}
+              >
+                <span className="text-amber-800 font-medium">{userInitial}</span>
+              </button>
+              {accountOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setAccountOpen(false)} />
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-20 py-1">
+                    <div className="px-4 py-2 border-b border-gray-100">
+                      <div className="text-xs text-gray-500">Signed in as</div>
+                      <div className="text-sm font-medium text-gray-800 truncate">{userLabel}</div>
+                    </div>
+                    <button
+                      onClick={() => { setAccountOpen(false); handleLogout(); }}
+                      className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center"
+                    >
+                      <LogOut size={16} className="mr-2" /> Log out
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </header>

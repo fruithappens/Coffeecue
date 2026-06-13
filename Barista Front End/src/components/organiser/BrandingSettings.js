@@ -31,6 +31,11 @@ const BrandingSettings = () => {
     event_name: '',
     smsNumber: '',
     clientLogo: brandingConfig.logo || '',
+    // Full-screen Display backgrounds, one per orientation (16:9 landscape
+    // + 9:16 portrait). Stored as data URIs in branding_settings; the
+    // Display picks the right one for the screen's orientation.
+    bgLandscape: '',
+    bgPortrait: '',
 
     // Sponsor / "free coffee thanks". The display screen and SMS order
     // confirmations already render these (read by /api/display/config
@@ -284,7 +289,35 @@ const BrandingSettings = () => {
     reader.onerror = () => setError('Could not read that image file.');
     reader.readAsDataURL(file);
   };
-  
+
+  // Full-screen Display background upload. Same data-URI approach as the
+  // logo but a larger cap (backgrounds are bigger). `which` is
+  // 'bgLandscape' (16:9) or 'bgPortrait' (9:16). Kept under ~1.5MB so the
+  // branding row (and the save request) stays a sane size — recommend a
+  // compressed JPG.
+  const MAX_BG_BYTES = 1500 * 1024; // 1.5MB
+  const handleBgUpload = (which) => (event) => {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setError('Please choose an image file (JPG or PNG).');
+      return;
+    }
+    if (file.size > MAX_BG_BYTES) {
+      setError(`Background is ${(file.size / 1024).toFixed(0)}KB — please use an image under 1.5MB `
+        + '(compress it / export as JPG). Big images slow the display + can fail to save.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setSettings(prev => ({ ...prev, [which]: e.target.result }));
+      setSuccess('Background loaded — click Save to apply it to the Display screen.');
+      setError('');
+    };
+    reader.onerror = () => setError('Could not read that image file.');
+    reader.readAsDataURL(file);
+  };
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
@@ -438,6 +471,66 @@ const BrandingSettings = () => {
                     screen and the login page. Click Save to apply.
                   </p>
                 </div>
+              </div>
+            </div>
+
+            {/* Full-screen Display backgrounds — one per orientation so a
+                vertical or horizontal screen each gets a correctly-framed
+                image. When set, the Display shows the image full-screen and
+                the order boxes shrink when quiet / grow as orders arrive. */}
+            <div className="md:col-span-2 border-t pt-4 mt-2">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                Display backgrounds (full-screen)
+              </p>
+              <p className="text-xs text-gray-500 mb-3">
+                Optional. Upload a wide image for horizontal screens and a tall
+                one for vertical screens — the display auto-picks the right one.
+                Order boxes stay compact when quiet and expand over the image as
+                orders come in. Use compressed JPGs under 1.5MB.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {[
+                  { key: 'bgLandscape', label: 'Landscape 16:9 (horizontal screen)', box: 'h-20 w-36' },
+                  { key: 'bgPortrait', label: 'Portrait 9:16 (vertical screen)', box: 'h-32 w-20' },
+                ].map(({ key, label, box }) => (
+                  <div key={key} className="border border-gray-200 rounded-lg p-3">
+                    <p className="text-xs font-medium text-gray-600 mb-2">{label}</p>
+                    <div className="flex items-start gap-3">
+                      {settings[key] ? (
+                        <img
+                          src={settings[key]}
+                          alt={`${label} preview`}
+                          className={`${box} object-cover border border-gray-200 rounded bg-white`}
+                        />
+                      ) : (
+                        <div className={`${box} flex items-center justify-center border border-dashed border-gray-300 rounded text-xs text-gray-400 text-center`}>
+                          No image
+                        </div>
+                      )}
+                      <div className="flex flex-col gap-2">
+                        <label className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center cursor-pointer text-sm w-fit">
+                          <Upload className="mr-2" size={16} />
+                          {settings[key] ? 'Replace' : 'Upload'}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleBgUpload(key)}
+                            className="hidden"
+                          />
+                        </label>
+                        {settings[key] && (
+                          <button
+                            type="button"
+                            onClick={() => setSettings(prev => ({ ...prev, [key]: '' }))}
+                            className="text-xs text-red-600 hover:underline w-fit"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
