@@ -1797,6 +1797,22 @@ const PricingSection = () => {
     />
   );
 
+  // Flat-fee state derived from the saved shape:
+  //   flat_price_by_size = {small: 2, medium: 2.5}  → per-size mode
+  //   flat_price = 2                                → one-price mode
+  //   neither                                       → itemised (flat off)
+  const flatBySize = pricing.flat_price_by_size || {};
+  const perSizeMode = Object.keys(flatBySize).length > 0;
+  const flatOn = perSizeMode || (pricing.flat_price != null && pricing.flat_price !== '');
+  const setFlatMode = (mode) => setPricing(p => {
+    if (mode === 'off') return { ...p, flat_price: null, flat_price_by_size: null };
+    if (mode === 'single') return { ...p, flat_price: (p.flat_price ?? 2.00), flat_price_by_size: null };
+    // per-size: seed a sensible table the operator can edit/blank
+    const existing = p.flat_price_by_size && Object.keys(p.flat_price_by_size).length
+      ? p.flat_price_by_size : { small: 2.00, medium: 2.50 };
+    return { ...p, flat_price: null, flat_price_by_size: existing };
+  });
+
   return (
     <div className="bg-white rounded-lg shadow-sm p-6 mb-4">
       <h3 className="font-semibold text-lg mb-1">Pricing (honor system)</h3>
@@ -1818,35 +1834,67 @@ const PricingSection = () => {
 
       {pricing.enabled && (
         <>
-          {/* Flat-fee mode — one price for everything. The common event
-              case ("$2 a coffee, any kind"). When on, per-drink prices and
-              all surcharges are ignored, so the operator sets it in two
-              taps without zeroing a dozen fields. */}
-          <label className="flex items-center mb-3 cursor-pointer select-none bg-amber-50 border border-amber-200 rounded p-3">
-            <input
-              type="checkbox"
-              checked={pricing.flat_price != null && pricing.flat_price !== ''}
-              onChange={(e) => setPricing(p => ({
-                ...p,
-                flat_price: e.target.checked ? (p.flat_price || 2.00) : null,
-              }))}
-              className="mr-2 h-4 w-4 accent-amber-600"
-            />
-            <span className="font-medium mr-3">Flat fee — same price for every drink</span>
-            {pricing.flat_price != null && pricing.flat_price !== '' && (
-              <span className="inline-flex items-center">
-                <span className="mr-1 text-gray-600">{pricing.symbol || '$'}</span>
-                {numericInput(pricing.flat_price,
-                  v => setPricing(p => ({ ...p, flat_price: v })))}
-              </span>
+          {/* Flat-fee mode — fixed price regardless of drink and milk
+              (alt milk is free). Either one price for everything, or a
+              price per cup size (small $2 / medium $2.50). The common
+              event case; edit + Save any time. When on, per-drink prices
+              and surcharges below are ignored. */}
+          <div className="bg-amber-50 border border-amber-200 rounded p-3 mb-4">
+            <label className="flex items-center cursor-pointer select-none mb-2">
+              <input
+                type="checkbox"
+                checked={flatOn}
+                onChange={(e) => setFlatMode(e.target.checked ? 'single' : 'off')}
+                className="mr-2 h-4 w-4 accent-amber-600"
+              />
+              <span className="font-medium">Flat fee — same price regardless of drink / milk</span>
+            </label>
+
+            {flatOn && (
+              <div className="ml-6 space-y-2">
+                <div className="flex gap-4 text-sm">
+                  <label className="flex items-center cursor-pointer">
+                    <input type="radio" name="flatmode" className="mr-1 accent-amber-600"
+                      checked={!perSizeMode} onChange={() => setFlatMode('single')} />
+                    One price for everything
+                  </label>
+                  <label className="flex items-center cursor-pointer">
+                    <input type="radio" name="flatmode" className="mr-1 accent-amber-600"
+                      checked={perSizeMode} onChange={() => setFlatMode('persize')} />
+                    Price per cup size
+                  </label>
+                </div>
+
+                {!perSizeMode && (
+                  <div className="flex items-center gap-1">
+                    <span className="text-gray-600">{pricing.symbol || '$'}</span>
+                    {numericInput(pricing.flat_price,
+                      v => setPricing(p => ({ ...p, flat_price: v })))}
+                    <span className="text-sm text-gray-600 ml-1">— every drink, any size</span>
+                  </div>
+                )}
+
+                {perSizeMode && (
+                  <div className="flex flex-wrap gap-4">
+                    {['small', 'medium', 'large'].map(sz => (
+                      <label key={sz} className="flex items-center gap-1 text-sm">
+                        <span className="capitalize w-16">{sz}</span>
+                        <span className="text-gray-600">{pricing.symbol || '$'}</span>
+                        {numericInput(flatBySize[sz],
+                          v => setPricing(p => ({
+                            ...p,
+                            flat_price_by_size: { ...(p.flat_price_by_size || {}), [sz]: v },
+                          })))}
+                      </label>
+                    ))}
+                    <p className="w-full text-xs text-amber-700">
+                      Set a price for the sizes you offer; leave others as-is. Alt milks are free in flat-fee mode.
+                    </p>
+                  </div>
+                )}
+              </div>
             )}
-          </label>
-          {pricing.flat_price != null && pricing.flat_price !== '' && (
-            <p className="text-sm text-amber-700 mb-4">
-              Every drink is {pricing.symbol || '$'}{Number(pricing.flat_price).toFixed(2)}.
-              Per-drink prices and surcharges below are ignored while flat fee is on.
-            </p>
-          )}
+          </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
             <label className="text-sm">
