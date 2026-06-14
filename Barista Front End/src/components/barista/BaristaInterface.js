@@ -156,7 +156,9 @@ const BaristaInterface = () => {
     try { return (AuthService.getCurrentUser()?.role || '').toLowerCase(); }
     catch (_) { return ''; }
   })();
-  const isManager = ['admin', 'staff', 'organizer', 'organiser'].includes(_currentRole);
+  // Accept every organiser-role spelling/variant so a user created as
+  // 'event_organizer' gets the manager tabs too (was missing it).
+  const isManager = ['admin', 'staff', 'organizer', 'organiser', 'event_organizer'].includes(_currentRole);
   const MANAGER_ONLY_TABS = ['display', 'queue', 'balance', 'capabilities', 'staff', 'settings'];
 
   // Wrapper function to persist active tab when it changes
