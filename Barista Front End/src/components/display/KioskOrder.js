@@ -136,7 +136,7 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
   // when the menu actually spans more than one, so a coffee-only event stays
   // a single clean grid.
   const drinkCategories = useMemo(() => {
-    const order = ['Coffee', 'Tea', 'Hot Chocolate', 'Chai'];
+    const order = ['Coffee', 'Tea', 'Hot Chocolate', 'Chai', 'Cold Drinks'];
     const present = [...new Set((menu?.coffee_types || []).map(d => d.category || 'Coffee'))];
     present.sort((a, b) => {
       const ia = order.indexOf(a), ib = order.indexOf(b);
