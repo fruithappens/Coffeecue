@@ -1907,9 +1907,16 @@ def _station_can_make_order(db, station_id, order_details):
     if not isinstance(caps_raw, dict):
         return {'blocked': False, 'reason': ''}
 
+    # Only ESPRESSO drinks are gated by a station's coffee_types capability.
+    # Non-espresso drinks (tea, hot chocolate, chai, matcha) are enabled
+    # event-wide in inventory and aren't tied to a station's espresso menu —
+    # Quick Setup only ever seeds coffee_types with espresso drinks, so
+    # blocking on it would make every tea/hot-choc un-startable. Let them pass.
     coffee_types = caps_raw.get('coffee_types') or caps_raw.get('drinks')
+    _espresso_set = [d.lower() for d in ESPRESSO_DRINKS]
     if (
         requested_type
+        and requested_type in _espresso_set
         and isinstance(coffee_types, list)
         and len(coffee_types) > 0
         and requested_type not in [str(c).lower() for c in coffee_types]
@@ -3410,21 +3417,57 @@ def _kiosk_menu_data(coffee_system):
     except Exception as e:
         logger.warning(f"kiosk menu catalog fallback failed: {e}")
 
+    # ALWAYS fold in event-enabled non-espresso drinks (tea, hot chocolate,
+    # chai, matcha…). They're offered event-wide and aren't espresso-gated, so
+    # the capability-only universe (espresso drinks) was hiding them. A station
+    # makes an extra unless some station has explicitly claimed it.
+    extras = []
+    try:
+        extras = [str(x).lower() for x in (coffee_system._get_available_extra_drinks() or [])]
+    except Exception as e:
+        logger.warning(f"kiosk extras pull failed: {e}")
+    for ex in extras:
+        universe['coffee_types'].setdefault(ex, ex)
+    extra_set = set(extras)
+    claimed_coffee = set()
+    for caps in caps_by_station.values():
+        for c in caps['coffee_types']:
+            claimed_coffee.add(c)
+
     def stations_for(dim, item_lower):
-        return [sid for sid, caps in caps_by_station.items()
-                if (not caps[dim]) or (item_lower in caps[dim])]
+        out = []
+        for sid, caps in caps_by_station.items():
+            lst = caps[dim]
+            if (not lst) or (item_lower in lst):
+                out.append(sid)
+            elif dim == 'coffee_types' and item_lower in extra_set and item_lower not in claimed_coffee:
+                out.append(sid)  # enabled extra nobody claims → made everywhere
+        return out
 
     def title(s):
         return ' '.join(w.capitalize() for w in str(s).split())
 
+    def categorize(n):
+        if 'chai' in n:
+            return 'Chai'
+        if 'hot choc' in n:
+            return 'Hot Chocolate'
+        if any(k in n for k in ('tea', 'matcha', 'earl grey', 'english breakfast',
+                                'chamomile', 'peppermint', 'green')):
+            return 'Tea'
+        return 'Coffee'
+
     def build(dim):
         out = []
         for item_lower in sorted(universe[dim].keys()):
-            out.append({
+            entry = {
                 'name': title(universe[dim][item_lower]),
                 'value': item_lower,
                 'stations': stations_for(dim, item_lower),
-            })
+            }
+            if dim == 'coffee_types':
+                entry['category'] = categorize(item_lower)
+            out.append(entry)
         return out
 
     return {

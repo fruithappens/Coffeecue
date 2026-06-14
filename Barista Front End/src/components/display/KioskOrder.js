@@ -53,6 +53,7 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
   const [milk, setMilk] = useState(null);
   const [size, setSize] = useState(null);
   const [sugar, setSugar] = useState(0);
+  const [drinkCat, setDrinkCat] = useState('All'); // category tab on the drink step
   const [chosenStation, setChosenStation] = useState(null); // collect-from station id
   const [phone, setPhone] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -130,6 +131,21 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
       return (stationById[a]?.wait ?? 0) - (stationById[b]?.wait ?? 0);
     })[0];
   }, [capable, stationById]);
+
+  // Drink category tabs (Coffee / Tea / Hot Chocolate / Chai) — only shown
+  // when the menu actually spans more than one, so a coffee-only event stays
+  // a single clean grid.
+  const drinkCategories = useMemo(() => {
+    const order = ['Coffee', 'Tea', 'Hot Chocolate', 'Chai'];
+    const present = [...new Set((menu?.coffee_types || []).map(d => d.category || 'Coffee'))];
+    present.sort((a, b) => {
+      const ia = order.indexOf(a), ib = order.indexOf(b);
+      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+    });
+    return present;
+  }, [menu]);
+  const drinksForTab = (menu?.coffee_types || [])
+    .filter(d => drinkCat === 'All' || (d.category || 'Coffee') === drinkCat);
 
   const sizeChoices = menu?.sizes || [];
   const needsSizeStep = sizeChoices.length > 1;
@@ -257,14 +273,29 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
             ) : (menu?.coffee_types || []).length === 0 ? (
               <div className="text-center py-16 text-gray-500 text-xl">No drinks available right now. Please see a barista.</div>
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {(menu?.coffee_types || []).map(d => (
-                  <Tile key={d.value} emoji={drinkEmoji(d.value)} label={d.name}
-                    active={drink?.value === d.value}
-                    sub={madeHere(d) ? null : `Station ${stationLabel(d)} only`}
-                    onClick={() => { setDrink(d); setStep('milk'); }} />
-                ))}
-              </div>
+              <>
+                {drinkCategories.length > 1 && (
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {['All', ...drinkCategories].map(cat => (
+                      <button key={cat} onClick={() => setDrinkCat(cat)}
+                        className="px-4 py-2 rounded-full text-base font-bold transition"
+                        style={drinkCat === cat
+                          ? { backgroundColor: headerColor, color: '#fff' }
+                          : { backgroundColor: '#fff', color: '#374151', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {drinksForTab.map(d => (
+                    <Tile key={d.value} emoji={drinkEmoji(d.value)} label={d.name}
+                      active={drink?.value === d.value}
+                      sub={madeHere(d) ? null : `Station ${stationLabel(d)} only`}
+                      onClick={() => { setDrink(d); setStep('milk'); }} />
+                  ))}
+                </div>
+              </>
             )}
           </>
         )}
