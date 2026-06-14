@@ -4959,20 +4959,14 @@ class CoffeeOrderSystem:
             # hard-coded "full cream + skim" default → so every soy /
             # oat / almond order ignored station capabilities and got
             # routed by load only.
-            cursor.execute("""
-                SELECT station_id, COALESCE(current_load, 0),
-                       COALESCE(capabilities, '{}'::jsonb) AS capabilities,
-                       COALESCE(status, 'active') AS current_status
-                FROM station_stats
-                WHERE status IN ('active', 'open') OR status IS NULL
-                ORDER BY COALESCE(current_load, 0)
-            """)
-
             # Real-time load = actual not-yet-collected orders per station.
             # The station_stats.current_load column drifts (it isn't always
             # incremented/decremented in lockstep), which broke load-balancing:
             # identical orders piled onto one station instead of spreading.
-            # Counting live orders is authoritative.
+            # Counting live orders is authoritative. NOTE: this must run AND be
+            # fully fetched BEFORE the station_stats query below — psycopg2 won't
+            # let a second cursor run while the first has an unread result, so
+            # doing it after silently failed and fell back to current_load.
             real_load = {}
             try:
                 lc = self.db.cursor()
@@ -4984,8 +4978,19 @@ class CoffeeOrderSystem:
                 for _row in lc.fetchall():
                     if _row and _row[0] is not None:
                         real_load[int(_row[0])] = int(_row[1])
+                lc.close()
             except Exception as _le:
                 logger.warning(f"real-load count failed, using current_load: {_le}")
+
+            # Get all stations with their current load and capabilities.
+            cursor.execute("""
+                SELECT station_id, COALESCE(current_load, 0),
+                       COALESCE(capabilities, '{}'::jsonb) AS capabilities,
+                       COALESCE(status, 'active') AS current_status
+                FROM station_stats
+                WHERE status IN ('active', 'open') OR status IS NULL
+                ORDER BY COALESCE(current_load, 0)
+            """)
 
             stations = []
             stations_with_milk = {}  # Track which stations have specific milk types
