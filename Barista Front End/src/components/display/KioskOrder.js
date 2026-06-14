@@ -155,14 +155,14 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
     if (capable.length > 1) { setStep('location'); return; }
     const only = capable.length === 1 ? capable[0] : null;
     setChosenStation(only);
-    routeFromStation(only);
+    routeFromStation();
   };
-  // After a station is chosen: skip phone when collecting right here.
-  const routeFromStation = (sid) => {
-    const here = myStation != null && sid === myStation;
-    setStep(here ? 'review' : 'phone');
-  };
-  const chooseStation = (sid) => { setChosenStation(sid); routeFromStation(sid); };
+  // Always offer the phone step. It's REQUIRED when collecting elsewhere (the
+  // only way to tell them it's ready) and OPTIONAL ("I'll wait here") when
+  // collecting at this screen's own station — so even a single-station customer
+  // can still opt in to a ready SMS and walk away.
+  const routeFromStation = () => setStep('phone');
+  const chooseStation = (sid) => { setChosenStation(sid); routeFromStation(); };
 
   const collectingHere = myStation != null && chosenStation === myStation;
   const phoneDigits = phone.replace(/\D/g, '');
@@ -388,9 +388,12 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
         {/* ---------- PHONE (required when collecting elsewhere) ---------- */}
         {step === 'phone' && (
           <>
-            <Header title="Your mobile number" onBack={() => setStep(capable.length > 1 ? 'location' : 'sugar')} />
+            <Header title={collectingHere ? 'Get a text when it’s ready?' : 'Your mobile number'}
+                    onBack={() => setStep(capable.length > 1 ? 'location' : 'sugar')} />
             <p className="text-xl text-gray-600 mb-3 font-medium">
-              Your order will be ready at <b>{stationName(chosenStation)}</b> — we'll text you when it's done.
+              {collectingHere
+                ? "Pop in your mobile and we’ll text you when it’s ready — or skip and watch the board."
+                : <>Your order will be ready at <b>{stationName(chosenStation)}</b> — enter your mobile so we can text you when it’s done.</>}
             </p>
             <input
               autoFocus value={phone} onChange={(e) => setPhone(e.target.value)}
@@ -398,18 +401,26 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
               className="w-full text-3xl font-bold p-5 rounded-2xl border-4 border-gray-200 focus:outline-none"
               style={{ borderColor: phoneValid ? headerColor : undefined }}
             />
-            <button disabled={!phoneValid} onClick={() => setStep('review')}
-              className="mt-6 w-full py-5 rounded-2xl text-2xl font-extrabold text-white disabled:opacity-40"
-              style={{ backgroundColor: headerColor }}>
-              Next →
-            </button>
+            <div className="mt-6 flex gap-3">
+              {collectingHere && (
+                <button onClick={() => { setPhone(''); setStep('review'); }}
+                  className="flex-1 py-5 rounded-2xl text-2xl font-bold bg-white text-gray-700 shadow active:scale-95">
+                  I'll wait here
+                </button>
+              )}
+              <button disabled={!phoneValid} onClick={() => setStep('review')}
+                className="flex-1 py-5 rounded-2xl text-2xl font-extrabold text-white disabled:opacity-40"
+                style={{ backgroundColor: headerColor }}>
+                Next →
+              </button>
+            </div>
           </>
         )}
 
         {/* ---------- REVIEW ---------- */}
         {step === 'review' && (
           <>
-            <Header title="All good?" onBack={() => setStep(collectingHere ? (capable.length > 1 ? 'location' : 'sugar') : 'phone')} />
+            <Header title="All good?" onBack={() => setStep('phone')} />
             <div className="bg-white rounded-2xl p-6 shadow mb-4">
               <div className="text-2xl font-extrabold text-gray-800 mb-3">{name.trim()}</div>
               <ul className="text-xl text-gray-700 space-y-1">
@@ -422,7 +433,7 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
                 <MapPin size={20} /> Collect from {chosenStation != null ? stationName(chosenStation) : 'the next available station'}
                 {chosenStation != null && waitText(chosenStation) ? ` · ${waitText(chosenStation)}` : ''}
               </div>
-              {!collectingHere && phone.trim() && (
+              {phone.trim() && (
                 <div className="mt-1 text-base text-gray-500">We'll text {phone.trim()} when it's ready.</div>
               )}
             </div>
@@ -447,7 +458,7 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
             <p className="text-2xl text-gray-700 font-semibold">
               Collect from <b>{result.station_name || `Station ${result.station_id}`}</b>
             </p>
-            {!collectingHere && phone.trim() && (
+            {phone.trim() && (
               <p className="text-lg text-gray-500 mt-2">We'll text you when it's ready.</p>
             )}
             <button onClick={onClose}
