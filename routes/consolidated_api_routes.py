@@ -3343,6 +3343,292 @@ def get_display_config():
             "error": str(e)
         })
 
+
+def _kiosk_menu_data(coffee_system):
+    """Build the self-service kiosk menu. For each orderable item (coffee type,
+    milk, size) return the station IDs that can make it — so the Display kiosk
+    can grey out items only available at OTHER stations and tell the customer
+    where to collect. A station whose capability list is empty is treated as
+    "makes everything" (matches _station_can_make_order's lenient rule)."""
+    db = coffee_system.db
+    try:
+        db.rollback()
+    except Exception:
+        pass
+    stations = []
+    caps_by_station = {}
+    cur = db.cursor()
+    cur.execute(
+        "SELECT station_id, COALESCE(name,''), COALESCE(status,'active'), capabilities "
+        "FROM station_stats ORDER BY station_id"
+    )
+    for row in cur.fetchall():
+        sid = row[0] if not isinstance(row, dict) else row.get('station_id')
+        name = (row[1] if not isinstance(row, dict) else row.get('name')) or f"Station {sid}"
+        status = (row[2] if not isinstance(row, dict) else row.get('status')) or 'active'
+        caps_raw = row[3] if not isinstance(row, dict) else row.get('capabilities')
+        if str(status).lower() in ('inactive', 'maintenance'):
+            continue
+        caps = caps_raw
+        if isinstance(caps, str):
+            try:
+                caps = json.loads(caps)
+            except Exception:
+                caps = {}
+        if not isinstance(caps, dict):
+            caps = {}
+        caps_by_station[sid] = {
+            'coffee_types': [str(x).lower() for x in (caps.get('coffee_types') or caps.get('drinks') or [])],
+            'milk_types':   [str(x).lower() for x in (caps.get('milk_types') or caps.get('milks') or [])],
+            'sizes':        [str(x).lower() for x in (caps.get('sizes') or [])],
+        }
+        stations.append({'id': sid, 'name': name})
+
+    universe = {'coffee_types': {}, 'milk_types': {}, 'sizes': {}}
+    for _sid, caps in caps_by_station.items():
+        for dim in universe:
+            for item in caps[dim]:
+                universe[dim].setdefault(item, item)
+    # Fall back to the event catalog for any dimension nobody configured, so a
+    # brand-new setup (no capabilities entered) still shows a usable menu.
+    try:
+        if not universe['coffee_types']:
+            for c in (coffee_system._get_available_coffee_types() or []):
+                universe['coffee_types'].setdefault(str(c).lower(), str(c))
+        if not universe['milk_types']:
+            for m in (coffee_system._get_available_milk_types() or []):
+                universe['milk_types'].setdefault(str(m).lower(), str(m))
+        if not universe['sizes']:
+            for s in (coffee_system._get_available_sizes() or []):
+                universe['sizes'].setdefault(str(s).lower(), str(s))
+    except Exception as e:
+        logger.warning(f"kiosk menu catalog fallback failed: {e}")
+
+    def stations_for(dim, item_lower):
+        return [sid for sid, caps in caps_by_station.items()
+                if (not caps[dim]) or (item_lower in caps[dim])]
+
+    def title(s):
+        return ' '.join(w.capitalize() for w in str(s).split())
+
+    def build(dim):
+        out = []
+        for item_lower in sorted(universe[dim].keys()):
+            out.append({
+                'name': title(universe[dim][item_lower]),
+                'value': item_lower,
+                'stations': stations_for(dim, item_lower),
+            })
+        return out
+
+    return {
+        'stations': stations,
+        'coffee_types': build('coffee_types'),
+        'milks': build('milk_types'),
+        'sizes': build('sizes'),
+    }
+
+
+@bp.route('/display/menu', methods=['GET'])
+def get_display_menu():
+    """Public self-service kiosk menu — what each station can make. No JWT;
+    the Display is a public screen."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        if not coffee_system or not getattr(coffee_system, 'db', None):
+            return jsonify({'success': False, 'error': 'unavailable'}), 503
+        return jsonify({'success': True, 'menu': _kiosk_menu_data(coffee_system)})
+    except Exception as e:
+        logger.error(f"display/menu error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/display/order', methods=['POST'])
+def create_kiosk_order():
+    """Public self-service order placed from the Display kiosk. No JWT — the
+    Display is a public screen (same trust model as SMS ordering). Only accepts
+    items some station can make; routes to the chosen station if it can make
+    the whole order, otherwise to a station that can, and returns where to
+    collect."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        if not coffee_system or not getattr(coffee_system, 'db', None):
+            return jsonify({'success': False, 'message': 'System unavailable'}), 503
+        db = coffee_system.db
+        data = request.json or {}
+
+        name = (data.get('name') or data.get('customer_name') or '').strip()
+        coffee_type = (data.get('coffee_type') or data.get('type') or '').strip()
+        milk = (data.get('milk') or data.get('milk_type') or '').strip()
+        size = (data.get('size') or '').strip()
+        sugar = data.get('sugar')
+        if sugar is None or sugar == '':
+            sugar = 'No sugar'
+        note = (data.get('note') or data.get('notes') or '').strip()
+
+        if not name or len(name) < 2:
+            return jsonify({'success': False, 'message': 'Please enter your name.'}), 400
+        if not coffee_type:
+            return jsonify({'success': False, 'message': 'Please choose a drink.'}), 400
+
+        try:
+            requested_station = int(data.get('station_id') or data.get('stationId') or 0) or None
+        except (TypeError, ValueError):
+            requested_station = None
+
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        active = []
+        cur = db.cursor()
+        cur.execute("SELECT station_id, COALESCE(status,'active') FROM station_stats ORDER BY station_id")
+        for row in cur.fetchall():
+            sid = row[0] if not isinstance(row, dict) else row.get('station_id')
+            st = (row[1] if not isinstance(row, dict) else row.get('status')) or 'active'
+            if str(st).lower() not in ('inactive', 'maintenance'):
+                active.append(sid)
+
+        def can_make(sid):
+            return not _station_can_make_order(
+                db, sid, {'type': coffee_type, 'milk': milk}
+            ).get('blocked')
+
+        # Prefer the display's own station; otherwise the first active station
+        # that can make this drink+milk (so the barista can actually start it).
+        target = None
+        if requested_station and requested_station in active and can_make(requested_station):
+            target = requested_station
+        if target is None:
+            for sid in active:
+                if can_make(sid):
+                    target = sid
+                    break
+        if target is None:
+            return jsonify({
+                'success': False,
+                'message': "Sorry, that combination isn't available right now. "
+                           "Please pick different options or see a barista.",
+            }), 400
+
+        reassigned = bool(requested_station and target != requested_station)
+
+        now = datetime.now()
+        order_prefix = ''
+        try:
+            blob = _kv_get(db, 'order_prefix', default=None)
+            if isinstance(blob, dict):
+                order_prefix = (blob.get('prefix') or '').strip()
+            elif isinstance(blob, str):
+                order_prefix = blob.strip()
+        except Exception:
+            order_prefix = ''
+        order_number = None
+        try:
+            seqc = db.cursor()
+            seqc.execute("SELECT nextval('order_number_seq')")
+            srow = seqc.fetchone()
+            if srow:
+                sval = srow[0] if not isinstance(srow, dict) else list(srow.values())[0]
+                order_number = f"{order_prefix}{int(sval)}"
+        except Exception:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+        if not order_number:
+            order_number = f"K{now.strftime('%H%M%S')}{now.microsecond // 10000}"
+
+        order_details = {
+            'name': name,
+            'type': coffee_type.lower(),
+            'milk': (milk or 'no milk').lower(),
+            'size': (size or 'medium').lower(),
+            'sugar': sugar,
+            'notes': note,
+            'order_type': 'kiosk',
+            'created_by': 'kiosk',
+            'vip': False,
+            'station_id': target,
+            'stationId': target,
+        }
+        try:
+            if hasattr(coffee_system, '_compute_order_price'):
+                pv, pf = coffee_system._compute_order_price({
+                    'type': order_details['type'], 'milk': order_details['milk'],
+                    'size': order_details['size'], 'sugar': order_details['sugar'], 'vip': False,
+                })
+                if pv is not None:
+                    order_details['price'] = pv
+                    order_details['price_formatted'] = pf
+        except Exception as e:
+            logger.warning(f"kiosk price compute failed (non-fatal): {e}")
+
+        ins = db.cursor()
+        ins.execute('''
+            INSERT INTO orders (order_number, phone, order_details, status, station_id, created_at, updated_at, queue_priority)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id, order_number
+        ''', (order_number, '', json.dumps(order_details), 'pending', target, now, now, 5))
+        res = ins.fetchone()
+        db.commit()
+        order_id = res[0] if res else None
+        order_number = res[1] if (res and len(res) > 1) else order_number
+        logger.info(f"Kiosk order {order_number} created at station {target} (id {order_id})")
+
+        try:
+            _emit_new_order({
+                'order_number': order_number, 'id': order_number, 'status': 'pending',
+                'station_id': target, 'stationId': target,
+                'created_at': now.isoformat() + 'Z', 'createdAt': now.isoformat() + 'Z',
+                'wait_time': 0, 'waitTime': 0,
+                'customer_name': name, 'customerName': name,
+                'coffee_type': order_details['type'], 'coffeeType': order_details['type'],
+                'milk_type': order_details['milk'], 'milkType': order_details['milk'],
+                'sugar': order_details['sugar'], 'size': order_details['size'], 'vip': False,
+            })
+        except Exception as e:
+            logger.debug(f"kiosk WS emit skipped: {e}")
+
+        try:
+            dbtype = 'sqlite' if 'sqlite3' in str(type(db)).lower() else 'postgres'
+            if hasattr(coffee_system, '_decrement_stock_for_order'):
+                coffee_system._decrement_stock_for_order(db, dbtype, target, order_details)
+                db.commit()
+        except Exception as e:
+            logger.warning(f"kiosk stock decrement failed (non-fatal): {e}")
+            try:
+                db.rollback()
+            except Exception:
+                pass
+
+        station_name = f"Station {target}"
+        try:
+            nc = db.cursor()
+            nc.execute("SELECT name FROM station_stats WHERE station_id = %s", (target,))
+            nr = nc.fetchone()
+            if nr and (nr[0] if not isinstance(nr, dict) else nr.get('name')):
+                station_name = nr[0] if not isinstance(nr, dict) else nr.get('name')
+        except Exception:
+            pass
+
+        return jsonify({
+            'success': True,
+            'order_number': order_number,
+            'station_id': target,
+            'station_name': station_name,
+            'reassigned': reassigned,
+        })
+    except Exception as e:
+        logger.error(f"create_kiosk_order error: {e}")
+        try:
+            cs = current_app.config.get('coffee_system')
+            if cs and getattr(cs, 'db', None):
+                cs.db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': 'Could not place your order. Please see a barista.'}), 500
+
+
 @bp.route('/display/orders', methods=['GET'])
 def get_display_orders():
     """Get orders for the display screen"""
