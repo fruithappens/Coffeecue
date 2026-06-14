@@ -455,7 +455,19 @@ def create_app():
     
     # Register route blueprints
     app.register_blueprint(admin_bp)
-    app.register_blueprint(barista_bp)
+    # NOTE: barista_bp is the LEGACY server-rendered barista UI (Jinja
+    # templates at /barista/, /barista/dashboard, ... guarded by the
+    # session-based @barista_required). The React SPA fully replaced it
+    # and the frontend never calls any /barista/* server endpoint (all
+    # its traffic goes through /api/*). Worse, mounting it SHADOWED the
+    # SPA: a request to /barista hit this blueprint's `/` route, so Flask
+    # 308-redirected /barista -> /barista/, then @barista_required (which
+    # looks for a Flask SESSION we never set — we authenticate with a JWT
+    # in localStorage) bounced the user to /login. Net effect: refreshing
+    # or deep-linking /barista logged the barista out, while /organiser
+    # and /support (no such blueprint) worked. Leaving it unregistered
+    # lets /barista fall through to the SPA catch_all like the others.
+    # app.register_blueprint(barista_bp)  # disabled: shadowed the SPA /barista route
     app.register_blueprint(customer_bp)
     app.register_blueprint(sms_bp)
     app.register_blueprint(inventory_bp)  # Register inventory routes
