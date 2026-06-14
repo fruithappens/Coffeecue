@@ -92,9 +92,9 @@ const OrganiserInterface = () => {
         <div className="p-4 border-b border-gray-200">
           <div className="flex justify-between items-center">
             <div className="flex items-center">
-              <button 
+              <button
                 className="mr-2 p-1 rounded hover:bg-gray-200"
-                onClick={() => window.history.back()}
+                onClick={() => { window.location.href = '/'; }}
                 title="Back to Home"
               >
                 <ArrowLeft size={20} />
@@ -125,7 +125,7 @@ const OrganiserInterface = () => {
               onClick={() => setActiveSection('quickSetup')}
             >
               <Zap size={20} className="mr-3" />
-              {sidebarOpen && <span>⚡ Quick Setup</span>}
+              {sidebarOpen && <span>Quick Setup</span>}
             </button>
 
             {/* Event Readiness — pairs with Quick Setup. Operator runs
@@ -140,7 +140,7 @@ const OrganiserInterface = () => {
               onClick={() => setActiveSection('readiness')}
             >
               <CheckCircle size={20} className="mr-3" />
-              {sidebarOpen && <span>✅ Readiness</span>}
+              {sidebarOpen && <span>Readiness</span>}
             </button>
 
             {/* Live Operations Dashboard */}
@@ -153,7 +153,7 @@ const OrganiserInterface = () => {
               onClick={() => setActiveSection('dashboard')}
             >
               <Activity size={20} className="mr-3" />
-              {sidebarOpen && <span>🚀 Live Ops</span>}
+              {sidebarOpen && <span>Live Ops</span>}
             </button>
             
             {/* Stations */}
