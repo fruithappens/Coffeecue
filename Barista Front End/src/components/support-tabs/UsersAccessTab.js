@@ -49,7 +49,7 @@ const UsersAccessTab = () => {
 
   const loadUsers = async () => {
     try {
-      const response = await ApiService.get('/api/users');
+      const response = await ApiService.get('/users');
       setUsers(response.data || []);
     } catch (error) {
       console.error('Error loading users:', error);
@@ -78,7 +78,7 @@ const UsersAccessTab = () => {
     
     setLoading(true);
     try {
-      await ApiService.post('/api/users', newUser);
+      await ApiService.post('/users', newUser);
       await loadUsers();
       setShowAddUser(false);
       setNewUser({ username: '', email: '', role: 'barista', password: '' });
@@ -92,7 +92,7 @@ const UsersAccessTab = () => {
   const handleUpdateUser = async (userId, updates) => {
     setLoading(true);
     try {
-      await ApiService.put(`/api/users/${userId}`, updates);
+      await ApiService.put(`/users/${userId}`, updates);
       await loadUsers();
       setEditingUser(null);
     } catch (error) {
@@ -107,7 +107,7 @@ const UsersAccessTab = () => {
     
     setLoading(true);
     try {
-      await ApiService.delete(`/api/users/${userId}`);
+      await ApiService.delete(`/users/${userId}`);
       await loadUsers();
     } catch (error) {
       console.error('Error deleting user:', error);
@@ -121,7 +121,7 @@ const UsersAccessTab = () => {
     
     setLoading(true);
     try {
-      const response = await ApiService.post(`/api/users/${userId}/reset-password`);
+      const response = await ApiService.post(`/users/${userId}/reset-password`);
       alert(`New password: ${response.data.newPassword}`);
     } catch (error) {
       console.error('Error resetting password:', error);
@@ -133,7 +133,7 @@ const UsersAccessTab = () => {
   const toggleUserStatus = async (userId, currentStatus) => {
     setLoading(true);
     try {
-      await ApiService.post(`/api/users/${userId}/toggle-status`, {
+      await ApiService.post(`/users/${userId}/toggle-status`, {
         is_active: !currentStatus
       });
       await loadUsers();
