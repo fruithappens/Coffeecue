@@ -82,40 +82,40 @@ const EmergencyTab = () => {
   // Emergency Actions
   const stopAllOperations = () => {
     requireConfirmation('Stop All Operations', async () => {
-      await ApiService.post('/api/emergency/stop-all');
+      await ApiService.post('/emergency/stop-all');
       setEmergencyMode(true);
     });
   };
 
   const resumeOperations = () => {
     requireConfirmation('Resume Operations', async () => {
-      await ApiService.post('/api/emergency/resume');
+      await ApiService.post('/emergency/resume');
       setEmergencyMode(false);
     });
   };
 
   const clearAllQueues = () => {
     requireConfirmation('Clear ALL Order Queues', async () => {
-      await ApiService.post('/api/emergency/clear-queues');
+      await ApiService.post('/emergency/clear-queues');
     });
   };
 
   const resetAllStations = () => {
     requireConfirmation('Reset All Stations', async () => {
-      await ApiService.post('/api/emergency/reset-stations');
+      await ApiService.post('/emergency/reset-stations');
     });
   };
 
   const lockSystem = () => {
     requireConfirmation('Lock System', async () => {
-      await ApiService.post('/api/emergency/lock-system');
+      await ApiService.post('/emergency/lock-system');
       setSystemLocked(true);
     });
   };
 
   const unlockSystem = () => {
     requireConfirmation('Unlock System', async () => {
-      await ApiService.post('/api/emergency/unlock-system');
+      await ApiService.post('/emergency/unlock-system');
       setSystemLocked(false);
     });
   };
@@ -123,7 +123,7 @@ const EmergencyTab = () => {
   const createBackup = async () => {
     try {
       setBackupStatus('creating');
-      const response = await ApiService.post('/api/emergency/backup');
+      const response = await ApiService.post('/emergency/backup');
       setBackupStatus('completed');
       logAction('Create Backup', 'success', response.data.filename);
       
@@ -149,13 +149,13 @@ const EmergencyTab = () => {
     requireConfirmation('Restore from Backup', async () => {
       const formData = new FormData();
       formData.append('backup', file);
-      await ApiService.post('/api/emergency/restore', formData);
+      await ApiService.post('/emergency/restore', formData);
     });
   };
 
   const purgeOldData = () => {
     requireConfirmation('Purge Old Data (>30 days)', async () => {
-      await ApiService.post('/api/emergency/purge-data', { 
+      await ApiService.post('/emergency/purge-data', { 
         olderThan: 30 
       });
     });
@@ -167,7 +167,7 @@ const EmergencyTab = () => {
       if (confirmation !== 'RESET DATABASE') {
         throw new Error('Confirmation text did not match');
       }
-      await ApiService.post('/api/emergency/reset-database');
+      await ApiService.post('/emergency/reset-database');
     });
   };
 
