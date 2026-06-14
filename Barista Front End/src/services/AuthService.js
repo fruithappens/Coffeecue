@@ -459,8 +459,14 @@ class AuthService {
         console.log('Token is completely expired, attempting refresh');
         const refreshSuccess = await this.refreshToken();
         if (!refreshSuccess) {
-          console.log('Token refresh failed, forcing logout');
-          this.forceLogoutWithMessage('Your session has expired. Please log in again.');
+          // refreshToken() ALREADY force-logs-out (clearing tokens) on a
+          // definitive 401/403 reject. If we land here for any OTHER reason —
+          // a network blip, or the backend briefly restarting right after a
+          // deploy (exactly when a barista is most likely to hit refresh) —
+          // do NOT nuke the stored tokens. Return false (the guard shows the
+          // login view) but leave the refresh token intact so the next load
+          // recovers the session automatically, without re-typing a password.
+          console.warn('Token refresh did not succeed; keeping tokens for retry');
           return false;
         }
         console.log('Token refreshed successfully');
