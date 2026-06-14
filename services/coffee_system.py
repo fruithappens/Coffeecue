@@ -503,6 +503,12 @@ class CoffeeOrderSystem:
         help_commands = ['help', 'info', 'how', 'instructions', '?']
         return any(cmd == message_lower or message_lower.startswith(cmd + ' ') for cmd in help_commands)
     
+    def _sms_first_message_hint(self):
+        """One-line footer on the welcome so new customers know the commands
+        available — see the menu, order for friends, or cancel."""
+        return ("\n\n(Tips: reply MENU to see the menu • FRIEND to add a "
+                "friend's coffee • CANCEL to scrap an order)")
+
     def _handle_greeting(self, phone, message, state):
         """Handle greeting messages or help requests"""
         # Get customer info
@@ -543,7 +549,7 @@ class CoffeeOrderSystem:
             # Get welcome message from settings or use default if not available
             welcome_message = self._get_setting('sms_welcome_message', f"Welcome to {{event_name}}! ☕\nWhat's your first name?")
             # Replace event_name placeholder with actual event name
-            return welcome_message.replace('{event_name}', self.event_name)
+            return welcome_message.replace('{event_name}', self.event_name) + self._sms_first_message_hint()
     
     def _all_available_milks_lowercased(self):
         """Return a set of milk names (lowercase) available at ANY
@@ -5610,7 +5616,7 @@ class CoffeeOrderSystem:
                 # Get welcome message from settings or use default if not available
                 welcome_message = self._get_setting('sms_welcome_message', f"Welcome to {{event_name}}! I'll take your coffee order. What's your first name?")
                 # Replace event_name placeholder with actual event name  
-                return welcome_message.replace('{event_name}', self.event_name)
+                return welcome_message.replace('{event_name}', self.event_name) + self._sms_first_message_hint()
         
         # Check if this is an affirmative response
         if self.nlp.is_affirmative_response(message):
@@ -5697,7 +5703,7 @@ class CoffeeOrderSystem:
         # Get welcome message from settings or use default if not available
         welcome_message = self._get_setting('sms_welcome_message', f"Welcome to {{event_name}}! I'll take your coffee order. What's your first name?")
         # Replace event_name placeholder with actual event name
-        return welcome_message.replace('{event_name}', self.event_name)
+        return welcome_message.replace('{event_name}', self.event_name) + self._sms_first_message_hint()
     
     def _get_setting(self, key, default_value=None):
         """Get a setting from the database

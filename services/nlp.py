@@ -130,7 +130,7 @@ class NLPService:
                         "sugarless", "not sweet", "bitter", "no sweetener", "plain", "none", "no", "ns", "n/s", "0 sugar", "0s", "0"],
             "half sugar": ["less sweet", "less sugar", "little sugar", "bit of sugar", "not too sweet", "light sugar", 
                           "light sweet", "lightly sweet", "touch of sugar", "hint of sugar", "1/2 sugar", "0.5 sugar", "half s"],
-            "1 sugar": ["1", "one", "white", "single", "normal", "regular", "standard", "sweet", "1 white", "1s", "a sugar", 
+            "1 sugar": ["1", "one", "single", "sweet", "1 white", "1s", "a sugar",
                        "with sugar", "sugar", "sweetened", "1x sugar", "one sugar", "1 s", "1sugar"],
             "2 sugar": ["2", "two", "double", "extra sweet", "very sweet", "2s", "2x sugar", "two sugar", "2 white", "two white", "2 s", "2sugar"],
             "3 sugar": ["3", "three", "triple", "super sweet", "3s", "3x sugar", "three sugar", "3 white", "three white", "extra extra sweet", "3 s", "3sugar"],
@@ -162,12 +162,17 @@ class NLPService:
             "yo", "sup", "hi there", "hello there", "heya", "cheers"
         ]
         
-        # Usual or regular order keywords
+        # "Give me my usual" keywords. NOTE: bare "regular"/"normal"/"standard"
+        # are deliberately NOT here — they collide with milk ("regular" =
+        # full cream) and size ("regular" = medium), so "regular flat white"
+        # used to be misread as "give me my usual" and the drink was dropped.
+        # Only the possessive/explicit forms ("my regular", "the usual",
+        # "regular order") signal a usual order.
         self.usual_order_keywords = [
-            "usual", "regular", "same as usual", "same as always", "same as last time", 
-            "my usual", "the usual", "my regular", "my normal", "my standard", 
-            "what i always have", "what i always get", "what i usually have", 
-            "regular order", "normal order", "standard order", "coffee time"
+            "usual", "same as usual", "same as always", "same as last time",
+            "my usual", "the usual", "my regular", "my normal", "my standard",
+            "what i always have", "what i always get", "what i usually have",
+            "regular order", "normal order", "standard order"
         ]
 
         # Compile regex patterns for better matching
@@ -215,8 +220,11 @@ class NLPService:
         if self.usual_pattern.search(message_lower):
             return True
             
-        # Additional check for simpler terms
-        simple_indicators = ["same", "usual", "regular", "always", "coffee time"]
+        # Additional check for simpler terms. "regular" is intentionally
+        # excluded — it's a milk/size word ("regular flat white"), not a
+        # request for the usual. These are substring-matched, so keep the list
+        # to unambiguous usual-order words only.
+        simple_indicators = ["usual", "same as", "what i always"]
         if any(term in message_lower for term in simple_indicators):
             return True
             
