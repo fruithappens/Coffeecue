@@ -32,6 +32,7 @@ import StationsService from '../../services/StationsService';
 import ApiService from '../../services/ApiService';
 import { parseServerDate } from '../../utils/orderUtils';
 import { useSettings } from '../../hooks/useSettings';
+import KioskOrder from './KioskOrder';
 
 // Visual theme presets. Each provides bg, panel, text, accent.
 const THEMES = {
@@ -63,6 +64,29 @@ const formatCustomerLine = (o) => {
   const name = o.customerName || 'Customer';
   const tail = o.displayPhone || (o.phoneNumber ? o.phoneNumber.slice(-4) : '');
   return tail ? `${name} · ··${tail}` : name;
+};
+
+// Show the SMS number the way locals actually dial it. The Twilio number is
+// stored international ("+61 408 263 333"), but to an Australian audience the
+// "+61" reads as confusing — they'd dial 0408 263 333. Convert AU numbers to
+// local format (drop +61, restore the leading 0, group as 04XX XXX XXX for
+// mobiles / 0X XXXX XXXX for landlines). Anything we don't recognise as AU is
+// shown unchanged so this stays safe for other countries.
+const formatSmsNumber = (raw) => {
+  if (!raw) return '';
+  const s = String(raw).trim();
+  const digits = s.replace(/[^\d+]/g, '');
+  let local = null;
+  if (digits.startsWith('+61')) local = '0' + digits.slice(3);
+  else if (digits.startsWith('61') && digits.length >= 11) local = '0' + digits.slice(2);
+  else if (digits.startsWith('0')) local = digits;
+  if (local && local.length === 10) {
+    if (local.startsWith('04')) {
+      return `${local.slice(0, 4)} ${local.slice(4, 7)} ${local.slice(7, 10)}`;
+    }
+    return `${local.slice(0, 2)} ${local.slice(2, 6)} ${local.slice(6, 10)}`;
+  }
+  return s; // not a recognised AU number — leave as-is
 };
 
 // Visual variant of a single order card. Used by both columns.
@@ -121,6 +145,15 @@ const DisplayScreen = () => {
   const orientationFromUrl = searchParams.get('orientation');
   // ?rotate=90 etc. overrides the saved rotation. Same idea.
   const rotateFromUrl = searchParams.get('rotate');
+  // ?mode=pickup → a clean "collect your order" screen (no queue clutter, no
+  // kiosk button, no SMS footer). Default 'orders' = the live queue + the
+  // self-service "Order here" button. Lets an operator run two screens: a
+  // public ordering/status one, and a tidy pickup one.
+  const screenMode = (searchParams.get('mode') || 'orders').toLowerCase();
+  const isPickupMode = screenMode === 'pickup';
+  // Self-service kiosk shows on the orders screen unless explicitly turned off
+  // with ?kiosk=0. Never on the clean pickup screen.
+  const kioskEnabled = !isPickupMode && searchParams.get('kiosk') !== '0';
 
   const { settings } = useSettings();
 
@@ -166,6 +199,7 @@ const DisplayScreen = () => {
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [smsPhoneNumber, setSmsPhoneNumber] = useState('');
   const [orders, setOrders] = useState({ pending: [], inProgress: [], ready: [] });
+  const [showKiosk, setShowKiosk] = useState(false);
 
   // Track which orders are "new" so we can pulse-highlight ready
   // ones when they appear. Map of order_id → timestamp first seen.
@@ -605,10 +639,26 @@ const DisplayScreen = () => {
         </div>
       )}
 
-      {/* --- Main: two big columns (Brewing / Ready) ---
-           In landscape: side-by-side, full height.
-           In portrait: stacked with Ready on top (customers care most
-           about Ready). */}
+      {/* --- Main ---
+           Pickup mode: a clean, single full-width "ready for collection"
+           board (no brewing column, no kiosk, no SMS footer). Orders mode:
+           the usual two-column Brewing / Ready layout. */}
+      {isPickupMode ? (
+        <main className="flex-grow px-6 md:px-10 pb-6 overflow-hidden">
+          <Column
+            kind="ready"
+            hasBg={hasBg}
+            theme={theme}
+            fonts={fonts}
+            isPortrait={isPortrait}
+            loading={loading}
+            orders={orders.ready}
+            showCustomerName={showCustomerName}
+            showDetails={showDetails}
+            newReadyMap={newReadyRef.current}
+          />
+        </main>
+      ) : (
       <main className={hasBg
         ? `flex-grow flex gap-6 md:gap-8 px-6 md:px-10 pb-6 ${isPortrait ? 'flex-col justify-end' : 'flex-row items-end'}`
         : `flex-grow grid gap-6 md:gap-8 px-6 md:px-10 pb-6 ${isPortrait
@@ -661,32 +711,57 @@ const DisplayScreen = () => {
           />
         )}
       </main>
+      )}
 
-      {/* --- Footer: SMS prompt + sponsor/custom message --- */}
+      {/* --- Footer: self-service "Order here" + SMS prompt + sponsor ---
+           Hidden on the clean pickup screen. */}
+      {!isPickupMode && (
       <footer className={`px-6 md:px-10 py-4 ${theme.panel} ${theme.border} border-t
                           flex items-center justify-between gap-6 flex-wrap`}>
-        {/* Only advertise SMS ordering when a number is actually
-            configured. The old fallback showed "Number coming soon" to a
-            room full of customers — a dead feature on the most public
-            screen in the venue. */}
-        {config.sms_number && (
-          <div className="flex items-center min-w-0 rounded-2xl px-5 py-3 shadow-sm"
-               style={{ backgroundColor: headerColor, color: onHeader }}>
-            <MessageCircle size={30} className="mr-3 flex-shrink-0" />
-            <div className="min-w-0">
-              <div className={`${fonts.label} font-bold uppercase tracking-wide`} style={{ color: onHeaderDim }}>Order by SMS</div>
-              <div className={`${fonts.body} font-extrabold tracking-wide truncate`}>
-                {config.sms_number}
+        <div className="flex items-center gap-4 flex-wrap min-w-0">
+          {/* Big touch target for walk-up self-service ordering. */}
+          {kioskEnabled && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowKiosk(true); }}
+              className="flex items-center gap-3 rounded-2xl px-7 py-4 text-2xl font-extrabold shadow-md hover:opacity-90 active:scale-95"
+              style={{ backgroundColor: headerColor, color: onHeader }}
+            >
+              <Coffee size={32} /> Order here
+            </button>
+          )}
+          {/* Only advertise SMS ordering when a number is actually configured. */}
+          {config.sms_number && (
+            <div className="flex items-center min-w-0 rounded-2xl px-5 py-3 shadow-sm bg-white/90 text-gray-800">
+              <MessageCircle size={26} className="mr-3 flex-shrink-0" />
+              <div className="min-w-0">
+                <div className="text-xs font-bold uppercase tracking-wide text-gray-500">
+                  {kioskEnabled ? 'Or order by SMS' : 'Order by SMS'}
+                </div>
+                <div className="text-xl font-extrabold tracking-wide truncate">
+                  {formatSmsNumber(config.sms_number)}
+                </div>
               </div>
             </div>
-          </div>
-        )}
-        <div className={`text-right max-w-[60%] ${fonts.body} font-medium truncate`}>
+          )}
+        </div>
+        <div className={`text-right max-w-[40%] ${fonts.body} font-medium truncate`}>
           {config.sponsor?.enabled && config.sponsor.name
             ? `${config.sponsor.name}: ${config.sponsor.message}`
             : (config.custom_message || '')}
         </div>
       </footer>
+      )}
+
+      {/* Self-service kiosk overlay. Routes to this display's station (or a
+          capable one) and refreshes the board on close so a just-placed
+          order shows immediately. */}
+      {showKiosk && (
+        <KioskOrder
+          stationId={currentStation && currentStation.id !== 'all' ? currentStation.id : null}
+          headerColor={headerColor}
+          onClose={() => { setShowKiosk(false); handleRefresh(); }}
+        />
+      )}
 
       {/* Tiny inline style for a one-shot pulse on newly-ready
           orders. Tailwind doesn't ship this animation by default. */}
