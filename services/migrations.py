@@ -424,6 +424,18 @@ def _m012_event_templates(cur):
     """)
 
 
+def _m014_chat_messages_station_id(cur):
+    """chat_messages was created without a station_id column, but the chat
+    endpoints SELECT and INSERT it (station-scoped staff chat). On older DBs
+    every GET /api/chat/messages 500'd with 'column "station_id" does not
+    exist', and the Support/barista chat polled it on a loop — flooding the
+    console with errors. Add the column so the queries succeed."""
+    cur.execute("""
+        ALTER TABLE chat_messages
+        ADD COLUMN IF NOT EXISTS station_id INTEGER
+    """)
+
+
 # Master list. Append new migrations at the bottom — DO NOT renumber
 # existing ones, and DO NOT change `version`. The runner trusts the
 # version number to determine which migrations to skip.
@@ -443,6 +455,7 @@ MIGRATIONS: list[Migration] = [
     Migration(11, 'client_errors',             _m011_client_errors),
     Migration(12, 'event_templates',           _m012_event_templates),
     Migration(13, 'client_events',             _m013_client_events),
+    Migration(14, 'chat_messages_station_id',  _m014_chat_messages_station_id),
 ]
 
 
