@@ -347,9 +347,9 @@ const CommunicationHub = () => {
           <div className="text-center py-12">
             <Users className="w-16 h-16 mx-auto mb-4 text-gray-300" />
             <h3 className="text-lg font-semibold text-gray-600 mb-2">Staff Communication</h3>
-            <p className="text-gray-500">Real-time staff messaging coming soon...</p>
+            <p className="text-gray-500">Live staff-to-staff chat isn't enabled for this event.</p>
             <p className="text-sm text-gray-400 mt-2">
-              Enable instant communication between baristas, managers, and support staff
+              To message the floor now, use the Broadcast tools to send all stations a note.
             </p>
           </div>
         </div>

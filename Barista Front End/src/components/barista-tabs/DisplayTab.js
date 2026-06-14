@@ -267,19 +267,11 @@ const DisplayTab = ({
               </button>
               
               <div className="flex space-x-2">
-                <button 
-                  onClick={() => {
-                    const testWindow = window.open(`${window.location.origin}/display`, '_blank');
-                    setTimeout(() => {
-                      if (testWindow) {
-                        testWindow.displayHelper?.showInfo();
-                        alert('Display info logged to console. Check the preview window\'s console (F12).');
-                      }
-                    }, 2000);
-                  }}
+                <button
+                  onClick={() => window.open(`${window.location.origin}/display`, '_blank')}
                   className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
                 >
-                  Test Resolution
+                  Preview Display
                 </button>
                 
                 <button 

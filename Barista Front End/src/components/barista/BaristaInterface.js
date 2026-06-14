@@ -1028,10 +1028,8 @@ const BaristaInterface = () => {
             )}
             <button
               className="mt-2 text-gray-500 hover:text-gray-700"
-              onClick={() => {
-                // Show order edit dialog
-                alert(`Edit order #${order.id}`);
-              }}
+              onClick={() => handleEditOrder(order)}
+              title="Edit order"
             >
               <Edit size={16} />
             </button>
@@ -1052,22 +1050,14 @@ const BaristaInterface = () => {
         </div>
         
         <div className="mt-4 flex space-x-2">
-          <button 
+          {/* Print Label removed — no label-printer integration yet; it was a
+              non-functional stub. Re-add when a printer is wired up. */}
+          <button
             className="flex-1 bg-gray-200 py-2 rounded flex items-center justify-center space-x-1 hover:bg-gray-300"
             onClick={() => handleOpenMessageDialog(order)}
           >
             <MessageCircle size={18} />
             <span>Message Customer</span>
-          </button>
-          <button 
-            className="flex-1 bg-gray-200 py-2 rounded flex items-center justify-center space-x-1 hover:bg-gray-300"
-            onClick={() => {
-              console.log(`Printing label for order #${order.id}`);
-              alert(`Printing label for ${order.coffeeType || 'Coffee'}`);
-            }}
-          >
-            <Printer size={18} />
-            <span>Print Label</span>
           </button>
         </div>
         
@@ -1756,32 +1746,33 @@ const BaristaInterface = () => {
           <Package size={18} className="mr-1" />
           Stock
         </button>
-        <button 
-          className={`py-4 px-6 font-medium flex items-center ${activeTab === 'inventory' ? 'border-b-2 border-amber-600 bg-white text-amber-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-          onClick={() => setActiveTab('inventory')}
-        >
-          <Package size={18} className="mr-1" />
-          Inventory AI
-        </button>
-        <button 
-          className={`py-4 px-6 font-medium flex items-center ${activeTab === 'schedule' ? 'border-b-2 border-amber-600 bg-white text-amber-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-          onClick={() => setActiveTab('schedule')}
-        >
-          <Calendar size={18} className="mr-1" />
-          Schedule
-        </button>
-        <button 
+        <button
           className={`py-4 px-6 font-medium flex items-center ${activeTab === 'completed' ? 'border-b-2 border-amber-600 bg-white text-amber-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
           onClick={() => setActiveTab('completed')}
         >
           <Check size={18} className="mr-1" />
           Completed
         </button>
-        {/* Manager-only tabs (admin/staff/organiser). Hidden from a
-            plain barista — these are event-configuration concerns, and
-            Capabilities in particular drives SMS order routing. */}
+        {/* Manager-only tabs (admin/staff/organiser). Hidden from a plain
+            barista — these are event-configuration concerns (and several
+            duplicate the Organiser interface). A barista sees just Orders /
+            Stock / Completed; Capabilities in particular drives SMS routing. */}
         {isManager && (
         <>
+        <button
+          className={`py-4 px-6 font-medium flex items-center ${activeTab === 'inventory' ? 'border-b-2 border-amber-600 bg-white text-amber-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          onClick={() => setActiveTab('inventory')}
+        >
+          <Package size={18} className="mr-1" />
+          Inventory AI
+        </button>
+        <button
+          className={`py-4 px-6 font-medium flex items-center ${activeTab === 'schedule' ? 'border-b-2 border-amber-600 bg-white text-amber-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          onClick={() => setActiveTab('schedule')}
+        >
+          <Calendar size={18} className="mr-1" />
+          Schedule
+        </button>
         <button
           className={`py-4 px-6 font-medium flex items-center ${activeTab === 'display' ? 'border-b-2 border-amber-600 bg-white text-amber-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
           onClick={() => setActiveTab('display')}
