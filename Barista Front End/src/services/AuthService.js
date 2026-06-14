@@ -15,10 +15,16 @@ class AuthService {
     this.maxAuthErrors = 3;
     this.debugMode = true;
     
-    // Load tokens from localStorage
+    // Load tokens from localStorage.
+    // NOTE: do NOT assign this.refreshToken here — refreshToken() is a METHOD
+    // (used to refresh an expired access token). Assigning the stored string
+    // to this.refreshToken shadowed the method, so once the 15-min access
+    // token expired, handleAuthentication()'s `await this.refreshToken()`
+    // threw "not a function", hit the catch, and force-logged-out — i.e. a
+    // page refresh kicked the barista back to the login screen. The method
+    // reads the refresh token from localStorage itself, so no field is needed.
     this.accessToken = localStorage.getItem(this.tokenKey);
-    this.refreshToken = localStorage.getItem(this.refreshKey);
-    this.tokenExpiry = localStorage.getItem(this.expiryKey) 
+    this.tokenExpiry = localStorage.getItem(this.expiryKey)
       ? new Date(localStorage.getItem(this.expiryKey)) 
       : null;
       

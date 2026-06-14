@@ -236,24 +236,30 @@ export default function useOrders(stationId = null) {
   const [lastUpdated, setLastUpdated] = useState(Date.now());
   const [isRefreshing, setIsRefreshing] = useState(false);
   
-  // Auto-refresh settings
+  // Auto-refresh settings.
+  // Default ON: previously this was off unless someone had explicitly toggled
+  // it, so a fresh barista screen never polled and new orders only appeared on
+  // a manual refresh. Opt-OUT instead (treat anything but an explicit "false"
+  // as enabled). WebSocket order events still flip the board instantly; this
+  // poll is the fallback.
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(
-    localStorage.getItem('coffee_auto_refresh_enabled') === 'true'
+    localStorage.getItem('coffee_auto_refresh_enabled') !== 'false'
   );
   const [autoRefreshInterval, setAutoRefreshInterval] = useState(() => {
     // Get saved interval from localStorage or use default
     const savedInterval = parseInt(localStorage.getItem('coffee_auto_refresh_interval'));
-    
+
     // Enforce minimum interval of 30 seconds to prevent UI flickering
     if (!savedInterval || isNaN(savedInterval) || savedInterval < 30) {
-      // Use 60 seconds as default if no valid value exists - much longer to prevent flickering
-      const defaultInterval = 60;
+      // 30s default fallback — snappy enough to catch new orders without the
+      // flicker that very-short intervals caused.
+      const defaultInterval = 30;
       localStorage.setItem('coffee_auto_refresh_interval', defaultInterval.toString());
       return defaultInterval;
     }
-    
+
     return savedInterval;
-  }); // Increased minimum to 30 seconds and default to 60 seconds to prevent flickering
+  });
   
   // Station performance stats
   const [stationStats, setStationStats] = useState({
