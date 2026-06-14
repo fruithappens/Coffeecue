@@ -649,7 +649,7 @@ function App() {
           <Route 
             path="/barista" 
             element={
-              <AuthGuard requiredRoles={['barista', 'admin', 'staff']}>
+              <AuthGuard requiredRoles={['barista', 'admin', 'staff', 'organizer', 'organiser', 'event_organizer']}>
                 <ErrorBoundary 
                   componentName="Barista Interface"
                   fallbackComponent={BasicBaristaInterface}
@@ -664,7 +664,7 @@ function App() {
           <Route 
             path="/organiser" 
             element={
-              <AuthGuard requiredRoles={['staff', 'admin', 'event_organizer']}>
+              <AuthGuard requiredRoles={['staff', 'admin', 'event_organizer', 'organizer', 'organiser']}>
                 <ErrorBoundary 
                   componentName="Organiser Interface"
                   showErrorDetails={true}

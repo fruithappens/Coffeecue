@@ -20,6 +20,7 @@ import EmergencyTab from '../support-tabs/EmergencyTab';
 
 const SupportInterface = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [systemHealth, setSystemHealth] = useState({
     appVersion: '1.2.0',
     lastUpdated: new Date()
@@ -60,36 +61,54 @@ const SupportInterface = () => {
 
   return (
     <div className="flex h-screen bg-gray-50">
-      {/* Sidebar Navigation */}
-      <div className="w-20 bg-indigo-800 text-white flex flex-col items-center py-6 shadow-lg">
-        <div className="mb-8">
-          <Coffee size={32} className="text-white" />
-          <div className="text-xs mt-1 font-medium">Support</div>
-        </div>
-        
-        <nav className="flex flex-col items-center space-y-4 flex-grow">
-          {tabs.map(tab => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            const bgColor = tab.id === 'emergency' ? 
-              (isActive ? 'bg-red-700' : 'bg-red-600 hover:bg-red-700') : 
-              (isActive ? 'bg-indigo-700' : 'hover:bg-indigo-700');
-            
-            return (
+      {/* Sidebar Navigation — matches the Organiser sidebar (white,
+          collapsible, labelled, amber active) so the two interfaces feel
+          consistent. Emergency keeps a red accent. */}
+      <div className={`bg-white shadow-lg ${sidebarOpen ? 'w-64' : 'w-20'} transition-all duration-300 flex flex-col`}>
+        <div className="p-4 border-b border-gray-200">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center">
               <button
-                key={tab.id}
-                className={`p-3 rounded-xl transition-colors ${bgColor}`}
-                onClick={() => {
-                  console.log('Switching to tab:', tab.id);
-                  setActiveTab(tab.id);
-                }}
-                title={tab.label}
+                className="mr-2 p-1 rounded hover:bg-gray-200"
+                onClick={() => { window.location.href = '/'; }}
+                title="Back to Home"
               >
-                <Icon size={24} />
-                <span className="text-xs mt-1 block">{tab.label}</span>
+                <ArrowLeft size={20} />
               </button>
-            );
-          })}
+              <h1 className={`font-bold text-gray-800 ${sidebarOpen ? 'text-xl' : 'text-sm'}`}>
+                {sidebarOpen ? 'Support' : 'S'}
+              </h1>
+            </div>
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="text-gray-500 hover:text-gray-800"
+            >
+              {sidebarOpen ? '◀' : '▶'}
+            </button>
+          </div>
+        </div>
+
+        <nav className="flex-1 px-2 py-4">
+          <div className="space-y-1">
+            {tabs.map(tab => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              const cls = tab.id === 'emergency'
+                ? (isActive ? 'bg-red-100 text-red-800' : 'text-red-700 hover:bg-red-50')
+                : (isActive ? 'bg-amber-100 text-amber-800' : 'text-gray-700 hover:bg-gray-100');
+              return (
+                <button
+                  key={tab.id}
+                  className={`w-full flex items-center px-3 py-2 rounded-md ${cls}`}
+                  onClick={() => setActiveTab(tab.id)}
+                  title={tab.label}
+                >
+                  <Icon size={20} className="mr-3" />
+                  {sidebarOpen && <span>{tab.label}</span>}
+                </button>
+              );
+            })}
+          </div>
         </nav>
       </div>
       
