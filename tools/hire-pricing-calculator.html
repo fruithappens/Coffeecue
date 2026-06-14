@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coffee Cue — Event Hire Pricing Calculator</title>
+<style>
+  :root{
+    --bg:#f7f7f5; --card:#ffffff; --ink:#1f2937; --muted:#6b7280; --line:#e5e7eb;
+    --info-bg:#e6f1fb; --info-ink:#0c447c; --ok-bg:#eaf3de; --ok-ink:#27500a; --accent:#1e40af;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.5;}
+  .wrap{max-width:760px;margin:0 auto;padding:28px 20px 48px;}
+  h1{font-size:24px;font-weight:600;margin:0 0 4px;}
+  .sub{color:var(--muted);font-size:14px;margin:0 0 24px;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;}
+  label.fld{font-size:13px;color:var(--muted);display:block;margin-bottom:4px;}
+  input[type=number]{width:100%;height:38px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:15px;background:var(--card);color:var(--ink);}
+  input[type=range]{width:100%;}
+  .section{font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:24px 0 8px;}
+  .kitrow{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin-bottom:8px;}
+  .kitrow span{flex:1;font-size:14px;}
+  .kitrow input[type=number]{width:90px;}
+  .kitrow input[type=checkbox]{width:18px;height:18px;}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:8px;}
+  .stat{background:#eef0f3;border-radius:8px;padding:14px;}
+  .stat .lab{font-size:13px;color:var(--muted);}
+  .stat .val{font-size:24px;font-weight:600;margin-top:2px;}
+  .stat.info{background:var(--info-bg);} .stat.info .lab,.stat.info .val{color:var(--info-ink);}
+  .stat.ok{background:var(--ok-bg);} .stat.ok .lab,.stat.ok .val{color:var(--ok-ink);}
+  .markup{display:flex;align-items:center;gap:12px;margin:20px 0;}
+  .note{font-size:13px;color:var(--muted);margin-top:18px;}
+  .foot{font-size:12px;color:#9ca3af;margin-top:28px;border-top:1px solid var(--line);padding-top:12px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Coffee Cue — event hire pricing</h1>
+  <p class="sub">All-in per-station cost (hardware + SMS + phone number) and a suggested charge. Edit any number to match your real rates.</p>
+
+  <div class="grid">
+    <div><label class="fld">Stations</label><input type="number" id="stations" value="1" min="1" max="20"></div>
+    <div><label class="fld">Event days</label><input type="number" id="days" value="1" min="1" max="60"></div>
+    <div><label class="fld">Cups (total)</label><input type="number" id="cups" value="300" min="0" step="10"></div>
+  </div>
+
+  <div class="section">Per-station kit · day rate ($)</div>
+  <div id="kit"></div>
+
+  <div class="grid">
+    <div><label class="fld">SMS cost / order ($)</label><input type="number" id="smsper" value="0.18" min="0" step="0.01"></div>
+    <div><label class="fld">Phone numbers</label><input type="number" id="numbers" value="1" min="0" max="10"></div>
+    <div><label class="fld">Number $/month</label><input type="number" id="numrate" value="7.81" min="0" step="0.01"></div>
+  </div>
+
+  <div class="markup">
+    <label class="fld" style="margin:0;">Markup ×</label>
+    <input type="range" id="markup" min="1" max="5" step="0.5" value="2.5">
+    <span id="markup-out" style="font-weight:600;min-width:36px;text-align:right;">2.5×</span>
+  </div>
+
+  <div class="cards">
+    <div class="stat"><div class="lab">Hardware</div><div class="val" id="m-hw">$0</div></div>
+    <div class="stat"><div class="lab">SMS</div><div class="val" id="m-sms">$0</div></div>
+    <div class="stat"><div class="lab">Phone no.</div><div class="val" id="m-num">$0</div></div>
+    <div class="stat info"><div class="lab">Your cost</div><div class="val" id="m-cost">$0</div></div>
+    <div class="stat ok"><div class="lab">Suggested charge</div><div class="val" id="m-charge">$0</div></div>
+    <div class="stat"><div class="lab">Charge / cup</div><div class="val" id="m-percup">$0</div></div>
+  </div>
+
+  <p class="note">Hardware = sum of ticked items × stations × days. Phone number is billed per whole month regardless of event length. "Your cost" is what it costs you; "suggested charge" applies your markup. Day rates below are editable placeholders — set them to your real rental or amortised own-gear costs.</p>
+
+  <p class="foot">Coffee Cue / Expresso. SMS rate from the June Twilio bill (outbound ≈ $0.0515/segment); per-order SMS default reflects the single-segment optimisation. Saved <span id="stamp"></span>.</p>
+</div>
+
+<script>
+  var KIT=[
+    {id:'barista',label:'Barista tablet (order queue)',rate:25,on:true},
+    {id:'kiosk',label:'Customer order screen (kiosk)',rate:35,on:true},
+    {id:'pickup',label:'Pickup display (LCD)',rate:20,on:true},
+    {id:'printer',label:'Label printer',rate:15,on:false}
+  ];
+  var box=document.getElementById('kit');
+  KIT.forEach(function(k){
+    var row=document.createElement('label');
+    row.className='kitrow';
+    row.innerHTML='<input type="checkbox" '+(k.on?'checked':'')+' data-k="'+k.id+'">'+
+      '<span>'+k.label+'</span>'+
+      '<input type="number" value="'+k.rate+'" min="0" step="1" data-rate="'+k.id+'">';
+    box.appendChild(row);
+  });
+  function money(n){return '$'+Math.round(n).toLocaleString();}
+  function money2(n){return '$'+(Math.round(n*100)/100).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});}
+  function val(id){return +document.getElementById(id).value||0;}
+  function calc(){
+    var stations=Math.max(0,val('stations')), days=Math.max(0,val('days')), cups=Math.max(0,val('cups'));
+    var smsper=Math.max(0,val('smsper')), numbers=Math.max(0,val('numbers')), numrate=Math.max(0,val('numrate'));
+    var markup=val('markup');
+    document.getElementById('markup-out').textContent=markup+'×';
+    var perStationDay=0;
+    KIT.forEach(function(k){
+      if(document.querySelector('[data-k="'+k.id+'"]').checked) perStationDay+=(+document.querySelector('[data-rate="'+k.id+'"]').value||0);
+    });
+    var hw=perStationDay*stations*days, sms=cups*smsper, num=numbers*numrate;
+    var cost=hw+sms+num, charge=cost*markup;
+    document.getElementById('m-hw').textContent=money(hw);
+    document.getElementById('m-sms').textContent=money(sms);
+    document.getElementById('m-num').textContent=money(num);
+    document.getElementById('m-cost').textContent=money(cost);
+    document.getElementById('m-charge').textContent=money(charge);
+    document.getElementById('m-percup').textContent=cups>0?money2(charge/cups):'$0';
+  }
+  document.addEventListener('input',calc);
+  document.getElementById('stamp').textContent=new Date().toLocaleDateString();
+  calc();
+</script>
+</body>
+</html>
