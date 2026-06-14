@@ -4968,6 +4968,7 @@ class CoffeeOrderSystem:
             # let a second cursor run while the first has an unread result, so
             # doing it after silently failed and fell back to current_load.
             real_load = {}
+            real_load_ok = False
             try:
                 lc = self.db.cursor()
                 lc.execute("""
@@ -4979,6 +4980,7 @@ class CoffeeOrderSystem:
                     if _row and _row[0] is not None:
                         real_load[int(_row[0])] = int(_row[1])
                 lc.close()
+                real_load_ok = True
             except Exception as _le:
                 logger.warning(f"real-load count failed, using current_load: {_le}")
 
@@ -5030,7 +5032,12 @@ class CoffeeOrderSystem:
                 
                 stations.append({
                     'id': station_id,
-                    'load': real_load.get(station_id, load),  # live order count, not the drifting column
+                    # Live order count. A station with no live orders is load 0,
+                    # NOT the drifting current_load column — otherwise a stale
+                    # high counter makes an idle station look busy and every
+                    # order avoids it. Only fall back to current_load if the
+                    # count query itself failed.
+                    'load': (real_load.get(station_id, 0) if real_load_ok else load),
                     'capacity': capabilities.get('capacity', 10),  # Default capacity if none set
                     'status': status,
                     'capabilities': capabilities,
