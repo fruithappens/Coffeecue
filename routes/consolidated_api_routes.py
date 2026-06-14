@@ -458,8 +458,15 @@ def orders():
                     'price': order_details.get('price'),
                     'price_formatted': order_details.get('price_formatted'),
                     'priceFormatted': order_details.get('price_formatted'),
+                    # Group link — set on multi-drink + FRIEND orders so the
+                    # barista UI can show "these go together" and start/collect
+                    # them as one. group_id is the lead order's number.
+                    'group_id': order_details.get('group_id'),
+                    'groupId': order_details.get('group_id'),
+                    'group_label': order_details.get('group_label'),
+                    'groupLabel': order_details.get('group_label'),
                 })
-            
+
             return jsonify({
                 'status': 'success',
                 'data': orders,
