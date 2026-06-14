@@ -619,7 +619,13 @@ class CoffeeOrderSystem:
         mt = (milk_type or '').strip().lower()
         if mt in ('', 'no milk', 'none', 'black'):
             return True
-        makeable = self._all_available_milks_lowercased()
+        # Use only ACTIVE stations' milks — same source as the menu
+        # (_get_available_milk_types). Previously this read EVERY station
+        # incl. inactive, so a milk whose only station was offline still
+        # passed validation and the order was accepted then routed to a
+        # station that couldn't make it. Now an offline station's milks
+        # drop out of validation too, matching the menu.
+        makeable = self._active_station_capability_set('milk_types')
         if not makeable:  # None or empty → no restriction
             return True
         for cap in makeable:
