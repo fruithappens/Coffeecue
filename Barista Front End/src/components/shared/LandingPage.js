@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Coffee, Settings, Monitor, LogIn, User } from 'lucide-react';
+import { Coffee, Monitor, LogIn, User, LayoutDashboard, LifeBuoy } from 'lucide-react';
 import AuthService from '../../services/AuthService';
 import LogoutButton from './LogoutButton';
 import brandingConfig from '../../config/brandingConfig';
@@ -71,61 +71,64 @@ const LandingPage = () => {
           </div>
         )}
         
+        {/* Each role is colour-coded — distinct accent, icon and button — so
+            staff can find their area at a glance (Organiser=blue, Barista=amber,
+            Support=teal, Display=purple) instead of four near-identical cards. */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Client/Event Organizer Card */}
-          <div className="bg-white rounded-lg shadow-md p-8 border border-gray-200 hover:shadow-lg transition-shadow flex flex-col items-center text-center">
-            <div className="w-16 h-16 flex items-center justify-center bg-amber-100 rounded-full mb-4">
-              <Coffee size={32} className="text-amber-800" />
+          <div className="bg-white rounded-lg shadow-md p-8 border border-gray-200 border-t-4 border-t-blue-500 hover:shadow-lg transition-shadow flex flex-col items-center text-center">
+            <div className="w-16 h-16 flex items-center justify-center bg-blue-100 rounded-full mb-4">
+              <LayoutDashboard size={32} className="text-blue-700" />
             </div>
             <h2 className="text-2xl font-bold text-gray-800 mb-2">Client/Event Organizer</h2>
             <p className="text-gray-600">Analytics Dashboard & System Configuration</p>
-            <button 
-              className="mt-6 px-6 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 transition-colors"
+            <button
+              className="mt-6 px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
               onClick={goToOrganiser}
             >
               Sign In
             </button>
           </div>
-          
+
           {/* Barista Card */}
-          <div className="bg-white rounded-lg shadow-md p-8 border border-gray-200 hover:shadow-lg transition-shadow flex flex-col items-center text-center">
+          <div className="bg-white rounded-lg shadow-md p-8 border border-gray-200 border-t-4 border-t-amber-500 hover:shadow-lg transition-shadow flex flex-col items-center text-center">
             <div className="w-16 h-16 flex items-center justify-center bg-amber-100 rounded-full mb-4">
               <Coffee size={32} className="text-amber-800" />
             </div>
             <h2 className="text-2xl font-bold text-gray-800 mb-2">Barista</h2>
             <p className="text-gray-600">Order Management & Coffee Production</p>
-            <button 
+            <button
               className="mt-6 px-6 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 transition-colors"
               onClick={goToBarista}
             >
               Sign In
             </button>
           </div>
-          
+
           {/* Support Staff Card */}
-          <div className="bg-white rounded-lg shadow-md p-8 border border-gray-200 hover:shadow-lg transition-shadow flex flex-col items-center text-center">
-            <div className="w-16 h-16 flex items-center justify-center bg-gray-100 rounded-full mb-4">
-              <Settings size={32} className="text-gray-700" />
+          <div className="bg-white rounded-lg shadow-md p-8 border border-gray-200 border-t-4 border-t-teal-500 hover:shadow-lg transition-shadow flex flex-col items-center text-center">
+            <div className="w-16 h-16 flex items-center justify-center bg-teal-100 rounded-full mb-4">
+              <LifeBuoy size={32} className="text-teal-700" />
             </div>
             <h2 className="text-2xl font-bold text-gray-800 mb-2">Support Staff</h2>
             <p className="text-gray-600">Technical Monitoring & Troubleshooting</p>
-            <button 
-              className="mt-6 px-6 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+            <button
+              className="mt-6 px-6 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700 transition-colors"
               onClick={goToSupportInterface}
             >
               Sign In
             </button>
           </div>
-          
+
           {/* Display Screen Card */}
-          <div className="bg-white rounded-lg shadow-md p-8 border border-gray-200 hover:shadow-lg transition-shadow flex flex-col items-center text-center">
-            <div className="w-16 h-16 flex items-center justify-center bg-blue-100 rounded-full mb-4">
-              <Monitor size={32} className="text-blue-600" />
+          <div className="bg-white rounded-lg shadow-md p-8 border border-gray-200 border-t-4 border-t-purple-500 hover:shadow-lg transition-shadow flex flex-col items-center text-center">
+            <div className="w-16 h-16 flex items-center justify-center bg-purple-100 rounded-full mb-4">
+              <Monitor size={32} className="text-purple-700" />
             </div>
             <h2 className="text-2xl font-bold text-gray-800 mb-2">Display Screen</h2>
             <p className="text-gray-600">Order Status Display</p>
-            <button 
-              className="mt-6 px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            <button
+              className="mt-6 px-6 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
               onClick={goToDisplayScreen}
             >
               Access
