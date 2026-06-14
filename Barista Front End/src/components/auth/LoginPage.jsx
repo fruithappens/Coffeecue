@@ -129,10 +129,16 @@ const LoginPage = ({ onLoginSuccess }) => {
     }
   };
 
+  // Event logo (base64 data-URI from the Branding panel), if set.
+  const logo = brandingSettings?.clientLogo || brandingSettings?.logo || brandingSettings?.logoUrl || '';
+
   return (
     <div className="login-container">
       <div className="login-card">
         <div className="login-header">
+          {logo
+            ? <img src={logo} alt="" className="login-logo" />
+            : <div className="login-logo-fallback" aria-hidden="true">☕</div>}
           <h2>{brandingSettings?.systemName || brandingSettings?.organization_name || 'Coffee Cue System'}</h2>
           <p>{brandingSettings?.event_name || 'Coffee Event'}</p>
         </div>
@@ -212,22 +218,42 @@ const LoginPage = ({ onLoginSuccess }) => {
           justify-content: center;
           align-items: center;
           min-height: 100vh;
-          background-color: #f5f5f5;
+          padding: 20px;
+          background: linear-gradient(135deg, #6F4E37 0%, #8B4513 45%, #C8821A 100%);
         }
-        
+
         .login-card {
           width: 100%;
           max-width: 400px;
           background: white;
-          border-radius: 8px;
-          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+          border-radius: 14px;
+          box-shadow: 0 18px 45px rgba(0, 0, 0, 0.28);
           overflow: hidden;
         }
-        
+
         .login-header {
-          background-color: #8B4513;
+          background: linear-gradient(135deg, #8B4513 0%, #A05A1E 100%);
           color: white;
-          padding: 20px;
+          padding: 28px 20px;
+          text-align: center;
+        }
+
+        .login-logo {
+          max-height: 76px;
+          max-width: 220px;
+          margin: 0 auto 12px;
+          display: block;
+          object-fit: contain;
+        }
+
+        .login-logo-fallback {
+          width: 64px;
+          height: 64px;
+          line-height: 64px;
+          margin: 0 auto 10px;
+          border-radius: 50%;
+          background: rgba(255, 255, 255, 0.18);
+          font-size: 32px;
           text-align: center;
         }
         
