@@ -59,13 +59,13 @@ const OperationsTab = () => {
         : (stationsData?.stations || stationsData?.data || []);
       setStations(stationsArr);
 
-      // Same for orders. ApiService.get('/api/orders/pending') returns
+      // Same for orders. ApiService.get('/orders/pending') returns
       // the full {success, orders: [...]} envelope; storing the
       // envelope as state caused .filter() to throw
       // ("orderQueue.filter is not a function") and the whole
       // OperationsTab to be replaced by the Error Boundary fallback.
       try {
-        const ordersResp = await ApiService.get('/api/orders/pending');
+        const ordersResp = await ApiService.get('/orders/pending');
         const ordersArr = Array.isArray(ordersResp)
           ? ordersResp
           : (ordersResp?.orders || ordersResp?.data || []);
@@ -100,13 +100,13 @@ const OperationsTab = () => {
     try {
       switch (action) {
         case 'restart':
-          await ApiService.post(`/api/stations/${stationId}/restart`);
+          await ApiService.post(`/stations/${stationId}/restart`);
           break;
         case 'toggle':
-          await ApiService.post(`/api/stations/${stationId}/toggle`);
+          await ApiService.post(`/stations/${stationId}/toggle`);
           break;
         case 'clear':
-          await ApiService.post(`/api/stations/${stationId}/clear-queue`);
+          await ApiService.post(`/stations/${stationId}/clear-queue`);
           break;
         default:
           break;
@@ -141,7 +141,7 @@ const OperationsTab = () => {
     if (!announcement.trim()) return;
     
     try {
-      await ApiService.post('/api/messages/announcement', { 
+      await ApiService.post('/messages/announcement', {
         message: announcement,
         type: 'system_announcement'
       });
@@ -157,7 +157,7 @@ const OperationsTab = () => {
     }
     
     try {
-      await ApiService.post('/api/stations/clear-all-queues');
+      await ApiService.post('/stations/clear-all-queues');
       await loadOperationalData();
     } catch (error) {
       console.error('Error clearing all queues:', error);
