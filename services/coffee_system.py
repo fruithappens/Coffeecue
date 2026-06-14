@@ -525,9 +525,21 @@ class CoffeeOrderSystem:
                 self._set_conversation_state(phone, 'awaiting_coffee_type', {'name': name})
                 return f"Welcome back, {name}! What type of coffee would you like today?"
         else:
+            # New customer. They may have crammed name + order into the
+            # greeting ("Hi I'm Sarah, large flat white") — if there's a drink,
+            # pull both out and skip ahead so they don't start over. Only act
+            # on a drink signal; a chatty bare greeting still just asks the name
+            # (avoids guessing "How" out of "hi how are you").
+            extracted_name, parsed_order = self._extract_name_and_order(message)
+            if parsed_order.get('type'):
+                if extracted_name:
+                    return self._next_order_step(phone, extracted_name, parsed_order, prefix=f"Thanks {extracted_name}! ")
+                self._set_conversation_state(phone, 'awaiting_name', {'order_details': parsed_order})
+                return "Got it! And what's your first name?"
+
             # New customer - ask for name
             self._set_conversation_state(phone, 'awaiting_name')
-            
+
             # Get welcome message from settings or use default if not available
             welcome_message = self._get_setting('sms_welcome_message', f"Welcome to {{event_name}}! ☕\nWhat's your first name?")
             # Replace event_name placeholder with actual event name
@@ -1630,21 +1642,137 @@ class CoffeeOrderSystem:
             logger.error(f"Error processing VIP code: {str(e)}")
             return "Sorry, we couldn't process your VIP code. Please try again or contact the help desk."
     
+    def _extract_name_and_order(self, message):
+        """Pull a customer NAME and any ORDER details out of a single opening
+        message like "Hi I'm Sarah, large flat white oat 1 sugar" so we don't
+        make people re-enter everything. Returns (name_or_None, order_dict).
+
+        Name guess = the first leftover word after stripping greeting/filler
+        phrases and every token that belongs to a recognised order field
+        (drink/milk/size/sugar/strength/temperature + numbers)."""
+        order = self.nlp.parse_order(message, apply_defaults=False) or {}
+        raw = (message or '').strip()
+        # Lowercase, keep apostrophes for "i'm"/"it's", drop other punctuation.
+        low = ' ' + re.sub(r"[^a-z0-9'\s]", ' ', raw.lower()) + ' '
+        filler_phrases = [
+            'good morning', 'good afternoon', 'good evening', 'good day',
+            'my name is', "name's", 'name is', 'this is', "it's", 'its',
+            'can i please get', 'can i get', 'can i have', 'could i please get',
+            'could i get', 'could i have', 'i would like', "i'd like", 'id like',
+            "i'll have", 'ill have', "i'll get", 'i will have', 'i am', "i'm", 'im',
+            'hi there', 'hello there', 'hey there', "g'day",
+        ]
+        for f in sorted(filler_phrases, key=len, reverse=True):
+            low = low.replace(' ' + f + ' ', ' ')
+        single_fillers = {
+            'hi', 'hello', 'hey', 'hiya', 'howdy', 'yo', 'morning', 'afternoon',
+            'evening', 'cheers', 'please', 'thanks', 'thank', 'you', 'for', 'a',
+            'an', 'the', 'and', 'with', 'of', 'order', 'coffee', 'get', 'have',
+            'like', 'want', 'me', 'my', 'is',
+        }
+        order_tokens = set()
+        for d in (getattr(self.nlp, 'coffee_types', {}), getattr(self.nlp, 'milks', {}),
+                  getattr(self.nlp, 'sizes', {}), getattr(self.nlp, 'sugars', {}),
+                  getattr(self.nlp, 'strengths', {}), getattr(self.nlp, 'temperatures', {})):
+            try:
+                for canon, variants in d.items():
+                    for tok in [canon] + list(variants or []):
+                        for w in str(tok).split():
+                            order_tokens.add(w)
+            except Exception:
+                pass
+        order_tokens.update({'sugar', 'sugars', 'milk', 'shot', 'shots', 'decaf',
+                             'sweet', 'sweetener', 'extra', 'cup', 'oz', 'ounce', 'ounces'})
+        name = None
+        for w in low.split():
+            if w in single_fillers or w in order_tokens or w.isdigit() or len(w) < 2:
+                continue
+            # skip tokens that are purely numeric-ish (e.g. "8oz")
+            if re.match(r"^\d", w):
+                continue
+            name = w[:1].upper() + w[1:]
+            break
+        return name, order
+
+    def _next_order_step(self, phone, name, order_details, prefix=''):
+        """Save state and ask for the next MISSING order field — or confirm if
+        the order is already complete. Lets a pre-filled order (parsed from the
+        customer's opening message) skip straight ahead instead of re-asking.
+        `prefix` is an optional lead-in like 'Thanks Sarah! '."""
+        od = dict(order_details or {})
+
+        # Drink must be valid / makeable. If they named one we can't do, drop
+        # it and ask for a good one.
+        drink = od.get('type')
+        if drink:
+            available = self._get_available_coffee_types() or []
+            if available and not self._is_valid_coffee_type(drink, available):
+                self._set_conversation_state(phone, 'awaiting_coffee_type', {'name': name})
+                return f"{prefix}Sorry, we don't have {drink} today. What would you like? ({', '.join(available)})"
+            if self.nlp.is_black_coffee(drink):
+                od['milk'] = 'no milk'
+
+        # Un-makeable milk → drop it and re-ask milk.
+        milk_note = ''
+        if od.get('milk') and not self._milk_is_makeable(od.get('milk')):
+            milk_note = f"We don't have {od.pop('milk')} at any station — "
+
+        state_data = {'name': name, 'order_details': od}
+
+        if 'type' not in od:
+            self._set_conversation_state(phone, 'awaiting_coffee_type', {'name': name, 'order_details': od})
+            return f"{prefix}What can I get you? (e.g. flat white, latte, cappuccino — or MENU for the list)"
+        if 'milk' not in od:
+            self._set_conversation_state(phone, 'awaiting_milk', state_data)
+            milks = self._get_available_milk_types() or ['full cream']
+            return f"{prefix}{milk_note}What milk for your {od['type']}? ({', '.join(milks)}, or 'no milk')"
+        if 'size' not in od:
+            sizes = self._get_available_sizes(od.get('type')) or ['medium']
+            if len(sizes) == 1:
+                od['size'] = sizes[0]
+                state_data = {'name': name, 'order_details': od}
+            else:
+                self._set_conversation_state(phone, 'awaiting_size', state_data)
+                return f"{prefix}What size {od['type']}? ({', '.join(sizes)})"
+        if 'sugar' not in od:
+            self._set_conversation_state(phone, 'awaiting_sugar', state_data)
+            return f"{prefix}How much sugar in your {od['type']}? (none, 1, 2, etc.)"
+
+        # Everything we need — confirm.
+        self._set_conversation_state(phone, 'awaiting_confirmation', state_data)
+        summary = self.nlp.format_order_summary(od)
+        return (f"{prefix}Here's your order: {summary}{self._format_price_tail(od)}\n"
+                f"Would you like to confirm? (Reply YES to confirm, NO to cancel, or EDIT to change it)")
+
     def _handle_awaiting_name(self, phone, message, state):
         """Handle name input during conversation"""
-        # Extract name from message
-        name = message.strip()
-        
-        # Basic validation
+        # Usual-order shortcut ("the usual").
+        if self.nlp.is_asking_for_usual(message):
+            nm = (message or '').strip()
+            self._set_conversation_state(phone, 'awaiting_coffee_type', {'name': nm})
+            return self._process_usual_order(phone, nm)
+
+        # The reply may carry the name AND the order ("Sarah large flat white
+        # oat 1 sugar"), or we may have stashed an order before asking the
+        # name. If we end up with a drink, skip straight to the next missing
+        # field instead of storing the whole reply as the name.
+        extracted_name, parsed_order = self._extract_name_and_order(message)
+        carried = (state.get('temp_data') or {}).get('order_details') or {}
+        order_details = {**carried, **{k: v for k, v in (parsed_order or {}).items() if v}}
+        if order_details.get('type'):
+            name = extracted_name
+            if not name:
+                self._set_conversation_state(phone, 'awaiting_name', {'order_details': order_details})
+                return "Got it! And what's your first name?"
+            if len(name) < 2 or len(name) > 50:
+                return "Please enter a valid name (2-50 characters)."
+            return self._next_order_step(phone, name, order_details, prefix=f"Thanks {name}! ")
+
+        # No order in the reply — treat the whole thing as just the name.
+        name = (message or '').strip()
         if len(name) < 2 or len(name) > 50:
             return "Please enter a valid name (2-50 characters)."
-        
-        # Check if this is a usual order
-        if self.nlp.is_asking_for_usual(message):
-            # Update state before processing
-            self._set_conversation_state(phone, 'awaiting_coffee_type', {'name': name})
-            return self._process_usual_order(phone, name)
-        
+
         # Get customer info to check if they have a usual order
         customer = self.get_customer(phone)
         
@@ -5588,9 +5716,19 @@ class CoffeeOrderSystem:
                     self._set_conversation_state(phone, 'awaiting_coffee_type', {'name': name})
                     return f"Welcome back, {name}! What type of coffee would you like today?"
         
-        # For new customers or incomplete messages
+        # New customer: we already parsed any order above. Try to pull a name
+        # from the same message so "John large latte" doesn't make them start
+        # over. Skip-ahead only when there's a drink (high signal).
+        if order_details.get('type'):
+            extracted_name, _ = self._extract_name_and_order(message)
+            if extracted_name:
+                return self._next_order_step(phone, extracted_name, order_details, prefix=f"Thanks {extracted_name}! ")
+            self._set_conversation_state(phone, 'awaiting_name', {'order_details': order_details})
+            return "Got it! And what's your first name?"
+
+        # Nothing usable yet — welcome + ask for name.
         self._set_conversation_state(phone, 'awaiting_name')
-        
+
         # Get welcome message from settings or use default if not available
         welcome_message = self._get_setting('sms_welcome_message', f"Welcome to {{event_name}}! I'll take your coffee order. What's your first name?")
         # Replace event_name placeholder with actual event name
