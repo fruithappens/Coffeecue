@@ -556,7 +556,7 @@ class CoffeeOrderSystem:
             self._set_conversation_state(phone, 'awaiting_name')
 
             # Get welcome message from settings or use default if not available
-            welcome_message = self._get_setting('sms_welcome_message', f"Welcome to {{event_name}}! ☕\nWhat's your first name?")
+            welcome_message = self._get_setting('sms_welcome_message', "Welcome to {event_name}! What's your first name?")
             # Replace event_name placeholder with actual event name
             return welcome_message.replace('{event_name}', self.event_name) + self._sms_first_message_hint()
     
@@ -1753,9 +1753,7 @@ class CoffeeOrderSystem:
         # placed (incl. the defaulted "no sugar") and fix it.
         return (
             f"{prefix}{order_response}\n"
-            f"That's: {summary}.\n"
-            f"Wrong? Reply CANCEL while it's still waiting. "
-            f"Add a friend's coffee anytime by texting FRIEND."
+            f"That's: {summary}. Wrong? Reply CANCEL. Add a coffee with FRIEND."
         )
 
     def _next_order_step(self, phone, name, order_details, prefix=''):
@@ -1931,11 +1929,10 @@ class CoffeeOrderSystem:
         lines = [f"#{num}: {self.nlp.format_order_summary(od)}" for num, od in placed]
         total_line = self._format_group_total([od for _, od in placed])
         return (
-            f"✅ Got it, {name}! {len(placed)} coffees ordered together:\n"
+            f"Got it {name}! {len(placed)} coffees ordered together:\n"
             + "\n".join(lines)
             + f"{total_line}\n"
-            "Made at the same station, ready together. "
-            "Wrong? Reply CANCEL while they're still waiting."
+            "Same station, ready together. Wrong? Reply CANCEL."
         )
 
     def _handle_awaiting_name(self, phone, message, state):
@@ -2586,8 +2583,8 @@ class CoffeeOrderSystem:
             # Keep the message warm; this is usually a sponsor/staff
             # comp and a brusque "$0.00 owed" would feel off.
             if price_value == 0.0:
-                return "\nYour drink is complimentary today — enjoy!"
-            return f"\nTotal: {formatted} — pay at the counter when you collect."
+                return "\nYour drink is complimentary today. Enjoy!"
+            return f"\nTotal: {formatted}, pay at the counter when you collect."
         except Exception as e:
             logger.warning(f"_format_price_tail failed (non-fatal): {e}")
             return ''
@@ -2616,7 +2613,7 @@ class CoffeeOrderSystem:
                 return ''
             symbol = pricing.get('symbol', '$')
             return (f"\nGroup total: {symbol}{total:.2f} for {n} "
-                    f"coffee{'s' if n != 1 else ''} — pay at the counter on collection.")
+                    f"coffee{'s' if n != 1 else ''}, pay at the counter on collection.")
         except Exception as e:
             logger.warning(f"_format_group_total failed (non-fatal): {e}")
             return ''
@@ -3548,8 +3545,8 @@ class CoffeeOrderSystem:
             self._set_conversation_state(phone, 'completed')
             
             return (
-                f"{order_response}\n\n"
-                f"💡 Tip: You can add coffees for friends anytime by texting FRIEND"
+                f"{order_response}\n"
+                f"Tip: add a friend's coffee anytime by texting FRIEND."
             )
         
         elif message_upper == 'NO' or message_upper == 'N' or message_upper == 'CANCEL':
@@ -4771,27 +4768,30 @@ class CoffeeOrderSystem:
             # Build the queue-position string once for reuse.
             if queue_position is not None and queue_position > 0:
                 position_line = (
-                    f"You're #1 in line — your barista will start it shortly."
+                    # Hyphen, not an em-dash: '—' isn't in GSM-7 and would push
+                    # the whole SMS to UCS-2 (70-char segments).
+                    f"You're #1 in line, starting shortly."
                     if queue_position == 1
                     else f"You're #{queue_position} in line (~{wait_time} min wait)."
                 )
             else:
                 position_line = f"Estimated wait time: {wait_time} minutes."
 
-            # Build the confirmation message
+            # Build the confirmation message. No emoji — an emoji forces the
+            # SMS into UCS-2 (70-char segments instead of 160), doubling cost.
             if milk_is_unique and unique_station_info:
                 # Show station immediately if it's the only one with this milk
                 confirmation_message = (
-                    f"✅ Order #{order_number} confirmed!\n"
-                    f"{processed_details.get('milk').title()} is available at Station {station_id} only.\n"
+                    f"Order #{order_number} confirmed. "
+                    f"{processed_details.get('milk').title()} is at Station {station_id} only. "
                     f"{position_line}"
                 )
             else:
-                # Standard message - don't show station immediately
+                # Standard message - don't show station immediately. Keep it
+                # to one segment; the recap (auto-place) and the ready SMS that
+                # follows both make clear they'll be texted.
                 confirmation_message = (
-                    f"✅ Order #{order_number} confirmed!\n"
-                    f"{position_line}\n"
-                    f"You'll get an SMS when ready with pickup location."
+                    f"Order #{order_number} confirmed. {position_line}"
                 )
 
             # If the customer asked for a specific station but we had to
