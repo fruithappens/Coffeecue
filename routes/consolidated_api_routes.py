@@ -3741,6 +3741,39 @@ def create_kiosk_order():
         return jsonify({'success': False, 'message': 'Could not place your order. Please see a barista.'}), 500
 
 
+@bp.route('/sms/simulate', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def simulate_sms():
+    """ADMIN TEST HARNESS — run an inbound message through the EXACT same
+    handle_sms() pipeline a real Twilio SMS uses, but without Twilio (no
+    credits, no webhook signature). Returns the bot's reply so QA can verify
+    routing / load-balancing / VIP / group / friend behaviour. Order creation
+    happens normally; any outbound notification still respects TESTING_MODE
+    (and creation itself sends none)."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        messaging_service = current_app.config.get('messaging_service')
+        if not coffee_system:
+            return jsonify({'success': False, 'message': 'System unavailable'}), 503
+        data = request.get_json() or {}
+        frm = (data.get('from') or data.get('phone') or '').strip()
+        body = (data.get('body') or data.get('message') or '').strip()
+        if not frm or not body:
+            return jsonify({'success': False, 'message': "Provide 'from' and 'body'."}), 400
+        reply = coffee_system.handle_sms(frm, body, messaging_service)
+        return jsonify({
+            'success': True,
+            'from': frm,
+            'body': body,
+            'reply': reply,
+            'testing_mode': bool(getattr(messaging_service, 'testing_mode', False)) if messaging_service else None,
+        })
+    except Exception as e:
+        logger.error(f"simulate_sms error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 @bp.route('/display/orders', methods=['GET'])
 def get_display_orders():
     """Get orders for the display screen"""
