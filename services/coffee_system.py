@@ -1694,6 +1694,34 @@ class CoffeeOrderSystem:
             break
         return name, order
 
+    def _place_order(self, phone, name, order_details, prefix=''):
+        """Auto-place a completed order — no YES step. Customers kept thinking
+        the order was done after telling us what they wanted; the YES was a
+        stumble. Defaults sugar to 'no sugar' if never mentioned, creates the
+        order, and tells them it's placed + how to fix it (CANCEL / FRIEND)."""
+        od = dict(order_details or {})
+        od.setdefault('sugar', 'no sugar')
+        summary = self.nlp.format_order_summary(od)
+        order_response = self._confirm_order(phone, od, name)
+        if not isinstance(order_response, str):
+            order_response = "Order placed!"
+        # If the order couldn't be created (no stations available, etc.), pass
+        # the error through without the "placed / reply CANCEL" framing and
+        # leave the conversation where it is so they can retry.
+        low = order_response.lower()
+        if low.startswith('sorry') or "couldn't" in low or 'no coffee station' in low or 'unavailable' in low:
+            return f"{prefix}{order_response}"
+        self._set_conversation_state(phone, 'completed')
+        # _confirm_order's message gives the order # + queue position but NOT
+        # the drink — include the recap so the customer can check what we
+        # placed (incl. the defaulted "no sugar") and fix it.
+        return (
+            f"{prefix}{order_response}\n"
+            f"That's: {summary}.\n"
+            f"Wrong? Reply CANCEL while it's still waiting. "
+            f"Add a friend's coffee anytime by texting FRIEND."
+        )
+
     def _next_order_step(self, phone, name, order_details, prefix=''):
         """Save state and ask for the next MISSING order field — or confirm if
         the order is already complete. Lets a pre-filled order (parsed from the
@@ -1734,15 +1762,9 @@ class CoffeeOrderSystem:
             else:
                 self._set_conversation_state(phone, 'awaiting_size', state_data)
                 return f"{prefix}What size {od['type']}? ({', '.join(sizes)})"
-        if 'sugar' not in od:
-            self._set_conversation_state(phone, 'awaiting_sugar', state_data)
-            return f"{prefix}How much sugar in your {od['type']}? (none, 1, 2, etc.)"
-
-        # Everything we need — confirm.
-        self._set_conversation_state(phone, 'awaiting_confirmation', state_data)
-        summary = self.nlp.format_order_summary(od)
-        return (f"{prefix}Here's your order: {summary}{self._format_price_tail(od)}\n"
-                f"Would you like to confirm? (Reply YES to confirm, NO to cancel, or EDIT to change it)")
+        # Sugar: don't prompt — most customers don't take it. Default to no
+        # sugar (shown in the recap so they can fix it), then auto-place.
+        return self._place_order(phone, name, od, prefix=prefix)
 
     def _handle_awaiting_name(self, phone, message, state):
         """Handle name input during conversation"""
@@ -3053,9 +3075,10 @@ class CoffeeOrderSystem:
 
         if 'milk' not in order_details:
             self._set_conversation_state(phone, 'awaiting_milk', state_data)
+            milks = self._get_available_milk_types() or ['full cream', 'skim']
             return (
                 f"Got it — {order_details['type']} for {name}. "
-                f"What milk would you like? (full cream, skim, soy, almond, oat, lactose free, or 'no milk')"
+                f"What milk would you like? ({', '.join(milks)}, or 'no milk')"
             )
 
         # Phrase the read-back differently for black coffees so we don't say
@@ -3084,24 +3107,9 @@ class CoffeeOrderSystem:
                     f"What size? ({', '.join(available_sizes)})"
                 )
 
-        if 'sugar' not in order_details:
-            self._set_conversation_state(phone, 'awaiting_sugar', state_data)
-            return (
-                f"Got it — {order_details.get('size', '')} {order_details['type']}{milk_phrase}"
-                f"{size_note}. "
-                f"How much sugar? (none, 1, 2, 3, etc.)"
-            )
-
-        # All fields present in one message — go straight to confirmation,
-        # but read back exactly what we understood so the customer can
-        # correct mistakes before the order is placed.
-        self._set_conversation_state(phone, 'awaiting_confirmation', state_data)
-        order_summary = self.nlp.format_order_summary(order_details)
-        return (
-            f"Just to confirm — {order_summary}."
-            f"{self._format_price_tail(order_details)}\n"
-            f"Reply YES to send to the barista, EDIT to change something, or NO to cancel."
-        )
+        # Sugar isn't prompted — default to no sugar (shown in the recap so
+        # they can fix it) and auto-place the order (no YES step).
+        return self._place_order(phone, name, order_details)
     
     def _handle_awaiting_milk(self, phone, message, state):
         """Handle milk type input"""
@@ -3158,23 +3166,13 @@ class CoffeeOrderSystem:
                         f"({', '.join(available_sizes)})"
                     )
 
-            if 'sugar' not in order_details:
-                self._set_conversation_state(phone, 'awaiting_sugar', state_data)
-                return (
-                    f"{size_note}How much sugar in your {order_details.get('type', 'coffee')}? (none, 1, 2, etc.)"
-                )
-
-            # Everything known — read back and confirm.
-            self._set_conversation_state(phone, 'awaiting_confirmation', state_data)
-            order_summary = self.nlp.format_order_summary(order_details)
-            return (
-                f"Just to confirm — {order_summary}."
-                f"{self._format_price_tail(order_details)}\n"
-                f"Reply YES to send to the barista, EDIT to change something, or NO to cancel."
-            )
+            # Sugar isn't prompted — default no sugar (shown in the recap) and
+            # auto-place. `size_note` (one-size events) is carried as a prefix.
+            return self._place_order(phone, name, order_details, prefix=size_note)
         else:
-            # If no milk type was found, prompt again
-            return "I didn't recognize that milk type. Please choose from: full cream, skim, soy, almond, oat, lactose free, or no milk."
+            # If no milk type was found, prompt again with the makeable milks.
+            milks = self._get_available_milk_types() or ['full cream', 'skim']
+            return f"I didn't recognise that milk. Please choose from: {', '.join(milks)}, or 'no milk'."
     
     def _handle_awaiting_size(self, phone, message, state):
         """Handle size input"""
@@ -3200,12 +3198,11 @@ class CoffeeOrderSystem:
                 'name': name,
                 'order_details': order_details
             }
-            self._set_conversation_state(phone, 'awaiting_sugar', state_data)
-
             note = ''
             if requested and requested.lower() != only_size.lower():
                 note = f"We only have {only_size} cups today, so I've made it {only_size}. "
-            return f"{note}How much sugar would you like in your {order_details.get('type', 'coffee')}? (none, 1, 2, etc.)"
+            # Sugar isn't prompted — default no sugar, auto-place.
+            return self._place_order(phone, name, order_details, prefix=note)
         
         # Use NLP to extract size
         new_details = self.nlp.parse_order(message)
@@ -3232,14 +3229,9 @@ class CoffeeOrderSystem:
                 # Use the case from the available_sizes list
                 order_details['size'] = available_sizes[available_sizes_lower.index(size_lower)]
                 
-                # Update state and move to sugar
-                state_data = {
-                    'name': name,
-                    'order_details': order_details
-                }
-                self._set_conversation_state(phone, 'awaiting_sugar', state_data)
-                
-                return f"How much sugar would you like in your {order_details.get('type', 'coffee')}? (none, 1, 2, etc.)"
+                # Sugar isn't prompted — default no sugar (shown in the recap),
+                # auto-place the order.
+                return self._place_order(phone, name, order_details)
             else:
                 # If size is not available, show available options
                 return f"Sorry, we don't offer size '{size}' for {order_details.get('type', 'coffee')}. Available sizes are: {', '.join(available_sizes)}. Please select one of these."
@@ -3319,24 +3311,9 @@ class CoffeeOrderSystem:
                 "Reply a number (0-9), 'half', or 'quarter'."
             )
 
-        # Update order details
+        # They gave an explicit sugar — record it and auto-place (no YES step).
         order_details['sugar'] = sugar
-        
-        # Update state and move to confirmation
-        state_data = {
-            'name': name,
-            'order_details': order_details
-        }
-        self._set_conversation_state(phone, 'awaiting_confirmation', state_data)
-        
-        # Format order summary
-        order_summary = self.nlp.format_order_summary(order_details)
-
-        return (
-            f"Great! Here's your order: {order_summary}"
-            f"{self._format_price_tail(order_details)}\n"
-            f"Would you like to confirm this order? (Reply YES to confirm, NO to cancel, or EDIT to change it)"
-        )
+        return self._place_order(phone, name, order_details)
     
     def _handle_awaiting_confirmation(self, phone, message, state):
         """Handle order confirmation"""
@@ -5672,22 +5649,10 @@ class CoffeeOrderSystem:
         customer = self.get_customer(phone)
         name = customer.get('name', '') if customer else ''
         
-        # If we have a complete order and know the customer name
-        if len(order_details) >= 3 and 'type' in order_details and name:
-            # Add name to order details
-            state_data = {
-                'name': name,
-                'order_details': order_details
-            }
-            self._set_conversation_state(phone, 'awaiting_confirmation', state_data)
-            
-            # Format order summary
-            order_summary = self.nlp.format_order_summary(order_details)
-            
-            return (
-                f"Welcome back, {name}! Here's your order: {order_summary}\n"
-                f"Would you like to confirm this order? (Reply YES to confirm, NO to cancel, or EDIT to change it)"
-            )
+        # Returning customer who texted a drink — fill any gaps and auto-place
+        # (no YES step). _next_order_step asks only for anything still missing.
+        if 'type' in order_details and name:
+            return self._next_order_step(phone, name, order_details, prefix=f"Welcome back, {name}! ")
         
         # If we have customer name but not a complete order
         if name:
