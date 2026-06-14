@@ -12,6 +12,7 @@ import DeploymentService from './services/DeploymentService';
 import SoundNotificationService from './services/SoundNotificationService';
 import { AppProvider } from './context/AppContext';
 import AuthGuard from './components/auth/AuthGuard';
+import AdminViewSwitcher from './components/shared/AdminViewSwitcher';
 import UnauthorizedPage from './components/auth/UnauthorizedPage';
 import OfflineDataHelper from './utils/offlineDataHelper';
 import ApiNotificationBanner from './components/shared/ApiNotificationBanner';
@@ -705,6 +706,8 @@ function App() {
           {/* Fallback - catch all unmatched routes */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        {/* Admin-only floating switcher between Barista/Organiser/Support/Display. */}
+        <AdminViewSwitcher />
       </Router>
     </AppProvider>
     </ErrorBoundary>

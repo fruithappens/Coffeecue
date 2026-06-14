@@ -25,7 +25,7 @@
 //   - Tap-anywhere to toggle fullscreen on iPad
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Coffee, Check, Clock, ArrowLeft, RefreshCw, MapPin,
-         Maximize2, MessageCircle } from 'lucide-react';
+         Maximize2, MessageCircle, RotateCw } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import OrderDataService from '../../services/OrderDataService';
 import StationsService from '../../services/StationsService';
@@ -613,6 +613,14 @@ const DisplayScreen = () => {
               ))}
             </select>
           )}
+          <button
+            onClick={(e) => { e.stopPropagation(); setOrientation(orientation === 'portrait' ? 'landscape' : 'portrait'); }}
+            className="p-2 rounded-full hover:opacity-80"
+            style={{ backgroundColor: headerChip, color: onHeader }}
+            title={orientation === 'portrait' ? 'Switch to landscape' : 'Switch to portrait (vertical)'}
+          >
+            <RotateCw size={20} />
+          </button>
           <button
             onClick={(e) => { e.stopPropagation(); handleRefresh(); }}
             className="p-2 rounded-full hover:opacity-80"
