@@ -1667,12 +1667,15 @@ class CoffeeOrderSystem:
                 # into a brand-new order flow.
                 self._set_conversation_state(phone, 'completed')
                 return (f"VIP status activated{name_greeting}! Your order "
-                        f"#{bumped_number} has been moved to priority — we'll make "
-                        f"it next. Text us anytime to order again.")
+                        f"#{bumped_number} is now priority - we'll make it next. "
+                        f"Text us anytime to order again.")
 
-            # No pending order — VIP applies to their next order.
-            self._set_conversation_state(phone, 'awaiting_coffee_type', {'vip': True})
-            return f"VIP status activated{name_greeting}! Your orders will now be prioritized. What would you like to order?"
+            # No pending order — VIP applies to their next order. Route through
+            # the NAME step (not coffee-type) so a reply like "Vic flat white"
+            # still captures the name; the VIP flag rides along via the saved
+            # is_vip we just set (read back in _confirm_order).
+            self._set_conversation_state(phone, 'awaiting_name', {'vip': True})
+            return f"VIP status activated{name_greeting}! Your orders will be prioritised. What's your name and order?"
 
         except Exception as e:
             logger.error(f"Error processing VIP code: {str(e)}")
@@ -1867,6 +1870,16 @@ class CoffeeOrderSystem:
             return "Sounds like a few coffees! First — what's your name?"
         if len(name) > 50:
             name = name[:50]
+
+        # Re-parse from a name-stripped message so a leading "Name 1 oat latte"
+        # doesn't read the quantity "1" as 1 sugar. (When a comma follows the
+        # name the splitter already drops it; this covers the no-comma case.)
+        stripped = message.strip()
+        if name and stripped.lower().startswith(name.lower()):
+            stripped = stripped[len(name):].lstrip(' ,')
+            reparsed = self._split_multi_drink(stripped)
+            if reparsed:
+                parsed = reparsed
 
         # Resolve each drink. Milk is the one field we never guess (allergen
         # safety + matches the single-order flow, which always asks milk).
@@ -3770,9 +3783,9 @@ class CoffeeOrderSystem:
             self._set_conversation_state(phone, 'awaiting_friend_size', shared_state)
             return f"Got it — {order_details['type']}{milk_phrase} for {friend_name}. What size? (small, medium, large)"
 
-        if 'sugar' not in order_details:
-            self._set_conversation_state(phone, 'awaiting_friend_sugar', shared_state)
-            return f"Got it — {order_details['size']} {order_details['type']}{milk_phrase} for {friend_name}. How much sugar? (none, 1, 2, 3)"
+        # Skip the sugar prompt to match the main order flow — default to no
+        # sugar (shown in the summary; the customer can still EDIT).
+        order_details.setdefault('sugar', 'no sugar')
 
         # Order is complete — confirm
         updated_group_orders = group_orders.copy()
@@ -3849,18 +3862,24 @@ class CoffeeOrderSystem:
         # If size was provided, update order details
         if size:
             friend_order['size'] = size
-            
-            # Update state and move to sugar
-            self._set_conversation_state(phone, 'awaiting_friend_sugar', {
+            # Skip the sugar prompt (match the main flow): default no sugar and
+            # go straight to confirmation, where the customer can EDIT.
+            friend_order.setdefault('sugar', 'no sugar')
+            updated_group_orders = group_orders.copy()
+            updated_group_orders.append(friend_order)
+            self._set_conversation_state(phone, 'awaiting_friend_confirmation', {
                 'primary_name': primary_name,
                 'primary_order': primary_order,
                 'friend_name': friend_name,
                 'friend_order': friend_order,
-                'group_orders': group_orders,
+                'group_orders': updated_group_orders,
                 'station_id': station_id
             })
-            
-            return f"How much sugar would {friend_name} like in their {friend_order.get('type', 'coffee')}? (none, 1, 2, etc.)"
+            order_summary = self.nlp.format_order_summary(friend_order)
+            return (
+                f"For {friend_name}: {order_summary}.\n"
+                f"Reply YES to confirm, EDIT to change, or NO to cancel."
+            )
         else:
             # If no size was found, prompt again
             return f"I didn't recognize that size. Please choose small, medium, or large for {friend_name}'s coffee."
@@ -4248,7 +4267,7 @@ class CoffeeOrderSystem:
                     logger.info(f"Using specified station {station_id} from order details")
                 except (ValueError, TypeError):
                     requested_station_id = specified_station
-                    station_id, is_delayed = self._assign_station(is_vip, milk_type)
+                    station_id, is_delayed = self._assign_station(is_vip, milk_type, order_details.get('type'), order_details.get('size'))
                     if station_id is None:
                         logger.error("No stations available to assign order")
                         return "Sorry, no coffee stations are currently available. Please contact the organizer to set up stations."
@@ -4256,7 +4275,7 @@ class CoffeeOrderSystem:
                     logger.info(f"Invalid station {requested_station_id} specified, reassigned to station {station_id}")
             else:
                 # Use advanced station assignment if no station specified
-                station_id, is_delayed = self._assign_station(is_vip, milk_type)
+                station_id, is_delayed = self._assign_station(is_vip, milk_type, order_details.get('type'), order_details.get('size'))
                 if station_id is None:
                     logger.error("No stations available to assign order")
                     return "Sorry, no coffee stations are currently available. Please contact the organizer to set up stations."
@@ -4766,7 +4785,11 @@ class CoffeeOrderSystem:
                         pass
             
             # Build the queue-position string once for reuse.
-            if queue_position is not None and queue_position > 0:
+            if order_details.get('vip'):
+                # VIP orders jump the queue — don't quote a misleading "#N in
+                # line" position. (Hyphen, not em-dash, to stay GSM-7.)
+                position_line = "VIP order - we'll prioritise it and text you when it's ready."
+            elif queue_position is not None and queue_position > 0:
                 position_line = (
                     # Hyphen, not an em-dash: '—' isn't in GSM-7 and would push
                     # the whole SMS to UCS-2 (70-char segments).
@@ -4841,7 +4864,7 @@ class CoffeeOrderSystem:
                 except Exception as close_err:
                     logger.error(f"Error closing connection: {str(close_err)}")
     
-    def _assign_station(self, is_vip=False, milk_type=None):
+    def _assign_station(self, is_vip=False, milk_type=None, coffee_type=None, size=None):
         """
         Assign order to a station based on current load, station capabilities, and scheduling
         
@@ -4945,6 +4968,25 @@ class CoffeeOrderSystem:
                 ORDER BY COALESCE(current_load, 0)
             """)
 
+            # Real-time load = actual not-yet-collected orders per station.
+            # The station_stats.current_load column drifts (it isn't always
+            # incremented/decremented in lockstep), which broke load-balancing:
+            # identical orders piled onto one station instead of spreading.
+            # Counting live orders is authoritative.
+            real_load = {}
+            try:
+                lc = self.db.cursor()
+                lc.execute("""
+                    SELECT station_id, COUNT(*) FROM orders
+                    WHERE status IN ('pending', 'in-progress', 'in_progress')
+                    GROUP BY station_id
+                """)
+                for _row in lc.fetchall():
+                    if _row and _row[0] is not None:
+                        real_load[int(_row[0])] = int(_row[1])
+            except Exception as _le:
+                logger.warning(f"real-load count failed, using current_load: {_le}")
+
             stations = []
             stations_with_milk = {}  # Track which stations have specific milk types
 
@@ -4983,12 +5025,13 @@ class CoffeeOrderSystem:
                 
                 stations.append({
                     'id': station_id,
-                    'load': load,
+                    'load': real_load.get(station_id, load),  # live order count, not the drifting column
                     'capacity': capabilities.get('capacity', 10),  # Default capacity if none set
                     'status': status,
                     'capabilities': capabilities,
                     'milk_types': milk_types,
                     'coffee_types': capabilities.get('coffee_types', []),
+                    'sizes': capabilities.get('sizes', []),
                     'alt_milk_available': any(m in milk_types for m in ['soy', 'almond', 'oat', 'lactose free', 'coconut']),
                     'high_volume': capabilities.get('high_volume', False),
                     'vip_service': capabilities.get('vip_service', False)
@@ -5000,34 +5043,75 @@ class CoffeeOrderSystem:
                 logger.error("Please create stations through the Organizer interface before accepting orders.")
                 # Return None to indicate no station available
                 return None, False
-            
-            # First handle VIP logic
+
+            # ---- Full-capability filter -------------------------------------
+            # Routing must consider the WHOLE order — drink type AND size, not
+            # just milk. Before this, _assign_station was only passed milk +
+            # load, so a mocha (made only at station 2) could be sent to a
+            # station that can't make it and sit un-startable. Build a predicate
+            # that checks milk + (espresso) coffee type + size against a
+            # station's capabilities. Non-espresso drinks (tea/hot choc — not in
+            # any station's coffee_types list) aren't gated on coffee type.
+            req_milk = (milk_type or '').lower().replace(' milk', '').strip()
+            req_coffee = (coffee_type or '').lower().strip()
+            if req_coffee.startswith('decaf '):
+                req_coffee = req_coffee[6:].strip()
+            req_size = (size or '').lower().strip()
+            all_coffee_types = set()
+            for s in stations:
+                for c in (s.get('coffee_types') or []):
+                    all_coffee_types.add(str(c).lower())
+
+            def order_capable(s):
+                # Milk
+                if req_milk and req_milk not in ('no milk', 'none', ''):
+                    mt = [str(m).lower().replace(' milk', '') for m in (s.get('milk_types') or [])]
+                    if mt and req_milk not in mt:
+                        return False
+                # Coffee type — only gate drinks some station explicitly lists
+                # (espresso menu); tea/hot-choc fall through as make-anywhere.
+                if req_coffee and req_coffee in all_coffee_types:
+                    ct = [str(c).lower() for c in (s.get('coffee_types') or [])]
+                    if req_coffee not in ct:
+                        return False
+                # Size
+                if req_size and (s.get('sizes') or []):
+                    sz = [str(z).lower() for z in s.get('sizes')]
+                    if req_size not in sz:
+                        return False
+                return True
+
+            # Candidate set = active stations that can make the WHOLE order.
+            # Never strand: if none qualify, fall back to all active stations
+            # (the barista capability gate is the final backstop).
+            _active_all = [s for s in stations if s['status'] == 'active']
+            _capable = [s for s in _active_all if order_capable(s)]
+            capable_active = _capable if _capable else _active_all
+
+            # First handle VIP logic — among stations that can actually make
+            # this order, prefer a VIP-service station, else the least busy.
             if is_vip:
-                # For VIPs, prefer stations with VIP service capability
-                vip_stations = [s for s in stations if s['vip_service'] and s['status'] == 'active']
-                
+                vip_stations = [s for s in capable_active if s['vip_service']]
                 if vip_stations:
-                    # Use the least busy VIP-capable station
                     vip_stations.sort(key=lambda s: s['load'])
                     logger.info(f"Assigned VIP order to dedicated VIP station {vip_stations[0]['id']}")
                     return vip_stations[0]['id'], False
-                
-                # If no VIP stations, use the least busy regular station
-                active_stations = [s for s in stations if s['status'] == 'active']
-                if active_stations:
-                    active_stations.sort(key=lambda s: s['load'])
-                    logger.info(f"Assigned VIP order to regular station {active_stations[0]['id']}")
-                    return active_stations[0]['id'], False
+                if capable_active:
+                    least = sorted(capable_active, key=lambda s: s['load'])[0]
+                    logger.info(f"Assigned VIP order to station {least['id']} (least busy capable)")
+                    return least['id'], False
             
             # Check if the requested milk type requires specific station
             milk_type_normalized = milk_type.lower().replace(' milk', '') if milk_type else None
             stations_for_milk = stations_with_milk.get(milk_type_normalized, []) if milk_type_normalized else []
             
-            # If only one station has this milk type, we must use that station
+            # If only one station has this milk type, use it — but only if it
+            # can also make the drink + size. Otherwise fall through (the
+            # capable_active selection below handles it / falls back safely).
             if milk_type_normalized and len(stations_for_milk) == 1:
                 station_id = stations_for_milk[0]
                 station = next((s for s in stations if s['id'] == station_id), None)
-                if station:
+                if station and order_capable(station):
                     wait_time = self._get_station_wait_time(station_id)
                     logger.info(f"Only station {station_id} has {milk_type}, assigning order there (wait: {wait_time} min)")
                     return station_id, False
@@ -5108,9 +5192,12 @@ class CoffeeOrderSystem:
                         logger.info(f"Stations busy, delaying order until next break at {next_break['start']} using station {station_choice}")
                         return station_choice, True
             
-            # Standard station assignment logic for normal operations
-            active_stations = [s for s in stations if s['status'] == 'active']
-            
+            # Standard station assignment logic for normal operations.
+            # Use the capability-filtered candidate set so we never route a
+            # drink/size to a station that can't make it; load below is the
+            # live order count, so identical orders spread evenly.
+            active_stations = capable_active
+
             if not active_stations:
                 logger.warning("No active stations found, defaulting to station 1")
                 return 1, False
