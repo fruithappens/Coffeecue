@@ -2737,7 +2737,7 @@ class CoffeeOrderSystem:
                 espresso = filtered
 
         if self._is_unlimited_stock_mode():
-            result = espresso + extras
+            espresso_part = espresso
         else:
             try:
                 cursor = self.db.cursor()
@@ -2747,18 +2747,19 @@ class CoffeeOrderSystem:
                     AND (amount IS NULL OR amount > COALESCE(minimum_threshold, 0))
                 """)
                 coffee_available = cursor.fetchone()[0] > 0
-
-                base = espresso if coffee_available else []
-                result = base + extras
+                espresso_part = espresso if coffee_available else []
             except Exception as e:
                 logger.error(f"Error checking coffee availability: {str(e)}")
-                result = espresso + extras
+                espresso_part = espresso
 
-        # Only offer drinks at least one ACTIVE station can make — a drink no
-        # station is set up for (e.g. hot chocolate when stations only do
-        # espresso) shouldn't be offered, or it gets stuck pending. Safe
-        # fallback inside the helper keeps the menu non-empty on a misconfig.
-        return self._filter_to_station_makeable(result, 'coffee_types')
+        # Espresso drinks are gated by station capability (they need the
+        # machine + that station's configured espresso menu). The non-espresso
+        # "drinks" rows (tea, hot chocolate, chai, matcha) are enabled
+        # event-wide in inventory and aren't espresso-gated — so they're ALWAYS
+        # offered. Running them through the espresso coffee_types capability was
+        # silently hiding every tea/hot-choc the operator turned on (the menu
+        # only ever showed espresso drinks).
+        return self._filter_to_station_makeable(espresso_part, 'coffee_types') + extras
 
     def _get_available_extra_drinks(self):
         """Return the lowercased names of stocked drinks-category
