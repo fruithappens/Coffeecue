@@ -408,6 +408,13 @@ export default function useOrders(stationId = null) {
         console.error('Error loading cached orders:', e);
       }
       
+      // Drop the 60s orders cache before fetching so a fresh order (or a
+      // status change pushed via WebSocket) shows up immediately rather than
+      // being hidden behind a stale cached list for up to a minute. The three
+      // calls below share one network round-trip: the first repopulates the
+      // cache, the other two read it back within the same tick.
+      OrderDataService.invalidateCache('orders');
+
       // Fetch orders
       const [pending, inProgress, completed] = await Promise.all([
         OrderDataService.getPendingOrders(),
@@ -946,22 +953,19 @@ export default function useOrders(stationId = null) {
       }
       
       interval = setInterval(() => {
-        // TEMPORARY FIX: Disable auto-refresh to prevent UI flickering
-        console.log('Auto-refresh temporarily disabled to fix UI issues');
-        
-        /* DISABLED AUTO-REFRESH CODE:
-        // Check if we've refreshed recently from another source
+        // Silent background refresh. This was previously stubbed out "to
+        // prevent UI flickering" — but with it disabled the queue never
+        // updated on its own (Steve: "waited 5 min, nothing came in"), AND
+        // nothing ever triggered the proactive token refresh, so the access
+        // token silently expired and the next manual page-refresh bounced the
+        // barista to the login screen. The poll both keeps the queue current
+        // and keeps the session alive. showLoading=false → no spinner, so no
+        // flicker. Debounced so it doesn't fight a recent manual refresh.
         const lastRefreshTime = parseInt(sessionStorage.getItem('last_manual_refresh_time') || '0');
         const timeSinceLastRefresh = Date.now() - lastRefreshTime;
-        
-        // Only do automatic refresh if it's been at least 15 seconds since last manual refresh
         if (timeSinceLastRefresh > 15000) {
-          console.log('Auto-refreshing order data...');
           fetchOrdersData(false);
-        } else {
-          console.log(`Skipping auto-refresh (last manual refresh was ${timeSinceLastRefresh}ms ago)`);
         }
-        */
       }, safeInterval * 1000);
     }
     
