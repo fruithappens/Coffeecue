@@ -2223,8 +2223,8 @@ def _notify_customer_order_started(phone, order_number, order_details):
         description = ' '.join(parts)
 
         body = (
-            f"👋 Your barista just started your {description} "
-            f"(Order #{order_number}). We'll text again when it's ready."
+            f"Your {description} (order #{order_number}) is being made now "
+            f"- we'll text you when it's ready."
         )
         messaging_service.send_message(phone, body)
     except Exception as exc:
@@ -2447,13 +2447,43 @@ def _notify_customer_order_ready(phone, order_number, order_details, station_id)
         description = ' '.join(parts)
 
         station_label = f"Station {station_id}" if station_id else "the counter"
+        # No emoji: an emoji forces the whole SMS into UCS-2 encoding, which
+        # cuts the per-segment limit from 160 to 70 chars — i.e. doubles the
+        # cost. Plain GSM-7 text keeps this a single segment. The optional
+        # sponsor credit is appended last (still usually fits one segment).
+        sponsor = ''
+        try:
+            cs = current_app.config.get('coffee_system')
+            if cs and getattr(cs, 'db', None):
+                sponsor = _sms_sponsor_tag(cs.db)
+        except Exception:
+            sponsor = ''
         body = (
-            f"☕ Hi {name}! Your {description} (Order #{order_number}) "
-            f"is ready for pickup at {station_label}. Enjoy!"
+            f"Hi {name}, your {description} (order #{order_number}) "
+            f"is ready at {station_label}. Enjoy!{sponsor}"
         )
         messaging_service.send_message(phone, body)
     except Exception as exc:
         logger.error(f"Error sending ready-notification SMS: {exc}")
+
+
+def _sms_sponsor_tag(db):
+    """Optional sponsor credit appended to the customer's 'ready' SMS, e.g.
+    ' Brought to you by Platinum Sponsor XYZ.' Empty unless the operator has a
+    sponsor configured AND sponsor display enabled (branding_settings
+    showSponsor + sponsorName) — the same toggle that shows the sponsor on the
+    Display. Lets a sponsor's name reach every customer's phone, which can
+    offset event-hire cost in exchange for the airtime."""
+    try:
+        b = _kv_get(db, 'branding_settings', default={}) or {}
+        if not (b.get('showSponsor') or b.get('sponsorEnabled')):
+            return ''
+        name = (b.get('sponsorName') or '').strip()
+        if not name:
+            return ''
+        return f" Brought to you by {name}."
+    except Exception:
+        return ''
 
 @bp.route('/orders/<order_id>/pickup', methods=['POST'])
 @jwt_required_with_demo()
