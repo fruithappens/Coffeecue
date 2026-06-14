@@ -62,7 +62,7 @@ const DiagnosticsTab = () => {
     // API Health Check
     try {
       const start = Date.now();
-      await ApiService.get('/api/health');
+      await ApiService.get('/health');
       const responseTime = Date.now() - start;
       setDiagnostics(prev => ({
         ...prev,
@@ -80,7 +80,7 @@ const DiagnosticsTab = () => {
 
     // Database Check
     try {
-      const dbCheck = await ApiService.get('/api/diagnostics/database');
+      const dbCheck = await ApiService.get('/diagnostics/database');
       setDiagnostics(prev => ({
         ...prev,
         database: { 
@@ -118,7 +118,7 @@ const DiagnosticsTab = () => {
 
     // SMS Service Check
     try {
-      const smsCheck = await ApiService.get('/api/diagnostics/sms');
+      const smsCheck = await ApiService.get('/diagnostics/sms');
       setDiagnostics(prev => ({
         ...prev,
         sms: { 
@@ -156,7 +156,7 @@ const DiagnosticsTab = () => {
 
   const loadSystemLogs = async () => {
     try {
-      const response = await ApiService.get('/api/diagnostics/logs?limit=50');
+      const response = await ApiService.get('/diagnostics/logs?limit=50');
       // The response IS the data array directly
       setLogs(Array.isArray(response) ? response : []);
     } catch (error) {
@@ -167,7 +167,7 @@ const DiagnosticsTab = () => {
 
   const updatePerformanceMetrics = async () => {
     try {
-      const metrics = await ApiService.get('/api/diagnostics/performance');
+      const metrics = await ApiService.get('/diagnostics/performance');
       // The response IS the metrics object directly
       setPerformanceMetrics(metrics || {
         apiResponseTime: 0,
@@ -185,7 +185,7 @@ const DiagnosticsTab = () => {
     setTestResults([]);
     
     try {
-      const response = await ApiService.post('/api/diagnostics/test', { 
+      const response = await ApiService.post('/diagnostics/test', { 
         type: testType 
       });
       // The response should have a results property directly
