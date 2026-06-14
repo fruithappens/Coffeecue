@@ -3359,14 +3359,18 @@ def _kiosk_menu_data(coffee_system):
     caps_by_station = {}
     cur = db.cursor()
     cur.execute(
-        "SELECT station_id, COALESCE(name,''), COALESCE(status,'active'), capabilities "
+        "SELECT station_id, COALESCE(name,''), COALESCE(status,'active'), capabilities, "
+        "COALESCE(wait_time, 0), COALESCE(current_load, 0) "
         "FROM station_stats ORDER BY station_id"
     )
     for row in cur.fetchall():
-        sid = row[0] if not isinstance(row, dict) else row.get('station_id')
-        name = (row[1] if not isinstance(row, dict) else row.get('name')) or f"Station {sid}"
-        status = (row[2] if not isinstance(row, dict) else row.get('status')) or 'active'
-        caps_raw = row[3] if not isinstance(row, dict) else row.get('capabilities')
+        is_d = isinstance(row, dict)
+        sid = row.get('station_id') if is_d else row[0]
+        name = (row.get('name') if is_d else row[1]) or f"Station {sid}"
+        status = (row.get('status') if is_d else row[2]) or 'active'
+        caps_raw = row.get('capabilities') if is_d else row[3]
+        wait = (row.get('wait_time') if is_d else row[4]) or 0
+        load = (row.get('current_load') if is_d else row[5]) or 0
         if str(status).lower() in ('inactive', 'maintenance'):
             continue
         caps = caps_raw
@@ -3382,7 +3386,9 @@ def _kiosk_menu_data(coffee_system):
             'milk_types':   [str(x).lower() for x in (caps.get('milk_types') or caps.get('milks') or [])],
             'sizes':        [str(x).lower() for x in (caps.get('sizes') or [])],
         }
-        stations.append({'id': sid, 'name': name})
+        # wait/load let the kiosk show "~5 min" per station and pick the
+        # fastest collection point.
+        stations.append({'id': sid, 'name': name, 'wait': int(wait or 0), 'load': int(load or 0)})
 
     universe = {'coffee_types': {}, 'milk_types': {}, 'sizes': {}}
     for _sid, caps in caps_by_station.items():
@@ -3475,6 +3481,22 @@ def create_kiosk_order():
             requested_station = int(data.get('station_id') or data.get('stationId') or 0) or None
         except (TypeError, ValueError):
             requested_station = None
+        try:
+            preferred_station = int(data.get('preferred_station') or data.get('collect_station') or 0) or None
+        except (TypeError, ValueError):
+            preferred_station = None
+
+        # Phone is optional when collecting at THIS display's own station (the
+        # customer is standing right there), but REQUIRED when the order will
+        # be made/collected elsewhere — the ready-SMS is the only way to tell
+        # them. Normalise to E.164 so that SMS actually sends.
+        raw_phone = (data.get('phone') or data.get('phone_number') or '').strip()
+        phone = ''
+        if raw_phone:
+            try:
+                phone = coffee_system._normalize_phone(raw_phone)
+            except Exception:
+                phone = raw_phone
 
         try:
             db.rollback()
@@ -3494,10 +3516,13 @@ def create_kiosk_order():
                 db, sid, {'type': coffee_type, 'milk': milk}
             ).get('blocked')
 
-        # Prefer the display's own station; otherwise the first active station
-        # that can make this drink+milk (so the barista can actually start it).
+        # Station precedence: the customer's chosen collection point, else this
+        # display's own station, else the first active station that can make the
+        # drink+milk (so the barista can actually start it).
         target = None
-        if requested_station and requested_station in active and can_make(requested_station):
+        if preferred_station and preferred_station in active and can_make(preferred_station):
+            target = preferred_station
+        if target is None and requested_station and requested_station in active and can_make(requested_station):
             target = requested_station
         if target is None:
             for sid in active:
@@ -3511,7 +3536,19 @@ def create_kiosk_order():
                            "Please pick different options or see a barista.",
             }), 400
 
-        reassigned = bool(requested_station and target != requested_station)
+        expected = preferred_station or requested_station
+        reassigned = bool(expected and target != expected)
+
+        # Enforce the phone requirement for collect-elsewhere orders. "Here" =
+        # the order is being made at the very station this display sits at.
+        collecting_here = requested_station is not None and target == requested_station
+        if not collecting_here and not phone:
+            return jsonify({
+                'success': False,
+                'code': 'PHONE_REQUIRED',
+                'message': "This order will be ready at another station — please "
+                           "enter a mobile number so we can text you when it's ready.",
+            }), 400
 
         now = datetime.now()
         order_prefix = ''
@@ -3568,7 +3605,7 @@ def create_kiosk_order():
         ins.execute('''
             INSERT INTO orders (order_number, phone, order_details, status, station_id, created_at, updated_at, queue_priority)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id, order_number
-        ''', (order_number, '', json.dumps(order_details), 'pending', target, now, now, 5))
+        ''', (order_number, phone, json.dumps(order_details), 'pending', target, now, now, 5))
         res = ins.fetchone()
         db.commit()
         order_id = res[0] if res else None
