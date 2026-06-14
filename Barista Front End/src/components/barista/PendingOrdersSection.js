@@ -8,6 +8,7 @@ import '../../styles/milkColors.css';
 import VipOrdersList from './VipOrdersList';
 import BatchGroupsList from './BatchGroupsList';
 import RegularOrdersList from './RegularOrdersList';
+import GroupBadge from './GroupBadge';
 
 const PendingOrdersSection = ({
   orders,
@@ -18,7 +19,9 @@ const PendingOrdersSection = ({
   onSendMessage,
   onDelayOrder,
   onEditOrder,
-  onMoveOrder
+  onMoveOrder,
+  groupInfoByOrderId = {},
+  onStartGroup
 }) => {
   const { settings } = useSettings();
   // Organize orders into categories - support both vip and priority property names
@@ -180,6 +183,8 @@ const PendingOrdersSection = ({
                 onDelayOrder={onDelayOrder}
                 onEditOrder={onEditOrder}
                 onMoveOrder={onMoveOrder}
+                groupInfoByOrderId={groupInfoByOrderId}
+                onStartGroup={onStartGroup}
               />
             )}
 
@@ -206,6 +211,8 @@ const PendingOrdersSection = ({
                 onEditOrder={onEditOrder}
                 onMoveOrder={onMoveOrder}
                 batchHintsByOrderId={batchHintsByOrderId}
+                groupInfoByOrderId={groupInfoByOrderId}
+                onStartGroup={onStartGroup}
               />
             )}
           </>
@@ -223,6 +230,7 @@ const PendingOrdersSection = ({
                 <div className="flex justify-between items-center">
                   <div className="font-bold">#{order.orderNumber} - {order.customerName}</div>
                   <div className="text-sm flex items-center space-x-1">
+                    <GroupBadge info={groupInfoByOrderId[order.id]} />
                     <span>{order.waitTime} min</span>
                     <div className={`w-3 h-3 rounded-full ${getTimeRatioColor(order.waitTime, order.promisedTime)}`}></div>
                   </div>

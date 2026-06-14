@@ -447,7 +447,16 @@ class CoffeeOrderSystem:
         command_response = self._handle_commands(phone, message_body, state)
         if command_response:
             return command_response
-        
+
+        # Multi-drink in a single text ("1 oat latte and 1 flat white"): only
+        # consider it when we're at the START of an order, so we never
+        # mis-split a single answer to a mid-order question. Returns None when
+        # the message isn't really multi-drink, so we fall through normally.
+        if state.get('state') in (None, '', 'completed', 'awaiting_name', 'awaiting_coffee_type'):
+            multi_response = self._handle_multi_drink_order(phone, message_body, state)
+            if multi_response:
+                return multi_response
+
         # Process based on current conversation state
         if state.get('state') == 'awaiting_name':
             return self._handle_awaiting_name(phone, message_body, state)
@@ -910,27 +919,48 @@ class CoffeeOrderSystem:
             current_time = datetime.now()
             wait_time_minutes = int((current_time - created_at).total_seconds() / 60)
             
-            # Check for any friend/group orders linked to this order
+            # Check for any friend/group orders linked to this order.
+            # Primary link is the shared group_id stamped on every order in a
+            # group (FRIEND orders + multi-drink). We match on the customer's
+            # own recent orders and filter by group_id in Python so this works
+            # whether order_details is stored as JSONB or text. The legacy
+            # related_to_order_id/reference_number query is kept as a fallback.
+            this_group_id = order_details.get('group_id')
             friend_orders = []
+            seen_numbers = {order_number}
             try:
-                cursor.execute("""
-                    SELECT order_number, order_details
-                    FROM orders 
-                    WHERE related_to_order_id = %s OR reference_number = %s
-                    ORDER BY created_at ASC
-                """, (order_id, order_number))
-                
-                for friend_result in cursor.fetchall():
-                    friend_order_number, friend_details_json = friend_result
-                    
-                    if isinstance(friend_details_json, str):
-                        friend_details = json.loads(friend_details_json)
-                    else:
-                        friend_details = friend_details_json or {}
-                        
-                    friend_name = friend_details.get('name', 'Friend')
-                    friend_summary = self.nlp.format_order_summary(friend_details)
-                    friend_orders.append(f"#{friend_order_number} for {friend_name}: {friend_summary}")
+                if this_group_id:
+                    cursor.execute("""
+                        SELECT order_number, order_details
+                        FROM orders
+                        WHERE phone = %s
+                        ORDER BY created_at ASC
+                    """, (phone,))
+                    for friend_result in cursor.fetchall():
+                        fnum, fdetails_json = friend_result
+                        fdetails = json.loads(fdetails_json) if isinstance(fdetails_json, str) else (fdetails_json or {})
+                        if fnum in seen_numbers or fdetails.get('group_id') != this_group_id:
+                            continue
+                        seen_numbers.add(fnum)
+                        friend_orders.append(
+                            f"#{fnum} for {fdetails.get('name', 'Friend')}: {self.nlp.format_order_summary(fdetails)}"
+                        )
+                else:
+                    cursor.execute("""
+                        SELECT order_number, order_details
+                        FROM orders
+                        WHERE related_to_order_id = %s OR reference_number = %s
+                        ORDER BY created_at ASC
+                    """, (order_id, order_number))
+                    for friend_result in cursor.fetchall():
+                        fnum, fdetails_json = friend_result
+                        if fnum in seen_numbers:
+                            continue
+                        fdetails = json.loads(fdetails_json) if isinstance(fdetails_json, str) else (fdetails_json or {})
+                        seen_numbers.add(fnum)
+                        friend_orders.append(
+                            f"#{fnum} for {fdetails.get('name', 'Friend')}: {self.nlp.format_order_summary(fdetails)}"
+                        )
             except Exception as friend_err:
                 logger.error(f"Error getting friend orders: {str(friend_err)}")
                 # Continue without friend orders - not critical
@@ -1772,8 +1802,153 @@ class CoffeeOrderSystem:
         # sugar (shown in the recap so they can fix it), then auto-place.
         return self._place_order(phone, name, od, prefix=prefix)
 
+    def _split_multi_drink(self, message):
+        """Detect "two coffees in one text" — e.g. "1 oat latte and 1 flat
+        white", "2 cappuccinos", "latte, flat white & long black".
+
+        Returns a list of (segment_text, parsed_order_dict) for each distinct
+        drink when 2+ are found, else None (so the normal single-order flow
+        runs). Quantities like "2 lattes"/"two flat whites" expand to repeats.
+        """
+        text = (message or '').strip()
+        if not text:
+            return None
+        # Split on the connectors people actually put between drinks.
+        parts = re.split(r'\s+and\s+|\s*,\s*|\s*\+\s*|\s*&\s*|\s+plus\s+', text, flags=re.I)
+        num_words = {'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6}
+        expanded = []
+        for p in parts:
+            p = (p or '').strip()
+            if not p:
+                continue
+            # Leading digit quantity: "2 lattes", "2x latte", "3 flat whites".
+            m = re.match(r'^(\d{1,2})\s*x?\s+(.+)$', p)
+            wm = re.match(r'^(one|two|three|four|five|six)\s+(.+)$', p, flags=re.I)
+            if m and 1 <= int(m.group(1)) <= 10:
+                expanded.extend([m.group(2)] * int(m.group(1)))
+            elif wm:
+                expanded.extend([wm.group(2)] * num_words[wm.group(1).lower()])
+            else:
+                expanded.append(p)
+        parsed = []
+        for seg in expanded:
+            od = self.nlp.parse_order(seg, apply_defaults=False) or {}
+            if od.get('type'):
+                parsed.append((seg, od))
+        return parsed if len(parsed) >= 2 else None
+
+    def _multi_drink_fallback(self, phone, name, reason):
+        """When a multi-drink text can't be fully resolved (missing/unmakeable
+        milk, drink we don't make), don't guess — drop back to the normal
+        one-coffee flow and tell them how to do the group."""
+        self._set_conversation_state(phone, 'awaiting_coffee_type', {'name': name})
+        return (
+            f"I can do a group order, but {reason}. Easiest is one coffee at a "
+            f"time — what's the first one? (Then reply FRIEND to add the next.)"
+        )
+
+    def _handle_multi_drink_order(self, phone, message, state=None):
+        """Place several coffees from a single text as ONE linked group: same
+        station, shared group_id, ready together. Returns the combined
+        confirmation, or None if the message isn't actually multi-drink (so the
+        caller falls through to the normal single-order flow)."""
+        parsed = self._split_multi_drink(message)
+        if not parsed:
+            return None
+
+        # Who's ordering? Prefer the name we already have; otherwise pull it
+        # from the message ("Sarah, a latte and a flat white"); otherwise ask.
+        name = (state.get('temp_data') or {}).get('name') if state else None
+        if not name:
+            cust = self.get_customer(phone)
+            name = cust.get('name') if cust else None
+        if not name:
+            name, _ = self._extract_name_and_order(message)
+        if not name:
+            self._set_conversation_state(phone, 'awaiting_name', {'pending_multi': message})
+            return "Sounds like a few coffees! First — what's your name?"
+        if len(name) > 50:
+            name = name[:50]
+
+        # Resolve each drink. Milk is the one field we never guess (allergen
+        # safety + matches the single-order flow, which always asks milk).
+        # Size/sugar fall back to sensible defaults shown in the recap.
+        available_types = self._get_available_coffee_types() or []
+        resolved = []
+        for _seg, od in parsed:
+            od = dict(od)
+            drink = od.get('type')
+            if available_types and not self._is_valid_coffee_type(drink, available_types):
+                return self._multi_drink_fallback(phone, name, f"we don't have {drink} today")
+            if self.nlp.is_black_coffee(drink):
+                od['milk'] = 'no milk'
+            if not od.get('milk'):
+                return self._multi_drink_fallback(phone, name, "I need to know the milk for each coffee")
+            if not self._milk_is_makeable(od.get('milk')):
+                return self._multi_drink_fallback(phone, name, f"we don't have {od.get('milk')} milk")
+            if not od.get('size'):
+                sizes = self._get_available_sizes(drink) or ['medium']
+                lower = [s.lower() for s in sizes]
+                od['size'] = 'medium' if 'medium' in lower else sizes[0]
+            od.setdefault('sugar', 'no sugar')
+            resolved.append(od)
+
+        # Place them. The FIRST order establishes the group_id (its order
+        # number) and the station; every sibling is forced to that station and
+        # stamped with the same group_id so they stay together.
+        placed = []
+        group_id = None
+        group_label = f"{name}'s group"
+        station_for_group = None
+        for od in resolved:
+            if station_for_group is not None:
+                od['station_id'] = station_for_group
+                od['stationId'] = station_for_group
+            if group_id is not None:
+                od['group_id'] = group_id
+                od['group_label'] = group_label
+            resp = self._confirm_order(phone, od, name)
+            if not isinstance(resp, str) or resp.lower().startswith('sorry'):
+                break  # placement failed (no stations etc.) — stop, keep what stuck
+            num = od.get('_created_order_number')
+            if station_for_group is None:
+                station_for_group = od.get('_created_station_id')
+            if group_id is None and num:
+                group_id = num
+                # Back-link the first order, which was created before we knew
+                # the group_id (it IS the group_id).
+                self._ensure_group_id_on_order(
+                    order_id=od.get('_created_order_id'), order_number=num,
+                    group_id=group_id, group_label=group_label,
+                )
+            placed.append((num, od))
+
+        self._set_conversation_state(phone, 'completed')
+        if not placed:
+            return ("Sorry, I couldn't place that group order just now. "
+                    "Please try sending one coffee at a time.")
+
+        lines = [f"#{num}: {self.nlp.format_order_summary(od)}" for num, od in placed]
+        total_line = self._format_group_total([od for _, od in placed])
+        return (
+            f"✅ Got it, {name}! {len(placed)} coffees ordered together:\n"
+            + "\n".join(lines)
+            + f"{total_line}\n"
+            "Made at the same station, ready together. "
+            "Wrong? Reply CANCEL while they're still waiting."
+        )
+
     def _handle_awaiting_name(self, phone, message, state):
         """Handle name input during conversation"""
+        # If we stashed a multi-drink order while waiting for a name, this
+        # reply IS the name — capture it and place the whole group now.
+        pending_multi = (state.get('temp_data') or {}).get('pending_multi')
+        if pending_multi:
+            nm = (message or '').strip()
+            if len(nm) < 2 or len(nm) > 50:
+                return "Please enter a valid name (2-50 characters)."
+            return self._handle_multi_drink_order(phone, pending_multi, {'temp_data': {'name': nm}})
+
         # Usual-order shortcut ("the usual").
         if self.nlp.is_asking_for_usual(message):
             nm = (message or '').strip()
@@ -3758,9 +3933,39 @@ class CoffeeOrderSystem:
         station_id = state.get('temp_data', {}).get('station_id')
         
         if message_upper == 'YES' or message_upper == 'Y':
+            # Stamp the shared group_id so this friend's order is linked to the
+            # customer's own. Prefer the value carried in state; if it got
+            # dropped between friend-flow steps, derive it from the EARLIEST
+            # recent order for this phone (that's the primary) and back-fill it.
+            group_id = state.get('temp_data', {}).get('group_id')
+            group_label = state.get('temp_data', {}).get('group_label')
+            if not group_id:
+                try:
+                    gc = self.db.cursor()
+                    gc.execute("""
+                        SELECT order_number, order_details FROM orders
+                        WHERE phone = %s AND created_at > %s
+                        ORDER BY created_at ASC LIMIT 1
+                    """, (phone, datetime.now() - timedelta(hours=1)))
+                    gr = gc.fetchone()
+                    if gr:
+                        group_id = gr[0]
+                        pdetails = gr[1] if not isinstance(gr[1], str) else json.loads(gr[1])
+                        group_label = (pdetails or {}).get('group_label') or f"{primary_name}'s group"
+                except Exception as ge:
+                    logger.warning(f"Could not derive group_id for friend order (non-fatal): {ge}")
+            if group_id:
+                friend_order['group_id'] = group_id
+                if group_label:
+                    friend_order['group_label'] = group_label
+                # Make sure the primary carries the same group_id (idempotent).
+                self._ensure_group_id_on_order(
+                    order_number=group_id, group_id=group_id, group_label=group_label,
+                )
+
             # Confirm the order for the friend (mark it as a friend order)
             order_response = self._confirm_order(phone, friend_order, friend_name, is_friend_order=True)
-            
+
             # Store friend's order preferences for future ordering
             try:
                 cursor = self.db.cursor()
@@ -3849,6 +4054,47 @@ class CoffeeOrderSystem:
             # Unrecognized response - prompt again
             return f"Please reply YES to confirm {friend_name}'s order, NO to cancel, EDIT to change it, or DONE to finish the group order."
     
+    def _ensure_group_id_on_order(self, order_id=None, order_number=None, group_id=None, group_label=None):
+        """Retro-stamp group_id/group_label onto an already-created order's
+        order_details JSON. Used to fold the FIRST order of a group (the
+        customer's own / primary) into the group once a sibling is added.
+        Idempotent and best-effort — never raises into the SMS flow."""
+        if not group_id or (order_id is None and not order_number):
+            return
+        try:
+            cur = self.db.cursor()
+            if order_id is not None:
+                cur.execute("SELECT order_details FROM orders WHERE id = %s", (order_id,))
+            else:
+                cur.execute("SELECT order_details FROM orders WHERE order_number = %s", (order_number,))
+            row = cur.fetchone()
+            if not row or not row[0]:
+                return
+            details = row[0]
+            if isinstance(details, str):
+                details = json.loads(details)
+            if not isinstance(details, dict):
+                return
+            if details.get('group_id') == group_id:
+                return  # already linked
+            details['group_id'] = group_id
+            if group_label:
+                details['group_label'] = group_label
+            if order_id is not None:
+                cur.execute("UPDATE orders SET order_details = %s WHERE id = %s",
+                            (json.dumps(details), order_id))
+            else:
+                cur.execute("UPDATE orders SET order_details = %s WHERE order_number = %s",
+                            (json.dumps(details), order_number))
+            self.db.commit()
+            logger.info(f"Linked order {order_number or order_id} into group {group_id}")
+        except Exception as e:
+            logger.warning(f"_ensure_group_id_on_order failed (non-fatal): {e}")
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+
     def _confirm_order(self, phone, order_details, name, is_friend_order=False):
         """Confirm and process the order"""
         # Stash the computed price on the order_details blob so the
@@ -4021,7 +4267,16 @@ class CoffeeOrderSystem:
             
             if 'notes' in order_details:
                 processed_details['notes'] = order_details['notes']
-                
+
+            # Group link — when this order is part of a group (a multi-drink
+            # SMS or a FRIEND order), carry the shared group_id + label so the
+            # barista UI can show "these go together" and start/collect them as
+            # one. group_id is the primary order's number (e.g. "C5").
+            if order_details.get('group_id'):
+                processed_details['group_id'] = order_details.get('group_id')
+                if order_details.get('group_label'):
+                    processed_details['group_label'] = order_details.get('group_label')
+
             # Handle delayed orders (scheduled for next break)
             if is_delayed:
                 processed_details['delayed'] = True
@@ -4109,6 +4364,18 @@ class CoffeeOrderSystem:
                     fresh_conn.commit()
                 
                 logger.info(f"Created order {order_number} with ID {order_id}")
+
+                # Stamp the created identifiers back onto the caller's dict so
+                # group flows (multi-drink, FRIEND) can read what was actually
+                # created — the order number to use as a group key, the DB id to
+                # retro-link siblings, and the station so every order in the
+                # group lands at the same bar.
+                try:
+                    order_details['_created_order_number'] = order_number
+                    order_details['_created_order_id'] = order_id
+                    order_details['_created_station_id'] = station_id
+                except Exception:
+                    pass
 
                 # Verify order was created correctly
                 if not order_id:
@@ -7025,14 +7292,27 @@ Text RESET to clear preferences or DELETE to remove all data."""
                 primary_order = json.loads(order_details_json)
             else:
                 primary_order = order_details_json or {}
-            
+
+            # Form the group around the customer's own order. The group_id is
+            # the primary's order number (e.g. "C5") — short, already shouted
+            # across the bar, and unique per event. Retro-link the primary now
+            # so even a one-friend group shows the badge on BOTH cards.
+            group_id = order_number
+            group_label = f"{primary_name}'s group"
+            self._ensure_group_id_on_order(
+                order_id=order_id, order_number=order_number,
+                group_id=group_id, group_label=group_label,
+            )
+
             # Start friend order flow
             self._set_conversation_state(phone, "awaiting_friend_name", {
                 "primary_name": primary_name,
                 "primary_order": primary_order,
                 "group_orders": [],
                 "station_id": station_id,
-                "reference_order": order_number
+                "reference_order": order_number,
+                "group_id": group_id,
+                "group_label": group_label,
             })
             
             return f"Great! Let's add a coffee for your friend. What's their name?"

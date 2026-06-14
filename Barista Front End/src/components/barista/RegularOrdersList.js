@@ -4,9 +4,10 @@ import { Edit, ArrowRightLeft } from 'lucide-react';
 import { getTimeRatioColor, getOrderBackgroundColor } from '../../utils/orderUtils';
 import { useSettings } from '../../hooks/useSettings';
 import { getMilkColorStyle, getMilkDotStyle } from '../../utils/milkColorHelper';
+import GroupBadge from './GroupBadge';
 import '../../styles/milkColors.css';
 
-const RegularOrdersList = ({ orders, onStartOrder, onSendMessage, onDelayOrder, onEditOrder, onMoveOrder, batchHintsByOrderId = {} }) => {
+const RegularOrdersList = ({ orders, onStartOrder, onSendMessage, onDelayOrder, onEditOrder, onMoveOrder, batchHintsByOrderId = {}, groupInfoByOrderId = {}, onStartGroup }) => {
   const { settings } = useSettings();
   
   // Debug first order's milk info
@@ -48,6 +49,9 @@ const RegularOrdersList = ({ orders, onStartOrder, onSendMessage, onDelayOrder, 
             <div className="flex justify-between items-center">
               <div className="font-bold text-gray-800">#{order.orderNumber} - {order.customerName}</div>
               <div className="flex items-center space-x-1">
+                {/* Group badge — this coffee was ordered together with
+                    others (multi-drink SMS or FRIEND order); serve as one. */}
+                <GroupBadge info={groupInfoByOrderId[order.id]} />
                 {/* Batch hint badges — small amber tags telling the
                     barista this order can be made alongside N
                     others of the same kind. */}
@@ -85,8 +89,19 @@ const RegularOrdersList = ({ orders, onStartOrder, onSendMessage, onDelayOrder, 
               )}
             </div>
             
+            {/* Start the whole group at once so they get made — and
+                collected — together. Individual Start still available below. */}
+            {groupInfoByOrderId[order.id] && onStartGroup && (
+              <button
+                className="w-full mt-2 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded-md text-sm font-medium"
+                onClick={() => onStartGroup(order)}
+              >
+                Start group ({groupInfoByOrderId[order.id].size})
+              </button>
+            )}
+
             <div className="mt-2 flex justify-between space-x-2">
-              <button 
+              <button
                 className="flex-1 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-md text-sm"
                 onClick={() => onStartOrder(order)}
               >

@@ -1,5 +1,5 @@
 // components/BaristaInterface.js
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { ToastManager, showToast } from '../shared/Toast';
 import AuthService from '../../services/AuthService';
 import { 
@@ -17,12 +17,13 @@ import useOrders from '../../hooks/useOrders';
 import useStations from '../../hooks/useStations';
 import useStock from '../../hooks/useStock';
 import useSchedule from '../../hooks/useSchedule';
-import { 
-  getOrderBackgroundColor, 
-  getTimeRatioColor, 
-  formatTimeSince, 
+import {
+  getOrderBackgroundColor,
+  getTimeRatioColor,
+  formatTimeSince,
   formatBatchName,
-  calculateMinutesDiff
+  calculateMinutesDiff,
+  buildGroupInfo
 } from '../../utils/orderUtils';
 import { getMilkColorStyle, getMilkDotStyle } from '../../utils/milkColorHelper';
 import '../../styles/milkColors.css';
@@ -48,6 +49,7 @@ import CustomerQuestionsButton from './CustomerQuestionsButton';
 import StationChat from '../support/StationChat';
 import OrderNotificationHandler from '../shared/OrderNotificationHandler';
 import PendingOrdersSection from './PendingOrdersSection';
+import GroupBadge from './GroupBadge';
 import QueueIntelligence from '../support/QueueIntelligence';
 import StationLoadBalancer from '../support/StationLoadBalancer';
 import DynamicStaffAllocation from '../organiser/DynamicStaffAllocation';
@@ -744,6 +746,35 @@ const BaristaInterface = () => {
     }
   };
 
+  // Which orders belong to a multi-coffee GROUP (multi-drink SMS or FRIEND
+  // order). Computed across every visible order so the position/size counts
+  // ("2/3") are correct regardless of which list a member is sitting in.
+  const groupInfoByOrderId = useMemo(
+    () => buildGroupInfo([
+      ...(pendingOrders || []),
+      ...(inProgressOrders || []),
+      ...(completedOrders || []),
+    ]),
+    [pendingOrders, inProgressOrders, completedOrders]
+  );
+
+  // Start every still-pending coffee in this order's group at once, so a
+  // group gets made — and collected — together. Falls back to a single start
+  // if the order isn't actually grouped.
+  const handleStartGroup = async (order) => {
+    const gid = order.groupId || order.group_id;
+    if (!gid) return startOrder(order);
+    const members = (pendingOrders || []).filter(
+      o => (o.groupId || o.group_id) === gid
+    );
+    if (members.length === 0) return startOrder(order);
+    for (const m of members) {
+      // Sequential so the backend/station load updates cleanly per order.
+      // eslint-disable-next-line no-await-in-loop
+      await startOrder(m);
+    }
+  };
+
   // Enhanced order completion function with guaranteed notifications
   const handleCompleteOrder = async (orderId) => {
     try {
@@ -987,12 +1018,15 @@ const BaristaInterface = () => {
             <div className="text-gray-700">{order.phoneNumber}</div>
           </div>
           <div className="flex flex-col items-end">
+            {/* Group badge — still part of a group while being made, so the
+                barista knows to hold it for collection with its siblings. */}
+            <GroupBadge info={groupInfoByOrderId[order.id]} />
             {order.priority && (
-              <div className="bg-red-100 text-red-700 px-2 py-1 rounded text-sm font-medium">
+              <div className="mt-1 bg-red-100 text-red-700 px-2 py-1 rounded text-sm font-medium">
                 PRIORITY
               </div>
             )}
-            <button 
+            <button
               className="mt-2 text-gray-500 hover:text-gray-700"
               onClick={() => {
                 // Show order edit dialog
@@ -1863,6 +1897,8 @@ const BaristaInterface = () => {
               onDelayOrder={handleDelayOrder}
               onEditOrder={handleEditOrder}
               onMoveOrder={handleOpenMoveDialog}
+              groupInfoByOrderId={groupInfoByOrderId}
+              onStartGroup={handleStartGroup}
             />
 
             {/* Ready for Pickup — recently-completed orders at this

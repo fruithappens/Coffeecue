@@ -4,9 +4,10 @@ import { Edit, ArrowRightLeft } from 'lucide-react';
 import { getTimeRatioColor, getOrderBackgroundColor } from '../../utils/orderUtils';
 import { useSettings } from '../../hooks/useSettings';
 import { getMilkColorStyle, getMilkDotStyle } from '../../utils/milkColorHelper';
+import GroupBadge from './GroupBadge';
 import '../../styles/milkColors.css';
 
-const VipOrdersList = ({ orders, onStartOrder, onSendMessage, onDelayOrder, onEditOrder, onMoveOrder }) => {
+const VipOrdersList = ({ orders, onStartOrder, onSendMessage, onDelayOrder, onEditOrder, onMoveOrder, groupInfoByOrderId = {}, onStartGroup }) => {
   const { settings } = useSettings();
   if (!orders || orders.length === 0) {
     return null;
@@ -33,6 +34,7 @@ const VipOrdersList = ({ orders, onStartOrder, onSendMessage, onDelayOrder, onEd
             <div className="flex justify-between items-center">
               <div className="font-bold text-gray-800">#{order.orderNumber} - {order.customerName}</div>
               <div className="flex items-center space-x-1">
+                <GroupBadge info={groupInfoByOrderId[order.id]} />
                 <span className="text-sm text-gray-600">{order.waitTime} min</span>
                 <div className={`w-2 h-2 rounded-full ${getTimeRatioColor(order.waitTime, order.promisedTime)}`}></div>
               </div>
@@ -54,8 +56,17 @@ const VipOrdersList = ({ orders, onStartOrder, onSendMessage, onDelayOrder, onEd
               )}
             </div>
             
+            {groupInfoByOrderId[order.id] && onStartGroup && (
+              <button
+                className="w-full mt-2 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded-md text-sm font-medium"
+                onClick={() => onStartGroup(order)}
+              >
+                Start group ({groupInfoByOrderId[order.id].size})
+              </button>
+            )}
+
             <div className="mt-2 flex justify-between space-x-2">
-              <button 
+              <button
                 className="flex-1 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-md text-sm"
                 onClick={() => onStartOrder(order)}
               >

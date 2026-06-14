@@ -23,6 +23,46 @@ export const parseServerDate = (value) => {
 };
 
 /**
+ * Build a lookup of which orders belong to a multi-coffee GROUP (a multi-drink
+ * SMS like "1 oat latte and 1 flat white", or a FRIEND order). The backend
+ * stamps a shared groupId (the lead order's number) on every member.
+ *
+ * Pass the FULL set of currently-visible orders (pending + in-progress +
+ * completed) so the position/size counts are accurate across the board. Only
+ * groups with 2+ visible members are returned — a lone order isn't a "group".
+ *
+ * @param {Array} orders - all visible orders
+ * @returns {Object} map of orderId -> { groupId, groupLabel, size, position }
+ */
+export const buildGroupInfo = (orders) => {
+  const groups = {};
+  (orders || []).forEach((o) => {
+    const gid = o.groupId || o.group_id;
+    if (!gid) return;
+    (groups[gid] = groups[gid] || []).push(o);
+  });
+  const byId = {};
+  Object.entries(groups).forEach(([gid, members]) => {
+    if (members.length < 2) return; // not actually a group yet
+    // Stable, human order: by order number (numeric-aware).
+    members.sort((a, b) =>
+      String(a.orderNumber ?? a.id).localeCompare(
+        String(b.orderNumber ?? b.id), undefined, { numeric: true }
+      )
+    );
+    members.forEach((m, i) => {
+      byId[m.id] = {
+        groupId: gid,
+        groupLabel: m.groupLabel || m.group_label || 'Group',
+        size: members.length,
+        position: i + 1,
+      };
+    });
+  });
+  return byId;
+};
+
+/**
  * Calculate time ratio color for wait time indicators
  * @param {number} waitTime - Current wait time in minutes
  * @param {number} promisedTime - Promised delivery time in minutes
