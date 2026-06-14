@@ -2762,17 +2762,52 @@ class CoffeeOrderSystem:
         return self._filter_to_station_makeable(espresso_part, 'coffee_types') + extras
 
     def _get_available_extra_drinks(self):
-        """Return the lowercased names of stocked drinks-category
-        items (tea flavours, hot chocolate, chai latte, matcha latte,
-        etc.). Empty list if the table doesn't exist or no rows
-        are present.
+        """Lowercased names of ENABLED non-espresso drinks (tea, hot chocolate,
+        chai, matcha, iced tea, etc.).
+
+        Source of truth is the Organiser's event-inventory store (settings KV
+        'event_inventory' → 'drinks') — the SAME store that already drives the
+        espresso on/off switches (_get_event_enabled_coffees). This makes the
+        Inventory screen actually control the SMS + kiosk drinks menu: tick a
+        drink and it appears, untick it and it's gone. Previously this read the
+        inventory_items table (only Quick Setup wrote it), so the UI and the
+        menu drifted. Falls back to that table for legacy DBs with no KV blob.
         """
+        # Preferred: the UI-controlled event_inventory blob. Read the settings
+        # TABLE directly (not _get_setting, which caches) so an Organiser toggle
+        # is live on the next turn.
         try:
-            cursor = self.db.cursor()
             try:
                 self.db.rollback()
             except Exception:
                 pass
+            cursor = self.db.cursor()
+            cursor.execute("SELECT value FROM settings WHERE key = 'event_inventory'")
+            row = cursor.fetchone()
+            raw = row[0] if row and row[0] else None
+            if raw:
+                data = json.loads(raw) if isinstance(raw, str) else raw
+                drinks = data.get('drinks')
+                # A present 'drinks' list is authoritative even if everything in
+                # it is disabled (return [] then) — don't fall through to the
+                # legacy table and resurrect drinks the operator turned off.
+                if isinstance(drinks, list):
+                    names = [
+                        str(d.get('name', '')).strip().lower()
+                        for d in drinks
+                        if isinstance(d, dict) and d.get('enabled', True) and d.get('name')
+                    ]
+                    return sorted(set(names))
+        except Exception as e:
+            logger.debug(f"_get_available_extra_drinks (event_inventory): {e}")
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+
+        # Legacy fallback: the inventory_items table (pre-KV-blob DBs).
+        try:
+            cursor = self.db.cursor()
             cursor.execute("""
                 SELECT LOWER(name) FROM inventory_items
                 WHERE category = 'drinks'
@@ -2781,7 +2816,7 @@ class CoffeeOrderSystem:
             """)
             return [row[0] for row in cursor.fetchall() if row and row[0]]
         except Exception as e:
-            logger.debug(f"_get_available_extra_drinks: {e}")
+            logger.debug(f"_get_available_extra_drinks (table): {e}")
             try:
                 self.db.rollback()
             except Exception:

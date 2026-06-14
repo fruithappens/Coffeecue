@@ -3452,8 +3452,10 @@ def _kiosk_menu_data(coffee_system):
             return 'Chai'
         if 'hot choc' in n:
             return 'Hot Chocolate'
+        if any(k in n for k in ('juice', 'smoothie', 'iced', 'frappe', 'frappé', 'cold brew')):
+            return 'Cold Drinks'
         if any(k in n for k in ('tea', 'matcha', 'earl grey', 'english breakfast',
-                                'chamomile', 'peppermint', 'green')):
+                                'chamomile', 'peppermint', 'green', 'rooibos')):
             return 'Tea'
         return 'Coffee'
 
