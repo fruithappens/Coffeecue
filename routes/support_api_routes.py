@@ -84,18 +84,34 @@ def check_database():
 def check_sms_service():
     """Check SMS service status"""
     try:
-        from services.messaging import MessagingService
-        # Check if Twilio credentials are configured
-        if MessagingService.is_configured():
-            return jsonify({
-                'status': 'healthy',
-                'message': 'SMS service configured'
-            })
-        else:
+        import config
+        # MessagingService is instance-based and has NO is_configured()
+        # classmethod — the previous call raised
+        #   AttributeError: type object 'MessagingService' has no attribute 'is_configured'
+        # which the except below turned into a permanent, misleading
+        # "SMS Gateway: error" tile in Support → Health / Diagnose, even
+        # though SMS itself was fine. Check the actual Twilio config instead:
+        # configured = all three Twilio creds present; TESTING_MODE means
+        # messages are stubbed (not really sent), which is worth flagging.
+        configured = bool(
+            getattr(config, 'TWILIO_ACCOUNT_SID', None)
+            and getattr(config, 'TWILIO_AUTH_TOKEN', None)
+            and getattr(config, 'TWILIO_PHONE_NUMBER', None)
+        )
+        if getattr(config, 'TESTING_MODE', False):
             return jsonify({
                 'status': 'warning',
-                'message': 'SMS service not configured'
+                'message': 'TESTING_MODE is on — SMS is stubbed (not actually sent)'
             })
+        if configured:
+            return jsonify({
+                'status': 'healthy',
+                'message': 'SMS service configured (Twilio)'
+            })
+        return jsonify({
+            'status': 'warning',
+            'message': 'SMS service not configured (TWILIO_* env vars missing)'
+        })
     except Exception as e:
         return jsonify({
             'status': 'error',
