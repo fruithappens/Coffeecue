@@ -69,11 +69,14 @@ const BaristaInterface = () => {
     loading: stationsLoading,
     changeSelectedStation,
     updateStation,
+    updateStationStatus,
     refreshData: refreshStations
   } = useStations();
 
   // State for showing station selector dropdown
   const [showStationSelector, setShowStationSelector] = useState(false);
+  // Auto-refresh interval picker (header pill) open/closed
+  const [showRefreshMenu, setShowRefreshMenu] = useState(false);
   
   // Use schedule hook to get schedule data
   const {
@@ -874,6 +877,62 @@ const BaristaInterface = () => {
         alert('Failed to update wait time. Please try again.');
       }
     }
+  };
+
+  // --- Station online/offline toggle (header pill) -----------------------
+  // NOTE: the `online` flag from useOrders is network connectivity, NOT
+  // whether this station is taking orders. Accepting-orders state lives in
+  // the station's status: 'active' = online; 'maintenance' = offline (the
+  // SMS router already refuses to route new orders to a non-active station).
+  const currentStationObj = stations.find(s => s.id === selectedStation);
+  const stationOnline = !currentStationObj || (currentStationObj.status || 'active') === 'active';
+
+  const toggleStationOnline = async () => {
+    if (!selectedStation) return;
+    const goingOffline = stationOnline;
+    if (goingOffline) {
+      const ok = window.confirm(
+        'Take this station offline?\n\n' +
+        'New SMS and walk-up orders will stop being sent here until you bring ' +
+        'it back online. Orders already in progress are not affected.'
+      );
+      if (!ok) return;
+    }
+    try {
+      await updateStationStatus(selectedStation, goingOffline ? 'maintenance' : 'active');
+      await refreshStations();
+      setSuccessMessage(
+        goingOffline
+          ? 'Station is now offline - not receiving new orders'
+          : 'Station is back online'
+      );
+    } catch (e) {
+      alert('Could not change station status: ' + (e?.message || 'unknown error'));
+    }
+  };
+
+  // --- Auto-refresh interval picker (header pill) ------------------------
+  // The useOrders hook only flips the React enabled-state via
+  // toggleAutoRefresh, so enabling means calling that first, then setting
+  // the interval. 0 = off.
+  const setRefreshInterval = (seconds) => {
+    if (seconds === 0) {
+      if (autoRefreshEnabled) toggleAutoRefresh();
+    } else {
+      if (!autoRefreshEnabled) toggleAutoRefresh();
+      updateAutoRefreshInterval(seconds);
+    }
+    setShowRefreshMenu(false);
+  };
+
+  // Other stations (for the at-a-glance queue pills) — lets a barista point
+  // a walk-up at a quieter station. Colour-coded by how busy each one is.
+  const otherStations = stations.filter(s => s.id !== selectedStation);
+  const shortStationLabel = (name, id) => {
+    if (!name) return `S${id}`;
+    const m = String(name).match(/(\d+)\s*$/);
+    if (m) return `S${m[1]}`;
+    return name.length > 10 ? name.slice(0, 9) + '…' : name;
   };
 
   // Batch order handling
@@ -1699,36 +1758,89 @@ const BaristaInterface = () => {
         </div>
         
         <div className="flex flex-wrap gap-2 items-center">
-          {/* NEW: Display screen button — hidden on mobile to declutter */}
+          {/* Online/Offline — toggles whether THIS station accepts new orders.
+              Tap to take it offline (with confirm) or bring it back. The old
+              Display shortcut was removed (the Display tab still exists). */}
           <button
-            className="px-3 py-1 rounded-md bg-blue-500 hover:bg-blue-600 text-white hidden md:flex items-center"
-            onClick={openDisplayScreen}
+            className={`px-4 py-1 rounded-full flex items-center transition-colors ${stationOnline ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-500 hover:bg-gray-600'}`}
+            onClick={toggleStationOnline}
+            title={stationOnline ? 'Online and taking orders — click to take this station offline' : 'Offline — not receiving new orders. Click to bring it back online'}
           >
-            <Monitor size={16} className="mr-1" />
-            Display
+            <div className={`w-3 h-3 rounded-full ${stationOnline ? 'bg-green-200' : 'bg-gray-300'} mr-2`}></div>
+            {stationOnline ? 'Online' : 'Offline'}
           </button>
-          
-          <div className={`px-4 py-1 rounded-full flex items-center ${online ? 'bg-green-500' : 'bg-gray-400'}`}>
-            <div className={`w-3 h-3 rounded-full ${online ? 'bg-green-300' : 'bg-gray-300'} mr-2`}></div>
-            {online ? 'Online' : 'Offline'}
+
+          {/* Auto-refresh interval picker — tap to choose how often the queue
+              refreshes. Hidden on mobile to declutter. */}
+          <div className="relative hidden md:block">
+            <button
+              className={`px-4 py-1 rounded-full flex items-center ${autoRefreshEnabled ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-500 hover:bg-gray-600'}`}
+              onClick={() => setShowRefreshMenu(v => !v)}
+              title={autoRefreshEnabled ? `Auto-refresh every ${autoRefreshInterval}s — click to change` : 'Auto-refresh off — click to choose an interval'}
+            >
+              <RefreshCw size={14} className={`mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
+              {autoRefreshEnabled ? `${autoRefreshInterval}s` : 'Off'}
+              <ChevronDown size={14} className="ml-1" />
+            </button>
+            {showRefreshMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowRefreshMenu(false)}></div>
+                <div className="absolute right-0 mt-1 bg-white text-gray-800 shadow-lg rounded-md overflow-hidden z-50 w-36">
+                  <div className="px-3 py-1.5 text-xs text-gray-500 border-b">Refresh queue every</div>
+                  {[
+                    { label: 'Off', value: 0 },
+                    { label: '15 seconds', value: 15 },
+                    { label: '30 seconds', value: 30 },
+                    { label: '60 seconds', value: 60 },
+                  ].map(opt => {
+                    const active = opt.value === 0 ? !autoRefreshEnabled : (autoRefreshEnabled && autoRefreshInterval === opt.value);
+                    return (
+                      <button
+                        key={opt.value}
+                        className={`block w-full text-left px-3 py-2 text-sm hover:bg-gray-100 ${active ? 'bg-amber-100 font-medium text-amber-800' : ''}`}
+                        onClick={() => setRefreshInterval(opt.value)}
+                      >
+                        {opt.label}{opt.value === 15 ? ' (fast)' : ''}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
-          
-          {/* Auto-refresh indicator — hidden on mobile to declutter */}
-          <div
-            className={`px-4 py-1 rounded-full hidden md:flex items-center cursor-pointer ${autoRefreshEnabled ? 'bg-green-500' : 'bg-gray-400'}`}
-            onClick={toggleAutoRefresh}
-            title={autoRefreshEnabled ? `Auto-refresh every ${autoRefreshInterval} seconds` : 'Auto-refresh disabled (click to enable)'}
-          >
-            <RefreshCw size={14} className={`mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
-            {autoRefreshEnabled ? `${autoRefreshInterval}s` : 'Manual'}
-          </div>
-          
+
           <div className="px-4 py-1 rounded-full bg-green-500">
             Queue: {queueCount}
           </div>
-          <div className="px-4 py-1 rounded-full bg-green-500">
+
+          {/* Wait pill doubles as the adjust-wait-time shortcut (the bottom
+              "Adjust Wait Time" button was removed in favour of this). */}
+          <button
+            className="px-4 py-1 rounded-full bg-green-500 hover:bg-green-600 flex items-center transition-colors"
+            onClick={() => setShowWaitTimeDialog(true)}
+            title="Click to adjust the wait time shown to customers"
+          >
+            <Clock size={14} className="mr-1" />
             Wait: {waitTime} min
-          </div>
+          </button>
+
+          {/* Other stations at a glance (e.g. S2: Q5) so a barista can send a
+              walk-up to a quieter station. Green = quiet, amber = busy, red =
+              very busy. Hidden on mobile to keep the condensed header tidy. */}
+          {otherStations.map(s => {
+            const q = s.queueCount ?? 0;
+            const tone = q <= 2 ? 'bg-green-600' : q <= 5 ? 'bg-yellow-500 text-yellow-900' : 'bg-red-600';
+            return (
+              <div
+                key={s.id}
+                className={`px-3 py-1 rounded-full text-sm hidden md:flex items-center text-white ${tone}`}
+                title={`${s.name}: ${q} order${q === 1 ? '' : 's'} in queue${(s.status || 'active') !== 'active' ? ' (offline)' : ''}`}
+              >
+                {shortStationLabel(s.name, s.id)}: Q{q}
+              </div>
+            );
+          })}
+
           {/* Customer questions + station chat now live in the blue Messages
               bubble (bottom-right); the static HELP button was removed to
               declutter the header. */}
@@ -2975,13 +3087,8 @@ const BaristaInterface = () => {
           >
             <Plus size={18} className="mr-1" /> Add Walk-in Order
           </button>
-          <button 
-            className="px-4 py-2 bg-gray-200 rounded flex items-center hover:bg-gray-300 transition-colors"
-            onClick={() => setShowWaitTimeDialog(true)}
-          >
-            <Clock size={18} className="mr-1" /> Adjust Wait Time
-          </button>
-          <button 
+          {/* "Adjust Wait Time" moved to the Wait pill in the header. */}
+          <button
             className="px-4 py-2 bg-gray-200 rounded flex items-center hover:bg-gray-300 transition-colors"
             onClick={() => {
               // Refresh stations, orders, and schedule data

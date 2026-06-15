@@ -51,12 +51,36 @@ def get_stations():
         
         # Get all stations
         stations = Station.get_all(db)
-        
+
+        # Live queue length per station = count of orders still waiting or
+        # being made. Counting actual orders is authoritative (the stored
+        # current_load counter can drift); the barista header uses this to
+        # show other stations' queues so walk-ups can be redirected.
+        # Must be fully fetched before any other cursor runs on this conn.
+        queue_by_station = {}
+        try:
+            lc = db.cursor()
+            lc.execute("""
+                SELECT station_id, COUNT(*) FROM orders
+                WHERE status IN ('pending', 'in-progress', 'in_progress')
+                GROUP BY station_id
+            """)
+            for _row in lc.fetchall():
+                if _row and _row[0] is not None:
+                    queue_by_station[int(_row[0])] = int(_row[1])
+            lc.close()
+        except Exception as _le:
+            logger.warning(f"per-station queue count failed: {_le}")
+            try:
+                db.rollback()
+            except Exception:
+                pass
+
         # Format station data for API response
         station_data = []
         for station in stations:
             formatted_station = dict(station)
-            
+
             # Map database fields to frontend expected fields
             # Database uses 'notes' for station name and 'equipment_notes' for location
             formatted_station['id'] = formatted_station.get('station_id', formatted_station.get('id'))
@@ -64,11 +88,18 @@ def get_stations():
             formatted_station['location'] = formatted_station.get('equipment_notes', '')
             formatted_station['baristaName'] = formatted_station.get('barista_name', '')
             formatted_station['status'] = formatted_station.get('status', 'active')
-            
+
+            # Live count of orders pending/in-progress at this station.
+            try:
+                _sid = int(formatted_station['id'])
+                formatted_station['queue_count'] = queue_by_station.get(_sid, 0)
+            except (TypeError, ValueError):
+                formatted_station['queue_count'] = 0
+
             # Format datetime objects
             if 'last_updated' in formatted_station and formatted_station['last_updated']:
                 formatted_station['last_updated_formatted'] = formatted_station['last_updated'].strftime('%Y-%m-%d %H:%M:%S')
-            
+
             station_data.append(formatted_station)
         
         return jsonify({

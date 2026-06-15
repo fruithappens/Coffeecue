@@ -323,6 +323,9 @@ class StationsService {
             status: station.status || 'active',
             barista: station.barista_name,
             currentLoad: station.current_load || 0,
+            // Live count of orders pending/in-progress at this station
+            // (from the backend; used for the header's other-station pills).
+            queueCount: station.queue_count || 0,
             lastUpdated: station.last_updated
           };
         });

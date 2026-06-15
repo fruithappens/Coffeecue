@@ -1144,7 +1144,7 @@ export default function useOrders(stationId = null) {
     localStorage.setItem('coffee_auto_refresh_enabled', newValue);
     
     // When enabling auto-refresh, make sure we have a safe interval
-    if (newValue === true && autoRefreshInterval < 30) {
+    if (newValue === true && autoRefreshInterval < 15) {
       console.log('Auto-refresh enabled with too short interval, increasing to 60s for stability');
       setAutoRefreshInterval(60);
       localStorage.setItem('coffee_auto_refresh_interval', '60');
@@ -1153,7 +1153,7 @@ export default function useOrders(stationId = null) {
 
   // Update auto-refresh interval with minimum threshold to prevent flickering
   const updateAutoRefreshInterval = useCallback((seconds) => {
-    if (seconds && !isNaN(seconds) && seconds >= 30) { // Increased minimum to 30 seconds to prevent flickering
+    if (seconds && !isNaN(seconds) && seconds >= 15) { // Minimum 15s — a deliberate "fast" choice from the header picker
       // Store the previous value for logging
       const prevInterval = autoRefreshInterval;
       setAutoRefreshInterval(seconds);
@@ -1163,8 +1163,8 @@ export default function useOrders(stationId = null) {
       return true;
     }
     // Log a warning if value is too low
-    if (seconds && !isNaN(seconds) && seconds < 30) {
-      console.warn(`Auto-refresh interval of ${seconds}s is too low and might cause UI flickering. Minimum allowed is 30s.`);
+    if (seconds && !isNaN(seconds) && seconds < 15) {
+      console.warn(`Auto-refresh interval of ${seconds}s is too low and might cause UI flickering. Minimum allowed is 15s.`);
     }
     return false;
   }, [autoRefreshInterval]);
