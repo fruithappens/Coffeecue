@@ -1829,14 +1829,24 @@ const BaristaInterface = () => {
               very busy. Hidden on mobile to keep the condensed header tidy. */}
           {otherStations.map(s => {
             const q = s.queueCount ?? 0;
-            const tone = q <= 2 ? 'bg-green-600' : q <= 5 ? 'bg-yellow-500 text-yellow-900' : 'bg-red-600';
+            // An offline station must NOT look "quiet/green" — that would
+            // invite a barista to send a walk-up to a closed station. Grey it
+            // out and show "off" instead of a queue count.
+            const offline = (s.status || 'active') !== 'active';
+            const tone = offline
+              ? 'bg-gray-500 text-gray-200'
+              : q <= 2 ? 'bg-green-600 text-white'
+              : q <= 5 ? 'bg-yellow-500 text-yellow-900'
+              : 'bg-red-600 text-white';
             return (
               <div
                 key={s.id}
-                className={`px-3 py-1 rounded-full text-sm hidden md:flex items-center text-white ${tone}`}
-                title={`${s.name}: ${q} order${q === 1 ? '' : 's'} in queue${(s.status || 'active') !== 'active' ? ' (offline)' : ''}`}
+                className={`px-3 py-1 rounded-full text-sm hidden md:flex items-center ${tone}`}
+                title={offline
+                  ? `${s.name}: offline (not taking orders)`
+                  : `${s.name}: ${q} order${q === 1 ? '' : 's'} in queue`}
               >
-                {shortStationLabel(s.name, s.id)}: Q{q}
+                {shortStationLabel(s.name, s.id)}: {offline ? 'off' : `Q${q}`}
               </div>
             );
           })}
