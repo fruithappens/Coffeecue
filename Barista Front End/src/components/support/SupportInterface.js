@@ -14,7 +14,6 @@ import SystemHealthTab from '../support-tabs/SystemHealthTab';
 import CommunicationsTab from '../support-tabs/CommunicationsTab';
 import OperationsTab from '../support-tabs/OperationsTab';
 import UsersAccessTab from '../support-tabs/UsersAccessTab';
-import ConfigurationTab from '../support-tabs/ConfigurationTab';
 import DiagnosticsTab from '../support-tabs/DiagnosticsTab';
 import EmergencyTab from '../support-tabs/EmergencyTab';
 
@@ -53,7 +52,6 @@ const SupportInterface = () => {
     { id: 'communications', label: 'Comms', icon: MessageSquare, component: CommunicationsTab },
     { id: 'sms-test', label: 'SMS Test', icon: Phone, component: SMSTestSimulator },
     { id: 'users', label: 'Users', icon: Users, component: UsersAccessTab },
-    { id: 'config', label: 'Config', icon: Settings, component: ConfigurationTab },
     { id: 'diagnostics', label: 'Diagnose', icon: Terminal, component: DiagnosticsTab },
     { id: 'emergency', label: 'Emergency', icon: AlertTriangle, component: EmergencyTab }
   ];
