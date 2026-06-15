@@ -5799,6 +5799,42 @@ class CoffeeOrderSystem:
                 pass
         return 1
 
+    def _get_station_declared_throughput(self, station_id):
+        """The team's self-declared orders/hour for a station, set in station
+        capabilities as 'throughput_per_hour' (e.g. 'we can do ~120/hour').
+        Returns int orders/hour, or None if not set."""
+        try:
+            cursor = self.db.cursor()
+            cursor.execute("SELECT capabilities FROM station_stats WHERE station_id = %s", (station_id,))
+            row = cursor.fetchone()
+            caps = row[0] if row else None
+            if isinstance(caps, str):
+                try:
+                    caps = json.loads(caps)
+                except Exception:
+                    caps = {}
+            if isinstance(caps, dict):
+                t = caps.get('throughput_per_hour') or caps.get('throughput')
+                if t:
+                    return max(1, int(float(t)))
+        except Exception:
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+        return None
+
+    def _estimate_wait_from_throughput(self, station_id):
+        """Fallback estimate from the team's DECLARED orders/hour — useful
+        before any drinks have completed (no real data yet). A new order is
+        #(queue+1) in line; at `rate` per hour that's this many minutes."""
+        rate = self._get_station_declared_throughput(station_id)
+        if not rate or rate <= 0:
+            return None
+        queue = self._get_station_pending_count(station_id)  # pending + in-progress
+        est = ((queue + 1) / float(rate)) * 60.0
+        return max(1, min(int(round(est)), 60))
+
     def _get_per_drink_avgs(self, station_id, window_minutes=120):
         """Recent average make-time per drink type at this station, from real
         completions. Returns {drink_lower: minutes}; empty if no data."""
@@ -5888,6 +5924,14 @@ class CoffeeOrderSystem:
             # in-progress), divided by the station's concurrent capacity. One
             # source of truth for the barista header AND the SMS estimate.
             est = self._estimate_wait_from_queue(station_id)
+            if est is not None:
+                return est
+
+            # 1b. No real completion data yet → use the team's DECLARED
+            # throughput (orders/hour, set in station capabilities) if any.
+            # Gives a sensible estimate from the very first order, before the
+            # per-drink history exists.
+            est = self._estimate_wait_from_throughput(station_id)
             if est is not None:
                 return est
             db_type = "sqlite" if isinstance(self.db, sqlite3.Connection) else "postgres"
