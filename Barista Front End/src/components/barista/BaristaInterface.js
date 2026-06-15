@@ -44,7 +44,8 @@ import MoveOrderDialog from '../dialogs/MoveOrderDialog';
 import WaitTimeDialog from '../dialogs/WaitTimeDialog';
 import WalkInOrderDialog from '../dialogs/WalkInOrderDialog';
 import EditOrderDialog from '../dialogs/EditOrderDialog';
-import CustomerQuestionsButton from './CustomerQuestionsButton';
+import useCustomerQuestions from '../../hooks/useCustomerQuestions';
+import CustomerQuestionsList from './CustomerQuestionsList';
 // Using inline help dialog instead of importing external component
 import StationChat from '../support/StationChat';
 import OrderNotificationHandler from '../shared/OrderNotificationHandler';
@@ -262,7 +263,11 @@ const BaristaInterface = () => {
   const [waitTime, setWaitTime] = useState(2); // Default wait time of 2 minutes
   const [selectedOrders, setSelectedOrders] = useState(new Set());
   const [chatOpen, setChatOpen] = useState(false);
-  const [unreadMessages, setUnreadMessages] = useState(2);
+  // Which tab the Messages bubble shows: customer 'questions' or station 'chat'.
+  const [messagesTab, setMessagesTab] = useState('questions');
+  // Live pending customer-questions — count drives the Messages badge (replaces
+  // the old hardcoded `unreadMessages = 2` that always showed a fake "2").
+  const cq = useCustomerQuestions();
   const [filter, setFilter] = useState('all');
   
   // Effect to ensure settings are synced with selected station
@@ -334,7 +339,6 @@ const BaristaInterface = () => {
   const [editingOrder, setEditingOrder] = useState(null);
   const [editSaving, setEditSaving] = useState(false);
   const [currentMessageOrder, setCurrentMessageOrder] = useState(null);
-  const [showHelpDialog, setShowHelpDialog] = useState(false);
   // Mobile-only: the bottom tab bar's "More" sheet (manager tabs).
   const [showMobileMore, setShowMobileMore] = useState(false);
 
@@ -1725,15 +1729,9 @@ const BaristaInterface = () => {
           <div className="px-4 py-1 rounded-full bg-green-500">
             Wait: {waitTime} min
           </div>
-          {/* Customer-question badge — pings when an SMS customer texts
-              BARISTA. See services/coffee_system._handle_barista_command. */}
-          <CustomerQuestionsButton />
-          <button
-            className="px-4 py-1 rounded-full bg-red-500 flex items-center font-medium hover:bg-red-600 transition-colors"
-            onClick={() => setShowHelpDialog(true)}
-          >
-            HELP
-          </button>
+          {/* Customer questions + station chat now live in the blue Messages
+              bubble (bottom-right); the static HELP button was removed to
+              declutter the header. */}
         </div>
       </header>
 
@@ -3000,21 +2998,23 @@ const BaristaInterface = () => {
         {/* Removed Break Time and Need Help buttons as they're redundant with organiser settings and help at the top */}
       </div>
       
-      {/* Chat Button — lifted on mobile so it clears the action footer + the
-          fixed bottom tab bar. */}
+      {/* Messages bubble — opens the unified inbox (customer Questions +
+          station Chat). Lifted on mobile so it clears the action footer + the
+          fixed bottom tab bar. The badge is the REAL count of pending customer
+          questions (was a hardcoded fake "2"). */}
       <button
         className="fixed bottom-40 md:bottom-16 right-4 bg-blue-500 text-white p-3 rounded-full shadow-lg hover:bg-blue-600 z-30"
+        title="Messages — customer questions & station chat"
         onClick={() => {
+          // When opening, land on Questions if any are pending, else Chat.
+          if (!chatOpen) setMessagesTab(cq.count > 0 ? 'questions' : 'chat');
           setChatOpen(!chatOpen);
-          if (!chatOpen) {
-            setUnreadMessages(0);
-          }
         }}
       >
         <MessageCircle size={24} />
-        {unreadMessages > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full">
-            {unreadMessages}
+        {cq.count > 0 && (
+          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full">
+            {cq.count}
           </span>
         )}
       </button>
@@ -3097,60 +3097,57 @@ const BaristaInterface = () => {
         />
       )}
 
-      {showHelpDialog && (
-        <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg max-w-lg w-full max-h-[80vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">Help</h3>
-              <button 
-                className="text-gray-500 hover:text-gray-700" 
-                onClick={() => setShowHelpDialog(false)}
+      {/* Unified Messages inbox — customer Questions + station Chat in one
+          docked panel. Replaces the separate Questions header button, the
+          chat-only panel, and the removed HELP dialog. */}
+      {chatOpen && (
+        <div className="fixed bottom-0 right-0 w-full md:w-[440px] max-w-[100vw] h-[28rem] bg-white shadow-lg border rounded-t-lg overflow-hidden z-40 flex flex-col">
+          <div className="bg-gray-100 border-b px-2 py-1.5 flex items-center justify-between flex-shrink-0">
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setMessagesTab('questions')}
+                className={`px-3 py-1 rounded text-sm font-medium ${messagesTab === 'questions' ? 'bg-white shadow text-blue-700' : 'text-gray-600 hover:bg-gray-200'}`}
               >
-                &times;
+                Questions{cq.count > 0 ? ` (${cq.count})` : ''}
+              </button>
+              <button
+                onClick={() => setMessagesTab('chat')}
+                className={`px-3 py-1 rounded text-sm font-medium ${messagesTab === 'chat' ? 'bg-white shadow text-blue-700' : 'text-gray-600 hover:bg-gray-200'}`}
+              >
+                Station chat
               </button>
             </div>
-            
-            <div className="space-y-4">
-              {/* No invented phone numbers here — the old placeholders
-                  (123-456-7890) looked real enough that a barista mid-rush
-                  might actually dial one. Point at the humans instead. */}
-              <p>
-                If you need assistance with the coffee station system, speak to
-                your event organiser, or use the station chat (bottom-right) to
-                message another station.
-              </p>
-              
-              <div className="bg-gray-100 p-4 rounded">
-                <h4 className="font-medium mb-2">Quick Tips:</h4>
-                <ul className="list-disc pl-5 space-y-1">
-                  <li>Use the batch mode to complete multiple orders at once</li>
-                  <li>Refresh the order list if you don't see new orders</li>
-                  <li>Check Chat for communications from other stations</li>
-                </ul>
-              </div>
-              
-              <button 
-                className="w-full bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600"
-                onClick={() => setShowHelpDialog(false)}
-              >
-                Close
-              </button>
-            </div>
+            <button
+              onClick={() => setChatOpen(false)}
+              className="p-1 text-gray-500 hover:text-gray-800 rounded"
+              title="Close"
+            >
+              <XCircle size={20} />
+            </button>
+          </div>
+          <div className="flex-1 overflow-hidden">
+            {messagesTab === 'chat' ? (
+              <StationChat
+                embedded
+                onClose={() => setChatOpen(false)}
+                onMessageRead={() => { /* station-chat read state handled internally */ }}
+                stations={stations}
+                currentStationId={selectedStation}
+                currentStationName={stations.find(s => s.id === selectedStation)?.name || 'Unknown Station'}
+                baristaName={settings.baristaName}
+                onBaristaNameChange={(name) => setSettings({ ...settings, baristaName: name })}
+              />
+            ) : (
+              <CustomerQuestionsList
+                items={cq.items}
+                replyDrafts={cq.replyDrafts}
+                setReplyDrafts={cq.setReplyDrafts}
+                sending={cq.sending}
+                sendReply={cq.sendReply}
+              />
+            )}
           </div>
         </div>
-      )}
-      
-      {/* Chat panel */}
-      {chatOpen && (
-        <StationChat 
-          onClose={() => setChatOpen(false)}
-          onMessageRead={() => setUnreadMessages(0)}
-          stations={stations}
-          currentStationId={selectedStation}
-          currentStationName={stations.find(s => s.id === selectedStation)?.name || 'Unknown Station'}
-          baristaName={settings.baristaName}
-          onBaristaNameChange={(name) => setSettings({...settings, baristaName: name})}
-        />
       )}
     </div>
   );
