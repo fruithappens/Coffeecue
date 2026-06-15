@@ -1891,6 +1891,10 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
             >
               <option value="">Same station (Order & collect here)</option>
               {stations
+                // Don't offer offline (maintenance/inactive) stations — a
+                // closed station can't make or hand over the order. This is
+                // why a walk-in could be assigned to a shut station.
+                .filter(station => (station.status || 'active') === 'active')
                 .map(station => (
                   <option key={station.id} value={station.id}>
                     Collect at {station.name || `Station ${station.id}`}
