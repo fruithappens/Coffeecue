@@ -28,7 +28,10 @@ const AdminViewSwitcher = () => {
   if (['/', '/login', '/auth/login', '/display'].includes(location.pathname)) return null;
 
   return (
-    <div style={{ position: 'fixed', left: 16, bottom: 16, zIndex: 1000 }}>
+    // Hidden on mobile (hidden md:block): the floating cross-interface switcher
+    // is a desktop power-user convenience and collides with the Barista bottom
+    // tab bar / drawer chrome on phones. On mobile, admins switch via Back → Home.
+    <div className="hidden md:block" style={{ position: 'fixed', left: 16, bottom: 16, zIndex: 1000 }}>
       {open && (
         <div style={{ marginBottom: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
           {VIEWS.map(v => {
