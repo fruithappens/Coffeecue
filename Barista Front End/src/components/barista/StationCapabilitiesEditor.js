@@ -326,6 +326,30 @@ const StationCapabilityCard = ({ station, choices, onSaved }) => {
               className="w-16 px-2 py-1 border border-gray-300 rounded text-sm"
             />
           </label>
+          <label className="inline-flex items-center text-sm" title="How many baristas are on this station (context for throughput; shown in the post-event report).">
+            <span className="mr-2 text-gray-600">Baristas:</span>
+            <input
+              type="number"
+              min="0"
+              max="20"
+              value={current.baristas ?? ''}
+              placeholder="—"
+              onChange={(e) => setField('baristas', e.target.value === '' ? null : Math.max(0, parseInt(e.target.value, 10) || 0))}
+              className="w-16 px-2 py-1 border border-gray-300 rounded text-sm"
+            />
+          </label>
+          <label className="inline-flex items-center text-sm" title="The team's expected throughput in orders/hour. Used for the wait estimate before real make-times exist; the post-event report shows the ACTUAL rate so you can refine this next time.">
+            <span className="mr-2 text-gray-600">Expected /hour:</span>
+            <input
+              type="number"
+              min="0"
+              max="1000"
+              value={current.throughput_per_hour ?? ''}
+              placeholder="—"
+              onChange={(e) => setField('throughput_per_hour', e.target.value === '' ? null : Math.max(0, parseInt(e.target.value, 10) || 0))}
+              className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
+            />
+          </label>
         </div>
       </div>
     </div>

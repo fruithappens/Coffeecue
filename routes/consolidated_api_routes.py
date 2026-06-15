@@ -8025,12 +8025,16 @@ def get_today_report():
         row = cur.fetchone()
         revenue_total = float(row[0]) if row and row[0] is not None else 0.0
 
-        # Per-station breakdown
+        # Per-station breakdown. `done` + the active time span give a MEASURED
+        # orders/hour — the real throughput, which the team can use as the
+        # baseline ("expected throughput") for the next event.
         cur.execute("""
             SELECT station_id, COUNT(*) AS n,
                    AVG(EXTRACT(EPOCH FROM (updated_at - created_at)) / 60.0)
                      FILTER (WHERE status IN ('completed', 'picked_up')
-                             AND updated_at IS NOT NULL) AS avg_min
+                             AND updated_at IS NOT NULL) AS avg_min,
+                   COUNT(*) FILTER (WHERE status IN ('completed', 'picked_up')) AS done,
+                   EXTRACT(EPOCH FROM (MAX(updated_at) - MIN(created_at))) / 3600.0 AS span_hours
             FROM orders
             WHERE created_at::date = CURRENT_DATE
             GROUP BY station_id
@@ -8038,11 +8042,18 @@ def get_today_report():
         """)
         per_station = []
         for row in cur.fetchall():
-            sid, n, avg_min = row
+            sid, n, avg_min, done, span_hours = row
+            # orders/hour = completed ÷ active span (floored at 30 min so a
+            # couple of orders in the first minutes don't read as "200/hour").
+            oph = None
+            if done and span_hours is not None:
+                oph = round(int(done) / max(0.5, float(span_hours)), 1)
             per_station.append({
                 'station_id': sid,
                 'orders': int(n),
                 'avg_wait_min': round(float(avg_min), 1) if avg_min is not None else None,
+                'completed': int(done or 0),
+                'orders_per_hour': oph,
             })
 
         # Top 5 drinks today
@@ -8290,9 +8301,10 @@ def _render_event_summary_html(is_post_event: bool = False):
         per_station_rows = ''.join(
             f"<tr><td>Station {ps['station_id']}</td>"
             f"<td>{ps['orders']}</td>"
-            f"<td>{ps['avg_wait_min'] if ps['avg_wait_min'] is not None else '—'}</td></tr>"
+            f"<td>{ps['avg_wait_min'] if ps['avg_wait_min'] is not None else '—'}</td>"
+            f"<td>{ps.get('orders_per_hour') if ps.get('orders_per_hour') is not None else '—'}</td></tr>"
             for ps in data.get('per_station', [])
-        ) or '<tr><td colspan="3" style="text-align:center;color:#888">No orders yet</td></tr>'
+        ) or '<tr><td colspan="4" style="text-align:center;color:#888">No orders yet</td></tr>'
 
         top_drinks_rows = ''.join(
             f"<tr><td>{td['drink'].title()}</td><td>{td['orders']}</td></tr>"
@@ -8397,7 +8409,8 @@ def _render_event_summary_html(is_post_event: bool = False):
   table {{ width: 100%; border-collapse: collapse; margin: 8px 0 16px 0; }}
   th, td {{ text-align: left; padding: 8px 12px; border-bottom: 1px solid #eee; }}
   th {{ background: #f7f5f0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }}
-  td:nth-child(2), th:nth-child(2), td:nth-child(3), th:nth-child(3) {{ text-align: right; }}
+  td:nth-child(2), th:nth-child(2), td:nth-child(3), th:nth-child(3),
+  td:nth-child(4), th:nth-child(4) {{ text-align: right; }}
   .footer {{ margin-top: 40px; color: #888; font-size: 12px; text-align: center; }}
   @media print {{ body {{ margin: 0; }} .no-print {{ display: none; }} }}
 </style>
@@ -8439,7 +8452,7 @@ def _render_event_summary_html(is_post_event: bool = False):
   <tbody>{status_rows}</tbody></table>
 
   <h2>By station</h2>
-  <table><thead><tr><th>Station</th><th>Orders</th><th>Avg wait (min)</th></tr></thead>
+  <table><thead><tr><th>Station</th><th>Orders</th><th>Avg wait (min)</th><th>Orders/hour</th></tr></thead>
   <tbody>{per_station_rows}</tbody></table>
 
   <h2>Top drinks</h2>

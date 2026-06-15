@@ -564,6 +564,7 @@ const TodayReport = () => {
                   <th className="text-left py-1">Station</th>
                   <th className="text-right py-1">Orders</th>
                   <th className="text-right py-1">Avg wait</th>
+                  <th className="text-right py-1" title="Measured actual throughput — use as next event's baseline">Orders/hr</th>
                 </tr>
               </thead>
               <tbody>
@@ -572,6 +573,7 @@ const TodayReport = () => {
                     <td className="py-1">{s.station_id ?? 'Unassigned'}</td>
                     <td className="py-1 text-right">{s.orders}</td>
                     <td className="py-1 text-right">{s.avg_wait_min == null ? '—' : `${s.avg_wait_min} min`}</td>
+                    <td className="py-1 text-right">{s.orders_per_hour == null ? '—' : s.orders_per_hour}</td>
                   </tr>
                 ))}
               </tbody>
