@@ -6,7 +6,7 @@ import {
   Coffee, Package, Calendar, Check, Monitor, Settings,
   MessageCircle, Printer, Plus, Clock,
   Bell, XCircle, RefreshCw, Edit, ArrowLeft, ChevronDown,
-  Send, CheckCircle, Brain, Scale, Users, MoreHorizontal
+  Send, CheckCircle, Brain, Scale, Users, MoreHorizontal, Wrench
 } from 'lucide-react';
 
 // Import app mode context
@@ -47,6 +47,7 @@ import WalkInOrderDialog from '../dialogs/WalkInOrderDialog';
 import EditOrderDialog from '../dialogs/EditOrderDialog';
 import useCustomerQuestions from '../../hooks/useCustomerQuestions';
 import CustomerQuestionsList from './CustomerQuestionsList';
+import ToolsTab from '../barista-tabs/ToolsTab';
 // Using inline help dialog instead of importing external component
 import StationChat from '../support/StationChat';
 import OrderNotificationHandler from '../shared/OrderNotificationHandler';
@@ -1915,6 +1916,15 @@ const BaristaInterface = () => {
           <Check size={18} className="mr-1" />
           Completed
         </button>
+        {/* Barista Tools — available to every barista (not manager-gated): a
+            shot timer, drink recipes, dial-in helper, etc. All offline. */}
+        <button
+          className={`py-4 px-6 font-medium flex items-center ${activeTab === 'tools' ? 'border-b-2 border-amber-600 bg-white text-amber-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          onClick={() => setActiveTab('tools')}
+        >
+          <Wrench size={18} className="mr-1" />
+          Tools
+        </button>
         {/* Manager-only tabs (admin/staff/organiser). Hidden from a plain
             barista — these are event-configuration concerns (and several
             duplicate the Organiser interface). A barista sees just Orders /
@@ -1990,6 +2000,7 @@ const BaristaInterface = () => {
           { id: 'orders', label: 'Orders', Icon: Coffee },
           { id: 'stock', label: 'Stock', Icon: Package },
           { id: 'completed', label: 'Done', Icon: Check },
+          { id: 'tools', label: 'Tools', Icon: Wrench },
         ].map(({ id, label, Icon }) => (
           <button
             key={id}
@@ -2517,6 +2528,11 @@ const BaristaInterface = () => {
           </div>
         )}
         
+        {/* Barista Tools Tab — offline helpers (timer, recipes, dial-in…) */}
+        {!loading && activeTab === 'tools' && (
+          <ToolsTab />
+        )}
+
         {/* Queue Intelligence Tab */}
         {!loading && activeTab === 'queue' && (
           <div className="p-4">
