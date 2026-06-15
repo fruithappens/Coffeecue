@@ -8091,6 +8091,107 @@ def get_today_report():
         except Exception:
             pass
 
+        # --- SMS side -------------------------------------------------------
+        # Outbound = order_messages (confirmation/ready/reminder texts, logged
+        # with a Twilio SID when accepted). Inbound = sms_messages (customer
+        # texts received). Each query is defensive so a missing table or SQLite
+        # fallback never breaks the whole report.
+        sms = {'outbound': 0, 'outbound_with_provider_id': 0,
+               'inbound': 0, 'inbound_unanswered': 0, 'est_segments': 0}
+        try:
+            cur.execute("SELECT COUNT(*), COUNT(message_sid) FROM order_messages "
+                        "WHERE sent_at::date = CURRENT_DATE")
+            r = cur.fetchone()
+            if r:
+                sms['outbound'] = int(r[0] or 0)
+                sms['outbound_with_provider_id'] = int(r[1] or 0)
+            cur.execute("SELECT COALESCE(SUM(CEIL(GREATEST(LENGTH(message),1)/160.0)),0) "
+                        "FROM order_messages WHERE sent_at::date = CURRENT_DATE")
+            r = cur.fetchone()
+            sms['est_segments'] = int(r[0]) if r and r[0] is not None else sms['outbound']
+        except Exception as _e:
+            logger.warning(f"report: outbound SMS query failed: {_e}")
+            try: db.rollback()
+            except Exception: pass
+        try:
+            cur.execute("SELECT COUNT(*), "
+                        "COUNT(*) FILTER (WHERE response_sent IS NULL OR response_sent = '') "
+                        "FROM sms_messages WHERE received_at::date = CURRENT_DATE")
+            r = cur.fetchone()
+            if r:
+                sms['inbound'] = int(r[0] or 0)
+                sms['inbound_unanswered'] = int(r[1] or 0)
+        except Exception as _e:
+            logger.warning(f"report: inbound SMS query failed: {_e}")
+            try: db.rollback()
+            except Exception: pass
+
+        # --- UI / client errors --------------------------------------------
+        errors = {'count': 0, 'recent': []}
+        try:
+            cur.execute("SELECT COUNT(*) FROM client_errors WHERE created_at::date = CURRENT_DATE")
+            r = cur.fetchone()
+            errors['count'] = int(r[0]) if r and r[0] is not None else 0
+            cur.execute("SELECT message, COUNT(*) AS n FROM client_errors "
+                        "WHERE created_at::date = CURRENT_DATE "
+                        "GROUP BY message ORDER BY n DESC LIMIT 5")
+            errors['recent'] = [{'message': (row[0] or '')[:160], 'count': int(row[1])}
+                                for row in cur.fetchall()]
+        except Exception as _e:
+            logger.warning(f"report: client_errors query failed: {_e}")
+            try: db.rollback()
+            except Exception: pass
+
+        # --- Issues & improvements (auto-detected) -------------------------
+        # Each is a single COUNT; missing tables degrade to 0 rather than
+        # breaking the report. severity drives the UI colour.
+        issues = []
+
+        def _count(sql):
+            try:
+                cur.execute(sql)
+                r = cur.fetchone()
+                return int(r[0]) if r and r[0] is not None else 0
+            except Exception as _e:
+                logger.warning(f"report: issue query failed: {_e}")
+                try: db.rollback()
+                except Exception: pass
+                return 0
+
+        n = _count("SELECT COUNT(*) FROM orders WHERE created_at::date = CURRENT_DATE "
+                   "AND status = 'pending' AND created_at < NOW() - INTERVAL '15 minutes'")
+        if n:
+            issues.append({'key': 'stuck_pending', 'severity': 'warning', 'count': n,
+                           'title': f"{n} order(s) stuck pending over 15 min",
+                           'hint': 'Were these missed, or was a station under-staffed at peak?'})
+        n = _count("SELECT COUNT(*) FROM orders o JOIN station_stats s ON o.station_id = s.station_id "
+                   "WHERE o.created_at::date = CURRENT_DATE AND COALESCE(s.status,'active') <> 'active' "
+                   "AND o.status IN ('pending','in-progress','in_progress')")
+        if n:
+            issues.append({'key': 'orders_on_closed_station', 'severity': 'danger', 'count': n,
+                           'title': f"{n} active order(s) on a closed/maintenance station",
+                           'hint': 'These may never be made — reassign them to an open station.'})
+        n = _count("SELECT COUNT(*) FROM orders WHERE created_at::date = CURRENT_DATE "
+                   "AND status IN ('completed','picked_up') AND updated_at IS NOT NULL "
+                   "AND EXTRACT(EPOCH FROM (updated_at - created_at))/60.0 > 20")
+        if n:
+            issues.append({'key': 'long_waits', 'severity': 'warning', 'count': n,
+                           'title': f"{n} order(s) took over 20 minutes",
+                           'hint': 'Long waits hurt satisfaction — consider more staff at peak.'})
+        n = _count("SELECT COUNT(*) FROM orders WHERE created_at::date = CURRENT_DATE AND status = 'cancelled'")
+        if n:
+            issues.append({'key': 'cancellations', 'severity': 'info', 'count': n,
+                           'title': f"{n} order(s) cancelled",
+                           'hint': 'Check for duplicates or out-of-stock items.'})
+        if sms.get('inbound_unanswered'):
+            issues.append({'key': 'unanswered_sms', 'severity': 'warning', 'count': sms['inbound_unanswered'],
+                           'title': f"{sms['inbound_unanswered']} customer text(s) with no reply",
+                           'hint': 'Customers who texted a question may not have received an answer.'})
+        if errors.get('count'):
+            issues.append({'key': 'app_errors', 'severity': 'warning', 'count': errors['count'],
+                           'title': f"{errors['count']} app error(s) logged on devices",
+                           'hint': 'See the App errors section — a barista screen may have glitched.'})
+
         return jsonify({
             'success': True,
             'date': datetime.now().date().isoformat(),
@@ -8103,6 +8204,9 @@ def get_today_report():
             'top_drinks': top_drinks,
             'peak_hour': peak_hour,
             'busiest_station_id': busiest_station_id,
+            'sms': sms,
+            'errors': errors,
+            'issues': issues,
         })
     except Exception as e:
         logger.error(f"get_today_report error: {e}")
@@ -8218,6 +8322,47 @@ def _render_event_summary_html(is_post_event: bool = False):
         busiest_id = data.get('busiest_station_id')
         busiest_display = f"Station {busiest_id}" if busiest_id else '—'
 
+        # SMS section — the customer-comms side of the event.
+        sms = data.get('sms') or {}
+        sms_html = (
+            "<h2>SMS</h2><div class=\"stat-grid\">"
+            f"<div class=\"stat\"><div class=\"stat-label\">Texts sent</div><div class=\"stat-value\">{sms.get('outbound', 0)}</div></div>"
+            f"<div class=\"stat\"><div class=\"stat-label\">Customer texts in</div><div class=\"stat-value\">{sms.get('inbound', 0)}</div></div>"
+            f"<div class=\"stat\"><div class=\"stat-label\">Unanswered</div><div class=\"stat-value\">{sms.get('inbound_unanswered', 0)}</div></div>"
+            f"<div class=\"stat\"><div class=\"stat-label\">Est. SMS segments</div><div class=\"stat-value\">{sms.get('est_segments', 0)}</div></div>"
+            "</div>"
+        )
+
+        # Issues & improvements — the review-and-improve section.
+        issues = data.get('issues') or []
+        if issues:
+            _irows = ''.join(
+                f"<tr><td>{i.get('title', '')}</td>"
+                f"<td style=\"text-align:left\">{i.get('hint', '')}</td></tr>"
+                for i in issues
+            )
+            issues_html = ("<h2>Issues &amp; improvements</h2>"
+                           "<table><thead><tr><th>What happened</th><th>Suggestion</th></tr></thead>"
+                           f"<tbody>{_irows}</tbody></table>")
+        else:
+            issues_html = ("<h2>Issues &amp; improvements</h2>"
+                           "<p style=\"color:#0f6e56\">No issues detected — clean run.</p>")
+
+        # App errors — anything devices reported during the event.
+        errors = data.get('errors') or {}
+        _ec = errors.get('count', 0)
+        if _ec:
+            _erows = ''.join(
+                f"<tr><td>{e.get('message', '')}</td><td>{e.get('count', 0)}</td></tr>"
+                for e in errors.get('recent', [])
+            )
+            errors_html = (f"<h2>App errors logged ({_ec})</h2>"
+                           "<table><thead><tr><th>Error</th><th>Times</th></tr></thead>"
+                           f"<tbody>{_erows}</tbody></table>")
+        else:
+            errors_html = ("<h2>App errors</h2>"
+                           "<p style=\"color:#0f6e56\">None logged.</p>")
+
         # The post-event framing changes the heading and adds a CTA
         # block — controlled by the is_post_event param.
         heading_kind = 'Post-event summary' if is_post_event else 'Event summary'
@@ -8300,6 +8445,12 @@ def _render_event_summary_html(is_post_event: bool = False):
   <h2>Top drinks</h2>
   <table><thead><tr><th>Drink</th><th>Orders</th></tr></thead>
   <tbody>{top_drinks_rows}</tbody></table>
+
+  {sms_html}
+
+  {issues_html}
+
+  {errors_html}
 
   <div class="footer">
     Generated by Coffee Cue. To regenerate, visit Support → Operations → Print summary.
