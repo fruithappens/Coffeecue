@@ -31,30 +31,36 @@ support_api_bp = Blueprint('support_api', __name__)
 logger = logging.getLogger(__name__)
 
 def support_role_required(f):
-    """Decorator to require support or admin role.
+    """Decorator gating the Support / Emergency / diagnostics / user-management
+    endpoints.
 
-    Wraps jwt_required_with_demo() so the demo / offline tokens the
-    frontend's AuthService mints in dev are accepted alongside real
-    signed JWTs. Was using the strict @jwt_required() — which only
-    accepts a properly-signed token — and that's why the Organiser's
-    User Management 'Add User' button was returning 'Authorization
-    required' for a demo-logged-in operator.
+    Wraps jwt_required_with_demo() so demo / offline tokens are accepted
+    alongside real signed JWTs (the strict @jwt_required() rejected demo
+    tokens, which is why this gate was originally turned off entirely).
 
-    TODO: Re-enable the actual role check below after testing. Right
-    now any authenticated user can hit support endpoints, which
-    matches the system_audit_2026_05.md Tier-3 #24 finding.
+    Access model — DENY-LIST, on purpose:
+      This blueprint mixes support-only endpoints (emergency stop, clear
+      queues, diagnostics) with /api/users, which the *Organiser* UI also
+      calls. A strict allow-list risks locking a legitimate manager/admin out
+      over a role-name variant (admin / staff / organizer / organiser /
+      event_organizer all exist in this app). The real risk we must stop is a
+      shared *barista* login reaching Stop-All / Clear-queues / user
+      management. So block the untrusted operational roles (barista, customer,
+      display) and let every manager/admin role through. A tighter
+      per-endpoint allow-list is a sensible future hardening.
     """
+    BLOCKED_ROLES = {'barista', 'customer', 'display'}
+
     @wraps(f)
     @jwt_required_with_demo()
     def decorated_function(*args, **kwargs):
-        # Temporarily allow all authenticated users for testing
-        # TODO: Re-enable role check after testing
-        # role = (getattr(g, 'user', None) or {}).get('role')
-        # if role not in ['admin', 'support', 'organizer', 'staff']:
-        #     return jsonify({
-        #         'status': 'error',
-        #         'message': 'Insufficient permissions'
-        #     }), 403
+        role = ((getattr(g, 'user', None) or {}).get('role') or '').strip().lower()
+        if role in BLOCKED_ROLES:
+            logger.warning(f"Blocked role '{role}' from support endpoint {request.path}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Insufficient permissions for support tools'
+            }), 403
         return f(*args, **kwargs)
     return decorated_function
 
