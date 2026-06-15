@@ -304,14 +304,25 @@ const StationCapabilityCard = ({ station, choices, onSaved }) => {
             />
             <span>VIP service</span>
           </label>
-          <label className="inline-flex items-center text-sm">
-            <span className="mr-2 text-gray-600">Capacity:</span>
+          <label className="inline-flex items-center text-sm" title="Max orders this station can hold in its queue (used by load balancing)">
+            <span className="mr-2 text-gray-600">Max queue:</span>
             <input
               type="number"
               min="1"
               max="100"
               value={current.capacity || 10}
               onChange={(e) => setField('capacity', parseInt(e.target.value, 10) || 10)}
+              className="w-16 px-2 py-1 border border-gray-300 rounded text-sm"
+            />
+          </label>
+          <label className="inline-flex items-center text-sm" title="How many drinks this station makes at the same time (steam wands / group heads / baristas). Feeds the wait-time estimate — a 3-group station clears its queue ~3× faster.">
+            <span className="mr-2 text-gray-600">Drinks at once:</span>
+            <input
+              type="number"
+              min="1"
+              max="20"
+              value={current.concurrent || 1}
+              onChange={(e) => setField('concurrent', Math.max(1, parseInt(e.target.value, 10) || 1))}
               className="w-16 px-2 py-1 border border-gray-300 rounded text-sm"
             />
           </label>
