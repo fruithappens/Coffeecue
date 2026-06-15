@@ -593,6 +593,71 @@ const TodayReport = () => {
         </div>
       </div>
 
+      {/* Issues & improvements — auto-detected from the day's data. This is
+          the "review and improve" part of the post-event log. */}
+      <div className="mt-5">
+        <h4 className="text-sm font-semibold text-gray-700 mb-2">Issues &amp; improvements</h4>
+        {data?.issues?.length ? (
+          <ul className="space-y-2">
+            {data.issues.map(it => {
+              const tone = it.severity === 'danger' ? 'bg-red-50 border-red-200 text-red-800'
+                : it.severity === 'warning' ? 'bg-amber-50 border-amber-200 text-amber-800'
+                : 'bg-blue-50 border-blue-200 text-blue-800';
+              return (
+                <li key={it.key} className={`border rounded px-3 py-2 text-sm ${tone}`}>
+                  <div className="font-medium">{it.title}</div>
+                  {it.hint && <div className="text-xs opacity-80 mt-0.5">{it.hint}</div>}
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="text-sm text-green-700">No issues detected — clean run.</p>
+        )}
+      </div>
+
+      {/* SMS side — customer comms for the event */}
+      <div className="mt-5">
+        <h4 className="text-sm font-semibold text-gray-700 mb-2">SMS</h4>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="text-center p-2 border rounded">
+            <div className="text-xl font-bold">{data?.sms?.outbound ?? 0}</div>
+            <div className="text-xs text-gray-500 uppercase">Texts sent</div>
+          </div>
+          <div className="text-center p-2 border rounded">
+            <div className="text-xl font-bold">{data?.sms?.inbound ?? 0}</div>
+            <div className="text-xs text-gray-500 uppercase">Customer texts</div>
+          </div>
+          <div className="text-center p-2 border rounded">
+            <div className="text-xl font-bold">{data?.sms?.inbound_unanswered ?? 0}</div>
+            <div className="text-xs text-gray-500 uppercase">Unanswered</div>
+          </div>
+          <div className="text-center p-2 border rounded">
+            <div className="text-xl font-bold">{data?.sms?.est_segments ?? 0}</div>
+            <div className="text-xs text-gray-500 uppercase">Est. segments</div>
+          </div>
+        </div>
+      </div>
+
+      {/* App errors reported by devices during the event */}
+      <div className="mt-5">
+        <h4 className="text-sm font-semibold text-gray-700 mb-2">
+          App errors{data?.errors?.count ? ` (${data.errors.count})` : ''}
+        </h4>
+        {data?.errors?.count ? (
+          <ul className="text-sm space-y-1">
+            {(data.errors.recent || []).map((e, i) => (
+              <li key={i} className="flex justify-between border-b last:border-b-0 py-1">
+                <span className="truncate pr-2 text-red-700">{e.message}</span>
+                <span className="text-gray-500 flex-shrink-0">{e.count}×</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-green-700">None logged.</p>
+        )}
+      </div>
+
       <p className="text-xs text-gray-400 mt-3">
         Refreshes every 30s and on order updates. Revenue counts only orders
         with a price stamped at confirmation (pricing must be enabled).
