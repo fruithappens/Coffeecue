@@ -79,6 +79,10 @@ const StationLoadBalancer = () => {
       const avgOrderTime = station.avgOrderTime || 4;
       const estimatedWaitTime = currentLoad * avgOrderTime;
       
+      // Offline (maintenance/inactive) stations must not be treated as a
+      // transfer destination or shown as "available", whatever their load.
+      const offline = (station.status || 'active') !== 'active';
+
       return {
         ...station,
         currentLoad,
@@ -86,8 +90,10 @@ const StationLoadBalancer = () => {
         workloadPercentage,
         estimatedWaitTime,
         orders: stationOrders,
-        status: workloadPercentage > 90 ? 'overloaded' : 
-               workloadPercentage > 70 ? 'busy' : 
+        offline,
+        status: offline ? 'offline' :
+               workloadPercentage > 90 ? 'overloaded' :
+               workloadPercentage > 70 ? 'busy' :
                workloadPercentage > 30 ? 'active' : 'available'
       };
     });
@@ -115,7 +121,7 @@ const StationLoadBalancer = () => {
     if (!workloadData.needsBalancing) return [];
 
     const overloadedStations = workloadData.stations.filter(s => s.workloadPercentage > balancingRules.balanceThreshold);
-    const availableStations = workloadData.stations.filter(s => s.workloadPercentage < 50).sort((a, b) => a.workloadPercentage - b.workloadPercentage);
+    const availableStations = workloadData.stations.filter(s => !s.offline && s.workloadPercentage < 50).sort((a, b) => a.workloadPercentage - b.workloadPercentage);
 
     if (!overloadedStations.length || !availableStations.length) return [];
 
@@ -234,6 +240,7 @@ const StationLoadBalancer = () => {
       case 'active': return 'text-blue-600 bg-blue-100';
       case 'busy': return 'text-yellow-600 bg-yellow-100';
       case 'overloaded': return 'text-red-600 bg-red-100';
+      case 'offline': return 'text-gray-600 bg-gray-200';
       default: return 'text-gray-600 bg-gray-100';
     }
   };
