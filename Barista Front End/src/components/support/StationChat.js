@@ -21,7 +21,7 @@ const _mentions = (text, stationName) => {
   return haystack.includes(needle);
 };
 
-const StationChat = ({ onClose, onMessageRead, stations, currentStationId, currentStationName, baristaName = "Barista", onBaristaNameChange }) => {
+const StationChat = ({ onClose, onMessageRead, stations, currentStationId, currentStationName, baristaName = "Barista", onBaristaNameChange, embedded = false }) => {
   // Use the current station as default if not explicitly provided
   const [selectedStationId, setSelectedStationId] = useState(currentStationId);
   
@@ -257,7 +257,9 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
     // Width bumped 320 → 440px and capped to viewport so the header
     // (title + station picker + refresh + close) and footer (input +
     // @ + type + send) don't overflow. Mobile keeps full-width.
-    <div className="fixed bottom-0 right-0 w-full md:w-[440px] max-w-[100vw] h-[28rem] bg-white shadow-lg border rounded-t-lg overflow-hidden z-40 flex flex-col">
+    <div className={embedded
+      ? "h-full w-full bg-white overflow-hidden flex flex-col"
+      : "fixed bottom-0 right-0 w-full md:w-[440px] max-w-[100vw] h-[28rem] bg-white shadow-lg border rounded-t-lg overflow-hidden z-40 flex flex-col"}>
       <div className="bg-blue-500 text-white p-2 flex justify-between items-center flex-shrink-0">
         <div className="flex items-center min-w-0">
           <h3 className="font-medium mr-1 whitespace-nowrap">Chat</h3>
