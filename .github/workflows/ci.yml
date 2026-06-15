@@ -1,0 +1,61 @@
+name: CI
+
+# Safety net: build the frontend and syntax-check the backend on every PR (and
+# on pushes to main) so a change that won't compile can't auto-deploy to the
+# live event. Railway deploys on merge to main with no gate of its own, so this
+# is the only thing standing between a broken merge and production.
+#
+# To make this actually BLOCK a merge (not just show a red X), enable branch
+# protection on `main` → "Require status checks to pass" → select
+# "Frontend build" and "Backend syntax".
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+jobs:
+  frontend:
+    name: Frontend build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: "Barista Front End"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: "Barista Front End/package-lock.json"
+      - name: Install dependencies
+        # Fall back to `npm install` if the lockfile is out of sync, so a stale
+        # lock doesn't wedge every PR.
+        run: npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+      - name: Build
+        # CI=false: the codebase has many pre-existing lint warnings; with CI=true
+        # CRA treats warnings as errors and every build would fail. A real compile
+        # error (missing import, bad JSX, etc.) still fails the build — which is
+        # exactly the breakage we want to catch.
+        run: CI=false npm run build
+      - name: Unit tests (informational)
+        # Non-blocking for now: surfaces failures without wedging PRs while the
+        # test suite is brought up to green. Flip continue-on-error to false once
+        # the suite is reliable.
+        run: CI=true npm test -- --watchAll=false --passWithNoTests
+        continue-on-error: true
+
+  backend:
+    name: Backend syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Python syntax check (live code)
+        # Bytecode-compiles the live backend (skips _archive*/backup dirs). Catches
+        # syntax errors that would crash the app on boot — the backend equivalent
+        # of the frontend build failing.
+        run: python -m compileall -q app.py auth.py config.py routes services models utils
