@@ -163,8 +163,12 @@ const DisplayScreen = () => {
   const theme = THEMES[themeKey] || THEMES.light;
   const fonts = FONT_SCALE[settings?.displayFontSize || 'large'] || FONT_SCALE.large;
   const zoom = settings?.displayZoom || 100;
-  const showCustomerName = settings?.showNameOnDisplay !== false;
-  const showDetails = settings?.showOrderDetails !== false;
+  // Read these from the PUBLIC display config (config.*), which the display
+  // fetches without auth — NOT the settings hook, which needs a login the
+  // public display screen doesn't have (that's why turning the name off in
+  // the barista settings never reached the display).
+  const showCustomerName = config.show_customer_name !== false;
+  const showDetails = config.show_order_details !== false;
   const showCompleted = settings?.showCompletedOrders !== false;
   const showWaitTimes = settings?.showWaitTimes !== false;
   // CSS rotation for hardware screens mounted sideways (a vertical
@@ -217,6 +221,10 @@ const DisplayScreen = () => {
     logo: '',
     background_landscape: '',
     background_portrait: '',
+    // Content toggles — authoritative source for the PUBLIC display (which
+    // can't read the auth-gated /api/settings). Default true.
+    show_customer_name: true,
+    show_order_details: true,
   });
 
   // --- Fetch display config from backend ---
@@ -246,6 +254,9 @@ const DisplayScreen = () => {
             header_color: c.header_color || prev.header_color,
             background_landscape: c.background_landscape || prev.background_landscape,
             background_portrait: c.background_portrait || prev.background_portrait,
+            // Honour the operator's display toggles (server-authoritative).
+            show_customer_name: c.show_customer_name !== false,
+            show_order_details: c.show_order_details !== false,
           }));
         }
       } catch (e) { /* defaults OK if backend silent */ }

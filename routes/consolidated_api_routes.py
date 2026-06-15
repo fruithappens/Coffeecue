@@ -3350,11 +3350,39 @@ def get_display_config():
         except Exception as e:
             logger.warning(f"display/config: could not enumerate stations: {e}")
 
+        # Display content toggles live in the settings KV table (set from the
+        # barista Notification/Display settings). The PUBLIC display has no
+        # auth to hit /api/settings, so surface them here. Default true (the
+        # app default) so a fresh install looks complete.
+        show_customer_name = True
+        show_order_details = True
+        try:
+            if coffee_system and getattr(coffee_system, 'db', None):
+                scur = coffee_system.db.cursor()
+                scur.execute(
+                    "SELECT key, value FROM settings "
+                    "WHERE key IN ('showNameOnDisplay', 'showOrderDetails')"
+                )
+                for _k, _v in scur.fetchall():
+                    _flag = str(_v).strip().lower() == 'true'
+                    if _k == 'showNameOnDisplay':
+                        show_customer_name = _flag
+                    elif _k == 'showOrderDetails':
+                        show_order_details = _flag
+        except Exception as e:
+            logger.warning(f"display/config: could not read display flags: {e}")
+            try:
+                coffee_system.db.rollback()
+            except Exception:
+                pass
+
         return jsonify({
             "success": True,
             "config": {
                 "system_name": system_name,
                 "event_name": event_name,
+                "show_customer_name": show_customer_name,
+                "show_order_details": show_order_details,
                 "sms_number": config.get('TWILIO_PHONE_NUMBER', '') or branding.get('smsNumber', ''),
                 "sponsor": sponsor,
                 # Logo for the display screen header. Uploaded via the
