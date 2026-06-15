@@ -2528,9 +2528,10 @@ const BaristaInterface = () => {
           </div>
         )}
         
-        {/* Barista Tools Tab — offline helpers (timer, recipes, dial-in…) */}
+        {/* Barista Tools Tab — offline helpers (timer, recipes, dial-in…).
+            stationId lets the Dial-in card load/save the shared per-station recipe. */}
         {!loading && activeTab === 'tools' && (
-          <ToolsTab />
+          <ToolsTab stationId={selectedStation} baristaName={settings.baristaName} />
         )}
 
         {/* Queue Intelligence Tab */}

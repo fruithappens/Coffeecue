@@ -7,6 +7,7 @@ import {
   Timer, BookOpen, Sliders, Milk, Hash, Ruler, Search,
   Plus, Minus, RotateCcw,
 } from 'lucide-react';
+import ApiService from '../../services/ApiService';
 
 // ── Shot timer ──────────────────────────────────────────────────────────
 const ShotTimer = () => {
@@ -152,38 +153,116 @@ const Recipes = () => {
   );
 };
 
-// ── Dial-in helper ──────────────────────────────────────────────────────
-const DialIn = () => {
-  const [dose, setDose] = useState(18);
-  const [yieldG, setYieldG] = useState(36);
-  const ratio = dose > 0 ? (yieldG / dose) : 0;
+// ── Dial-in card (shared per station) ────────────────────────────────────
+const BLANK_CARD = {
+  bean: '', grind: '', grind_time: '', dose: '18', yield: '36',
+  shot_time: '', temp: '', notes: '',
+};
+
+const DialIn = ({ stationId, baristaName }) => {
+  const apiRef = useRef(null);
+  if (!apiRef.current) apiRef.current = new ApiService();
+  const [card, setCard] = useState(BLANK_CARD);
+  const [meta, setMeta] = useState(null);     // {updated_at, updated_by}
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState(null); // {ok, msg}
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!stationId) { setLoaded(true); return undefined; }
+    (async () => {
+      try {
+        const resp = await apiRef.current.get(`/stations/${stationId}/dial-in`);
+        const d = (resp && resp.dial_in) || {};
+        if (!cancelled) {
+          const merged = { ...BLANK_CARD };
+          Object.keys(BLANK_CARD).forEach(k => { if (d[k] != null && d[k] !== '') merged[k] = String(d[k]); });
+          setCard(merged);
+          setMeta(d.updated_at ? { updated_at: d.updated_at, updated_by: d.updated_by } : null);
+        }
+      } catch (e) { /* keep blank — offline is fine, the helper still works */ }
+      finally { if (!cancelled) setLoaded(true); }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stationId]);
+
+  const setF = (k, v) => { setCard(c => ({ ...c, [k]: v })); setStatus(null); };
+
+  // Helper renders a labelled input. Called as a function (not <Field/>) so the
+  // inputs keep focus while typing — a nested component would remount each key.
+  const fld = (k, label, opts = {}) => (
+    <label className={`text-sm block ${opts.full ? 'col-span-2' : ''}`}>
+      <span className="block text-gray-500 mb-1">{label}</span>
+      <input
+        type={opts.type || 'text'}
+        value={card[k]}
+        placeholder={opts.placeholder || ''}
+        onChange={(e) => setF(k, e.target.value)}
+        className="w-full px-2 py-1.5 border rounded"
+      />
+    </label>
+  );
+
+  const dose = parseFloat(card.dose) || 0;
+  const yld = parseFloat(card.yield) || 0;
+  const ratio = dose > 0 ? (yld / dose) : 0;
+  const t = parseFloat(card.shot_time) || 0;
+  const timeTone = t === 0 ? 'text-gray-400' : (t >= 25 && t <= 32) ? 'text-green-600' : 'text-amber-600';
+
+  const save = async () => {
+    if (!stationId) { setStatus({ ok: false, msg: 'Pick a station first (top-left) to save.' }); return; }
+    setSaving(true); setStatus(null);
+    try {
+      const resp = await apiRef.current.put(`/stations/${stationId}/dial-in`, { ...card, updated_by: baristaName || '' });
+      const d = (resp && resp.dial_in) || {};
+      setMeta(d.updated_at ? { updated_at: d.updated_at, updated_by: d.updated_by } : null);
+      setStatus({ ok: true, msg: 'Saved — shared with everyone on this station.' });
+      setTimeout(() => setStatus(null), 3000);
+    } catch (e) {
+      setStatus({ ok: false, msg: 'Could not save (offline?). Your entries are still here.' });
+    } finally { setSaving(false); }
+  };
 
   return (
     <div className="py-4 max-w-xl mx-auto space-y-5">
       <div>
-        <h4 className="font-semibold mb-2">Brew ratio</h4>
-        <div className="flex items-end gap-3">
-          <label className="text-sm">
-            <span className="block text-gray-500 mb-1">Dose in (g)</span>
-            <input type="number" min="1" step="0.5" value={dose}
-              onChange={(e) => setDose(parseFloat(e.target.value) || 0)}
-              className="w-24 px-2 py-1 border rounded" />
-          </label>
-          <span className="pb-2 text-gray-400">→</span>
-          <label className="text-sm">
-            <span className="block text-gray-500 mb-1">Yield out (g)</span>
-            <input type="number" min="1" step="1" value={yieldG}
-              onChange={(e) => setYieldG(parseFloat(e.target.value) || 0)}
-              className="w-24 px-2 py-1 border rounded" />
-          </label>
-          <div className="pb-1 ml-2">
-            <div className="text-2xl font-bold text-amber-700">1:{ratio.toFixed(2)}</div>
-            <div className="text-xs text-gray-500">
-              {ratio < 1.7 ? 'ristretto / strong' : ratio <= 2.2 ? 'classic espresso' : 'lungo / long'}
-            </div>
-          </div>
+        <div className="flex items-center justify-between mb-1">
+          <h4 className="font-semibold">Dial-in card{stationId ? '' : ' (no station selected)'}</h4>
+          {meta?.updated_at && (
+            <span className="text-xs text-gray-400">
+              updated {new Date(meta.updated_at).toLocaleTimeString()}{meta.updated_by ? ` · ${meta.updated_by}` : ''}
+            </span>
+          )}
         </div>
-        <p className="text-xs text-gray-400 mt-1">Classic target ≈ 1:2 (e.g. 18g → 36g) in 25–32s.</p>
+        <p className="text-xs text-gray-500 mb-3">The team's recipe for this station — shared across everyone's device.</p>
+
+        <div className="grid grid-cols-2 gap-3">
+          {fld('bean', 'Bean / roast', { full: true, placeholder: 'e.g. House blend, roasted 3 days ago' })}
+          {fld('grind', 'Grind setting', { placeholder: 'dial no. e.g. 3.5' })}
+          {fld('grind_time', 'Grind time (s)', { placeholder: 'e.g. 3.7', type: 'number' })}
+          {fld('dose', 'Dose in (g)', { type: 'number' })}
+          {fld('yield', 'Yield out (g)', { type: 'number' })}
+          {fld('shot_time', 'Shot time (s)', { type: 'number' })}
+          {fld('temp', 'Temp (°C)', { placeholder: 'optional' })}
+          {fld('notes', 'Notes / taste', { full: true, placeholder: 'e.g. balanced; went finer at 11am' })}
+        </div>
+
+        <div className="flex items-center gap-4 mt-3 text-sm">
+          <span>Ratio <b className="text-amber-700">1:{ratio.toFixed(2)}</b></span>
+          <span className={timeTone}>
+            Shot {t ? `${t}s` : '—'}{t && (t < 25 || t > 32) ? ' (aim 25–32s)' : ''}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-3 mt-4">
+          <button onClick={save} disabled={saving || !loaded}
+            className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded font-medium disabled:opacity-50">
+            {saving ? 'Saving…' : 'Save dial-in'}
+          </button>
+          {status && <span className={`text-sm ${status.ok ? 'text-green-700' : 'text-amber-700'}`}>{status.msg}</span>}
+        </div>
       </div>
 
       <div>
@@ -311,13 +390,13 @@ const Convert = () => {
 const TOOLS = [
   { id: 'timer',  label: 'Shot timer', Icon: Timer,    render: () => <ShotTimer /> },
   { id: 'recipes', label: 'Recipes',   Icon: BookOpen, render: () => <Recipes /> },
-  { id: 'dialin', label: 'Dial-in',    Icon: Sliders,  render: () => <DialIn /> },
+  { id: 'dialin', label: 'Dial-in',    Icon: Sliders,  render: (p) => <DialIn {...p} /> },
   { id: 'milk',   label: 'Milk',       Icon: Milk,     render: () => <MilkGuide /> },
   { id: 'tally',  label: 'Tally',      Icon: Hash,     render: () => <Tally /> },
   { id: 'convert', label: 'Convert',   Icon: Ruler,    render: () => <Convert /> },
 ];
 
-const ToolsTab = () => {
+const ToolsTab = ({ stationId = null, baristaName = '' }) => {
   const [tool, setTool] = useState('timer');
   const active = TOOLS.find(t => t.id === tool) || TOOLS[0];
   return (
@@ -338,7 +417,7 @@ const ToolsTab = () => {
         ))}
       </div>
       <div className="bg-white rounded-lg shadow-sm p-3">
-        {active.render()}
+        {active.render({ stationId, baristaName })}
       </div>
     </div>
   );

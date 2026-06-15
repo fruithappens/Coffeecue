@@ -7084,6 +7084,43 @@ def upsert_barista_profile(name):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@bp.route('/stations/<int:station_id>/dial-in', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def get_station_dial_in(station_id):
+    """Shared espresso dial-in card for a station (the 'recipe' the team agreed
+    on: bean, grind, dose, yield, shot time, etc). Returns {} if none saved."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        card = _kv_get(coffee_system.db, f'dialin_station_{station_id}', default={}) or {}
+        return jsonify({'success': True, 'dial_in': card})
+    except Exception as e:
+        logger.error(f"get_station_dial_in error: {e}")
+        return jsonify({'success': True, 'dial_in': {}}), 200
+
+
+@bp.route('/stations/<int:station_id>/dial-in', methods=['PUT', 'POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def save_station_dial_in(station_id):
+    """Save the shared dial-in card. Any barista can update it — it's a team
+    note for this station. Only known fields are stored, capped in size."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        data = request.get_json() or {}
+        if not isinstance(data, dict):
+            return jsonify({'success': False, 'error': 'expected an object'}), 400
+        allowed = ('bean', 'grind', 'grind_time', 'dose', 'yield', 'shot_time', 'temp', 'notes')
+        card = {k: (str(data[k])[:200] if data[k] is not None else '') for k in allowed if k in data}
+        card['updated_at'] = datetime.now().isoformat(timespec='seconds')
+        card['updated_by'] = str(data.get('updated_by') or '')[:60]
+        _kv_put(coffee_system.db, f'dialin_station_{station_id}', card)
+        return jsonify({'success': True, 'dial_in': card})
+    except Exception as e:
+        logger.error(f"save_station_dial_in error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @bp.route('/settings/station-inventory-configs', methods=['GET'])
 @jwt_required_with_demo()
 def get_station_inventory_configs():
