@@ -225,7 +225,10 @@ const PredictiveIntelligence = () => {
     
     forecast.forEach((period, index) => {
       const requiredStaff = Math.ceil(period.predicted / 10); // 1 staff per 10 orders/hour
-      const currentStaff = stations.filter(s => s.is_active).length;
+      // Canonical station status is `status` (active/maintenance/inactive);
+      // `is_active` doesn't exist on the stations payload, so this always
+      // counted 0. Treat blank as active.
+      const currentStaff = stations.filter(s => (s.status || 'active') === 'active').length;
       
       if (requiredStaff > currentStaff) {
         needs.push({
