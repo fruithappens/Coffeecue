@@ -5773,7 +5773,11 @@ class CoffeeOrderSystem:
         """How many drinks this station can make at once — its parallelism,
         a proxy for steam wands / group heads / number of baristas. Stored in
         station_stats.capabilities JSON as 'concurrent'. Defaults to 1 (serial)
-        so the estimate stays conservative until an operator configures it."""
+        so the estimate stays conservative until an operator configures it.
+
+        NOTE: deliberately does NOT fall back to capabilities.capacity — that
+        field is the MAX QUEUE size (default 10), a different concept; using it
+        as the divisor would make every wait ~10× too short."""
         try:
             cursor = self.db.cursor()
             cursor.execute("SELECT capabilities FROM station_stats WHERE station_id = %s", (station_id,))
@@ -5785,7 +5789,7 @@ class CoffeeOrderSystem:
                 except Exception:
                     caps = {}
             if isinstance(caps, dict):
-                c = caps.get('concurrent') or caps.get('capacity')
+                c = caps.get('concurrent')
                 if c:
                     return max(1, int(c))
         except Exception:
