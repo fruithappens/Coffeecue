@@ -140,16 +140,16 @@ const SupportInterface = () => {
               <ArrowLeft size={20} />
             </button>
             <div>
-              <h1 className="text-2xl font-bold text-gray-800">
+              <h1 className="text-lg md:text-2xl font-bold text-gray-800 truncate">
                 Support Interface - {activeTabInfo.label}
               </h1>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-gray-600 hidden md:block">
                 System monitoring and management tools (Active: {activeTab})
               </p>
             </div>
           </div>
           <div className="flex items-center space-x-4">
-            <div className="text-sm text-gray-600">
+            <div className="text-sm text-gray-600 hidden md:block">
               Last update: {systemHealth.lastUpdated.toLocaleTimeString()}
             </div>
             <button
