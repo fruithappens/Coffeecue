@@ -381,13 +381,18 @@ function App() {
     }
     
     try {
-      const response = await fetch('/api/auth/status', { 
+      const response = await fetch('/api/auth/status', {
         method: 'GET',
-        headers: { 
+        headers: {
           'Accept': 'application/json',
           'Authorization': `Bearer ${AuthService.getToken()}`
         },
-        signal: AbortSignal.timeout(5000) // Timeout after 5 seconds
+        // 15s, not 5s: a sleeping Railway container can take >5s to wake on
+        // the first request, so 5s produced a false "API auth check failed:
+        // TimeoutError" + a "Reconnecting…" flash on cold loads. This check
+        // is now fired non-blocking (see checkAuth), so a longer timeout
+        // doesn't delay app start — it just gives a cold backend time to answer.
+        signal: AbortSignal.timeout(15000)
       });
       
       // Check if we got a response to parse
@@ -447,11 +452,20 @@ function App() {
         return false;
       }
     } catch (error) {
-      console.error('API auth check failed:', error);
+      // A timeout here is almost always a cold-start backend waking up, not a
+      // real outage — log it as a warning (not a red console error) and show a
+      // gentle "reconnecting" message. The local token check still keeps the
+      // user signed in (see checkAuth), so this is non-fatal.
+      const isTimeout = error?.name === 'TimeoutError';
+      if (isTimeout) {
+        console.warn('API auth check timed out (backend may be waking up) — retrying via the reconnect banner.');
+      } else {
+        console.error('API auth check failed:', error);
+      }
       setApiStatus(prev => ({
         ...prev,
         isConnected: false,
-        message: 'Cannot connect to API server'
+        message: isTimeout ? 'Reconnecting to the server…' : 'Cannot connect to API server'
       }));
       return false;
     }
@@ -485,23 +499,23 @@ function App() {
               throw new Error('Invalid token payload');
             }
             
-            // Token format looks good, now test API connection
-            const apiReachable = await testApiForAuth();
-            
-            // API unreachable: surface a non-blocking status and let the
-            // reconnect banner retry. We deliberately do NOT pop a
-            // window.confirm offering "fallback mode" — saying yes there
-            // switches the whole app to SAMPLE data (fake orders shown as
-            // real), which is the root of the demo-breaking sample-data
-            // problem. Sample/fallback mode stays available as an explicit
-            // opt-in, never an auto-prompt on a transient blip.
-            if (!apiReachable && !OfflineDataHelper.isFallbackModeEnabled()) {
-              setApiStatus(prev => ({
-                ...prev,
-                isConnected: false,
-                message: 'Reconnecting to the server…',
-              }));
-            }
+            // Token format looks good. Test the API connection in the
+            // BACKGROUND (no await) so a slow/cold backend never delays app
+            // start — the local token check below renders the app instantly,
+            // and this just updates the reconnect banner when it resolves.
+            // We deliberately do NOT pop a window.confirm offering "fallback
+            // mode" — saying yes there switches the whole app to SAMPLE data
+            // (fake orders shown as real), the root of the demo-breaking
+            // sample-data problem. Fallback stays an explicit opt-in.
+            testApiForAuth().then(apiReachable => {
+              if (!apiReachable && !OfflineDataHelper.isFallbackModeEnabled()) {
+                setApiStatus(prev => ({
+                  ...prev,
+                  isConnected: false,
+                  message: 'Reconnecting to the server…',
+                }));
+              }
+            }).catch(() => { /* testApiForAuth already set the status */ });
           } catch (tokenError) {
             // Token format is invalid, offer fallback immediately
             console.error('Token validation error:', tokenError);
