@@ -30,6 +30,7 @@ import '../../styles/milkColors.css';
 
 // Import services and utilities
 import MessageService from '../../services/MessageService';
+import SettingsService from '../../services/SettingsService';
 import OrderDataService from '../../services/OrderDataService';
 import ChatService from '../../services/ChatService';
 import InventoryIntegrationService from '../../services/InventoryIntegrationService';
@@ -1565,12 +1566,20 @@ const BaristaInterface = () => {
     });
     
     const saveSettings = () => {
-      // Update parent settings
+      // Update parent settings (this device's local state + localStorage)
       setSettings({...settings, ...localSettings});
-      
+
       // Update MessageService settings
       MessageService.updateSettings(localSettings);
-      
+
+      // Persist to the BACKEND too. setSettings only writes THIS device's
+      // localStorage, so settings like "Show customer name on display" never
+      // reached the public Display screen (a separate device that reads these
+      // from the backend). updateSettings PUTs to /api/settings and is
+      // non-fatal if the API call fails.
+      SettingsService.updateSettings(localSettings)
+        .catch(err => console.warn('Could not sync notification settings to backend:', err));
+
       alert('Notification settings saved');
     };
     
