@@ -6,7 +6,7 @@ import {
   Coffee, Package, Calendar, Check, Monitor, Settings,
   MessageCircle, Printer, Plus, Clock,
   Bell, XCircle, RefreshCw, Edit, ArrowLeft, ChevronDown,
-  Send, CheckCircle, Brain, Scale, Users
+  Send, CheckCircle, Brain, Scale, Users, MoreHorizontal
 } from 'lucide-react';
 
 // Import app mode context
@@ -335,7 +335,9 @@ const BaristaInterface = () => {
   const [editSaving, setEditSaving] = useState(false);
   const [currentMessageOrder, setCurrentMessageOrder] = useState(null);
   const [showHelpDialog, setShowHelpDialog] = useState(false);
-  
+  // Mobile-only: the bottom tab bar's "More" sheet (manager tabs).
+  const [showMobileMore, setShowMobileMore] = useState(false);
+
   // NEW: Message status tracking
   const [messageStatus, setMessageStatus] = useState({});
   const [successMessage, setSuccessMessage] = useState('');
@@ -1596,7 +1598,10 @@ const BaristaInterface = () => {
       )}
       
       {/* Main Header */}
-      <header className="bg-amber-800 text-white p-4 flex justify-between items-center shadow-md">
+      {/* Header. On mobile it wraps (flex-wrap) instead of overflowing, and
+          the less-critical pills (Display, auto-refresh) are hidden — the
+          barista keeps Station / Online / Queue / Wait / Questions / HELP. */}
+      <header className="bg-amber-800 text-white p-4 flex flex-wrap gap-y-2 justify-between items-center shadow-md">
         <div className="flex items-center">
           <button 
             className="mr-2 p-1 rounded hover:bg-amber-700"
@@ -1689,10 +1694,10 @@ const BaristaInterface = () => {
           )}
         </div>
         
-        <div className="flex space-x-2 items-center">
-          {/* NEW: Display screen button */}
-          <button 
-            className="px-3 py-1 rounded-md bg-blue-500 hover:bg-blue-600 text-white flex items-center"
+        <div className="flex flex-wrap gap-2 items-center">
+          {/* NEW: Display screen button — hidden on mobile to declutter */}
+          <button
+            className="px-3 py-1 rounded-md bg-blue-500 hover:bg-blue-600 text-white hidden md:flex items-center"
             onClick={openDisplayScreen}
           >
             <Monitor size={16} className="mr-1" />
@@ -1704,9 +1709,9 @@ const BaristaInterface = () => {
             {online ? 'Online' : 'Offline'}
           </div>
           
-          {/* Auto-refresh indicator */}
-          <div 
-            className={`px-4 py-1 rounded-full flex items-center cursor-pointer ${autoRefreshEnabled ? 'bg-green-500' : 'bg-gray-400'}`}
+          {/* Auto-refresh indicator — hidden on mobile to declutter */}
+          <div
+            className={`px-4 py-1 rounded-full hidden md:flex items-center cursor-pointer ${autoRefreshEnabled ? 'bg-green-500' : 'bg-gray-400'}`}
             onClick={toggleAutoRefresh}
             title={autoRefreshEnabled ? `Auto-refresh every ${autoRefreshInterval} seconds` : 'Auto-refresh disabled (click to enable)'}
           >
@@ -1732,8 +1737,9 @@ const BaristaInterface = () => {
         </div>
       </header>
 
-      {/* Navigation Tabs */}
-      <div className="bg-white border-b flex shadow-sm">
+      {/* Navigation Tabs (desktop). On mobile these are replaced by the
+          fixed bottom tab bar below, so the 11 tabs never overflow. */}
+      <div className="bg-white border-b shadow-sm hidden md:flex">
         <button 
           className={`py-4 px-6 font-medium flex items-center ${activeTab === 'orders' ? 'border-b-2 border-amber-600 bg-white text-amber-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
           onClick={() => setActiveTab('orders')}
@@ -1821,8 +1827,69 @@ const BaristaInterface = () => {
         )}
       </div>
 
-      {/* Main Content */}
-      <div className="p-4 flex-grow overflow-y-auto">
+      {/* Mobile bottom tab bar — replaces the overflowing top tab row on
+          phones. Plain baristas get Orders / Stock / Completed; managers
+          also get a "More" sheet with the configuration tabs. Hidden on
+          md+ (desktop keeps the top tab row). */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 shadow-lg flex">
+        {[
+          { id: 'orders', label: 'Orders', Icon: Coffee },
+          { id: 'stock', label: 'Stock', Icon: Package },
+          { id: 'completed', label: 'Done', Icon: Check },
+        ].map(({ id, label, Icon }) => (
+          <button
+            key={id}
+            className={`flex-1 flex flex-col items-center justify-center py-2 ${activeTab === id ? 'text-amber-700' : 'text-gray-500'}`}
+            onClick={() => { setActiveTab(id); setShowMobileMore(false); }}
+          >
+            <Icon size={20} />
+            <span className="text-xs mt-0.5">{label}</span>
+          </button>
+        ))}
+        {isManager && (
+          <button
+            className={`flex-1 flex flex-col items-center justify-center py-2 ${showMobileMore || !['orders', 'stock', 'completed'].includes(activeTab) ? 'text-amber-700' : 'text-gray-500'}`}
+            onClick={() => setShowMobileMore(v => !v)}
+          >
+            <MoreHorizontal size={20} />
+            <span className="text-xs mt-0.5">More</span>
+          </button>
+        )}
+      </div>
+
+      {/* Mobile "More" sheet — the manager/config tabs, opened from the bar. */}
+      {showMobileMore && isManager && (
+        <div className="md:hidden fixed inset-0 z-40" onClick={() => setShowMobileMore(false)}>
+          <div className="absolute inset-0 bg-black bg-opacity-40"></div>
+          <div className="absolute bottom-14 left-0 right-0 bg-white rounded-t-2xl shadow-xl p-3" onClick={e => e.stopPropagation()}>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { id: 'inventory', label: 'Inventory AI', Icon: Package },
+                { id: 'schedule', label: 'Schedule', Icon: Calendar },
+                { id: 'display', label: 'Display', Icon: Monitor },
+                { id: 'queue', label: 'Queue AI', Icon: Brain },
+                { id: 'balance', label: 'Balance', Icon: Scale },
+                { id: 'capabilities', label: 'Capabilities', Icon: Settings },
+                { id: 'staff', label: 'Staff', Icon: Users },
+                { id: 'settings', label: 'Settings', Icon: Settings },
+              ].map(({ id, label, Icon }) => (
+                <button
+                  key={id}
+                  className={`flex flex-col items-center justify-center py-3 rounded-lg ${activeTab === id ? 'bg-amber-100 text-amber-800' : 'bg-gray-50 text-gray-700'}`}
+                  onClick={() => { setActiveTab(id); setShowMobileMore(false); }}
+                >
+                  <Icon size={20} />
+                  <span className="text-xs mt-1">{label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Content. Extra bottom padding on mobile so the fixed bottom
+          tab bar + sticky action footer don't cover the last items. */}
+      <div className="p-4 flex-grow overflow-y-auto pb-24 md:pb-4">
         {/* Loading state */}
         {loading && (
           <div className="flex justify-center items-center h-full">
@@ -2900,9 +2967,10 @@ const BaristaInterface = () => {
         )}
       </div>
 
-      {/* Action Bar */}
-      <div className="sticky bottom-0 bg-white p-3 shadow-lg flex justify-between border-t border-gray-200">
-        <div className="flex space-x-2">
+      {/* Action Bar. On mobile it sits just above the fixed bottom tab bar
+          (bottom-14 = 56px) and its buttons wrap instead of overflowing. */}
+      <div className="sticky bottom-14 md:bottom-0 bg-white p-3 shadow-lg flex flex-wrap gap-2 justify-between border-t border-gray-200">
+        <div className="flex flex-wrap gap-2">
           <button 
             className="px-4 py-2 bg-gray-200 rounded flex items-center hover:bg-gray-300 transition-colors"
             onClick={() => setShowWalkInDialog(true)}
@@ -2932,9 +3000,10 @@ const BaristaInterface = () => {
         {/* Removed Break Time and Need Help buttons as they're redundant with organiser settings and help at the top */}
       </div>
       
-      {/* Chat Button */}
-      <button 
-        className="fixed bottom-16 right-4 bg-blue-500 text-white p-3 rounded-full shadow-lg hover:bg-blue-600"
+      {/* Chat Button — lifted on mobile so it clears the action footer + the
+          fixed bottom tab bar. */}
+      <button
+        className="fixed bottom-40 md:bottom-16 right-4 bg-blue-500 text-white p-3 rounded-full shadow-lg hover:bg-blue-600 z-30"
         onClick={() => {
           setChatOpen(!chatOpen);
           if (!chatOpen) {
