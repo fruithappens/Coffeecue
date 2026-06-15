@@ -633,6 +633,43 @@ class CoffeeOrderSystem:
                 return True
         return False
 
+    def _station_can_make(self, station_id, milk_type=None, size=None):
+        """True if THIS specific station can make the order's milk + size.
+        Mirrors the milk/size half of order_capable() inside _assign_station.
+        An unset/empty capability dimension means 'no restriction'. Fail-OPEN
+        on a query error so a glitch never blocks an order. (Coffee-type isn't
+        gated here — stations rarely restrict drink types, and the barista
+        Start check is the backstop; milk is the case that strands orders.)"""
+        try:
+            cursor = self.db.cursor()
+            cursor.execute("SELECT capabilities FROM station_stats WHERE station_id = %s", (station_id,))
+            row = cursor.fetchone()
+            caps = row[0] if row else None
+            if isinstance(caps, str):
+                try:
+                    caps = json.loads(caps)
+                except Exception:
+                    caps = {}
+            if not isinstance(caps, dict):
+                return True
+            req_milk = (milk_type or '').lower().replace(' milk', '').strip()
+            if req_milk and req_milk not in ('no milk', 'none', 'black', ''):
+                mt = [str(m).lower().replace(' milk', '') for m in (caps.get('milk_types') or [])]
+                if mt and req_milk not in mt:
+                    return False
+            req_size = (size or '').lower().strip()
+            sz = [str(z).lower() for z in (caps.get('sizes') or [])]
+            if req_size and sz and req_size not in sz:
+                return False
+            return True
+        except Exception as e:
+            logger.warning(f"_station_can_make({station_id}) failed: {e}")
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            return True
+
     def _get_usual_order_suggestion(self, phone, name):
         """Get usual order suggestions based on previous orders.
 
@@ -4264,13 +4301,29 @@ class CoffeeOrderSystem:
             # routing the order somewhere else.
             requested_station_id = None
             station_was_reassigned = False
+            reassign_reason = None  # 'capability' | 'invalid' — shapes the SMS note
 
             if specified_station:
                 try:
                     requested_station_id = int(specified_station)
-                    station_id = requested_station_id
-                    is_delayed = False
-                    logger.info(f"Using specified station {station_id} from order details")
+                    # A station is specified (customer asked, QR context, or a
+                    # station carried over from the conversation/last order).
+                    # Honour it ONLY if it can actually make this order — else
+                    # an oat order tagged to a full-cream-only station got
+                    # stranded there because this path skipped the milk-aware
+                    # router. If it can't make it, reassign to one that can.
+                    if self._station_can_make(requested_station_id, milk_type, order_details.get('size')):
+                        station_id = requested_station_id
+                        is_delayed = False
+                        logger.info(f"Using specified station {station_id} from order details")
+                    else:
+                        station_id, is_delayed = self._assign_station(is_vip, milk_type, order_details.get('type'), order_details.get('size'))
+                        if station_id is None:
+                            logger.error("No stations available to assign order")
+                            return "Sorry, no coffee stations are currently available. Please contact the organizer to set up stations."
+                        station_was_reassigned = True
+                        reassign_reason = 'capability'
+                        logger.info(f"Specified station {requested_station_id} can't make this order (milk/size); reassigned to station {station_id}")
                 except (ValueError, TypeError):
                     requested_station_id = specified_station
                     station_id, is_delayed = self._assign_station(is_vip, milk_type, order_details.get('type'), order_details.get('size'))
@@ -4278,6 +4331,7 @@ class CoffeeOrderSystem:
                         logger.error("No stations available to assign order")
                         return "Sorry, no coffee stations are currently available. Please contact the organizer to set up stations."
                     station_was_reassigned = True
+                    reassign_reason = 'invalid'
                     logger.info(f"Invalid station {requested_station_id} specified, reassigned to station {station_id}")
             else:
                 # Use advanced station assignment if no station specified
@@ -4827,10 +4881,16 @@ class CoffeeOrderSystem:
             # reassign (invalid station number, capacity, etc.) let them know
             # — silently routing the order elsewhere has caused confusion.
             if station_was_reassigned:
-                confirmation_message += (
-                    f"\n\nNote: Station {requested_station_id} isn't available right now, "
-                    f"so your order was routed to Station {station_id}."
-                )
+                if reassign_reason == 'capability':
+                    confirmation_message += (
+                        f"\n\nNote: Station {requested_station_id} can't make this order, "
+                        f"so it was routed to Station {station_id}."
+                    )
+                else:
+                    confirmation_message += (
+                        f"\n\nNote: Station {requested_station_id} isn't available right now, "
+                        f"so your order was routed to Station {station_id}."
+                    )
             
             # Add tracking URL if enabled
             if self._get_setting('enable_web_tracking', 'false').lower() in ('true', 'yes', '1'):
