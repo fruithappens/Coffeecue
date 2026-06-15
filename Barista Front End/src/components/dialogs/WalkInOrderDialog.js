@@ -1086,6 +1086,21 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
       return;
     }
 
+    // Don't let a new order land on a closed (maintenance/inactive) station —
+    // it can't make it or hand it over. The collection dropdown already hides
+    // offline stations, but "Same station" would still assign to the current
+    // station when the barista is viewing a closed one (how a walk-in ended
+    // up on a shut Station 3).
+    const _effStationId = orderDetails.collectionStation || currentStation?.id;
+    const _effStation = stations.find(s => s.id === _effStationId);
+    if (_effStation && (_effStation.status || 'active') !== 'active') {
+      alert(
+        `${_effStation.name || 'This station'} is offline, so it can't take new orders.\n\n` +
+        `Bring it back online (the status pill in the header), or choose an active collection station.`
+      );
+      return;
+    }
+
     // VIP tap-to-confirm. VIP orders skip the queue, often go free
     // (when pricing is on), and turn red on the barista board — all
     // of which are EXPENSIVE if the box was ticked by accident on a
