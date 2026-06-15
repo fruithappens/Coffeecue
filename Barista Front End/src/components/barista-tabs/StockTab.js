@@ -66,7 +66,7 @@ const StockTab = ({
       <DismissibleInfoPanel
         id="stockInfoPanel"
         title="Station-Specific Inventory Management"
-        message="This station's inventory is saved locally. Each station manages its own inventory independently."
+        message="This station's stock is saved to the server, so it stays in sync across this station's devices and survives a refresh. Each station manages its own inventory independently."
         borderColor="green"
         bgColor="green"
         isDismissed={dismissedPanels.stockInfoPanel}

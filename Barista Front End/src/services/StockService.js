@@ -107,22 +107,20 @@ class StockService {
     this.stationName = stationName;
     this.initialized = true;
     
-    // Was there local stock for this station BEFORE we load? Used to
-    // decide whether the backend backstop should hydrate (only when the
-    // device has none — e.g. after a reload — so we don't clobber live
-    // local depletion).
-    const hadLocal = !!localStorage.getItem(this._getStationStockKey());
-
-    // Load initial stock data for this station (sync; localStorage-first).
+    // Load initial stock data for this station (sync; localStorage-first so
+    // the UI paints instantly).
     this._loadLocalStockData();
 
-    // If this device had no local stock, try to restore the station's
-    // last-saved stock from the backend (barista edits persisted via the
-    // write-through). Async + best-effort; applies only if the backend
-    // has a non-empty blob.
-    if (!hadLocal) {
-      this._hydrateFromBackend();
-    }
+    // Then ALWAYS hydrate from the backend (async, best-effort). Every stock
+    // change — manual edits AND per-order depletion — write-throughs to the
+    // backend via _saveLocalStockData(), so the backend holds the station's
+    // latest state. Hydrating on EVERY load (not only when localStorage was
+    // empty) means a reloaded tablet, or a 2nd tablet at the same station,
+    // converges on that shared state instead of drifting on its own cache —
+    // the per-device divergence this used to cause. _hydrateFromBackend()
+    // no-ops if the backend blob is empty or unreachable, so it never
+    // clobbers a fresh event or offline edits.
+    this._hydrateFromBackend();
   }
 
   /**
