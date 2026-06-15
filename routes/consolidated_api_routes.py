@@ -3350,27 +3350,58 @@ def get_display_config():
         except Exception as e:
             logger.warning(f"display/config: could not enumerate stations: {e}")
 
-        # Display content toggles live in the settings KV table (set from the
-        # barista Notification/Display settings). The PUBLIC display has no
-        # auth to hit /api/settings, so surface them here. Default true (the
-        # app default) so a fresh install looks complete.
-        show_customer_name = True
-        show_order_details = True
+        # Display content + appearance settings live in the settings KV table
+        # (set from the barista Notification/Display settings). The PUBLIC
+        # display has no auth to hit /api/settings, so surface them here.
+        # Defaults mirror the app defaults so a fresh install looks complete.
+        disp = {
+            'show_customer_name': True,
+            'show_order_details': True,
+            'show_completed': True,
+            'show_wait_times': True,
+            'display_theme': 'light',
+            'display_font_size': 'large',
+            'display_zoom': 100,
+            'display_rotation': 0,
+            'display_mode': 'auto',
+        }
         try:
             if coffee_system and getattr(coffee_system, 'db', None):
                 scur = coffee_system.db.cursor()
                 scur.execute(
-                    "SELECT key, value FROM settings "
-                    "WHERE key IN ('showNameOnDisplay', 'showOrderDetails')"
+                    "SELECT key, value FROM settings WHERE key IN ("
+                    "'showNameOnDisplay','showOrderDetails','showCompletedOrders',"
+                    "'showWaitTimes','displayTheme','displayFontSize','displayZoom',"
+                    "'displayRotation','displayMode')"
                 )
-                for _k, _v in scur.fetchall():
-                    _flag = str(_v).strip().lower() == 'true'
-                    if _k == 'showNameOnDisplay':
-                        show_customer_name = _flag
-                    elif _k == 'showOrderDetails':
-                        show_order_details = _flag
+                _rows = {k: v for k, v in scur.fetchall()}
+
+                def _as_bool(key, default):
+                    v = _rows.get(key)
+                    return (str(v).strip().lower() == 'true') if v is not None else default
+
+                def _as_int(key, default):
+                    v = _rows.get(key)
+                    try:
+                        return int(float(v)) if v is not None and str(v).strip() != '' else default
+                    except (TypeError, ValueError):
+                        return default
+
+                def _as_str(key, default):
+                    v = _rows.get(key)
+                    return str(v) if v is not None and str(v).strip() != '' else default
+
+                disp['show_customer_name'] = _as_bool('showNameOnDisplay', True)
+                disp['show_order_details'] = _as_bool('showOrderDetails', True)
+                disp['show_completed'] = _as_bool('showCompletedOrders', True)
+                disp['show_wait_times'] = _as_bool('showWaitTimes', True)
+                disp['display_theme'] = _as_str('displayTheme', 'light')
+                disp['display_font_size'] = _as_str('displayFontSize', 'large')
+                disp['display_zoom'] = _as_int('displayZoom', 100)
+                disp['display_rotation'] = _as_int('displayRotation', 0)
+                disp['display_mode'] = _as_str('displayMode', 'auto')
         except Exception as e:
-            logger.warning(f"display/config: could not read display flags: {e}")
+            logger.warning(f"display/config: could not read display settings: {e}")
             try:
                 coffee_system.db.rollback()
             except Exception:
@@ -3381,8 +3412,15 @@ def get_display_config():
             "config": {
                 "system_name": system_name,
                 "event_name": event_name,
-                "show_customer_name": show_customer_name,
-                "show_order_details": show_order_details,
+                "show_customer_name": disp['show_customer_name'],
+                "show_order_details": disp['show_order_details'],
+                "show_completed": disp['show_completed'],
+                "show_wait_times": disp['show_wait_times'],
+                "display_theme": disp['display_theme'],
+                "display_font_size": disp['display_font_size'],
+                "display_zoom": disp['display_zoom'],
+                "display_rotation": disp['display_rotation'],
+                "display_mode": disp['display_mode'],
                 "sms_number": config.get('TWILIO_PHONE_NUMBER', '') or branding.get('smsNumber', ''),
                 "sponsor": sponsor,
                 # Logo for the display screen header. Uploaded via the
