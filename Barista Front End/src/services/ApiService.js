@@ -4,6 +4,7 @@ import MockDataService from './MockDataService';
 import authService from './AuthService';
 import webSocketService from './WebSocketService';
 import { APP_MODES } from '../context/AppContext';
+import { persistAccessToken } from '../utils/authMirror';
 
 // Import anti-flicker protection utility
 const antiFlickerProtection = {
@@ -165,10 +166,12 @@ class ApiService {
         const data = await response.json();
         
         if (data.token) {
-          // Save new token
+          // Save new token to EVERY mirror key (not just coffee_system_token)
+          // so consumers reading coffee_auth_token/jwt_token/token (e.g. the
+          // WebSocket) don't end up on a stale, expired token after a refresh.
           this.token = data.token;
-          localStorage.setItem(tokenKey, data.token);
-          
+          persistAccessToken(data.token);
+
           // Save token expiry time if provided
           if (data.expiresIn) {
             localStorage.setItem('tokenExpiry', Date.now() + (data.expiresIn * 1000));
@@ -202,7 +205,6 @@ class ApiService {
    * @private
    */
   async _forceRefreshToken() {
-    const tokenKey = 'coffee_system_token';
     const refreshKey = 'coffee_system_refresh_token';
     const refreshToken = localStorage.getItem(refreshKey)
       || localStorage.getItem('refreshToken');
@@ -234,8 +236,7 @@ class ApiService {
         return false;
       }
       this.token = newToken;
-      localStorage.setItem(tokenKey, newToken);
-      localStorage.setItem('token', newToken);  // legacy key some places read
+      persistAccessToken(newToken);  // mirror to all keys (coffee_auth_token/jwt_token/token)
       if (data.expiresIn) {
         localStorage.setItem('tokenExpiry', Date.now() + (data.expiresIn * 1000));
       }

@@ -1,7 +1,7 @@
 // services/AuthService.js
 import OrderDataService from './OrderDataService';
 import ConfigService from './ConfigService';
-import tokenRefreshService from './TokenRefreshService';
+import { persistAccessToken, clearAccessTokens } from '../utils/authMirror';
 
 class AuthService {
   constructor() {
@@ -34,10 +34,9 @@ class AuthService {
       console.log('AuthService: Fallback mode is already enabled');
     }
     
-    // Start token refresh if we have a valid token
-    if (this.accessToken) {
-      tokenRefreshService.startAutoRefresh();
-    }
+    // (Removed the dead TokenRefreshService auto-refresh: it read the wrong
+    // localStorage keys ('token'/'refreshToken') and never actually refreshed.
+    // Refresh is handled by ApiService (on 401) and handleAuthentication.)
   }
 
   /**
@@ -78,11 +77,11 @@ class AuthService {
       }
       
       // Save tokens and user data
-      localStorage.setItem(this.tokenKey, data.token);
+      // Persist the access token to EVERY key the app reads it from
+      // (coffee_system_token + coffee_auth_token + jwt_token + token) so no
+      // consumer (e.g. the WebSocket) is ever left holding a stale key.
+      persistAccessToken(data.token);
       localStorage.setItem(this.refreshKey, data.refreshToken || '');
-      
-      // Also save with standard keys for compatibility
-      localStorage.setItem('token', data.token);
       localStorage.setItem('refreshToken', data.refreshToken || '');
       localStorage.setItem('tokenExpiresIn', String(data.expiresIn || 3600));
       
@@ -93,9 +92,6 @@ class AuthService {
         this.tokenExpiry = expiry;
         localStorage.setItem(this.expiryKey, expiry.toISOString());
       }
-      
-      // Start automatic token refresh
-      tokenRefreshService.startAutoRefresh();
       
       // Make sure user object exists before storing
       const userData = data.user || { 
@@ -134,9 +130,6 @@ class AuthService {
    * Log out user
    */
   logout() {
-    // Stop token refresh
-    tokenRefreshService.stopAutoRefresh();
-    
     // First get current path to potentially redirect back after login
     const currentPath = window.location.pathname;
     const redirectParam = currentPath && currentPath !== '/' && currentPath !== '/login' 
@@ -149,8 +142,10 @@ class AuthService {
     localStorage.removeItem(this.userKey);
     localStorage.removeItem(this.expiryKey);
     
-    // Clear standard token keys
-    localStorage.removeItem('token');
+    // Clear every access-token mirror key (coffee_system_token /
+    // coffee_auth_token / jwt_token / token) so a stale token can't linger and
+    // get picked up by a consumer after the next login.
+    clearAccessTokens();
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('tokenExpiresIn');
     localStorage.removeItem('user');
@@ -385,9 +380,11 @@ class AuthService {
         throw new Error('Invalid response from refresh endpoint');
       }
       
-      // Save new token
-      localStorage.setItem(this.tokenKey, data.token);
-      
+      // Save the new token to every mirror key (not just coffee_system_token)
+      // so consumers reading coffee_auth_token/jwt_token/token don't get left
+      // on the old, now-expired token after a refresh.
+      persistAccessToken(data.token);
+
       // Save new refresh token if provided
       if (data.refreshToken) {
         localStorage.setItem(this.refreshKey, data.refreshToken);
