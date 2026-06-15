@@ -163,12 +163,6 @@ const DisplayScreen = () => {
   const theme = THEMES[themeKey] || THEMES.light;
   const fonts = FONT_SCALE[settings?.displayFontSize || 'large'] || FONT_SCALE.large;
   const zoom = settings?.displayZoom || 100;
-  // Read these from the PUBLIC display config (config.*), which the display
-  // fetches without auth — NOT the settings hook, which needs a login the
-  // public display screen doesn't have (that's why turning the name off in
-  // the barista settings never reached the display).
-  const showCustomerName = config.show_customer_name !== false;
-  const showDetails = config.show_order_details !== false;
   const showCompleted = settings?.showCompletedOrders !== false;
   const showWaitTimes = settings?.showWaitTimes !== false;
   // CSS rotation for hardware screens mounted sideways (a vertical
@@ -226,6 +220,12 @@ const DisplayScreen = () => {
     show_customer_name: true,
     show_order_details: true,
   });
+
+  // Derived from config (declared above — must come AFTER it or it's a TDZ
+  // ReferenceError). The public display can't read the auth-gated
+  // /api/settings, so these toggles come from /display/config, not useSettings.
+  const showCustomerName = config.show_customer_name !== false;
+  const showDetails = config.show_order_details !== false;
 
   // --- Fetch display config from backend ---
   useEffect(() => {
