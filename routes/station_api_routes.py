@@ -94,7 +94,19 @@ def get_stations():
                 _sid = int(formatted_station['id'])
                 formatted_station['queue_count'] = queue_by_station.get(_sid, 0)
             except (TypeError, ValueError):
+                _sid = None
                 formatted_station['queue_count'] = 0
+
+            # Smart estimated wait (per-drink make-time × queue ÷ capacity) —
+            # the SAME calc the SMS estimate uses, so the barista header and
+            # what customers are told finally agree. Defensive: never breaks
+            # the stations list if the estimate errors.
+            try:
+                formatted_station['estimated_wait'] = (
+                    coffee_system._get_station_wait_time(_sid) if _sid is not None else None
+                )
+            except Exception:
+                formatted_station['estimated_wait'] = None
 
             # Format datetime objects
             if 'last_updated' in formatted_station and formatted_station['last_updated']:

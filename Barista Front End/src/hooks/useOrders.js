@@ -641,29 +641,16 @@ export default function useOrders(stationId = null) {
         console.error('Error caching orders:', e);
       }
       
-      // Update queue count and trigger wait time calculation if it changed
+      // Update queue count. The wait-time estimate is now computed on the
+      // BACKEND (per-drink make-time × pending+in-progress ÷ station capacity)
+      // and read from station.estimated_wait — the same number the SMS estimate
+      // uses. We no longer auto-write a naive "2 + queue" value from here (it
+      // ignored in-progress orders and per-device avgs were usually empty);
+      // the manual Wait dialog still sets a starting value used until real
+      // completion data accumulates.
       const newQueueCount = filteredPending?.length || 0;
-      const queueCountChanged = queueCount !== newQueueCount;
-      // Store in temp variables to batch updates
       window._tempQueueCount = newQueueCount;
-      
-      // Only trigger waitTime calculation if queue count changed
-      if (queueCountChanged) {
-        // Don't directly set state inside a useEffect callback
-        // Instead, schedule the wait time calculation for after this function completes
-        setTimeout(() => {
-          // Use the imported utility function
-          // Calculate wait time based on queue count and station stats
-          const baseWaitTime = 2; // Base 2 minutes for the first coffee
-          const dynamicWaitTime = calculateWaitTime(newQueueCount, baseWaitTime, stationStats);
-          
-          // Only update if it's different to avoid unnecessary API calls
-          updateWaitTime(dynamicWaitTime);
-          
-          console.log(`Auto-updated wait time to ${dynamicWaitTime}min due to queue change (${newQueueCount} orders)`);
-        }, 250);
-      }
-      
+
       // Store the last updated time to apply at the end
       const newLastUpdated = Date.now();
       window._tempLastUpdated = newLastUpdated;

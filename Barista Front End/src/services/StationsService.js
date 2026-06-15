@@ -326,6 +326,9 @@ class StationsService {
             // Live count of orders pending/in-progress at this station
             // (from the backend; used for the header's other-station pills).
             queueCount: station.queue_count || 0,
+            // Smart estimated wait (per-drink make-time × queue ÷ capacity),
+            // the SAME number the SMS estimate uses. null until enough data.
+            estimatedWait: station.estimated_wait ?? null,
             lastUpdated: station.last_updated
           };
         });
