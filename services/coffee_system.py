@@ -5769,6 +5769,100 @@ class CoffeeOrderSystem:
                 pass
             return 0
 
+    def _get_station_capacity(self, station_id):
+        """How many drinks this station can make at once — its parallelism,
+        a proxy for steam wands / group heads / number of baristas. Stored in
+        station_stats.capabilities JSON as 'concurrent'. Defaults to 1 (serial)
+        so the estimate stays conservative until an operator configures it."""
+        try:
+            cursor = self.db.cursor()
+            cursor.execute("SELECT capabilities FROM station_stats WHERE station_id = %s", (station_id,))
+            row = cursor.fetchone()
+            caps = row[0] if row else None
+            if isinstance(caps, str):
+                try:
+                    caps = json.loads(caps)
+                except Exception:
+                    caps = {}
+            if isinstance(caps, dict):
+                c = caps.get('concurrent') or caps.get('capacity')
+                if c:
+                    return max(1, int(c))
+        except Exception:
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+        return 1
+
+    def _get_per_drink_avgs(self, station_id, window_minutes=120):
+        """Recent average make-time per drink type at this station, from real
+        completions. Returns {drink_lower: minutes}; empty if no data."""
+        out = {}
+        try:
+            cursor = self.db.cursor()
+            cursor.execute(
+                """
+                SELECT LOWER(order_details->>'type') AS drink,
+                       AVG(EXTRACT(EPOCH FROM (updated_at - created_at)) / 60.0) AS m
+                FROM orders
+                WHERE station_id = %s
+                  AND status IN ('completed', 'picked_up')
+                  AND updated_at >= NOW() - (%s || ' minutes')::interval
+                  AND created_at IS NOT NULL AND updated_at IS NOT NULL
+                  AND order_details ? 'type'
+                GROUP BY drink
+                """,
+                (station_id, str(window_minutes)),
+            )
+            for row in cursor.fetchall():
+                if row[0] and row[1] is not None:
+                    out[row[0]] = float(row[1])
+        except Exception:
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+        return out
+
+    def _get_queue_drinks(self, station_id):
+        """Drink types of orders currently pending/in-progress at the station."""
+        out = []
+        try:
+            cursor = self.db.cursor()
+            cursor.execute(
+                "SELECT LOWER(order_details->>'type') FROM orders "
+                "WHERE station_id = %s AND status IN ('pending', 'in-progress', 'in_progress')",
+                (station_id,),
+            )
+            for row in cursor.fetchall():
+                out.append(row[0] or '')
+        except Exception:
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+        return out
+
+    def _estimate_wait_from_queue(self, station_id):
+        """Smart wait estimate for a NEW order: real per-drink make-times × the
+        actual current queue (pending + in-progress), divided by the station's
+        concurrent capacity, plus one drink's own make-time. Returns int minutes
+        or None when there's not enough recent data (caller falls back)."""
+        overall = self._get_recent_completion_avg_minutes(station_id)
+        if overall is None:
+            return None
+        per_drink = self._get_per_drink_avgs(station_id)
+        queue = self._get_queue_drinks(station_id)
+        capacity = self._get_station_capacity(station_id)
+        # Total queued work = sum of each waiting drink's expected make-time
+        # (fall back to the station overall avg for drinks with no history).
+        work_ahead = sum(per_drink.get(d, overall) for d in queue)
+        # A new order waits for the queue ahead to clear across `capacity`
+        # parallel lanes, then takes ~one drink's time itself.
+        est = (work_ahead / max(1, capacity)) + overall
+        return max(1, min(int(round(est)), 60))
+
     def _get_station_wait_time(self, station_id):
         """Get estimated wait time for a station.
 
@@ -5786,16 +5880,12 @@ class CoffeeOrderSystem:
           5. Static fallback (10 min)
         """
         try:
-            # 1. Best signal: real recent completions × queue depth.
-            avg_min = self._get_recent_completion_avg_minutes(station_id)
-            if avg_min is not None:
-                queue = self._get_station_pending_count(station_id)
-                # +1 for "the order we're about to place"; if the
-                # station has spare capacity (queue <= 1), the wait is
-                # just the prep time. Otherwise scale by queue depth.
-                wait = avg_min * max(1, queue)
-                # Clamp to a reasonable range.
-                return max(1, min(int(round(wait)), 45))
+            # 1. Best signal: per-drink make-times × the real queue (pending +
+            # in-progress), divided by the station's concurrent capacity. One
+            # source of truth for the barista header AND the SMS estimate.
+            est = self._estimate_wait_from_queue(station_id)
+            if est is not None:
+                return est
             db_type = "sqlite" if isinstance(self.db, sqlite3.Connection) else "postgres"
             cursor = self.db.cursor()
             

@@ -1844,15 +1844,18 @@ const BaristaInterface = () => {
             Queue: {queueCount}
           </div>
 
-          {/* Wait pill doubles as the adjust-wait-time shortcut (the bottom
-              "Adjust Wait Time" button was removed in favour of this). */}
+          {/* Wait pill shows the live SMART estimate (backend: per-drink
+              make-time × pending+in-progress ÷ station capacity — the same
+              number SMS customers get). Falls back to the manual value at
+              event start before real data exists. Tap to set the manual
+              starting estimate. */}
           <button
             className="px-4 py-1 rounded-full bg-green-500 hover:bg-green-600 flex items-center transition-colors"
             onClick={() => setShowWaitTimeDialog(true)}
-            title="Click to adjust the wait time shown to customers"
+            title="Live estimate from real make-times, queue and station capacity. Click to set the starting estimate (used until enough orders complete)."
           >
             <Clock size={14} className="mr-1" />
-            Wait: {waitTime} min
+            Wait: {currentStationObj?.estimatedWait ?? waitTime} min
           </button>
 
           {/* Other stations at a glance (e.g. S2: Q5) so a barista can send a
