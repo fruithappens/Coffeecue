@@ -95,16 +95,23 @@ const OperationsTab = () => {
     }
   };
 
-  const handleStationAction = async (stationId, action) => {
+  const handleStationAction = async (stationId, action, station = null) => {
     setLoading(true);
     try {
       switch (action) {
         case 'restart':
           await ApiService.post(`/stations/${stationId}/restart`);
           break;
-        case 'toggle':
-          await ApiService.post(`/stations/${stationId}/toggle`);
+        case 'toggle': {
+          // Toggle via the live status model (station_stats.status) that the
+          // barista header and SMS router both use — NOT the old
+          // /toggle endpoint, which flipped a disconnected stations.is_active
+          // column that nothing else reads. This makes the on/off here
+          // actually take the station offline everywhere.
+          const goingOffline = (station?.status || 'active') === 'active';
+          await StationsService.updateStationStatus(stationId, goingOffline ? 'maintenance' : 'active');
           break;
+        }
         case 'clear':
           await ApiService.post(`/stations/${stationId}/clear-queue`);
           break;
@@ -194,25 +201,26 @@ const OperationsTab = () => {
               <div key={station.id} className="border rounded-lg p-4">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="font-medium">{station.name}</h3>
-                  <Badge variant={station.is_active ? 'success' : 'secondary'}>
-                    {station.is_active ? 'Active' : 'Inactive'}
+                  <Badge variant={station.status === 'active' ? 'success' : 'secondary'}>
+                    {station.status === 'active' ? 'Active' : 'Offline'}
                   </Badge>
                 </div>
-                
+
                 <div className="text-sm text-gray-600 mb-3">
-                  <p>Queue: {station.queue_count || 0} orders</p>
+                  <p>Queue: {station.queueCount || 0} orders</p>
                   <p>Current: {station.current_order || 'None'}</p>
-                  <p>Barista: {station.barista_name || 'Unassigned'}</p>
+                  <p>Barista: {station.barista || 'Unassigned'}</p>
                 </div>
 
                 <div className="flex gap-2">
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => handleStationAction(station.id, 'toggle')}
+                    onClick={() => handleStationAction(station.id, 'toggle', station)}
                     disabled={loading}
+                    title={station.status === 'active' ? 'Take station offline' : 'Bring station online'}
                   >
-                    {station.is_active ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                    {station.status === 'active' ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                   </Button>
                   <Button
                     size="sm"
