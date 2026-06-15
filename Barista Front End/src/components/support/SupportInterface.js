@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Activity, Settings, Users, MessageSquare, Terminal, AlertTriangle,
-  Coffee, RefreshCw, BarChart3, Phone, ArrowLeft
+  Coffee, RefreshCw, BarChart3, Phone, ArrowLeft, Menu
 } from 'lucide-react';
 
 import ErrorMonitoring from './ErrorMonitoring';
@@ -21,6 +21,8 @@ import EmergencyTab from '../support-tabs/EmergencyTab';
 const SupportInterface = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  // Mobile: the sidebar becomes an off-canvas drawer toggled by the header menu button.
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [systemHealth, setSystemHealth] = useState({
     appVersion: '1.2.0',
     lastUpdated: new Date()
@@ -61,10 +63,15 @@ const SupportInterface = () => {
 
   return (
     <div className="flex h-screen bg-gray-50">
+      {/* Mobile drawer backdrop — tap to close. */}
+      {mobileNavOpen && (
+        <div className="md:hidden fixed inset-0 bg-black bg-opacity-40 z-30" onClick={() => setMobileNavOpen(false)}></div>
+      )}
       {/* Sidebar Navigation — matches the Organiser sidebar (white,
           collapsible, labelled, amber active) so the two interfaces feel
-          consistent. Emergency keeps a red accent. */}
-      <div className={`bg-white shadow-lg ${sidebarOpen ? 'w-64' : 'w-20'} transition-all duration-300 flex flex-col`}>
+          consistent. Emergency keeps a red accent. On mobile it's an
+          off-canvas drawer (slides in via the header menu button). */}
+      <div className={`bg-white shadow-lg ${sidebarOpen ? 'w-64' : 'w-20'} transition-all duration-300 flex flex-col fixed inset-y-0 left-0 z-40 ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full'} md:static md:translate-x-0 md:z-auto`}>
         <div className="p-4 border-b border-gray-200">
           <div className="flex justify-between items-center">
             <div className="flex items-center">
@@ -88,7 +95,7 @@ const SupportInterface = () => {
           </div>
         </div>
 
-        <nav className="flex-1 px-2 py-4">
+        <nav className="flex-1 px-2 py-4 overflow-y-auto" onClick={() => setMobileNavOpen(false)}>
           <div className="space-y-1">
             {tabs.map(tab => {
               const Icon = tab.icon;
@@ -117,7 +124,15 @@ const SupportInterface = () => {
         {/* Header */}
         <div className="bg-white shadow-sm px-6 py-4 flex items-center justify-between">
           <div className="flex items-center">
-            <button 
+            {/* Mobile-only menu button — opens the sidebar drawer. */}
+            <button
+              className="md:hidden mr-2 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+              onClick={() => setMobileNavOpen(true)}
+              aria-label="Open navigation menu"
+            >
+              <Menu size={20} />
+            </button>
+            <button
               className="mr-4 p-2 rounded-lg hover:bg-gray-100 transition-colors"
               onClick={() => window.location.href = '/'}
               title="Back to Home"

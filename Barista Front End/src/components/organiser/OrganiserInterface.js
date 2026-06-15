@@ -3,7 +3,7 @@ import {
   Coffee, Users, Clock, Calendar, Settings,
   LogOut, Bell, Sliders,
   FileText, Activity, Brain, Zap, LineChart,
-  Radio, Shield, Package, ArrowLeft, CheckCircle, Database, MessageSquare
+  Radio, Shield, Package, ArrowLeft, CheckCircle, Database, MessageSquare, Menu
 } from 'lucide-react';
 // MessageSquare, TrendingUp, BarChart, Layers, UserPlus were imported
 // but unused — left in the original sprawl. Trimmed in batch G of the
@@ -75,7 +75,9 @@ const OrganiserInterface = () => {
   
   // UI state
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  
+  // Mobile: the sidebar becomes an off-canvas drawer toggled by the header menu button.
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
   // Load stations when component mounts
   useEffect(() => {
     // Stations are loaded by the useStations hook
@@ -87,8 +89,13 @@ const OrganiserInterface = () => {
   
   return (
     <div className="min-h-screen bg-gray-100 flex">
-      {/* Sidebar */}
-      <div className={`bg-white shadow-lg ${sidebarOpen ? 'w-64' : 'w-20'} transition-all duration-300 flex flex-col`}>
+      {/* Mobile drawer backdrop — tap to close. */}
+      {mobileNavOpen && (
+        <div className="md:hidden fixed inset-0 bg-black bg-opacity-40 z-30" onClick={() => setMobileNavOpen(false)}></div>
+      )}
+      {/* Sidebar. On mobile it's an off-canvas drawer (slides in via the header
+          menu button); on md+ it's the normal in-flow collapsible sidebar. */}
+      <div className={`bg-white shadow-lg ${sidebarOpen ? 'w-64' : 'w-20'} transition-all duration-300 flex flex-col fixed inset-y-0 left-0 z-40 ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full'} md:static md:translate-x-0 md:z-auto`}>
         <div className="p-4 border-b border-gray-200">
           <div className="flex justify-between items-center">
             <div className="flex items-center">
@@ -112,7 +119,7 @@ const OrganiserInterface = () => {
           </div>
         </div>
         
-        <nav className="flex-1 px-2 py-4">
+        <nav className="flex-1 px-2 py-4 overflow-y-auto" onClick={() => setMobileNavOpen(false)}>
           <div className="space-y-1">
             {/* Quick Setup wizard — discoverable up top so a fresh
                 event configuration takes one click instead of 30. */}
@@ -348,7 +355,16 @@ const OrganiserInterface = () => {
       {/* Main content */}
       <div className="flex-1 overflow-auto">
         <header className="bg-white shadow-sm p-4 flex justify-between items-center">
-          <h1 className="text-xl font-bold text-gray-800">
+          <div className="flex items-center gap-2 min-w-0">
+            {/* Mobile-only menu button — opens the sidebar drawer. */}
+            <button
+              className="md:hidden p-1 rounded hover:bg-gray-200 text-gray-700 flex-shrink-0"
+              onClick={() => setMobileNavOpen(true)}
+              aria-label="Open navigation menu"
+            >
+              <Menu size={24} />
+            </button>
+            <h1 className="text-xl font-bold text-gray-800 truncate">
             {activeSection === 'quickSetup' && '⚡ Quick Setup'}
             {activeSection === 'readiness' && '✅ Event Readiness'}
             {activeSection === 'dashboard' && '🚀 Live Operations Command Center'}
@@ -365,8 +381,9 @@ const OrganiserInterface = () => {
             {activeSection === 'settings' && 'System Settings'}
             {activeSection === 'smsGuide' && '📱 How the SMS Bot Works'}
             {activeSection === 'eventData' && 'Event Data'}
-          </h1>
-          
+            </h1>
+          </div>
+
           <div className="flex items-center space-x-4">
             {/* Account menu — click the avatar for the logged-in user +
                 a working Log out. (The old bell was a fake notification
