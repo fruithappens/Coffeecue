@@ -59,3 +59,14 @@ jobs:
         # syntax errors that would crash the app on boot — the backend equivalent
         # of the frontend build failing.
         run: python -m compileall -q app.py auth.py config.py routes services models utils
+
+  consistency:
+    name: Consistency checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shared-state consistency guardrails
+        # Static greps for the recurring "two views of the same fact disagree"
+        # bug class (e.g. station status via the phantom is_active field, or the
+        # public display reading auth-gated settings). See the script header.
+        run: bash scripts/ci_consistency_checks.sh
