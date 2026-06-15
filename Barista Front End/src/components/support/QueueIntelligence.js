@@ -123,6 +123,10 @@ const QueueIntelligence = () => {
       // Calculate wait time estimate for new orders
       const estimatedWaitTime = currentLoad * avgOrderTime;
       
+      // A station in maintenance/inactive is OFFLINE — it must never be shown
+      // as "available" or chosen as a routing target, regardless of its load.
+      const offline = (station.status || 'active') !== 'active';
+
       return {
         ...station,
         capabilities,
@@ -132,9 +136,11 @@ const QueueIntelligence = () => {
         workloadPercentage,
         ordersPerHour,
         estimatedWaitTime,
-        efficiency: Math.max(0, 100 - workloadPercentage), // Higher efficiency = lower workload
-        status: workloadPercentage > 90 ? 'overloaded' : 
-               workloadPercentage > 70 ? 'busy' : 
+        offline,
+        efficiency: offline ? 0 : Math.max(0, 100 - workloadPercentage), // Higher efficiency = lower workload
+        status: offline ? 'offline' :
+               workloadPercentage > 90 ? 'overloaded' :
+               workloadPercentage > 70 ? 'busy' :
                workloadPercentage > 30 ? 'active' : 'available'
       };
     });
@@ -146,7 +152,7 @@ const QueueIntelligence = () => {
   const findBestStation = useCallback((order) => {
     if (!stationStats.length) return null;
 
-    let scores = stationStats.map(station => {
+    let scores = stationStats.filter(station => !station.offline).map(station => {
       let score = 0;
       
       // Capability matching (40% of score)
@@ -246,6 +252,7 @@ const QueueIntelligence = () => {
       case 'active': return 'bg-blue-100 text-blue-800';
       case 'busy': return 'bg-yellow-100 text-yellow-800';
       case 'overloaded': return 'bg-red-100 text-red-800';
+      case 'offline': return 'bg-gray-200 text-gray-600';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -256,6 +263,7 @@ const QueueIntelligence = () => {
       case 'active': return <Clock size={16} className="text-blue-600" />;
       case 'busy': return <Users size={16} className="text-yellow-600" />;
       case 'overloaded': return <AlertTriangle size={16} className="text-red-600" />;
+      case 'offline': return <AlertTriangle size={16} className="text-gray-500" />;
       default: return <Clock size={16} className="text-gray-600" />;
     }
   };
