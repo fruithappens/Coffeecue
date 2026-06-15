@@ -516,6 +516,28 @@ const BaristaInterface = () => {
       // sibling components (Display screen etc.) re-render with the
       // new value immediately.
       window.dispatchEvent(new CustomEvent('settings:updated', { detail: newSettings }));
+
+      // Global display/notification settings must ALSO reach the backend, or
+      // other devices — especially the public Display screen — never see them
+      // (setSettings alone only writes THIS device's localStorage). Persist
+      // only the server-backed keys, and only when they actually changed, so
+      // a station switch (which spreads the whole settings blob) doesn't spam
+      // PUTs. Non-fatal on API failure.
+      const GLOBAL_SETTING_KEYS = [
+        'showNameOnDisplay', 'showOrderDetails', 'showCompletedOrders', 'showWaitTimes',
+        'displayTheme', 'displayFontSize', 'displayZoom', 'displayRotation', 'displayMode',
+        'autoSendSmsOnComplete', 'remindAfterDelay', 'reminderDelay',
+      ];
+      const changed = {};
+      for (const k of GLOBAL_SETTING_KEYS) {
+        if (Object.prototype.hasOwnProperty.call(newSettings, k) && newSettings[k] !== settings[k]) {
+          changed[k] = newSettings[k];
+        }
+      }
+      if (Object.keys(changed).length > 0) {
+        SettingsService.updateSettings(changed)
+          .catch(err => console.warn('Could not sync display settings to backend:', err));
+      }
     } catch (error) {
       console.error('Error saving settings to localStorage:', error);
     }

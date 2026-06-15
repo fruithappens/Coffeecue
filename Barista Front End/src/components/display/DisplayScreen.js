@@ -157,37 +157,68 @@ const DisplayScreen = () => {
 
   const { settings } = useSettings();
 
-  // Visual config derived from settings (with sensible defaults so
-  // the screen never looks broken even on a fresh install).
-  const themeKey = settings?.displayTheme || 'light';
+  // Display config from the backend. The PUBLIC customer display has NO auth,
+  // so it CANNOT read /api/settings — every appearance + content setting must
+  // come from the public /display/config (populated by the fetch below).
+  // Declared here, BEFORE the derivations that read it, to avoid a TDZ error.
+  const [config, setConfig] = useState({
+    system_name: 'Coffee Cue',
+    event_name: 'Coffee Event',
+    sms_number: '',
+    sponsor: { enabled: false, name: '', message: '' },
+    header_color: '#1e40af',
+    custom_message: '',
+    logo: '',
+    background_landscape: '',
+    background_portrait: '',
+    // Content + appearance — authoritative for the PUBLIC display. Defaults
+    // mirror the old settings-hook fallbacks so a fresh screen looks right.
+    show_customer_name: true,
+    show_order_details: true,
+    show_completed: true,
+    show_wait_times: true,
+    display_theme: 'light',
+    display_font_size: 'large',
+    display_zoom: 100,
+    display_rotation: 0,
+    display_mode: 'auto',
+  });
+
+  // Visual config — sourced from the public /display/config (works with no
+  // auth). The settings hook is NOT used here because the public display can't
+  // read it; that was why theme/font/etc. set by the operator never applied.
+  const themeKey = config.display_theme || 'light';
   const theme = THEMES[themeKey] || THEMES.light;
-  const fonts = FONT_SCALE[settings?.displayFontSize || 'large'] || FONT_SCALE.large;
-  const zoom = settings?.displayZoom || 100;
-  const showCompleted = settings?.showCompletedOrders !== false;
-  const showWaitTimes = settings?.showWaitTimes !== false;
+  const fonts = FONT_SCALE[config.display_font_size] || FONT_SCALE.large;
+  const zoom = config.display_zoom || 100;
+  const showCustomerName = config.show_customer_name !== false;
+  const showDetails = config.show_order_details !== false;
+  const showCompleted = config.show_completed !== false;
+  const showWaitTimes = config.show_wait_times !== false;
   // CSS rotation for hardware screens mounted sideways (a vertical
   // TV on a stand fed by an HDMI source that can't itself rotate,
   // an AirPlay'd iPad on a wall mount, etc). 0/90/180/270 only.
   // When the OS supports rotation that's still the better path —
   // this is for when it doesn't.
   const rotation = _normalizeRotation(
-    rotateFromUrl != null ? rotateFromUrl : (settings?.displayRotation ?? 0)
+    rotateFromUrl != null ? rotateFromUrl : (config.display_rotation ?? 0)
   );
 
-  // Effective orientation — URL > setting > auto-detect.
+  // Effective orientation — URL > config setting > auto-detect.
   const [orientation, setOrientation] = useState(
-    () => resolveOrientation(orientationFromUrl || settings?.displayMode || 'auto')
+    () => resolveOrientation(orientationFromUrl || config.display_mode || 'auto')
   );
-  // Re-resolve on window resize so the "auto" mode picks up
-  // landscape ⇄ portrait flips of an iPad.
+  // Re-resolve on window resize AND when the config's display_mode loads
+  // from the backend (deps), so "auto" picks up landscape ⇄ portrait flips
+  // and an operator-set orientation applies once config arrives.
   useEffect(() => {
     const onResize = () => {
-      setOrientation(resolveOrientation(orientationFromUrl || settings?.displayMode || 'auto'));
+      setOrientation(resolveOrientation(orientationFromUrl || config.display_mode || 'auto'));
     };
     window.addEventListener('resize', onResize);
     onResize();
     return () => window.removeEventListener('resize', onResize);
-  }, [orientationFromUrl, settings?.displayMode]);
+  }, [orientationFromUrl, config.display_mode]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -203,29 +234,6 @@ const DisplayScreen = () => {
   // ones when they appear. Map of order_id → timestamp first seen.
   const newReadyRef = useRef(new Map());
   const prevReadyIdsRef = useRef(new Set());
-
-  // Display config from backend (event name, sponsor, SMS number).
-  const [config, setConfig] = useState({
-    system_name: 'Coffee Cue',
-    event_name: 'Coffee Event',
-    sms_number: '',
-    sponsor: { enabled: false, name: '', message: '' },
-    header_color: '#1e40af',
-    custom_message: '',
-    logo: '',
-    background_landscape: '',
-    background_portrait: '',
-    // Content toggles — authoritative source for the PUBLIC display (which
-    // can't read the auth-gated /api/settings). Default true.
-    show_customer_name: true,
-    show_order_details: true,
-  });
-
-  // Derived from config (declared above — must come AFTER it or it's a TDZ
-  // ReferenceError). The public display can't read the auth-gated
-  // /api/settings, so these toggles come from /display/config, not useSettings.
-  const showCustomerName = config.show_customer_name !== false;
-  const showDetails = config.show_order_details !== false;
 
   // --- Fetch display config from backend ---
   useEffect(() => {
@@ -254,9 +262,17 @@ const DisplayScreen = () => {
             header_color: c.header_color || prev.header_color,
             background_landscape: c.background_landscape || prev.background_landscape,
             background_portrait: c.background_portrait || prev.background_portrait,
-            // Honour the operator's display toggles (server-authoritative).
+            // Honour the operator's display toggles + appearance settings
+            // (server-authoritative — the public display can't read /api/settings).
             show_customer_name: c.show_customer_name !== false,
             show_order_details: c.show_order_details !== false,
+            show_completed: c.show_completed !== false,
+            show_wait_times: c.show_wait_times !== false,
+            display_theme: c.display_theme || prev.display_theme,
+            display_font_size: c.display_font_size || prev.display_font_size,
+            display_zoom: c.display_zoom || prev.display_zoom,
+            display_rotation: c.display_rotation ?? prev.display_rotation,
+            display_mode: c.display_mode || prev.display_mode,
           }));
         }
       } catch (e) { /* defaults OK if backend silent */ }
