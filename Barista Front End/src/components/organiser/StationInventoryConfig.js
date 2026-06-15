@@ -100,12 +100,16 @@ const StationInventoryConfig = ({ stations }) => {
     }
   };
 
-  // Don't auto-initialize - let user explicitly choose what's available
-  // This was causing all items to be enabled by default
+  // Default any station that has NO config yet to "carries the whole menu".
+  // Quick Setup pushes capabilities to stations but NOT this per-station
+  // inventory map, and new stations start empty — both showed 0/52 and made
+  // "copy from station" copy an empty source. This fills only never-configured
+  // stations (a station the operator has actually set, even all-off, keeps a
+  // non-empty config and is left alone), once the catalog has loaded.
   useEffect(() => {
-    console.log('Inventory loaded, length:', Object.keys(inventory).length);
-    // Remove auto-initialization
-  }, [inventory]);
+    initializeStationConfigs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inventory, stations, stationConfigs]);
 
   // Load inventory from localStorage
   const loadInventory = () => {
@@ -156,19 +160,16 @@ const StationInventoryConfig = ({ stations }) => {
 
   // Initialize station configurations for all stations
   const initializeStationConfigs = () => {
-    console.log('initializeStationConfigs called, current configs:', stationConfigs);
-    
-    // Only initialize if configs are truly empty
-    const hasAnyConfig = Object.keys(stationConfigs).some(stationId => {
-      const config = stationConfigs[stationId];
-      return config && Object.keys(config).length > 0;
-    });
-    
-    if (hasAnyConfig) {
-      console.log('Configs already exist, skipping initialization');
-      return;
-    }
-    
+    // Need the catalog loaded first — otherwise we'd persist empty configs and
+    // lock every station to 0 items.
+    const hasInventory = Object.keys(inventory).some(
+      cat => (inventory[cat] || []).some(i => i.enabled)
+    );
+    if (!hasInventory) return;
+
+    // NOTE: do NOT skip when SOME station already has a config — that left
+    // newly-added stations (e.g. East Wing) empty forever. The per-station
+    // guard below fills only the stations that individually have none.
     // Create configurations for EVERY real station, not a hardcoded
     // 1/2/3. The old hardcode silently dropped inventory config for
     // station 4+, so events with more than three stations had
