@@ -3,6 +3,38 @@ import OrderDataService from './OrderDataService';
 import ConfigService from './ConfigService';
 import { persistAccessToken, clearAccessTokens } from '../utils/authMirror';
 
+/**
+ * Remove every cached-order key from localStorage so a NEW session never
+ * briefly renders the PREVIOUS session's orders (the "old orders flash on
+ * login" bug — also hits a barista tablet reused between events). Covers the
+ * useOrders fallback cache (`fallback_*_orders`), the per-station cache
+ * (`orders_cache_station_<id>`), OrderDataService's localStorage backups
+ * (`orders_<id|all>`), and the fallback/auth-error flags that make useOrders
+ * render that stale data on mount.
+ */
+function clearOrderCaches() {
+  try {
+    const exact = [
+      'fallback_pending_orders', 'fallback_in_progress_orders',
+      'fallback_completed_orders', 'fallback_previous_orders',
+      'fallback_data_available', 'use_fallback_data',
+      'auth_error_refresh_needed', 'auth_error_count',
+    ];
+    exact.forEach((k) => localStorage.removeItem(k));
+    // Prefix matches: orders_cache_station_<id> and orders_<id|all> backups.
+    // (Note: `orders_` is plural — it does NOT match the `order_created_at_*`
+    // walk-in markers, which we intentionally leave alone.)
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('orders_')) {
+        localStorage.removeItem(key);
+      }
+    }
+  } catch (e) {
+    console.warn('clearOrderCaches failed (non-fatal):', e);
+  }
+}
+
 class AuthService {
   constructor() {
     this.tokenKey = 'coffee_system_token';
@@ -110,6 +142,14 @@ class AuthService {
       localStorage.removeItem('auth_error_count');
       localStorage.removeItem('auth_error_refresh_needed');
       localStorage.removeItem('use_fallback_data');
+
+      // Start the new session clean: wipe any order caches left by a previous
+      // session so the barista screen doesn't flash the old event's orders
+      // before the live queue loads. clearOrderCaches() handles localStorage;
+      // also drop OrderDataService's in-memory cache for the SPA-navigation
+      // case (login without a full page reload).
+      clearOrderCaches();
+      try { OrderDataService.invalidateCache('orders'); } catch (e) { /* non-fatal */ }
       
       // Redirect to the appropriate dashboard based on user role
       this.redirectBasedOnRole(userData.role);
@@ -152,7 +192,11 @@ class AuthService {
     
     // Clear token from API service
     OrderDataService.setToken(null);
-    
+
+    // Wipe cached orders on the way out too, so the next person to log in on
+    // this device starts clean.
+    clearOrderCaches();
+
     // Call logout endpoint to invalidate token on server
     try {
       // Use ConfigService for API URL
