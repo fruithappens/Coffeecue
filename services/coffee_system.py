@@ -1790,6 +1790,17 @@ class CoffeeOrderSystem:
             'evening', 'cheers', 'please', 'thanks', 'thank', 'you', 'for', 'a',
             'an', 'the', 'and', 'with', 'of', 'order', 'coffee', 'get', 'have',
             'like', 'want', 'me', 'my', 'is',
+            # Re-order / quantity / generic words that are NOT names. Without
+            # these, "Last latte" (meaning "my last/usual latte") greeted the
+            # customer as "Thanks Last!" — the first leftover word was taken as
+            # the name. Skipping them makes the bot ask "what's your first name?"
+            # instead of inventing a name. Bias is intentional: a real name that
+            # matches one of these just gets re-asked (safe); guessing wrong is
+            # the embarrassing failure.
+            'last', 'usual', 'same', 'again', 'another', 'regular', 'normal',
+            'standard', 'previous', 'just', 'only', 'some', 'one', 'two', 'three',
+            'quick', 'fresh', 'nice', 'good', 'great', 'best', 'lovely',
+            'favourite', 'favorite', 'today', 'now', 'that', 'this', 'will',
         }
         order_tokens = set()
         for d in (getattr(self.nlp, 'coffee_types', {}), getattr(self.nlp, 'milks', {}),
