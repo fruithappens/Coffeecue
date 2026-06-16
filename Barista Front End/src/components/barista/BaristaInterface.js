@@ -3312,6 +3312,8 @@ const BaristaInterface = () => {
                 setReplyDrafts={cq.setReplyDrafts}
                 sending={cq.sending}
                 sendReply={cq.sendReply}
+                blocking={cq.blocking}
+                blockSender={cq.blockSender}
               />
             )}
           </div>

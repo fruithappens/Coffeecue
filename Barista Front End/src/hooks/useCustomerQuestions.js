@@ -17,6 +17,7 @@ export default function useCustomerQuestions() {
   const [items, setItems] = useState([]);
   const [replyDrafts, setReplyDrafts] = useState({}); // {id: text}
   const [sending, setSending] = useState({});         // {id: bool}
+  const [blocking, setBlocking] = useState({});       // {id: bool}
   const apiRef = useRef(null);
   if (!apiRef.current) apiRef.current = new ApiService();
 
@@ -77,5 +78,36 @@ export default function useCustomerQuestions() {
     }
   }, [replyDrafts]);
 
-  return { items, count: items.length, replyDrafts, setReplyDrafts, sending, sendReply };
+  // Block the sender of a message (e.g. an SMS spammer, or the ⚠️ auto-pause
+  // alert). The bot stops replying to that number until it's unblocked in
+  // Support → SMS. Reversible; deletes nothing.
+  const blockSender = useCallback(async (q) => {
+    const phone = q.phone || q.from || '';
+    if (!phone) { alert('No phone number on this message to block.'); return; }
+    if (!window.confirm(
+      `Block ${phone}?\n\nThe system will stop replying to this number to protect ` +
+      `your SMS credit. You can undo this anytime in Support → SMS. ` +
+      `Nothing is deleted.`
+    )) return;
+    setBlocking(s => ({ ...s, [q.id]: true }));
+    try {
+      const resp = await apiRef.current.post('/sms/block', {
+        phone, reason: 'Blocked from Messages inbox',
+      });
+      if (resp && (resp.success === true || resp.status === 'success')) {
+        setItems(its => its.filter(x => x.id !== q.id)); // optimistic remove
+      } else {
+        alert((resp && resp.message) || 'Failed to block number');
+      }
+    } catch (err) {
+      alert(err?.message || 'Failed to block number');
+    } finally {
+      setBlocking(s => ({ ...s, [q.id]: false }));
+    }
+  }, []);
+
+  return {
+    items, count: items.length, replyDrafts, setReplyDrafts,
+    sending, sendReply, blocking, blockSender,
+  };
 }
