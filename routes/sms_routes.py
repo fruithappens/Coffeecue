@@ -241,7 +241,31 @@ def _sms_webhook_inner():
             resp = MessagingResponse()
             resp.message("Sorry, our ordering system is currently unavailable. Please try again later.")
             return str(resp)
-        
+
+        # SMS abuse / cost protection — BEFORE any reply work. Every inbound SMS
+        # triggers a paid outbound reply, so a flood (or a script) would burn
+        # Twilio credit. register_inbound_sms() returns:
+        #   blocked → manual blocklist; ignore silently (no reply, no cost)
+        #   paused  → cooling down after a burst trip; ignore silently
+        #   tripped → JUST crossed the burst threshold; alert a barista + ignore
+        #   ok      → normal customer; proceed
+        # An empty TwiML <Response/> means "no reply" — no outbound SMS is sent.
+        try:
+            sms_gate = coffee_system.register_inbound_sms(from_number)
+        except Exception as gate_err:
+            logger.warning(f"SMS abuse gate errored (failing open): {gate_err}")
+            sms_gate = 'ok'
+        if sms_gate != 'ok':
+            if sms_gate == 'tripped':
+                logger.warning(f"SMS burst from {from_number} — auto-paused + alerting baristas")
+                try:
+                    coffee_system.sms_spam_alert(from_number)
+                except Exception as alert_err:
+                    logger.error(f"sms_spam_alert failed (non-fatal): {alert_err}")
+            else:
+                logger.info(f"Ignoring inbound SMS from {from_number} (gate={sms_gate})")
+            return str(MessagingResponse())  # empty = no reply, no cost
+
         # Check for Twilio reserved keywords
         body_upper = body.strip().upper()
         if body_upper == 'STOP':

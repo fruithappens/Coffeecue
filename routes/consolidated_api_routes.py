@@ -5915,6 +5915,71 @@ def send_sms():
             'message': f"Error sending SMS: {str(e)}"
         }), 500
 
+
+@bp.route('/sms/blocklist', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def sms_blocklist_get():
+    """List numbers currently blocked from SMS ordering (no reply = no cost)."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        if not coffee_system:
+            return jsonify({'success': False, 'message': 'System unavailable'}), 503
+        return jsonify({'success': True, 'status': 'success',
+                        'data': {'blocked': coffee_system.get_sms_blocklist()}})
+    except Exception as e:
+        logger.error(f"sms_blocklist_get failed: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@bp.route('/sms/block', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def sms_block_number():
+    """Block a phone number from SMS ordering. The bot stops replying to it
+    entirely (zero outbound cost) until it's unblocked."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        if not coffee_system:
+            return jsonify({'success': False, 'message': 'System unavailable'}), 503
+        body = request.json or {}
+        phone = (body.get('phone') or body.get('number') or '').strip()
+        if not phone:
+            return jsonify({'success': False, 'message': "A 'phone' is required."}), 400
+        try:
+            actor = get_jwt_identity() or ''
+        except Exception:
+            actor = ''
+        blocked = coffee_system.block_sms_number(phone, reason=(body.get('reason') or ''), by=actor)
+        return jsonify({'success': True, 'status': 'success',
+                        'message': f"Blocked {blocked}.", 'data': {'phone': blocked}})
+    except Exception as e:
+        logger.error(f"sms_block_number failed: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@bp.route('/sms/unblock', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def sms_unblock_number():
+    """Remove a phone number from the SMS blocklist (it can order again)."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        if not coffee_system:
+            return jsonify({'success': False, 'message': 'System unavailable'}), 503
+        body = request.json or {}
+        phone = (body.get('phone') or body.get('number') or '').strip()
+        if not phone:
+            return jsonify({'success': False, 'message': "A 'phone' is required."}), 400
+        ok = coffee_system.unblock_sms_number(phone)
+        return jsonify({'success': True, 'status': 'success',
+                        'message': "Unblocked." if ok else "That number wasn't blocked.",
+                        'data': {'unblocked': ok}})
+    except Exception as e:
+        logger.error(f"sms_unblock_number failed: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 @bp.route('/sms/send-test', methods=['POST'])
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff', 'barista'])
