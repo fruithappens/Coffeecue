@@ -157,10 +157,11 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
     setChosenStation(only);
     routeFromStation();
   };
-  // Always offer the phone step. It's REQUIRED when collecting elsewhere (the
-  // only way to tell them it's ready) and OPTIONAL ("I'll wait here") when
-  // collecting at this screen's own station — so even a single-station customer
-  // can still opt in to a ready SMS and walk away.
+  // Always offer the phone step, but it's OPTIONAL for everyone — a customer
+  // with no phone / on international roaming must still be able to order. If
+  // they skip, they watch the board for their name (and the collect-from
+  // station is shown on review + the board). Entering a number just opts them
+  // into a ready-SMS.
   const routeFromStation = () => setStep('phone');
   const chooseStation = (sid) => { setChosenStation(sid); routeFromStation(); };
 
@@ -385,15 +386,15 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
           </>
         )}
 
-        {/* ---------- PHONE (required when collecting elsewhere) ---------- */}
+        {/* ---------- PHONE (always optional — offer a ready-text) ---------- */}
         {step === 'phone' && (
           <>
-            <Header title={collectingHere ? 'Get a text when it’s ready?' : 'Your mobile number'}
+            <Header title="Want a text when it’s ready?"
                     onBack={() => setStep(capable.length > 1 ? 'location' : 'sugar')} />
             <p className="text-xl text-gray-600 mb-3 font-medium">
               {collectingHere
-                ? "Pop in your mobile and we’ll text you when it’s ready — or skip and watch the board."
-                : <>Your order will be ready at <b>{stationName(chosenStation)}</b> — enter your mobile so we can text you when it’s done.</>}
+                ? "Pop in your mobile and we’ll text you when it’s ready — or just wait nearby and watch the board for your name. No phone needed."
+                : <>Your order will be ready at <b>{stationName(chosenStation)}</b>. Add your mobile for a text when it’s done, or skip and watch the board there for your name. No phone needed.</>}
             </p>
             <input
               autoFocus value={phone} onChange={(e) => setPhone(e.target.value)}
@@ -402,16 +403,16 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
               style={{ borderColor: phoneValid ? headerColor : undefined }}
             />
             <div className="mt-6 flex gap-3">
-              {collectingHere && (
-                <button onClick={() => { setPhone(''); setStep('review'); }}
-                  className="flex-1 py-5 rounded-2xl text-2xl font-bold bg-white text-gray-700 shadow active:scale-95">
-                  I'll wait here
-                </button>
-              )}
+              {/* Skip is ALWAYS available — phone is never required (some
+                  customers have no phone / are roaming). They watch the board. */}
+              <button onClick={() => { setPhone(''); setStep('review'); }}
+                className="flex-1 py-5 rounded-2xl text-2xl font-bold bg-white text-gray-700 shadow active:scale-95">
+                No thanks
+              </button>
               <button disabled={!phoneValid} onClick={() => setStep('review')}
                 className="flex-1 py-5 rounded-2xl text-2xl font-extrabold text-white disabled:opacity-40"
                 style={{ backgroundColor: headerColor }}>
-                Next →
+                Text me →
               </button>
             </div>
           </>
