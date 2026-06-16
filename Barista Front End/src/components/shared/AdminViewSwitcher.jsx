@@ -25,7 +25,9 @@ const AdminViewSwitcher = () => {
   const role = (AuthService.getCurrentUser()?.role || '').toLowerCase();
   if (role !== 'admin') return null;
   // Don't clutter the public/landing/login or the customer-facing display.
-  if (['/', '/login', '/auth/login', '/display'].includes(location.pathname)) return null;
+  // Also hidden on /barista — that screen has its own "Switch view" control in
+  // the header pill row (the floating one collided with the action bar there).
+  if (['/', '/login', '/auth/login', '/display', '/barista'].includes(location.pathname)) return null;
 
   return (
     // RIGHT EDGE, vertically centred. It used to float bottom-left, where it
