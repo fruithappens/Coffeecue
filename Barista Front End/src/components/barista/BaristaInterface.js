@@ -6,7 +6,7 @@ import {
   Coffee, Package, Calendar, Check, Monitor, Settings,
   MessageCircle, Printer, Plus, Clock,
   Bell, XCircle, RefreshCw, Edit, ArrowLeft, ChevronDown,
-  Send, CheckCircle, Brain, Scale, Users, MoreHorizontal, Wrench
+  Send, CheckCircle, Brain, Scale, Users, MoreHorizontal, Wrench, Shuffle
 } from 'lucide-react';
 
 // Import app mode context
@@ -79,6 +79,9 @@ const BaristaInterface = () => {
   const [showStationSelector, setShowStationSelector] = useState(false);
   // Auto-refresh interval picker (header pill) open/closed
   const [showRefreshMenu, setShowRefreshMenu] = useState(false);
+  // Admin-only "Switch view" dropdown in the header (replaces the floating
+  // cross-interface switcher on this screen).
+  const [showViewSwitch, setShowViewSwitch] = useState(false);
   
   // Use schedule hook to get schedule data
   const {
@@ -952,11 +955,19 @@ const BaristaInterface = () => {
   // Other stations (for the at-a-glance queue pills) — lets a barista point
   // a walk-up at a quieter station. Colour-coded by how busy each one is.
   const otherStations = stations.filter(s => s.id !== selectedStation);
+  // Compact ≤4-char tag for the other-station pills so a long custom name
+  // ("East Wing", "Main Foyer Coffee") doesn't blow the header out. Full name
+  // is still shown on hover (title attr) and in the station dropdown/title.
+  //   "Coffee Station 2" → "S2"  (trailing number wins)
+  //   "East Wing"        → "EW"  (initials of each word)
+  //   "Lobby"            → "Lobb" (first 4 of a single word)
   const shortStationLabel = (name, id) => {
     if (!name) return `S${id}`;
-    const m = String(name).match(/(\d+)\s*$/);
-    if (m) return `S${m[1]}`;
-    return name.length > 10 ? name.slice(0, 9) + '…' : name;
+    const trailing = String(name).match(/(\d+)\s*$/);
+    if (trailing) return `S${trailing[1]}`.slice(0, 4);
+    const words = String(name).trim().split(/\s+/).filter(Boolean);
+    if (words.length >= 2) return words.map(w => w[0]).join('').toUpperCase().slice(0, 4);
+    return (words[0] || `S${id}`).slice(0, 4);
   };
 
   // Batch order handling
@@ -1889,6 +1900,43 @@ const BaristaInterface = () => {
           {/* Customer questions + station chat now live in the blue Messages
               bubble (bottom-right); the static HELP button was removed to
               declutter the header. */}
+
+          {/* Admin-only "Switch view" — jump to another interface from the
+              header (replaces the floating switcher on this screen, which is
+              hidden on /barista). Desktop only. */}
+          {_currentRole === 'admin' && (
+            <div className="relative hidden md:block">
+              <button
+                onClick={() => setShowViewSwitch(v => !v)}
+                className="px-3 py-1 rounded-full bg-amber-900 hover:bg-amber-950 flex items-center transition-colors text-sm"
+                title="Switch to another interface (Organiser / Barista / Support / Display)"
+              >
+                <Shuffle size={14} className="mr-1" /> Switch view
+              </button>
+              {showViewSwitch && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowViewSwitch(false)}></div>
+                  <div className="absolute right-0 mt-2 w-44 bg-white text-gray-800 rounded-lg shadow-lg z-50 overflow-hidden">
+                    <div className="px-3 py-1.5 text-xs text-gray-500 border-b">Switch view</div>
+                    {[
+                      { path: '/organiser', label: 'Organiser' },
+                      { path: '/barista', label: 'Barista' },
+                      { path: '/support', label: 'Support' },
+                      { path: '/displays', label: 'Display' },
+                    ].map(v => (
+                      <button
+                        key={v.path}
+                        onClick={() => { window.location.href = v.path; }}
+                        className="block w-full text-left px-3 py-2 text-sm hover:bg-gray-100"
+                      >
+                        {v.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </header>
 
