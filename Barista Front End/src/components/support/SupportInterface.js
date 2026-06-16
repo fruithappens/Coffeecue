@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { 
+import {
   Activity, Settings, Users, MessageSquare, Terminal, AlertTriangle,
-  Coffee, RefreshCw, BarChart3, Phone, ArrowLeft, Menu
+  Coffee, RefreshCw, BarChart3, Phone, ArrowLeft, Menu, Ban
 } from 'lucide-react';
 
 import ErrorMonitoring from './ErrorMonitoring';
@@ -16,6 +16,7 @@ import OperationsTab from '../support-tabs/OperationsTab';
 import UsersAccessTab from '../support-tabs/UsersAccessTab';
 import DiagnosticsTab from '../support-tabs/DiagnosticsTab';
 import EmergencyTab from '../support-tabs/EmergencyTab';
+import SmsBlocklistTab from '../support-tabs/SmsBlocklistTab';
 
 const SupportInterface = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -51,6 +52,7 @@ const SupportInterface = () => {
     { id: 'health', label: 'Health', icon: Activity, component: SystemHealthTab },
     { id: 'communications', label: 'Comms', icon: MessageSquare, component: CommunicationsTab },
     { id: 'sms-test', label: 'SMS Test', icon: Phone, component: SMSTestSimulator },
+    { id: 'sms-blocklist', label: 'SMS Block', icon: Ban, component: SmsBlocklistTab },
     { id: 'users', label: 'Users', icon: Users, component: UsersAccessTab },
     { id: 'diagnostics', label: 'Diagnose', icon: Terminal, component: DiagnosticsTab },
     { id: 'emergency', label: 'Emergency', icon: AlertTriangle, component: EmergencyTab }

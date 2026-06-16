@@ -3,9 +3,9 @@
 // useCustomerQuestions(); this just renders. Designed to fill the Messages
 // inbox panel body (flex column).
 import React from 'react';
-import { Send } from 'lucide-react';
+import { Send, Ban } from 'lucide-react';
 
-export default function CustomerQuestionsList({ items, replyDrafts, setReplyDrafts, sending, sendReply }) {
+export default function CustomerQuestionsList({ items, replyDrafts, setReplyDrafts, sending, sendReply, blocking, blockSender }) {
   return (
     <div className="flex flex-col h-full">
       <div className="overflow-y-auto flex-1 p-3">
@@ -62,6 +62,19 @@ export default function CustomerQuestionsList({ items, replyDrafts, setReplyDraf
                       {sending[q.id] ? '…' : 'Send'}
                     </button>
                   </div>
+                  {blockSender && q.phone && (
+                    <div className="mt-2 text-right">
+                      <button
+                        onClick={() => blockSender(q)}
+                        disabled={blocking && blocking[q.id]}
+                        title="Stop replying to this number (reversible in Support → SMS)"
+                        className="text-xs text-gray-400 hover:text-red-600 inline-flex items-center gap-1 disabled:opacity-50"
+                      >
+                        <Ban size={12} />
+                        {blocking && blocking[q.id] ? 'Blocking…' : 'Block sender'}
+                      </button>
+                    </div>
+                  )}
                 </li>
               );
             })}
