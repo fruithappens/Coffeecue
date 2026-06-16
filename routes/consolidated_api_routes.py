@@ -3627,10 +3627,11 @@ def create_kiosk_order():
         except (TypeError, ValueError):
             preferred_station = None
 
-        # Phone is optional when collecting at THIS display's own station (the
-        # customer is standing right there), but REQUIRED when the order will
-        # be made/collected elsewhere — the ready-SMS is the only way to tell
-        # them. Normalise to E.164 so that SMS actually sends.
+        # Phone is OPTIONAL for everyone. Some customers have no phone or are on
+        # international roaming and must still be able to order — if they don't
+        # leave a number they watch the board for their name (the collect-from
+        # station is shown on the kiosk review + the order board). A number just
+        # opts them into a ready-SMS. Normalise to E.164 so SMS actually sends.
         raw_phone = (data.get('phone') or data.get('phone_number') or '').strip()
         phone = ''
         if raw_phone:
@@ -3680,17 +3681,9 @@ def create_kiosk_order():
         expected = preferred_station or requested_station
         reassigned = bool(expected and target != expected)
 
-        # Enforce the phone requirement for collect-elsewhere orders. "Here" =
-        # the order is being made at the very station this display sits at.
-        collecting_here = requested_station is not None and target == requested_station
-        if not collecting_here and not phone:
-            return jsonify({
-                'success': False,
-                'code': 'PHONE_REQUIRED',
-                'message': "This order will be ready at another station — please "
-                           "enter a mobile number so we can text you when it's ready.",
-            }), 400
-
+        # No phone requirement — an order without a number is fine (the customer
+        # watches the board). When a number IS given for a collect-elsewhere
+        # order, the ready-SMS will tell them where to collect.
         now = datetime.now()
         order_prefix = ''
         try:
