@@ -670,6 +670,45 @@ class CoffeeOrderSystem:
                 pass
             return True
 
+    def _has_active_station(self):
+        """True if at least one station is currently active. Used to tell apart
+        'no stations at all' from 'stations exist but none can make this milk'
+        so the customer gets the right message."""
+        try:
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            cur = self.db.cursor()
+            cur.execute("SELECT COUNT(*) FROM station_stats WHERE status = 'active'")
+            row = cur.fetchone()
+            return bool(row and row[0])
+        except Exception as e:
+            logger.warning(f"_has_active_station failed: {e}")
+            return False
+
+    def _no_capable_milk_message(self, phone, name, order_details):
+        """No active station can make this order's milk. Instead of silently
+        confirming it onto a station that can't make it (the bug behind 'why
+        didn't the SMS tell me?'), ask the customer for a milk we CAN make and
+        park the conversation at awaiting_milk so their next reply continues the
+        SAME order. Never substitutes a milk on their behalf."""
+        milk = order_details.get('milk')
+        makeable = self._get_available_milk_types() or []
+        od = {k: v for k, v in (order_details or {}).items()
+              if k not in ('milk', 'station_id', 'stationId')}
+        try:
+            self._set_conversation_state(phone, 'awaiting_milk', {'name': name, 'order_details': od})
+        except Exception as e:
+            logger.warning(f"could not park awaiting_milk state (non-fatal): {e}")
+        opts = ', '.join(makeable) if makeable else 'full cream, skim'
+        who = f"{name}, " if name else ''
+        if milk:
+            return (f"Sorry {who}none of our stations can make {milk} right now. "
+                    f"What milk would you like instead? ({opts}, or 'no milk')")
+        return (f"Sorry {who}we can't make that one right now. "
+                f"What milk would you like? ({opts}, or 'no milk')")
+
     def _get_usual_order_suggestion(self, phone, name):
         """Get usual order suggestions based on previous orders.
 
@@ -4319,6 +4358,9 @@ class CoffeeOrderSystem:
                     else:
                         station_id, is_delayed = self._assign_station(is_vip, milk_type, order_details.get('type'), order_details.get('size'))
                         if station_id is None:
+                            if milk_type and self._has_active_station():
+                                logger.warning(f"No active station can make {milk_type}; re-asking customer for milk")
+                                return self._no_capable_milk_message(phone, name, order_details)
                             logger.error("No stations available to assign order")
                             return "Sorry, no coffee stations are currently available. Please contact the organizer to set up stations."
                         station_was_reassigned = True
@@ -4328,6 +4370,9 @@ class CoffeeOrderSystem:
                     requested_station_id = specified_station
                     station_id, is_delayed = self._assign_station(is_vip, milk_type, order_details.get('type'), order_details.get('size'))
                     if station_id is None:
+                        if milk_type and self._has_active_station():
+                            logger.warning(f"No active station can make {milk_type}; re-asking customer for milk")
+                            return self._no_capable_milk_message(phone, name, order_details)
                         logger.error("No stations available to assign order")
                         return "Sorry, no coffee stations are currently available. Please contact the organizer to set up stations."
                     station_was_reassigned = True
@@ -4337,6 +4382,14 @@ class CoffeeOrderSystem:
                 # Use advanced station assignment if no station specified
                 station_id, is_delayed = self._assign_station(is_vip, milk_type, order_details.get('type'), order_details.get('size'))
                 if station_id is None:
+                    # No station could take this order. If it's because no active
+                    # station can make the requested MILK, ask the customer for a
+                    # milk we can make (parking the conversation so their reply
+                    # continues this order) — never silently confirm it onto a
+                    # station that can't make it. This is the #165 fix.
+                    if milk_type and self._has_active_station():
+                        logger.warning(f"No active station can make {milk_type}; re-asking customer for milk")
+                        return self._no_capable_milk_message(phone, name, order_details)
                     logger.error("No stations available to assign order")
                     return "Sorry, no coffee stations are currently available. Please contact the organizer to set up stations."
                 logger.info(f"No station specified, using intelligent assignment to station {station_id}")
@@ -5075,20 +5128,31 @@ class CoffeeOrderSystem:
                     except (json.JSONDecodeError, TypeError):
                         capabilities = {}
                 
-                # Set minimal default capabilities for stations that don't have them configured
+                # Set default capabilities for stations that don't have them configured
                 if not capabilities:
-                    # Use minimal defaults - organizer should configure these properly
+                    # No capabilities configured → treat as NO RESTRICTION (can
+                    # make any milk/coffee/size), matching the SMS milk gate's
+                    # fail-open (_milk_is_makeable). The old code injected a
+                    # hardcoded 'full cream'+'skim' default here, which silently
+                    # stranded oat/soy/almond orders: the gate accepted the milk
+                    # (no station defined milk_types → no restriction) but routing
+                    # then found no station "with" that milk and dumped the order
+                    # on station 1 with a false "confirmed" SMS. Empty lists =
+                    # wildcard in order_capable() / the milk filters below.
                     capabilities = {
-                        'milk_types': ['full cream', 'skim'],
-                        'coffee_types': ['espresso', 'latte', 'cappuccino'],
+                        'milk_types': [],
+                        'coffee_types': [],
+                        'sizes': [],
                         'capacity': 10,
                         'high_volume': False,
                         'vip_service': False
                     }
-                    logger.warning(f"Station {station_id} has no capabilities configured. Using minimal defaults.")
-                
-                # Extract milk types for this station
-                milk_types = capabilities.get('milk_types', ['full cream', 'skim'])
+                    logger.warning(f"Station {station_id} has no capabilities configured. Treating as no-restriction (can make any order).")
+
+                # Extract milk types for this station. Missing/empty = no
+                # restriction (wildcard), NOT a hardcoded full-cream/skim default
+                # — see the capabilities block above.
+                milk_types = capabilities.get('milk_types', []) or []
                 
                 # Track which stations have this milk
                 for milk in milk_types:
@@ -5209,8 +5273,12 @@ class CoffeeOrderSystem:
                 
                 # Find the best station based on milk type and load
                 if milk_type_normalized:
-                    # Find stations that have this specific milk type
-                    milk_capable_stations = [s for s in open_stations if milk_type_normalized in s['milk_types']]
+                    # Find stations that have this milk (empty milk_types = wildcard)
+                    milk_capable_stations = [
+                        s for s in open_stations
+                        if (not s['milk_types'])
+                        or milk_type_normalized in [str(m).lower().replace(' milk', '') for m in s['milk_types']]
+                    ]
                     if milk_capable_stations:
                         milk_capable_stations.sort(key=lambda s: s['load'])
                         logger.info(f"Assigned {milk_type} order to station {milk_capable_stations[0]['id']} during break")
@@ -5277,8 +5345,12 @@ class CoffeeOrderSystem:
             active_stations = capable_active
 
             if not active_stations:
-                logger.warning("No active stations found, defaulting to station 1")
-                return 1, False
+                # No active station can make this order. Do NOT silently dump it
+                # on station 1 — return None so _confirm_order tells the customer
+                # (and, for a milk we can't make, asks for a different milk)
+                # instead of sending a false "confirmed" SMS.
+                logger.warning("No active station can make this order; returning None (no silent station-1 fallback)")
+                return None, False
             
             # Pull the operator's load-balancing preferences. These come
             # from Barista → Queue AI (or admin can override via
@@ -5297,7 +5369,14 @@ class CoffeeOrderSystem:
             # barista improvise. Closes the gap where the operator
             # turned off oat mid-event but the wizard hadn't caught up.
             if milk_type_normalized:
-                milk_capable_stations = [s for s in active_stations if milk_type_normalized in s['milk_types']]
+                # A station with NO milk_types configured is a wildcard (can make
+                # any milk) — same fail-open as the SMS milk gate. Only a station
+                # that explicitly lists milks is restricted to that list.
+                milk_capable_stations = [
+                    s for s in active_stations
+                    if (not s['milk_types'])
+                    or milk_type_normalized in [str(m).lower().replace(' milk', '') for m in s['milk_types']]
+                ]
                 if milk_capable_stations:
                     # Sort by load to find the least busy station with this milk
                     milk_capable_stations.sort(key=lambda s: s['load'])
@@ -5312,8 +5391,11 @@ class CoffeeOrderSystem:
                                        f"normal load-balancing.")
                         # Fall through to the general weighted selection below.
                     else:
-                        logger.warning(f"No active stations have {milk_type}, cannot fulfill order")
-                        return 1, False  # Default fallback
+                        # No active station can make this milk. Return None (NOT a
+                        # silent station-1 fallback) so _confirm_order asks the
+                        # customer for a milk we can actually make.
+                        logger.warning(f"No active station can make {milk_type}; returning None so the customer is asked for another milk")
+                        return None, False
 
             # Calculate weights for station selection based on load and capacity.
             # The exact mix is driven by the routing rules:
