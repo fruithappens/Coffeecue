@@ -28,46 +28,56 @@ const AdminViewSwitcher = () => {
   if (['/', '/login', '/auth/login', '/display'].includes(location.pathname)) return null;
 
   return (
-    // Hidden on mobile (hidden md:block): the floating cross-interface switcher
-    // is a desktop power-user convenience and collides with the Barista bottom
-    // tab bar / drawer chrome on phones. On mobile, admins switch via Back → Home.
-    <div className="hidden md:block" style={{ position: 'fixed', left: 16, bottom: 16, zIndex: 1000 }}>
-      {open && (
-        <div style={{ marginBottom: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {VIEWS.map(v => {
-            const active = location.pathname.startsWith(v.path.replace('/displays', '/display'));
-            return (
-              <button
-                key={v.path}
-                onClick={() => { setOpen(false); navigate(v.path); }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 10, minWidth: 150,
-                  background: '#fff', color: '#1f2937',
-                  border: active ? `2px solid ${v.color}` : '1px solid #e5e7eb',
-                  borderRadius: 10, padding: '9px 14px',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)', cursor: 'pointer',
-                  fontWeight: 500, fontSize: 14,
-                }}
-              >
-                <v.Icon size={18} style={{ color: v.color }} /> {v.label}
-              </button>
-            );
-          })}
-        </div>
-      )}
-      <button
-        onClick={() => setOpen(o => !o)}
-        aria-label={open ? 'Close view switcher' : 'Switch view'}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          background: '#1f2937', color: '#fff', border: 'none',
-          borderRadius: 9999, padding: '12px 18px',
-          boxShadow: '0 6px 18px rgba(0,0,0,0.3)', cursor: 'pointer',
-          fontWeight: 600, fontSize: 14,
-        }}
-      >
-        {open ? <X size={18} /> : <Shuffle size={18} />} {open ? 'Close' : 'Switch view'}
-      </button>
+    // RIGHT EDGE, vertically centred. It used to float bottom-left, where it
+    // overlapped the Barista sticky action bar (Add Walk-in / Refresh) and the
+    // bottom-right messages bubble — so it was "mostly hidden". The literal
+    // top-right corner is occupied by the Barista header's own control pills
+    // (and the full-width tab row just below), so the mid-right edge is the one
+    // spot clear of the top header, tab row, bottom action bar AND the
+    // bottom-right messages bubble across all four interfaces. The view list
+    // drops DOWNWARD from the toggle (4 items fit in the lower half).
+    // Hidden on mobile (hidden md:block): it's a desktop power-user convenience
+    // and collides with the mobile header/drawer chrome. On phones, admins
+    // switch via Back → Home.
+    <div className="hidden md:block" style={{ position: 'fixed', top: '50%', right: 12, transform: 'translateY(-50%)', zIndex: 1000 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+        <button
+          onClick={() => setOpen(o => !o)}
+          aria-label={open ? 'Close view switcher' : 'Switch view'}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            background: '#1f2937', color: '#fff', border: 'none',
+            borderRadius: 9999, padding: '10px 16px',
+            boxShadow: '0 6px 18px rgba(0,0,0,0.3)', cursor: 'pointer',
+            fontWeight: 600, fontSize: 14,
+          }}
+        >
+          {open ? <X size={18} /> : <Shuffle size={18} />} {open ? 'Close' : 'Switch view'}
+        </button>
+        {open && (
+          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {VIEWS.map(v => {
+              const active = location.pathname.startsWith(v.path.replace('/displays', '/display'));
+              return (
+                <button
+                  key={v.path}
+                  onClick={() => { setOpen(false); navigate(v.path); }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10, minWidth: 150,
+                    background: '#fff', color: '#1f2937',
+                    border: active ? `2px solid ${v.color}` : '1px solid #e5e7eb',
+                    borderRadius: 10, padding: '9px 14px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)', cursor: 'pointer',
+                    fontWeight: 500, fontSize: 14,
+                  }}
+                >
+                  <v.Icon size={18} style={{ color: v.color }} /> {v.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
