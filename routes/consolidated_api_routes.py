@@ -3513,6 +3513,26 @@ def _kiosk_menu_data(coffee_system):
     except Exception as e:
         logger.warning(f"kiosk menu catalog fallback failed: {e}")
 
+    # SINGLE SOURCE OF TRUTH for milks: intersect the capability-derived
+    # universe with the EVENT's configured milk list. Found by the Test Bench:
+    # station 2's capabilities listed soy, so the kiosk sold soy — while the
+    # SMS bot (which reads the event inventory) refused it. A milk is offered
+    # only if the event stocks it AND some active station can make it. If the
+    # event list is empty/unavailable, keep the capability universe unchanged.
+    try:
+        event_milks = [str(m).lower() for m in
+                       (coffee_system._get_available_milk_types() or [])]
+        if event_milks and universe['milk_types']:
+            def _norm(m):
+                return m.replace(' milk', '').strip()
+            ev = {_norm(m) for m in event_milks}
+            universe['milk_types'] = {
+                k: v for k, v in universe['milk_types'].items()
+                if _norm(k) in ev
+            }
+    except Exception as e:
+        logger.warning(f"kiosk milk/event intersection failed (menu unchanged): {e}")
+
     # ALWAYS fold in event-enabled non-espresso drinks (tea, hot chocolate,
     # chai, matcha…). They're offered event-wide and aren't espresso-gated, so
     # the capability-only universe (espresso drinks) was hiding them. A station
@@ -3617,6 +3637,27 @@ def create_kiosk_order():
             return jsonify({'success': False, 'message': 'Please enter your name.'}), 400
         if not coffee_type:
             return jsonify({'success': False, 'message': 'Please choose a drink.'}), 400
+
+        # Validate the milk against the MENU (single source: event list ∩
+        # station capabilities via _kiosk_menu_data). Found by the Test Bench:
+        # this public endpoint accepted 'macadamia' — a milk nothing offers —
+        # because the only gate was per-station capability, and an
+        # unconfigured/wildcard station passes anything (#165 class). The
+        # kiosk UI only shows menu milks, but the API must refuse too.
+        if milk and milk.lower() not in ('no milk', 'none', 'black'):
+            try:
+                menu_milks = [str(m.get('value') or m.get('name') or m).lower()
+                              for m in (_kiosk_menu_data(coffee_system).get('milks') or [])]
+                req = milk.lower().replace(' milk', '').strip()
+                offered = {mm.replace(' milk', '').strip() for mm in menu_milks}
+                if offered and req not in offered:
+                    return jsonify({
+                        'success': False,
+                        'message': f"Sorry, we don't have {milk} today. "
+                                   f"Available milks: {', '.join(sorted(offered))}.",
+                    }), 400
+            except Exception as vm_err:
+                logger.warning(f"kiosk milk validation skipped (fail-open): {vm_err}")
 
         try:
             requested_station = int(data.get('station_id') or data.get('stationId') or 0) or None
@@ -5425,10 +5466,18 @@ def adjust_inventory_item(item_id):
         
         # Ensure inventory management tables exist
         ensure_inventory_management_tables(db)
-        
+
         # Start a transaction
         cursor = db.cursor()
-        
+
+        # Heal the amount/current_quantity split-brain before writing (no-op
+        # after the first call in this process) — this UPDATE sets both.
+        try:
+            if coffee_system and hasattr(coffee_system, '_ensure_inventory_quantity_columns'):
+                coffee_system._ensure_inventory_quantity_columns(cursor)
+        except Exception:
+            pass
+
         try:
             # Get current item details
             cursor.execute("SELECT * FROM inventory_items WHERE id = %s", (item_id,))
@@ -5449,10 +5498,13 @@ def adjust_inventory_item(item_id):
             item = dict(zip(columns, row))
             previous_quantity = item['current_quantity']
             
-            # Update item quantity
+            # Update item quantity — BOTH quantity columns (amount is the
+            # legacy twin current_quantity; the stock decrementer keeps them
+            # in sync, so adjustments must too or they drift apart again).
             cursor.execute("""
                 UPDATE inventory_items
                 SET current_quantity = %s,
+                    amount = %s,
                     status = CASE
                         WHEN %s <= minimum_threshold THEN 'low_stock'
                         ELSE 'in_stock'
@@ -5460,7 +5512,7 @@ def adjust_inventory_item(item_id):
                     last_updated = %s
                 WHERE id = %s
                 RETURNING *
-            """, (new_amount, new_amount, datetime.now().isoformat(), item_id))
+            """, (new_amount, new_amount, new_amount, datetime.now().isoformat(), item_id))
             
             # Get updated item
             updated_row = cursor.fetchone()
@@ -5796,10 +5848,10 @@ def create_inventory_item():
         status = 'low_stock' if current_quantity <= minimum_threshold else 'in_stock'
         cursor.execute("""
             INSERT INTO inventory_items
-            (name, category, current_quantity, unit, station_id, minimum_threshold, status, created_at, last_updated)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (name, category, current_quantity, amount, unit, station_id, minimum_threshold, status, created_at, last_updated)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING *
-        """, (name, category, current_quantity, unit, station_id, minimum_threshold, 
+        """, (name, category, current_quantity, current_quantity, unit, station_id, minimum_threshold, 
               status, datetime.now().isoformat(), datetime.now().isoformat()))
         
         # Get column names
@@ -7520,6 +7572,13 @@ def _apply_quick_setup(coffee_system, preset):
     cur = db.cursor()
     summary = []
 
+    # Make sure BOTH quantity columns exist before the seeds below write them
+    # (heals the amount/current_quantity split-brain on older tables).
+    try:
+        coffee_system._ensure_inventory_quantity_columns(cur)
+    except Exception:
+        pass
+
     # 1. Wipe-and-rebuild inventory items. The operator can refine
     # individual rows after this initial setup.
     cur.execute("DELETE FROM inventory_items")
@@ -7529,35 +7588,35 @@ def _apply_quick_setup(coffee_system, preset):
         amount = _milk_default_amount(milk)
         cur.execute("""
             INSERT INTO inventory_items
-            (category, name, amount, unit, capacity, minimum_threshold)
-            VALUES ('milk', %s, %s, 'L', %s, 2)
-        """, (milk, amount, amount * 2))
+            (category, name, amount, current_quantity, unit, capacity, minimum_threshold)
+            VALUES ('milk', %s, %s, %s, 'L', %s, 2)
+        """, (milk, amount, amount, amount * 2))
     summary.append(f"{len(preset.get('milks', []))} milk types")
 
     # Coffee beans (always: house blend; never the drinks-as-stock
     # confusion the operator flagged). Decaf as a second SKU so the
     # SMS flow can route decaf orders to a station that has decaf.
     cur.execute("""
-        INSERT INTO inventory_items (category, name, amount, unit, capacity, minimum_threshold)
-        VALUES ('coffee', 'house blend beans', %s, 'kg', %s, 1),
-               ('coffee', 'decaf beans', %s, 'kg', %s, 1)
-    """, (_coffee_default_kg(), _coffee_default_kg() * 2,
-          _coffee_default_kg() / 2, _coffee_default_kg()))
+        INSERT INTO inventory_items (category, name, amount, current_quantity, unit, capacity, minimum_threshold)
+        VALUES ('coffee', 'house blend beans', %s, %s, 'kg', %s, 1),
+               ('coffee', 'decaf beans', %s, %s, 'kg', %s, 1)
+    """, (_coffee_default_kg(), _coffee_default_kg(), _coffee_default_kg() * 2,
+          _coffee_default_kg() / 2, _coffee_default_kg() / 2, _coffee_default_kg()))
     summary.append("2 coffee bean SKUs (house + decaf)")
 
     # Cup sizes
     for size in preset.get('sizes', []):
         cur.execute("""
-            INSERT INTO inventory_items (category, name, amount, unit, capacity, minimum_threshold)
-            VALUES ('cups', %s, 200, 'units', 500, 50)
+            INSERT INTO inventory_items (category, name, amount, current_quantity, unit, capacity, minimum_threshold)
+            VALUES ('cups', %s, 200, 200, 'units', 500, 50)
         """, (size,))
     summary.append(f"{len(preset.get('sizes', []))} cup size(s)")
 
     # Sweeteners
     for s in preset.get('sweeteners', []):
         cur.execute("""
-            INSERT INTO inventory_items (category, name, amount, unit, capacity, minimum_threshold)
-            VALUES ('sugar', %s, 200, 'sachets', 500, 20)
+            INSERT INTO inventory_items (category, name, amount, current_quantity, unit, capacity, minimum_threshold)
+            VALUES ('sugar', %s, 200, 200, 'sachets', 500, 20)
         """, (s,))
     summary.append(f"{len(preset.get('sweeteners', []))} sweetener option(s)")
 
@@ -7576,8 +7635,8 @@ def _apply_quick_setup(coffee_system, preset):
         if drinks_cfg.get(key):
             for name, category in rows:
                 cur.execute("""
-                    INSERT INTO inventory_items (category, name, amount, unit, capacity, minimum_threshold)
-                    VALUES (%s, %s, 50, 'units', 100, 10)
+                    INSERT INTO inventory_items (category, name, amount, current_quantity, unit, capacity, minimum_threshold)
+                    VALUES (%s, %s, 50, 50, 'units', 100, 10)
                 """, (category, name))
                 extras_added += 1
     if extras_added:
@@ -7593,8 +7652,8 @@ def _apply_quick_setup(coffee_system, preset):
     for key, name in TEA_FLAVORS.items():
         if teas_cfg.get(key):
             cur.execute("""
-                INSERT INTO inventory_items (category, name, amount, unit, capacity, minimum_threshold)
-                VALUES ('drinks', %s, 100, 'units', 200, 20)
+                INSERT INTO inventory_items (category, name, amount, current_quantity, unit, capacity, minimum_threshold)
+                VALUES ('drinks', %s, 100, 100, 'units', 200, 20)
             """, (name,))
             teas_added += 1
 
@@ -7613,8 +7672,8 @@ def _apply_quick_setup(coffee_system, preset):
             parts.append(t)
         for blend in parts:
             cur.execute("""
-                INSERT INTO inventory_items (category, name, amount, unit, capacity, minimum_threshold)
-                VALUES ('drinks', %s, 100, 'units', 200, 20)
+                INSERT INTO inventory_items (category, name, amount, current_quantity, unit, capacity, minimum_threshold)
+                VALUES ('drinks', %s, 100, 100, 'units', 200, 20)
             """, (blend.lower(),))
             teas_added += 1
 
