@@ -496,11 +496,10 @@ def suite_blocklist(rn):
     return out
 
 
-# name, fn, needs_auth — the registry the runner + UIs use.
-# (import at the bottom so suites_deep can import helpers from this module)
-from .suites_deep import DEEP_SUITES  # noqa: E402
-
-ALL_SUITES = [
+# Base suites defined in this module. The full registry (base + deep + matrix)
+# lives in bench.registry — import ALL_SUITES from there, not here, so the
+# suite modules can depend on this module's helpers without a circular import.
+BASE_SUITES = [
     ("health", suite_health, False),
     ("auth", suite_auth, True),
     ("stations", suite_stations, True),
@@ -510,7 +509,7 @@ ALL_SUITES = [
     ("stats", suite_stats, True),
     ("inventory", suite_inventory, True),
     ("blocklist", suite_blocklist, True),
-] + DEEP_SUITES
+]
 
 
 # Plain-English catalogue of what each suite actually does — shown in the UI
@@ -583,5 +582,21 @@ CATALOG = {
         "Today's schedule endpoint answers + warns if no shifts are configured",
         "HONEST DESIGN NOTE (always shown): barista shifts are informational — "
         "routing only respects station status and event breaks, not the roster",
+    ],
+    "matrix": [
+        "THE SCENARIO MATRIX: dimensions are read from YOUR live configuration — "
+        "order channel (kiosk/SMS) × drinks × every menu milk (+ one deliberately "
+        "unavailable milk) × sizes × sugar",
+        "All-pairs combinatorial generation: every PAIR of factor values is "
+        "exercised together at least once (~15-20 live scenarios instead of "
+        "thousands), capped at 18 orders per run for safety",
+        "Each scenario is judged against an expected-outcome oracle: "
+        "(1) accepted vs refused correctly — the unavailable milk must be REFUSED, "
+        "(2) an accepted order appears in the pending queue on a station that can "
+        "actually make its milk, (3) cancelling removes it from the queue",
+        "Cleanup: all matrix orders cancelled and stock restored to pre-run levels",
+        "Not yet in the matrix (honest gaps): time-of-day/break variations, "
+        "roster/barista variations (shifts don't gate routing today), VIP codes, "
+        "and real Twilio delivery — tell us which matter and they get added",
     ],
 }
