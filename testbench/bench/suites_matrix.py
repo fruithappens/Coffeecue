@@ -113,7 +113,7 @@ def _find_pending(client, name_tag):
     code, body, _ = client.get("/api/orders/pending")
     for o in _order_list(body):
         nm = str(o.get("customer_name") or o.get("customerName") or "")
-        if nm.startswith(name_tag):
+        if nm.lower().startswith(name_tag.lower()):
             return o
     return None
 
@@ -234,8 +234,15 @@ def suite_matrix(rn):
             cap_ids = _capable_ids(active, eff_milk)
             placed_ok = visible and (landing in cap_ids if landing is not None and cap_ids
                                      else visible)
-            # E3: reversible
-            cancelled = bool(order_no and _cancel(c, order_no))
+            # E3: reversible. SMS orders without a resolvable order_no are
+            # cancelled in-conversation (the customer's own CANCEL path).
+            if order_no:
+                cancelled = _cancel(c, order_no)
+            elif sc["channel"] == "sms":
+                ok2, rep2 = _sim(c, ph, "CANCEL")
+                cancelled = ok2 and "cancel" in (rep2 or "").lower()
+            else:
+                cancelled = False
             gone = cancelled and _find_pending(c, sid_tag) is None
 
             if placed_ok and gone:
@@ -266,7 +273,7 @@ def suite_matrix(rn):
     leftovers = [o.get("order_number") or o.get("orderNumber") or o.get("id")
                  for o in _order_list(body)
                  if str(o.get("customer_name") or o.get("customerName") or "")
-                 .startswith(f"{BENCH_TAG}Mx")]
+                 .lower().startswith(f"{BENCH_TAG}Mx".lower())]
     for no in leftovers:
         if no is not None:
             _cancel(c, no)

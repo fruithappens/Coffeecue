@@ -87,7 +87,7 @@ def _cleanup_bench_orders(rn, out, suite):
     leftovers = []
     for o in _order_list(body):
         nm = str(o.get("customer_name") or o.get("customerName") or "")
-        if nm.startswith(BENCH_TAG):
+        if nm.lower().startswith(BENCH_TAG.lower()):
             no = o.get("order_number") or o.get("orderNumber") or o.get("id")
             if no is not None:
                 leftovers.append(no)
@@ -330,7 +330,7 @@ def suite_routing(rn):
         code, body, _ = c.get("/api/orders/pending")
         for o in _order_list(body):
             nm = str(o.get("customer_name") or o.get("customerName") or "")
-            if nm.startswith(f"{BENCH_TAG}Route"):
+            if nm.lower().startswith(f"{BENCH_TAG}Route".lower()):
                 landed = o.get("station_id") or o.get("stationId")
                 break
     good = landed is not None and landed in capable_ids
@@ -384,9 +384,12 @@ def suite_group(rn):
         ok, reply = _sim(c, ph, f"{BENCH_TAG}Mate")
         low, turns = reply.lower(), 0
         # answer prompts until confirmed (drink → milk → size, any order)
-        while ok and turns < 6 and not ("confirmed" in low or "order #" in low
+        while ok and turns < 7 and not ("confirmed" in low or "order #" in low
                                         or "friend" in low and "another" in low):
-            if "what can i get" in low or "drink" in low or "coffee" in low and "?" in low:
+            if "reply yes" in low or ("yes to confirm" in low):
+                # the friend flow has an explicit YES confirmation step
+                ans = "YES"
+            elif "what can i get" in low or "drink" in low or "coffee" in low and "?" in low:
                 ans = "latte"
             elif "milk" in low:
                 ans = milk
@@ -407,7 +410,7 @@ def suite_group(rn):
     code, body, _ = c.get("/api/orders/pending")
     bench = [o for o in _order_list(body)
              if str(o.get("customer_name") or o.get("customerName") or "")
-             .startswith(BENCH_TAG)]
+             .lower().startswith(BENCH_TAG.lower())]
     out.append(R("group", "both group orders reach the queue",
                  "pass" if len(bench) >= 2 else "warn",
                  f"{len(bench)} {BENCH_TAG}* orders in pending after the group flow"))
