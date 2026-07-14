@@ -5786,6 +5786,30 @@ class CoffeeOrderSystem:
         # Step 2: exact match event-wide.
         if _exact("AND station_id IS NULL", ()) > 0:
             return True
+        # Step 2.5: exact match on ANY station's row. Found by the Test Bench:
+        # demo/seed rows are all scoped to station 1, but an almond order can
+        # only land on a station that HAS almond (2/4) — so the station-scoped
+        # steps never matched and stock never moved. A decrement against
+        # another station's row keeps the EVENT total right, which beats
+        # never decrementing at all.
+        cursor.execute(
+            f"""
+            UPDATE inventory_items
+            SET amount = GREATEST(0, COALESCE(amount, current_quantity, 0) - {ph}),
+                current_quantity = GREATEST(0, COALESCE(current_quantity, amount, 0) - {ph}),
+                last_updated = CURRENT_TIMESTAMP
+            WHERE id = (
+                SELECT id FROM inventory_items
+                WHERE category = {ph} AND LOWER(name) = {ph}
+                  AND COALESCE(amount, current_quantity) IS NOT NULL
+                ORDER BY (station_id IS NULL) DESC
+                LIMIT 1
+            )
+            """,
+            (amount, amount, category, name_norm),
+        )
+        if (cursor.rowcount or 0) > 0:
+            return True
 
         # Step 3: partial-match cascade. Build the candidate tokens by
         # stripping noise that often differs between order text and
@@ -5822,12 +5846,11 @@ class CoffeeOrderSystem:
                     WHERE category = {ph}
                       AND COALESCE(amount, current_quantity) IS NOT NULL
                       AND (LOWER(name) LIKE {ph} OR {ph} LIKE '%' || LOWER(name) || '%')
-                      AND (station_id = {ph} OR station_id IS NULL)
                     ORDER BY (station_id = {ph}) DESC NULLS LAST
                     LIMIT 1
                 )
                 """,
-                (amount, amount, category, f"%{cand}%", cand, station_id, station_id),
+                (amount, amount, category, f"%{cand}%", cand, station_id),
             )
             if (cursor.rowcount or 0) > 0:
                 logger.debug(
@@ -5852,13 +5875,12 @@ class CoffeeOrderSystem:
                     SELECT id FROM inventory_items
                     WHERE category = {ph}
                       AND COALESCE(amount, current_quantity) IS NOT NULL
-                      AND (station_id = {ph} OR station_id IS NULL)
                     ORDER BY (station_id = {ph}) DESC NULLS LAST,
                              LOWER(name) ASC
                     LIMIT 1
                 )
                 """,
-                (amount, amount, category, station_id, station_id),
+                (amount, amount, category, station_id),
             )
             if (cursor.rowcount or 0) > 0:
                 logger.debug(

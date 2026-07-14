@@ -234,14 +234,22 @@ def suite_queue_wait(rn):
     drink = "latte" if "latte" in drinks else (drinks[0] if drinks else "latte")
     milk = milks[0] if milks else "full cream"
 
-    nos = []
+    nos, landed = [], []
     for i in range(3):
-        no, _st, _ = _kiosk_order(c, f"{BENCH_TAG} Q{i+1}", drink, milk, "medium", station=sid)
+        no, st, _ = _kiosk_order(c, f"{BENCH_TAG} Q{i+1}", drink, milk, "medium", station=sid)
         if no:
             nos.append(no)
+            landed.append(st)
     if len(nos) < 3:
         out.append(R("queue_wait", "load station with 3 orders", "fail",
                      f"Only {len(nos)}/3 orders created on station {sid}"))
+    elif any(st != sid for st in landed):
+        # asked for station `sid` but the kiosk routed elsewhere — that's the
+        # real story behind a flat queue count, so surface it as its own check
+        out.append(R("queue_wait", "orders honour the requested station", "fail",
+                     f"Asked for station {sid}, but orders landed on {landed} — "
+                     "preferred_station was not honoured.",
+                     refs=["routes/consolidated_api_routes.py"]))
 
     code, body, _ = c.get("/api/stations")
     now = next((s for s in (body.get("stations") or body.get("data") or [])
@@ -252,6 +260,9 @@ def suite_queue_wait(rn):
     out.append(R("queue_wait", "queue count rises with load",
                  "pass" if q1 >= q0 + len(nos) else "fail",
                  f"Station {sid}: queue {q0} → {q1} after +{len(nos)} orders",
+                 evidence="" if q1 >= q0 + len(nos) else
+                 f"created orders {nos} landed on stations {landed}; "
+                 f"station row after: {str(now)[:400]}",
                  suggestion="" if q1 >= q0 + len(nos) else
                  "The live queue count isn't reflecting created orders.",
                  refs=[] if q1 >= q0 + len(nos) else ["routes/station_api_routes.py"]))
@@ -334,10 +345,23 @@ def suite_routing(rn):
                 landed = o.get("station_id") or o.get("stationId")
                 break
     good = landed is not None and landed in capable_ids
+    row_ev = ""
+    if not good:
+        code, body, _ = c.get("/api/orders/pending")
+        rows = [o for o in _order_list(body)
+                if str(o.get("customer_name") or o.get("customerName") or "")
+                .lower().startswith(f"{BENCH_TAG}Route".lower())]
+        row_ev = (f"confirm reply: {reply[:200]} | matching pending rows: "
+                  + "; ".join(
+                      f"#{o.get('order_number') or o.get('orderNumber') or o.get('id')}"
+                      f" station={o.get('station_id') or o.get('stationId')}"
+                      f" created={str(o.get('created_at') or o.get('createdAt'))[:19]}"
+                      for o in rows) )
     out.append(R("routing", "restricted-milk live routing",
                  "pass" if good else ("warn" if landed is None else "fail"),
                  f"Live {pick} order landed on station {landed} "
                  f"(capable stations: {capable_ids})",
+                 evidence=row_ev,
                  suggestion="" if good else
                  ("Couldn't determine the landing station" if landed is None else
                   f"An order for {pick} was assigned to station {landed}, which does "
