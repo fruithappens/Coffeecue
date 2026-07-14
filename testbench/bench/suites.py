@@ -496,7 +496,10 @@ def suite_blocklist(rn):
     return out
 
 
-# name, fn, needs_auth — the registry the runner + UIs use
+# name, fn, needs_auth — the registry the runner + UIs use.
+# (import at the bottom so suites_deep can import helpers from this module)
+from .suites_deep import DEEP_SUITES  # noqa: E402
+
 ALL_SUITES = [
     ("health", suite_health, False),
     ("auth", suite_auth, True),
@@ -507,4 +510,78 @@ ALL_SUITES = [
     ("stats", suite_stats, True),
     ("inventory", suite_inventory, True),
     ("blocklist", suite_blocklist, True),
-]
+] + DEEP_SUITES
+
+
+# Plain-English catalogue of what each suite actually does — shown in the UI
+# so the depth of testing is visible, not buried in code.
+CATALOG = {
+    "health": [
+        "Public display config answers (the screen & kiosk depend on it)",
+        "The web app itself is served",
+        "SECURITY: the stations API rejects calls with no login (must 401)",
+    ],
+    "auth": ["Your login token actually authorises real API calls"],
+    "stations": [
+        "Every station's status is a valid value (active/inactive/maintenance)",
+        "Queue counts are sane non-negative numbers",
+        "Wait estimates are within 0–240 min (catches the bogus 72-hour wait bug class)",
+        "At least one station is active (else every order path fails)",
+    ],
+    "display": [
+        "Display config has the event name + SMS number",
+        "The kiosk/SMS menu is populated (drinks, milks, sizes)",
+        "The order board endpoint answers",
+        "CONSISTENCY: every milk on the menu is makeable by at least one active "
+        "station (the oat/#165 silent-strand bug class)",
+    ],
+    "orders": [
+        "A kiosk order (no phone) is created and returns a station",
+        "It actually appears in the barista pending queue",
+        "It can be cancelled (and is, as cleanup)",
+        "Opt-in: full start → complete lifecycle",
+    ],
+    "sms": [
+        "A texted order conversation reaches a confirmation (via the simulator — no real SMS)",
+        "CANCEL cancels it",
+        "'Last latte' asks for your name (regression: it once replied 'Thanks Last!')",
+        "MENU lists the real menu",
+        "A milk no station offers is REFUSED, never silently confirmed",
+        "STATUS with no order answers gracefully",
+    ],
+    "stats": [
+        "Today's report has the real sections: totals, status breakdown, per-station, SMS, errors, issues",
+        "The order statistics endpoint answers",
+    ],
+    "inventory": [
+        "Event inventory + per-station config endpoints answer",
+        "Every ACTIVE station has a station-inventory config (the '0/52 items' bug class)",
+    ],
+    "blocklist": ["Opt-in: block a fake number → it's listed → unblock → it's gone"],
+    "stock": [
+        "DEEP: places a real (phoneless) milk order and verifies the milk inventory "
+        "counter goes DOWN by the right amount (~0.2 L for a medium)",
+        "Checks whether a cup and coffee are decremented too (reports honestly if "
+        "those counters never move)",
+        "Observes whether cancelling an order puts stock back",
+        "Restores all counters to their pre-test levels afterwards",
+    ],
+    "queue_wait": [
+        "DEEP: loads one station with 3 real orders → its queue count must rise by 3 "
+        "and its wait estimate must not fall",
+        "Cancels them → the queue must drop back",
+    ],
+    "routing": [
+        "DEEP: live end-to-end — an SMS order for a milk only SOME stations can make "
+        "must land on one of the capable stations (not just config comparison)",
+    ],
+    "group": [
+        "DEEP: a FRIEND group order — customer orders, adds a friend's coffee — and "
+        "both orders reach the queue",
+    ],
+    "schedule": [
+        "Today's schedule endpoint answers + warns if no shifts are configured",
+        "HONEST DESIGN NOTE (always shown): barista shifts are informational — "
+        "routing only respects station status and event breaks, not the roster",
+    ],
+}
