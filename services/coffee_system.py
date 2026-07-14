@@ -2967,6 +2967,10 @@ class CoffeeOrderSystem:
 
         try:
             cursor = self.db.cursor()
+            try:
+                self._ensure_inventory_quantity_columns(cursor)
+            except Exception:
+                pass
             if unlimited:
                 cursor.execute("""
                     SELECT name FROM inventory_items
@@ -2977,7 +2981,8 @@ class CoffeeOrderSystem:
                 cursor.execute("""
                     SELECT name FROM inventory_items
                     WHERE category = 'milk'
-                    AND (amount IS NULL OR amount > COALESCE(minimum_threshold, 0))
+                    AND (COALESCE(amount, current_quantity) IS NULL
+                         OR COALESCE(amount, current_quantity) > COALESCE(minimum_threshold, 0))
                     ORDER BY name
                 """)
             milk_types = [row[0].lower() for row in cursor.fetchall()]
@@ -5560,6 +5565,12 @@ class CoffeeOrderSystem:
         if processed_details.get('_stock_decremented'):
             return result
         cursor = conn.cursor()
+        # Heal the amount/current_quantity split-brain before touching stock
+        # (no-op after the first call in this process).
+        try:
+            self._ensure_inventory_quantity_columns(cursor)
+        except Exception as _heal_err:
+            logger.warning(f"inventory schema heal failed (continuing): {_heal_err}")
         size = (processed_details.get('size') or 'medium').lower()
         milk = (processed_details.get('milk') or '').lower()
         coffee_type = (processed_details.get('type') or '').lower()
@@ -5686,6 +5697,50 @@ class CoffeeOrderSystem:
                 return n
         return 0
 
+    def _ensure_inventory_quantity_columns(self, cursor):
+        """Heal the inventory_items quantity SPLIT-BRAIN (found by the Test
+        Bench: an almond order decremented NOTHING).
+
+        Two quantity columns exist depending on which code created/edited a
+        row: Quick Setup seeding + this decrementer used `amount`, while the
+        inventory API (GET sample shape, /adjust, the Organiser UI) uses
+        `current_quantity`. Depending on which one a deployment's table has,
+        either the decrement UPDATE errors out (column missing) or it updates
+        a column nobody reads — both mean the operator-visible counters never
+        move.
+
+        Fix: guarantee BOTH columns exist, one-time backfill each from the
+        other (a row with current_quantity=0 but amount>0 is the Quick Setup
+        seeding artifact), and from now on every write updates both. Runs
+        once per process; cheap no-op afterwards."""
+        if getattr(self, '_inv_qty_cols_ok', False):
+            return
+        for ddl in (
+            "ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS amount DECIMAL(10,2)",
+            "ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS current_quantity DECIMAL(10,2)",
+        ):
+            try:
+                cursor.execute(ddl)
+            except Exception:
+                # SQLite has no IF NOT EXISTS for columns — try plain ADD.
+                try:
+                    cursor.execute(ddl.replace(" IF NOT EXISTS", ""))
+                except Exception:
+                    pass  # column already there
+        try:
+            cursor.execute("""
+                UPDATE inventory_items SET current_quantity = amount
+                WHERE (current_quantity IS NULL OR current_quantity = 0)
+                  AND amount > 0
+            """)
+            cursor.execute("""
+                UPDATE inventory_items SET amount = current_quantity
+                WHERE amount IS NULL AND current_quantity IS NOT NULL
+            """)
+        except Exception as e:
+            logger.warning(f"inventory quantity backfill skipped: {e}")
+        self._inv_qty_cols_ok = True
+
     def _decrement_inventory_item(self, cursor, db_type, *, category, name, amount, station_id):
         """Decrement a single inventory row, preferring station scope.
 
@@ -5714,13 +5769,14 @@ class CoffeeOrderSystem:
             cursor.execute(
                 f"""
                 UPDATE inventory_items
-                SET amount = GREATEST(0, amount - {ph}),
+                SET amount = GREATEST(0, COALESCE(amount, current_quantity, 0) - {ph}),
+                    current_quantity = GREATEST(0, COALESCE(current_quantity, amount, 0) - {ph}),
                     last_updated = CURRENT_TIMESTAMP
                 WHERE category = {ph} AND LOWER(name) = {ph}
-                  AND amount IS NOT NULL
+                  AND COALESCE(amount, current_quantity) IS NOT NULL
                   {sql_extra}
                 """,
-                (amount, category, name_norm, *params),
+                (amount, amount, category, name_norm, *params),
             )
             return cursor.rowcount or 0
 
@@ -5758,19 +5814,20 @@ class CoffeeOrderSystem:
             cursor.execute(
                 f"""
                 UPDATE inventory_items
-                SET amount = GREATEST(0, amount - {ph}),
+                SET amount = GREATEST(0, COALESCE(amount, current_quantity, 0) - {ph}),
+                    current_quantity = GREATEST(0, COALESCE(current_quantity, amount, 0) - {ph}),
                     last_updated = CURRENT_TIMESTAMP
                 WHERE id = (
                     SELECT id FROM inventory_items
                     WHERE category = {ph}
-                      AND amount IS NOT NULL
+                      AND COALESCE(amount, current_quantity) IS NOT NULL
                       AND (LOWER(name) LIKE {ph} OR {ph} LIKE '%' || LOWER(name) || '%')
                       AND (station_id = {ph} OR station_id IS NULL)
                     ORDER BY (station_id = {ph}) DESC NULLS LAST
                     LIMIT 1
                 )
                 """,
-                (amount, category, f"%{cand}%", cand, station_id, station_id),
+                (amount, amount, category, f"%{cand}%", cand, station_id, station_id),
             )
             if (cursor.rowcount or 0) > 0:
                 logger.debug(
@@ -5788,19 +5845,20 @@ class CoffeeOrderSystem:
             cursor.execute(
                 f"""
                 UPDATE inventory_items
-                SET amount = GREATEST(0, amount - {ph}),
+                SET amount = GREATEST(0, COALESCE(amount, current_quantity, 0) - {ph}),
+                    current_quantity = GREATEST(0, COALESCE(current_quantity, amount, 0) - {ph}),
                     last_updated = CURRENT_TIMESTAMP
                 WHERE id = (
                     SELECT id FROM inventory_items
                     WHERE category = {ph}
-                      AND amount IS NOT NULL
+                      AND COALESCE(amount, current_quantity) IS NOT NULL
                       AND (station_id = {ph} OR station_id IS NULL)
                     ORDER BY (station_id = {ph}) DESC NULLS LAST,
                              LOWER(name) ASC
                     LIMIT 1
                 )
                 """,
-                (amount, category, station_id, station_id),
+                (amount, amount, category, station_id, station_id),
             )
             if (cursor.rowcount or 0) > 0:
                 logger.debug(
