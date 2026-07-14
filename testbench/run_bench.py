@@ -24,7 +24,7 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from bench.core import Runner, write_reports          # noqa: E402
-from bench.suites import ALL_SUITES                   # noqa: E402
+from bench.registry import ALL_SUITES                   # noqa: E402
 
 
 def main():
