@@ -407,8 +407,13 @@ def suite_stats(rn):
     code, body, ms = c.get("/api/reports/today")
     if code == 200 and isinstance(body, dict):
         data = body.get("data") or body.get("report") or body
-        have = [k for k in ("orders", "sms", "issues", "per_station") if k in data]
-        missing = [k for k in ("orders", "sms", "issues", "per_station") if k not in data]
+        # Actual response shape (get_today_report): order data is TOP-LEVEL
+        # (total_orders, status_breakdown), not under an 'orders' key. The
+        # bench's first prod run flagged a false 'missing orders' warn here.
+        expected = ("total_orders", "status_breakdown", "per_station",
+                    "sms", "errors", "issues")
+        have = [k for k in expected if k in data]
+        missing = [k for k in expected if k not in data]
         out.append(R("stats", "today report shape", "pass" if not missing else "warn",
                      f"Report has {have}" + (f", missing {missing}" if missing else ""),
                      refs=[] if not missing else ["routes/consolidated_api_routes.py"], ms=ms))
