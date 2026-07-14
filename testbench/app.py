@@ -18,7 +18,7 @@ from flask import Flask, redirect, request, send_from_directory
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from bench.core import Runner, write_reports          # noqa: E402
-from bench.suites import ALL_SUITES                   # noqa: E402
+from bench.suites import ALL_SUITES, CATALOG          # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPORTS = os.path.join(HERE, "reports")
@@ -48,6 +48,13 @@ def index():
         f" &middot; <a href='/reports/{html.escape(d)}/feedback.md'>feedback.md</a></li>"
         for d in _past_runs()
     ) or "<li class='dim'>No runs yet</li>"
+    catalog_html = "".join(
+        "<details><summary><b>" + html.escape(suite) + "</b> — "
+        + f"{len(checks)} check group(s)</summary><ul>"
+        + "".join(f"<li>{html.escape(c)}</li>" for c in checks)
+        + "</ul></details>"
+        for suite, checks in CATALOG.items()
+    )
     return f"""<!doctype html><html><head><meta charset="utf-8">
 <title>Coffee Cue Test Bench</title>
 <style>
@@ -87,6 +94,13 @@ def index():
   <div class="note">SMS checks use the simulate harness — <b>no real SMS is ever sent</b>.
   Bench orders are named ZZBench and cancelled afterwards.</div>
  </form>
+ <div class="card">
+  <b>What actually gets tested</b>
+  <div class="note" style="margin-bottom:6px">Every check, in plain English — so the
+  depth is visible. DEEP suites place real orders and verify the bookkeeping
+  (stock counters, queue/wait movement, routing, group linkage), then clean up.</div>
+  {catalog_html}
+ </div>
  <div class="card">
   <b>Past runs</b>
   <ul>{past}</ul>
