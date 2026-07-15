@@ -5581,6 +5581,7 @@ class CoffeeOrderSystem:
         # completion, but as a backstop we no-op here when we see it.
         if processed_details.get('_stock_decremented'):
             return result
+        self._stock_errors = []  # collected by _decrement_inventory_item
         cursor = conn.cursor()
         # Heal the amount/current_quantity split-brain before touching stock
         # (no-op after the first call in this process).
@@ -5690,6 +5691,12 @@ class CoffeeOrderSystem:
                     'reason': 'no matching inventory row',
                 })
 
+        # Surface any SQL errors the savepoint-wrapped executor swallowed so
+        # callers (and the kiosk stock_debug field) can show WHY nothing moved.
+        errs = getattr(self, '_stock_errors', None)
+        if errs:
+            result['errors'] = errs[:5]
+
         conn.commit()
         return result
 
@@ -5782,8 +5789,31 @@ class CoffeeOrderSystem:
         if not name_norm:
             return False
 
+        def _run(sql, params):
+            """Execute one decrement UPDATE inside a SAVEPOINT so an SQL
+            error (missing column, aborted txn, ...) can't silently poison
+            the rest of the transaction — the old behaviour behind 'stock
+            never moves and nobody knows why'. Errors are collected on
+            self._stock_errors and surfaced in the result/debug output."""
+            try:
+                cursor.execute("SAVEPOINT stock_dec")
+                cursor.execute(sql, params)
+                n = cursor.rowcount or 0
+                cursor.execute("RELEASE SAVEPOINT stock_dec")
+                return n
+            except Exception as e:
+                if not hasattr(self, '_stock_errors'):
+                    self._stock_errors = []
+                self._stock_errors.append(f"{category}/{name_norm}: {e}")
+                logger.warning(f"stock decrement SQL failed ({category}/{name_norm}): {e}")
+                try:
+                    cursor.execute("ROLLBACK TO SAVEPOINT stock_dec")
+                except Exception:
+                    pass
+                return 0
+
         def _exact(sql_extra, params):
-            cursor.execute(
+            return _run(
                 f"""
                 UPDATE inventory_items
                 SET amount = GREATEST(0, COALESCE(amount, current_quantity, 0) - {ph}),
@@ -5795,7 +5825,6 @@ class CoffeeOrderSystem:
                 """,
                 (amount, amount, category, name_norm, *params),
             )
-            return cursor.rowcount or 0
 
         # Step 1: exact match at station scope.
         if _exact(f"AND station_id = {ph}", (station_id,)) > 0:
@@ -5809,7 +5838,7 @@ class CoffeeOrderSystem:
         # steps never matched and stock never moved. A decrement against
         # another station's row keeps the EVENT total right, which beats
         # never decrementing at all.
-        cursor.execute(
+        if _run(
             f"""
             UPDATE inventory_items
             SET amount = GREATEST(0, COALESCE(amount, current_quantity, 0) - {ph}),
@@ -5824,8 +5853,7 @@ class CoffeeOrderSystem:
             )
             """,
             (amount, amount, category, name_norm),
-        )
-        if (cursor.rowcount or 0) > 0:
+        ) > 0:
             return True
 
         # Step 3: partial-match cascade. Build the candidate tokens by
@@ -5852,7 +5880,7 @@ class CoffeeOrderSystem:
         for cand in candidates:
             if not cand:
                 continue
-            cursor.execute(
+            if _run(
                 f"""
                 UPDATE inventory_items
                 SET amount = GREATEST(0, COALESCE(amount, current_quantity, 0) - {ph}),
@@ -5868,8 +5896,7 @@ class CoffeeOrderSystem:
                 )
                 """,
                 (amount, amount, category, f"%{cand}%", cand, station_id),
-            )
-            if (cursor.rowcount or 0) > 0:
+            ) > 0:
                 logger.debug(
                     f"Stock decrement matched via partial: requested='{name}', "
                     f"category={category}, candidate='{cand}'"
@@ -5882,7 +5909,7 @@ class CoffeeOrderSystem:
         # order text combines count + type ('1 White Sugar') — both
         # cases mean "decrement any row in this category".
         if category in ('coffee', 'sugar', 'sweetener', 'artificial_sweetener'):
-            cursor.execute(
+            if _run(
                 f"""
                 UPDATE inventory_items
                 SET amount = GREATEST(0, COALESCE(amount, current_quantity, 0) - {ph}),
@@ -5898,8 +5925,7 @@ class CoffeeOrderSystem:
                 )
                 """,
                 (amount, amount, category, station_id),
-            )
-            if (cursor.rowcount or 0) > 0:
+            ) > 0:
                 logger.debug(
                     f"Stock decrement matched via category fallback: "
                     f"requested='{name}', category={category}"
