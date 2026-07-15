@@ -5012,8 +5012,17 @@ class CoffeeOrderSystem:
             bool: Whether this order will be delayed until next break
         """
         try:
+            # Clear any ABORTED transaction left by an earlier failure on this
+            # shared connection. Without this, every query below dies with
+            # InFailedSqlTransaction and the outer except's last-resort
+            # 'station 1' fallback fires — the bench caught an almond order
+            # landing on a no-almond station exactly this way (run 4).
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
             cursor = self.db.cursor()
-            
+
             # Log station assignment request
             logger.info(f"Station assignment requested: VIP={is_vip}, milk_type={milk_type}")
             
@@ -5486,6 +5495,10 @@ class CoffeeOrderSystem:
             
             # Try to find any active station instead of defaulting to station 1
             try:
+                try:
+                    self.db.rollback()
+                except Exception:
+                    pass
                 cursor = self.db.cursor()
                 cursor.execute('''
                     SELECT station_id, current_load 
@@ -5723,47 +5736,52 @@ class CoffeeOrderSystem:
 
     def _ensure_inventory_quantity_columns(self, cursor):
         """Heal the inventory_items quantity SPLIT-BRAIN (found by the Test
-        Bench: an almond order decremented NOTHING).
+        Bench: prod's table has only `amount`; the API/UI write
+        `current_quantity` — run 4's stock_debug caught the decrement failing
+        with 'column current_quantity does not exist').
 
-        Two quantity columns exist depending on which code created/edited a
-        row: Quick Setup seeding + this decrementer used `amount`, while the
-        inventory API (GET sample shape, /adjust, the Organiser UI) uses
-        `current_quantity`. Depending on which one a deployment's table has,
-        either the decrement UPDATE errors out (column missing) or it updates
-        a column nobody reads — both mean the operator-visible counters never
-        move.
-
-        Fix: guarantee BOTH columns exist, one-time backfill each from the
-        other (a row with current_quantity=0 but amount>0 is the Quick Setup
-        seeding artifact), and from now on every write updates both. Runs
-        once per process; cheap no-op afterwards."""
+        v2 of this heal: the first version marked itself done even when the
+        ALTERs silently failed, so it never retried and the column never
+        arrived. Now every statement runs in its own SAVEPOINT and the flag is
+        only set after VERIFYING both columns are actually selectable — if
+        verification fails we log loudly and retry on the next call."""
         if getattr(self, '_inv_qty_cols_ok', False):
             return
-        for ddl in (
-            "ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS amount DECIMAL(10,2)",
-            "ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS current_quantity DECIMAL(10,2)",
-        ):
+
+        def sp(sql):
             try:
-                cursor.execute(ddl)
-            except Exception:
-                # SQLite has no IF NOT EXISTS for columns — try plain ADD.
+                cursor.execute("SAVEPOINT inv_heal")
+                cursor.execute(sql)
+                cursor.execute("RELEASE SAVEPOINT inv_heal")
+                return True, None
+            except Exception as e:
                 try:
-                    cursor.execute(ddl.replace(" IF NOT EXISTS", ""))
+                    cursor.execute("ROLLBACK TO SAVEPOINT inv_heal")
                 except Exception:
-                    pass  # column already there
-        try:
-            cursor.execute("""
-                UPDATE inventory_items SET current_quantity = amount
-                WHERE (current_quantity IS NULL OR current_quantity = 0)
-                  AND amount > 0
-            """)
-            cursor.execute("""
-                UPDATE inventory_items SET amount = current_quantity
-                WHERE amount IS NULL AND current_quantity IS NOT NULL
-            """)
-        except Exception as e:
-            logger.warning(f"inventory quantity backfill skipped: {e}")
+                    pass
+                return False, str(e)
+
+        for col in ("amount", "current_quantity"):
+            ok, err = sp(f"ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS {col} DECIMAL(10,2)")
+            if not ok:
+                # SQLite has no IF NOT EXISTS for columns
+                ok2, err2 = sp(f"ALTER TABLE inventory_items ADD COLUMN {col} DECIMAL(10,2)")
+                if not ok2 and "duplicate" not in (err2 or "").lower()                         and "exists" not in (err2 or "").lower():
+                    logger.error(f"inventory heal: could not add column {col}: {err} / {err2}")
+
+        # VERIFY both columns are real before trusting the heal.
+        ok, err = sp("SELECT amount, current_quantity FROM inventory_items LIMIT 1")
+        if not ok:
+            logger.error(f"inventory heal VERIFICATION FAILED — will retry next call: {err}")
+            return
+
+        sp("""UPDATE inventory_items SET current_quantity = amount
+              WHERE (current_quantity IS NULL OR current_quantity = 0)
+                AND amount > 0""")
+        sp("""UPDATE inventory_items SET amount = current_quantity
+              WHERE amount IS NULL AND current_quantity IS NOT NULL""")
         self._inv_qty_cols_ok = True
+        logger.info("inventory quantity columns verified healthy (amount + current_quantity)")
 
     def _decrement_inventory_item(self, cursor, db_type, *, category, name, amount, station_id):
         """Decrement a single inventory row, preferring station scope.
