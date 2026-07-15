@@ -31,6 +31,13 @@ BENCH_USER=... BENCH_PASS=... python3 testbench/run_bench.py \
 # exit code 1 = failures found
 ```
 
+## The master plan: COVERAGE_MAP.md
+
+[`COVERAGE_MAP.md`](COVERAGE_MAP.md) is the living inventory of EVERY function
+the app has (derived from the code: 321 API routes, 32 SMS keywords, all
+screens and settings), each marked covered / partial / not-yet, with a phased
+roadmap for closing the gaps. When you wonder "is X tested?" — look there.
+
 ## Suites
 
 | Suite | Needs login | What it proves |
