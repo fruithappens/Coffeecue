@@ -143,12 +143,17 @@ class Runner:
             "options": {k: v for k, v in self.options.items()},
             "run_id": uuid.uuid4().hex[:8],
         }
-        # numbering for fake phones so every check in a run gets a unique one
-        self.phone_seq = int(time.time()) % 900
+        # Fake-phone generator. Numbers must be VIRGIN every run: a reused
+        # number is a "returning customer" to the app (saved name, old
+        # conversation state) and contaminates conversation tests — run 3's
+        # routing fail traced back to exactly that. uuid-derived digits give
+        # ~10^9 space, so cross-run reuse is effectively impossible.
+        self._phone_base = int(uuid.uuid4().int % 10**9)
+        self.phone_seq = 0
 
     def next_phone(self):
         self.phone_seq += 1
-        return fake_phone(self.phone_seq % 1000)
+        return f"+614{(self._phone_base + self.phone_seq) % 10**8:08d}"
 
     def authenticate(self):
         """Login if creds provided. Returns True/False/None(no creds)."""

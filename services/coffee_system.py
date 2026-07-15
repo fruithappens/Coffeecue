@@ -5299,10 +5299,27 @@ class CoffeeOrderSystem:
                         milk_capable_stations.sort(key=lambda s: s['load'])
                         logger.info(f"Assigned {milk_type} order to station {milk_capable_stations[0]['id']} during break")
                         return milk_capable_stations[0]['id'], False
-                    else:
-                        logger.warning(f"No open stations have {milk_type} during break, using default station")
-                        # Fall through to standard assignment
-                
+                    # No OPEN station has this milk. Capability beats break
+                    # hours: route to a milk-capable ACTIVE station even if
+                    # it's on break (a slower coffee beats an impossible one).
+                    # Previously this fell through to weighted selection among
+                    # the open stations REGARDLESS of milk — a #165-class hole
+                    # that could strand e.g. an almond order on a
+                    # full-cream-only station.
+                    all_capable = [
+                        s for s in stations
+                        if s['status'] == 'active'
+                        and ((not s['milk_types'])
+                             or milk_type_normalized in [str(m).lower().replace(' milk', '') for m in s['milk_types']])
+                    ]
+                    if all_capable:
+                        all_capable.sort(key=lambda s: s['load'])
+                        logger.warning(f"No open station has {milk_type} during break; "
+                                       f"routing to milk-capable station {all_capable[0]['id']} despite the break")
+                        return all_capable[0]['id'], False
+                    logger.warning(f"No active station can make {milk_type} (break period); returning None")
+                    return None, False
+
                 # If we reached here, use standard load balancing among open stations
                 if open_stations:
                     # Weighted random assignment based on load and capacity

@@ -232,7 +232,13 @@ def suite_queue_wait(rn):
 
     drinks, milks, _ = _menu(c)
     drink = "latte" if "latte" in drinks else (drinks[0] if drinks else "latte")
-    milk = milks[0] if milks else "full cream"
+    # Order a milk the TARGET station can make — run 3 ordered almond (first
+    # menu milk) pinned to a full-cream-only station, and the app CORRECTLY
+    # overrode the preference. The queue test must not fight capability.
+    st_milks = [str(x).lower().replace(" milk", "")
+                for x in ((target.get("capabilities") or {}).get("milk_types") or [])]
+    milk = next((m for m in milks if not st_milks or m.replace(" milk", "") in st_milks),
+                milks[0] if milks else "full cream")
 
     nos, landed = [], []
     for i in range(3):
