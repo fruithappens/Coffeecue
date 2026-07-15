@@ -62,18 +62,23 @@ def _snapshot(items):
     return {_inv_key(r): (_qty(r), r.get("id")) for r in items or []}
 
 
-def _kiosk_order(client, name, drink, milk, size, station=None):
+def _kiosk_order(client, name, drink, milk, size, station=None, debug_stock=False):
     body = {"name": name, "coffee_type": drink, "milk": milk, "size": size,
             "sugar": "No sugar", "phone": ""}
     if station is not None:
         body["preferred_station"] = station
+    if debug_stock:
+        body["debug_stock"] = True
     code, resp, ms = client.post("/api/display/order", body, auth=False)
     if code == 200 and isinstance(resp, dict) and resp.get("success"):
         no = (resp.get("order_number") or (resp.get("data") or {}).get("order_number")
               or resp.get("id"))
         st = resp.get("station_id") or (resp.get("data") or {}).get("station_id")
+        _kiosk_order.last_debug = resp.get("stock_debug")
         return no, st, ms
+    _kiosk_order.last_debug = None
     return None, f"HTTP {code}: {str(resp)[:200]}", ms
+_kiosk_order.last_debug = None
 
 
 def _cancel(client, order_no):
@@ -130,7 +135,9 @@ def suite_stock(rn):
     drink = "latte" if "latte" in drinks else (drinks[0] if drinks else "latte")
 
     before = _snapshot(items)
-    no, st, ms = _kiosk_order(c, f"{BENCH_TAG} Stock", drink, milk, "medium")
+    no, st, ms = _kiosk_order(c, f"{BENCH_TAG} Stock", drink, milk, "medium",
+                              debug_stock=True)
+    server_account = _kiosk_order.last_debug  # what the SERVER says it did
     if not no:
         return [R("stock", "place stock-test order", "fail", str(st), ms=ms)]
 
@@ -164,6 +171,7 @@ def suite_stock(rn):
         out.append(R("stock", f"{milk} milk decremented by the order", "fail",
                      f"Order {no} used {milk} but NO milk inventory row went down. "
                      "Organisers will run out with no warning.",
+                     evidence=f"server's own account (stock_debug): {server_account}",
                      suggestion="Check _decrement_stock_for_order name-matching vs "
                                 "the inventory row names.",
                      refs=["services/coffee_system.py"]))
@@ -232,7 +240,13 @@ def suite_queue_wait(rn):
 
     drinks, milks, _ = _menu(c)
     drink = "latte" if "latte" in drinks else (drinks[0] if drinks else "latte")
-    milk = milks[0] if milks else "full cream"
+    # Order a milk the TARGET station can make — run 3 ordered almond (first
+    # menu milk) pinned to a full-cream-only station, and the app CORRECTLY
+    # overrode the preference. The queue test must not fight capability.
+    st_milks = [str(x).lower().replace(" milk", "")
+                for x in ((target.get("capabilities") or {}).get("milk_types") or [])]
+    milk = next((m for m in milks if not st_milks or m.replace(" milk", "") in st_milks),
+                milks[0] if milks else "full cream")
 
     nos, landed = [], []
     for i in range(3):

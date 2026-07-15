@@ -3804,9 +3804,10 @@ def create_kiosk_order():
         try:
             dbtype = 'sqlite' if 'sqlite3' in str(type(db)).lower() else 'postgres'
             if hasattr(coffee_system, '_decrement_stock_for_order'):
-                coffee_system._decrement_stock_for_order(db, dbtype, target, order_details)
+                stock_result = coffee_system._decrement_stock_for_order(db, dbtype, target, order_details)
                 db.commit()
         except Exception as e:
+            stock_result = {'decremented': [], 'skipped': [], 'errors': [str(e)]}
             logger.warning(f"kiosk stock decrement failed (non-fatal): {e}")
             try:
                 db.rollback()
@@ -3823,13 +3824,23 @@ def create_kiosk_order():
         except Exception:
             pass
 
-        return jsonify({
+        resp_payload = {
             'success': True,
             'order_number': order_number,
             'station_id': target,
             'station_name': station_name,
             'reassigned': reassigned,
-        })
+        }
+        # Test/diagnostic aid: when the caller asks (debug_stock: true), echo
+        # what the stock decrement actually did — decremented rows, skipped
+        # items with reasons, and any swallowed SQL errors. Lets the Test
+        # Bench show WHY a counter didn't move instead of guessing.
+        if data.get('debug_stock'):
+            try:
+                resp_payload['stock_debug'] = stock_result
+            except NameError:
+                resp_payload['stock_debug'] = {'error': 'decrement not reached'}
+        return jsonify(resp_payload)
     except Exception as e:
         logger.error(f"create_kiosk_order error: {e}")
         try:
