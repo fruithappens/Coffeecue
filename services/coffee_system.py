@@ -5761,6 +5761,13 @@ class CoffeeOrderSystem:
                     pass
                 return False, str(e)
 
+        def note(msg):
+            # Surface heal progress via _stock_errors so the kiosk stock_debug
+            # field shows it — Railway logs aren't visible from the bench.
+            if not hasattr(self, '_stock_errors'):
+                self._stock_errors = []
+            self._stock_errors.append(f"heal: {msg}")
+
         for col in ("amount", "current_quantity"):
             ok, err = sp(f"ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS {col} DECIMAL(10,2)")
             if not ok:
@@ -5768,12 +5775,15 @@ class CoffeeOrderSystem:
                 ok2, err2 = sp(f"ALTER TABLE inventory_items ADD COLUMN {col} DECIMAL(10,2)")
                 if not ok2 and "duplicate" not in (err2 or "").lower()                         and "exists" not in (err2 or "").lower():
                     logger.error(f"inventory heal: could not add column {col}: {err} / {err2}")
+                    note(f"ALTER {col} FAILED: {err} / {err2}")
 
         # VERIFY both columns are real before trusting the heal.
         ok, err = sp("SELECT amount, current_quantity FROM inventory_items LIMIT 1")
         if not ok:
             logger.error(f"inventory heal VERIFICATION FAILED — will retry next call: {err}")
+            note(f"v3 verification FAILED: {err}")
             return
+        note("v3 verified OK")
 
         sp("""UPDATE inventory_items SET current_quantity = amount
               WHERE (current_quantity IS NULL OR current_quantity = 0)
@@ -5908,7 +5918,7 @@ class CoffeeOrderSystem:
                     SELECT id FROM inventory_items
                     WHERE category = {ph}
                       AND COALESCE(amount, current_quantity) IS NOT NULL
-                      AND (LOWER(name) LIKE {ph} OR {ph} LIKE '%' || LOWER(name) || '%')
+                      AND (LOWER(name) LIKE {ph} OR {ph} LIKE '%%' || LOWER(name) || '%%')
                     ORDER BY (station_id = {ph}) DESC NULLS LAST
                     LIMIT 1
                 )
