@@ -50,6 +50,94 @@ def _sid_cache_put(sid, reply):
             _SID_CACHE.pop(k, None)
     _SID_CACHE[sid] = (time.time(), reply)
 
+# --- Carrier-duplicate dedupe (content-based) --------------------------
+# The MessageSid cache above only catches TWILIO retries (same sid). A
+# CARRIER can also deliver the same customer text multiple times as
+# separate messages with DIFFERENT sids — observed live 2026-07-16: one
+# "Steve" processed three times, advancing the conversation state machine
+# each time ("Hi Steve!" then two "I'm not sure what type of coffee").
+# Fix: if the SAME phone sends the EXACT same text within the window,
+# replay the previous reply instead of re-processing. Backed by a tiny DB
+# table so it survives restarts and any future multi-worker setup.
+# WINDOW: carrier duplicates arrive within seconds; a LEGITIMATE repeat of a
+# short answer ("YES" to two different questions, e.g. in the FRIEND flow)
+# needs a bot reply + human read + reply, which rarely happens inside 15s —
+# so 15s catches dupes without swallowing real answers.
+_DEDUP_WINDOW_SECONDS = 15
+_dedup_table_ready = False
+
+
+def _ensure_dedup_table(db):
+    global _dedup_table_ready
+    if _dedup_table_ready:
+        return
+    try:
+        cur = db.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS sms_inbound_dedup (
+                phone TEXT PRIMARY KEY,
+                body TEXT,
+                reply TEXT,
+                created_at TIMESTAMP
+            )
+        """)
+        db.commit()
+        _dedup_table_ready = True
+    except Exception as e:
+        logger.warning(f"sms dedup table create failed (non-fatal): {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+
+def _duplicate_inbound_reply(db, phone, body):
+    """Return the previous reply if this exact text from this phone was just
+    processed (carrier duplicate); else None."""
+    try:
+        _ensure_dedup_table(db)
+        cur = db.cursor()
+        cur.execute("SELECT body, reply, created_at FROM sms_inbound_dedup WHERE phone = %s",
+                    (phone,))
+        row = cur.fetchone()
+        if not row:
+            return None
+        prev_body, prev_reply, ts = row[0], row[1], row[2]
+        if prev_body == body and prev_reply and ts is not None:
+            from datetime import datetime as _dt
+            age = (_dt.now() - ts).total_seconds()
+            if 0 <= age < _DEDUP_WINDOW_SECONDS:
+                return prev_reply
+        return None
+    except Exception as e:
+        logger.warning(f"sms dedup lookup failed (fail-open): {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return None
+
+
+def _remember_inbound_reply(db, phone, body, reply):
+    try:
+        _ensure_dedup_table(db)
+        cur = db.cursor()
+        cur.execute("""
+            INSERT INTO sms_inbound_dedup (phone, body, reply, created_at)
+            VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
+            ON CONFLICT (phone) DO UPDATE
+            SET body = EXCLUDED.body, reply = EXCLUDED.reply,
+                created_at = EXCLUDED.created_at
+        """, (phone, body, (reply or '')[:1600]))
+        db.commit()
+    except Exception as e:
+        logger.warning(f"sms dedup store failed (non-fatal): {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+
 @bp.route('/sms/debug', methods=['GET', 'POST'])
 def sms_debug():
     """Debug endpoint to test SMS webhook delivery"""
@@ -359,9 +447,21 @@ def _sms_webhook_inner():
         # Log the message metadata for debugging
         logger.info(f"Processing SMS with metadata: {metadata}")
         
+        # Carrier-duplicate guard: the exact same text from the same phone
+        # within the window gets the SAME reply, without re-running the
+        # conversation state machine (which double-advances it).
+        _dup_reply = _duplicate_inbound_reply(db, from_number, body)
+        if _dup_reply is not None:
+            logger.info(f"Carrier-duplicate inbound from {from_number} — replaying previous reply")
+            resp = MessagingResponse()
+            resp.message(_dup_reply)
+            return Response(str(resp), mimetype='text/xml')
+
         # Process the message and get a response
         response_message = coffee_system.handle_sms(from_number, body, messaging_service, metadata)
-        
+        if isinstance(response_message, str) and response_message:
+            _remember_inbound_reply(db, from_number, body, response_message)
+
         logger.info(f"Coffee system returned message: {response_message}")
         
         # Update the database with the response
