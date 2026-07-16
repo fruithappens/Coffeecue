@@ -111,6 +111,23 @@ def _cleanup_bench_orders(rn, out, suite):
 def suite_stock(rn):
     """Order → inventory counters tick down (milk/cups/coffee), then restore."""
     c, out = rn.client, []
+
+    # Ground truth first: what does the DATABASE say about inventory_items,
+    # and what does a LIVE heal attempt report? (Settles the 'column does not
+    # exist' saga with facts instead of forensics.)
+    code, diag, _ = c.get("/api/debug/inventory-schema")
+    if code == 200 and isinstance(diag, dict):
+        out.append(R("stock", "schema ground truth", "pass",
+                     f"db={diag.get('database')} user={diag.get('user')} "
+                     f"heal_flag {diag.get('heal_flag_before')}→{diag.get('heal_flag_after')}",
+                     evidence=f"columns: {diag.get('columns')} | search_path: "
+                              f"{diag.get('search_path')} | heal_notes: {diag.get('heal_notes')} "
+                              f"| heal_exception: {diag.get('heal_exception')} "
+                              f"| pid: {diag.get('worker_pid')}"))
+    else:
+        out.append(R("stock", "schema ground truth", "warn",
+                     f"diagnostic endpoint not available (HTTP {code}) — deploy pending?"))
+
     items = _inventory(c)
     if items is None:
         return [R("stock", "inventory endpoint", "fail", "GET /api/inventory failed",
