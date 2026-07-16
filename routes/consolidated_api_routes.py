@@ -5979,6 +5979,64 @@ def send_sms():
         }), 500
 
 
+@bp.route('/debug/inventory-schema', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def debug_inventory_schema():
+    """Diagnostic (admin): ground truth about the inventory_items table.
+    Added because the stock decrement kept failing with 'column
+    current_quantity does not exist' while the schema heal appeared to run —
+    this returns what the DATABASE actually says, plus a live heal attempt
+    with its notes, so the Test Bench can settle it in one call."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        out = {'success': True}
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        cur = db.cursor()
+        try:
+            cur.execute("SELECT current_database(), current_user, version()")
+            row = cur.fetchone()
+            out['database'], out['user'] = row[0], row[1]
+            out['pg_version'] = (row[2] or '')[:40]
+        except Exception as e:
+            out['db_info_error'] = str(e)
+        try:
+            cur.execute("""
+                SELECT table_schema, column_name, data_type
+                FROM information_schema.columns
+                WHERE table_name = 'inventory_items'
+                ORDER BY table_schema, ordinal_position
+            """)
+            out['columns'] = [f"{r[0]}.{r[1]} ({r[2]})" for r in cur.fetchall()]
+        except Exception as e:
+            out['columns_error'] = str(e)
+        try:
+            cur.execute("SHOW search_path")
+            out['search_path'] = cur.fetchone()[0]
+        except Exception as e:
+            out['search_path_error'] = str(e)
+        out['heal_flag_before'] = bool(getattr(coffee_system, '_inv_qty_cols_ok', False))
+        # Force a LIVE heal attempt and capture its notes.
+        coffee_system._inv_qty_cols_ok = False
+        coffee_system._stock_errors = []
+        try:
+            coffee_system._ensure_inventory_quantity_columns(cur)
+            db.commit()
+        except Exception as e:
+            out['heal_exception'] = str(e)
+        out['heal_notes'] = list(getattr(coffee_system, '_stock_errors', []))
+        out['heal_flag_after'] = bool(getattr(coffee_system, '_inv_qty_cols_ok', False))
+        import os as _os
+        out['worker_pid'] = _os.getpid()
+        return jsonify(out)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @bp.route('/sms/blocklist', methods=['GET'])
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff'])
