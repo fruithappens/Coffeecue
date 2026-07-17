@@ -448,6 +448,16 @@ class CoffeeOrderSystem:
         if command_response:
             return command_response
 
+        # A barista just messaged this customer about their order (via the
+        # barista "Message Customer" button) — this inbound is the customer's
+        # REPLY. Forward it to the barista Messages inbox instead of parsing
+        # it as a new order. (Found live: a barista asked "did you want
+        # sugar", the customer's "No sugar" fell into the order bot, which
+        # replied "What's your first name?" — and the barista never saw the
+        # answer.) Commands above still work, so CANCEL etc. behave normally.
+        if state.get('state') == 'awaiting_barista_reply':
+            return self._handle_barista_reply(phone, message_body, state)
+
         # Multi-drink in a single text ("1 oat latte and 1 flat white"): only
         # consider it when we're at the START of an order, so we never
         # mis-split a single answer to a mid-order question. Returns None when
@@ -1158,6 +1168,29 @@ class CoffeeOrderSystem:
             )
 
         return self._forward_question_to_baristas(phone, question_text, state)
+
+    def _handle_barista_reply(self, phone, message, state):
+        """The customer is replying to a barista's "Message Customer" SMS.
+        Forward the reply into the barista Messages inbox, tagged with the
+        order + station, and confirm to the customer — do NOT parse it as a
+        new order (that produced the surreal "What's your first name?" after
+        a barista asked "did you want sugar"). Replies older than 60 min are
+        treated as a fresh conversation instead."""
+        td = state.get('temp_data') or {}
+        order_no = td.get('order_number')
+        station = td.get('station_id')
+        sent_at = td.get('sent_at')
+        try:
+            if sent_at:
+                age = (datetime.now() - datetime.fromisoformat(sent_at)).total_seconds()
+                if age > 3600:
+                    self._set_conversation_state(phone, 'completed')
+                    return self._restart_conversation(phone, message)
+        except Exception:
+            pass
+        tag = f"[Re order #{order_no}" + (f" @ Station {station}" if station else "") + "] "
+        self._set_conversation_state(phone, 'completed')
+        return self._forward_question_to_baristas(phone, tag + (message or '').strip(), state)
 
     def _forward_question_to_baristas(self, phone, question_text, state):
         """Insert the question into customer_questions, push a WS event,

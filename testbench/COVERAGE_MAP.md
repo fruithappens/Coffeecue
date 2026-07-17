@@ -124,7 +124,22 @@ Cypress) · ⚠️ mutating (needs opt-in / test event)
 | Support diagnostics/health/emergency | ⬜👁 | |
 | Integrations (EventsAir stub, 5 endpoints) | ⬜ | Phase 0 scaffold |
 
-## 9. UI-only surface (needs eyes or Cypress — the bench can't click)
+## 9. Cross-actor journeys (functions × people — where design gaps hide)
+Lesson from live use (2026-07-16): a barista's "Message Customer" and the SMS
+order bot each worked perfectly, but a customer's REPLY to the barista had
+nowhere to go — it fell into the order bot ("What's your first name?" after
+"did you want sugar"). **Function-level testing cannot catch a link that was
+never designed**; these journey rows exist so each gets a designed expectation
+and then a test.
+| Journey | Status | Notes |
+|---|---|---|
+| Barista messages customer → customer replies → reply reaches that barista | 🟡 | reply now forwards to Messages inbox tagged with order+station (fix shipped); bench journey test to add |
+| Customer texts CANCEL while barista is mid-make | ⬜ | barista should see it disappear/flag |
+| Reminder SMS ("grab it before it goes cold") → customer replies | ⬜ | same reply-routing question |
+| Barista edits an order the customer then modifies by SMS | ⬜ | conflict rules undefined |
+| Two customers, same name, same station, overlapping orders | ⬜ | pickup confusion guard |
+
+## 10. UI-only surface (needs eyes or Cypress — the bench can't click)
 Barista: 12 tabs (Orders, Stock, Completed, Tools, Inventory-AI, Schedule,
 Display, Queue AI, Balance, Capabilities, Staff, Settings) + Messages bubble +
 walk-in/wait dialogs. Organiser: 11 sections. Support: 9 tabs. Display:

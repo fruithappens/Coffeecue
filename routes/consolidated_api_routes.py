@@ -2962,7 +2962,7 @@ def send_message(order_id):
             # Log the message in the database
             try:
                 cursor.execute("""
-                    INSERT INTO order_messages 
+                    INSERT INTO order_messages
                     (order_number, phone, message, message_sid)
                     VALUES (%s, %s, %s, %s)
                 """, (clean_id, phone_number, message, result))
@@ -2971,6 +2971,25 @@ def send_message(order_id):
             except Exception as db_err:
                 logger.warning(f"Could not save message to database: {str(db_err)}")
                 # Continue anyway
+
+            # Route the customer's REPLY back to the barista: park the
+            # conversation in awaiting_barista_reply (with order + station
+            # context) so the next inbound from this phone is forwarded to
+            # the barista Messages inbox instead of being parsed as a brand
+            # new order ("What's your first name?" after "did you want
+            # sugar" — found live 2026-07-16).
+            try:
+                cursor.execute('SELECT station_id FROM orders WHERE order_number = %s', (clean_id,))
+                _row = cursor.fetchone()
+                coffee_system._set_conversation_state(phone_number, 'awaiting_barista_reply', {
+                    'order_number': clean_id,
+                    'station_id': _row[0] if _row else None,
+                    'barista_message': message[:200],
+                    'sent_at': datetime.now().isoformat(),
+                })
+                logger.info(f"Parked awaiting_barista_reply for {phone_number} (order {clean_id})")
+            except Exception as park_err:
+                logger.warning(f"Could not park barista-reply state (non-fatal): {park_err}")
             
             return jsonify({
                 "success": True, 
