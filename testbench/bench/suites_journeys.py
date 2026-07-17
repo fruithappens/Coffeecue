@@ -179,10 +179,48 @@ def journey_forget_me(rn):
     return out
 
 
+# ---------------------------------------------------------------- journey 3
+
+def journey_cancel_after_confirm(rn):
+    """Customer places an order, then texts CANCEL — the order must actually
+    leave the pending queue (a barista shouldn't make a cancelled coffee)."""
+    c, out = rn.client, []
+    drinks, milks, _ = _menu(c)
+    drink = "latte" if "latte" in drinks else (drinks[0] if drinks else "latte")
+    milk = next((m for m in ("full cream", "skim") if m in milks), milks[0] if milks else "full cream")
+
+    phone, order_no, reply = _place_sms_order(rn, f"{BENCH_TAG}Cxl", drink, milk)
+    if not order_no:
+        return [R("journeys", "cancel-after-confirm: setup order", "fail",
+                  f"setup order failed: {reply[:140]}")]
+    # present in queue?
+    code, body, _ = c.get("/api/orders/pending")
+    present = any(str(o.get("order_number") or o.get("orderNumber") or o.get("id")) == str(order_no)
+                 for o in _order_list(body))
+    ok, ctext = _sim(c, phone, "CANCEL")
+    cancelled_msg = "cancel" in (ctext or "").lower()
+    # gone from queue?
+    code, body, _ = c.get("/api/orders/pending")
+    gone = not any(str(o.get("order_number") or o.get("orderNumber") or o.get("id")) == str(order_no)
+                   for o in _order_list(body))
+    good = present and cancelled_msg and gone
+    out.append(R("journeys", "cancel-after-confirm: CANCEL removes the order from the queue",
+                 "pass" if good else "fail",
+                 f"order {order_no}: in-queue={present} → CANCEL said '{ctext[:60]}' → gone={gone}",
+                 suggestion="" if good else "A texted CANCEL must remove the order from the "
+                            "barista queue, or a cancelled coffee gets made.",
+                 refs=[] if good else ["services/coffee_system.py",
+                                       "routes/consolidated_api_routes.py"]))
+    if not gone and order_no:
+        c.post(f"/api/orders/{order_no}/cancel")
+    return out
+
+
 def suite_journeys(rn):
     out = []
     out += journey_message_reply(rn)
     out += journey_forget_me(rn)
+    out += journey_cancel_after_confirm(rn)
     return out
 
 

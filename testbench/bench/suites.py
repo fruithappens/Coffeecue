@@ -591,8 +591,24 @@ CATALOG = {
         "as a new order ('what's your first name?'). Uses dry_run so NO real SMS",
         "FORGET ME → asks to confirm → YES erases → a fresh order afterwards "
         "asks the name again (the privacy promise, proven not just claimed)",
-        "More journeys to add: reply to a reminder SMS, CANCEL mid-make, "
-        "edit conflicts, two same-name customers",
+        "Order → CANCEL → the order actually leaves the barista queue",
+        "More journeys to add: reply to a reminder SMS, edit conflicts, "
+        "two same-name customers",
+    ],
+    "sms_vocab": [
+        "Every SMS keyword the bot understands (MENU, OPTIONS, INFO, HELPME, "
+        "STATUS, USUAL, STAFF, CANCEL, MYDATA, RESET, BARISTA <question>...) "
+        "returns a sensible, on-topic, NON-crashing reply",
+        "A summary check that no keyword produced an empty reply or a stack trace",
+    ],
+    "edge_input": [
+        "The bot survives hostile/weird input without crashing or leaking a "
+        "stack trace: emoji-only, 600-char text, single dot, numbers-only, "
+        "unicode/accents, SQL-ish text, shouting, newlines",
+    ],
+    "settings": [
+        "OPT-IN (mutates): a config value written via the API round-trips — "
+        "set order_prefix → a new order number wears it → restore the original",
     ],
     "matrix": [
         "THE SCENARIO MATRIX: dimensions are read from YOUR live configuration — "
