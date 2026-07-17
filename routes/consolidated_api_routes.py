@@ -2945,17 +2945,26 @@ def send_message(order_id):
             logger.warning(f"Could not create order_messages table: {str(e)}")
             # Continue anyway
         
-        # Send the message using messaging service
+        # Send the message using messaging service.
+        # dry_run (admin/staff test aid, e.g. the Test Bench journey suite):
+        # do everything EXCEPT the real Twilio send, so the reply-routing link
+        # can be exercised end-to-end without spending SMS credit / texting a
+        # fake number. Mirrors the debug_stock pattern.
+        dry_run = bool(data.get('dry_run') or data.get('test_no_send'))
         try:
-            result = messaging_service.send_message(phone_number, message)
-            logger.info(f"Message sent to {phone_number} for order {clean_id}, result: {result}")
-            logger.info(f"Result type: {type(result)}, Result value: {repr(result)}")
-            
+            if dry_run:
+                result = 'DRYRUN'
+                logger.info(f"[dry_run] skipping real SMS send for order {clean_id}")
+            else:
+                result = messaging_service.send_message(phone_number, message)
+                logger.info(f"Message sent to {phone_number} for order {clean_id}, result: {result}")
+                logger.info(f"Result type: {type(result)}, Result value: {repr(result)}")
+
             # Check if message sending actually succeeded
             if result is None:
                 logger.error("Messaging service returned None - message sending failed")
                 return jsonify({
-                    "success": False, 
+                    "success": False,
                     "message": "Failed to send SMS - messaging service returned no result"
                 })
             
@@ -2992,9 +3001,10 @@ def send_message(order_id):
                 logger.warning(f"Could not park barista-reply state (non-fatal): {park_err}")
             
             return jsonify({
-                "success": True, 
-                "message": "Message sent successfully",
-                "message_sid": result
+                "success": True,
+                "message": "Message sent successfully" if not dry_run else "Message recorded (dry run — no SMS sent)",
+                "message_sid": result,
+                "dry_run": dry_run,
             })
         except Exception as e:
             logger.error(f"Error sending message: {str(e)}")

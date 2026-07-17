@@ -583,6 +583,17 @@ CATALOG = {
         "HONEST DESIGN NOTE (always shown): barista shifts are informational — "
         "routing only respects station status and event breaks, not the roster",
     ],
+    "journeys": [
+        "CROSS-ACTOR JOURNEYS — follow an action to what it triggers next "
+        "(where design-gap bugs hide, like the barista-reply one)",
+        "Barista 'Message Customer' → customer replies → the reply must reach "
+        "the barista Messages inbox tagged to the order, and must NOT be parsed "
+        "as a new order ('what's your first name?'). Uses dry_run so NO real SMS",
+        "FORGET ME → asks to confirm → YES erases → a fresh order afterwards "
+        "asks the name again (the privacy promise, proven not just claimed)",
+        "More journeys to add: reply to a reminder SMS, CANCEL mid-make, "
+        "edit conflicts, two same-name customers",
+    ],
     "matrix": [
         "THE SCENARIO MATRIX: dimensions are read from YOUR live configuration — "
         "order channel (kiosk/SMS) × drinks × every menu milk (+ one deliberately "

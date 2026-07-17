@@ -8,5 +8,6 @@ the common dependency) without circular imports.
 from .suites import BASE_SUITES, CATALOG                # noqa: F401
 from .suites_deep import DEEP_SUITES
 from .suites_matrix import MATRIX_SUITES
+from .suites_journeys import JOURNEY_SUITES
 
-ALL_SUITES = BASE_SUITES + DEEP_SUITES + MATRIX_SUITES
+ALL_SUITES = BASE_SUITES + DEEP_SUITES + MATRIX_SUITES + JOURNEY_SUITES
