@@ -31,6 +31,27 @@ BENCH_USER=... BENCH_PASS=... python3 testbench/run_bench.py \
 # exit code 1 = failures found
 ```
 
+## Letting the assistant self-run (credentials via .bench_env)
+
+So a Claude session can run the FULL authenticated bench itself — without the
+password ever appearing in a command or the transcript — put the credentials
+in a **gitignored** file it reads but never prints:
+
+1. Create a **dedicated** bench account in the app (Organiser → Users → Add
+   User): username `benchbot`, role **Admin**, a password only you type.
+2. `cp testbench/.bench_env.example testbench/.bench_env` and fill in the real
+   password. `.bench_env` is gitignored — never commit it, never paste it.
+3. The assistant then runs:
+   ```bash
+   bash testbench/run_bench_auth.sh --suites all         # everything
+   bash testbench/run_bench_auth.sh --suites all --allow-lifecycle --allow-blocklist --allow-settings
+   ```
+   The password is read from `.bench_env` into the environment; `run_bench.py`
+   picks it up (never logs it), and reports never contain it.
+
+Revoke anytime by disabling `benchbot` in Organiser → Users. Deploys still
+require your explicit approval — this only unblocks *testing*, not shipping.
+
 ## The master plan: COVERAGE_MAP.md
 
 [`COVERAGE_MAP.md`](COVERAGE_MAP.md) is the living inventory of EVERY function
