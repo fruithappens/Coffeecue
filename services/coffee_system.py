@@ -5970,6 +5970,16 @@ class CoffeeOrderSystem:
         # order text combines count + type ('1 White Sugar') — both
         # cases mean "decrement any row in this category".
         if category in ('coffee', 'sugar', 'sweetener', 'artificial_sweetener'):
+            # Pick the row that should ACTUALLY be consumed:
+            #  1. rows with stock left first — the old ORDER BY was alphabetical,
+            #     so a real event with 'decaf beans' (0.00) and 'house blend
+            #     beans' (5.00) always hit the EMPTY decaf row, clamped it at 0,
+            #     reported success, and never touched the beans being used
+            #     (found by the Test Bench: "no coffee row decremented").
+            #  2. match the order's decaf-ness: a decaf drink should burn decaf
+            #     beans; a normal drink should not.
+            #  3. then station scope, then name for stability.
+            want_decaf = 'decaf' in (name or '').lower()
             if _run(
                 f"""
                 UPDATE inventory_items
@@ -5980,12 +5990,14 @@ class CoffeeOrderSystem:
                     SELECT id FROM inventory_items
                     WHERE category = {ph}
                       AND COALESCE(amount, current_quantity) IS NOT NULL
-                    ORDER BY (station_id = {ph}) DESC NULLS LAST,
+                    ORDER BY (COALESCE(amount, current_quantity, 0) > 0) DESC,
+                             ((LOWER(name) LIKE '%%decaf%%') = {ph}) DESC,
+                             (station_id = {ph}) DESC NULLS LAST,
                              LOWER(name) ASC
                     LIMIT 1
                 )
                 """,
-                (amount, amount, category, station_id),
+                (amount, amount, category, want_decaf, station_id),
             ) > 0:
                 logger.debug(
                     f"Stock decrement matched via category fallback: "
