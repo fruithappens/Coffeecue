@@ -88,7 +88,11 @@ def index():
    <label class="cb"><input type="checkbox" name="allow_lifecycle" value="1">
     order lifecycle start→complete (phoneless; the completed order stays in today's stats)</label><br>
    <label class="cb"><input type="checkbox" name="allow_blocklist" value="1">
-    blocklist block/unblock roundtrip (fake number, auto-undone)</label>
+    blocklist block/unblock roundtrip (fake number, auto-undone)</label><br>
+   <label class="cb"><input type="checkbox" name="allow_settings" value="1">
+    settings round-trip (changes a setting, then restores it)</label><br>
+   <label class="cb"><input type="checkbox" name="allow_station_lifecycle" value="1">
+    station lifecycle (creates + deletes a temporary station, self-cleaning)</label>
   </div>
   <button type="submit">▶ Run tests</button>
   <div class="note">SMS checks use the simulate harness — <b>no real SMS is ever sent</b>.
@@ -118,6 +122,8 @@ def run():
     rn = Runner(base_url, username, password, {
         "allow_lifecycle": bool(request.form.get("allow_lifecycle")),
         "allow_blocklist": bool(request.form.get("allow_blocklist")),
+        "allow_settings": bool(request.form.get("allow_settings")),
+        "allow_station_lifecycle": bool(request.form.get("allow_station_lifecycle")),
         "suites": [t[0] for t in suites],
     })
     rn.run(suites)

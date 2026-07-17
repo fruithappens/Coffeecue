@@ -610,6 +610,13 @@ CATALOG = {
         "OPT-IN (mutates): a config value written via the API round-trips — "
         "set order_prefix → a new order number wears it → restore the original",
     ],
+    "lifecycle": [
+        "VIP: texting the VIP code activates VIP status, a VIP customer can "
+        "order, and that order is flagged/prioritised (queue jump)",
+        "OPT-IN station lifecycle: create a station → it's active → pause "
+        "(maintenance) → reopen → delete → it's gone, verified at each step "
+        "(creates + deletes a real station, self-cleaning)",
+    ],
     "matrix": [
         "THE SCENARIO MATRIX: dimensions are read from YOUR live configuration — "
         "order channel (kiosk/SMS) × drinks × every menu milk (+ one deliberately "
