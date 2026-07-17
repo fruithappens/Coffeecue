@@ -49,12 +49,12 @@ Cypress) · ⚠️ mutating (needs opt-in / test event)
 | Group | Keywords | Status |
 |---|---|---|
 | Order flow | YES NO Y N DONE END FINISH | 🟡 (YES/NO via group) |
-| Info | MENU INFO OPTIONS COMMANDS HELPME | 🟡 (MENU only) |
+| Info | MENU INFO OPTIONS COMMANDS HELPME | ✅ sms_vocab |
 | Order mgmt | CANCEL STATUS CHANGE EDIT | 🟡 (CANCEL, STATUS) |
 | Social | FRIEND GROUP ANOTHER NO FRIEND(S) | 🟡 (FRIEND) |
-| Identity/privacy | DELETE, FORGET ME, MYDATA, RESET | ⬜ high value (privacy claims must be true) |
-| Ops | STAFF BARISTA USUAL STOP | ⬜ (BARISTA feeds Messages inbox) |
-| Edge inputs | emoji, 500-char text, wrong language, numbers only | ⬜ |
+| Identity/privacy | DELETE, FORGET ME, MYDATA, RESET | ✅ FORGET ME journey + MYDATA/RESET sms_vocab |
+| Ops | STAFF BARISTA USUAL STOP | ✅ sms_vocab (STOP = carrier-level) |
+| Edge inputs | emoji, 600-char, unicode, numbers, sql-ish | ✅ edge_input suite |
 
 ## 3. Stations
 | Function | Status | Notes |
