@@ -5584,7 +5584,7 @@ class CoffeeOrderSystem:
         'piccolo': 1, 'macchiato': 1, 'cortado': 1,
     }
 
-    def _decrement_stock_for_order(self, conn, db_type, station_id, processed_details):
+    def _decrement_stock_for_order(self, conn, db_type, station_id, processed_details, restock=False):
         """Decrement the milk and coffee an order consumed.
 
         Tries the station-specific row first (station_id = X) and falls
@@ -5625,7 +5625,14 @@ class CoffeeOrderSystem:
         # double-decrement. Caller is expected to set/check a
         # `_stock_decremented` flag on processed_details to mark
         # completion, but as a backstop we no-op here when we see it.
-        if processed_details.get('_stock_decremented'):
+        if restock:
+            # Give stock back for a cancelled order — only if it was actually
+            # taken, and only once.
+            if not processed_details.get('_stock_decremented'):
+                return result
+            if processed_details.get('_stock_restocked'):
+                return result
+        elif processed_details.get('_stock_decremented'):
             return result
         self._stock_errors = []  # collected by _decrement_inventory_item
         cursor = conn.cursor()
@@ -5655,7 +5662,7 @@ class CoffeeOrderSystem:
                 liters = ml / 1000.0
             if self._decrement_inventory_item(
                 cursor, db_type, category='milk', name=milk,
-                amount=liters, station_id=station_id,
+                amount=liters, station_id=station_id, restock=restock,
             ):
                 result['decremented'].append(f"milk:{milk}")
             else:
@@ -5674,7 +5681,7 @@ class CoffeeOrderSystem:
             if shots > 0 and coffee_type:
                 if self._decrement_inventory_item(
                     cursor, db_type, category='coffee', name=coffee_type,
-                    amount=shots, station_id=station_id,
+                    amount=shots, station_id=station_id, restock=restock,
                 ):
                     result['decremented'].append(f"coffee:{coffee_type}")
                 else:
@@ -5702,7 +5709,7 @@ class CoffeeOrderSystem:
         for cup_name in [c for c in cup_candidates if c]:
             if self._decrement_inventory_item(
                 cursor, db_type, category='cups', name=cup_name,
-                amount=cups_used, station_id=station_id,
+                amount=cups_used, station_id=station_id, restock=restock,
             ):
                 result['decremented'].append(f"cups:{cup_name}")
                 cup_decremented = True
@@ -5726,7 +5733,7 @@ class CoffeeOrderSystem:
             for cat in ('sweetener', 'sugar', 'artificial_sweetener'):
                 if self._decrement_inventory_item(
                     cursor, db_type, category=cat, name=sugar,
-                    amount=sachets, station_id=station_id,
+                    amount=sachets, station_id=station_id, restock=restock,
                 ):
                     result['decremented'].append(f"{cat}:{sugar}")
                     sugar_decremented = True
@@ -5743,6 +5750,8 @@ class CoffeeOrderSystem:
         if errs:
             result['errors'] = errs[:5]
 
+        if restock:
+            processed_details['_stock_restocked'] = True
         conn.commit()
         return result
 
@@ -5826,7 +5835,23 @@ class CoffeeOrderSystem:
         self._inv_qty_cols_ok = True
         logger.info("inventory quantity columns verified healthy (amount + current_quantity)")
 
-    def _decrement_inventory_item(self, cursor, db_type, *, category, name, amount, station_id):
+    def _restock_for_order(self, conn, db_type, station_id, processed_details):
+        """Give back the stock a CANCELLED order had taken. Thin wrapper over
+        _decrement_stock_for_order(restock=True): same amounts, same matching
+        cascade, opposite sign, guarded so it only fires once and only when the
+        order actually decremented. Never raises."""
+        try:
+            return self._decrement_stock_for_order(conn, db_type, station_id,
+                                                   processed_details, restock=True)
+        except Exception as e:
+            logger.warning(f"restock on cancel failed (non-fatal): {e}")
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            return {'restocked': [], 'skipped': [], 'errors': [str(e)]}
+
+    def _decrement_inventory_item(self, cursor, db_type, *, category, name, amount, station_id, restock=False):
         """Decrement a single inventory row, preferring station scope.
 
         Match cascade — each step gets progressively more forgiving so
@@ -5846,6 +5871,9 @@ class CoffeeOrderSystem:
         Returns True if a row was actually updated, False otherwise.
         """
         ph = '?' if db_type == 'sqlite' else '%s'
+        # restock=True gives stock BACK (order cancelled) — same matching
+        # cascade, opposite sign. GREATEST(0, ...) is a no-op for adds.
+        op = '+' if restock else '-'
         name_norm = (name or '').strip().lower()
         if not name_norm:
             return False
@@ -5877,8 +5905,8 @@ class CoffeeOrderSystem:
             return _run(
                 f"""
                 UPDATE inventory_items
-                SET amount = GREATEST(0, COALESCE(amount, current_quantity, 0) - {ph}),
-                    current_quantity = GREATEST(0, COALESCE(current_quantity, amount, 0) - {ph}),
+                SET amount = GREATEST(0, COALESCE(amount, current_quantity, 0) {op} {ph}),
+                    current_quantity = GREATEST(0, COALESCE(current_quantity, amount, 0) {op} {ph}),
                     last_updated = CURRENT_TIMESTAMP
                 WHERE category = {ph} AND LOWER(name) = {ph}
                   AND COALESCE(amount, current_quantity) IS NOT NULL
@@ -5902,8 +5930,8 @@ class CoffeeOrderSystem:
         if _run(
             f"""
             UPDATE inventory_items
-            SET amount = GREATEST(0, COALESCE(amount, current_quantity, 0) - {ph}),
-                current_quantity = GREATEST(0, COALESCE(current_quantity, amount, 0) - {ph}),
+            SET amount = GREATEST(0, COALESCE(amount, current_quantity, 0) {op} {ph}),
+                current_quantity = GREATEST(0, COALESCE(current_quantity, amount, 0) {op} {ph}),
                 last_updated = CURRENT_TIMESTAMP
             WHERE id = (
                 SELECT id FROM inventory_items
@@ -5944,8 +5972,8 @@ class CoffeeOrderSystem:
             if _run(
                 f"""
                 UPDATE inventory_items
-                SET amount = GREATEST(0, COALESCE(amount, current_quantity, 0) - {ph}),
-                    current_quantity = GREATEST(0, COALESCE(current_quantity, amount, 0) - {ph}),
+                SET amount = GREATEST(0, COALESCE(amount, current_quantity, 0) {op} {ph}),
+                    current_quantity = GREATEST(0, COALESCE(current_quantity, amount, 0) {op} {ph}),
                     last_updated = CURRENT_TIMESTAMP
                 WHERE id = (
                     SELECT id FROM inventory_items
@@ -5983,8 +6011,8 @@ class CoffeeOrderSystem:
             if _run(
                 f"""
                 UPDATE inventory_items
-                SET amount = GREATEST(0, COALESCE(amount, current_quantity, 0) - {ph}),
-                    current_quantity = GREATEST(0, COALESCE(current_quantity, amount, 0) - {ph}),
+                SET amount = GREATEST(0, COALESCE(amount, current_quantity, 0) {op} {ph}),
+                    current_quantity = GREATEST(0, COALESCE(current_quantity, amount, 0) {op} {ph}),
                     last_updated = CURRENT_TIMESTAMP
                 WHERE id = (
                     SELECT id FROM inventory_items

@@ -3271,17 +3271,42 @@ def cancel_order_barista(order_id):
         except Exception:
             pass
         cursor = db.cursor()
-        cursor.execute('SELECT id, status, station_id FROM orders WHERE order_number = %s', (clean_id,))
+        cursor.execute('SELECT id, status, station_id, order_details FROM orders WHERE order_number = %s', (clean_id,))
         row = cursor.fetchone()
         if not row:
             return jsonify({"success": False, "message": f"Order {clean_id} not found"}), 404
         o_id = row[0] if not isinstance(row, dict) else row['id']
         status = row[1] if not isinstance(row, dict) else row['status']
         station_id = row[2] if not isinstance(row, dict) else row['station_id']
+        raw_details = row[3] if not isinstance(row, dict) else row.get('order_details')
         if status in ('completed', 'picked_up'):
             return jsonify({"success": False, "message": f"Order already {status} — can't cancel"}), 400
         if status == 'cancelled':
             return jsonify({"success": True, "message": "Order already cancelled"})
+
+        # Give the ingredients back: a cancelled order was never made, so its
+        # milk/coffee/cups/sugar should return to stock — otherwise counters
+        # drift low over an event with cancellations (Test Bench "cancel
+        # restocks" warn). Idempotent + only fires if the order decremented;
+        # non-fatal so a stock hiccup never blocks the cancel itself.
+        try:
+            details = raw_details
+            if isinstance(details, str):
+                details = json.loads(details)
+            if isinstance(details, dict) and details.get('_stock_decremented') \
+                    and not details.get('_stock_restocked'):
+                dbtype = 'sqlite' if 'sqlite3' in str(type(db)).lower() else 'postgres'
+                coffee_system._restock_for_order(db, dbtype, station_id, details)
+                cursor.execute('UPDATE orders SET order_details = %s WHERE id = %s',
+                               (json.dumps(details), o_id))
+        except Exception as restock_err:
+            logger.warning(f"cancel restock skipped (non-fatal): {restock_err}")
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            cursor = db.cursor()
+
         cursor.execute('UPDATE orders SET status = %s, updated_at = %s WHERE id = %s',
                        ('cancelled', datetime.now(), o_id))
         if station_id is not None:
@@ -3834,6 +3859,17 @@ def create_kiosk_order():
             dbtype = 'sqlite' if 'sqlite3' in str(type(db)).lower() else 'postgres'
             if hasattr(coffee_system, '_decrement_stock_for_order'):
                 stock_result = coffee_system._decrement_stock_for_order(db, dbtype, target, order_details)
+                # Persist the "stock taken" flag on the STORED order so a later
+                # cancel can give it back (the row was inserted before this
+                # decrement ran, so its order_details didn't carry the flag).
+                order_details['_stock_decremented'] = True
+                try:
+                    db.cursor().execute(
+                        'UPDATE orders SET order_details = %s WHERE order_number = %s',
+                        (json.dumps(order_details), order_number),
+                    )
+                except Exception as _pf:
+                    logger.warning(f"could not persist _stock_decremented on kiosk order: {_pf}")
                 db.commit()
         except Exception as e:
             stock_result = {'decremented': [], 'skipped': [], 'errors': [str(e)]}
