@@ -1,0 +1,185 @@
+"""
+Coffee Cue Test Bench — STRESS (roadmap queue item 3).
+
+Two questions nobody had asked the app:
+
+  empty_stock  when a milk is at ZERO, is an SMS order for it refused (stock
+               mode) — and accepted again when unlimited-stock mode is on?
+               A three-way proof: zero → refused; unlimited → accepted;
+               restore → back to normal. OPT-IN (--allow-stock-mutation):
+               briefly zeroes one milk's inventory rows, restores exactly.
+  burst        the SMS abuse throttle really trips: >12 messages inside 60s
+               from one number → gate 'tripped' then 'paused', while a
+               second normal number still gets through. Uses the simulate
+               harness's check_gate flag (same register_inbound_sms the real
+               webhook runs) — zero real SMS, per-phone, self-contained.
+"""
+from __future__ import annotations
+
+from .core import BENCH_TAG, result
+from .suites import _menu, _order_list, _sim
+
+R = result
+
+
+def _sweep(rn):
+    c = rn.client
+    code, body, _ = c.get("/api/orders/pending")
+    for o in _order_list(body):
+        nm = str(o.get("customer_name") or o.get("customerName") or "")
+        if nm.lower().startswith(BENCH_TAG.lower()):
+            no = o.get("order_number") or o.get("orderNumber") or o.get("id")
+            if no is not None:
+                c.post(f"/api/orders/{no}/cancel")
+
+
+# --------------------------------------------------------------- empty stock
+
+def suite_empty_stock(rn):
+    c, out = rn.client, []
+    if not rn.options.get("allow_stock_mutation"):
+        return [R("empty_stock", "zero-stock ordering behaviour", "skip",
+                  "Opt-in (briefly zeroes one milk's stock, restores exactly) — "
+                  "enable 'stock mutation'")]
+
+    _drinks, milks, _ = _menu(c)
+    if not milks:
+        return [R("empty_stock", "zero-stock ordering behaviour", "warn",
+                  "no milks on the menu — nothing to zero")]
+    milk = milks[-1]  # least-ordered menu milk
+
+    code, body, _ = c.get("/api/inventory")
+    items = (body or {}).get("items") or []
+    rows = [r for r in items
+            if str(r.get("category")).lower() == "milk"
+            and milk in str(r.get("name", "")).lower()]
+    if not rows:
+        return [R("empty_stock", "zero-stock ordering behaviour", "warn",
+                  f"no inventory rows found for milk {milk!r}")]
+
+    originals = {}  # id → level to restore
+    for r in rows:
+        lvl = r.get("amount") if r.get("amount") is not None else r.get("current_quantity")
+        originals[r["id"]] = float(lvl or 0)
+
+    prev_unlimited = None
+    try:
+        # 1) zero every row of this milk
+        for rid in originals:
+            c.post(f"/api/inventory/{rid}/adjust",
+                   {"new_amount": 0, "change_reason": "bench_empty_stock_test"})
+        gcode, gb, _ = c.get("/api/settings/unlimited-stock")
+        prev_unlimited = bool((gb or {}).get("enabled")) if gcode == 200 else None
+        if prev_unlimited:
+            # already unlimited — the refusal leg can't run meaningfully
+            out.append(R("empty_stock", "zero-stock order is refused", "skip",
+                         "unlimited-stock mode is already ON for this event"))
+        else:
+            ok, reply = _sim(c, rn.next_phone(), f"{BENCH_TAG}Zero medium latte with {milk}")
+            low = (reply or "").lower()
+            refused = ok and ("don't have" in low or "unavailable" in low
+                              or "out of" in low or "sorry" in low) \
+                and "confirmed" not in low
+            out.append(R("empty_stock", "zero-stock order is refused",
+                         "pass" if refused else "fail",
+                         (reply or "")[:160],
+                         evidence="" if refused else (reply or "")[:400],
+                         suggestion="" if refused else
+                         f"With {milk} at ZERO stock the bot still took the "
+                         "order — a barista gets an order they can't make.",
+                         refs=[] if refused else ["services/coffee_system.py"]))
+
+        # 2) unlimited-stock mode ON → the same order must be ACCEPTED
+        tc, tb, _ = c.post("/api/settings/unlimited-stock", {"enabled": True})
+        if tc != 200:
+            out.append(R("empty_stock", "unlimited mode accepts it", "warn",
+                         f"couldn't toggle unlimited-stock (HTTP {tc}) — deploy pending?"))
+        else:
+            ok, reply = _sim(c, rn.next_phone(), f"{BENCH_TAG}Unlim medium latte with {milk}")
+            low = (reply or "").lower()
+            accepted = ok and ("confirmed" in low or "order #" in low)
+            out.append(R("empty_stock", "unlimited mode accepts it",
+                         "pass" if accepted else "fail",
+                         (reply or "")[:160],
+                         evidence="" if accepted else (reply or "")[:400],
+                         suggestion="" if accepted else
+                         "Unlimited-stock mode is on but a zero-stock milk was "
+                         "still refused — the mode toggle has no effect.",
+                         refs=[] if accepted else ["services/coffee_system.py"]))
+    finally:
+        if prev_unlimited is not None:
+            rc1, _, _ = c.post("/api/settings/unlimited-stock", {"enabled": prev_unlimited})
+        else:
+            rc1 = 200  # never toggled
+        restored = []
+        for rid, lvl in originals.items():
+            rc2, _, _ = c.post(f"/api/inventory/{rid}/adjust",
+                               {"new_amount": lvl, "change_reason": "bench_restore"})
+            restored.append(rc2 == 200)
+        _sweep(rn)
+        ok_all = all(restored) and rc1 == 200
+        out.append(R("empty_stock", "cleanup: stock + mode restored",
+                     "pass" if ok_all else "fail",
+                     f"{sum(restored)}/{len(restored)} rows restored, "
+                     f"unlimited back to {prev_unlimited}",
+                     suggestion="" if ok_all else
+                     f"IMPORTANT: restore {milk} stock levels {originals} and "
+                     f"unlimited-stock={prev_unlimited} by hand."))
+    return out
+
+
+# -------------------------------------------------------------------- burst
+
+def suite_burst(rn):
+    """>12 rapid messages from one number trips the abuse gate."""
+    c, out = rn.client, []
+    ph = rn.next_phone()
+
+    def gated(msg):
+        code, body, _ = c.post("/api/sms/simulate",
+                               {"from": ph, "body": msg, "check_gate": True})
+        if code != 200 or not isinstance(body, dict):
+            return None
+        return body.get("gate", "ok")
+
+    first = gated("hello")
+    if first is None:
+        return [R("burst", "throttle trips on a flood", "warn",
+                  "simulate has no check_gate support yet (deploy pending?)")]
+
+    tripped_at = None
+    statuses = [first]
+    for i in range(2, 17):  # up to 16 messages total
+        g = gated("hello again")
+        statuses.append(g)
+        if g == "tripped":
+            tripped_at = i
+            break
+    out.append(R("burst", "throttle trips on a flood",
+                 "pass" if tripped_at else "fail",
+                 f"gate tripped at message {tripped_at} (limit is 12/60s)"
+                 if tripped_at else f"16 rapid messages, gate never tripped: {statuses}",
+                 suggestion="" if tripped_at else
+                 "A texting flood would get a paid reply per message — "
+                 "Twilio credit burn with no brake.",
+                 refs=[] if tripped_at else ["services/coffee_system.py"]))
+    if tripped_at:
+        after = gated("still here")
+        out.append(R("burst", "flooding number stays paused",
+                     "pass" if after == "paused" else "warn",
+                     f"next message gate={after!r} (expected 'paused')"))
+        bystander = rn.next_phone()
+        code, body, _ = c.post("/api/sms/simulate",
+                               {"from": bystander, "body": "MENU", "check_gate": True})
+        ok = code == 200 and isinstance(body, dict) and body.get("gate") == "ok" \
+            and (body.get("reply") or "")
+        out.append(R("burst", "other customers unaffected",
+                     "pass" if ok else "fail",
+                     "a different number still gets served" if ok else str(body)[:160]))
+    return out
+
+
+STRESS_SUITES = [
+    ("empty_stock", suite_empty_stock, True),
+    ("burst", suite_burst, True),
+]

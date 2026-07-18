@@ -42,6 +42,9 @@ def main():
                     help="run the settings round-trip (mutates then restores a setting)")
     ap.add_argument("--allow-station-lifecycle", action="store_true",
                     help="create + delete a temporary real station (self-cleaning)")
+    ap.add_argument("--allow-stock-mutation", action="store_true",
+                    help="briefly zero one milk's stock to test empty-stock "
+                         "behaviour (restores exactly)")
     ap.add_argument("--out", default=None, help="report directory (default: testbench/reports/<stamp>)")
     a = ap.parse_args()
 
@@ -56,6 +59,7 @@ def main():
         "allow_blocklist": a.allow_blocklist,
         "allow_settings": a.allow_settings,
         "allow_station_lifecycle": a.allow_station_lifecycle,
+        "allow_stock_mutation": a.allow_stock_mutation,
         "suites": [t[0] for t in suites],
     })
     print(f"Coffee Cue Test Bench → {a.base_url}")
