@@ -45,6 +45,7 @@ class InventoryItem:
                     name VARCHAR(100) NOT NULL,
                     category VARCHAR(50) NOT NULL,
                     amount DECIMAL(10,2) DEFAULT 0,
+                    current_quantity DECIMAL(10,2) DEFAULT 0,
                     unit VARCHAR(20) NOT NULL,
                     capacity DECIMAL(10,2) NOT NULL,
                     minimum_threshold DECIMAL(10,2),
@@ -68,10 +69,30 @@ class InventoryItem:
                 # Add the station_id column if it doesn't exist
                 if not column_exists:
                     cursor.execute('''
-                    ALTER TABLE inventory_items 
+                    ALTER TABLE inventory_items
                     ADD COLUMN station_id INTEGER
                     ''')
                     logger.info("Added station_id column to inventory_items table")
+
+            # current_quantity is amount's legacy twin — some readers/writers
+            # use one, some the other. Guarantee it exists at startup so every
+            # write path can keep both in sync unconditionally.
+            cursor.execute("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.columns
+                    WHERE table_name = 'inventory_items' AND column_name = 'current_quantity'
+                )
+            """)
+            if not cursor.fetchone()[0]:
+                cursor.execute('''
+                ALTER TABLE inventory_items
+                ADD COLUMN current_quantity DECIMAL(10,2)
+                ''')
+                cursor.execute('''
+                UPDATE inventory_items SET current_quantity = amount
+                WHERE current_quantity IS NULL
+                ''')
+                logger.info("Added current_quantity column to inventory_items table")
             
             # Check if the inventory_history table already exists
             cursor.execute("""
@@ -298,6 +319,9 @@ class InventoryItem:
             # Set defaults for optional fields
             if 'amount' not in item_data:
                 item_data['amount'] = 0
+            # keep the twin quantity column in step from birth
+            if 'current_quantity' not in item_data:
+                item_data['current_quantity'] = item_data['amount']
             
             if 'minimum_threshold' not in item_data:
                 # Default to 20% of capacity
@@ -383,10 +407,17 @@ class InventoryItem:
                     change_reason, notes, updated_by, datetime.now()
                 ))
             
+            # amount and current_quantity are twin columns — a write to one
+            # must land in both or they drift apart.
+            if 'amount' in update_data and 'current_quantity' not in update_data:
+                update_data['current_quantity'] = update_data['amount']
+            elif 'current_quantity' in update_data and 'amount' not in update_data:
+                update_data['amount'] = update_data['current_quantity']
+
             # Generate SET clause
             set_clauses = []
             values = []
-            
+
             for key, value in update_data.items():
                 set_clauses.append(f"{key} = %s")
                 values.append(value)
@@ -544,12 +575,15 @@ class InventoryItem:
             
             previous_amount = result[0]
             
-            # Update inventory item
+            # Update inventory item — BOTH quantity columns. amount and
+            # current_quantity are legacy twins; different readers use
+            # different ones, so writing only one makes the barista's number
+            # and the report's number disagree.
             cursor.execute('''
                 UPDATE inventory_items
-                SET amount = %s, last_updated = %s
+                SET amount = %s, current_quantity = %s, last_updated = %s
                 WHERE id = %s
-            ''', (new_amount, datetime.now(), item_id))
+            ''', (new_amount, new_amount, datetime.now(), item_id))
             
             # Add history entry
             cursor.execute('''

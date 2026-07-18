@@ -1247,12 +1247,13 @@ def complete_restock_request(restock_id):
                 current_amount = restock_item_dict[item_id]['current_amount'] or 0
                 new_amount = current_amount + received_amount
                 
-                # Update inventory item
+                # Update inventory item — both quantity columns (twins; a
+                # single-column write makes barista and report views disagree)
                 cursor.execute("""
                     UPDATE inventory_items
-                    SET amount = %s, last_updated = %s
+                    SET amount = %s, current_quantity = %s, last_updated = %s
                     WHERE id = %s
-                """, (new_amount, datetime.now(), item_id))
+                """, (new_amount, new_amount, datetime.now(), item_id))
                 
                 # Add history entry
                 cursor.execute("""

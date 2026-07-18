@@ -5402,10 +5402,18 @@ def update_inventory_item(item_id):
         update_fields = []
         update_values = []
         
-        # Fields that can be updated
-        allowed_fields = ['name', 'category', 'current_quantity', 'unit', 
-                          'station_id', 'minimum_threshold', 'status']
-        
+        # Fields that can be updated. amount and current_quantity are twin
+        # quantity columns — a write to either must land in both, or the
+        # barista's number and the report's number drift apart.
+        allowed_fields = ['name', 'category', 'current_quantity', 'amount',
+                          'unit', 'station_id', 'minimum_threshold', 'status']
+
+        data = dict(data)
+        if 'current_quantity' in data and 'amount' not in data:
+            data['amount'] = data['current_quantity']
+        elif 'amount' in data and 'current_quantity' not in data:
+            data['current_quantity'] = data['amount']
+
         for field in allowed_fields:
             if field in data:
                 update_fields.append(f"{field} = %s")
@@ -9747,19 +9755,21 @@ def transfer_inventory():
         if from_station is None:
             cur.execute("""
                 UPDATE inventory_items
-                SET amount = GREATEST(0, amount - %s),
+                SET amount = GREATEST(0, COALESCE(amount, current_quantity, 0) - %s),
+                    current_quantity = GREATEST(0, COALESCE(amount, current_quantity, 0) - %s),
                     last_updated = CURRENT_TIMESTAMP
                 WHERE LOWER(category) = %s AND LOWER(name) = %s AND station_id IS NULL
                 RETURNING amount
-            """, (amount, category, name))
+            """, (amount, amount, category, name))
         else:
             cur.execute("""
                 UPDATE inventory_items
-                SET amount = GREATEST(0, amount - %s),
+                SET amount = GREATEST(0, COALESCE(amount, current_quantity, 0) - %s),
+                    current_quantity = GREATEST(0, COALESCE(amount, current_quantity, 0) - %s),
                     last_updated = CURRENT_TIMESTAMP
                 WHERE LOWER(category) = %s AND LOWER(name) = %s AND station_id = %s
                 RETURNING amount
-            """, (amount, category, name, from_station))
+            """, (amount, amount, category, name, from_station))
         src_row = cur.fetchone()
         if not src_row:
             db.rollback()
@@ -9771,17 +9781,21 @@ def transfer_inventory():
         if to_station is None:
             cur.execute("""
                 UPDATE inventory_items
-                SET amount = amount + %s, last_updated = CURRENT_TIMESTAMP
+                SET amount = COALESCE(amount, current_quantity, 0) + %s,
+                    current_quantity = COALESCE(amount, current_quantity, 0) + %s,
+                    last_updated = CURRENT_TIMESTAMP
                 WHERE LOWER(category) = %s AND LOWER(name) = %s AND station_id IS NULL
                 RETURNING amount
-            """, (amount, category, name))
+            """, (amount, amount, category, name))
         else:
             cur.execute("""
                 UPDATE inventory_items
-                SET amount = amount + %s, last_updated = CURRENT_TIMESTAMP
+                SET amount = COALESCE(amount, current_quantity, 0) + %s,
+                    current_quantity = COALESCE(amount, current_quantity, 0) + %s,
+                    last_updated = CURRENT_TIMESTAMP
                 WHERE LOWER(category) = %s AND LOWER(name) = %s AND station_id = %s
                 RETURNING amount
-            """, (amount, category, name, to_station))
+            """, (amount, amount, category, name, to_station))
         dst_row = cur.fetchone()
 
         if not dst_row:
@@ -9796,9 +9810,9 @@ def transfer_inventory():
             unit, capacity, min_thr = template
             cur.execute("""
                 INSERT INTO inventory_items
-                  (category, name, amount, unit, capacity, minimum_threshold, station_id)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-            """, (category, name, amount, unit, capacity, min_thr, to_station))
+                  (category, name, amount, current_quantity, unit, capacity, minimum_threshold, station_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """, (category, name, amount, amount, unit, capacity, min_thr, to_station))
 
         db.commit()
         logger.info(f"Inventory transfer: {amount} {category}/{name} from station {from_station} → {to_station}")
@@ -9842,30 +9856,32 @@ def emergency_restock():
         if station_id is None:
             cur.execute("""
                 UPDATE inventory_items
-                SET amount = amount + %s,
-                    capacity = GREATEST(capacity, amount + %s),
+                SET amount = COALESCE(amount, current_quantity, 0) + %s,
+                    current_quantity = COALESCE(amount, current_quantity, 0) + %s,
+                    capacity = GREATEST(capacity, COALESCE(amount, current_quantity, 0) + %s),
                     last_updated = CURRENT_TIMESTAMP
                 WHERE LOWER(category) = %s AND LOWER(name) = %s AND station_id IS NULL
                 RETURNING amount
-            """, (amount, amount, category, name))
+            """, (amount, amount, amount, category, name))
         else:
             cur.execute("""
                 UPDATE inventory_items
-                SET amount = amount + %s,
-                    capacity = GREATEST(capacity, amount + %s),
+                SET amount = COALESCE(amount, current_quantity, 0) + %s,
+                    current_quantity = COALESCE(amount, current_quantity, 0) + %s,
+                    capacity = GREATEST(capacity, COALESCE(amount, current_quantity, 0) + %s),
                     last_updated = CURRENT_TIMESTAMP
                 WHERE LOWER(category) = %s AND LOWER(name) = %s AND station_id = %s
                 RETURNING amount
-            """, (amount, amount, category, name, station_id))
+            """, (amount, amount, amount, category, name, station_id))
         row = cur.fetchone()
         if not row:
             # No row exists — create one.
             cur.execute("""
                 INSERT INTO inventory_items
-                  (category, name, amount, unit, capacity, minimum_threshold, station_id)
-                VALUES (%s, %s, %s, 'units', %s, 0, %s)
+                  (category, name, amount, current_quantity, unit, capacity, minimum_threshold, station_id)
+                VALUES (%s, %s, %s, %s, 'units', %s, 0, %s)
                 RETURNING amount
-            """, (category, name, amount, amount * 2, station_id))
+            """, (category, name, amount, amount, amount * 2, station_id))
             row = cur.fetchone()
         db.commit()
         return jsonify({'success': True, 'amount': float(row[0])})
