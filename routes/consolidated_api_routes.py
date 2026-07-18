@@ -364,6 +364,22 @@ def auth_verify():
 # ORDER MANAGEMENT ENDPOINTS
 # ============================================================================
 
+def _drink_display_name(order_details, default='Coffee'):
+    """Barista-facing drink name WITH the modifiers that change how it's
+    made. order_details['type'] is the bare drink ('latte'); decaf and
+    strength live in separate keys — a card that shows only 'latte' gets a
+    decaf customer a caffeinated coffee (found by the Test Bench's matrix
+    modifier check: SMS confirmed 'decaf' but the pending API dropped it)."""
+    t = order_details.get('type') or default
+    strength = str(order_details.get('strength') or '').strip().lower()
+    bits = []
+    if order_details.get('decaf') or strength == 'decaf':
+        bits.append('decaf')
+    if strength and strength not in ('decaf', 'normal'):
+        bits.append(strength)
+    return ' '.join(bits + [str(t)]) if bits else t
+
+
 @bp.route('/orders', methods=['GET', 'POST'])
 @jwt_required_with_demo()
 def orders():
@@ -428,8 +444,8 @@ def orders():
                     'orderNumber': order_number,  # camelCase
                     'customer_name': order_details.get('name', 'Customer'),
                     'customerName': order_details.get('name', 'Customer'),  # camelCase
-                    'coffee_type': order_details.get('type', 'Coffee'),
-                    'coffeeType': order_details.get('type', 'Coffee'),  # camelCase
+                    'coffee_type': _drink_display_name(order_details),
+                    'coffeeType': _drink_display_name(order_details),  # camelCase
                     'milk_type': order_details.get('milk', 'Standard'),
                     'milkType': order_details.get('milk', 'Standard'),  # camelCase
                     'sugar': order_details.get('sugar', 'No sugar'),
@@ -771,8 +787,8 @@ def orders():
                     'waitTime': 0,
                     'customer_name': order_details.get('name'),
                     'customerName': order_details.get('name'),
-                    'coffee_type': order_details.get('type'),
-                    'coffeeType': order_details.get('type'),
+                    'coffee_type': _drink_display_name(order_details, default=None),
+                    'coffeeType': _drink_display_name(order_details, default=None),
                     'milk_type': order_details.get('milk'),
                     'milkType': order_details.get('milk'),
                     'sugar': order_details.get('sugar'),
@@ -888,8 +904,8 @@ def get_pending_orders():
                 'orderNumber': order_number,  # camelCase alias for FE consistency
                 'customer_name': order_details.get('name', 'Customer'),
                 'customerName': order_details.get('name', 'Customer'),  # camelCase
-                'coffee_type': order_details.get('type', 'Coffee'),
-                'coffeeType': order_details.get('type', 'Coffee'),  # camelCase
+                'coffee_type': _drink_display_name(order_details),
+                'coffeeType': _drink_display_name(order_details),  # camelCase
                 'milk_type': order_details.get('milk', 'Standard'),
                 'milkType': order_details.get('milk', 'Standard'),  # camelCase
                 'sugar': order_details.get('sugar', 'No sugar'),
@@ -914,7 +930,7 @@ def get_pending_orders():
                 # camelCase aliases on this endpoint; added above too.
                 'batchGroup': batch_group,
                 # Frontend filter needs a coffee_type field for display.
-                'coffeeType': order_details.get('type', 'Coffee'),
+                'coffeeType': _drink_display_name(order_details),
                 'customerName': order_details.get('name', 'Customer'),
                 'phone_number': phone,
                 'phoneNumber': phone,
@@ -1008,7 +1024,7 @@ def get_in_progress_orders():
             )
 
             customer_name = order_details.get('name', 'Customer')
-            coffee_type = order_details.get('type', 'Coffee')
+            coffee_type = _drink_display_name(order_details)
             milk_type = order_details.get('milk', 'Standard')
             size = order_details.get('size')
 
@@ -1131,8 +1147,8 @@ def get_completed_orders():
                 'customerName': order_details.get('name', 'Customer'),  # camelCase
                 'phone_number': phone,
                 'phoneNumber': phone,                   # camelCase
-                'coffee_type': order_details.get('type', 'Coffee'),
-                'coffeeType': order_details.get('type', 'Coffee'),     # camelCase
+                'coffee_type': _drink_display_name(order_details),
+                'coffeeType': _drink_display_name(order_details),     # camelCase
                 'milk_type': order_details.get('milk', 'Standard'),
                 'milkType': order_details.get('milk', 'Standard'),     # camelCase
                 'completed_at': completed_at,
@@ -1233,8 +1249,8 @@ def search_orders():
                 'created_at': created_at.isoformat() if hasattr(created_at, 'isoformat') else created_at,
                 'customer_name': od.get('name', ''),
                 'customerName': od.get('name', ''),
-                'coffee_type': od.get('type', ''),
-                'coffeeType': od.get('type', ''),
+                'coffee_type': _drink_display_name(od, default=''),
+                'coffeeType': _drink_display_name(od, default=''),
                 'milk_type': od.get('milk', ''),
                 'milkType': od.get('milk', ''),
                 'phone_number': phone, 'phoneNumber': phone,
@@ -1428,8 +1444,8 @@ def get_order_history():
                 'customerName': order_details.get('name', 'Customer'),  # camelCase
                 'phone_number': phone,
                 'phoneNumber': phone,                   # camelCase
-                'coffee_type': order_details.get('type', 'Coffee'),
-                'coffeeType': order_details.get('type', 'Coffee'),     # camelCase
+                'coffee_type': _drink_display_name(order_details),
+                'coffeeType': _drink_display_name(order_details),     # camelCase
                 'milk_type': order_details.get('milk', 'Standard'),
                 'milkType': order_details.get('milk', 'Standard'),     # camelCase
                 'sugar': order_details.get('sugar', 'No sugar'),
@@ -3848,7 +3864,7 @@ def create_kiosk_order():
                 'created_at': now.isoformat() + 'Z', 'createdAt': now.isoformat() + 'Z',
                 'wait_time': 0, 'waitTime': 0,
                 'customer_name': name, 'customerName': name,
-                'coffee_type': order_details['type'], 'coffeeType': order_details['type'],
+                'coffee_type': _drink_display_name(order_details), 'coffeeType': _drink_display_name(order_details),
                 'milk_type': order_details['milk'], 'milkType': order_details['milk'],
                 'sugar': order_details['sugar'], 'size': order_details['size'], 'vip': False,
             })
@@ -4019,8 +4035,8 @@ def get_display_orders():
                 'displayPhone': display_phone,
                 'phone_number': phone,
                 'phoneNumber': phone,
-                'coffee_type': order_details.get('type', 'Coffee'),
-                'coffeeType': order_details.get('type', 'Coffee'),
+                'coffee_type': _drink_display_name(order_details),
+                'coffeeType': _drink_display_name(order_details),
                 'milk_type': order_details.get('milk', 'Standard'),
                 'milkType': order_details.get('milk', 'Standard'),
                 'status': status,
@@ -4068,8 +4084,8 @@ def get_display_orders():
                 'displayPhone': display_phone,
                 'phone_number': phone,
                 'phoneNumber': phone,
-                'coffee_type': order_details.get('type', 'Coffee'),
-                'coffeeType': order_details.get('type', 'Coffee'),
+                'coffee_type': _drink_display_name(order_details),
+                'coffeeType': _drink_display_name(order_details),
                 'milk_type': order_details.get('milk', 'Standard'),
                 'milkType': order_details.get('milk', 'Standard'),
                 'status': status,
