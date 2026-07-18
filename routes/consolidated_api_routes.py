@@ -3790,6 +3790,22 @@ def create_kiosk_order():
         if target is None and requested_station and requested_station in active and can_make(requested_station):
             target = requested_station
         if target is None:
+            # Auto-assign the way the SMS path does: _assign_station knows
+            # BREAK WINDOWS and real per-station load. The old fallback here
+            # was "first active station that can make it" — so during a break
+            # with one station open, kiosk orders piled onto a CLOSED station
+            # (Test Bench breaks suite, first run: 3 orders → station 1 while
+            # only station 4 was open).
+            try:
+                cs_target, _delayed = coffee_system._assign_station(
+                    False,
+                    None if (milk or '').lower() in ('', 'no milk', 'none', 'black') else milk,
+                    coffee_type, size)
+                if cs_target in active and can_make(cs_target):
+                    target = cs_target
+            except Exception as _ae:
+                logger.warning(f"kiosk _assign_station failed, using capability loop: {_ae}")
+        if target is None:
             for sid in active:
                 if can_make(sid):
                     target = sid
