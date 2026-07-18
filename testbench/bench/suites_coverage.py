@@ -210,7 +210,86 @@ def suite_settings(rn):
                      f"restored to {orig!r} → HTTP {rc}, new orders now prefix {eff_after!r}",
                      suggestion="" if restored_ok else
                      f"IMPORTANT: set order_prefix back to {orig!r} in Organiser settings."))
+    out.extend(_event_name_roundtrip(rn))
     _sweep(rn, BENCH_TAG)
+    return out
+
+
+def _event_name_roundtrip(rn):
+    """event_name: write via the branding blob → the SMS welcome and the
+    display config must carry it → restore the EXACT original blob.
+
+    The SMS side caches the name for 30s, so both the effect check and the
+    restore check POLL (fresh virgin phone per attempt — a first message
+    always gets the welcome greeting)."""
+    import time as _t
+    c, out = rn.client, []
+
+    gc, gb, _ = c.get("/api/settings/branding")
+    blob = (gb or {}).get("settings") if isinstance(gb, dict) else None
+    if gc != 200 or not isinstance(blob, dict):
+        return [R("settings", "event_name round-trip", "warn",
+                  f"couldn't read branding blob (HTTP {gc}) — skipping")]
+
+    test_name = "ZZBench Event"
+
+    def _display_name():
+        _cd, cb, _ = c.get("/api/display/config", auth=False)
+        return str((cb or {}).get("event_name") or "") if isinstance(cb, dict) else ""
+
+    def _welcome_has(needle, tries=10, gap=5):
+        for _ in range(tries):
+            ok, reply = _sim(c, rn.next_phone(), "INFO")
+            if ok and needle.lower() in (reply or "").lower():
+                return True
+            _t.sleep(gap)
+        return False
+
+    orig_display = _display_name()
+    try:
+        newblob = dict(blob)
+        newblob["event_name"] = test_name
+        newblob["eventName"] = test_name
+        wc, _wb, _ = c.req("PUT", "/api/settings/branding", body={"settings": newblob})
+        out.append(R("settings", "event_name: branding write accepted",
+                     "pass" if wc in (200, 201) else "fail", f"PUT → HTTP {wc}"))
+        disp = ""
+        for _ in range(6):
+            disp = _display_name()
+            if test_name.lower() in disp.lower():
+                break
+            _t.sleep(3)
+        disp_ok = test_name.lower() in disp.lower()
+        out.append(R("settings", "event_name reaches the display config",
+                     "pass" if disp_ok else "fail",
+                     f"display config event_name is now {disp!r}",
+                     suggestion="" if disp_ok else
+                     "A saved event name never reached the display screen.",
+                     refs=[] if disp_ok else ["routes/consolidated_api_routes.py"]))
+        sms_ok = _welcome_has(test_name)
+        out.append(R("settings", "event_name reaches the SMS welcome",
+                     "pass" if sms_ok else "fail",
+                     "fresh customer's welcome text carries the new event name"
+                     if sms_ok else "welcome text never showed the new name "
+                     "(polled past the 30s cache)",
+                     suggestion="" if sms_ok else
+                     "A saved event name never reached SMS greetings.",
+                     refs=[] if sms_ok else ["services/coffee_system.py"]))
+    finally:
+        rc, _rb, _ = c.req("PUT", "/api/settings/branding", body={"settings": blob})
+        back = ""
+        for _ in range(6):
+            back = _display_name()
+            if test_name.lower() not in back.lower():
+                break
+            _t.sleep(3)
+        restored = rc in (200, 201) and test_name.lower() not in back.lower() \
+            and (not orig_display or back == orig_display)
+        out.append(R("settings", "cleanup: branding blob restored",
+                     "pass" if restored else "fail",
+                     f"restore PUT → HTTP {rc}; display name back to {back!r}",
+                     suggestion="" if restored else
+                     "IMPORTANT: re-save the event name in Organiser → Branding."))
     return out
 
 

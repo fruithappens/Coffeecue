@@ -186,17 +186,32 @@ def suite_customer(rn):
                      f"{len(grp)} {BENCH_TAG}* orders in pending"))
         # The deeper promise: ONE group. The second FRIEND used to re-derive
         # the group anchor from the most recent order, silently splitting the
-        # barista's group badge into two groups.
-        gids = set()
+        # barista's group badge into two groups. The pending API doesn't
+        # expose group_id, so fetch each order's detail; fall back to the
+        # batchGroup key with an honest note if details aren't available.
+        gids, source = set(), "order_details.group_id"
         for o in grp:
-            det = o.get("order_details") or {}
-            gid = (o.get("group_id") or o.get("groupId") or o.get("batchGroup")
-                   or (det.get("group_id") if isinstance(det, dict) else None))
+            no = o.get("order_number") or o.get("orderNumber") or o.get("id")
+            dc, db_, _ = c.get(f"/api/orders/{no}")
+            det = {}
+            if dc == 200 and isinstance(db_, dict):
+                det = (db_.get("order") or db_.get("data") or db_)
+                det = det.get("order_details") or det.get("orderDetails") or {}
+                if isinstance(det, str):
+                    try:
+                        import json as _json
+                        det = _json.loads(det)
+                    except Exception:
+                        det = {}
+            gid = det.get("group_id") if isinstance(det, dict) else None
+            if gid is None:
+                source = "batchGroup (order detail endpoint has no group_id)"
+                gid = o.get("batchGroup") or o.get("batch_group")
             gids.add(str(gid) if gid else None)
         one_group = len(grp) >= 3 and len(gids) == 1 and None not in gids
         out.append(R("customer", "group3: all 3 share ONE group id",
                      "pass" if one_group else "warn",
-                     f"group ids across the 3 orders: {sorted(str(g) for g in gids)}",
+                     f"via {source}: {sorted(str(g) for g in gids)}",
                      suggestion="" if one_group else
                      "The group's orders don't share a single group_id — the "
                      "barista's group badge / 'Start group' will split or miss "

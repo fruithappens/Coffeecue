@@ -3937,12 +3937,30 @@ def simulate_sms():
         body = (data.get('body') or data.get('message') or '').strip()
         if not frm or not body:
             return jsonify({'success': False, 'message': "Provide 'from' and 'body'."}), 400
+        # Opt-in fidelity: check_gate=true runs the SAME abuse gate the real
+        # webhook applies (blocklist + burst throttle) and reports its verdict
+        # instead of a bot reply when it trips. Off by default so rapid-fire
+        # test conversations (a group order is 15+ messages in a minute)
+        # don't trip the throttle mid-suite.
+        gate = 'ok'
+        if data.get('check_gate'):
+            try:
+                gate = coffee_system.register_inbound_sms(frm)
+            except Exception as gate_err:
+                logger.warning(f"simulate_sms gate errored (failing open): {gate_err}")
+                gate = 'ok'
+            if gate != 'ok':
+                return jsonify({
+                    'success': True, 'from': frm, 'body': body,
+                    'reply': '', 'gate': gate,
+                })
         reply = coffee_system.handle_sms(frm, body, messaging_service)
         return jsonify({
             'success': True,
             'from': frm,
             'body': body,
             'reply': reply,
+            'gate': gate,
             'testing_mode': bool(getattr(messaging_service, 'testing_mode', False)) if messaging_service else None,
         })
     except Exception as e:
@@ -7487,6 +7505,36 @@ def upsert_station_inventory_configs():
         return jsonify({'success': True})
     except Exception as e:
         logger.error(f"upsert_station_inventory_configs error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/settings/unlimited-stock', methods=['GET', 'POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def unlimited_stock_setting():
+    """Read or set unlimited-stock mode directly (outside Quick Setup).
+
+    Quick Setup was the ONLY writer of this setting, and the generic bulk
+    settings PUT writes the wrong value shape AND leaves the per-process
+    cache stale — so an operator (or the Test Bench) had no way to toggle
+    the mode and see it take effect without re-running the whole wizard.
+    POST {enabled: bool} writes the canonical shape and invalidates the
+    cache; returns the previous value so callers can restore it exactly.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        previous = bool((_kv_get(db, 'unlimited_stock_mode', default={}) or {}).get('enabled', False))
+        if request.method == 'GET':
+            return jsonify({'success': True, 'enabled': previous})
+        data = request.get_json() or {}
+        enabled = bool(data.get('enabled'))
+        _kv_put(db, 'unlimited_stock_mode', {'enabled': enabled})
+        if hasattr(coffee_system, '_invalidate_unlimited_stock_cache'):
+            coffee_system._invalidate_unlimited_stock_cache()
+        return jsonify({'success': True, 'enabled': enabled, 'previous': previous})
+    except Exception as e:
+        logger.error(f"unlimited_stock_setting error: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
