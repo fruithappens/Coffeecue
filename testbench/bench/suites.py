@@ -201,6 +201,26 @@ def suite_display(rn):
     code, body, ms = c.get("/api/display/orders", auth=False)
     out.append(R("display", "orders board endpoint", "pass" if code == 200 else "fail",
                  f"GET /api/display/orders → HTTP {code}", ms=ms))
+    # REGRESSION GUARD: the board must never show fabricated customers.
+    # The endpoint's error fallback used to serve demo orders ("John D.",
+    # "Sarah M.") — and a TIMESTAMP-vs-'' comparison made it error on every
+    # call, so the PUBLIC pickup display showed those fake names in prod.
+    wrap = (body or {}).get("orders") if isinstance(body, dict) else {}
+    names = {str(o.get("customerName") or "")
+             for lst in (wrap or {}).values() if isinstance(lst, list)
+             for o in lst if isinstance(o, dict)} if isinstance(wrap, dict) else set()
+    fakes = names & {"John D.", "Sarah M.", "Mike T.", "Emma S."}
+    err = isinstance(body, dict) and body.get("error")
+    board_ok = code == 200 and not fakes and not err
+    out.append(R("display", "orders board shows real data (no demo fallback)",
+                 "pass" if board_ok else "fail",
+                 "board is serving real (or empty) data" if board_ok else
+                 (f"FAKE customers on the public board: {sorted(fakes)}" if fakes
+                  else f"board is in its error fallback: {str(err)[:120]}"),
+                 suggestion="" if board_ok else
+                 "The display orders query is failing — customers see a wrong "
+                 "or fake pickup board.",
+                 refs=[] if board_ok else ["routes/consolidated_api_routes.py"]))
 
     # THE #165 CLASS: every milk offered on the menu must be makeable by at
     # least one ACTIVE station (empty capability list = wildcard station).

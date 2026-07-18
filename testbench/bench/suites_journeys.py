@@ -249,9 +249,8 @@ def journey_cancel_while_making(rn):
 
     def _in_progress_has(no):
         code, body, _ = c.get("/api/display/orders")
-        rows = (body or {}).get("orders") or (body or {}).get("data") or []
-        if isinstance(body, dict) and isinstance(body.get("inProgress"), list):
-            rows = body["inProgress"]
+        wrap = (body or {}).get("orders") if isinstance(body, dict) else {}
+        rows = (wrap or {}).get("inProgress") or [] if isinstance(wrap, dict) else []
         return any(str(o.get("order_number") or o.get("orderNumber")
                        or o.get("id")) == str(no)
                    for o in rows if isinstance(o, dict))
@@ -259,8 +258,10 @@ def journey_cancel_while_making(rn):
     making = _in_progress_has(order_no)
     ok, ctext = _sim(c, phone, "CANCEL")
     low = (ctext or "").lower()
-    said_cancelled = "cancel" in low and "can't" not in low and "cannot" not in low \
-        and "too late" not in low and "being made" not in low and "already" not in low
+    told_too_late = ("being made" in low or "too late" in low) \
+        and str(order_no) in (ctext or "")
+    misleading_denial = "don't have any pending" in low or "no pending" in low
+    said_cancelled = "cancelled" in low and not told_too_late
     still_making = _in_progress_has(order_no)
 
     if said_cancelled and still_making:
@@ -271,14 +272,17 @@ def journey_cancel_while_making(rn):
     elif said_cancelled and not still_making:
         status = "pass"
         detail = f"cancelled cleanly mid-make; gone from in-progress. Reply: {(ctext or '')[:90]}"
-    elif not said_cancelled and ("late" in low or "made" in low or "ready" in low
-                                 or "cancel" in low):
+    elif told_too_late:
         status = "pass"
-        detail = f"customer told it's too late — honest and consistent: {(ctext or '')[:110]}"
+        detail = f"customer told honestly it's mid-make: {(ctext or '')[:120]}"
+    elif misleading_denial:
+        status = "warn"
+        detail = (f"customer with an in-progress coffee was told they have "
+                  f"no orders — reads as 'we lost your order': {(ctext or '')[:110]}")
     else:
         status = "warn"
         detail = (f"unclear reply to a mid-make CANCEL: {(ctext or '')[:140]} "
-                  f"(in-progress={still_making})")
+                  f"(was-making={making}, still-making={still_making})")
     out.append(R("journeys", "cancel-while-making: customer CANCEL is consistent",
                  status, detail,
                  evidence=(ctext or "")[:300] if status != "pass" else "",
@@ -325,13 +329,17 @@ def journey_ready_reply(rn):
     before, _ = _pending_count(c)
     ok, rtext = _sim(c, phone, "coming now, thanks!")
     low = (rtext or "").lower()
-    crashy = (not rtext) or "traceback" in low or "error" in low
+    absorbed = ok and not (rtext or "").strip()  # empty = no reply, no cost
+    crashy = (not ok) or "traceback" in low or "internal server error" in low
     after, _ = _pending_count(c)
     ordered = after > before
     interview = "first name" in low
     if crashy or ordered:
         status = "fail"
-        why = "reply CREATED a pending order" if ordered else "reply crashed/empty"
+        why = "reply CREATED a pending order" if ordered else "reply crashed"
+    elif absorbed:
+        status = "pass"
+        why = "absorbed silently (no reply SMS, no cost)"
     elif interview:
         status = "warn"
         why = "reply restarted the new-customer interview (noise after pickup)"
