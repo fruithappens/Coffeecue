@@ -6093,12 +6093,12 @@ def debug_inventory_schema():
         except Exception as e:
             out['search_path_error'] = str(e)
         out['heal_flag_before'] = bool(getattr(coffee_system, '_inv_qty_cols_ok', False))
-        # Force a LIVE heal attempt and capture its notes.
+        # Force a LIVE heal attempt and capture its notes. commit=True is
+        # safe: we rolled back above, so the transaction is fresh.
         coffee_system._inv_qty_cols_ok = False
         coffee_system._stock_errors = []
         try:
-            coffee_system._ensure_inventory_quantity_columns(cur)
-            db.commit()
+            coffee_system._ensure_inventory_quantity_columns(cur, commit=True)
         except Exception as e:
             out['heal_exception'] = str(e)
         out['heal_notes'] = list(getattr(coffee_system, '_stock_errors', []))
