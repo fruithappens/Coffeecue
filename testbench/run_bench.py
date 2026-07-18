@@ -38,6 +38,10 @@ def main():
                     help="run start→complete on a phoneless bench order (stays in stats)")
     ap.add_argument("--allow-blocklist", action="store_true",
                     help="run the block/unblock roundtrip with a fake number")
+    ap.add_argument("--allow-settings", action="store_true",
+                    help="run the settings round-trip (mutates then restores a setting)")
+    ap.add_argument("--allow-station-lifecycle", action="store_true",
+                    help="create + delete a temporary real station (self-cleaning)")
     ap.add_argument("--out", default=None, help="report directory (default: testbench/reports/<stamp>)")
     a = ap.parse_args()
 
@@ -50,6 +54,8 @@ def main():
     rn = Runner(a.base_url, a.username, a.password, {
         "allow_lifecycle": a.allow_lifecycle,
         "allow_blocklist": a.allow_blocklist,
+        "allow_settings": a.allow_settings,
+        "allow_station_lifecycle": a.allow_station_lifecycle,
         "suites": [t[0] for t in suites],
     })
     print(f"Coffee Cue Test Bench → {a.base_url}")
