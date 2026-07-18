@@ -5832,6 +5832,14 @@ class CoffeeOrderSystem:
                 AND amount > 0""")
         sp("""UPDATE inventory_items SET amount = current_quantity
               WHERE amount IS NULL AND current_quantity IS NOT NULL""")
+        # Reconcile rows where BOTH columns hold different non-null values
+        # (legacy drift from the era when manual adjust/restock/transfer wrote
+        # only `amount`). amount wins: it's what those manual paths wrote, so
+        # on a drifted row it carries the operator's latest intent. All write
+        # paths now set both columns, so this is a one-time cleanup.
+        sp("""UPDATE inventory_items SET current_quantity = amount
+              WHERE amount IS NOT NULL AND current_quantity IS NOT NULL
+                AND current_quantity <> amount""")
         self._inv_qty_cols_ok = True
         logger.info("inventory quantity columns verified healthy (amount + current_quantity)")
 
