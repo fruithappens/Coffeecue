@@ -235,7 +235,10 @@ def _event_name_roundtrip(rn):
 
     def _display_name():
         _cd, cb, _ = c.get("/api/display/config", auth=False)
-        return str((cb or {}).get("event_name") or "") if isinstance(cb, dict) else ""
+        if not isinstance(cb, dict):
+            return ""
+        cfg = cb.get("config") if isinstance(cb.get("config"), dict) else cb
+        return str(cfg.get("event_name") or cfg.get("eventName") or "")
 
     def _welcome_has(needle, tries=10, gap=5):
         for _ in range(tries):

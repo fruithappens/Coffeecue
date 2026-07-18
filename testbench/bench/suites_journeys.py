@@ -216,11 +216,153 @@ def journey_cancel_after_confirm(rn):
     return out
 
 
+# ---------------------------------------------------------------- journey 4
+
+def journey_cancel_while_making(rn):
+    """Customer texts CANCEL while the barista is mid-make. The app must do
+    ONE of two sensible things: actually cancel it (and remove it from the
+    barista's in-progress board) or clearly tell the customer it's too late.
+    The failure mode: 'cancelled' to the customer while the barista keeps
+    making it. Uses test_no_send on /start so no real SMS fires."""
+    if not rn.options.get("allow_lifecycle"):
+        return [R("journeys", "cancel-while-making", "skip",
+                  "Opt-in (starts a real order mid-test) — enable 'lifecycle'")]
+    c, out = rn.client, []
+    drinks, milks, _ = _menu(c)
+    drink = "latte" if "latte" in drinks else (drinks[0] if drinks else "latte")
+    milk = next((m for m in ("full cream", "skim") if m in milks),
+                milks[0] if milks else "full cream")
+
+    phone, order_no, reply = _place_sms_order(rn, f"{BENCH_TAG}Mid", drink, milk)
+    if not order_no:
+        return [R("journeys", "cancel-while-making: setup order", "fail",
+                  f"setup order failed: {(reply or '')[:140]}")]
+
+    sc, sb, _ = c.post(f"/api/orders/{order_no}/start", {"test_no_send": True})
+    if sc != 200 or not (isinstance(sb, dict) and sb.get("success")):
+        _sim(c, phone, "CANCEL")
+        return [R("journeys", "cancel-while-making: barista starts the order",
+                  "warn", f"/start → HTTP {sc} (test_no_send flag not deployed yet?): "
+                  f"{str(sb)[:150]}")]
+    out.append(R("journeys", "cancel-while-making: barista starts the order",
+                 "pass", f"order {order_no} → in-progress (test_no_send, no SMS)"))
+
+    def _in_progress_has(no):
+        code, body, _ = c.get("/api/display/orders")
+        rows = (body or {}).get("orders") or (body or {}).get("data") or []
+        if isinstance(body, dict) and isinstance(body.get("inProgress"), list):
+            rows = body["inProgress"]
+        return any(str(o.get("order_number") or o.get("orderNumber")
+                       or o.get("id")) == str(no)
+                   for o in rows if isinstance(o, dict))
+
+    making = _in_progress_has(order_no)
+    ok, ctext = _sim(c, phone, "CANCEL")
+    low = (ctext or "").lower()
+    said_cancelled = "cancel" in low and "can't" not in low and "cannot" not in low \
+        and "too late" not in low and "being made" not in low and "already" not in low
+    still_making = _in_progress_has(order_no)
+
+    if said_cancelled and still_making:
+        status = "fail"
+        detail = (f"Bot told the customer '{(ctext or '')[:80]}' but order "
+                  f"{order_no} is STILL on the barista's in-progress board — "
+                  "the coffee gets made for nobody.")
+    elif said_cancelled and not still_making:
+        status = "pass"
+        detail = f"cancelled cleanly mid-make; gone from in-progress. Reply: {(ctext or '')[:90]}"
+    elif not said_cancelled and ("late" in low or "made" in low or "ready" in low
+                                 or "cancel" in low):
+        status = "pass"
+        detail = f"customer told it's too late — honest and consistent: {(ctext or '')[:110]}"
+    else:
+        status = "warn"
+        detail = (f"unclear reply to a mid-make CANCEL: {(ctext or '')[:140]} "
+                  f"(in-progress={still_making})")
+    out.append(R("journeys", "cancel-while-making: customer CANCEL is consistent",
+                 status, detail,
+                 evidence=(ctext or "")[:300] if status != "pass" else "",
+                 suggestion="" if status == "pass" else
+                 "Pick one truth: either cancel + pull it off the barista board, "
+                 "or tell the customer it's too late. Never both.",
+                 refs=[] if status == "pass" else ["services/coffee_system.py"]))
+
+    # cleanup: make sure it's gone whatever happened
+    c.post(f"/api/orders/{order_no}/cancel")
+    return out
+
+
+# ---------------------------------------------------------------- journey 5
+
+def journey_ready_reply(rn):
+    """After the 'your coffee is ready' SMS, customers reply things like
+    'coming!'. That reply must not crash the bot, must not silently CREATE a
+    new order, and ideally shouldn't re-run the new-customer interview. Uses
+    test_no_send on /start + /complete so no real SMS fires."""
+    if not rn.options.get("allow_lifecycle"):
+        return [R("journeys", "ready-reply", "skip",
+                  "Opt-in (completes a real order; stays in today's stats) — "
+                  "enable 'lifecycle'")]
+    c, out = rn.client, []
+    drinks, milks, _ = _menu(c)
+    drink = "latte" if "latte" in drinks else (drinks[0] if drinks else "latte")
+    milk = next((m for m in ("full cream", "skim") if m in milks),
+                milks[0] if milks else "full cream")
+
+    phone, order_no, reply = _place_sms_order(rn, f"{BENCH_TAG}Rdy", drink, milk)
+    if not order_no:
+        return [R("journeys", "ready-reply: setup order", "fail",
+                  f"setup order failed: {(reply or '')[:140]}")]
+    sc, _sb, _ = c.post(f"/api/orders/{order_no}/start", {"test_no_send": True})
+    cc, cb, _ = c.post(f"/api/orders/{order_no}/complete", {"test_no_send": True})
+    if cc != 200 or not (isinstance(cb, dict) and cb.get("success")):
+        c.post(f"/api/orders/{order_no}/cancel")
+        return [R("journeys", "ready-reply: order completes", "warn",
+                  f"/complete → HTTP {cc} (test_no_send not deployed yet?): {str(cb)[:150]}")]
+    out.append(R("journeys", "ready-reply: order start→complete (no SMS)", "pass",
+                 f"order {order_no} completed with test_no_send"))
+
+    before, _ = _pending_count(c)
+    ok, rtext = _sim(c, phone, "coming now, thanks!")
+    low = (rtext or "").lower()
+    crashy = (not rtext) or "traceback" in low or "error" in low
+    after, _ = _pending_count(c)
+    ordered = after > before
+    interview = "first name" in low
+    if crashy or ordered:
+        status = "fail"
+        why = "reply CREATED a pending order" if ordered else "reply crashed/empty"
+    elif interview:
+        status = "warn"
+        why = "reply restarted the new-customer interview (noise after pickup)"
+    else:
+        status = "pass"
+        why = "handled gracefully"
+    out.append(R("journeys", "ready-reply: 'coming now' after pickup SMS is harmless",
+                 status, f"{why} — reply: {(rtext or '')[:120]}",
+                 evidence=(rtext or "")[:300] if status != "pass" else "",
+                 suggestion="" if status == "pass" else
+                 "A courtesy reply after the ready SMS should be absorbed "
+                 "politely, not treated as a new order.",
+                 refs=[] if status == "pass" else ["services/coffee_system.py"]))
+    if ordered:
+        _sim(c, phone, "CANCEL")
+    return out
+
+
+def _pending_count(c):
+    code, body, _ = c.get("/api/orders/pending")
+    rows = _order_list(body)
+    return len(rows), rows
+
+
 def suite_journeys(rn):
     out = []
     out += journey_message_reply(rn)
     out += journey_forget_me(rn)
     out += journey_cancel_after_confirm(rn)
+    out += journey_cancel_while_making(rn)
+    out += journey_ready_reply(rn)
     return out
 
 

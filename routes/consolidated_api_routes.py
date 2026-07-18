@@ -1846,7 +1846,14 @@ def start_order(order_id):
         # than once. AND we apply the policy gate: at small events with no
         # queue, the "started" SMS just adds noise between confirm and
         # ready — see _should_send_started_sms for the rules.
-        if current_status == 'pending' and _should_send_started_sms(db, order_created_at):
+        # test_no_send (Test Bench): perform the full transition but skip the
+        # real SMS — same escape hatch the message endpoint has, needed
+        # because prod TESTING_MODE is off and lifecycle tests on
+        # phone-bearing orders would text real numbers.
+        _no_send = bool((request.get_json(silent=True) or {}).get('test_no_send')
+                        or (request.get_json(silent=True) or {}).get('dry_run'))
+        if current_status == 'pending' and not _no_send \
+                and _should_send_started_sms(db, order_created_at):
             _notify_customer_order_started(order_phone, clean_id, order_details)
 
         # Push a WS event so any open Barista UI / Display refreshes
@@ -2392,12 +2399,15 @@ def complete_order(order_id):
             # Never raises — the order is already marked complete by
             # the time we get here, so a messaging failure must not
             # roll that back.
-            _notify_customer_order_ready(
-                order_phone,
-                clean_id,
-                order_details_parsed if isinstance(order_details_parsed, dict) else {},
-                station_id_for_stock,
-            )
+            # test_no_send (Test Bench): full transition, no real SMS.
+            if not ((request.get_json(silent=True) or {}).get('test_no_send')
+                    or (request.get_json(silent=True) or {}).get('dry_run')):
+                _notify_customer_order_ready(
+                    order_phone,
+                    clean_id,
+                    order_details_parsed if isinstance(order_details_parsed, dict) else {},
+                    station_id_for_stock,
+                )
 
             # Surface stock-decrement skipped items in the response so
             # the barista UI can toast a warning. `stock_warnings` is a
