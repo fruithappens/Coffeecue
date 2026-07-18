@@ -1,0 +1,7 @@
+# Test Bench credentials — copy this file to  testbench/.bench_env  and fill in
+# a REAL password. The .bench_env file is gitignored and must NEVER be committed
+# or pasted into chat. Use a DEDICATED bench account (e.g. 'benchbot', role
+# Admin), not your personal login — so it can be revoked independently.
+export BENCH_USER=benchbot
+export BENCH_PASS=CHANGE-ME
+export BENCH_TARGET=https://web-production-4cc9c.up.railway.app
