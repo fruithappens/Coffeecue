@@ -131,8 +131,11 @@ def suite_matrix(rn):
                   f"milks={len(milks)}, active stations={len(active)})")]
 
     # ---- dimensions, read from the LIVE configuration -------------------
-    rep_drinks = [d for d in ("latte", "flat white", "cappuccino", "long black",
-                              "hot chocolate") if d in drinks][:4] or drinks[:3]
+    # hot chocolate ahead of flat white: non-coffee drinks route and
+    # decrement differently, so they earn a matrix seat.
+    rep_drinks = [d for d in ("latte", "cappuccino", "long black",
+                              "hot chocolate", "flat white") if d in drinks][:4] \
+        or drinks[:3]
     # one milk no station offers → the refusal path gets matrix coverage
     unavailable = next((m for m in ("macadamia", "buffalo") if m not in milks), None)
     dim_milks = milks[:4] + (["__unavailable__"] if unavailable else [])
@@ -267,6 +270,55 @@ def suite_matrix(rn):
         except Exception as e:
             out.append(R("matrix", f"mx{i:02d} {label}", "fail",
                          f"Scenario crashed: {e}"))
+
+    # ---- modifier mini-matrix (SMS-only): decaf / strong / tea ----------
+    # Kiosk can't express these, so they get their own honest scenarios
+    # rather than fake pair-coverage. The oracle is the STORED ORDER: the
+    # modifier must survive into order_details — that's what the barista
+    # makes; a confirmation that swallows "decaf" serves caffeine to
+    # someone who asked for none.
+    base_drink = "latte" if "latte" in drinks else rep_drinks[0]
+    base_milk = milks[0]
+    tea = next((d for d in drinks if "tea" in d.lower()), None)
+    # (name, order text, must-appear-in the barista card's drink name)
+    mod_cases = [
+        ("decaf", f"medium decaf {base_drink} with {base_milk}", "decaf"),
+        ("strong / double shot", f"large strong {base_drink} with {base_milk}", "strong"),
+    ]
+    if tea:
+        mod_cases.append((f"tea ({tea})", f"medium {tea} with {base_milk}", "tea"))
+    for j, (mod_name, text, needle) in enumerate(mod_cases, 1):
+        tag = f"{BENCH_TAG}MxM{j:02d}"
+        ph = rn.next_phone()
+        ok, reply = _sim(c, ph, f"{tag} {text}")
+        low = (reply or "").lower()
+        if ok and ("what milk" in low or "what size" in low):
+            ok, reply = _sim(c, ph, base_milk if "milk" in low else "medium")
+            low = (reply or "").lower()
+        accepted = ok and ("confirmed" in low or "order #" in low)
+        if not accepted:
+            out.append(R("matrix", f"mxm{j:02d} modifier: {mod_name}", "fail",
+                         f"order didn't confirm — {(reply or '')[:140]}",
+                         refs=["services/nlp.py", "services/coffee_system.py"]))
+            _sim(c, ph, "CANCEL")
+            continue
+        row = _find_pending(c, tag) or {}
+        no = row.get("order_number") or row.get("orderNumber") or row.get("id")
+        card = str(row.get("coffeeType") or row.get("coffee_type") or "")
+        survived = needle in card.lower()
+        out.append(R("matrix", f"mxm{j:02d} modifier: {mod_name}",
+                     "pass" if survived else "warn",
+                     f"accepted (#{no}); barista card shows {card!r}",
+                     suggestion="" if survived else
+                     f"The customer asked for '{mod_name}' and the SMS "
+                     f"confirmation echoed it, but the barista's card says "
+                     f"only {card!r} — the barista can't see the modifier "
+                     "and will make it wrong.",
+                     refs=[] if survived else ["routes/consolidated_api_routes.py"]))
+        if no:
+            _cancel(c, no)
+        else:
+            _sim(c, ph, "CANCEL")
 
     # ---- cleanup: sweep leftovers + restore stock ------------------------
     code, body, _ = c.get("/api/orders/pending")
