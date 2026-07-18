@@ -3001,7 +3001,9 @@ class CoffeeOrderSystem:
         try:
             cursor = self.db.cursor()
             try:
-                self._ensure_inventory_quantity_columns(cursor)
+                # commit=True is safe here: we rolled back just above, so the
+                # transaction holds nothing but the heal's own work.
+                self._ensure_inventory_quantity_columns(cursor, commit=True)
             except Exception:
                 pass
             if unlimited:
@@ -5776,7 +5778,7 @@ class CoffeeOrderSystem:
                 return n
         return 0
 
-    def _ensure_inventory_quantity_columns(self, cursor):
+    def _ensure_inventory_quantity_columns(self, cursor, commit=False):
         """Heal the inventory_items quantity SPLIT-BRAIN (found by the Test
         Bench: prod's table has only `amount`; the API/UI write
         `current_quantity` — run 4's stock_debug caught the decrement failing
@@ -5786,7 +5788,16 @@ class CoffeeOrderSystem:
         ALTERs silently failed, so it never retried and the column never
         arrived. Now every statement runs in its own SAVEPOINT and the flag is
         only set after VERIFYING both columns are actually selectable — if
-        verification fails we log loudly and retry on the next call."""
+        verification fails we log loudly and retry on the next call.
+
+        v4: the done-flag is only set when the heal's work is durably
+        COMMITTED (commit=True, safe only when the caller's transaction is
+        fresh). v3 set the flag on any run — but the first caller after boot
+        can be a read-only path whose transaction is never committed, so the
+        heal's UPDATEs evaporated on the next rollback while the flag stayed
+        set and blocked every retry. Non-committing callers (the decrement,
+        which commits later itself) now just rerun the cheap heal until a
+        committing caller locks it in."""
         if getattr(self, '_inv_qty_cols_ok', False):
             return
 
@@ -5840,6 +5851,16 @@ class CoffeeOrderSystem:
         sp("""UPDATE inventory_items SET current_quantity = amount
               WHERE amount IS NOT NULL AND current_quantity IS NOT NULL
                 AND current_quantity <> amount""")
+        if not commit:
+            # Caller owns the transaction; our work is only durable if THEY
+            # commit. Don't set the done-flag — rerun until a committing
+            # caller locks the heal in.
+            return
+        try:
+            cursor.connection.commit()
+        except Exception as e:
+            note(f"v4 commit failed — will retry: {e}")
+            return
         self._inv_qty_cols_ok = True
         logger.info("inventory quantity columns verified healthy (amount + current_quantity)")
 
