@@ -500,12 +500,34 @@ class CoffeeOrderSystem:
         elif state.get('state') == 'awaiting_deletion_confirmation':
             return self._handle_awaiting_deletion_confirmation(phone, message_body, state)
         elif state.get('state') == 'completed':
+            # Courtesy replies after the ready/pickup SMS ("coming now,
+            # thanks!") should be absorbed silently, not answered with the
+            # new-customer interview (noise, and a paid outbound SMS for
+            # nothing). Empty return → empty TwiML → no reply, no cost.
+            if self._is_courtesy_reply(message_body):
+                return ""
             # This is a new order after completing the previous one
             return self._restart_conversation(phone, message_body)
         
         # If no state or unknown state, start from beginning
         return self._restart_conversation(phone, message_body)
     
+    @staticmethod
+    def _is_courtesy_reply(message):
+        """A short thanks/acknowledgement, not an order or command. Only
+        consulted in the 'completed' state, so absorbing these can never
+        eat a real order mid-conversation."""
+        m = (message or "").lower().strip().rstrip("!. ")
+        if len(m) > 30:
+            return False
+        courtesy = ("thanks", "thank you", "thankyou", "ty", "thx", "cheers",
+                    "coming", "on my way", "omw", "coming now", "got it",
+                    "ok", "okay", "great", "awesome", "perfect", "all good",
+                    "no worries", "sweet", "legend", "see you soon")
+        return any(m == c or m.startswith(c + " ") or m.endswith(" " + c)
+                   for c in courtesy) or ("thank" in m and len(m) <= 30) \
+            or ("coming" in m and len(m) <= 30)
+
     def _is_greeting_or_help(self, message):
         """Check if message is a greeting or help request"""
         message_lower = message.lower().strip()
@@ -1110,10 +1132,25 @@ class CoffeeOrderSystem:
             """, (phone,))
             
             result = cursor.fetchone()
-            
+
             if not result:
+                # Be honest with a customer whose order is mid-make: "you
+                # don't have any pending orders" reads as "we lost your
+                # order" when their coffee is being made right now (Test
+                # Bench cancel-while-making journey).
+                cursor.execute("""
+                    SELECT order_number, station_id FROM orders
+                    WHERE phone = %s AND status = 'in-progress'
+                    ORDER BY created_at DESC LIMIT 1
+                """, (phone,))
+                making = cursor.fetchone()
+                if making:
+                    m_num, m_station = making
+                    return (f"Your order #{m_num} is already being made at "
+                            f"Station {m_station} - too late to cancel by text. "
+                            f"Please see the barista if you need to change it.")
                 return "You don't have any pending orders to cancel."
-            
+
             order_id, order_number, station_id = result
             
             # Update order status to cancelled

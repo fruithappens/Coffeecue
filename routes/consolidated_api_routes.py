@@ -370,6 +370,8 @@ def _drink_display_name(order_details, default='Coffee'):
     strength live in separate keys — a card that shows only 'latte' gets a
     decaf customer a caffeinated coffee (found by the Test Bench's matrix
     modifier check: SMS confirmed 'decaf' but the pending API dropped it)."""
+    if not isinstance(order_details, dict):
+        return default
     t = order_details.get('type') or default
     strength = str(order_details.get('strength') or '').strip().lower()
     bits = []
@@ -4023,10 +4025,15 @@ def get_display_orders():
             
             # Parse order details
             if isinstance(order_details_json, str):
-                order_details = json.loads(order_details_json)
+                try:
+                    order_details = json.loads(order_details_json)
+                except Exception:
+                    order_details = {}
             else:
                 order_details = order_details_json
-            
+            if not isinstance(order_details, dict):
+                order_details = {}
+
             # Extract customer name
             customer_name = order_details.get('name', 'Customer')
             
@@ -4055,11 +4062,15 @@ def get_display_orders():
             })
         
         # Get completed orders that are ready for pickup (limited to most recent 10)
+        # NOTE: picked_up_at is a TIMESTAMP — comparing it to '' is a
+        # Postgres ERROR, which made this whole endpoint throw and serve
+        # the demo fallback (fake "John D."/"Sarah M." orders) on every
+        # single call in production. IS NULL is the only empty-check.
         cursor.execute('''
-            SELECT id, order_number, status, station_id, 
+            SELECT id, order_number, status, station_id,
                    created_at, completed_at, phone, order_details
-            FROM orders 
-            WHERE status = 'completed' AND (picked_up_at IS NULL OR picked_up_at = '')
+            FROM orders
+            WHERE status = 'completed' AND picked_up_at IS NULL
             ORDER BY completed_at DESC
             LIMIT 10
         ''')
@@ -4072,10 +4083,15 @@ def get_display_orders():
             
             # Parse order details
             if isinstance(order_details_json, str):
-                order_details = json.loads(order_details_json)
+                try:
+                    order_details = json.loads(order_details_json)
+                except Exception:
+                    order_details = {}
             else:
                 order_details = order_details_json
-            
+            if not isinstance(order_details, dict):
+                order_details = {}
+
             # Extract customer name
             customer_name = order_details.get('name', 'Customer')
             
@@ -4117,52 +4133,21 @@ def get_display_orders():
     
     except Exception as e:
         logger.error(f"Error getting display orders: {str(e)}")
-        
-        # Return demo data in case of error
+        try:
+            coffee_system = current_app.config.get('coffee_system')
+            if coffee_system:
+                coffee_system.db.rollback()
+        except Exception:
+            pass
+        # An EMPTY board, never fake orders. This fallback used to return
+        # demo customers ("John D.", "Sarah M.") — and because the ready
+        # query above compared a TIMESTAMP to '', it errored on EVERY call,
+        # so the public pickup display served those fake names in
+        # production. An empty board is always safe; fake names are not.
         return jsonify({
             "success": True,
-            "orders": {
-                "inProgress": [
-                    {
-                        "id": "12345",
-                        "order_number": "12345",
-                        "customerName": "John D.",
-                        "displayPhone": "1234",
-                        "coffeeType": "Cappuccino",
-                        "status": "in-progress",
-                        "stationId": 1
-                    },
-                    {
-                        "id": "12346",
-                        "order_number": "12346",
-                        "customerName": "Sarah M.",
-                        "displayPhone": "5678",
-                        "coffeeType": "Latte",
-                        "status": "in-progress",
-                        "stationId": 2
-                    }
-                ],
-                "ready": [
-                    {
-                        "id": "12340",
-                        "order_number": "12340",
-                        "customerName": "Mike T.",
-                        "displayPhone": "9012",
-                        "coffeeType": "Espresso",
-                        "status": "completed",
-                        "stationId": 3
-                    },
-                    {
-                        "id": "12341",
-                        "order_number": "12341",
-                        "customerName": "Emma S.",
-                        "displayPhone": "3456",
-                        "coffeeType": "Flat White",
-                        "status": "completed",
-                        "stationId": 1
-                    }
-                ]
-            },
+            "orders": {"inProgress": [], "ready": []},
+            "error": str(e),
             "timestamp": datetime.now().isoformat()
         })
 
