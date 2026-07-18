@@ -8160,28 +8160,49 @@ Text RESET to clear preferences or DELETE to remove all data."""
             else:
                 primary_order = order_details_json or {}
 
-            # Form the group around the customer's own order. The group_id is
-            # the primary's order number (e.g. "C5") — short, already shouted
-            # across the bar, and unique per event. Retro-link the primary now
-            # so even a one-friend group shows the badge on BOTH cards.
-            group_id = order_number
-            group_label = f"{primary_name}'s group"
-            self._ensure_group_id_on_order(
-                order_id=order_id, order_number=order_number,
-                group_id=group_id, group_label=group_label,
-            )
+            # If the conversation is ALREADY mid-group (this is the 2nd/3rd
+            # FRIEND of one group), carry the existing group context forward.
+            # Resetting it here dropped every earlier friend (DONE said
+            # "group order of 2 coffees" for a group of 3 — Test Bench
+            # customer suite caught it), and re-deriving group_id from the
+            # MOST RECENT order linked the new friend to the PREVIOUS
+            # friend's order number, silently splitting the barista's group
+            # badge into two groups.
+            prev = (state.get('temp_data') or {}) if state else {}
+            if prev.get('group_orders') or prev.get('group_id'):
+                group_id = prev.get('group_id') or order_number
+                group_label = prev.get('group_label') or f"{primary_name}'s group"
+                group_orders = prev.get('group_orders') or []
+                primary_order = prev.get('primary_order') or primary_order
+                primary_name = prev.get('primary_name') or primary_name
+                station_id = prev.get('station_id') or station_id
+                reference_order = prev.get('reference_order') or order_number
+            else:
+                # Fresh group: form it around the customer's own order. The
+                # group_id is the primary's order number (e.g. "C5") — short,
+                # already shouted across the bar, and unique per event.
+                # Retro-link the primary now so even a one-friend group shows
+                # the badge on BOTH cards.
+                group_id = order_number
+                group_label = f"{primary_name}'s group"
+                group_orders = []
+                reference_order = order_number
+                self._ensure_group_id_on_order(
+                    order_id=order_id, order_number=order_number,
+                    group_id=group_id, group_label=group_label,
+                )
 
             # Start friend order flow
             self._set_conversation_state(phone, "awaiting_friend_name", {
                 "primary_name": primary_name,
                 "primary_order": primary_order,
-                "group_orders": [],
+                "group_orders": group_orders,
                 "station_id": station_id,
-                "reference_order": order_number,
+                "reference_order": reference_order,
                 "group_id": group_id,
                 "group_label": group_label,
             })
-            
+
             return f"Great! Let's add a coffee for your friend. What's their name?"
             
         except Exception as e:

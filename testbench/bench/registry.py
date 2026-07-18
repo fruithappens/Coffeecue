@@ -11,6 +11,8 @@ from .suites_matrix import MATRIX_SUITES
 from .suites_journeys import JOURNEY_SUITES
 from .suites_coverage import COVERAGE_SUITES
 from .suites_lifecycle import LIFECYCLE_SUITES
+from .suites_customer import CUSTOMER_SUITES
 
 ALL_SUITES = (BASE_SUITES + DEEP_SUITES + MATRIX_SUITES
-              + JOURNEY_SUITES + COVERAGE_SUITES + LIFECYCLE_SUITES)
+              + JOURNEY_SUITES + COVERAGE_SUITES + LIFECYCLE_SUITES
+              + CUSTOMER_SUITES)
