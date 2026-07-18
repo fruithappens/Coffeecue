@@ -17,11 +17,18 @@
 set +x
 cd "$(dirname "$0")/.."
 
-ENVFILE="testbench/.bench_env"
-if [ ! -f "$ENVFILE" ]; then
-  echo "ERROR: $ENVFILE not found."
-  echo "Create it with export BENCH_USER=... / BENCH_PASS=... / BENCH_TARGET=..."
-  echo "(It is gitignored and never committed.)"
+# Look for the credentials file in the repo first, then the operator's home
+# dir. The home-dir location survives worktrees, branch switches and stale
+# checkouts (the repo path may not exist yet).
+ENVFILE=""
+for candidate in "testbench/.bench_env" "$HOME/.coffeecue_bench_env"; do
+  if [ -f "$candidate" ]; then ENVFILE="$candidate"; break; fi
+done
+if [ -z "$ENVFILE" ]; then
+  echo "ERROR: no credentials file found."
+  echo "Looked for: testbench/.bench_env and \$HOME/.coffeecue_bench_env"
+  echo "Create one with: export BENCH_USER=... / BENCH_PASS=... / BENCH_TARGET=..."
+  echo "(Both locations are kept out of git.)"
   exit 2
 fi
 

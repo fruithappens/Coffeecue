@@ -150,60 +150,66 @@ def _get_setting(c, path, keys):
     return None, data
 
 
+import re as _re
+
+
+def _current_prefix(c, rn):
+    """Read the TRUE live order_prefix by its EFFECT: place a phoneless probe
+    order and read the non-digit lead of its number ('ZT538' → 'ZT', '539' →
+    ''). GET /api/settings does NOT return order_prefix, so this is the only
+    honest way to read it — and it means we can always restore exactly."""
+    code, mb, _ = c.post("/api/display/order",
+                         {"name": f"{BENCH_TAG}SetProbe", "coffee_type": "latte",
+                          "milk": "full cream", "size": "medium", "sugar": "No sugar",
+                          "phone": ""}, auth=False)
+    onum = str((mb or {}).get("order_number") or "") if isinstance(mb, dict) else ""
+    if onum:
+        c.post(f"/api/orders/{onum}/cancel")
+    m = _re.match(r"^([A-Za-z]+)", onum)
+    return (m.group(1) if m else ""), onum
+
+
 def suite_settings(rn):
-    """A setting written via the API round-trips (set → read-back → restore)."""
+    """order_prefix round-trips by its real EFFECT: capture the current prefix
+    from a probe order → write a test prefix → confirm new orders wear it →
+    RESTORE the exact original. (Settings have no per-key endpoint; the only
+    writer is bulk PUT /api/settings, and GET /api/settings doesn't echo
+    order_prefix — so we read it via its effect and always restore it. Learned
+    the hard way: an earlier version left 'ZT' on production.)"""
     c, out = rn.client, []
     if not rn.options.get("allow_settings"):
-        return [R("settings", "round-trip", "skip",
-                  "Opt-in (mutates event settings) — enable 'settings round-trip' to run")]
+        return [R("settings", "order_prefix round-trip", "skip",
+                  "Opt-in (mutates a setting, then restores it) — enable 'settings round-trip'")]
 
-    # order_prefix: set → confirm a new SMS order uses it → restore
-    code, body, _ = c.get("/api/settings/order_prefix")
-    orig = None
-    if code == 200 and isinstance(body, dict):
-        orig = (body.get("data") or body.get("value") or body.get("prefix")
-                or (body.get("settings") or {}).get("order_prefix"))
-    test_prefix = "ZT"
-    put_code, put_body, _ = c.post("/api/settings/order_prefix", {"value": test_prefix, "prefix": test_prefix})
-    if put_code not in (200, 201):
-        # try the generic settings endpoint shape
-        put_code, put_body, _ = c.req("PUT", "/api/settings/order_prefix",
-                                      body={"value": test_prefix})
-    applied = put_code in (200, 201)
-    out.append(R("settings", "write order_prefix", "pass" if applied else "warn",
-                 f"PUT order_prefix='{test_prefix}' → HTTP {put_code}",
-                 evidence="" if applied else str(put_body)[:200],
-                 refs=[] if applied else ["routes/consolidated_api_routes.py"]))
-
-    if applied:
-        # place a quick SMS order and see if the number wears the prefix
-        drinks, milks, _ = _menu(c)
-        ph = rn.next_phone()
-        ok, reply = _sim(c, ph, f"{BENCH_TAG}Set large "
-                         f"{'latte' if 'latte' in drinks else (drinks[0] if drinks else 'latte')} "
-                         f"with {'full cream' if 'full cream' in milks else (milks[0] if milks else 'full cream')}")
-        low, turns = (reply or "").lower(), 0
-        while ok and turns < 2 and ("what size" in low or "what milk" in low):
-            ok, reply = _sim(c, ph, "large")
-            low = (reply or "").lower()
-            turns += 1
-        wore = f"#{test_prefix.lower()}" in low or f"order {test_prefix.lower()}" in low
+    orig, _n0 = _current_prefix(c, rn)
+    test_val = "ZZ"
+    restored_ok = False
+    try:
+        wc, wb, _ = c.req("PUT", "/api/settings", body={"order_prefix": test_val})
+        out.append(R("settings", "write order_prefix (bulk PUT)",
+                     "pass" if wc in (200, 201) else "fail",
+                     f"PUT order_prefix='{test_val}' → HTTP {wc}",
+                     evidence="" if wc in (200, 201) else str(wb)[:200],
+                     refs=[] if wc in (200, 201) else ["routes/consolidated_api_routes.py"]))
+        # the real effect: does a NEW order number wear the prefix?
+        eff, num = _current_prefix(c, rn)
+        wore = eff == test_val
         out.append(R("settings", "order_prefix reaches new order numbers",
-                     "pass" if wore else "warn",
-                     f"new order confirm: {reply[:140]}",
-                     suggestion="" if wore else "Prefix set but the next order number didn't "
-                                "show it — may apply only to fresh sequence values.",
+                     "pass" if wore else "fail",
+                     f"new order number was {num!r} (prefix {eff!r}, expected {test_val!r})",
+                     suggestion="" if wore else "A written order_prefix didn't reach new "
+                                "order numbers — operator config change had no effect.",
                      refs=[] if wore else ["services/coffee_system.py"]))
-        _sim(c, ph, "CANCEL")
-
-    # restore
-    if orig is not None:
-        rc, _, _ = c.post("/api/settings/order_prefix", {"value": orig, "prefix": orig})
+    finally:
+        # ALWAYS restore, whatever happened above.
+        rc, _, _ = c.req("PUT", "/api/settings", body={"order_prefix": orig})
+        eff_after, _n = _current_prefix(c, rn)
+        restored_ok = rc in (200, 201) and eff_after == orig
         out.append(R("settings", "cleanup: order_prefix restored",
-                     "pass" if rc in (200, 201) else "fail",
-                     f"restored order_prefix='{orig}' → HTTP {rc}",
-                     suggestion="" if rc in (200, 201) else
-                     f"Set order_prefix back to '{orig}' manually in Organiser settings."))
+                     "pass" if restored_ok else "fail",
+                     f"restored to {orig!r} → HTTP {rc}, new orders now prefix {eff_after!r}",
+                     suggestion="" if restored_ok else
+                     f"IMPORTANT: set order_prefix back to {orig!r} in Organiser settings."))
     _sweep(rn, BENCH_TAG)
     return out
 
