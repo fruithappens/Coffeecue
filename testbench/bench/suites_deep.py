@@ -132,6 +132,28 @@ def suite_stock(rn):
     if items is None:
         return [R("stock", "inventory endpoint", "fail", "GET /api/inventory failed",
                   refs=["routes/consolidated_api_routes.py"])]
+
+    # The two quantity columns must agree. They're both written on every
+    # decrement/adjust now, but legacy rows can still hold different values —
+    # whichever number a barista is shown, the other one is wrong.
+    drift = []
+    for r in items:
+        a, cq = r.get("amount"), r.get("current_quantity")
+        try:
+            if a is not None and cq is not None and abs(float(a) - float(cq)) > 0.01:
+                drift.append(f"{r.get('category')}/{r.get('name')}: amount={a} vs current_quantity={cq}")
+        except (TypeError, ValueError):
+            pass
+    out.append(R("stock", "quantity columns agree (amount vs current_quantity)",
+                 "pass" if not drift else "warn",
+                 "all rows consistent" if not drift else
+                 f"{len(drift)} row(s) disagree — the barista's number and the report's "
+                 f"number differ (legacy drift; both columns are written now)",
+                 evidence="; ".join(drift[:8]),
+                 suggestion="" if not drift else "Re-set these items' quantities once in "
+                            "Organiser → Inventory to resync them (both columns are written "
+                            "on every change now, so they'll stay in step afterwards).",
+                 refs=[] if not drift else ["routes/consolidated_api_routes.py"]))
     if not items:
         return [R("stock", "inventory rows exist", "warn",
                   "Inventory is EMPTY — stock tracking is effectively off; nothing "
