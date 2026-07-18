@@ -10,10 +10,14 @@ up here as unticked rows.
 
 ## ⏯ RESUME HERE — for the next session told to "continue testing"
 
-**State of play (updated 2026-07-18):** 20 suites, last full run **103 pass /
-0 fail / 1 warn** (the warn is the schedule design note — informational, not a
-bug). Phases A and B below are DONE. The queue that follows is the agreed next
-work, in priority order — Steve has approved building **all** of it.
+**State of play (updated 2026-07-19):** 23 suites. Phases A, B and most of
+B+ are DONE. Queue items 1–6 below shipped 2026-07-19 (PRs #109–#113) and
+each was validated live; building them caught and fixed FOUR real bugs:
+the second FRIEND wiped the group + split its group_id (#109), the barista
+card dropped decaf/strength (#111), the PUBLIC display board served fake
+demo orders on every call — TIMESTAMP-vs-'' query error + demo fallback
+(#113), and mid-make CANCEL gaslit the customer + courtesy replies
+restarted the interview (#113). Remaining queue: items 7–8, then Phase C.
 
 **How to run the bench (no password handling — creds live in a gitignored env
 file the operator maintains):**
@@ -45,16 +49,16 @@ feedback.md is written to be pasted into a repair session).
 
 **The build queue (do these in order):**
 
-| # | Item | Where | Spec / done-when |
-|---|---|---|---|
-| 1 | **Customer-memory suite** | new `bench/suites_customer.py` | (a) USUAL: fresh phone orders + confirms, then texts USUAL → offered/placed the same drink (customer memory works). (b) Same-name collision: two phones, same first name, orders to the same station → two DISTINCT order numbers, both in pending. (c) Group of 3+: FRIEND×2 then DONE → all confirm, all queued. (d) CHANGE/EDIT keyword mid-order → order actually changes. All simulate, self-cleaning. |
-| 2 | **Settings round-trips** | extend `suite_settings` in `bench/suites_coverage.py` (under `--allow-settings`) | (a) event_name: read current via display config → write test value → SMS welcome to a fresh phone AND `GET /api/display/config` carry it → restore exact original → verify restored. (b) unlimited_stock_mode: toggle on → a normally-unavailable milk is ACCEPTED → toggle off → refused again. Both restore in `finally`. |
-| 3 | **Stress suite** | new `bench/suites_stress.py` | (a) Empty stock (new `--allow-stock-mutation`): capture a milk row's level → adjust to 0 → SMS-order that milk → expect refusal or explicit warning, NOT silent acceptance → restore exact level in `finally`. Answers a question nobody has asked the app. (b) Burst throttle: 13 rapid simulate texts from ONE fake phone → the anti-spam guard should trip (blocked/silent/429) — first read the throttle code in `routes/sms_routes.py`/`services/coffee_system.py` to pin the designed behaviour; if none exists, emit a `warn` saying so. |
-| 4 | **Matrix dimension expansion** | `bench/suites_matrix.py` | Add dimensions: decaf (yes/no), shots (single/double), and tea/hot-chocolate as drink types. FIRST probe what `services/nlp.py` + the kiosk payload accept. Keep all-pairs output ≤ ~25 scenarios. Stretch goal: a "stressed matrix" variant that reruns a few scenarios while a bench-created station is paused. |
-| 5 | **Backend `test_no_send` + cancel-while-making journey** | backend PR + `bench/suites_journeys.py` | Add the message endpoint's `test_no_send` flag to `POST /orders/<id>/start` and `/complete` (skip Twilio, still record + transition). Then journey: start a fake-phone order (test_no_send) → customer texts CANCEL → order leaves in-progress; check what the barista would see (in-progress list + any flag). Codifies the designed answer to "customer cancels mid-make". |
-| 6 | **Reminder-reply routing journey** | `bench/suites_journeys.py` | The pickup-reminder SMS invites a reply; verify a customer's reply after a reminder is NOT parsed as a new order (same class as the barista-reply-loop bug, different entry point). Needs test_no_send from item 5. |
-| 7 | **Pickup + batch endpoints** | `bench/suites.py` (orders) | `POST /orders/<id>/pickup` transitions completed→picked-up; `POST /orders/batch/process` on 2 bench orders. Opt-in with `--allow-lifecycle`. |
-| 8 | **Break-window routing** | new opt-in `--allow-breaks` | Create a temporary event break covering NOW → new order gets the break message / correct handling → delete the break in `finally`. (The #92 fix has no live guard yet.) |
+| # | Item | Status |
+|---|---|---|
+| 1 | **Customer-memory suite** (USUAL / same-name / group-of-3 / CHANGE) | ✅ DONE (#109) — `bench/suites_customer.py`, 11 checks, validated live. Caught + fixed: 2nd FRIEND wiped the group and split its group_id. |
+| 2 | **Settings round-trips** (event_name; unlimited-stock via stress suite) | ✅ DONE (#110) — event_name proven into display config AND SMS welcome, exact-blob restore. Note: display config nests under `{config:{…}}`. |
+| 3 | **Stress suite** (empty stock, burst throttle) | ✅ DONE (#110) — burst trips at msg 13, bystander unaffected. Empty-stock refusal leg auto-skips while the event runs unlimited-stock mode (currently ON in prod). New flag `--allow-stock-mutation`; new endpoint `POST /api/settings/unlimited-stock`; simulate gained opt-in `check_gate`. |
+| 4 | **Matrix dimensions** (hot chocolate + decaf/strong/tea mini-matrix) | ✅ DONE (#111) — oracle = the barista card. Caught + fixed: every serializer dropped decaf/strength (19 sites → `_drink_display_name`). |
+| 5 | **test_no_send on start/complete + cancel-while-making journey** | ✅ DONE (#112/#113) — journeys opt-in via `--allow-lifecycle`. Caught + fixed: mid-make CANCEL said "you don't have any pending orders". |
+| 6 | **Ready-reply journey** | ✅ DONE (#112/#113) — courtesy replies after the ready SMS are now absorbed silently (no reply, no SMS cost). Also caught: the PUBLIC display board (`/api/display/orders`) errored on every call (TIMESTAMP vs '') and served fake demo customers — fixed + regression-guarded in the display suite. |
+| 7 | **Pickup + batch endpoints** | ⬜ NEXT — `POST /orders/<id>/pickup` transitions completed→picked-up (use test_no_send if it sends SMS); `POST /orders/batch/process` on 2 bench orders. Opt-in with `--allow-lifecycle`. |
+| 8 | **Break-window routing** | ⬜ NEXT — new opt-in `--allow-breaks`: create a temporary event break covering NOW → new order gets the break message / correct handling → delete the break in `finally`. (The #92 fix has no live guard yet.) |
 
 **Parked (do NOT build until their trigger):**
 - **Role-gate / permissions suite** — Steve wants this as part of his pre-live

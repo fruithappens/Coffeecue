@@ -7519,6 +7519,87 @@ def upsert_station_inventory_configs():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@bp.route('/event-breaks', methods=['GET', 'POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def event_breaks():
+    """List or create event breaks (the windows that gate SMS routing).
+
+    Until now event_breaks had NO management API at all — the only writers
+    were a boot-time default seed and Quick Setup's wipe, so an operator
+    couldn't add or adjust a break without re-running the whole wizard
+    (and the Test Bench couldn't exercise break-window routing at all).
+
+    POST body: { title, day_of_week (0=Mon..6=Sun), start_time 'HH:MM',
+                 end_time 'HH:MM', stations: [ids open during the break] }
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        cur = db.cursor()
+        if request.method == 'GET':
+            cur.execute("""
+                SELECT id, title, day_of_week, start_time, end_time, stations
+                FROM event_breaks ORDER BY day_of_week, start_time
+            """)
+            rows = []
+            for r in cur.fetchall():
+                rows.append({
+                    'id': r[0], 'title': r[1], 'day_of_week': r[2],
+                    'start_time': str(r[3]), 'end_time': str(r[4]),
+                    'stations': r[5] if isinstance(r[5], list)
+                                else (json.loads(r[5]) if r[5] else []),
+                })
+            return jsonify({'success': True, 'breaks': rows})
+        data = request.get_json() or {}
+        title = (data.get('title') or 'Break').strip()
+        day = data.get('day_of_week')
+        start = (data.get('start_time') or '').strip()
+        end = (data.get('end_time') or '').strip()
+        stations = data.get('stations') or []
+        if day is None or not start or not end:
+            return jsonify({'success': False,
+                            'error': 'day_of_week, start_time and end_time required'}), 400
+        cur.execute("""
+            INSERT INTO event_breaks (title, day_of_week, start_time, end_time, stations)
+            VALUES (%s, %s, %s, %s, %s) RETURNING id
+        """, (title, int(day), start, end, json.dumps([int(s) for s in stations])))
+        new_id = cur.fetchone()[0]
+        db.commit()
+        return jsonify({'success': True, 'id': new_id})
+    except Exception as e:
+        logger.error(f"event_breaks error: {e}")
+        try:
+            current_app.config.get('coffee_system').db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/event-breaks/<int:break_id>', methods=['DELETE'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def delete_event_break(break_id):
+    """Delete one event break by id."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        cur = db.cursor()
+        cur.execute("DELETE FROM event_breaks WHERE id = %s RETURNING id", (break_id,))
+        row = cur.fetchone()
+        db.commit()
+        if not row:
+            return jsonify({'success': False, 'error': 'break not found'}), 404
+        return jsonify({'success': True, 'deleted': break_id})
+    except Exception as e:
+        logger.error(f"delete_event_break error: {e}")
+        try:
+            current_app.config.get('coffee_system').db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @bp.route('/settings/unlimited-stock', methods=['GET', 'POST'])
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff'])
