@@ -216,11 +216,15 @@ def suite_stock(rn):
         (after_cancel.get(k, (None, None))[0] or 0) > (after.get(k, (None, None))[0] or 0)
         for k in before
     )
-    out.append(R("stock", "cancel restocks (observation)", "pass" if restocked else "warn",
-                 "Cancelling the order restored stock" if restocked else
-                 "Cancelling an order does NOT put the stock back — after a mis-order "
-                 "+ cancel, counters drift low. Minor, but organisers should know.",
-                 refs=[] if restocked else ["routes/consolidated_api_routes.py"]))
+    out.append(R("stock", "cancel restocks the order", "pass" if restocked else "fail",
+                 "Cancelling the order restored its stock" if restocked else
+                 "Cancelling an order did NOT put the stock back — a cancelled coffee "
+                 "was never made, so its ingredients should return to stock.",
+                 evidence="" if restocked else f"before={before.get(next(iter(before), ''), '')}",
+                 suggestion="" if restocked else "Ensure the cancel path calls "
+                            "_restock_for_order and the order carried _stock_decremented.",
+                 refs=[] if restocked else ["routes/consolidated_api_routes.py",
+                                            "services/coffee_system.py"]))
 
     # restore any rows still below their pre-test level (exact bench hygiene)
     restored, restore_fail = 0, 0
