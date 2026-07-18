@@ -45,6 +45,9 @@ def main():
     ap.add_argument("--allow-stock-mutation", action="store_true",
                     help="briefly zero one milk's stock to test empty-stock "
                          "behaviour (restores exactly)")
+    ap.add_argument("--allow-breaks", action="store_true",
+                    help="create + delete a temporary event break to test "
+                         "break-window routing (self-cleaning)")
     ap.add_argument("--out", default=None, help="report directory (default: testbench/reports/<stamp>)")
     a = ap.parse_args()
 
@@ -60,6 +63,7 @@ def main():
         "allow_settings": a.allow_settings,
         "allow_station_lifecycle": a.allow_station_lifecycle,
         "allow_stock_mutation": a.allow_stock_mutation,
+        "allow_breaks": a.allow_breaks,
         "suites": [t[0] for t in suites],
     })
     print(f"Coffee Cue Test Bench → {a.base_url}")
