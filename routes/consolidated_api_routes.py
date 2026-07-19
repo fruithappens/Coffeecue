@@ -452,6 +452,8 @@ def orders():
                     'milkType': order_details.get('milk', 'Standard'),  # camelCase
                     'sugar': order_details.get('sugar', 'No sugar'),
                     'size': order_details.get('size', 'Regular'),
+                    'extra_hot': order_details.get('temp') == 'extra hot',
+                    'extraHot': order_details.get('temp') == 'extra hot',
                     'status': status,
                     'created_at': created_at,
                     'createdAt': created_at.isoformat() if hasattr(created_at, 'isoformat') else created_at,  # camelCase
@@ -911,6 +913,13 @@ def get_pending_orders():
                 'milk_type': order_details.get('milk', 'Standard'),
                 'milkType': order_details.get('milk', 'Standard'),  # camelCase
                 'sugar': order_details.get('sugar', 'No sugar'),
+                # Temperature is its own card badge in the barista UI —
+                # without this field a pending 'extra hot' order looked
+                # normal until it was started (Test Bench matrix modifier).
+                'extra_hot': (order_details.get('temp') == 'extra hot'
+                              or 'extra hot' in (order_details.get('notes') or '').lower()),
+                'extraHot': (order_details.get('temp') == 'extra hot'
+                             or 'extra hot' in (order_details.get('notes') or '').lower()),
                 'status': status,
                 'created_at': created_at,
                 'createdAt': created_at.isoformat() if hasattr(created_at, 'isoformat') else created_at,

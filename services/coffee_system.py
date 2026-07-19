@@ -1059,25 +1059,22 @@ class CoffeeOrderSystem:
                         friend_orders.append(
                             f"#{fnum} for {fdetails.get('name', 'Friend')}: {self.nlp.format_order_summary(fdetails)}"
                         )
-                else:
-                    cursor.execute("""
-                        SELECT order_number, order_details
-                        FROM orders
-                        WHERE related_to_order_id = %s OR reference_number = %s
-                        ORDER BY created_at ASC
-                    """, (order_id, order_number))
-                    for friend_result in cursor.fetchall():
-                        fnum, fdetails_json = friend_result
-                        if fnum in seen_numbers:
-                            continue
-                        fdetails = json.loads(fdetails_json) if isinstance(fdetails_json, str) else (fdetails_json or {})
-                        seen_numbers.add(fnum)
-                        friend_orders.append(
-                            f"#{fnum} for {fdetails.get('name', 'Friend')}: {self.nlp.format_order_summary(fdetails)}"
-                        )
+                # No group_id → no linked orders. The old "fallback" here
+                # queried related_to_order_id/reference_number — columns that
+                # have NEVER existed in the schema — so it errored on every
+                # non-group STATUS, poisoned the transaction, and the next
+                # query crashed the whole handler into "Sorry, we couldn't
+                # retrieve your order status" (Test Bench: STATUS with an
+                # active order). group_id is the only linkage.
             except Exception as friend_err:
                 logger.error(f"Error getting friend orders: {str(friend_err)}")
-                # Continue without friend orders - not critical
+                # Continue without friend orders — but FIRST un-poison the
+                # transaction, or every later query in this handler dies
+                # with InFailedSqlTransaction.
+                try:
+                    self.db.rollback()
+                except Exception:
+                    pass
             
             # Build the status response
             status_messages = {
