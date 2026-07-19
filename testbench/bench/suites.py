@@ -316,6 +316,9 @@ def suite_orders(rn):
             c1, b1, _ = c.post(f"/api/orders/{no2}/start")
             c2, b2, _ = c.post(f"/api/orders/{no2}/complete")
             ok = c1 == 200 and c2 == 200
+            # Pick it up too — a completed-but-never-collected bench order
+            # sits on the PUBLIC ready board until someone notices.
+            c.post(f"/api/orders/{no2}/pickup")
             out.append(R("orders", "lifecycle start→complete", "pass" if ok else "fail",
                          f"start → {c1}, complete → {c2} (order {no2}, phoneless so no SMS). "
                          f"NOTE: stays in today's stats tagged {BENCH_TAG}.",

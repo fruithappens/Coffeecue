@@ -77,9 +77,20 @@ feedback.md is written to be pasted into a repair session).
    and the barista board showing a kiosk decaf order WITH its modifier.
    The config is dependency-free (no node_modules needed — Cypress binary
    only); legacy pre-Phase-C specs parked in `cypress/e2e/legacy/`.
-   **Phase C v2 (next): click Start/Complete on the barista card** (needs
-   the card's action-button selectors), organiser stations/inventory save
-   round-trip, branding save incl. the big-image trap, mobile viewport.
+   **Phase C v2 SHIPPED**: 7 specs / 12 tests, all passing vs prod in
+   under a minute. Adds: the barista's real **Start → COMPLETE ORDER
+   clicks** on an order card (backend cross-checked: leaves pending, lands
+   on the ready board, picked up + swept after); **mobile viewports**
+   (display board + kiosk first steps + barista nav on iPhone size, incl.
+   a guard for the #47 body-transform bug that broke position:fixed
+   app-wide); **organiser click-through** (Stations/Orders/Users/Schedule/
+   Settings sections open without a render crash). Bench lifecycle
+   cleanups now also PICK UP completed bench orders so they never linger
+   on the public ready board.
+   **Phase C v3 (next)**: organiser save round-trips (station rename,
+   inventory item add/remove with exact restore), branding save incl. the
+   big-image silent-failure trap, barista Messages bubble + walk-in
+   dialog, Delay/batch buttons, dark/scaling display modes.
 2. **Security sweep suites** — when Steve calls for it (role gates, user CRUD).
 3. Smaller ⬜ rows below (low-stock alerts, station delete with orders in
    flight, station chat, SMS templates propagation, pricing).
