@@ -254,6 +254,82 @@ def suite_customer(rn):
                          f"setup order didn't confirm: {(reply or '')[:120]}"))
 
     _sweep(rn)
+
+    # ---- STATUS with an ACTIVE order ("where's my coffee?") -------------
+    ph = rn.next_phone()
+    ok, reply = _answer_until(c, ph, f"{BENCH_TAG}Sta medium latte with {milk}",
+                              ("confirmed", "order #"), milk)
+    onum = _order_number(reply)
+    if onum:
+        ok, sreply = _sim(c, ph, "STATUS")
+        low = (sreply or "").lower()
+        has_num = onum in (sreply or "")
+        informative = ("#" in (sreply or "")) and ("queue" in low or "position" in low
+                       or "station" in low or "being made" in low or "pending" in low
+                       or "waiting" in low or "in line" in low)
+        out.append(R("customer", "STATUS with an active order is informative",
+                     "pass" if (has_num and informative) else "fail",
+                     (sreply or "")[:160],
+                     evidence="" if (has_num and informative) else (sreply or "")[:300],
+                     suggestion="" if (has_num and informative) else
+                     "A queueing customer texting STATUS should be told their "
+                     "order number and where it is.",
+                     refs=[] if (has_num and informative) else ["services/coffee_system.py"]))
+        _sim(c, ph, "CANCEL")
+    else:
+        out.append(R("customer", "STATUS with an active order is informative",
+                     "warn", f"setup order didn't confirm: {(reply or '')[:120]}"))
+
+    # ---- WELCOME BACK: a known customer's greeting gets recognised ------
+    ph = rn.next_phone()
+    ok, reply = _answer_until(c, ph, f"{BENCH_TAG}Wel large latte with {milk}",
+                              ("confirmed", "order #"), milk)
+    if _order_number(reply):
+        _sim(c, ph, "CANCEL")
+        ok, greet = _sim(c, ph, "hi")
+        low = (greet or "").lower()
+        recognised = "welcome back" in low and "wel" in low  # name is title-cased
+        suggested = "usual" in low or "coffee would you like" in low
+        out.append(R("customer", "welcome back: greeting recognises the customer",
+                     "pass" if (recognised and suggested) else
+                     ("warn" if recognised else "fail"),
+                     (greet or "")[:160],
+                     evidence="" if recognised else (greet or "")[:300],
+                     suggestion="" if recognised else
+                     "A returning customer saying 'hi' was greeted as a "
+                     "stranger — customer memory isn't reaching the greeting.",
+                     refs=[] if recognised else ["services/coffee_system.py"]))
+        _sim(c, ph, "CANCEL")
+    else:
+        out.append(R("customer", "welcome back: greeting recognises the customer",
+                     "warn", f"setup order didn't confirm: {(reply or '')[:120]}"))
+
+    # ---- SECOND ORDER while one is pending (impatient double-order) ------
+    ph = rn.next_phone()
+    ok, r1 = _answer_until(c, ph, f"{BENCH_TAG}Two medium latte with {milk}",
+                           ("confirmed", "order #"), milk)
+    n1 = _order_number(r1)
+    if n1:
+        ok, r2 = _answer_until(c, ph, f"large cappuccino with {milk}",
+                               ("confirmed", "order #"), milk)
+        n2 = _order_number(r2)
+        both = n2 is not None and n2 != n1
+        pend = _pending_named(c, f"{BENCH_TAG}Two")
+        out.append(R("customer", "second order while pending stacks cleanly",
+                     "pass" if (both and len(pend) >= 2) else "fail",
+                     f"first #{n1}, second #{n2}, {len(pend)} orders in pending",
+                     evidence="" if both else (r2 or "")[:300],
+                     suggestion="" if both else
+                     "A customer ordering again while one is queued should get "
+                     "a SECOND order (or a clear explanation) — not confusion.",
+                     refs=[] if both else ["services/coffee_system.py"]))
+        _sim(c, ph, "CANCEL")  # cancels most recent
+        _sim(c, ph, "CANCEL")  # then the first
+    else:
+        out.append(R("customer", "second order while pending stacks cleanly",
+                     "warn", f"setup order didn't confirm: {(r1 or '')[:120]}"))
+
+    _sweep(rn)
     return out
 
 

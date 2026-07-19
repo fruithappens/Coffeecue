@@ -1149,6 +1149,21 @@ class CoffeeOrderSystem:
                     return (f"Your order #{m_num} is already being made at "
                             f"Station {m_station} - too late to cancel by text. "
                             f"Please see the barista if you need to change it.")
+                # Same honesty for a READY order: "you don't have any orders"
+                # to someone whose coffee is on the shelf reads as "we lost
+                # it" (Test Bench cancel-after-ready journey).
+                cursor.execute("""
+                    SELECT order_number, station_id FROM orders
+                    WHERE phone = %s AND status = 'completed'
+                      AND picked_up_at IS NULL
+                    ORDER BY completed_at DESC LIMIT 1
+                """, (phone,))
+                ready = cursor.fetchone()
+                if ready:
+                    r_num, r_station = ready
+                    return (f"Good news - your order #{r_num} is already made and "
+                            f"waiting for you at Station {r_station}! No need to "
+                            f"cancel, just come and grab it.")
                 return "You don't have any pending orders to cancel."
 
             order_id, order_number, station_id = result

@@ -81,6 +81,70 @@ def suite_vip(rn):
                      suggestion="" if vip_flag else "VIP customers' orders should jump the "
                                 "queue — confirm queue_priority/vip is set on the order.",
                      refs=[] if vip_flag else ["services/coffee_system.py"]))
+
+        def _vip_of(tag_prefix):
+            code, body, _ = c.get("/api/orders/pending")
+            row = next((o for o in _order_list(body)
+                        if str(o.get("customer_name") or o.get("customerName") or "")
+                        .lower().startswith(tag_prefix.lower())), None)
+            if not row:
+                return None, None
+            det = row.get("order_details") or row
+            return row, bool(row.get("vip") or row.get("is_vip")
+                             or (isinstance(det, dict) and det.get("vip")))
+
+        # SAVED-VIP: the customer's NEXT order (a fresh conversation, no code
+        # re-entry) must still be prioritised — VIP status persists.
+        _sweep_orders(rn, f"{BENCH_TAG}Vip")
+        ok, r3 = _sim(c, ph, f"medium {drink} with {milk}")
+        low3, turns = (r3 or "").lower(), 0
+        while ok and turns < 3 and ("what size" in low3 or "what milk" in low3):
+            ok, r3 = _sim(c, ph, "medium" if "size" in low3 else milk)
+            low3 = (r3 or "").lower()
+            turns += 1
+        row2, vip2 = _vip_of(f"{BENCH_TAG}Vip")
+        out.append(R("vip", "VIP status persists to the next order",
+                     "pass" if vip2 else ("warn" if row2 else "warn"),
+                     "second order (no code re-entry) still carries VIP"
+                     if vip2 else
+                     f"second order lost the VIP flag: {str(row2)[:160]}",
+                     suggestion="" if vip2 else
+                     "A saved VIP's later orders should stay prioritised.",
+                     refs=[] if vip2 else ["services/coffee_system.py"]))
+
+        # FRIEND non-inheritance: coffees the VIP orders for friends are
+        # deliberately NOT VIP (documented in _confirm_order) — pin it.
+        ok, rf = _sim(c, ph, "FRIEND")
+        if ok and "name" in (rf or "").lower():
+            ok, rf = _sim(c, ph, f"{BENCH_TAG}Vipmate")
+            low, turns = (rf or "").lower(), 0
+            while ok and turns < 7 and not ("confirmed" in low or "order #" in low):
+                if "reply yes" in low or "yes to confirm" in low:
+                    ans = "YES"
+                elif "milk" in low:
+                    ans = milk
+                elif "size" in low:
+                    ans = "medium"
+                elif "coffee" in low or "drink" in low:
+                    ans = drink
+                else:
+                    break
+                ok, rf = _sim(c, ph, ans)
+                low = (rf or "").lower()
+                turns += 1
+            frow, fvip = _vip_of(f"{BENCH_TAG}Vipmate")
+            pinned = frow is not None and not fvip
+            out.append(R("vip", "friend's coffee does NOT inherit VIP (by design)",
+                         "pass" if pinned else ("warn" if frow else "warn"),
+                         "friend order is normal priority" if pinned else
+                         (f"friend order carries VIP: {str(frow)[:140]}" if frow
+                          else "friend order not found in pending"),
+                         suggestion="" if pinned else
+                         "Design says only the VIP's OWN orders are "
+                         "prioritised; a VIP friend order changes queue "
+                         "fairness — confirm intent.",
+                         refs=[] if pinned else ["services/coffee_system.py"]))
+            _sim(c, ph, "NO")
     _sweep_orders(rn, f"{BENCH_TAG}Vip")
     return out
 
@@ -137,6 +201,30 @@ def suite_station_lifecycle(rn):
                  "pass" if pc == 200 and paused == "maintenance" else "fail",
                  f"PATCH status→maintenance → HTTP {pc}, now status={paused}",
                  refs=[] if paused == "maintenance" else ["routes/station_api_routes.py"]))
+
+    # 3b. the stressed-state check: while PAUSED, live orders must not land
+    # on this station (the matrix only ever runs in the happy state).
+    if paused == "maintenance":
+        from .suites_deep import _kiosk_order
+        landings, nums = [], []
+        for i in range(2):
+            no, st, _ = _kiosk_order(c, f"{BENCH_TAG}Psd{i}", "latte",
+                                     "full cream", "medium")
+            if no:
+                nums.append(no)
+                landings.append(st)
+        excluded = len(landings) == 2 and all(str(s) != str(sid) for s in landings)
+        out.append(R("station_lifecycle", "paused station receives NO orders",
+                     "pass" if excluded else "fail",
+                     f"2 live orders landed on stations {landings} "
+                     f"(paused bench station: {sid})",
+                     suggestion="" if excluded else
+                     "Orders are routing to a station in maintenance — "
+                     "nobody is there to make them.",
+                     refs=[] if excluded else ["services/coffee_system.py",
+                                               "routes/consolidated_api_routes.py"]))
+        for no in nums:
+            c.post(f"/api/orders/{no}/cancel")
 
     # 4. reopen → active
     rc, rb, _ = c.req("PATCH", f"/api/stations/{sid}/status", body={"status": "active"})

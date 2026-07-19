@@ -280,14 +280,23 @@ def suite_matrix(rn):
     base_drink = "latte" if "latte" in drinks else rep_drinks[0]
     base_milk = milks[0]
     tea = next((d for d in drinks if "tea" in d.lower()), None)
-    # (name, order text, must-appear-in the barista card's drink name)
+    # (name, order text, check(pending_row) → the modifier survived to what
+    # the barista sees — the drink name for decaf/strength/tea, the
+    # dedicated extraHot field (rendered as its own card badge) for temp)
+    def _card_has(needle):
+        return lambda row: needle in str(row.get("coffeeType")
+                                         or row.get("coffee_type") or "").lower()
     mod_cases = [
-        ("decaf", f"medium decaf {base_drink} with {base_milk}", "decaf"),
-        ("strong / double shot", f"large strong {base_drink} with {base_milk}", "strong"),
+        ("decaf", f"medium decaf {base_drink} with {base_milk}", _card_has("decaf")),
+        ("strong / double shot", f"large strong {base_drink} with {base_milk}",
+         _card_has("strong")),
+        ("extra hot", f"medium extra hot {base_drink} with {base_milk}",
+         lambda row: bool(row.get("extraHot") or row.get("extra_hot"))),
     ]
     if tea:
-        mod_cases.append((f"tea ({tea})", f"medium {tea} with {base_milk}", "tea"))
-    for j, (mod_name, text, needle) in enumerate(mod_cases, 1):
+        mod_cases.append((f"tea ({tea})", f"medium {tea} with {base_milk}",
+                          _card_has("tea")))
+    for j, (mod_name, text, check) in enumerate(mod_cases, 1):
         tag = f"{BENCH_TAG}MxM{j:02d}"
         ph = rn.next_phone()
         ok, reply = _sim(c, ph, f"{tag} {text}")
@@ -305,15 +314,15 @@ def suite_matrix(rn):
         row = _find_pending(c, tag) or {}
         no = row.get("order_number") or row.get("orderNumber") or row.get("id")
         card = str(row.get("coffeeType") or row.get("coffee_type") or "")
-        survived = needle in card.lower()
+        survived = check(row)
         out.append(R("matrix", f"mxm{j:02d} modifier: {mod_name}",
                      "pass" if survived else "warn",
-                     f"accepted (#{no}); barista card shows {card!r}",
+                     f"accepted (#{no}); barista card shows {card!r}"
+                     + (f", extraHot={row.get('extraHot')}" if "hot" in mod_name else ""),
                      suggestion="" if survived else
                      f"The customer asked for '{mod_name}' and the SMS "
-                     f"confirmation echoed it, but the barista's card says "
-                     f"only {card!r} — the barista can't see the modifier "
-                     "and will make it wrong.",
+                     f"confirmation echoed it, but the barista's card doesn't "
+                     "carry the modifier — the barista will make it wrong.",
                      refs=[] if survived else ["routes/consolidated_api_routes.py"]))
         if no:
             _cancel(c, no)
