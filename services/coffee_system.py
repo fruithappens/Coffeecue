@@ -5097,6 +5097,44 @@ class CoffeeOrderSystem:
                 except Exception as close_err:
                     logger.error(f"Error closing connection: {str(close_err)}")
     
+    def _batch_costation(self, candidates, coffee_type, milk_type):
+        """Batch-aware routing tiebreak: if a candidate station already has a
+        PENDING identical drink (same type + milk, recent), prefer it — two
+        lattes made side by side let the barista steam ONE jug / pull one
+        double shot. Only when that station isn't meaningfully busier than
+        the least-loaded option (load within +1), so batching never causes a
+        pile-up. Returns the preferred station dict or None.
+
+        Found by the pipeline tracer: identical orders seconds apart were
+        being SPREAD across stations by pure load-balancing, which silently
+        defeated the whole batching feature."""
+        if not candidates or not coffee_type:
+            return None
+        try:
+            cursor = self.db.cursor()
+            cursor.execute(
+                "SELECT DISTINCT station_id FROM orders "
+                "WHERE status = 'pending' "
+                "AND created_at > NOW() - INTERVAL '30 minutes' "
+                "AND LOWER(order_details->>'type') = %s "
+                "AND LOWER(COALESCE(order_details->>'milk','')) = %s",
+                (str(coffee_type).lower(), str(milk_type or '').lower()),
+            )
+            with_twin = {int(r[0]) for r in cursor.fetchall() if r and r[0] is not None}
+        except Exception:
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            return None
+        if not with_twin:
+            return None
+        min_load = min(s['load'] for s in candidates)
+        for s in sorted(candidates, key=lambda x: x['load']):
+            if s['id'] in with_twin and s['load'] <= min_load + 1:
+                return s
+        return None
+
     def _assign_station(self, is_vip=False, milk_type=None, coffee_type=None, size=None):
         """
         Assign order to a station based on current load, station capabilities, and scheduling
@@ -5404,6 +5442,10 @@ class CoffeeOrderSystem:
                     ]
                     if milk_capable_stations:
                         milk_capable_stations.sort(key=lambda s: s['load'])
+                        twin = self._batch_costation(milk_capable_stations, coffee_type, milk_type)
+                        if twin is not None:
+                            logger.info(f"Assigned {milk_type} order to station {twin['id']} during break (batch co-location)")
+                            return twin['id'], False
                         logger.info(f"Assigned {milk_type} order to station {milk_capable_stations[0]['id']} during break")
                         return milk_capable_stations[0]['id'], False
                     # No OPEN station has this milk. Capability beats break
@@ -5520,6 +5562,12 @@ class CoffeeOrderSystem:
                 if milk_capable_stations:
                     # Sort by load to find the least busy station with this milk
                     milk_capable_stations.sort(key=lambda s: s['load'])
+                    # Batch-aware tiebreak: co-locate with a pending twin
+                    # drink when it doesn't cost meaningful queue time.
+                    twin = self._batch_costation(milk_capable_stations, coffee_type, milk_type)
+                    if twin is not None:
+                        logger.info(f"Assigned {milk_type} order to station {twin['id']} (batch co-location)")
+                        return twin['id'], False
                     logger.info(f"Assigned {milk_type} order to station {milk_capable_stations[0]['id']} "
                                 f"(milk-capability match)")
                     return milk_capable_stations[0]['id'], False
