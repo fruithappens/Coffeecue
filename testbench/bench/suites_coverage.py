@@ -211,7 +211,64 @@ def suite_settings(rn):
                      suggestion="" if restored_ok else
                      f"IMPORTANT: set order_prefix back to {orig!r} in Organiser settings."))
     out.extend(_event_name_roundtrip(rn))
+    out.extend(_pricing_roundtrip(rn))
     _sweep(rn, BENCH_TAG)
+    return out
+
+
+def _pricing_roundtrip(rn):
+    """pricing_settings: enable → an SMS confirmation carries the computed
+    price and the pending card carries the price fields → restore EXACT
+    previous pricing → a fresh order carries no price again (when pricing
+    was off, which is the normal free-event state)."""
+    c, out = rn.client, []
+    gc, orig, _ = c.get("/api/pricing-settings")
+    if gc != 200 or not isinstance(orig, dict):
+        return [R("settings", "pricing round-trip", "warn",
+                  f"couldn't read pricing settings (HTTP {gc})")]
+    was_enabled = bool(orig.get("enabled"))
+    try:
+        wc, _wb, _ = c.req("PUT", "/api/pricing-settings",
+                           body={**orig, "enabled": True,
+                                 "per_drink": {**(orig.get("per_drink") or {}),
+                                               "latte": 4.50}})
+        ph = rn.next_phone()
+        ok, reply = _sim(c, ph, f"{BENCH_TAG}Prc medium latte with full cream")
+        low = (reply or "").lower()
+        priced_sms = ok and ("$" in (reply or "") or "4.50" in (reply or "")
+                             or "pay" in low)
+        row = {}
+        for o in _order_list(c.get("/api/orders/pending")[1]):
+            if str(o.get("customerName") or "").lower().startswith(f"{BENCH_TAG}Prc".lower()):
+                row = o
+                c.post(f"/api/orders/{o.get('order_number')}/cancel")
+        priced_card = row.get("price") is not None or row.get("priceFormatted")
+        good = wc in (200, 201) and priced_sms and priced_card
+        out.append(R("settings", "pricing: enabled price reaches SMS + card",
+                     "pass" if good else "fail",
+                     f"PUT → {wc}; SMS priced={priced_sms}; card price="
+                     f"{row.get('priceFormatted') or row.get('price')!r} — "
+                     f"reply: {(reply or '')[:90]}",
+                     evidence="" if good else (reply or "")[:300],
+                     suggestion="" if good else
+                     "Pricing is enabled but the customer/barista never see "
+                     "a price — the honour-payment flow can't work.",
+                     refs=[] if good else ["routes/consolidated_api_routes.py",
+                                           "services/coffee_system.py"]))
+    finally:
+        rc, _, _ = c.req("PUT", "/api/pricing-settings", body=orig)
+        ph = rn.next_phone()
+        ok, reply2 = _sim(c, ph, f"{BENCH_TAG}Prc2 medium latte with full cream")
+        for o in _order_list(c.get("/api/orders/pending")[1]):
+            if str(o.get("customerName") or "").lower().startswith(f"{BENCH_TAG}Prc".lower()):
+                c.post(f"/api/orders/{o.get('order_number')}/cancel")
+        unpriced_again = was_enabled or ("$" not in (reply2 or ""))
+        out.append(R("settings", "cleanup: pricing restored",
+                     "pass" if rc in (200, 201) and unpriced_again else "fail",
+                     f"restore PUT → HTTP {rc}; fresh order priced again="
+                     f"{'yes (was enabled before)' if was_enabled else ('no' if unpriced_again else 'YES — restore failed')}",
+                     suggestion="" if rc in (200, 201) and unpriced_again else
+                     "IMPORTANT: re-check Organiser pricing settings."))
     return out
 
 

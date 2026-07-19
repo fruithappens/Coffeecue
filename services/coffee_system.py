@@ -1929,9 +1929,14 @@ class CoffeeOrderSystem:
         # _confirm_order's message gives the order # + queue position but NOT
         # the drink — include the recap so the customer can check what we
         # placed (incl. the defaulted "no sugar") and fix it.
+        # Price tail (empty when pricing is off) — the one-shot flow is how
+        # most SMS orders confirm, and it was the ONLY confirmation path
+        # not showing the total when pricing was enabled (Test Bench
+        # pricing round-trip).
         return (
             f"{prefix}{order_response}\n"
-            f"That's: {summary}. Wrong? Reply CANCEL. Add a coffee with FRIEND."
+            f"That's: {summary}.{self._format_price_tail(od)} "
+            f"Wrong? Reply CANCEL. Add a coffee with FRIEND."
         )
 
     def _next_order_step(self, phone, name, order_details, prefix=''):

@@ -179,7 +179,98 @@ def suite_burst(rn):
     return out
 
 
+# -------------------------------------------------------------- low stock
+
+def suite_alerts(rn):
+    """Low-stock visibility: a barista's report-low reaches the low-stock
+    list, and crossing the minimum threshold flips the item's status by
+    itself. OPT-IN (briefly mutates one item's status/quantity, restores
+    exactly)."""
+    c, out = rn.client, []
+    if not rn.options.get("allow_stock_mutation"):
+        return [R("alerts", "low-stock reporting + threshold", "skip",
+                  "Opt-in (briefly mutates one item's status/quantity) — "
+                  "enable 'stock mutation'")]
+
+    code, body, _ = c.get("/api/inventory")
+    items = (body or {}).get("items") or []
+    row = next((r for r in items
+                if str(r.get("category")).lower() == "milk"
+                and float(r.get("amount") or r.get("current_quantity") or 0) > 1
+                and float(r.get("minimum_threshold") or 0) > 0), None)
+    if not row:
+        return [R("alerts", "low-stock reporting + threshold", "warn",
+                  "no milk row with stock + a minimum_threshold to test against")]
+    rid = row["id"]
+    orig_qty = float(row.get("amount") or row.get("current_quantity") or 0)
+    orig_status = row.get("status") or "in_stock"
+    thr = float(row.get("minimum_threshold") or 0)
+
+    def _item():
+        _c, b, _ = c.get(f"/api/inventory/{rid}")
+        return (b or {}).get("item") or {}
+
+    def _low_listed():
+        _c, b, _ = c.get("/api/inventory/low-stock")
+        rows = (b or {}).get("items") or (b or {}).get("data") or []
+        return any(str(r.get("id")) == str(rid) for r in rows if isinstance(r, dict))
+
+    try:
+        # 1) barista taps "report low" → the item joins the low-stock list
+        rc, rb, _ = c.post(f"/api/inventory/{rid}/report-low",
+                           {"urgency": "normal", "notes": "bench alert test"})
+        seen = rc == 200 and (_item().get("status") == "low_stock" or _low_listed())
+        out.append(R("alerts", "report-low reaches the low-stock list",
+                     "pass" if seen else "fail",
+                     f"report-low → HTTP {rc}; status={_item().get('status')!r}, "
+                     f"in low-stock list={_low_listed()}",
+                     evidence="" if seen else str(rb)[:200],
+                     suggestion="" if seen else
+                     "A barista's low-stock report goes nowhere visible — "
+                     "the organiser never hears about it.",
+                     refs=[] if seen else ["routes/consolidated_api_routes.py",
+                                           "routes/inventory_routes.py"]))
+        # reset status before the threshold leg
+        c.req("PUT", f"/api/inventory/{rid}", body={"status": orig_status})
+
+        # 2) crossing the threshold flips status automatically. NOTE: two
+        # status vocabularies coexist — the adjust endpoint STORES
+        # in_stock/low_stock while the item GET COMPUTES good/warning/danger
+        # (models/inventory._calculate_status). Either family's "low" state
+        # counts as flipped; the split itself is a known inconsistency
+        # (same class as the station is_active/status split, #57/#58).
+        c.post(f"/api/inventory/{rid}/adjust",
+               {"new_amount": max(0.1, thr - 0.1), "change_reason": "bench_threshold_test"})
+        st = str(_item().get("status") or "").lower()
+        flipped = st in ("low_stock", "danger", "warning", "out_of_stock")
+        out.append(R("alerts", "threshold crossing flips the status",
+                     "pass" if flipped else "fail",
+                     f"set qty to {max(0.1, thr - 0.1)} (threshold {thr}) → "
+                     f"status={st!r} (vocab note: stored=low_stock/in_stock, "
+                     f"computed=good/warning/danger)",
+                     suggestion="" if flipped else
+                     "Stock can silently run below its minimum without the "
+                     "status ever showing low — run-out warnings won't fire.",
+                     refs=[] if flipped else ["routes/consolidated_api_routes.py",
+                                              "models/inventory.py"]))
+    finally:
+        c.post(f"/api/inventory/{rid}/adjust",
+               {"new_amount": orig_qty, "change_reason": "bench_restore"})
+        c.req("PUT", f"/api/inventory/{rid}", body={"status": orig_status})
+        back = _item()
+        restored = float(back.get("amount") or 0) == orig_qty \
+            and back.get("status") == orig_status
+        out.append(R("alerts", "cleanup: quantity + status restored",
+                     "pass" if restored else "fail",
+                     f"back to qty={back.get('amount')}, status={back.get('status')!r}",
+                     suggestion="" if restored else
+                     f"IMPORTANT: restore item {rid} to qty={orig_qty}, "
+                     f"status={orig_status!r} by hand."))
+    return out
+
+
 STRESS_SUITES = [
     ("empty_stock", suite_empty_stock, True),
     ("burst", suite_burst, True),
+    ("alerts", suite_alerts, True),
 ]

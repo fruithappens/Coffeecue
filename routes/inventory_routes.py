@@ -470,13 +470,17 @@ def report_low_stock(item_id):
         else:
             # Create new alert
             cursor.execute("""
-                INSERT INTO inventory_alerts 
+                INSERT INTO inventory_alerts
                 (item_id, alert_type, urgency, notes, status, created_at, created_by)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
             """, (item_id, 'low_stock', urgency, notes, 'pending', datetime.now(), user_id))
-            
-            alert_id = cursor.fetchone()[0]
+
+            # This cursor uses RealDictCursor — fetchone() is a dict, and
+            # [0] raised KeyError('0'), 500ing EVERY new low-stock report
+            # since the endpoint was written (Test Bench alerts suite).
+            _row = cursor.fetchone()
+            alert_id = _row['id'] if isinstance(_row, dict) else _row[0]
             is_new = True
         
         db.commit()
