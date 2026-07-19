@@ -245,6 +245,32 @@ def suite_station_lifecycle(rn):
                  "pass" if rc == 200 and reopened == "active" else "fail",
                  f"PATCH status→active → HTTP {rc}, now status={reopened}"))
 
+    # 4b. delete WITH an order in flight must be REFUSED (the model's
+    # designed guard: a station holding pending/in-progress orders can't
+    # vanish — its orders would strand invisibly).
+    from .suites_deep import _kiosk_order
+    pin_no, _pst, _ = _kiosk_order(c, f"{BENCH_TAG}Pin", "latte", "full cream",
+                                   "medium", station=sid)
+    if pin_no:
+        bc, bb, _ = c.req("DELETE", f"/api/stations/{sid}")
+        still_there = any((s.get("id") or s.get("station_id")) == sid
+                          for s in (_stations(c) or []))
+        refused = still_there and (bc != 200 or not (isinstance(bb, dict) and bb.get("success")))
+        out.append(R("station_lifecycle", "delete with an order in flight is refused",
+                     "pass" if refused else "fail",
+                     f"DELETE with pending order #{pin_no} → HTTP {bc}, "
+                     f"station still exists={still_there}",
+                     evidence="" if refused else str(bb)[:200],
+                     suggestion="" if refused else
+                     "Deleting a station with live orders strands them — "
+                     "the delete must be blocked until orders are moved.",
+                     refs=[] if refused else ["routes/station_api_routes.py",
+                                              "models/stations.py"]))
+        c.post(f"/api/orders/{pin_no}/cancel")
+    else:
+        out.append(R("station_lifecycle", "delete with an order in flight is refused",
+                     "warn", "couldn't pin a setup order to the bench station"))
+
     # 5. delete → gone
     dc, db_, _ = c.req("DELETE", f"/api/stations/{sid}")
     gone = not any((s.get("id") or s.get("station_id")) == sid for s in (_stations(c) or []))
