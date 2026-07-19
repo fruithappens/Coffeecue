@@ -23,10 +23,15 @@ Evidence base: the full test campaign (26 bench suites, 23 UI tests,
 
 | # | Weak point | Truth today | Proposed fix | Effort |
 |---|---|---|---|---|
-| 4 | **SMS templates are decorative** | The Comms screen edits templates no message builder reads; wording is hardcoded | Either wire confirm/started/ready to templates (with GSM-7 length guard so costs don't double) or remove the editor to stop the illusion | small-medium |
-| 5 | **Roster names silently dropped** | POST shift accepts barista_name and discards it; names only stick via notes | One-column fix (add/persist barista_name) + UI shows it; then the Schedule tab becomes genuinely useful | small |
+| 4 | ~~SMS templates are decorative~~ **FIXED 2026-07-20 (#135)** | ready/started SMS now template-driven (sms_ready_message / sms_started_message, placeholders {name} {drink} {order_number} {station}), blank = default, GSM-7 cost guard warns; confirm stays hardcoded by design (dynamic queue/group/price) | proven live: bench writes a marked template and reads back the rendered customer message | done |
+| 5 | ~~Roster names silently dropped~~ **FIXED 2026-07-20 (#135)** | station_schedule.barista_name persists; today's schedule prefers the shift's own name (falls back to the station's assignee) | bench asserts persistence every run | done |
 | 6 | **Inventory status vocabulary split** | Stored `low_stock/in_stock` vs computed `good/warning/danger` depending on endpoint | Pick the computed family as canon, delete the stored writes, one serializer | small |
 | 7 | **Some organiser config is browser-only** | A few settings (parts of station inventory config, walk-in defaults) live in localStorage — a different laptop shows different config | Continue the KV-backend migration pattern already used elsewhere | medium |
+
+**Bonus find while fixing #4 (bug #15, fixed in #135):** the settings cache
+never invalidated on the bulk settings PUT — ANY setting the server had
+already read silently kept its old value until a restart, whatever the
+organiser changed in the UI. Now evicted per written key.
 
 ## Tier 3 — scale ceilings (fine at 400, real at multi-thousand or multi-instance)
 
