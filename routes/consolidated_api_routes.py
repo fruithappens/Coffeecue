@@ -462,6 +462,13 @@ def orders():
                 wait_time = int((datetime.now() - created_dt).total_seconds() / 60)
                 
                 # Format order for frontend - include both snake_case and camelCase
+                # Batch key — the /orders listing is what the Barista UI
+                # actually polls, and it OMITTED batch_group entirely, so
+                # the batch-groups section (and its Process Batch button)
+                # could never render for anyone (Test Bench Phase C v4).
+                _bg = None
+                if order_details.get('type') and order_details.get('milk'):
+                    _bg = f"{str(order_details['type']).lower()}-{str(order_details['milk']).lower()}"
                 orders.append({
                     'id': order_number,  # Use order_number as id for consistency
                     'order_number': order_number,
@@ -476,6 +483,8 @@ def orders():
                     'size': order_details.get('size', 'Regular'),
                     'extra_hot': order_details.get('temp') == 'extra hot',
                     'extraHot': order_details.get('temp') == 'extra hot',
+                    'batch_group': _bg,
+                    'batchGroup': _bg,
                     'status': status,
                     'created_at': created_at,
                     'createdAt': created_at.isoformat() if hasattr(created_at, 'isoformat') else created_at,  # camelCase
