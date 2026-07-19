@@ -4531,12 +4531,21 @@ class CoffeeOrderSystem:
             
             if 'strength' in order_details:
                 processed_details['strength'] = order_details['strength']
-            
+
             if 'temp' in order_details:
                 processed_details['temp'] = order_details['temp']
-            
+
             if 'notes' in order_details:
                 processed_details['notes'] = order_details['notes']
+
+            # Price (stashed at the top of _confirm_order) and decaf/shots
+            # must survive this allow-list rebuild — the barista card reads
+            # them from the STORED details. price was computed, shown in the
+            # SMS, then dropped right here, so the card never knew what to
+            # charge (Test Bench pricing round-trip).
+            for _carry in ('price', 'price_formatted', 'decaf', 'shots'):
+                if _carry in order_details:
+                    processed_details[_carry] = order_details[_carry]
 
             # Group link — when this order is part of a group (a multi-drink
             # SMS or a FRIEND order), carry the shared group_id + label so the
