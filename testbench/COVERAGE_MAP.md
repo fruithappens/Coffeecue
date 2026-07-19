@@ -66,7 +66,20 @@ feedback.md is written to be pasted into a repair session).
 | 8 | **Break-window routing** | ✅ DONE (#114/#115) — new `--allow-breaks` suite + `GET/POST/DELETE /api/event-breaks` CRUD (breaks previously had NO management API). First run FAILED correctly: kiosk auto-assign ignored break windows AND load ("first capable station"). Fixed (#115): kiosk now routes via `_assign_station` like SMS. Verified: 3 orders → the one open station. |
 
 **THE QUEUE IS COMPLETE (2026-07-19).** Next frontier, in order:
-1. **Phase C — Cypress UI tests** (the big one; see parked section).
+1. **Phase C — Cypress UI tests** — ✅ STARTED (v1 live): 4 specs / 7 tests
+   in `"Barista Front End"/cypress/e2e/ui_*.cy.js`, all passing against
+   prod in ~30s. Run: `bash testbench/run_ui_tests.sh` (same creds file as
+   the bench; specs are self-cleaning, phoneless, ZZBenchUI*). Covers:
+   public display board (incl. no-fake-demo-names guard + clean pickup
+   mode), login (bad password rejected; real login stores
+   coffee_system_token; /barista reachable), the FULL kiosk touch wizard
+   (name→drink→milk→size→sugar→location→skip phone→place→order number),
+   and the barista board showing a kiosk decaf order WITH its modifier.
+   The config is dependency-free (no node_modules needed — Cypress binary
+   only); legacy pre-Phase-C specs parked in `cypress/e2e/legacy/`.
+   **Phase C v2 (next): click Start/Complete on the barista card** (needs
+   the card's action-button selectors), organiser stations/inventory save
+   round-trip, branding save incl. the big-image trap, mobile viewport.
 2. **Security sweep suites** — when Steve calls for it (role gates, user CRUD).
 3. Smaller ⬜ rows below (low-stock alerts, station delete with orders in
    flight, station chat, SMS templates propagation, pricing).
