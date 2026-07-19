@@ -6335,13 +6335,19 @@ class CoffeeOrderSystem:
         return out
 
     def _get_queue_drinks(self, station_id):
-        """Drink types of orders currently pending/in-progress at the station."""
+        """Drink types of orders currently pending/in-progress at the station.
+
+        RECENT ONLY (last 8 hours): a crashed flow can strand an order in
+        pending/in-progress forever, and without this window those ghosts
+        inflated queue counts and wait estimates for days (Steve's S2-pill
+        report: header said Q5 while the real queue was 2)."""
         out = []
         try:
             cursor = self.db.cursor()
             cursor.execute(
                 "SELECT LOWER(order_details->>'type') FROM orders "
-                "WHERE station_id = %s AND status IN ('pending', 'in-progress', 'in_progress')",
+                "WHERE station_id = %s AND status IN ('pending', 'in-progress', 'in_progress') "
+                "AND created_at > NOW() - INTERVAL '8 hours'",
                 (station_id,),
             )
             for row in cursor.fetchall():
@@ -6389,6 +6395,17 @@ class CoffeeOrderSystem:
           5. Static fallback (10 min)
         """
         try:
+            # 0. EMPTY queue = "walk up now, wait one drink's worth" — the
+            # recent per-station average if we have one, else ~2 minutes.
+            # Without this, an empty station fell through to the operator
+            # override / static default and told walk-ups 5-10 minutes for
+            # a coffee nobody is ahead of (Steve's report: 'starts at 5 min
+            # with no orders in the queue').
+            queue_now = self._get_queue_drinks(station_id)
+            if not queue_now:
+                overall = self._get_recent_completion_avg_minutes(station_id)
+                return max(1, min(int(round(overall)), 10)) if overall else 2
+
             # 1. Best signal: per-drink make-times × the real queue (pending +
             # in-progress), divided by the station's concurrent capacity. One
             # source of truth for the barista header AND the SMS estimate.
@@ -6403,6 +6420,15 @@ class CoffeeOrderSystem:
             est = self._estimate_wait_from_throughput(station_id)
             if est is not None:
                 return est
+
+            # 1c. Queue is BUSY but we have neither completion history nor a
+            # declared throughput: scale by queue depth at ~2 min/drink
+            # rather than falling through to a static number that ignores
+            # the queue entirely (Steve's report: 'when there is a lot of
+            # orders then it does not go up').
+            capacity = self._get_station_capacity(station_id)
+            est = (len(queue_now) * 2.0) / max(1, capacity) + 2
+            return max(1, min(int(round(est)), 60))
             db_type = "sqlite" if isinstance(self.db, sqlite3.Connection) else "postgres"
             cursor = self.db.cursor()
             

@@ -169,6 +169,43 @@ def suite_stations(rn):
     if len(out) == 2:
         out.append(R("stations", "queue + wait sanity", "pass",
                      f"All {len(stations)} stations have sane queue counts and wait estimates"))
+
+    # The header pill must MATCH REALITY (Steve's S2-pill report: header
+    # said Q5, real queue was 2 — stale stuck orders inflated the count).
+    # queue_count must equal this station's live pending orders plus its
+    # in-progress board entries (skip the strict check if the in-progress
+    # board is at its display cap and might be truncating).
+    try:
+        _c, pb, _ = c.get("/api/orders/pending")
+        pend_rows = _order_list(pb)
+        _c2, dbo, _ = c.get("/api/display/orders", auth=False)
+        prog_rows = (((dbo or {}).get("orders") or {}).get("inProgress") or [])
+        if len(prog_rows) < 10:
+            mismatches = []
+            for s in stations:
+                if (s.get("status") or "active") != "active":
+                    continue
+                sid = s.get("id") or s.get("station_id")
+                q = s.get("queue_count", 0) or 0
+                real = sum(1 for o in pend_rows
+                           if str(o.get("station_id") or o.get("stationId")) == str(sid)) \
+                    + sum(1 for o in prog_rows
+                          if str(o.get("station_id") or o.get("stationId")) == str(sid))
+                if int(q) != int(real):
+                    mismatches.append(f"station {sid}: pill says Q{q}, reality is {real}")
+            out.append(R("stations", "queue pills match reality",
+                         "pass" if not mismatches else "fail",
+                         "all active stations' queue counts equal live "
+                         "pending+in-progress" if not mismatches
+                         else "; ".join(mismatches),
+                         suggestion="" if not mismatches else
+                         "Stale/stuck orders are inflating the header pills — "
+                         "check the 8-hour recency window on queue counts.",
+                         refs=[] if not mismatches else
+                         ["routes/station_api_routes.py", "services/coffee_system.py"]))
+    except Exception as _qe:
+        out.append(R("stations", "queue pills match reality", "warn",
+                     f"couldn't cross-check: {_qe}"))
     return out
 
 

@@ -27,8 +27,12 @@ const PendingOrdersSection = ({
   // Organize orders into categories - support both vip and priority property names
   const vipOrders = orders.filter(order => order.vip || order.priority);
   
-  // Group batch orders by their batch group
-  const batchGroups = orders.reduce((groups, order) => {
+  // Group batch orders by their batch group — but a batch of ONE is not a
+  // batch (Steve: 'batch on all orders is a bit strange'). Only groups
+  // with 2+ identical drinks get the group header + Process Batch button;
+  // singles render as regular cards (the similarity hints below still
+  // point out shared-milk opportunities).
+  const allGroups = orders.reduce((groups, order) => {
     if (order.batchGroup) {
       if (!groups[order.batchGroup]) {
         groups[order.batchGroup] = [];
@@ -37,9 +41,19 @@ const PendingOrdersSection = ({
     }
     return groups;
   }, {});
-  
+  const batchGroups = {};
+  const singletonBatchIds = new Set();
+  Object.entries(allGroups).forEach(([key, list]) => {
+    if (list.length >= 2) {
+      batchGroups[key] = list;
+    } else {
+      list.forEach((o) => singletonBatchIds.add(o.id));
+    }
+  });
+
   const regularOrders = orders.filter(
-    order => !(order.vip || order.priority) && !order.batchGroup
+    order => !(order.vip || order.priority)
+      && (!order.batchGroup || singletonBatchIds.has(order.id))
   );
 
   // --- Similarity-based batch hints --------------------------------
@@ -105,6 +119,22 @@ const PendingOrdersSection = ({
       });
     });
   });
+
+  // Shared-shot hint (Steve's idea): 2+ half-strength drinks pending →
+  // one double shot can be SPLIT between them instead of pulling and
+  // wasting two halves.
+  const halfIds = orders
+    .filter((o) => /half/i.test(_norm(o.coffeeType)))
+    .map((o) => o.id);
+  if (halfIds.length >= 2) {
+    halfIds.forEach((id) => {
+      (batchHintsByOrderId[id] = batchHintsByOrderId[id] || []).push({
+        key: 'shots:half',
+        label: `Split one shot (${halfIds.length} half-strength)`,
+        kind: 'milk',
+      });
+    });
+  }
 
   // Apply selected filter. The Batch filter now includes BOTH
   // explicit batch_group orders AND orders with a similarity hint

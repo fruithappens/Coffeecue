@@ -63,6 +63,7 @@ def get_stations():
             lc.execute("""
                 SELECT station_id, COUNT(*) FROM orders
                 WHERE status IN ('pending', 'in-progress', 'in_progress')
+                  AND created_at > NOW() - INTERVAL '8 hours'
                 GROUP BY station_id
             """)
             for _row in lc.fetchall():
