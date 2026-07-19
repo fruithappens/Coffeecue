@@ -53,6 +53,27 @@ orders (34 days old!) inflating queue pills → 8-hour recency window +
 time and SCALES with load; a batch of one is no longer a batch; 2+
 half-strength drinks get a split-one-shot hint. Bug count: 16.
 
+**THE ACTOR JOURNEY MAP (who the pipelines belong to):**
+- **Customer journeys** — order (SMS one-shot / stepwise / kiosk / walk-in),
+  group+FRIEND, VIP, USUAL/welcome-back, CHANGE/EDIT, STATUS, CANCEL at
+  every stage (pending/mid-make/ready), question to barista + reply loop,
+  courtesy replies, FORGET ME, second order, same-name twin. TRACED:
+  single-order pipeline (8 stages) + group pipeline (5 stages) run the
+  core two cradle-to-grave. Not yet traced end-to-end: VIP-as-pipeline,
+  walk-in-as-pipeline (both covered piecewise).
+- **Barista journeys** — see queue truthfully (pills/wait/batch), start /
+  complete / batch / delay(honest) / move / message customer / answer
+  question, walk-in entry, stock report-low, collect, chat, tools.
+  Covered piecewise + by UI clicks; the group start/collect path traced.
+- **Organiser journeys** — quick setup → configure (stations, inventory,
+  menu, branding, pricing, templates, breaks, roster) → monitor → report
+  → wipe/export for next event. Configuration writes are covered
+  (round-trips with restore); the FULL event lifecycle (setup→run→report→
+  wipe) is NOT traced as one journey — needs a disposable test event
+  (parked with Quick Setup e2e).
+- **Support journeys** — monitor tabs (open-only covered), SMS test,
+  blocklist (covered), diagnostics, emergency stop (never auto-tested).
+
 **How to run the bench (no password handling — creds live in a gitignored env
 file the operator maintains):**
 ```bash
