@@ -367,6 +367,125 @@ def _pending_count(c):
     return len(rows), rows
 
 
+# ---------------------------------------------------------------- journey 6
+
+def journey_cancel_after_ready(rn):
+    """Customer texts CANCEL when their coffee is READY on the shelf. The
+    honest answer is 'it's made and waiting at Station X', never 'you don't
+    have any orders' (the mid-make honesty fix, one state later)."""
+    if not rn.options.get("allow_lifecycle"):
+        return [R("journeys", "cancel-after-ready", "skip",
+                  "Opt-in (completes a real order) — enable 'lifecycle'")]
+    c, out = rn.client, []
+    drinks, milks, _ = _menu(c)
+    drink = "latte" if "latte" in drinks else (drinks[0] if drinks else "latte")
+    milk = next((m for m in ("full cream", "skim") if m in milks),
+                milks[0] if milks else "full cream")
+
+    phone, order_no, reply = _place_sms_order(rn, f"{BENCH_TAG}Rdc", drink, milk)
+    if not order_no:
+        return [R("journeys", "cancel-after-ready: setup order", "fail",
+                  f"setup order failed: {(reply or '')[:140]}")]
+    c.post(f"/api/orders/{order_no}/start", {"test_no_send": True})
+    cc, _cb, _ = c.post(f"/api/orders/{order_no}/complete", {"test_no_send": True})
+    if cc != 200:
+        c.post(f"/api/orders/{order_no}/cancel")
+        return [R("journeys", "cancel-after-ready", "warn",
+                  f"couldn't complete the setup order (HTTP {cc})")]
+
+    ok, ctext = _sim(c, phone, "CANCEL")
+    low = (ctext or "").lower()
+    honest = str(order_no) in (ctext or "") and \
+        ("ready" in low or "waiting" in low or "made" in low) and "station" in low
+    misleading = "don't have any" in low or "no pending" in low
+    out.append(R("journeys", "cancel-after-ready: told the coffee is waiting",
+                 "pass" if honest else ("fail" if misleading else "warn"),
+                 (ctext or "")[:160],
+                 evidence="" if honest else (ctext or "")[:300],
+                 suggestion="" if honest else
+                 "A customer whose coffee is on the shelf texted CANCEL and "
+                 "was told they have no orders — reads as 'we lost it'.",
+                 refs=[] if honest else ["services/coffee_system.py"]))
+    c.post(f"/api/orders/{order_no}/pickup")
+    return out
+
+
+# ---------------------------------------------------------------- journey 7
+
+def journey_reassign(rn):
+    """Barista moves an order to another station: the move must stick, and a
+    station that can't make the drink must be REFUSED (capability gate)."""
+    c, out = rn.client, []
+    drinks, milks, _ = _menu(c)
+    stations = _stations(c) or []
+    active = [s for s in stations if (s.get("status") or "active") == "active"]
+
+    def capable_ids(milk_name):
+        m = (milk_name or "").replace(" milk", "").lower()
+        ids = []
+        for s in active:
+            mt = [str(x).lower().replace(" milk", "")
+                  for x in ((s.get("capabilities") or {}).get("milk_types") or [])]
+            if not mt or m in mt:
+                ids.append(s.get("id") or s.get("station_id"))
+        return ids
+
+    # A restricted milk gives us both a capable target AND an incapable one.
+    restricted = None
+    for m in milks:
+        cap = capable_ids(m)
+        if 0 < len(cap) < len(active):
+            restricted = (m, cap)
+            break
+    if not restricted:
+        return [R("journeys", "reassign: capability gate", "skip",
+                  "needs a milk some-but-not-all stations offer")]
+    milk, cap = restricted
+    incapable = next((s.get("id") or s.get("station_id") for s in active
+                      if (s.get("id") or s.get("station_id")) not in cap), None)
+
+    phone, order_no, reply = _place_sms_order(rn, f"{BENCH_TAG}Rea", "latte", milk)
+    if not order_no:
+        return [R("journeys", "reassign: setup order", "fail",
+                  f"setup order failed: {(reply or '')[:140]}")]
+    try:
+        row = next((o for o in _order_list(c.get("/api/orders/pending")[1])
+                    if str(o.get("order_number")) == str(order_no)), {})
+        origin = row.get("station_id") or row.get("stationId")
+        target = next((sid for sid in cap if sid != origin), None)
+        if target is None:
+            out.append(R("journeys", "reassign: to a capable station", "skip",
+                         f"only one station ({origin}) can make {milk}"))
+        else:
+            rc, rb, _ = c.post(f"/api/orders/{order_no}/reassign",
+                               {"target_station_id": target})
+            row2 = next((o for o in _order_list(c.get("/api/orders/pending")[1])
+                         if str(o.get("order_number")) == str(order_no)), {})
+            landed = row2.get("station_id") or row2.get("stationId")
+            moved = rc == 200 and str(landed) == str(target)
+            out.append(R("journeys", "reassign: to a capable station",
+                         "pass" if moved else "fail",
+                         f"station {origin} → {target}: HTTP {rc}, now on {landed}",
+                         evidence="" if moved else str(rb)[:200],
+                         refs=[] if moved else ["routes/consolidated_api_routes.py"]))
+        if incapable is not None:
+            rc, rb, _ = c.post(f"/api/orders/{order_no}/reassign",
+                               {"target_station_id": incapable})
+            refused = rc != 200 or not (isinstance(rb, dict) and rb.get("success"))
+            out.append(R("journeys", "reassign: incapable station is refused",
+                         "pass" if refused else "fail",
+                         f"reassign {milk} order to station {incapable} "
+                         f"(can't make it) → HTTP {rc}",
+                         suggestion="" if refused else
+                         f"An order needing {milk} was moved to a station that "
+                         "can't make it — it will strand there.",
+                         refs=[] if refused else ["routes/consolidated_api_routes.py"]))
+    finally:
+        _sim(c, phone, "CANCEL")
+        c.post(f"/api/orders/{order_no}/cancel")
+    return out
+
+
 def suite_journeys(rn):
     out = []
     out += journey_message_reply(rn)
@@ -374,6 +493,8 @@ def suite_journeys(rn):
     out += journey_cancel_after_confirm(rn)
     out += journey_cancel_while_making(rn)
     out += journey_ready_reply(rn)
+    out += journey_cancel_after_ready(rn)
+    out += journey_reassign(rn)
     return out
 
 
