@@ -346,30 +346,38 @@ def suite_sched_crud(rn):
         if tc != 200 or dow is None:
             return [R("sched_crud", "schedule CRUD round-trip", "warn",
                       f"couldn't read today's schedule (HTTP {tc})")]
-        # NOTE: the response nests under 'schedule', and barista_name is
-        # silently DROPPED by the create handler (names live in 'notes' —
-        # the response row comes back barista_name:null even when sent).
+        # Response nests under 'schedule'. barista_name persistence was
+        # fixed 2026-07-20 (it used to be silently dropped — the today-
+        # response name came from a JOIN to the station's assignee).
         pc, pb, _ = c.post("/api/schedule/shifts",
                            {"station_id": 1, "day_of_week": dow,
                             "start_time": "00:05", "end_time": "23:55",
-                            "notes": f"{BENCH_TAG} Roster"})
+                            "barista_name": f"{BENCH_TAG} Roster",
+                            "notes": f"{BENCH_TAG} bench shift"})
         body = pb if isinstance(pb, dict) else {}
         sh = body.get("schedule") or body.get("shift") or body.get("data") or body
         shift_id = sh.get("id") if isinstance(sh, dict) else None
         out.append(R("sched_crud", "create a roster shift",
                      "pass" if pc in (200, 201) and shift_id else "fail",
-                     f"POST /api/schedule/shifts → HTTP {pc}, id={shift_id} "
-                     "(note: barista_name is silently dropped by the handler — "
-                     "use 'notes' to name the shift)",
+                     f"POST /api/schedule/shifts → HTTP {pc}, id={shift_id}",
                      evidence="" if shift_id else str(pb)[:200],
                      refs=[] if shift_id else ["routes/station_api_routes.py"]))
         if not shift_id:
             return out
         _c2, tb2, _ = c.get("/api/schedule/today")
-        listed = any(str(s.get("id")) == str(shift_id)
-                     for s in ((tb2 or {}).get("schedules") or []))
+        row = next((s for s in ((tb2 or {}).get("schedules") or [])
+                    if str(s.get("id")) == str(shift_id)), None)
         out.append(R("sched_crud", "new shift visible in today's schedule",
-                     "pass" if listed else "fail", f"listed={listed}"))
+                     "pass" if row else "fail", f"listed={bool(row)}"))
+        named = row and f"{BENCH_TAG} Roster" in str(row.get("barista_name") or "")
+        out.append(R("sched_crud", "shift keeps its barista's NAME",
+                     "pass" if named else "fail",
+                     f"barista_name={row.get('barista_name')!r}" if row else "row missing",
+                     suggestion="" if named else
+                     "The roster can't say who works the shift — barista_name "
+                     "isn't persisting on create.",
+                     refs=[] if named else ["routes/station_api_routes.py",
+                                            "models/stations.py"]))
     finally:
         if shift_id:
             dc, _db2, _ = c.req("DELETE", f"/api/schedule/shifts/{shift_id}")
