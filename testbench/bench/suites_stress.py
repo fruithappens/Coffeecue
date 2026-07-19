@@ -331,9 +331,64 @@ def suite_inventory_crud(rn):
     return out
 
 
+# ---------------------------------------------------------- schedule CRUD
+
+def suite_sched_crud(rn):
+    """A roster shift's full life via the API: create for the server's
+    TODAY → visible in /api/schedule/today → delete → gone. (Shifts remain
+    informational for routing — that standing note lives in the schedule
+    suite — but the CRUD itself must work for the roster to be usable.)"""
+    c, out = rn.client, []
+    shift_id = None
+    try:
+        tc, tb, _ = c.get("/api/schedule/today")
+        dow = (tb or {}).get("day_of_week")
+        if tc != 200 or dow is None:
+            return [R("sched_crud", "schedule CRUD round-trip", "warn",
+                      f"couldn't read today's schedule (HTTP {tc})")]
+        # NOTE: the response nests under 'schedule', and barista_name is
+        # silently DROPPED by the create handler (names live in 'notes' —
+        # the response row comes back barista_name:null even when sent).
+        pc, pb, _ = c.post("/api/schedule/shifts",
+                           {"station_id": 1, "day_of_week": dow,
+                            "start_time": "00:05", "end_time": "23:55",
+                            "notes": f"{BENCH_TAG} Roster"})
+        body = pb if isinstance(pb, dict) else {}
+        sh = body.get("schedule") or body.get("shift") or body.get("data") or body
+        shift_id = sh.get("id") if isinstance(sh, dict) else None
+        out.append(R("sched_crud", "create a roster shift",
+                     "pass" if pc in (200, 201) and shift_id else "fail",
+                     f"POST /api/schedule/shifts → HTTP {pc}, id={shift_id} "
+                     "(note: barista_name is silently dropped by the handler — "
+                     "use 'notes' to name the shift)",
+                     evidence="" if shift_id else str(pb)[:200],
+                     refs=[] if shift_id else ["routes/station_api_routes.py"]))
+        if not shift_id:
+            return out
+        _c2, tb2, _ = c.get("/api/schedule/today")
+        listed = any(str(s.get("id")) == str(shift_id)
+                     for s in ((tb2 or {}).get("schedules") or []))
+        out.append(R("sched_crud", "new shift visible in today's schedule",
+                     "pass" if listed else "fail", f"listed={listed}"))
+    finally:
+        if shift_id:
+            dc, _db2, _ = c.req("DELETE", f"/api/schedule/shifts/{shift_id}")
+            _c3, tb3, _ = c.get("/api/schedule/today")
+            gone = not any(str(s.get("id")) == str(shift_id)
+                           for s in ((tb3 or {}).get("schedules") or []))
+            out.append(R("sched_crud", "cleanup: shift deleted",
+                         "pass" if dc == 200 and gone else "fail",
+                         f"DELETE → HTTP {dc}, gone={gone}",
+                         suggestion="" if gone else
+                         f"IMPORTANT: delete shift {shift_id} "
+                         f"('{BENCH_TAG} Roster') by hand."))
+    return out
+
+
 STRESS_SUITES = [
     ("empty_stock", suite_empty_stock, True),
     ("burst", suite_burst, True),
     ("alerts", suite_alerts, True),
     ("inv_crud", suite_inventory_crud, True),
+    ("sched_crud", suite_sched_crud, True),
 ]
