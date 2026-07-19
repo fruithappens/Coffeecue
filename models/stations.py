@@ -650,16 +650,35 @@ class StationSchedule:
         Returns:
             List of schedule dictionaries
         """
+        # Prefer the SHIFT's own roster name (station_schedule.barista_name,
+        # added 2026-07-20 — before that, a name sent on create was silently
+        # dropped) and fall back to the station's currently-assigned barista.
         query = """
-            SELECT s.id, s.station_id, s.day_of_week, s.start_time, s.end_time, 
-                   s.break_start, s.break_end, s.notes, st.barista_name
+            SELECT s.id, s.station_id, s.day_of_week, s.start_time, s.end_time,
+                   s.break_start, s.break_end, s.notes,
+                   COALESCE(s.barista_name, st.barista_name) AS barista_name
             FROM station_schedule s
             JOIN station_stats st ON s.station_id = st.station_id
             WHERE s.day_of_week = %s
             ORDER BY s.start_time, s.station_id
         """
-        
-        return execute_query(conn, query, (day_of_week,), fetch_all=True)
+        try:
+            return execute_query(conn, query, (day_of_week,), fetch_all=True)
+        except Exception:
+            # Older DB without the per-shift column: heal it and retry once.
+            try:
+                conn.rollback()
+                cur = conn.cursor()
+                cur.execute("ALTER TABLE station_schedule "
+                            "ADD COLUMN IF NOT EXISTS barista_name VARCHAR(100)")
+                conn.commit()
+                return execute_query(conn, query, (day_of_week,), fetch_all=True)
+            except Exception:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+                raise
     
     @staticmethod
     def get_all_schedules(conn):

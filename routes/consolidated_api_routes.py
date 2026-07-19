@@ -2256,6 +2256,64 @@ def _emit_new_order(order_payload):
         logger.debug(f"socketio new-order emit skipped: {e}")
 
 
+def _render_sms_template(template, context, default_body):
+    """Fill {placeholders} in an operator-edited SMS template, safely.
+
+    Uses literal replace (not str.format) so a stray brace in a template
+    can never crash a send. Unknown placeholders are left visible so the
+    operator can SEE the typo in their test message. Falls back to the
+    default when the template is empty/blank. Warns (but still sends)
+    when the result leaves single-segment GSM-7 territory — emoji or
+    length mistakes double per-SMS cost silently otherwise.
+    """
+    tpl = (template or '').strip()
+    if not tpl:
+        return default_body
+    body = tpl
+    for key, value in context.items():
+        body = body.replace('{' + key + '}', str(value if value is not None else ''))
+    if len(body) > 160 or any(ord(ch) > 127 for ch in body):
+        logger.warning(
+            f"SMS template renders outside single-segment GSM-7 "
+            f"(len={len(body)}, non-ascii={any(ord(c) > 127 for c in body)}) — "
+            f"this doubles per-message cost. Template: {tpl[:80]!r}")
+    return body
+
+
+def _sms_description(order_details):
+    """Short warm drink description: 'large oat latte'."""
+    parts = []
+    if order_details.get('size'):
+        parts.append(order_details.get('size'))
+    milk = order_details.get('milk')
+    if milk and milk != 'no milk':
+        parts.append(f"{milk}")
+    parts.append(order_details.get('type') or 'coffee')
+    return ' '.join(parts)
+
+
+def _render_started_message(order_number, order_details):
+    """The 'being made now' SMS body — template-driven via the
+    sms_started_message setting (placeholders: {name} {drink}
+    {order_number} {station}); hardcoded default when unset."""
+    description = _sms_description(order_details)
+    default_body = (
+        f"Your {description} (order #{order_number}) is being made now "
+        f"- we'll text you when it's ready."
+    )
+    try:
+        cs = current_app.config.get('coffee_system')
+        tpl = cs._get_setting('sms_started_message', '') if cs else ''
+    except Exception:
+        tpl = ''
+    return _render_sms_template(tpl, {
+        'name': order_details.get('name') or 'there',
+        'drink': description,
+        'order_number': order_number,
+        'station': order_details.get('station_id') or '',
+    }, default_body)
+
+
 def _notify_customer_order_started(phone, order_number, order_details):
     """Send a brief 'your drink is being made now' SMS.
 
@@ -2282,24 +2340,7 @@ def _notify_customer_order_started(phone, order_number, order_details):
         if not isinstance(order_details, dict):
             order_details = {}
 
-        drink = order_details.get('type') or 'coffee'
-        size = order_details.get('size')
-        milk = order_details.get('milk')
-
-        # Build a short, warm description: "large oat latte" rather than
-        # the full formal summary.
-        parts = []
-        if size:
-            parts.append(size)
-        if milk and milk != 'no milk':
-            parts.append(f"{milk}")
-        parts.append(drink)
-        description = ' '.join(parts)
-
-        body = (
-            f"Your {description} (order #{order_number}) is being made now "
-            f"- we'll text you when it's ready."
-        )
+        body = _render_started_message(order_number, order_details)
         messaging_service.send_message(phone, body)
     except Exception as exc:
         logger.error(f"Error sending start-notification SMS: {exc}")
@@ -2450,7 +2491,9 @@ def complete_order(order_id):
             # Never raises — the order is already marked complete by
             # the time we get here, so a messaging failure must not
             # roll that back.
-            # test_no_send (Test Bench): full transition, no real SMS.
+            # test_no_send (Test Bench): full transition, no real SMS — but
+            # RECORD the message that would have gone out, so template
+            # propagation is provable end to end without a send.
             if not ((request.get_json(silent=True) or {}).get('test_no_send')
                     or (request.get_json(silent=True) or {}).get('dry_run')):
                 _notify_customer_order_ready(
@@ -2459,6 +2502,20 @@ def complete_order(order_id):
                     order_details_parsed if isinstance(order_details_parsed, dict) else {},
                     station_id_for_stock,
                 )
+            elif order_phone:
+                try:
+                    _body = _render_ready_message(
+                        clean_id,
+                        order_details_parsed if isinstance(order_details_parsed, dict) else {},
+                        station_id_for_stock)
+                    _mc = db.cursor()
+                    _mc.execute("""
+                        INSERT INTO order_messages (order_number, phone, message, message_sid)
+                        VALUES (%s, %s, %s, %s)
+                    """, (clean_id, order_phone, _body, 'test_no_send'))
+                    db.commit()
+                except Exception as _rec_err:
+                    logger.warning(f"test_no_send message record skipped: {_rec_err}")
 
             # Surface stock-decrement skipped items in the response so
             # the barista UI can toast a warning. `stock_warnings` is a
@@ -2508,40 +2565,48 @@ def _notify_customer_order_ready(phone, order_number, order_details, station_id)
         if not isinstance(order_details, dict):
             order_details = {}
 
-        name = order_details.get('name') or 'there'
-        drink = order_details.get('type') or 'coffee'
-        size = order_details.get('size')
-        milk = order_details.get('milk')
-
-        # Build the same "large oat latte" descriptor used by the
-        # started-notification so the two SMS feel like a pair.
-        parts = []
-        if size:
-            parts.append(size)
-        if milk and milk != 'no milk':
-            parts.append(milk)
-        parts.append(drink)
-        description = ' '.join(parts)
-
-        station_label = f"Station {station_id}" if station_id else "the counter"
-        # No emoji: an emoji forces the whole SMS into UCS-2 encoding, which
-        # cuts the per-segment limit from 160 to 70 chars — i.e. doubles the
-        # cost. Plain GSM-7 text keeps this a single segment. The optional
-        # sponsor credit is appended last (still usually fits one segment).
-        sponsor = ''
-        try:
-            cs = current_app.config.get('coffee_system')
-            if cs and getattr(cs, 'db', None):
-                sponsor = _sms_sponsor_tag(cs.db)
-        except Exception:
-            sponsor = ''
-        body = (
-            f"Hi {name}, your {description} (order #{order_number}) "
-            f"is ready at {station_label}. Enjoy!{sponsor}"
-        )
+        body = _render_ready_message(order_number, order_details, station_id)
         messaging_service.send_message(phone, body)
     except Exception as exc:
         logger.error(f"Error sending ready-notification SMS: {exc}")
+
+
+def _render_ready_message(order_number, order_details, station_id):
+    """The 'ready for pickup' SMS body — template-driven via the
+    sms_ready_message setting (placeholders: {name} {drink} {order_number}
+    {station}); hardcoded default when unset. The sponsor credit is
+    appended to either path.
+
+    No emoji in the default: an emoji forces UCS-2 encoding, which cuts
+    the per-segment limit from 160 to 70 chars — doubling the cost. The
+    template renderer warns if an operator's template does that.
+    """
+    name = order_details.get('name') or 'there'
+    description = _sms_description(order_details)
+    station_label = f"Station {station_id}" if station_id else "the counter"
+    sponsor = ''
+    try:
+        cs = current_app.config.get('coffee_system')
+        if cs and getattr(cs, 'db', None):
+            sponsor = _sms_sponsor_tag(cs.db)
+    except Exception:
+        sponsor = ''
+    default_body = (
+        f"Hi {name}, your {description} (order #{order_number}) "
+        f"is ready at {station_label}. Enjoy!"
+    )
+    try:
+        cs = current_app.config.get('coffee_system')
+        tpl = cs._get_setting('sms_ready_message', '') if cs else ''
+    except Exception:
+        tpl = ''
+    body = _render_sms_template(tpl, {
+        'name': name,
+        'drink': description,
+        'order_number': order_number,
+        'station': station_label,
+    }, default_body)
+    return f"{body}{sponsor}"
 
 
 def _sms_sponsor_tag(db):
@@ -2561,6 +2626,42 @@ def _sms_sponsor_tag(db):
         return f" Brought to you by {name}."
     except Exception:
         return ''
+
+@bp.route('/orders/<order_number>/messages', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def order_message_history(order_number):
+    """Every SMS recorded for one order (confirmations, barista messages,
+    test_no_send renders). order_messages previously had no per-order
+    reader — needed for the barista's context and the bench's
+    template-propagation proof."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        cur = db.cursor()
+        cur.execute("""
+            SELECT id, order_number, phone, message, message_sid, sent_at
+              FROM order_messages
+             WHERE order_number = %s
+             ORDER BY sent_at ASC
+             LIMIT 50
+        """, (clean_order_id(order_number),))
+        cols = ['id', 'order_number', 'phone', 'message', 'message_sid', 'sent_at']
+        rows = []
+        for r in cur.fetchall():
+            d = dict(zip(cols, r)) if not isinstance(r, dict) else dict(r)
+            if hasattr(d.get('sent_at'), 'isoformat'):
+                d['sent_at'] = d['sent_at'].isoformat()
+            rows.append(d)
+        return jsonify({'success': True, 'messages': rows})
+    except Exception as e:
+        logger.error(f"order_message_history error: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 @bp.route('/orders/<order_id>/pickup', methods=['POST'])
 @jwt_required_with_demo()
@@ -4354,9 +4455,21 @@ def update_all_settings():
                 updated_settings[key] = value
             except Exception as e:
                 logger.error(f"Error updating setting {key}: {str(e)}")
-        
+
         db.commit()
-        
+
+        # Invalidate the in-process settings cache for every written key —
+        # _get_setting caches forever, so without this an edited setting
+        # (e.g. an SMS template) silently kept its OLD value until the next
+        # server restart.
+        try:
+            cache = getattr(coffee_system, 'settings_cache', None)
+            if isinstance(cache, dict):
+                for key in updated_settings:
+                    cache.pop(key, None)
+        except Exception:
+            pass
+
         # Return updated settings
         return jsonify({
             'success': True,

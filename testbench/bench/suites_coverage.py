@@ -100,18 +100,20 @@ def suite_sms_vocab(rn):
                  "pass" if crashy == 0 else "fail",
                  f"{len(checks)} keywords exercised, {crashy} crashed/empty"))
 
-    # Standing truth note (like the schedule design note): the SMS templates
-    # endpoint exists and the Comms UI can edit templates — but the actual
-    # confirm/started/ready message builders are hardcoded strings in
-    # coffee_system/consolidated routes and consume NO template keys.
-    # Editing a template has no customer-facing effect today.
+    # Standing truth note: as of 2026-07-20 the READY and STARTED SMS are
+    # template-driven (settings keys sms_ready_message /
+    # sms_started_message; placeholders {name} {drink} {order_number}
+    # {station}; blank = default wording; renderer warns if a template
+    # leaves single-segment GSM-7). The CONFIRM message remains hardcoded
+    # by design — it is deeply dynamic (queue position, group totals,
+    # price tail).
     tc, tb, _ = c.get("/api/sms/templates")
     out.append(R("sms_vocab", "SMS templates: endpoint alive (design note)",
                  "pass" if tc == 200 else "warn",
-                 f"GET /api/sms/templates → HTTP {tc}. NOTE: templates are "
-                 "INFORMATIONAL — the confirm/started/ready SMS builders are "
-                 "hardcoded and do not consume template keys, so edits here "
-                 "don't reach customers (wire them in if that's wanted).",
+                 f"GET /api/sms/templates → HTTP {tc}. Ready/started SMS are "
+                 "template-driven (sms_ready_message / sms_started_message); "
+                 "the confirm message stays hardcoded by design (dynamic "
+                 "queue/group/price content).",
                  refs=[] if tc == 200 else ["routes/consolidated_api_routes.py"]))
     _sweep(rn, BENCH_TAG)
     return out
@@ -226,7 +228,64 @@ def suite_settings(rn):
                      f"IMPORTANT: set order_prefix back to {orig!r} in Organiser settings."))
     out.extend(_event_name_roundtrip(rn))
     out.extend(_pricing_roundtrip(rn))
+    out.extend(_sms_template_roundtrip(rn))
     _sweep(rn, BENCH_TAG)
+    return out
+
+
+def _sms_template_roundtrip(rn):
+    """The ready-SMS template actually drives the message (wired
+    2026-07-20 — templates used to be decorative). Set a marked template
+    → run an order to completed with test_no_send (which now RECORDS the
+    rendered message without sending) → the recorded message carries the
+    marker with placeholders substituted → restore (empty = default
+    wording). Needs allow_lifecycle too (completes a real order)."""
+    c, out = rn.client, []
+    if not rn.options.get("allow_lifecycle"):
+        return [R("settings", "SMS template round-trip", "skip",
+                  "needs 'lifecycle' too (completes an order with test_no_send)")]
+    tpl = "BENCHTPL {name} your {drink} #{order_number} is at {station}"
+    order_no, phone = None, None
+    try:
+        wc, _wb, _ = c.req("PUT", "/api/settings", body={"sms_ready_message": tpl})
+        out.append(R("settings", "sms template: write accepted",
+                     "pass" if wc in (200, 201) else "fail", f"PUT → HTTP {wc}"))
+        phone = rn.next_phone()
+        ok, reply = _sim(c, phone, f"{BENCH_TAG}Tpl medium latte with full cream")
+        import re as _re
+        m = _re.search(r"#([A-Za-z]{0,3}\d+)", reply or "")
+        order_no = m.group(1) if m else None
+        if not order_no:
+            out.append(R("settings", "sms template reaches the ready message",
+                         "warn", f"setup order didn't confirm: {(reply or '')[:120]}"))
+            return out
+        c.post(f"/api/orders/{order_no}/start", {"test_no_send": True})
+        c.post(f"/api/orders/{order_no}/complete", {"test_no_send": True})
+        mc, mb, _ = c.get(f"/api/orders/{order_no}/messages")
+        msgs = (mb or {}).get("messages") or []
+        rendered = next((str(x.get("message") or "") for x in msgs
+                         if "BENCHTPL" in str(x.get("message") or "")), "")
+        substituted = rendered and "{name}" not in rendered \
+            and f"#{order_no}" in rendered and "latte" in rendered.lower()
+        out.append(R("settings", "sms template reaches the ready message",
+                     "pass" if substituted else "fail",
+                     f"recorded: {rendered[:120]!r}" if rendered else
+                     f"no BENCHTPL message recorded (HTTP {mc}, {len(msgs)} messages)",
+                     evidence="" if substituted else str(msgs)[:300],
+                     suggestion="" if substituted else
+                     "An operator-edited SMS template never reached the "
+                     "customer's ready message.",
+                     refs=[] if substituted else ["routes/consolidated_api_routes.py"]))
+    finally:
+        rc, _, _ = c.req("PUT", "/api/settings", body={"sms_ready_message": ""})
+        if order_no:
+            c.post(f"/api/orders/{order_no}/pickup")
+            c.post(f"/api/orders/{order_no}/cancel")
+        out.append(R("settings", "cleanup: sms template restored",
+                     "pass" if rc in (200, 201) else "fail",
+                     f"restored to default wording → HTTP {rc}",
+                     suggestion="" if rc in (200, 201) else
+                     "IMPORTANT: clear sms_ready_message in settings by hand."))
     return out
 
 

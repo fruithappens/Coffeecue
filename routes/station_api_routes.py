@@ -1146,6 +1146,20 @@ def add_shift():
                 'error': f'Station with ID {data["station_id"]} does not exist'
             }), 400
         
+        # Per-shift roster name. The column didn't exist (barista_name in
+        # the today-response came from a JOIN to the STATION's current
+        # assignee), so a name sent on create was silently dropped — the
+        # roster couldn't say who works which shift (Test Bench sched_crud).
+        try:
+            cursor.execute(
+                "ALTER TABLE station_schedule ADD COLUMN IF NOT EXISTS barista_name VARCHAR(100)")
+            db.commit()
+        except Exception:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+
         # Prepare schedule data
         schedule_data = {
             'station_id': data['station_id'],
@@ -1154,6 +1168,8 @@ def add_shift():
             'end_time': data['end_time'],
             'notes': data.get('notes', '')
         }
+        if (data.get('barista_name') or '').strip():
+            schedule_data['barista_name'] = data['barista_name'].strip()
         
         # Add break times if provided
         if 'break_start' in data and 'break_end' in data and data['break_start'] and data['break_end']:
