@@ -329,6 +329,73 @@ def suite_matrix(rn):
         else:
             _sim(c, ph, "CANCEL")
 
+    # ---- technique mini-matrix (SMS-only): shots, cups, aliases ----------
+    # Steve: "not sure how system handles orders that are technique driven".
+    # First probes found: quad shot VANISHED (confirmed as single-shot),
+    # "double cup" became strong + 2 sugar the customer never asked for,
+    # "4 shots" was refused as "we don't have 4 sugar", and "shot" stamped
+    # phantom temp=hot. These pin the fixed behaviour.
+    tech_cases = []
+    tech_cases.append((
+        "quad shot survives to the card",
+        f"quad shot {base_drink} with {base_milk}",
+        lambda reply, row: "4 shots" in str(row.get("coffeeType") or "").lower()))
+    tech_cases.append((
+        "double cup injects NOTHING (no strong, no sugar)",
+        f"double cup {base_drink} with {base_milk}",
+        lambda reply, row: "strong" not in (reply or "").lower()
+        and "2 sugar" not in (reply or "").lower()
+        and "strong" not in str(row.get("coffeeType") or "").lower()))
+    if "long black" in drinks:
+        tech_cases.append((
+            "americano aliases to long black",
+            "americano",
+            lambda reply, row: "long black" in str(row.get("coffeeType") or "").lower()))
+    for j, (tech_name, text, check) in enumerate(tech_cases, 1):
+        tag = f"{BENCH_TAG}MxT{j:02d}"
+        ph = rn.next_phone()
+        ok, reply = _sim(c, ph, f"{tag} {text}")
+        low = (reply or "").lower()
+        turns = 0
+        while ok and turns < 3 and ("what size" in low or "what milk" in low):
+            ok, reply = _sim(c, ph, "medium" if "size" in low else base_milk)
+            low = (reply or "").lower()
+            turns += 1
+        if not (ok and ("confirmed" in low or "order #" in low)):
+            out.append(R("matrix", f"mxt{j:02d} technique: {tech_name}", "fail",
+                         f"order didn't confirm — {(reply or '')[:140]}",
+                         refs=["services/nlp.py"]))
+            _sim(c, ph, "CANCEL")
+            continue
+        row = _find_pending(c, tag) or {}
+        no = row.get("order_number") or row.get("orderNumber") or row.get("id")
+        good = check(reply, row)
+        out.append(R("matrix", f"mxt{j:02d} technique: {tech_name}",
+                     "pass" if good else "fail",
+                     f"reply: {(reply or '')[:80]} | card: {row.get('coffeeType')!r} "
+                     f"sugar={row.get('sugar')!r}",
+                     evidence="" if good else (reply or "")[:300],
+                     suggestion="" if good else
+                     "A technique request (shots/cups) was dropped or mutated "
+                     "into something the customer never asked for.",
+                     refs=[] if good else ["services/nlp.py"]))
+        if no:
+            _cancel(c, no)
+        else:
+            _sim(c, ph, "CANCEL")
+    # An unknown drink must be refused with the options, never guessed.
+    if "ristretto" not in drinks:
+        ph = rn.next_phone()
+        ok, reply = _sim(c, ph, f"{BENCH_TAG}MxT99 ristretto")
+        low = (reply or "").lower()
+        refused = ok and ("don't offer" in low or "don't have" in low) \
+            and ("options" in low or "available" in low)
+        out.append(R("matrix", "mxt99 technique: unknown drink refused with menu",
+                     "pass" if refused else "fail", (reply or "")[:140],
+                     refs=[] if refused else ["services/coffee_system.py"]))
+        if not refused:
+            _sim(c, ph, "CANCEL")
+
     # ---- cleanup: sweep leftovers + restore stock ------------------------
     code, body, _ = c.get("/api/orders/pending")
     leftovers = [o.get("order_number") or o.get("orderNumber") or o.get("id")

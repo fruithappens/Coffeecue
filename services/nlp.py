@@ -305,18 +305,45 @@ class NLPService:
         if milk:
             order_details["milk"] = milk
 
-        # Extract sugar preference
-        sugar = self._extract_sugar(residual_message)
-        if sugar:
-            order_details["sugar"] = sugar
+        # Extract strength BEFORE sugar, and strip shot/cup language from
+        # what the sugar extractor sees. The sugars dict maps bare
+        # "double"/"quadruple"/"4" to sugar counts, so "quad shot latte"
+        # became "4 sugar" (refused with a nonsense reason) and "double cup"
+        # silently INJECTED "2 sugar" + strong (Test Bench technique probes
+        # — the never-inject rule).
+        # A cup request is packaging, not strength or sugar — capture it as
+        # a note and remove it BEFORE the strength extractor sees "double".
+        residual_after_cup = residual_message
+        cup_match = re.search(
+            r'\b(double|two|2|extra)[\s-]*cup(?:s|ped)?\b', residual_after_cup)
+        if cup_match:
+            cup_note = ("double cup" if cup_match.group(1) in ("double", "two", "2")
+                        else "extra cup")
+            existing = order_details.get("notes") or ""
+            order_details["notes"] = (existing + "; " + cup_note).strip("; ")
+            residual_after_cup = residual_after_cup.replace(cup_match.group(0), ' ')
 
-        # Extract strength
-        strength = self._extract_strength(residual_message)
+        strength = self._extract_strength(residual_after_cup)
         if strength:
             order_details["strength"] = strength
 
-        # Extract temperature
-        temp = self._extract_temperature(residual_message)
+        residual_for_sugar = re.sub(
+            r'\b(?:\d+|single|double|triple|quad(?:ruple)?|extra)[\s-]*shots?\b',
+            ' ', residual_after_cup)
+        # Bare multiplier words mean shots in coffee-speak, never sugar —
+        # unless the customer literally says "double sugar".
+        residual_for_sugar = re.sub(
+            r'\b(?:single|double|triple|quad(?:ruple)?)\b(?![\s-]*(?:sugars?|sweet))',
+            ' ', residual_for_sugar)
+
+        # Extract sugar preference
+        sugar = self._extract_sugar(residual_for_sugar)
+        if sugar:
+            order_details["sugar"] = sugar
+
+        # Extract temperature (also shot-stripped: the canonical 'hot' used
+        # to substring-match inside "sHOT" and stamp phantom temperature)
+        temp = self._extract_temperature(residual_for_sugar)
         if temp:
             order_details["temp"] = temp
         
@@ -572,6 +599,18 @@ class NLPService:
                 return "no sugar"
             else:
                 return f"{num} sugar"
+
+        # Word-number + sugar ("double sugar", "two sugars") — must beat the
+        # categorical dict, whose bare "sugar" alias maps to 1 sugar and
+        # would win first.
+        word_sugar = re.search(
+            r'\b(one|two|three|four|single|double|triple|quad(?:ruple)?)'
+            r'[\s-]*(?:sugars?|sweeteners?)\b', message)
+        if word_sugar:
+            n = {'one': 1, 'single': 1, 'two': 2, 'double': 2,
+                 'three': 3, 'triple': 3, 'four': 4, 'quad': 4,
+                 'quadruple': 4}[word_sugar.group(1)]
+            return f"{n} sugar"
         
         # Check categorical sugar preferences
         for canonical, variations in self.sugars.items():
@@ -587,6 +626,17 @@ class NLPService:
     
     def _extract_strength(self, message):
         """Extract coffee strength preference from message"""
+        # Word-number shot counts ("quad shot", "triple shot") — these used
+        # to fall through entirely (quad shot silently vanished from the
+        # order) or leak into the sugar extractor.
+        word_shots = re.search(
+            r'\b(single|double|triple|quad(?:ruple)?)[\s-]*shots?\b', message)
+        if word_shots:
+            n = {'single': 1, 'double': 2, 'triple': 3,
+                 'quad': 4, 'quadruple': 4}[word_shots.group(1)]
+            return {1: 'single shot', 2: 'double shot',
+                    3: 'triple shot'}.get(n, f'{n} shots')
+
         # Check for shot counts
         shot_match = re.search(r'(\d+)\s*shots?', message)
         if shot_match:
@@ -620,7 +670,9 @@ class NLPService:
         modifier check). Same more-specific-first rule as the drink map."""
         for canonical, variations in sorted(self.temperatures.items(),
                                             key=lambda kv: -len(kv[0])):
-            if canonical in message:
+            # Word boundaries on the canonical too — plain substring
+            # matching found 'hot' inside 'sHOT'.
+            if re.search(r'\b' + re.escape(canonical) + r'\b', message):
                 return canonical
 
             for variation in variations:
