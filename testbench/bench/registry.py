@@ -13,7 +13,8 @@ from .suites_coverage import COVERAGE_SUITES
 from .suites_lifecycle import LIFECYCLE_SUITES
 from .suites_customer import CUSTOMER_SUITES
 from .suites_stress import STRESS_SUITES
+from .suites_pipeline import PIPELINE_SUITES
 
 ALL_SUITES = (BASE_SUITES + DEEP_SUITES + MATRIX_SUITES
               + JOURNEY_SUITES + COVERAGE_SUITES + LIFECYCLE_SUITES
-              + CUSTOMER_SUITES + STRESS_SUITES)
+              + CUSTOMER_SUITES + STRESS_SUITES + PIPELINE_SUITES)
