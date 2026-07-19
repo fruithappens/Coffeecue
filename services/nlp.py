@@ -612,15 +612,21 @@ class NLPService:
         return None
     
     def _extract_temperature(self, message):
-        """Extract temperature preference from message"""
-        for canonical, variations in self.temperatures.items():
+        """Extract temperature preference from message.
+
+        Longest canonical first: 'hot' is a substring of 'extra hot', so
+        dict order used to return plain 'hot' for an 'extra hot latte' —
+        the barista never saw the extra-hot request (Test Bench matrix
+        modifier check). Same more-specific-first rule as the drink map."""
+        for canonical, variations in sorted(self.temperatures.items(),
+                                            key=lambda kv: -len(kv[0])):
             if canonical in message:
                 return canonical
-            
+
             for variation in variations:
                 if re.search(r'\b' + re.escape(variation) + r'\b', message):
                     return canonical
-        
+
         return None
     
     def _extract_notes(self, message):
