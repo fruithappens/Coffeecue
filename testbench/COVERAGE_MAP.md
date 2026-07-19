@@ -10,19 +10,32 @@ up here as unticked rows.
 
 ## ⏯ RESUME HERE — for the next session told to "continue testing"
 
-**State of play (updated 2026-07-19):** 25 suites; **Phase B+ queue is
-COMPLETE.** Final full run 2026-07-19: **138 pass / 0 fail / 1 warn /
-1 skip** (warn = the standing schedule design note; skip = the empty-stock
-refusal leg, which auto-skips while the event runs unlimited-stock mode).
-Queue items 1–8 shipped as PRs #109–#115, each validated live. Building
-them caught and fixed SIX real bugs: the second FRIEND wiped the group +
-split its group_id (#109); the barista card dropped decaf/strength across
-all 19 serializers (#111); the PUBLIC display board errored on every call
-(TIMESTAMP vs '') and served fake demo customers (#113); mid-make CANCEL
-told the customer they had no order (#113); courtesy replies after the
-ready SMS restarted the interview + cost an SMS (#113); kiosk auto-assign
-ignored break windows AND load — first-capable-station only (#115).
-Next: Phase C (Cypress), or the security sweep on Steve's word.
+**State of play (updated 2026-07-19, batch 2):** 25 suites + Phase C UI
+tests; **Phase B+ queue AND journey/matrix batch 2 are COMPLETE.** Latest
+runs all green: batch-2 suites 60/0/1→ then matrix 23/0/0 after the last
+fix (the standing warn is the schedule design note; empty-stock refusal
+leg auto-skips while the event runs unlimited-stock mode).
+
+Everything shipped as PRs #109–#121, each validated live. Building these
+tests caught and fixed **TEN real bugs**: the second FRIEND wiped the
+group + split its group_id (#109); the barista card dropped
+decaf/strength across all 19 serializers (#111); the PUBLIC display board
+errored on every call (TIMESTAMP vs '') and served fake demo customers
+(#113); mid-make CANCEL told the customer they had no order (#113);
+courtesy replies after the ready SMS restarted the interview + cost an
+SMS (#113); kiosk auto-assign ignored break windows AND load (#115);
+CANCEL with a READY coffee said "no pending orders" (#119); **STATUS with
+an active order crashed for every non-group order** — its friend-order
+fallback queried columns that never existed, poisoning the transaction
+(#120); "extra hot" never reached the pending card — field missing from
+the pending serializers (#120) AND the parser collapsed "extra hot" to
+"hot" via dict-order substring matching (#121).
+
+Batch-2 checks now live: STATUS-with-active-order, welcome-back
+greeting, second-order stacking, cancel-after-ready honesty, reassign
+capability gate, extra-hot modifier, VIP persistence + friend
+non-inheritance (pinned as designed), paused-station exclusion.
+Next: Phase C v3 (UI saves), or the security sweep on Steve's word.
 
 **How to run the bench (no password handling — creds live in a gitignored env
 file the operator maintains):**
