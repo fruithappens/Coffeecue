@@ -100,10 +100,23 @@ feedback.md is written to be pasted into a repair session).
    Settings sections open without a render crash). Bench lifecycle
    cleanups now also PICK UP completed bench orders so they never linger
    on the public ready board.
-   **Phase C v3 (next)**: organiser save round-trips (station rename,
-   inventory item add/remove with exact restore), branding save incl. the
-   big-image silent-failure trap, barista Messages bubble + walk-in
-   dialog, Delay/batch buttons, dark/scaling display modes.
+   **Phase C v3 SHIPPED (#128)**: 10 specs / 17 tests, ~96s, all green.
+   Adds: Messages bubble lights with a REAL badge for a customer question
+   + inbox shows it; Add Walk-in Order network-intercepted (must POST,
+   backend must accept, order reaches pending — matching by wire-captured
+   order number, NOT customer name, which the backend stores differently);
+   Delay honesty (says unsupported, order untouched); organiser SAVE
+   round-trip (rename bench station via the real form, backend confirms).
+   Alerts/pricing/delete-guard bench rows also landed (#125–#127): report-
+   low fixed (500'd forever: RealDictCursor[0]) and now VISIBLE (alerts
+   array on /api/inventory/low-stock + resolve endpoint; NOTE:
+   inventory_items has NO stored status column — status is computed);
+   pricing reaches the SMS (one-shot tail) AND the barista card
+   (processed_details allow-list was dropping price before the INSERT);
+   station delete with live orders refused.
+   **Phase C v4 (next)**: branding save incl. the big-image
+   silent-failure trap (upload path), batch-button click,
+   dark/scaling display modes, inventory item add/remove round-trip.
 2. **Security sweep suites** — when Steve calls for it (role gates, user CRUD).
 3. Smaller ⬜ rows below (low-stock alerts, station delete with orders in
    flight, station chat, SMS templates propagation, pricing).
