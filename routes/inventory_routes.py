@@ -385,11 +385,37 @@ def get_low_stock():
         
         # Get low stock items
         items = InventoryItem.get_low_stock_items(db, station_id)
-        
+
+        # Include pending barista reports (inventory_alerts) — until now
+        # this table had NO reader anywhere, so report-low was write-only.
+        alerts = []
+        try:
+            acur = db.cursor(cursor_factory=RealDictCursor)
+            acur.execute("""
+                SELECT a.id, a.item_id, a.urgency, a.notes, a.created_at,
+                       i.name, i.category
+                  FROM inventory_alerts a
+                  JOIN inventory_items i ON i.id = a.item_id
+                 WHERE a.status = 'pending'
+                 ORDER BY a.created_at DESC
+                 LIMIT 50
+            """)
+            alerts = [dict(r) for r in acur.fetchall()]
+            for a in alerts:
+                if hasattr(a.get('created_at'), 'isoformat'):
+                    a['created_at'] = a['created_at'].isoformat()
+        except Exception as al_err:
+            logger.warning(f"low-stock alerts read failed (non-fatal): {al_err}")
+            try:
+                db.rollback()
+            except Exception:
+                pass
+
         return jsonify({
             'success': True,
             'count': len(items),
-            'items': items
+            'items': items,
+            'alerts': alerts
         })
     except Exception as e:
         logger.error(f"Error getting low stock items: {str(e)}")
@@ -482,6 +508,14 @@ def report_low_stock(item_id):
             _row = cursor.fetchone()
             alert_id = _row['id'] if isinstance(_row, dict) else _row[0]
             is_new = True
+
+        # Make the report VISIBLE: flag the item itself. The alert row
+        # alone lived in a table nothing read, so a barista's "running
+        # low" went nowhere (Test Bench alerts suite).
+        cursor.execute("""
+            UPDATE inventory_items SET status = 'low_stock', last_updated = %s
+            WHERE id = %s
+        """, (datetime.now(), item_id))
         
         db.commit()
         
@@ -503,6 +537,34 @@ def report_low_stock(item_id):
             'success': False,
             'error': str(e)
         }), 500
+
+# Resolve (dismiss) a low-stock alert — without this, a pending alert
+# lived forever: the table had no reader and no way to clear it.
+@bp.route('/api/inventory/alerts/<int:alert_id>/resolve', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def resolve_inventory_alert(alert_id):
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        cursor = db.cursor()
+        cursor.execute("""
+            UPDATE inventory_alerts SET status = 'resolved'
+            WHERE id = %s RETURNING id
+        """, (alert_id,))
+        row = cursor.fetchone()
+        db.commit()
+        if not row:
+            return jsonify({'success': False, 'error': 'alert not found'}), 404
+        return jsonify({'success': True, 'resolved': alert_id})
+    except Exception as e:
+        logger.error(f"resolve_inventory_alert error: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 # Adjust stock level
 @bp.route('/api/inventory/<int:item_id>/adjust', methods=['POST'])

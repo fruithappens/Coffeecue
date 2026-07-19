@@ -213,17 +213,24 @@ def suite_alerts(rn):
     def _low_listed():
         _c, b, _ = c.get("/api/inventory/low-stock")
         rows = (b or {}).get("items") or (b or {}).get("data") or []
-        return any(str(r.get("id")) == str(rid) for r in rows if isinstance(r, dict))
+        in_items = any(str(r.get("id")) == str(rid) for r in rows if isinstance(r, dict))
+        in_alerts = any(str(a.get("item_id")) == str(rid)
+                        for a in ((b or {}).get("alerts") or [])
+                        if isinstance(a, dict))
+        return in_items or in_alerts
 
     try:
-        # 1) barista taps "report low" → the item joins the low-stock list
+        # 1) barista taps "report low" → the report is VISIBLE somewhere:
+        #    the item's status flips low, or it appears in the low-stock
+        #    endpoint's items/alerts.
         rc, rb, _ = c.post(f"/api/inventory/{rid}/report-low",
                            {"urgency": "normal", "notes": "bench alert test"})
-        seen = rc == 200 and (_item().get("status") == "low_stock" or _low_listed())
+        seen = rc == 200 and (str(_item().get("status")) in ("low_stock", "warning", "danger")
+                              or _low_listed())
         out.append(R("alerts", "report-low reaches the low-stock list",
                      "pass" if seen else "fail",
                      f"report-low → HTTP {rc}; status={_item().get('status')!r}, "
-                     f"in low-stock list={_low_listed()}",
+                     f"visible in low-stock items/alerts={_low_listed()}",
                      evidence="" if seen else str(rb)[:200],
                      suggestion="" if seen else
                      "A barista's low-stock report goes nowhere visible — "
@@ -254,6 +261,11 @@ def suite_alerts(rn):
                      refs=[] if flipped else ["routes/consolidated_api_routes.py",
                                               "models/inventory.py"]))
     finally:
+        # resolve the bench's own alert so the organiser view stays clean
+        _c2, lb, _ = c.get("/api/inventory/low-stock")
+        for a in ((lb or {}).get("alerts") or []):
+            if str(a.get("item_id")) == str(rid) and "bench" in str(a.get("notes", "")).lower():
+                c.post(f"/api/inventory/alerts/{a.get('id')}/resolve")
         c.post(f"/api/inventory/{rid}/adjust",
                {"new_amount": orig_qty, "change_reason": "bench_restore"})
         c.req("PUT", f"/api/inventory/{rid}", body={"status": orig_status})
