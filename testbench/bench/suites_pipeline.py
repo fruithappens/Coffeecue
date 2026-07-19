@@ -341,7 +341,173 @@ def suite_group_pipeline(rn):
     return out
 
 
+# --------------------------------------------------------- the VIP pipeline
+
+def suite_vip_pipeline(rn):
+    """VIP, cradle to grave: code activates → order carries priority at
+    EVERY stage → and the promise that matters: a VIP order placed AFTER a
+    normal order still comes FIRST in the barista's queue. Then made,
+    collected, archived — with the flag surviving into history.
+    Opt-in via --allow-lifecycle."""
+    from .suites_customer import _answer_until, _order_number
+    c, out = rn.client, []
+    if not rn.options.get("allow_lifecycle"):
+        return [R("vip_pipeline", "VIP pipeline trace", "skip",
+                  "Opt-in (completes + collects a real order) — enable 'lifecycle'")]
+    drinks, milks, _ = _menu(c)
+    milk = next((m for m in ("full cream", "skim") if m in milks),
+                milks[0] if milks else "full cream")
+
+    def step(name, ok, detail, suggestion=""):
+        out.append(R("vip_pipeline", name, "pass" if ok else "fail", detail,
+                     suggestion="" if ok else suggestion,
+                     refs=[] if ok else ["services/coffee_system.py",
+                                         "routes/consolidated_api_routes.py"]))
+        return ok
+
+    n_norm = n_vip = None
+    ph_n, ph_v = rn.next_phone(), rn.next_phone()
+    try:
+        # A NORMAL order first…
+        ok, r1 = _answer_until(c, ph_n, f"{BENCH_TAG}VipN medium latte with {milk}",
+                               ("confirmed", "order #"), milk)
+        n_norm = _order_number(r1)
+        # …then VIP activates and orders the same thing AFTER.
+        ok, r2 = _sim(c, ph_v, "VIP")
+        activated = ok and "vip" in (r2 or "").lower()
+        step("1. VIP code activates", activated, (r2 or "")[:110])
+        ok, r3 = _answer_until(c, ph_v, f"{BENCH_TAG}VipQ medium latte with {milk}",
+                               ("confirmed", "order #"), milk)
+        n_vip = _order_number(r3)
+        if not step("1. VIP order confirms", bool(n_vip), (r3 or "")[:110]):
+            return out
+
+        # 2. flagged AND ahead of the earlier normal order in the queue
+        pend = _pending_rows(c)
+        row_v = next((o for o in pend if _on([o], n_vip)), None)
+        flagged = bool(row_v and (row_v.get("vip") or row_v.get("priority")))
+        step("2. pending card carries the VIP flag", flagged,
+             f"vip={row_v.get('vip') if row_v else None}")
+        pos = {str(o.get("order_number") or o.get("orderNumber")): i
+               for i, o in enumerate(pend)}
+        jumped = (str(n_vip) in pos and str(n_norm) in pos
+                  and pos[str(n_vip)] < pos[str(n_norm)])
+        step("2. QUEUE JUMP: VIP (ordered later) sits AHEAD of the normal order",
+             jumped, f"positions: vip={pos.get(str(n_vip))}, "
+                     f"normal={pos.get(str(n_norm))}",
+             suggestion="VIP priority isn't reordering the barista's queue — "
+                        "the whole point of VIP.")
+
+        # 3-6. made → ready (SMS recorded) → collected → archived, flag intact
+        sc, _s, _ = c.post(f"/api/orders/{n_vip}/start", {"test_no_send": True})
+        cc, _c2, _ = c.post(f"/api/orders/{n_vip}/complete", {"test_no_send": True})
+        _mc, mb, _ = c.get(f"/api/orders/{n_vip}/messages")
+        rendered = any(x.get("message_sid") == "test_no_send"
+                       for x in ((mb or {}).get("messages") or []))
+        step("3. made + ready SMS recorded", sc == 200 and cc == 200 and rendered,
+             f"start={sc} complete={cc} sms_recorded={rendered}")
+        pc, _p, _ = c.post(f"/api/orders/{n_vip}/pickup")
+        _hc, hb, _ = c.get("/api/orders?status=picked_up")
+        hist = hb.get("data") or hb.get("orders") or []
+        hrow = next((o for o in (hist if isinstance(hist, list) else [])
+                     if _on([o], n_vip)), None)
+        step("4. collected + archived with the VIP flag intact",
+             pc == 200 and bool(hrow and (hrow.get("vip") or hrow.get("priority"))),
+             f"pickup={pc}, history vip={hrow.get('vip') if hrow else None}")
+    finally:
+        for n in (n_norm, n_vip):
+            if n:
+                c.post(f"/api/orders/{n}/cancel")
+    return out
+
+
+# ------------------------------------------------------ the WALK-IN pipeline
+
+def suite_walkin_pipeline(rn):
+    """A barista-entered walk-in (no phone), cradle to grave: created via
+    the same POST the dialog uses → queued/station/stock/batch-key →
+    made → ready → collected → archived. No phone = no SMS at any stage
+    (that's the walk-in deal — they watch the board).
+    Opt-in via --allow-lifecycle."""
+    c, out = rn.client, []
+    if not rn.options.get("allow_lifecycle"):
+        return [R("walkin_pipeline", "walk-in pipeline trace", "skip",
+                  "Opt-in (completes + collects a real order) — enable 'lifecycle'")]
+    drinks, milks, _ = _menu(c)
+    milk = next((m for m in ("full cream", "skim") if m in milks),
+                milks[0] if milks else "full cream")
+
+    def step(name, ok, detail, suggestion=""):
+        out.append(R("walkin_pipeline", name, "pass" if ok else "fail", detail,
+                     suggestion="" if ok else suggestion,
+                     refs=[] if ok else ["routes/consolidated_api_routes.py"]))
+        return ok
+
+    no = None
+    stock0 = _stock_level(c, milk)
+    try:
+        pc, pb, _ = c.post("/api/orders", {
+            "customer_name": f"{BENCH_TAG}Walk", "coffee_type": "latte",
+            "milk_type": milk, "milk": milk, "size": "medium",
+            "source": "walkin",
+        })
+        body = pb if isinstance(pb, dict) else {}
+        no = ((body.get("data") or {}).get("order_number")
+              or body.get("order_number") or body.get("orderNumber")
+              or (body.get("order") or {}).get("order_number"))
+        if not no:
+            row = next((o for o in _pending_rows(c)
+                        if str(o.get("customerName") or "")
+                        .lower().startswith(f"{BENCH_TAG}Walk".lower())), None)
+            no = row and (row.get("order_number") or row.get("orderNumber"))
+        if not step("1. walk-in created via POST /orders",
+                    pc in (200, 201) and bool(no),
+                    f"HTTP {pc}, order {no}"):
+            return out
+        row = next((o for o in _pending_rows(c) if _on([o], no)), None)
+        step("1. queued, station-assigned, NOT accidentally VIP",
+             bool(row and (row.get("stationId") or row.get("station_id"))
+                  and not (row.get("vip") or row.get("priority"))),
+             f"station={row.get('stationId') if row else None}, "
+             f"vip={row.get('vip') if row else None}",
+             suggestion="Walk-ins were once saved vip=true by accident "
+                        "('Bob didn't ask for VIP') — guard that stays down.")
+        # DESIGN DIFFERENCE, pinned: SMS/kiosk decrement stock at CREATE;
+        # walk-ins decrement at COMPLETE ('the moment the drink is made').
+        stock1 = _stock_level(c, milk)
+        step("1. stock UNCHANGED at create (walk-ins decrement on completion)",
+             stock1 == stock0, f"{milk}: {stock0} → {stock1}")
+
+        sc, _s, _ = c.post(f"/api/orders/{no}/start", {"test_no_send": True})
+        cc, _cx, _ = c.post(f"/api/orders/{no}/complete", {"test_no_send": True})
+        _prog, ready = _boards(c)
+        step("2. made: on the ready board (their name on the screen)",
+             sc == 200 and cc == 200 and _on(ready, no),
+             f"start={sc} complete={cc} on_board={_on(ready, no)}")
+        stock2 = _stock_level(c, milk)
+        step("2. stock went DOWN at completion",
+             stock2 < stock1, f"{milk}: {stock1} → {stock2}",
+             suggestion="A completed walk-in never consumed stock — "
+                        "inventory silently drifts from reality.")
+        _mc, mb, _ = c.get(f"/api/orders/{no}/messages")
+        sms_count = len(((mb or {}).get("messages")) or [])
+        step("2. NO SMS for a phoneless walk-in", sms_count == 0,
+             f"{sms_count} messages recorded (expected 0)")
+        pcx, _p, _ = c.post(f"/api/orders/{no}/pickup")
+        _hc, hb, _ = c.get("/api/orders?status=picked_up")
+        hist = hb.get("data") or hb.get("orders") or []
+        step("3. collected + archived",
+             pcx == 200 and _on(hist if isinstance(hist, list) else [], no),
+             f"pickup={pcx}")
+    finally:
+        if no:
+            c.post(f"/api/orders/{no}/cancel")
+    return out
+
+
 PIPELINE_SUITES = [
     ("pipeline", suite_pipeline, True),
     ("group_pipeline", suite_group_pipeline, True),
+    ("vip_pipeline", suite_vip_pipeline, True),
+    ("walkin_pipeline", suite_walkin_pipeline, True),
 ]

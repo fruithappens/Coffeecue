@@ -15,8 +15,8 @@ one test) · 👁 UI-clicked (Cypress) · ⬜ gap.
 | Order → collect (the core) | real SMS text via simulate | confirm reply; pending queue; barista feed + station; queue pill; wait; STOCK level; batch key; in-progress board; READY board; recorded ready-SMS text; picked-up; history; today's report | `pipeline` suite: 15 asserts, one order, every stage | ✅ |
 | Order for friends (group) | full FRIEND conversation ×2 + DONE | one group id on barista feed; ONE station; start-group; ready board ×3; SMS count (3 → flagged); collected; archived | `group_pipeline`: 10 asserts | ✅ |
 | Kiosk walk-up | real clicks through the touch wizard | order number on success screen; backend order exists; barista board shows it (incl. decaf) | `ui_kiosk_order` + `ui_barista_board` | ✅👁 |
-| VIP | VIP code → order → next order → friend | activation reply; priority flag on pending record; persistence; friend non-inheritance | `vip` suite | 🧩 (pipeline-style trace = named gap) |
-| Walk-in (barista enters) | real dialog clicks | POST on the wire accepted; order in pending | `ui_messages_walkin` | 🧩 (post-create stages inherited from core pipeline) |
+| VIP | VIP code → order (after a normal order) | activation; flag on pending card; **QUEUE JUMP proven** (later VIP ahead of earlier normal); made; ready-SMS recorded; collected; archived flag intact | `vip_pipeline` (+ `vip` suite for persistence/friend rules) | ✅ |
+| Walk-in (barista enters) | real dialog clicks + API pipeline | POST accepted; queued/station; NOT accidentally VIP; stock UNCHANGED at create + DOWN at completion (design difference pinned); ready board; NO SMS (phoneless); collected; archived | `walkin_pipeline` + `ui_messages_walkin` | ✅ |
 | CANCEL: pending / mid-make / ready | SMS CANCEL at each stage | order gone from queue; honest "being made" reply; honest "waiting at Station X" reply | journeys: cancel-after-confirm / while-making / after-ready | ✅ (3 stages each traced) |
 | STATUS (none / queued / group) | SMS STATUS | "no orders" / number+station+wait / related-orders list | vocab + customer + pipeline stage 3 | ✅ |
 | Question to barista + reply loop | BARISTA question, then a reply | Messages-bubble badge count (UI); inbox content; reply NOT eaten by order bot; tagged to order | `journey_message_reply` + `ui_messages_walkin` | ✅👁 |
@@ -63,11 +63,12 @@ one test) · 👁 UI-clicked (Cypress) · ⬜ gap.
 | Abuse throttle | 13-message flood | gate trips at 13, stays paused, bystander fine | burst suite | ✅ |
 | Emergency controls | — | — | deliberately NEVER auto-tested | ⬜ by choice |
 
-## The named gaps, honestly
-1. **VIP as a full pipeline** (activation → priority visible at every
-   stage → archived) — pieces all pass; the continuous trace is missing.
-2. **Walk-in as a full pipeline** — creation is click-tested; later
-   stages inherit from the core pipeline rather than being traced as one.
+## The named gaps, honestly (updated 2026-07-20 pm)
+1. ~~VIP as a full pipeline~~ **DONE** — `vip_pipeline`, incl. the
+   queue-jump proof.
+2. ~~Walk-in as a full pipeline~~ **DONE** — `walkin_pipeline`; pinned
+   the design difference: walk-ins decrement stock at COMPLETION (the
+   moment the drink is made), SMS/kiosk at creation.
 3. **Organiser full event lifecycle** — needs a disposable test event.
 4. **Emergency tab actions** — untested by choice; verify by hand once.
 5. **Real Twilio delivery** — by design out of scope; covered by the
