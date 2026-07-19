@@ -111,6 +111,22 @@ def journey_message_reply(rn):
                  refs=[] if landed else ["services/coffee_system.py",
                                          "routes/consolidated_api_routes.py"]))
 
+    # ASSERT C: the reply also shows ON the customer's order card (the
+    # pending row carries customerMessage) — a barista reading the card
+    # sees "no sugar" without opening the Messages bubble.
+    code, body, _ = c.get("/api/orders/pending")
+    row = next((o for o in _order_list(body)
+                if str(o.get("order_number") or o.get("orderNumber")) == str(order_no)), {})
+    cmsg = str(row.get("customerMessage") or row.get("customer_message") or "")
+    on_card = "no sugar" in cmsg.lower()
+    out.append(R("journeys", "message-reply: reply shows on the order card",
+                 "pass" if on_card else "warn",
+                 f"pending row customerMessage: {cmsg[:100]!r}",
+                 suggestion="" if on_card else
+                 "The reply reached the inbox but not the customer's order "
+                 "card — the barista must cross-reference the bubble.",
+                 refs=[] if on_card else ["routes/consolidated_api_routes.py"]))
+
     _sim(c, phone, "CANCEL")
     # sweep
     code, body, _ = c.get("/api/orders/pending")

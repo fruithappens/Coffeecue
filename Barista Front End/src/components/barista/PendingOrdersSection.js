@@ -259,6 +259,15 @@ const PendingOrdersSection = ({
                       Alternative Milk
                     </div>
                   )}
+                  {/* The customer's latest unanswered SMS ("no sugar
+                      thanks", "make it decaf") — shown on THEIR order, not
+                      just the Messages bubble. */}
+                  {(order.customerMessage || order.customer_message) && (
+                    <div className="mt-2 px-2 py-1 bg-amber-50 border border-amber-300 text-amber-900 text-sm rounded flex items-start gap-1">
+                      <span aria-hidden="true">💬</span>
+                      <span className="italic">{order.customerMessage || order.customer_message}</span>
+                    </div>
+                  )}
                 </div>
                 
                 <div className="mt-2 flex justify-between">

@@ -1864,10 +1864,10 @@ const BaristaInterface = () => {
           <button
             className="px-4 py-1 rounded-full bg-green-500 hover:bg-green-600 flex items-center transition-colors"
             onClick={() => setShowWaitTimeDialog(true)}
-            title="Live estimate from real make-times, queue and station capacity. Click to set the starting estimate (used until enough orders complete)."
+            title="The walk-up answer: if someone orders RIGHT NOW, this is roughly how long until their coffee — live estimate from the current queue, real make-times and station capacity. With an empty queue it's just the time to make one coffee. Click to set the starting estimate (used until enough real orders complete)."
           >
             <Clock size={14} className="mr-1" />
-            Wait: {currentStationObj?.estimatedWait ?? waitTime} min
+            Walk-up ~{currentStationObj?.estimatedWait ?? waitTime} min
           </button>
 
           {/* Other stations at a glance (e.g. S2: Q5) so a barista can send a
@@ -1984,7 +1984,7 @@ const BaristaInterface = () => {
           onClick={() => setActiveTab('inventory')}
         >
           <Package size={18} className="mr-1" />
-          Inventory AI
+          Inventory
         </button>
         <button
           className={`py-4 px-6 font-medium flex items-center ${activeTab === 'schedule' ? 'border-b-2 border-amber-600 bg-white text-amber-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
@@ -2005,7 +2005,7 @@ const BaristaInterface = () => {
           onClick={() => setActiveTab('queue')}
         >
           <Brain size={18} className="mr-1" />
-          Queue AI
+          Queue Rules
         </button>
         <button
           className={`py-4 px-6 font-medium flex items-center ${activeTab === 'balance' ? 'border-b-2 border-amber-600 bg-white text-amber-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
@@ -2077,10 +2077,10 @@ const BaristaInterface = () => {
           <div className="absolute bottom-14 left-0 right-0 bg-white rounded-t-2xl shadow-xl p-3" onClick={e => e.stopPropagation()}>
             <div className="grid grid-cols-3 gap-2">
               {[
-                { id: 'inventory', label: 'Inventory AI', Icon: Package },
+                { id: 'inventory', label: 'Inventory', Icon: Package },
                 { id: 'schedule', label: 'Schedule', Icon: Calendar },
                 { id: 'display', label: 'Display', Icon: Monitor },
-                { id: 'queue', label: 'Queue AI', Icon: Brain },
+                { id: 'queue', label: 'Queue Rules', Icon: Brain },
                 { id: 'balance', label: 'Balance', Icon: Scale },
                 { id: 'capabilities', label: 'Capabilities', Icon: Settings },
                 { id: 'staff', label: 'Staff', Icon: Users },
