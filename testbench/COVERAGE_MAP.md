@@ -123,9 +123,18 @@ feedback.md is written to be pasted into a repair session).
    click starts both identical orders; orientation/rotate/pickup display
    modes render with body-transform identity (#47 guard); bench inv_crud
    suite (create→list→adjust→delete, re-proves #106 dual columns).
-   **Phase C v5 (next)**: support-interface click-through, station chat
-   send/receive, SMS templates propagation, schedule shift CRUD via UI.
-   Or: the security sweep on Steve's word.
+   **Phase C v5 SHIPPED (#132)**: 15 specs / 23 tests ~2m40s all green.
+   Adds: all 9 support tabs open-only click-through (Emergency has live
+   controls — never press inside); station chat send → BACKEND chat log
+   (+ API delete cleanup); roster shift CRUD (bench sched_crud) + shift
+   visible on the barista Schedule tab. Pinned truths: shift create
+   silently DROPS barista_name (names go in 'notes'); SMS templates are
+   INFORMATIONAL — no message builder consumes them (standing note in
+   every report now).
+   **Next**: the security sweep on Steve's word, or remaining small rows
+   (event templates, print/email report, EventsAir stub once an API key
+   exists). The UI+bench layers now cover every barista/organiser/support
+   surface that exists.
 2. **Security sweep suites** — when Steve calls for it (role gates, user CRUD).
 3. Smaller ⬜ rows below (low-stock alerts, station delete with orders in
    flight, station chat, SMS templates propagation, pricing).
