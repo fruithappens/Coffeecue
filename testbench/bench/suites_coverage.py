@@ -99,6 +99,20 @@ def suite_sms_vocab(rn):
     out.append(R("sms_vocab", "no keyword crashed the bot",
                  "pass" if crashy == 0 else "fail",
                  f"{len(checks)} keywords exercised, {crashy} crashed/empty"))
+
+    # Standing truth note (like the schedule design note): the SMS templates
+    # endpoint exists and the Comms UI can edit templates — but the actual
+    # confirm/started/ready message builders are hardcoded strings in
+    # coffee_system/consolidated routes and consume NO template keys.
+    # Editing a template has no customer-facing effect today.
+    tc, tb, _ = c.get("/api/sms/templates")
+    out.append(R("sms_vocab", "SMS templates: endpoint alive (design note)",
+                 "pass" if tc == 200 else "warn",
+                 f"GET /api/sms/templates → HTTP {tc}. NOTE: templates are "
+                 "INFORMATIONAL — the confirm/started/ready SMS builders are "
+                 "hardcoded and do not consume template keys, so edits here "
+                 "don't reach customers (wire them in if that's wanted).",
+                 refs=[] if tc == 200 else ["routes/consolidated_api_routes.py"]))
     _sweep(rn, BENCH_TAG)
     return out
 
