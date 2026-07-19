@@ -509,13 +509,10 @@ def report_low_stock(item_id):
             alert_id = _row['id'] if isinstance(_row, dict) else _row[0]
             is_new = True
 
-        # Make the report VISIBLE: flag the item itself. The alert row
-        # alone lived in a table nothing read, so a barista's "running
-        # low" went nowhere (Test Bench alerts suite).
-        cursor.execute("""
-            UPDATE inventory_items SET status = 'low_stock', last_updated = %s
-            WHERE id = %s
-        """, (datetime.now(), item_id))
+        # NOTE: inventory_items has NO stored status column (status is
+        # COMPUTED from amount/threshold by the model) — an UPDATE here
+        # 500'd the endpoint. Visibility comes from the alerts array on
+        # GET /api/inventory/low-stock instead.
         
         db.commit()
         
