@@ -216,4 +216,132 @@ def suite_pipeline(rn):
     return out
 
 
-PIPELINE_SUITES = [("pipeline", suite_pipeline, True)]
+# ------------------------------------------------------- the GROUP pipeline
+
+def suite_group_pipeline(rn):
+    """'Order for a friend', cradle to grave: primary + 2 friends → ONE
+    group on ONE station → barista starts the group together → all ready →
+    the promise 'they'll be ready together' is checked against what SMS
+    the customer would actually get → collected together → archived.
+    Opt-in via --allow-lifecycle. Zero real SMS (fake phone, test_no_send)."""
+    from .suites_customer import _answer_until, _order_number
+    c, out = rn.client, []
+    if not rn.options.get("allow_lifecycle"):
+        return [R("group_pipeline", "group order pipeline trace", "skip",
+                  "Opt-in (completes + collects real orders) — enable 'lifecycle'")]
+
+    drinks, milks, _ = _menu(c)
+    milk = next((m for m in ("full cream", "skim") if m in milks),
+                milks[0] if milks else "full cream")
+    TAGG = f"{BENCH_TAG}Gpipe"
+    ph = rn.next_phone()
+    nums = []
+
+    def step(name, ok, detail, suggestion="", status_override=None):
+        out.append(R("group_pipeline", name,
+                     status_override or ("pass" if ok else "fail"), detail,
+                     suggestion="" if ok else suggestion,
+                     refs=[] if ok else ["services/coffee_system.py",
+                                         "routes/consolidated_api_routes.py"]))
+        return ok
+
+    try:
+        # ---- 1. primary + two friends order ------------------------------
+        ok, reply = _answer_until(c, ph, f"{TAGG} medium latte with {milk}",
+                                  ("confirmed", "order #"), milk)
+        n0 = _order_number(reply)
+        if not step("1. primary confirms", bool(n0), (reply or "")[:110]):
+            return out
+        nums.append(n0)
+        for friend in (f"{TAGG}A", f"{TAGG}B"):
+            ok, reply = _sim(c, ph, "FRIEND")
+            if ok and "name" in (reply or "").lower():
+                ok, reply = _answer_until(c, ph, friend,
+                                          ("confirmed", "order #"), milk)
+                nf = _order_number(reply)
+                if nf:
+                    nums.append(nf)
+        _sim(c, ph, "DONE")
+        step("1. group of three confirmed", len(nums) == 3, f"orders: {nums}")
+
+        # ---- 2. one group, one station, visible to the barista -----------
+        _c, ob, _ = c.get("/api/orders?status=pending")
+        rows = [o for o in (ob.get("data") or ob.get("orders") or [])
+                if str(o.get("order_number") or o.get("orderNumber")) in
+                [str(n) for n in nums]]
+        gids = {str(o.get("groupId") or o.get("group_id")) for o in rows}
+        sids = {str(o.get("stationId") or o.get("station_id")) for o in rows}
+        step("2. all three share ONE group id on the barista feed",
+             len(rows) == 3 and len(gids) == 1 and "None" not in gids,
+             f"group ids={sorted(gids)}, orders found={len(rows)}")
+        step("2. all three on ONE station (group is makeable together)",
+             len(sids) == 1, f"stations={sorted(sids)}")
+
+        # ---- 3. barista starts the GROUP (what Start group does) ---------
+        started = sum(1 for n in nums
+                      if c.post(f"/api/orders/{n}/start", {"test_no_send": True})[0] == 200)
+        prog, _ready = _boards(c)
+        on_board = sum(1 for n in nums if _on(prog, n))
+        step("3. group starts together: all three in progress",
+             started == 3 and on_board >= 3,
+             f"started={started}/3, on in-progress board={on_board}")
+
+        # ---- 4. all made: ready together + the SMS truth -----------------
+        done = sum(1 for n in nums
+                   if c.post(f"/api/orders/{n}/complete", {"test_no_send": True})[0] == 200)
+        _prog, ready = _boards(c)
+        on_ready = sum(1 for n in nums if _on(ready, n))
+        step("4. all made: three on the ready board",
+             done == 3 and on_ready >= 3, f"completed={done}/3, ready board={on_ready}")
+        recorded = 0
+        for n in nums:
+            _mc, mb, _ = c.get(f"/api/orders/{n}/messages")
+            recorded += sum(1 for x in ((mb or {}).get("messages") or [])
+                            if x.get("message_sid") == "test_no_send")
+        # The promise is 'ready together, we'll SMS the pickup location' —
+        # today that means one SMS PER DRINK to the same phone. Cost/UX
+        # observation, not a failure: surfaced as a warn so it's decided
+        # deliberately.
+        out.append(R("group_pipeline", "4. SMS truth: messages per group",
+                     "pass" if recorded == 3 else "warn",
+                     f"{recorded} ready-SMS recorded for a 3-coffee group "
+                     "(one per drink, all to the group lead's phone)",
+                     suggestion="" if recorded == 3 else
+                     "Expected one recorded ready message per completed drink.")
+                   )
+        if recorded == 3:
+            out.append(R("group_pipeline", "4. design note: 3 SMS for one group",
+                         "warn",
+                         "A 3-coffee group sends THREE ready SMS to one phone "
+                         "(3x cost, 3 buzzes). Consider one combined "
+                         "'your 3 coffees are ready at Station X' message "
+                         "when a group completes together.",
+                         suggestion="Combine group ready-SMS into one message "
+                         "when all group members complete within a short window.",
+                         refs=["routes/consolidated_api_routes.py"]))
+
+        # ---- 5. collected + archived -------------------------------------
+        picked = sum(1 for n in nums if c.post(f"/api/orders/{n}/pickup")[0] == 200)
+        _prog, ready2 = _boards(c)
+        left = sum(1 for n in nums if _on(ready2, n))
+        step("5. collected together: ready board clear",
+             picked == 3 and left == 0, f"picked up={picked}/3, still on board={left}")
+        _c2, hb, _ = c.get("/api/orders?status=picked_up")
+        hist = hb.get("data") or hb.get("orders") or []
+        archived = sum(1 for n in nums if _on(hist if isinstance(hist, list) else [], n))
+        step("5. archived: all three in picked_up history",
+             archived == 3, f"{archived}/3 in history")
+    finally:
+        for n in nums:
+            c.post(f"/api/orders/{n}/cancel")
+        _c3, pb, _ = c.get("/api/orders/pending")
+        for o in _order_list(pb):
+            if str(o.get("customerName") or "").lower().startswith(TAGG.lower()):
+                c.post(f"/api/orders/{o.get('order_number')}/cancel")
+    return out
+
+
+PIPELINE_SUITES = [
+    ("pipeline", suite_pipeline, True),
+    ("group_pipeline", suite_group_pipeline, True),
+]
