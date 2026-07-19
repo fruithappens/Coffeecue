@@ -6204,6 +6204,60 @@ def debug_inventory_schema():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@bp.route('/sms/log', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def sms_log():
+    """Inbound SMS log with the bot's replies — the raw material for
+    reviewing a live group test (sms_messages had no reader endpoint).
+
+    Params: since=<ISO timestamp> (default: last 2 hours), limit (<=500).
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        since = request.args.get('since')
+        try:
+            limit = min(500, int(request.args.get('limit') or 300))
+        except (TypeError, ValueError):
+            limit = 300
+        cur = db.cursor()
+        if since:
+            cur.execute("""
+                SELECT id, phone_number, message_body, sender_name, station_id,
+                       received_at, processed, response_sent
+                  FROM sms_messages
+                 WHERE received_at >= %s
+                 ORDER BY received_at ASC
+                 LIMIT %s
+            """, (since, limit))
+        else:
+            cur.execute("""
+                SELECT id, phone_number, message_body, sender_name, station_id,
+                       received_at, processed, response_sent
+                  FROM sms_messages
+                 WHERE received_at >= NOW() - INTERVAL '2 hours'
+                 ORDER BY received_at ASC
+                 LIMIT %s
+            """, (limit,))
+        cols = ['id', 'phone_number', 'message_body', 'sender_name', 'station_id',
+                'received_at', 'processed', 'response_sent']
+        rows = []
+        for r in cur.fetchall():
+            d = dict(zip(cols, r)) if not isinstance(r, dict) else dict(r)
+            if hasattr(d.get('received_at'), 'isoformat'):
+                d['received_at'] = d['received_at'].isoformat()
+            rows.append(d)
+        return jsonify({'success': True, 'count': len(rows), 'messages': rows})
+    except Exception as e:
+        logger.error(f"sms_log error: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @bp.route('/sms/blocklist', methods=['GET'])
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff'])
