@@ -10,14 +10,19 @@ up here as unticked rows.
 
 ## ⏯ RESUME HERE — for the next session told to "continue testing"
 
-**State of play (updated 2026-07-19):** 23 suites. Phases A, B and most of
-B+ are DONE. Queue items 1–6 below shipped 2026-07-19 (PRs #109–#113) and
-each was validated live; building them caught and fixed FOUR real bugs:
-the second FRIEND wiped the group + split its group_id (#109), the barista
-card dropped decaf/strength (#111), the PUBLIC display board served fake
-demo orders on every call — TIMESTAMP-vs-'' query error + demo fallback
-(#113), and mid-make CANCEL gaslit the customer + courtesy replies
-restarted the interview (#113). Remaining queue: items 7–8, then Phase C.
+**State of play (updated 2026-07-19):** 25 suites; **Phase B+ queue is
+COMPLETE.** Final full run 2026-07-19: **138 pass / 0 fail / 1 warn /
+1 skip** (warn = the standing schedule design note; skip = the empty-stock
+refusal leg, which auto-skips while the event runs unlimited-stock mode).
+Queue items 1–8 shipped as PRs #109–#115, each validated live. Building
+them caught and fixed SIX real bugs: the second FRIEND wiped the group +
+split its group_id (#109); the barista card dropped decaf/strength across
+all 19 serializers (#111); the PUBLIC display board errored on every call
+(TIMESTAMP vs '') and served fake demo customers (#113); mid-make CANCEL
+told the customer they had no order (#113); courtesy replies after the
+ready SMS restarted the interview + cost an SMS (#113); kiosk auto-assign
+ignored break windows AND load — first-capable-station only (#115).
+Next: Phase C (Cypress), or the security sweep on Steve's word.
 
 **How to run the bench (no password handling — creds live in a gitignored env
 file the operator maintains):**
@@ -57,8 +62,17 @@ feedback.md is written to be pasted into a repair session).
 | 4 | **Matrix dimensions** (hot chocolate + decaf/strong/tea mini-matrix) | ✅ DONE (#111) — oracle = the barista card. Caught + fixed: every serializer dropped decaf/strength (19 sites → `_drink_display_name`). |
 | 5 | **test_no_send on start/complete + cancel-while-making journey** | ✅ DONE (#112/#113) — journeys opt-in via `--allow-lifecycle`. Caught + fixed: mid-make CANCEL said "you don't have any pending orders". |
 | 6 | **Ready-reply journey** | ✅ DONE (#112/#113) — courtesy replies after the ready SMS are now absorbed silently (no reply, no SMS cost). Also caught: the PUBLIC display board (`/api/display/orders`) errored on every call (TIMESTAMP vs '') and served fake demo customers — fixed + regression-guarded in the display suite. |
-| 7 | **Pickup + batch endpoints** | ⬜ NEXT — `POST /orders/<id>/pickup` transitions completed→picked-up (use test_no_send if it sends SMS); `POST /orders/batch/process` on 2 bench orders. Opt-in with `--allow-lifecycle`. |
-| 8 | **Break-window routing** | ⬜ NEXT — new opt-in `--allow-breaks`: create a temporary event break covering NOW → new order gets the break message / correct handling → delete the break in `finally`. (The #92 fix has no live guard yet.) |
+| 7 | **Pickup + batch endpoints** | ✅ DONE (#114) — `order_extras` suite (opt-in `--allow-lifecycle`): batch/process starts 2 together, complete→ready board, pickup→leaves the board. All green live. |
+| 8 | **Break-window routing** | ✅ DONE (#114/#115) — new `--allow-breaks` suite + `GET/POST/DELETE /api/event-breaks` CRUD (breaks previously had NO management API). First run FAILED correctly: kiosk auto-assign ignored break windows AND load ("first capable station"). Fixed (#115): kiosk now routes via `_assign_station` like SMS. Verified: 3 orders → the one open station. |
+
+**THE QUEUE IS COMPLETE (2026-07-19).** Next frontier, in order:
+1. **Phase C — Cypress UI tests** (the big one; see parked section).
+2. **Security sweep suites** — when Steve calls for it (role gates, user CRUD).
+3. Smaller ⬜ rows below (low-stock alerts, station delete with orders in
+   flight, station chat, SMS templates propagation, pricing).
+Building the queue caught + fixed SIX real bugs — the method (build the
+test, believe its first failure, follow the evidence) is the payload;
+keep doing exactly that.
 
 **Parked (do NOT build until their trigger):**
 - **Role-gate / permissions suite** — Steve wants this as part of his pre-live
