@@ -114,9 +114,18 @@ feedback.md is written to be pasted into a repair session).
    pricing reaches the SMS (one-shot tail) AND the barista card
    (processed_details allow-list was dropping price before the INSERT);
    station delete with live orders refused.
-   **Phase C v4 (next)**: branding save incl. the big-image
-   silent-failure trap (upload path), batch-button click,
-   dark/scaling display modes, inventory item add/remove round-trip.
+   **Phase C v4 SHIPPED (#130)**: 12 specs / 20 tests, ~2min, all green.
+   Adds: branding big-image trap (oversized upload → VISIBLE 400KB error;
+   tiny logo save verified against the BACKEND blob, exact restore);
+   Process Batch clicked for real — which found that batch grouping was
+   DEAD in the UI (the /orders listing the barista polls never emitted
+   batch_group; only /orders/pending had it) — fixed + verified: one
+   click starts both identical orders; orientation/rotate/pickup display
+   modes render with body-transform identity (#47 guard); bench inv_crud
+   suite (create→list→adjust→delete, re-proves #106 dual columns).
+   **Phase C v5 (next)**: support-interface click-through, station chat
+   send/receive, SMS templates propagation, schedule shift CRUD via UI.
+   Or: the security sweep on Steve's word.
 2. **Security sweep suites** — when Steve calls for it (role gates, user CRUD).
 3. Smaller ⬜ rows below (low-stock alerts, station delete with orders in
    flight, station chat, SMS templates propagation, pricing).
