@@ -355,6 +355,9 @@ def journey_ready_reply(rn):
                  refs=[] if status == "pass" else ["services/coffee_system.py"]))
     if ordered:
         _sim(c, phone, "CANCEL")
+    # Collect the completed order so it doesn't linger on the public ready
+    # board (completed-but-never-picked-up is visible to real customers).
+    c.post(f"/api/orders/{order_no}/pickup")
     return out
 
 
