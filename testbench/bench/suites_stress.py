@@ -281,8 +281,59 @@ def suite_alerts(rn):
     return out
 
 
+# ---------------------------------------------------------- inventory CRUD
+
+def suite_inventory_crud(rn):
+    """An inventory item's full life: create → visible → adjust → delete →
+    gone. Self-cleaning (ZZBench-named item, deleted in finally)."""
+    c, out = rn.client, []
+    item_id = None
+    try:
+        pc, pb, _ = c.post("/api/inventory",
+                           {"name": f"{BENCH_TAG} Test Syrup", "category": "other",
+                            "unit": "bottles", "capacity": 10, "amount": 5})
+        body = pb if isinstance(pb, dict) else {}
+        item = body.get("item") or body.get("data") or body
+        item_id = item.get("id") if isinstance(item, dict) else None
+        created = pc in (200, 201) and item_id
+        out.append(R("inv_crud", "create an inventory item",
+                     "pass" if created else "fail",
+                     f"POST /api/inventory → HTTP {pc}, id={item_id}",
+                     evidence="" if created else str(pb)[:200],
+                     refs=[] if created else ["routes/inventory_routes.py"]))
+        if not item_id:
+            return out
+        gc, gb, _ = c.get("/api/inventory")
+        listed = any(str(r.get("id")) == str(item_id)
+                     for r in ((gb or {}).get("items") or []))
+        out.append(R("inv_crud", "new item appears in the inventory list",
+                     "pass" if listed else "fail", f"listed={listed}"))
+        ac, _ab, _ = c.post(f"/api/inventory/{item_id}/adjust",
+                            {"new_amount": 3, "change_reason": "bench_crud"})
+        _c2, ib, _ = c.get(f"/api/inventory/{item_id}")
+        lvl = ((ib or {}).get("item") or {}).get("amount")
+        adjusted = ac == 200 and float(lvl or 0) == 3.0
+        out.append(R("inv_crud", "adjust writes the new level (both columns)",
+                     "pass" if adjusted else "fail",
+                     f"adjust→{ac}, level now {lvl}"))
+    finally:
+        if item_id:
+            dc, _db2, _ = c.req("DELETE", f"/api/inventory/{item_id}")
+            _c3, gb2, _ = c.get("/api/inventory")
+            gone = not any(str(r.get("id")) == str(item_id)
+                           for r in ((gb2 or {}).get("items") or []))
+            out.append(R("inv_crud", "cleanup: item deleted",
+                         "pass" if dc == 200 and gone else "fail",
+                         f"DELETE → HTTP {dc}, gone={gone}",
+                         suggestion="" if gone else
+                         f"IMPORTANT: delete inventory item {item_id} "
+                         f"('{BENCH_TAG} Test Syrup') by hand."))
+    return out
+
+
 STRESS_SUITES = [
     ("empty_stock", suite_empty_stock, True),
     ("burst", suite_burst, True),
     ("alerts", suite_alerts, True),
+    ("inv_crud", suite_inventory_crud, True),
 ]
