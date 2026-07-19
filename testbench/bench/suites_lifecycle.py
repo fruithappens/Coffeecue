@@ -98,8 +98,20 @@ def suite_vip(rn):
         _sweep_orders(rn, f"{BENCH_TAG}Vip")
         ok, r3 = _sim(c, ph, f"medium {drink} with {milk}")
         low3, turns = (r3 or "").lower(), 0
-        while ok and turns < 3 and ("what size" in low3 or "what milk" in low3):
-            ok, r3 = _sim(c, ph, "medium" if "size" in low3 else milk)
+        while ok and turns < 5 and not ("confirmed" in low3 or "order #" in low3):
+            if "usual" in low3 and ("yes" in low3 or "?" in low3):
+                ans = "YES"  # welcome-back suggestion path
+            elif "first name" in low3:
+                ans = f"{BENCH_TAG}Vip"
+            elif "what size" in low3:
+                ans = "medium"
+            elif "milk" in low3 and "?" in low3:
+                ans = milk
+            elif "reply yes" in low3 or "yes to confirm" in low3:
+                ans = "YES"
+            else:
+                break
+            ok, r3 = _sim(c, ph, ans)
             low3 = (r3 or "").lower()
             turns += 1
         row2, vip2 = _vip_of(f"{BENCH_TAG}Vip")
@@ -107,7 +119,7 @@ def suite_vip(rn):
                      "pass" if vip2 else ("warn" if row2 else "warn"),
                      "second order (no code re-entry) still carries VIP"
                      if vip2 else
-                     f"second order lost the VIP flag: {str(row2)[:160]}",
+                     f"row={str(row2)[:120]}; last reply: {(r3 or '')[:140]}",
                      suggestion="" if vip2 else
                      "A saved VIP's later orders should stay prioritised.",
                      refs=[] if vip2 else ["services/coffee_system.py"]))
