@@ -3,6 +3,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Scale, RefreshCw, AlertTriangle, CheckCircle, ArrowRightLeft, Users, Clock, Zap } from 'lucide-react';
 import useStations from '../../hooks/useStations';
 import useOrders from '../../hooks/useOrders';
+import ApiServiceClass from '../../services/ApiService';
+
+const api = new ApiServiceClass();
 
 const StationLoadBalancer = () => {
   const { stations } = useStations();
@@ -57,6 +60,7 @@ const StationLoadBalancer = () => {
   }, [balancingActive, balancingRules]);
   
   const [transferSuggestions, setTransferSuggestions] = useState([]);
+  const [transferError, setTransferError] = useState(null);
   const [balancingMetrics, setBalancingMetrics] = useState({
     workloadVariance: 0,
     avgWaitTime: 0,
@@ -184,26 +188,39 @@ const StationLoadBalancer = () => {
   // Execute a transfer
   const executeTransfer = async (suggestion) => {
     setBalancingActive(true);
-    
+    setTransferError(null);
+
     try {
-      // In a real implementation, this would call an API to reassign the order
-      console.log(`Transferring order ${suggestion.order.id} from ${suggestion.fromStation.name} to ${suggestion.toStation.name}`);
-      
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      // REAL reassign — this used to be a simulation ("in a real
+      // implementation, this would call an API"): a fake delay, fake
+      // success metrics, and the order never moved. The backend endpoint
+      // is capability-gated (it refuses stations that can't make the
+      // drink), so a failed move surfaces instead of stranding an order.
+      const orderId = suggestion.order.orderNumber
+        || suggestion.order.order_number || suggestion.order.id;
+      const resp = await api.request(`/orders/${orderId}/reassign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target_station_id: suggestion.toStation.id }),
+      });
+      if (!resp || resp.success === false) {
+        throw new Error(resp?.error || resp?.message || 'reassign failed');
+      }
+
       // Update metrics
       setBalancingMetrics(prev => ({
         ...prev,
         transfersToday: prev.transfersToday + 1,
         efficiencyGain: prev.efficiencyGain + suggestion.waitTimeReduction
       }));
-      
+
       // Remove from suggestions
       setTransferSuggestions(prev => prev.filter(s => s.order.id !== suggestion.order.id));
-      
+
     } catch (error) {
       console.error('Transfer failed:', error);
+      setTransferError(`Couldn't move order ${suggestion.order.id} to `
+        + `${suggestion.toStation.name}: ${error.message || error}`);
     } finally {
       setBalancingActive(false);
     }

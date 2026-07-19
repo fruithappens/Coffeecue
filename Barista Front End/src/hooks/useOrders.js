@@ -930,10 +930,14 @@ export default function useOrders(stationId = null) {
     if (autoRefreshEnabled) {
       console.log(`Auto-refresh enabled with interval ${autoRefreshInterval} seconds`);
       
-      // Make sure we're not refreshing too quickly to prevent UI flickering
-      const safeInterval = Math.max(30, autoRefreshInterval);
+      // Floor of 15s — the header picker deliberately offers "15 seconds
+      // (fast)". This clamp used to be Math.max(30, …), which silently
+      // snapped a chosen 15 back to 30 (Steve: "can't seem to click auto
+      // refresh to 15 seconds"). Refreshes are silent (no spinner), so 15s
+      // doesn't flicker.
+      const safeInterval = Math.max(15, autoRefreshInterval);
       if (safeInterval !== autoRefreshInterval) {
-        console.warn(`Adjusting auto-refresh interval from ${autoRefreshInterval}s to ${safeInterval}s to prevent flickering`);
+        console.warn(`Adjusting auto-refresh interval from ${autoRefreshInterval}s to ${safeInterval}s`);
         // Update in localStorage for persistence
         localStorage.setItem('coffee_auto_refresh_interval', safeInterval.toString());
         setAutoRefreshInterval(safeInterval);

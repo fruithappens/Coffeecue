@@ -364,6 +364,28 @@ def auth_verify():
 # ORDER MANAGEMENT ENDPOINTS
 # ============================================================================
 
+def _pending_questions_by_phone(cursor):
+    """Latest PENDING customer question per phone, so a customer's SMS
+    ("no sugar thanks", "make it decaf") shows ON their order card — not
+    only in the Messages bubble (Steve: "question or additional info via
+    SMS should probably appear in the order of that individual")."""
+    try:
+        cursor.execute("""
+            SELECT phone, question FROM customer_questions
+            WHERE status = 'pending'
+            ORDER BY created_at ASC
+        """)
+        out = {}
+        for r in cursor.fetchall():
+            ph = r[0] if not isinstance(r, dict) else r.get('phone')
+            q = r[1] if not isinstance(r, dict) else r.get('question')
+            if ph and q:
+                out[str(ph)] = str(q)  # later rows overwrite = latest wins
+        return out
+    except Exception:
+        return {}
+
+
 def _drink_display_name(order_details, default='Coffee'):
     """Barista-facing drink name WITH the modifiers that change how it's
     made. order_details['type'] is the bare drink ('latte'); decaf and
@@ -878,7 +900,9 @@ def get_pending_orders():
         
         # Process orders
         pending_orders = []
-        for order in cursor.fetchall():
+        rows = cursor.fetchall()
+        questions_by_phone = _pending_questions_by_phone(cursor)
+        for order in rows:
             # Extract order details
             order_id, order_number, status, station_id, created_at, phone, order_details_json, priority = order
             
@@ -920,6 +944,9 @@ def get_pending_orders():
                               or 'extra hot' in (order_details.get('notes') or '').lower()),
                 'extraHot': (order_details.get('temp') == 'extra hot'
                              or 'extra hot' in (order_details.get('notes') or '').lower()),
+                # The customer's latest unanswered SMS, shown on the card.
+                'customer_message': questions_by_phone.get(str(phone or '')),
+                'customerMessage': questions_by_phone.get(str(phone or '')),
                 'status': status,
                 'created_at': created_at,
                 'createdAt': created_at.isoformat() if hasattr(created_at, 'isoformat') else created_at,
@@ -1018,7 +1045,9 @@ def get_in_progress_orders():
             ''')
 
         in_progress_orders = []
-        for order in cursor.fetchall():
+        rows = cursor.fetchall()
+        questions_by_phone = _pending_questions_by_phone(cursor)
+        for order in rows:
             order_id, order_number, status, station_id, created_at, phone, order_details_json, priority = order
 
             if isinstance(order_details_json, str):
@@ -1067,6 +1096,8 @@ def get_in_progress_orders():
                 'coffeeType': coffee_type,
                 'milkType': milk_type,
                 'extraHot': extra_hot,
+                'customer_message': questions_by_phone.get(str(phone or '')),
+                'customerMessage': questions_by_phone.get(str(phone or '')),
                 'createdAt': created_at.isoformat() if hasattr(created_at, 'isoformat') else created_at,
                 'waitTime': wait_time,
                 'stationId': station_id,
