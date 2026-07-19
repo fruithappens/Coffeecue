@@ -37,6 +37,22 @@ capability gate, extra-hot modifier, VIP persistence + friend
 non-inheritance (pinned as designed), paused-station exclusion.
 Next: Phase C v3 (UI saves), or the security sweep on Steve's word.
 
+**THE PIPELINE TRACER (2026-07-20, #137/#138):** `--suites pipeline
+--allow-lifecycle` follows ONE order + an identical twin through all 8
+stages of the basic workflow, asserting every output at every step:
+in → queue/wait/stock/batch-key → twin co-batches SAME station → STATUS →
+started (boards) → completed (ready board + the ready-SMS text recorded) →
+collected → archived (history + report) → full reversal (restock, clean
+boards). Built after Steve asked "were the tests created to follow all
+ins and outs?" — the honest answer was no (stages were tested piecewise;
+bugs lived in the seams). Its first run caught bug #16 (identical drinks
+spread across stations, defeating batching → _batch_costation
+co-location tiebreak). Steve's screenshot report the same day: ghost
+orders (34 days old!) inflating queue pills → 8-hour recency window +
+'queue pills match reality' guard; walk-up wait now starts at one drink's
+time and SCALES with load; a batch of one is no longer a batch; 2+
+half-strength drinks get a split-one-shot hint. Bug count: 16.
+
 **How to run the bench (no password handling — creds live in a gitignored env
 file the operator maintains):**
 ```bash
