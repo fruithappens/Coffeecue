@@ -984,11 +984,17 @@ const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
     <section key={spinTick}
       className={`rounded-3xl overflow-hidden flex flex-col ${theme.panel} shadow-xl
                         ${hasBg ? (isPortrait ? 'w-full max-h-[42vh]' : 'flex-1 min-w-0 max-h-[78vh]') : ''}`}
-      style={spinTick > 0 ? { animation: 'displayPanelSpin 0.8s ease' } : undefined}>
+      style={spinTick > 0
+        ? { animation: 'displayPanelSpin 1.4s ease-in-out', backfaceVisibility: 'hidden' }
+        : undefined}>
+      {/* Full 360° turn, one direction (Steve: "right through to
+          invisible ... then rotates all the way through right around").
+          With the backface hidden the panel vanishes from 90° to 270° —
+          the background branding owns the screen for that stretch —
+          then swings back into view with the next page. */}
       <style>{`@keyframes displayPanelSpin {
         0%   { transform: perspective(1400px) rotateY(0deg); }
-        50%  { transform: perspective(1400px) rotateY(88deg); }
-        100% { transform: perspective(1400px) rotateY(0deg); }
+        100% { transform: perspective(1400px) rotateY(360deg); }
       }`}</style>
       <header className={`${headerCls} px-6 py-4 flex items-center justify-between flex-shrink-0`}>
         <div className="flex items-center">
