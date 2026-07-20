@@ -114,6 +114,25 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
   };
   const stationLabel = (item) => (item?.stations || []).map(s => `${s}`).join(', ');
 
+  // Can SOME station make everything chosen so far PLUS this candidate?
+  // Used to grey out milks/sizes that would dead-end at the review screen
+  // — the kiosk used to let you build an impossible combo and only tell
+  // you after you tried to place it (Steve's screenshot).
+  const compatible = (...items) => {
+    const sets = items.filter(Boolean).map(i => new Set(i.stations || []));
+    if (sets.length === 0) return true;
+    let inter = null;
+    sets.forEach(s => { inter = inter == null ? new Set(s) : new Set([...inter].filter(x => s.has(x))); });
+    return (inter?.size || 0) > 0;
+  };
+
+  // Drinks that never take milk — asking "what milk with your juice?"
+  // confused real customers. These skip straight past the milk step.
+  const MILKLESS = /(juice|smoothie|sparkling|lemonade|soft drink|still water)/;
+  const noMilkOption = () =>
+    milkOptions.find(m => (m.value || '').includes('no milk'))
+    || { name: 'No milk', value: 'no milk', stations: (menu?.stations || []).map(s => s.id) };
+
   // Stations that can make the WHOLE chosen order (intersection of each part).
   const capable = useMemo(() => {
     const sets = [drink, milk, size].filter(Boolean).map(i => new Set(i.stations || []));
@@ -292,8 +311,19 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
                   {drinksForTab.map(d => (
                     <Tile key={d.value} emoji={drinkEmoji(d.value)} label={d.name}
                       active={drink?.value === d.value}
-                      sub={madeHere(d) ? null : `Station ${stationLabel(d)} only`}
-                      onClick={() => { setDrink(d); setStep('milk'); }} />
+                      disabled={(d.stations || []).length === 0}
+                      sub={(d.stations || []).length === 0 ? 'Not available today'
+                        : (madeHere(d) ? null : `Station ${stationLabel(d)} only`)}
+                      onClick={() => {
+                        setDrink(d);
+                        if (MILKLESS.test(d.value || '')) {
+                          // Juice & friends: no milk question.
+                          setMilk(noMilkOption());
+                          setStep(needsSizeStep ? 'size' : 'sugar');
+                        } else {
+                          setStep('milk');
+                        }
+                      }} />
                   ))}
                 </div>
               </>
@@ -306,12 +336,17 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
           <>
             <Header title="Milk?" onBack={() => setStep('drink')} />
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {milkOptions.map(m => (
-                <Tile key={m.value} emoji={milkEmoji(m.value)} label={m.name}
-                  active={milk?.value === m.value}
-                  sub={madeHere(m) ? null : `Station ${stationLabel(m)} only`}
-                  onClick={() => { setMilk(m); setStep(needsSizeStep ? 'size' : 'sugar'); }} />
-              ))}
+              {milkOptions.map(m => {
+                const ok = compatible(drink, m);
+                return (
+                  <Tile key={m.value} emoji={milkEmoji(m.value)} label={m.name}
+                    active={milk?.value === m.value}
+                    disabled={!ok}
+                    sub={!ok ? `Not available with ${drink?.name || 'that drink'}`
+                      : (madeHere(m) ? null : `Station ${stationLabel(m)} only`)}
+                    onClick={() => { if (ok) { setMilk(m); setStep(needsSizeStep ? 'size' : 'sugar'); } }} />
+                );
+              })}
             </div>
           </>
         )}
@@ -321,11 +356,16 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
           <>
             <Header title="What size?" onBack={() => setStep('milk')} />
             <div className="grid grid-cols-3 gap-4">
-              {sizeChoices.map(s => (
-                <Tile key={s.value} emoji="🥤" label={s.name}
-                  active={size?.value === s.value}
-                  onClick={() => { setSize(s); setStep('sugar'); }} />
-              ))}
+              {sizeChoices.map(s => {
+                const ok = compatible(drink, milk, s);
+                return (
+                  <Tile key={s.value} emoji="🥤" label={s.name}
+                    active={size?.value === s.value}
+                    disabled={!ok}
+                    sub={!ok ? 'Not available with your choices' : null}
+                    onClick={() => { if (ok) { setSize(s); setStep('sugar'); } }} />
+                );
+              })}
             </div>
           </>
         )}
@@ -403,16 +443,19 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
               style={{ borderColor: phoneValid ? headerColor : undefined }}
             />
             <div className="mt-6 flex gap-3">
-              {/* Skip is ALWAYS available — phone is never required (some
-                  customers have no phone / are roaming). They watch the board. */}
+              {/* Both choices are EQUAL, valid ways forward — same colour,
+                  same weight. The old white "No thanks" next to a filled
+                  "Text me →" read as cancel-vs-proceed (Steve), when
+                  skipping the phone is a perfectly normal choice. */}
               <button onClick={() => { setPhone(''); setStep('review'); }}
-                className="flex-1 py-5 rounded-2xl text-2xl font-bold bg-white text-gray-700 shadow active:scale-95">
-                No thanks
+                className="flex-1 py-5 rounded-2xl text-xl font-extrabold text-white shadow active:scale-95"
+                style={{ backgroundColor: headerColor }}>
+                📺 I'll watch the board
               </button>
               <button disabled={!phoneValid} onClick={() => setStep('review')}
-                className="flex-1 py-5 rounded-2xl text-2xl font-extrabold text-white disabled:opacity-40"
+                className="flex-1 py-5 rounded-2xl text-xl font-extrabold text-white shadow active:scale-95 disabled:opacity-40"
                 style={{ backgroundColor: headerColor }}>
-                Text me →
+                💬 Text me when ready
               </button>
             </div>
           </>
@@ -438,10 +481,18 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
                 <div className="mt-1 text-base text-gray-500">We'll text {phone.trim()} when it's ready.</div>
               )}
             </div>
+            {/* Impossible combination: say so BEFORE they tap, and
+                disable the button — it used to show the error while
+                leaving a big active "Place order" underneath. */}
+            {capable.length === 0 && !errorMsg && (
+              <div className="rounded-2xl p-4 mb-4 bg-red-100 text-red-800 text-lg font-semibold">
+                No station can make that exact combination right now — tap back and adjust the drink or milk.
+              </div>
+            )}
             {errorMsg && (
               <div className="rounded-2xl p-4 mb-4 bg-red-100 text-red-800 text-lg font-semibold">{errorMsg}</div>
             )}
-            <button onClick={placeOrder} disabled={submitting}
+            <button onClick={placeOrder} disabled={submitting || capable.length === 0}
               className="w-full py-6 rounded-2xl text-3xl font-extrabold text-white flex items-center justify-center gap-3 disabled:opacity-50"
               style={{ backgroundColor: headerColor }}>
               {submitting ? <><Loader className="animate-spin" /> Placing…</> : <><Check size={32} /> Place order</>}
