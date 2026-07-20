@@ -103,17 +103,41 @@ const DashboardTab = () => {
   
   useEffect(() => {
     // Calculate metrics
-    const totalOrders = (pendingOrders?.length || 0) + 
-                       (inProgressOrders?.length || 0) + 
+    const totalOrders = (pendingOrders?.length || 0) +
+                       (inProgressOrders?.length || 0) +
                        (completedOrders?.length || 0);
     const activeOrders = (pendingOrders?.length || 0) + (inProgressOrders?.length || 0);
-    
+
     setMetrics(prev => ({
       ...prev,
       totalOrders,
       activeOrders
     }));
   }, [pendingOrders, inProgressOrders, completedOrders]);
+
+  // Wait/revenue/completed tiles read the SAME /reports/today rollup as
+  // the Today's Report card below. They used to show a never-updated
+  // initial 0 ("0 min Avg Wait") right above the report's real 56.5 min
+  // — two numbers for the same thing on one page (Steve: "clashing
+  // info"). One source now.
+  useEffect(() => {
+    let cancelled = false;
+    const loadReport = async () => {
+      try {
+        const r = await api.request('/reports/today', { method: 'GET' });
+        if (cancelled || !r || r.success === false) return;
+        setMetrics(prev => ({
+          ...prev,
+          avgWaitTime: r.avg_wait_min != null ? r.avg_wait_min : prev.avgWaitTime,
+          revenue: parseFloat(r.revenue_total) || 0,
+          completedToday: r?.status_breakdown?.completed ?? 0,
+        }));
+      } catch (_) { /* keep previous values on failure */ }
+    };
+    loadReport();
+    const t = setInterval(loadReport, 30000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, []);
 
   // Real alerts: pull recent frontend crashes from /api/client-errors
   // (the same feed Support → Diagnose uses). Replaces the three
@@ -179,14 +203,16 @@ const DashboardTab = () => {
           icon={<Coffee className="w-6 h-6 text-orange-600" />}
         />
         <MetricCard
-          title="Avg Wait Time"
+          title="Avg Wait Today"
           value={`${metrics.avgWaitTime} min`}
           icon={<Clock className="w-6 h-6 text-blue-600" />}
         />
+        {/* "Error Rate" tile removed — no error-rate source ever fed it
+            (permanent 0%). Completed-today is real and useful. */}
         <MetricCard
-          title="Error Rate"
-          value={`${metrics.errorRate}%`}
-          icon={<AlertTriangle className="w-6 h-6 text-red-600" />}
+          title="Completed Today"
+          value={metrics.completedToday || 0}
+          icon={<CheckCircle className="w-6 h-6 text-green-600" />}
         />
         <MetricCard
           title="Today's Revenue"

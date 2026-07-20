@@ -88,7 +88,18 @@ const SMSTestSimulator = () => {
       const inventory = localStorage.getItem('event_inventory');
       if (inventory) {
         const inv = JSON.parse(inventory);
-        setAvailableMilk(inv.milk?.filter(m => m.enabled) || []);
+        const milks = inv.milk?.filter(m => m.enabled) || [];
+        setAvailableMilk(milks);
+        // Snap the selected milk to a REAL option. The old 'almond'
+        // default often wasn't in the loaded list, so the select
+        // DISPLAYED the first option ("Whole Milk") while state kept
+        // 'almond' — Steve picked Whole Milk and the simulated parse
+        // reported almond.
+        if (milks.length > 0) {
+          setTestConfig(prev => milks.some(m => (m.name || '').toLowerCase() === prev.milkType)
+            ? prev
+            : { ...prev, milkType: (milks[0].name || '').toLowerCase() });
+        }
       }
       
       // Load SMS settings

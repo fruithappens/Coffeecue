@@ -225,6 +225,9 @@ const BaristaInterface = () => {
   
   // Function to restore all panels
   const restoreAllPanels = useCallback(() => {
+    // Honest feedback: say how many panels were actually restored —
+    // clicking it with nothing dismissed used to do nothing visible.
+    const dismissedCount = Object.values(dismissedPanels || {}).filter(Boolean).length;
     const resetState = {
       stockInfoPanel: false,
       scheduleInfoPanel: false,
@@ -233,10 +236,10 @@ const BaristaInterface = () => {
     };
     setDismissedPanels(resetState);
     localStorage.setItem('dismissed_info_panels', JSON.stringify(resetState));
-    
-    // Show a brief success message
-    setSuccessMessage('All information panels have been restored');
-  }, []);
+    showToast(dismissedCount > 0
+      ? `${dismissedCount} dismissed info panel${dismissedCount === 1 ? '' : 's'} restored — check the Stock / Schedule / Display tabs`
+      : 'No info panels were dismissed — nothing to restore', 'info');
+  }, [dismissedPanels]);
   
   // Handle tab changes to ensure data persists
   // Initialize inventory integration on component mount
@@ -2674,9 +2677,17 @@ const BaristaInterface = () => {
           </div>
         )}
         
-        {/* Settings Tab */}
+        {/* Settings Tab. Order matters: Notifications first (the settings
+            a barista actually reaches for mid-service), then station
+            identity, then the housekeeping cards — the old order left a
+            near-empty left column and pushed Notifications below the fold. */}
         {!loading && activeTab === 'settings' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
+            {/* Notification Settings — promoted to the top */}
+            <div className="bg-white rounded-lg shadow-md p-4">
+              <h2 className="text-xl font-bold mb-4">Notification Settings</h2>
+              <NotificationSettings />
+            </div>
             <div className="bg-white rounded-lg shadow-md p-4">
               <h2 className="text-xl font-bold mb-4">Auto-Refresh Settings</h2>
               <div className="space-y-4">
@@ -2871,33 +2882,9 @@ const BaristaInterface = () => {
                           waveforms) rather than the old near-identical
                           base64 WAV stubs. */}
                       <SoundChoiceRows settings={settings} setSettings={setSettings} />
-
-                      
-                      {/* Test All Sounds Button */}
-                      <button
-                        className="mt-3 px-4 py-2 bg-gray-600 text-white text-sm rounded hover:bg-gray-700 w-full"
-                        onClick={() => {
-                          if (window.coffeeSounds && window.coffeeSounds.testSounds) {
-                            // Use testSounds if available (v2.1)
-                            window.coffeeSounds.testSounds();
-                          } else if (window.coffeeSounds && window.coffeeSounds.test) {
-                            // Fallback to test if testSounds not available
-                            window.coffeeSounds.test();
-                          } else {
-                            // Fallback: play all test sounds in sequence
-                            const sounds = ['newOrder', 'orderComplete', 'orderPickedUp', 'lowStock', 'error'];
-                            sounds.forEach((sound, index) => {
-                              setTimeout(() => {
-                                const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhCEGdyfPg');
-                                audio.volume = settings.soundVolume / 100;
-                                audio.play().catch((err) => console.log('Audio play failed:', err));
-                              }, index * 800);
-                            });
-                          }
-                        }}
-                      >
-                        Test All Sounds
-                      </button>
+                      {/* "Test All Sounds" removed — it played a legacy
+                          base64 stub (window.coffeeSounds is gone) and the
+                          per-row Test buttons cover the need. */}
                     </div>
                   )}
                 </div>
@@ -2913,28 +2900,6 @@ const BaristaInterface = () => {
                   </label>
                 </div>
               </div>
-            </div>
-            
-            {/* NEW: Notification Settings section */}
-            <div className="bg-white rounded-lg shadow-md p-4">
-              <h2 className="text-xl font-bold mb-4">Notification Settings</h2>
-              <NotificationSettings />
-            </div>
-            
-            <div className="bg-white rounded-lg shadow-md p-4 mb-4">
-              <h2 className="text-xl font-bold mb-4">Info Panels</h2>
-              <p className="text-sm text-gray-600 mb-4">Information panels can be dismissed by clicking the X in the corner. You can restore all dismissed panels here.</p>
-              
-              <button
-                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center"
-                onClick={restoreAllPanels}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
-                  <path d="M3 2v6h6"></path>
-                  <path d="M3 13a9 9 0 1 0 3-7.7L3 8"></path>
-                </svg>
-                Restore All Info Panels
-              </button>
             </div>
             
             <div className="bg-white rounded-lg shadow-md p-4">
@@ -2962,14 +2927,28 @@ const BaristaInterface = () => {
                 <div>API Status: {online ? 'Connected' : 'Offline'}</div>
                 <div>App Mode: {isDemoMode ? 'Demo' : 'Production'}</div>
               </div>
-              
+
+              {/* Restore dismissed info panels (folded in from its own
+                  near-empty card; gives honest toast feedback now). */}
+              <button
+                className="mt-3 text-sm text-blue-600 hover:text-blue-800 underline"
+                onClick={restoreAllPanels}
+              >
+                Restore dismissed info panels
+              </button>
+
               <div className="mt-4 flex justify-between">
-                <button 
-                  className="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700"
-                  onClick={toggleAppMode}
-                >
-                  Toggle Demo Mode
-                </button>
+                {/* Demo mode switches the whole station to FAKE data —
+                    a barista hitting it mid-service would lose the live
+                    queue. Manager-only. */}
+                {isManager && (
+                  <button
+                    className="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700"
+                    onClick={toggleAppMode}
+                  >
+                    Toggle Demo Mode
+                  </button>
+                )}
                 <button 
                   className="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700"
                   onClick={() => {
