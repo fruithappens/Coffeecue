@@ -3142,6 +3142,7 @@ class CoffeeOrderSystem:
         non_sugar_names = []
         has_no_sugar = False
         has_half_sugar = False
+        has_bare_sugar = False
         for n in names:
             nl = (n or '').strip().lower()
             if nl == 'no sugar':
@@ -3150,16 +3151,24 @@ class CoffeeOrderSystem:
             if nl == 'half sugar':
                 has_half_sugar = True
                 continue
-            # "1 sugar", "2 sugar", etc.
+            # "1 sugar", "2 sugar", etc. — must be checked BEFORE the
+            # bare-sugar catch (they also end in ' sugar').
             parts = nl.split()
             if len(parts) >= 2 and parts[0].isdigit() and 'sugar' in parts[1]:
                 sugar_ints.append(int(parts[0]))
+                continue
+            # A bare stock row ('sugar' / 'white sugar' / 'raw sugar')
+            # means any count is fine — the single-row model.
+            if nl == 'sugar' or nl.endswith(' sugar'):
+                has_bare_sugar = True
                 continue
             non_sugar_names.append(n)
 
         # Build the sugar range string.
         sugar_part = ''
-        if sugar_ints or has_no_sugar:
+        if has_bare_sugar and not sugar_ints:
+            sugar_part = "any number (e.g. '2 sugars')"
+        elif sugar_ints or has_no_sugar:
             ints = sorted(set(sugar_ints))
             lo = 0 if has_no_sugar else (ints[0] if ints else 0)
             hi = ints[-1] if ints else lo
