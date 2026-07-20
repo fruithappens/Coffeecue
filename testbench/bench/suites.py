@@ -166,6 +166,17 @@ def suite_stations(rn):
                          suggestion="Check _estimate_wait_from_queue / stale-order filtering "
                                     "in the wait model.",
                          refs=["services/coffee_system.py"]))
+        # An IDLE station may never claim a long wait — a cleared backlog
+        # once left the make-time average poisoned by queue-sitting time
+        # and an empty station told walk-ups "~10 min" (Steve's report).
+        if (s.get("status") or "active") == "active" \
+                and (q or 0) == 0 and isinstance(w, (int, float)) and w > 5:
+            out.append(R("stations", f"idle-station wait station {sid}", "fail",
+                         f"queue is 0 but estimated_wait is {w} min — an empty "
+                         "station can only honestly promise one drink's make-time.",
+                         suggestion="The wait average is measuring queue-sitting "
+                                    "time, not make-time.",
+                         refs=["services/coffee_system.py"]))
     if len(out) == 2:
         out.append(R("stations", "queue + wait sanity", "pass",
                      f"All {len(stations)} stations have sane queue counts and wait estimates"))

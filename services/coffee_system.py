@@ -6238,13 +6238,20 @@ class CoffeeOrderSystem:
             cursor = self.db.cursor()
             cursor.execute(
                 """
-                SELECT EXTRACT(EPOCH FROM (updated_at - created_at)) / 60.0 AS minutes
+                SELECT EXTRACT(EPOCH FROM (COALESCE(completed_at, updated_at) - started_at)) / 60.0 AS minutes
                 FROM orders
                 WHERE station_id = %s
                   AND status IN ('completed', 'picked_up')
                   AND updated_at >= NOW() - (%s || ' minutes')::interval
-                  AND created_at IS NOT NULL
-                  AND updated_at IS NOT NULL
+                  AND started_at IS NOT NULL
+                  -- MAKE time only (start → complete). The old metric was
+                  -- created → updated: the order's WHOLE LIFETIME including
+                  -- however long it sat in the queue, so a backlog that
+                  -- cleared poisoned the average for the next hour (Steve:
+                  -- empty station claiming a 10-minute walk-up wait).
+                  -- Discard outliers: sub-10s ghosts and >15 min = the
+                  -- barista walked away, not a drink's make-time.
+                  AND EXTRACT(EPOCH FROM (COALESCE(completed_at, updated_at) - started_at)) BETWEEN 10 AND 900
                 ORDER BY updated_at DESC
                 LIMIT %s
                 """,
@@ -6369,9 +6376,11 @@ class CoffeeOrderSystem:
             cursor.execute(
                 """
                 SELECT LOWER(order_details->>'type') AS drink,
-                       AVG(EXTRACT(EPOCH FROM (updated_at - created_at)) / 60.0) AS m
+                       AVG(EXTRACT(EPOCH FROM (COALESCE(completed_at, updated_at) - started_at)) / 60.0) AS m
                 FROM orders
                 WHERE station_id = %s
+                  AND started_at IS NOT NULL
+                  AND EXTRACT(EPOCH FROM (COALESCE(completed_at, updated_at) - started_at)) BETWEEN 10 AND 900
                   AND status IN ('completed', 'picked_up')
                   AND updated_at >= NOW() - (%s || ' minutes')::interval
                   AND created_at IS NOT NULL AND updated_at IS NOT NULL
@@ -6459,8 +6468,11 @@ class CoffeeOrderSystem:
             # with no orders in the queue').
             queue_now = self._get_queue_drinks(station_id)
             if not queue_now:
+                # Empty queue = one drink's MAKE time, hard-capped at 5:
+                # whatever history says, an empty station can never honestly
+                # tell a walk-up more than a few minutes.
                 overall = self._get_recent_completion_avg_minutes(station_id)
-                return max(1, min(int(round(overall)), 10)) if overall else 2
+                return max(1, min(int(round(overall)), 5)) if overall else 2
 
             # 1. Best signal: per-drink make-times × the real queue (pending +
             # in-progress), divided by the station's concurrent capacity. One
