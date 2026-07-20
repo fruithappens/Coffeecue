@@ -423,6 +423,20 @@ def suite_breaks(rn):
                         "couldn't read server time from a probe order")]
 
     from datetime import timedelta as _td
+    # Break windows can't cross midnight (the matcher compares clock times
+    # within ONE day — fine for real coffee breaks, fatal for a test window
+    # built near 00:00 server time: the full-sweep run at 00:15 UTC built
+    # 23:48→00:18, matched nothing, and orders routed normally → false
+    # FAIL). Near midnight, skip honestly instead.
+    if server_now.hour == 23 and server_now.minute >= 35 \
+            or server_now.hour == 0 and server_now.minute <= 15:
+        if pn:
+            pass  # probe already cancelled above
+        return out + [R("breaks", "break-window routing", "skip",
+                        f"server clock {server_now.strftime('%H:%M')} is too "
+                        "close to midnight — a test break window would cross "
+                        "days, which break windows don't support (by design; "
+                        "real breaks never span midnight)")]
     start = (server_now - _td(minutes=10)).strftime("%H:%M")
     end = (server_now + _td(minutes=20)).strftime("%H:%M")
     dow = server_now.weekday()
