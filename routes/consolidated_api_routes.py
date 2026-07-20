@@ -439,7 +439,7 @@ def orders():
             
             if query_conditions:
                 query = base_query + " WHERE " + " AND ".join(query_conditions)
-                query += " ORDER BY queue_priority, created_at DESC"
+                query += " ORDER BY queue_priority, created_at ASC"
                 cursor.execute(query, query_params)
             else:
                 query = base_query + " ORDER BY created_at DESC LIMIT 50"
@@ -896,7 +896,7 @@ def get_pending_orders():
                        created_at, phone, order_details, queue_priority
                 FROM orders
                 WHERE status = 'pending' AND station_id = %s
-                ORDER BY queue_priority, created_at DESC
+                ORDER BY queue_priority, created_at ASC
             ''', (station_param,))
         else:
             cursor.execute('''
@@ -904,7 +904,7 @@ def get_pending_orders():
                        created_at, phone, order_details, queue_priority
                 FROM orders
                 WHERE status = 'pending'
-                ORDER BY queue_priority, created_at DESC
+                ORDER BY queue_priority, created_at ASC
             ''')
         
         # Process orders
@@ -946,6 +946,7 @@ def get_pending_orders():
                 'milk_type': order_details.get('milk', 'Standard'),
                 'milkType': order_details.get('milk', 'Standard'),  # camelCase
                 'sugar': order_details.get('sugar', 'No sugar'),
+                'size': order_details.get('size'),
                 # Temperature is its own card badge in the barista UI —
                 # without this field a pending 'extra hot' order looked
                 # normal until it was started (Test Bench matrix modifier).

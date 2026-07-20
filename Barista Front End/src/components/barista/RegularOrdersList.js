@@ -78,7 +78,7 @@ const RegularOrdersList = ({ orders, onStartOrder, onSendMessage, onDelayOrder, 
                 {order.milkType && order.milkType !== 'No Milk' && (
                   <span style={getMilkDotStyle(order.milkType, order.milkTypeId)}></span>
                 )}
-                {order.coffeeType}, {order.milkType}, {order.sugar}
+                {order.size ? `${order.size} ` : ''}{order.coffeeType}, {order.milkType}, {order.sugar}
               </div>
               {order.alternativeMilk && (
                 <div className="mt-1">

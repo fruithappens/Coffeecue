@@ -52,7 +52,7 @@ const CurrentOrderSection = ({ orders, onCompleteOrder, onEditOrder }) => {
               <div className="mt-4 bg-gray-100 p-3 rounded-lg">
                 <div className="text-xl font-bold flex items-center">
                   <Coffee size={20} className="mr-2" />
-                  {order.coffeeType}
+                  {order.size ? `${order.size} ` : ''}{order.coffeeType}
                 </div>
                 <div className="text-gray-700 flex items-center">
                   {order.milkType && order.milkType !== 'No Milk' && (
