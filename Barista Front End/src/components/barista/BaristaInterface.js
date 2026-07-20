@@ -1056,9 +1056,21 @@ const BaristaInterface = () => {
       // A REFUSAL (e.g. "this station doesn't stock almond") must never
       // toast success — Danny's two walk-ins "added successfully" while
       // the backend had refused both and nothing existed anywhere.
+      // (Now also covers plain server errors — Penny's long black said
+      // "added" while the server had it rejected.)
       if (result && result.refused) {
         showToast(`❌ Not added: ${result.message}`, 'error', 8000);
         return; // keep the dialog open so the barista can adjust
+      }
+
+      // True offline: the order is queued on THIS device only until the
+      // connection returns. Say so — it won't be on other stations or
+      // the customer display yet.
+      if (result && result.offline) {
+        setShowWalkInDialog(false);
+        showToast('⚠ OFFLINE — order saved on this device and will sync when '
+          + 'the connection returns. Not visible to other stations yet.', 'info', 8000);
+        return;
       }
 
       if (result) {
