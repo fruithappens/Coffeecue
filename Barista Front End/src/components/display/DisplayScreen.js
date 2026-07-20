@@ -846,11 +846,38 @@ const DisplayScreen = () => {
 const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
                   showCustomerName, showDetails, newReadyMap, hasBg }) => {
   const isReady = kind === 'ready';
-  // Auto page-flip: a wall display can't be scrolled, and the old
-  // "+ N more" line just HID the overflow orders entirely. When more
-  // orders exist than fit, flip to the next page every 10 seconds;
-  // when everything fits again, stop flipping and stay on page 1.
-  const pageSize = isPortrait ? 4 : 6;
+  // Auto page-flip: a wall display can't be scrolled. The first version
+  // used a FIXED guess (6 per page in landscape), so 5 tall cards
+  // counted as "one page" while only ~3 actually fit — the rest were
+  // cut off and nothing flipped (Steve's board). Now we MEASURE: real
+  // card height vs the column's real available height decides the page
+  // size, re-measured on resize and whenever the queue changes.
+  const bodyRef = useRef(null);
+  const [measuredFit, setMeasuredFit] = useState(null);
+  useEffect(() => {
+    const measure = () => {
+      const el = bodyRef.current;
+      if (!el) return;
+      const card = el.querySelector('[data-kcard]');
+      if (!card || !card.offsetHeight) return;
+      const gap = 24; // grid gap-6
+      // Available height: with a background image the panel hugs content
+      // up to a viewport cap, so derive from the viewport (stable — the
+      // panel's own height shrinks with its content and would feed back).
+      // Without a background the grid row fixes the column height.
+      const headerAndPadding = 96;
+      const available = hasBg
+        ? window.innerHeight * (isPortrait ? 0.42 : 0.78) - headerAndPadding
+        : el.clientHeight - 8;
+      const pagerReserve = 44; // dots + "x–y of z" row
+      const n = Math.floor((available - pagerReserve + gap) / (card.offsetHeight + gap));
+      setMeasuredFit(Math.max(1, n));
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [orders.length, isPortrait, hasBg]);
+  const pageSize = measuredFit ?? (isPortrait ? 3 : 4);
   const pageCount = Math.max(1, Math.ceil(orders.length / pageSize));
   const [page, setPage] = useState(0);
   useEffect(() => {
@@ -883,7 +910,8 @@ const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
         </div>
         <div className="text-lg font-bold opacity-90">{orders.length}</div>
       </header>
-      <div className={hasBg ? 'px-4 py-3 overflow-auto' : 'p-4 md:p-6 flex-grow overflow-auto'}>
+      <div ref={bodyRef}
+           className={hasBg ? 'px-4 py-3 overflow-hidden' : 'p-4 md:p-6 flex-grow overflow-hidden'}>
         {loading ? (
           hasBg
             ? <div className={`text-center ${theme.subtext} text-sm py-1`}>Loading…</div>
@@ -903,16 +931,17 @@ const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
               to   { opacity: 1; transform: translateY(0); }
             }`}</style>
             {visibleOrders.map(o => (
-              <OrderCard
-                key={o.id}
-                order={o}
-                variant={isReady ? 'ready' : 'brewing'}
-                fonts={fonts}
-                theme={theme}
-                showCustomerName={showCustomerName}
-                showDetails={showDetails}
-                isNew={isReady && newReadyMap.has(String(o.id))}
-              />
+              <div key={o.id} data-kcard>
+                <OrderCard
+                  order={o}
+                  variant={isReady ? 'ready' : 'brewing'}
+                  fonts={fonts}
+                  theme={theme}
+                  showCustomerName={showCustomerName}
+                  showDetails={showDetails}
+                  isNew={isReady && newReadyMap.has(String(o.id))}
+                />
+              </div>
             ))}
             {pageCount > 1 && (
               <div className={`flex items-center justify-center gap-2 pt-1 ${theme.subtext}`}>
