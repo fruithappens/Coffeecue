@@ -450,6 +450,11 @@ def suite_walkin_pipeline(rn):
             "customer_name": f"{BENCH_TAG}Walk", "coffee_type": "latte",
             "milk_type": milk, "milk": milk, "size": "medium",
             "source": "walkin",
+            # Detail-survival probe: the walk-in POST once rebuilt
+            # order_details with an allow-list that dropped these (the
+            # ticked Extra hot checkbox stored NOTHING — Steve's live
+            # find). They must reach the listing serializers.
+            "extra_hot": True, "shots": 2, "milk_type_id": "full_cream",
         })
         body = pb if isinstance(pb, dict) else {}
         no = ((body.get("data") or {}).get("order_number")
@@ -472,6 +477,25 @@ def suite_walkin_pipeline(rn):
              f"vip={row.get('vip') if row else None}",
              suggestion="Walk-ins were once saved vip=true by accident "
                         "('Bob didn't ask for VIP') — guard that stays down.")
+        # Every detail the dialog sends must survive to the cards.
+        # extraHot on the pending serializer derives from
+        # order_details['temp'] — the walk-in POST must write it.
+        step("1. details survive: extraHot on the pending card",
+             bool(row and (row.get("extraHot") or row.get("extra_hot"))),
+             f"extraHot={row.get('extraHot') if row else None}",
+             suggestion="The walk-in POST's order_details rebuild dropped "
+                        "extra_hot — ticked checkbox, blank card.")
+        _lc, lb, _ = c.get("/api/orders")
+        lrow = next((o for o in (lb.get("data") or [])
+                     if str(o.get("orderNumber") or o.get("order_number")) == str(no)), None)
+        step("1. details survive: shots + milkTypeId on the /orders listing",
+             bool(lrow and lrow.get("shots") == 2
+                  and lrow.get("milkTypeId") == "full_cream"),
+             f"shots={lrow.get('shots') if lrow else None}, "
+             f"milkTypeId={lrow.get('milkTypeId') if lrow else None}",
+             suggestion="Dialog fields (shots, milk_type_id, bean_type, "
+                        "alternative_milk) must be stored by the POST and "
+                        "emitted by the /orders serializer.")
         # DESIGN DIFFERENCE, pinned: SMS/kiosk decrement stock at CREATE;
         # walk-ins decrement at COMPLETE ('the moment the drink is made').
         stock1 = _stock_level(c, milk)
