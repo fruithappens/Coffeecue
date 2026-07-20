@@ -846,6 +846,23 @@ const DisplayScreen = () => {
 const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
                   showCustomerName, showDetails, newReadyMap, hasBg }) => {
   const isReady = kind === 'ready';
+  // Auto page-flip: a wall display can't be scrolled, and the old
+  // "+ N more" line just HID the overflow orders entirely. When more
+  // orders exist than fit, flip to the next page every 10 seconds;
+  // when everything fits again, stop flipping and stay on page 1.
+  const pageSize = isPortrait ? 4 : 6;
+  const pageCount = Math.max(1, Math.ceil(orders.length / pageSize));
+  const [page, setPage] = useState(0);
+  useEffect(() => {
+    if (pageCount <= 1) {
+      setPage(0);
+      return undefined;
+    }
+    const t = setInterval(() => setPage(p => (p + 1) % pageCount), 10000);
+    return () => clearInterval(t);
+  }, [pageCount]);
+  const safePage = Math.min(page, pageCount - 1);
+  const visibleOrders = orders.slice(safePage * pageSize, safePage * pageSize + pageSize);
   // Over a full-screen background, render a frosted-white panel with dark
   // text so cards stay legible whatever the image, and let the panel hug
   // its content (compact when empty, growing as orders arrive).
@@ -879,8 +896,13 @@ const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
             : <Empty theme={theme}
                      text={isReady ? 'Nothing ready yet — keep an eye on the brewing list' : 'All caught up'} />
         ) : (
-          <div className="grid grid-cols-1 gap-4 md:gap-6">
-            {orders.slice(0, isPortrait ? 4 : 6).map(o => (
+          <div className="grid grid-cols-1 gap-4 md:gap-6" key={safePage}
+               style={{ animation: pageCount > 1 ? 'displayPageFlip 0.6s ease' : 'none' }}>
+            <style>{`@keyframes displayPageFlip {
+              from { opacity: 0; transform: translateY(14px); }
+              to   { opacity: 1; transform: translateY(0); }
+            }`}</style>
+            {visibleOrders.map(o => (
               <OrderCard
                 key={o.id}
                 order={o}
@@ -892,9 +914,15 @@ const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
                 isNew={isReady && newReadyMap.has(String(o.id))}
               />
             ))}
-            {orders.length > (isPortrait ? 4 : 6) && (
-              <div className={`text-center ${theme.subtext} pt-2`}>
-                + {orders.length - (isPortrait ? 4 : 6)} more
+            {pageCount > 1 && (
+              <div className={`flex items-center justify-center gap-2 pt-1 ${theme.subtext}`}>
+                {Array.from({ length: pageCount }).map((_, i) => (
+                  <span key={i}
+                        className={`inline-block w-2.5 h-2.5 rounded-full ${i === safePage ? (isReady ? 'bg-green-500' : 'bg-amber-500') : 'bg-gray-300'}`} />
+                ))}
+                <span className="ml-2 text-sm">
+                  {safePage * pageSize + 1}–{Math.min(orders.length, (safePage + 1) * pageSize)} of {orders.length}
+                </span>
               </div>
             )}
           </div>

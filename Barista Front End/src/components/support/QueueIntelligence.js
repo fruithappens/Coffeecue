@@ -81,12 +81,8 @@ const QueueIntelligence = () => {
     return () => clearTimeout(timer);
   }, [routingRules]);
   
-  const [routingMetrics, setRoutingMetrics] = useState({
-    avgWaitTime: 0,
-    routingEfficiency: 0,
-    workloadBalance: 0,
-    totalOrdersRouted: 0
-  });
+  // routingMetrics is derived below (useMemo) — it was component state
+  // fed by an effect keyed only on array LENGTHS, so it went stale.
 
   // Calculate station capabilities and current workload
   const calculateStationStats = useCallback(() => {
@@ -94,7 +90,10 @@ const QueueIntelligence = () => {
 
     return stations.map(station => {
       // Get orders currently assigned to this station
-      const stationInProgress = inProgressOrders.filter(order => 
+      const stationInProgress = inProgressOrders.filter(order =>
+        order.stationId === station.id || order.station_id === station.id
+      );
+      const stationPending = pendingOrders.filter(order =>
         order.stationId === station.id || order.station_id === station.id
       );
       
@@ -111,17 +110,27 @@ const QueueIntelligence = () => {
         capabilities.specialFeatures.length * 0.3
       );
       
-      // Calculate current workload
-      const currentLoad = stationInProgress.length;
+      // Current workload = the REAL queue (pending + in-progress).
+      // Counting only in-progress showed "1/5" while two more orders
+      // sat pending at the same station.
+      const currentLoad = (station.queueCount != null && station.queueCount >= 0)
+        ? station.queueCount
+        : (stationPending.length + stationInProgress.length);
       const maxCapacity = station.maxCapacity || 5; // Default max 5 concurrent orders
-      const workloadPercentage = (currentLoad / maxCapacity) * 100;
-      
-      // Calculate efficiency (orders per hour estimate)
+      const workloadPercentage = Math.min(100, (currentLoad / maxCapacity) * 100);
+
+      // Orders-per-hour estimate (only meaningful when real per-station
+      // timing exists; the 4-min default is a rough rule of thumb).
       const avgOrderTime = station.avgOrderTime || 4; // Default 4 minutes per order
       const ordersPerHour = Math.round(60 / avgOrderTime);
-      
-      // Calculate wait time estimate for new orders
-      const estimatedWaitTime = currentLoad * avgOrderTime;
+
+      // Wait estimate: prefer the CANONICAL smart wait from /api/stations
+      // (per-drink make-time × queue ÷ capacity — the same number the
+      // walk-up pill shows). The old load × 4min synthetic said "1m avg"
+      // while real orders had waited far longer (Steve's 83-min testers).
+      const estimatedWaitTime = (station.estimatedWait != null)
+        ? station.estimatedWait
+        : currentLoad * avgOrderTime;
       
       // A station in maintenance/inactive is OFFLINE — it must never be shown
       // as "available" or chosen as a routing target, regardless of its load.
@@ -227,24 +236,39 @@ const QueueIntelligence = () => {
 
   const routingSuggestions = generateRoutingSuggestions();
 
-  // Calculate overall metrics
-  useEffect(() => {
-    if (!stationStats.length) return;
-    
-    const totalOrders = inProgressOrders?.length || 0;
-    const avgWait = stationStats.reduce((sum, s) => sum + (s.estimatedWaitTime || 0), 0) / stationStats.length;
-    const workloadVariance = Math.sqrt(
-      stationStats.reduce((sum, s) => sum + Math.pow((s.workloadPercentage || 0) - 50, 2), 0) / stationStats.length
-    );
-    const workloadBalance = Math.max(0, 100 - workloadVariance);
-    
-    setRoutingMetrics({
+  // Overall metrics — honest versions. The old ones were synthetic:
+  // "Avg Wait" was load×4min averaged over IDLE stations too (a busy
+  // station's 4m became "1m avg" across 4 stations); "Efficiency" ADDED
+  // A PERCENTAGE TO MINUTES ((balance + (100 − avgWait))/2); "Balance"
+  // measured distance from a hardcoded 50% target, so an all-idle event
+  // scored 50%, not 100%. Steve caught the 1m ("not sure if it's true").
+  const routingMetrics = React.useMemo(() => {
+    if (!stationStats.length) {
+      return { avgWaitTime: 0, workloadBalance: 100, stationsAvailable: 0, stationsTotal: 0, totalOrdersRouted: 0 };
+    }
+    const busy = stationStats.filter(s => !s.offline && (s.currentLoad || 0) > 0);
+    // Average wait where people are actually queued; 0 when no queue.
+    const avgWait = busy.length
+      ? busy.reduce((sum, s) => sum + (s.estimatedWaitTime || 0), 0) / busy.length
+      : 0;
+    // Balance = spread around the MEAN workload (all-idle = perfectly
+    // balanced = 100).
+    const active = stationStats.filter(s => !s.offline);
+    const meanLoad = active.length
+      ? active.reduce((sum, s) => sum + (s.workloadPercentage || 0), 0) / active.length
+      : 0;
+    const workloadStddev = active.length
+      ? Math.sqrt(active.reduce((sum, s) => sum + Math.pow((s.workloadPercentage || 0) - meanLoad, 2), 0) / active.length)
+      : 0;
+    return {
       avgWaitTime: Math.round(avgWait * 10) / 10,
-      routingEfficiency: Math.round((workloadBalance + (100 - avgWait)) / 2),
-      workloadBalance: Math.round(workloadBalance),
-      totalOrdersRouted: totalOrders
-    });
-  }, [inProgressOrders?.length, stations?.length]);
+      workloadBalance: Math.max(0, Math.round(100 - workloadStddev)),
+      stationsAvailable: active.filter(s => s.status !== 'overloaded').length,
+      stationsTotal: stationStats.length,
+      totalOrdersRouted: (inProgressOrders?.length || 0) + (pendingOrders?.length || 0),
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stations, pendingOrders, inProgressOrders]);
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -298,12 +322,12 @@ const QueueIntelligence = () => {
           </div>
           <div className="flex items-center space-x-4">
             <div className="text-center">
-              <div className="text-2xl font-bold">{routingMetrics.routingEfficiency || 0}%</div>
-              <div className="text-sm text-purple-200">Efficiency</div>
+              <div className="text-2xl font-bold">{routingMetrics.stationsAvailable}/{routingMetrics.stationsTotal}</div>
+              <div className="text-sm text-purple-200">Stations Available</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold">{routingMetrics.avgWaitTime || 0}m</div>
-              <div className="text-sm text-purple-200">Avg Wait</div>
+              <div className="text-sm text-purple-200">Avg Wait (busy stations)</div>
             </div>
           </div>
         </div>
@@ -450,11 +474,11 @@ const QueueIntelligence = () => {
         </div>
         <div className="bg-white p-4 rounded-lg shadow-sm text-center">
           <div className="text-2xl font-bold text-green-600">{routingMetrics.avgWaitTime || 0}m</div>
-          <div className="text-sm text-gray-600">Avg Wait Time</div>
+          <div className="text-sm text-gray-600">Avg Wait (busy stations)</div>
         </div>
         <div className="bg-white p-4 rounded-lg shadow-sm text-center">
-          <div className="text-2xl font-bold text-purple-600">{routingMetrics.routingEfficiency || 0}%</div>
-          <div className="text-sm text-gray-600">Routing Efficiency</div>
+          <div className="text-2xl font-bold text-purple-600">{routingMetrics.stationsAvailable}/{routingMetrics.stationsTotal}</div>
+          <div className="text-sm text-gray-600">Stations Available</div>
         </div>
         <div className="bg-white p-4 rounded-lg shadow-sm text-center">
           <div className="text-2xl font-bold text-orange-600">{routingMetrics.workloadBalance || 0}%</div>
