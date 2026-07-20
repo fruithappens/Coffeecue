@@ -2004,6 +2004,7 @@ export default function useOrders(stationId = null) {
         coffeeType: orderWithStation.coffee_type || orderWithStation.coffeeType,
         milkType: orderWithStation.milk_type || orderWithStation.milkType,
         milkTypeId: orderWithStation.milk_type_id || orderWithStation.milkTypeId,
+        size: orderWithStation.size || '',
         sugar: orderWithStation.sugar || 'No sugar',
         extraHot: orderWithStation.extra_hot || orderWithStation.extraHot || false,
         priority: orderWithStation.priority || false,

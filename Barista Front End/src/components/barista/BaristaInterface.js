@@ -1158,7 +1158,7 @@ const BaristaInterface = () => {
         </div>
         
         <div className="mt-4 bg-gray-100 p-3 rounded-lg">
-          <div className="text-xl font-bold">{order.coffeeType || 'Coffee'}</div>
+          <div className="text-xl font-bold">{order.size ? `${order.size} ` : ''}{order.coffeeType || 'Coffee'}</div>
           <div className="text-gray-700">{order.milkType || 'Regular milk'}, {order.sugar || 'No sugar'}</div>
           {order.extraHot && <div className="text-gray-700">Extra hot</div>}
           {order.alternativeMilk && (
