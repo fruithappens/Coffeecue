@@ -535,6 +535,7 @@ const BaristaInterface = () => {
         'displayTheme', 'displayFontSize', 'displayZoom', 'displayRotation', 'displayMode',
         'displayCustomMessage',
         'displayFlipSeconds', 'displayCardsPerPage', 'displayOverflowMode',
+        'displayTouchOrdering',
         'autoSendSmsOnComplete', 'remindAfterDelay', 'reminderDelay',
       ];
       const changed = {};
@@ -3185,6 +3186,24 @@ const BaristaInterface = () => {
                   Choosing more orders per page than naturally fit scales the cards down
                   (3 minimum, 8 maximum). Auto measures the screen and never cuts cards off.
                 </p>
+
+                <div className="flex items-start">
+                  <input
+                    type="checkbox"
+                    id="displayTouchOrdering"
+                    checked={settings.displayTouchOrdering !== false}
+                    onChange={(e) => setSettings({...settings, displayTouchOrdering: e.target.checked})}
+                    className="mr-2 mt-1"
+                  />
+                  <label htmlFor="displayTouchOrdering" className="text-sm font-medium text-gray-700">
+                    This display is a touchscreen — customers can tap to order
+                    <span className="block text-xs text-gray-500 font-normal">
+                      Ticked: the display shows a "👆 Order here" tap-to-order button.
+                      Unticked (wall TV nobody can reach): SMS becomes the main call to
+                      action — "Order by SMS … we'll text you when it's ready".
+                    </span>
+                  </label>
+                </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
