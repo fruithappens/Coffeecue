@@ -1342,10 +1342,11 @@ def process_order_batch():
         for oid in order_ids:
             clean = clean_order_id(str(oid))
             try:
+                _now_b = datetime.now().isoformat()
                 cur.execute(
-                    "UPDATE orders SET status = 'in-progress', updated_at = %s "
+                    "UPDATE orders SET status = 'in-progress', updated_at = %s, started_at = %s "
                     "WHERE order_number = %s AND status = 'pending' RETURNING order_number",
-                    (datetime.now().isoformat(), clean),
+                    (_now_b, _now_b, clean),
                 )
                 row = cur.fetchone()
                 results.append({'order_id': clean, 'success': bool(row),
@@ -1872,13 +1873,26 @@ def start_order(order_id):
                     "code": "STATION_CAPABILITY_MISMATCH",
                 }), 400
 
+        # started_at powers the TRUE make-time average (start→complete).
+        # The old average measured created→completed — the whole lifetime
+        # including queue-sitting time — so three test orders that sat 30
+        # minutes made an EMPTY station claim a 10-minute walk-up wait.
+        try:
+            cursor.execute(
+                "ALTER TABLE orders ADD COLUMN IF NOT EXISTS started_at TIMESTAMP")
+        except Exception:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+        _now_s = datetime.now().isoformat()
         cursor.execute(
             '''
             UPDATE orders
-            SET status = 'in-progress', updated_at = %s
+            SET status = 'in-progress', updated_at = %s, started_at = %s
             WHERE order_number = %s
             ''',
-            (datetime.now().isoformat(), clean_id),
+            (_now_s, _now_s, clean_id),
         )
         db.commit()
         rows_affected = cursor.rowcount
@@ -2831,9 +2845,9 @@ def batch_process_orders():
                 if action == 'start':
                     cursor.execute('''
                         UPDATE orders
-                        SET status = 'in-progress', updated_at = %s
+                        SET status = 'in-progress', updated_at = %s, started_at = %s
                         WHERE order_number = %s
-                    ''', (current_time, order_id))
+                    ''', (current_time, current_time, order_id))
                 elif action == 'complete':
                     cursor.execute('''
                         UPDATE orders
