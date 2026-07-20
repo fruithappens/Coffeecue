@@ -613,6 +613,19 @@ class OrderDataService {
   async addWalkInOrder(orderData) {
     try {
       const result = await this.createWalkInOrder(orderData);
+      // createOrder RETURNS (not throws) a refusal object for 4xx — the
+      // server answering "no". Wrapping that as {success:true} buried the
+      // answer, so the UI toasted '✅ added' for an order that never
+      // existed anywhere (Penny's long black).
+      if (result && result.success === false) {
+        return result; // {success:false, refused?, message}
+      }
+      // The offline fallback returns a local order flagged syncPending —
+      // real, but device-local until the sync queue replays it. Flag it
+      // so the UI can say so instead of pretending it's on the server.
+      if (result && result.syncPending) {
+        return { success: true, offline: true, data: result };
+      }
       return { success: true, data: result };
     } catch (error) {
       console.error('Error adding walk-in order:', error);

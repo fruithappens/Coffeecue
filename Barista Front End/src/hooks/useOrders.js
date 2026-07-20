@@ -2117,20 +2117,17 @@ export default function useOrders(stationId = null) {
       // server order and you see EACH walk-in twice (once with WI
       // prefix, once with the real seq number). Steve hit this:
       // 'I added 2 orders and 4 appeared.'
-      try {
-        console.log('Sending to server:', orderWithStation);
-        const result = await OrderDataService.addWalkInOrder(orderWithStation);
-        console.log('Server response:', result);
-
-        if (result && result.success) {
-          // Strip the local placeholder — server now owns this order.
+      // Shared cleanup: remove the optimistic placeholder from every
+      // store (localStorage, orders cache, in-memory list). Defined
+      // before the try so the catch can use it too.
+      const pruneOptimistic = () => {
           try {
             const localKey = `local_orders_station_${targetStationId}`;
             const cur = JSON.parse(localStorage.getItem(localKey) || '[]');
             const pruned = cur.filter(o => o.id !== persistentId);
             if (pruned.length !== cur.length) {
               localStorage.setItem(localKey, JSON.stringify(pruned));
-              console.log(`✓ Removed local placeholder ${persistentId} after server confirm`);
+              console.log(`✓ Removed local placeholder ${persistentId}`);
             }
           } catch (e) {
             console.warn('Could not prune local placeholder:', e);
@@ -2143,11 +2140,26 @@ export default function useOrders(stationId = null) {
               localStorage.setItem(cacheKey, JSON.stringify(cache));
             }
           } catch (e) { /* ignore */ }
-          // Drop from the in-memory list too so the optimistic row
-          // disappears even before the next backend fetch arrives.
           if (targetStationId === currentStationId) {
             setPendingOrders(prev => prev.filter(o => o.id !== persistentId));
           }
+        };
+
+      try {
+        console.log('Sending to server:', orderWithStation);
+        const result = await OrderDataService.addWalkInOrder(orderWithStation);
+        console.log('Server response:', result);
+
+        if (result && result.success && result.offline) {
+          // True offline: the order lives on THIS device's sync queue
+          // until the connection returns. Keep the optimistic card (it's
+          // the only visible copy) but tell the caller the truth.
+          return { ...clientOrder, offline: true };
+        }
+
+        if (result && result.success) {
+          // Strip the local placeholder — server now owns this order.
+          pruneOptimistic();
 
           if (result.id) {
             localStorage.setItem(`order_created_at_station_${result.id}`, String(targetStationId));
@@ -2156,10 +2168,29 @@ export default function useOrders(stationId = null) {
           // the real server-assigned order number.
           setTimeout(() => refreshData(), 250);
         } else {
-          console.log('Server call failed but keeping client-side order for UI consistency');
+          // The server ANSWERED no (refusal / validation / error).
+          // Keeping the phantom "for UI consistency" made the order look
+          // added — it then quietly vanished on the next fetch (Penny's
+          // long black). Remove it everywhere and hand back the truth so
+          // the UI shows an error and keeps the dialog open.
+          pruneOptimistic();
+          setQueueCount(prev => Math.max(0, prev - 1));
+          return {
+            refused: true,
+            message: (result && (result.message || result.error))
+              || 'The server did not accept the order.',
+          };
         }
       } catch (serverErr) {
-        console.error('Server save attempt failed but continuing with local order:', serverErr);
+        console.error('Server save attempt threw — removing optimistic order:', serverErr);
+        // Unexpected throw (not the offline fallback, which returns a
+        // syncPending order instead of throwing): same honesty rule.
+        pruneOptimistic();
+        setQueueCount(prev => Math.max(0, prev - 1));
+        return {
+          refused: true,
+          message: serverErr?.message || 'Could not reach the server.',
+        };
       }
       
       // Manually trigger orders refresh after a short delay - only if needed
