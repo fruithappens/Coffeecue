@@ -152,7 +152,16 @@ class OrderDataService {
       throw new Error(response.message || 'Failed to create order');
     } catch (error) {
       console.error('Error creating order:', error);
-      
+
+      // A 4xx is the server ANSWERING (e.g. "this station doesn't stock
+      // almond") — surface it. Faking success with a local order made the
+      // UI toast '✅ added' while nothing existed anywhere (Danny's two
+      // vanishing walk-ins). Only network/5xx failures fall back to the
+      // offline queue.
+      if (error && error.status >= 400 && error.status < 500) {
+        return { success: false, refused: true, message: error.message };
+      }
+
       // Fallback: Create locally and queue for sync
       return this.createOrderLocally(orderData);
     }

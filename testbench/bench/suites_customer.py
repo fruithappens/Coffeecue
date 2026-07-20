@@ -323,6 +323,22 @@ def suite_customer(rn):
                      "A customer ordering again while one is queued should get "
                      "a SECOND order (or a clear explanation) — not confusion.",
                      refs=[] if both else ["services/coffee_system.py"]))
+        # FIFO guard: whoever ordered FIRST must be listed first (the
+        # fair queue — Steve: 'people waiting longer should be at the
+        # top ready to be started'). New orders used to land on TOP.
+        code, pb2, _ = c.get("/api/orders/pending")
+        seq = [str(o.get("order_number") or o.get("orderNumber"))
+               for o in _order_list(pb2)]
+        fifo = (str(n1) in seq and str(n2) in seq
+                and seq.index(str(n1)) < seq.index(str(n2)))
+        out.append(R("customer", "queue is FIFO (longest wait at the top)",
+                     "pass" if fifo else "fail",
+                     f"pending sequence positions: #{n1}@{seq.index(str(n1)) if str(n1) in seq else '?'} "
+                     f"#{n2}@{seq.index(str(n2)) if str(n2) in seq else '?'}",
+                     suggestion="" if fifo else
+                     "Newest orders are sorting to the top — long-waiting "
+                     "customers sink and risk being missed.",
+                     refs=[] if fifo else ["routes/consolidated_api_routes.py"]))
         _sim(c, ph, "CANCEL")  # cancels most recent
         _sim(c, ph, "CANCEL")  # then the first
     else:

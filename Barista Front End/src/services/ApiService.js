@@ -435,7 +435,12 @@ class ApiService {
         }
 
         console.error(`API error: ${response.status}`, errorDetails);
-        throw new Error(errorDetails.message || `API error: ${response.status}`);
+        // Attach the HTTP status so callers can tell a server REFUSAL
+        // (4xx — surface the message) from an outage (fall back offline).
+        const apiErr = new Error(errorDetails.message || `API error: ${response.status}`);
+        apiErr.status = response.status;
+        apiErr.details = errorDetails;
+        throw apiErr;
       }
 
       const data = await response.json();
@@ -723,7 +728,12 @@ class ApiService {
         }
         
         console.error(`API error: ${response.status}`, errorDetails);
-        throw new Error(errorDetails.message || `API error: ${response.status}`);
+        // Attach the HTTP status so callers can tell a server REFUSAL
+        // (4xx — surface the message) from an outage (fall back offline).
+        const apiErr = new Error(errorDetails.message || `API error: ${response.status}`);
+        apiErr.status = response.status;
+        apiErr.details = errorDetails;
+        throw apiErr;
       }
       
       const data = await response.json();

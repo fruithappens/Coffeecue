@@ -1052,19 +1052,38 @@ const BaristaInterface = () => {
       
       // Add a proper try/catch around the API call
       const result = await addWalkInOrder(orderWithStation);
-      
+
+      // A REFUSAL (e.g. "this station doesn't stock almond") must never
+      // toast success — Danny's two walk-ins "added successfully" while
+      // the backend had refused both and nothing existed anywhere.
+      if (result && result.refused) {
+        showToast(`❌ Not added: ${result.message}`, 'error', 8000);
+        return; // keep the dialog open so the barista can adjust
+      }
+
       if (result) {
         setShowWalkInDialog(false);
         
         // Get customer name or use a default
         const customerName = orderDetails.customer_name || orderDetails.customerName || 'Walk-in Customer';
         
-        // Create a more informative message
-        let message = `✅ Walk-in order added successfully`;
+        // Honest, specific toast: the order NUMBER and where it landed,
+        // so a barista viewing a different station knows why it isn't on
+        // their own queue.
+        const newNum = result.order_number || result.orderNumber || result.id;
+        let message = `✅ Order${newNum ? ` #${newNum}` : ''} added`;
         
         // Add customer name if available
         if (customerName && customerName !== 'Walk-in Customer') {
           message += ` for ${customerName}`;
+        }
+        const landedStation = result.station_id || result.stationId
+          || orderWithStation.stationId;
+        if (landedStation) {
+          message += ` → Station ${landedStation}`;
+          if (String(landedStation) !== String(selectedStation)) {
+            message += ` (not this station's queue)`;
+          }
         }
         
         // Add collection station info if different
@@ -1074,7 +1093,7 @@ const BaristaInterface = () => {
         }
         
         // Use toast notification
-        showToast(message.replace(/\n/g, ' '), 'success', 4000);
+        showToast(message.replace(/\n/g, ' '), 'success', 5000);
         
         console.log('Walk-in order successfully added and dialog closed');
       } else {

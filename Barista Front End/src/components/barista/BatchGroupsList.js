@@ -51,7 +51,7 @@ const BatchGroupsList = ({ batchGroups, onStartOrder, onProcessBatch, onSendMess
                   {order.milkTypeId && (
                     <div className={`milk-indicator-dot ${order.milkTypeId}`}></div>
                   )}
-                  {order.coffeeType}, {order.milkType}, {order.sugar}
+                  {order.size ? `${order.size} ` : ''}{order.coffeeType}, {order.milkType}, {order.sugar}
                 </div>
                 {order.alternativeMilk && (
                   <div className="mt-1">

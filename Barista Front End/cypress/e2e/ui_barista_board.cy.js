@@ -58,6 +58,10 @@ describe('Barista board', () => {
     cy.get('body').invoke('text').then((text) => {
       expect(text.toLowerCase(), 'barista board shows "decaf latte"')
         .to.match(/decaf\s+latte/);
+      // The SIZE must be on the card too (Steve: 'no size mentioned in
+      // the upcoming orders' — a barista made the wrong cup).
+      expect(text.toLowerCase(), 'barista card shows the size')
+        .to.match(/medium\s+decaf\s+latte/);
     });
   });
 });

@@ -24,15 +24,21 @@ const PendingOrdersSection = ({
   onStartGroup
 }) => {
   const { settings } = useSettings();
+  // Queue direction. The backend serves OLDEST FIRST (the fair queue —
+  // whoever has waited longest is at the top, ready to be started).
+  // Some minds prefer newest-on-top, so a flip toggle is offered; the
+  // fair default stays oldest-first (Steve's call).
+  const [newestFirst, setNewestFirst] = React.useState(false);
+  const orderedOrders = newestFirst ? [...orders].reverse() : orders;
   // Organize orders into categories - support both vip and priority property names
-  const vipOrders = orders.filter(order => order.vip || order.priority);
+  const vipOrders = orderedOrders.filter(order => order.vip || order.priority);
   
   // Group batch orders by their batch group — but a batch of ONE is not a
   // batch (Steve: 'batch on all orders is a bit strange'). Only groups
   // with 2+ identical drinks get the group header + Process Batch button;
   // singles render as regular cards (the similarity hints below still
   // point out shared-milk opportunities).
-  const allGroups = orders.reduce((groups, order) => {
+  const allGroups = orderedOrders.reduce((groups, order) => {
     if (order.batchGroup) {
       if (!groups[order.batchGroup]) {
         groups[order.batchGroup] = [];
@@ -51,7 +57,7 @@ const PendingOrdersSection = ({
     }
   });
 
-  const regularOrders = orders.filter(
+  const regularOrders = orderedOrders.filter(
     order => !(order.vip || order.priority)
       && (!order.batchGroup || singletonBatchIds.has(order.id))
   );
@@ -67,7 +73,12 @@ const PendingOrdersSection = ({
   // was a 'Batch' tag on the cards but it disappeared at some point —
   // this re-introduces it, computed automatically rather than
   // requiring an explicit group.
-  const _norm = (s) => (s || '').toString().toLowerCase().trim();
+  // Strip the ' milk' suffix the API uses ('Full Cream Milk') so it
+  // matches the batchable set ('full cream') — without this the
+  // shared-milk hint NEVER fired (Steve: billy + sammy, both full
+  // cream, no batch hint shown).
+  const _norm = (s) => (s || '').toString().toLowerCase().trim()
+    .replace(/\s+milk$/, '');
   const _BATCHABLE_MILKS = new Set([
     'oat', 'soy', 'almond', 'coconut', 'macadamia',
     'lactose free', 'lactose-free', 'rice',
@@ -146,13 +157,13 @@ const PendingOrdersSection = ({
   const getFilteredOrders = () => {
     switch (filter) {
       case 'vip':
-        return orders.filter(order => order.vip || order.priority);
+        return orderedOrders.filter(order => order.vip || order.priority);
       case 'batch':
-        return orders.filter(order =>
+        return orderedOrders.filter(order =>
           order.batchGroup || (batchHintsByOrderId[order.id] || []).length > 0
         );
       case 'urgent':
-        return orders.filter(order => {
+        return orderedOrders.filter(order => {
           // If promisedTime is set, use the ratio. Otherwise fall
           // back to absolute waitTime threshold (10 min default).
           const promised = order.promisedTime;
@@ -162,7 +173,7 @@ const PendingOrdersSection = ({
           return (order.waitTime || 0) >= 10;
         });
       default:
-        return orders;
+        return orderedOrders;
     }
   };
 
@@ -193,10 +204,14 @@ const PendingOrdersSection = ({
           >
             Batch
           </button>
-          <button 
+          <button
             className="px-2 py-1 rounded-md text-xs bg-amber-500 hover:bg-amber-700"
+            onClick={() => setNewestFirst(v => !v)}
+            title={newestFirst
+              ? 'Newest first — click for oldest first (waiting longest at top)'
+              : 'Oldest first (waiting longest at top) — click for newest first'}
           >
-            <ChevronDown size={12} />
+            {newestFirst ? '↓ New' : '↑ Old'}
           </button>
         </div>
       </div>
@@ -273,7 +288,7 @@ const PendingOrdersSection = ({
                         "latte, oat, no sugar" — barista couldn't see the size. */}
                     <span>
                       {order.size ? `${order.size} ` : ''}
-                      {order.coffeeType}, {order.milkType}, {order.sugar}
+                      {order.size ? `${order.size} ` : ''}{order.coffeeType}, {order.milkType}, {order.sugar}
                     </span>
                     {/* Honor-system price tag. Only renders when
                         pricing is enabled — the backend stamps
