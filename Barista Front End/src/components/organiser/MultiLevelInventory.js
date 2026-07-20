@@ -81,13 +81,44 @@ const MultiLevelInventory = () => {
       );
       
       const stationInventories = await Promise.all(stationPromises);
-      
+
+      // The /api/inventory response is a flat {items:[...]} keyed by DB
+      // category — NOT the {milk:[], coffee:[]} buckets this view (and
+      // its totals / predictions) read. That mismatch is why the whole
+      // tab rendered empty headings while stock moved underneath it.
+      // Same category aliasing as the walk-in dialog ('sugar' and
+      // friends → sweeteners).
+      const CAT_TO_BUCKET = {
+        milk: 'milk', coffee: 'coffee', cups: 'cups',
+        sugar: 'sweeteners', sweetener: 'sweeteners',
+        artificial_sweetener: 'sweeteners', sweeteners: 'sweeteners',
+        drinks: 'drinks',
+      };
+      const bucketise = (resp) => {
+        const out = { milk: [], coffee: [], cups: [], sweeteners: [], drinks: [], other: [] };
+        (resp && Array.isArray(resp.items) ? resp.items : []).forEach(item => {
+          if (!item || !item.name) return;
+          const amount = parseFloat(item.amount ?? item.current_quantity) || 0;
+          const minThr = parseFloat(item.minimum_threshold) || 0;
+          out[CAT_TO_BUCKET[item.category] || 'other'].push({
+            id: item.id,
+            name: item.name,
+            amount,
+            unit: item.unit || '',
+            capacity: parseFloat(item.capacity) || amount,
+            status: amount <= 0 ? 'critical'
+              : (minThr && amount <= minThr ? 'warning' : 'good'),
+          });
+        });
+        return out;
+      };
+
       // Process inventory data
       const stationData = {};
       stations.forEach((station, index) => {
         stationData[station.id] = {
           ...station,
-          inventory: stationInventories[index]
+          inventory: bucketise(stationInventories[index])
         };
       });
       
@@ -124,7 +155,10 @@ const MultiLevelInventory = () => {
     
     milkTypes.forEach(milk => {
       const totalStock = Object.values(stationData).reduce((sum, station) => {
-        const milkItem = station.inventory?.milk?.find(item => item.name === milk);
+        // Case-insensitive substring: DB rows are lowercase ('full cream'),
+        // this list is Title Case.
+        const milkItem = station.inventory?.milk?.find(
+          item => item.name.toLowerCase().includes(milk.toLowerCase()));
         return sum + (milkItem?.amount || 0);
       }, 0);
       
@@ -152,7 +186,8 @@ const MultiLevelInventory = () => {
     
     coffeeTypes.forEach(coffee => {
       const totalStock = Object.values(stationData).reduce((sum, station) => {
-        const coffeeItem = station.inventory?.coffee?.find(item => item.name === coffee);
+        const coffeeItem = station.inventory?.coffee?.find(
+          item => item.name.toLowerCase().includes(coffee.toLowerCase()));
         return sum + (coffeeItem?.amount || 0);
       }, 0);
       
@@ -562,6 +597,37 @@ const MultiLevelInventory = () => {
                   ))}
                 </div>
               </div>
+
+              {/* Cups + Sweeteners + Other drinks — same card markup.
+                  These buckets existed in the data but had no section,
+                  so half the station's stock was invisible here. */}
+              {[['cups', 'Cups'], ['sweeteners', 'Sweeteners'], ['drinks', 'Other Drinks']].map(([bucket, title]) => (
+                (selectedStation.inventory?.[bucket] || []).length > 0 && (
+                  <div className="mb-6" key={bucket}>
+                    <h4 className="text-lg font-medium mb-3">{title}</h4>
+                    <div className="space-y-2">
+                      {selectedStation.inventory[bucket].map(item => (
+                        <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded">
+                          <div>
+                            <span className="font-medium">{item.name}</span>
+                            <span className={`ml-2 text-xs px-2 py-1 rounded ${
+                              item.status === 'good' ? 'bg-green-100 text-green-700' :
+                              item.status === 'warning' ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-red-100 text-red-700'
+                            }`}>
+                              {item.status}
+                            </span>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-bold">{item.amount} {item.unit}</div>
+                            <div className="text-xs text-gray-500">of {item.capacity} {item.unit}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              ))}
             </div>
           )}
         </div>
