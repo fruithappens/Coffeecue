@@ -169,11 +169,21 @@ export const findOptimalStationForOrder = (order, stations) => {
     }
   }
   
-  // For alternative milk orders, find stations that can handle them
+  // For alternative milk orders, find stations that can handle them.
+  // Truth comes from the ticked milk list (matching the backend router) —
+  // the stored alt_milk flag is informational only. Empty/missing milk list
+  // = wildcard (station serves everything).
   if (hasAlternativeMilk) {
-    const altMilkStations = availableStations.filter(station => 
-      !station.capabilities || station.capabilities.alt_milk_available !== false // default to true if not specified
-    );
+    const ALT_MILKS = ['oat', 'almond', 'soy', 'coconut', 'macadamia', 'lactose', 'rice'];
+    const servesAltMilk = (station) => {
+      const milks = station.capabilities && station.capabilities.milk_types;
+      if (!Array.isArray(milks) || milks.length === 0) {
+        // No explicit milk list: fall back to the legacy flag (default true)
+        return !station.capabilities || station.capabilities.alt_milk_available !== false;
+      }
+      return milks.some(m => ALT_MILKS.some(alt => String(m).toLowerCase().includes(alt)));
+    };
+    const altMilkStations = availableStations.filter(servesAltMilk);
     
     if (altMilkStations.length > 0) {
       // Sort by queue length (ascending)

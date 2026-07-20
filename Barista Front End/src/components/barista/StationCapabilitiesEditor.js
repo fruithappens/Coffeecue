@@ -198,6 +198,18 @@ const StationCapabilityCard = ({ station, choices, onSaved }) => {
   const selectedDrinks = new Set((current.coffee_types || []).map(s => s.toLowerCase()));
   const selectedSizes  = new Set((current.sizes        || []).map(s => s.toLowerCase()));
 
+  // Routing derives alt-milk truth from the ticked milk list — the alt_milk
+  // flag is a label. Warn when the two disagree so the label can't mislead.
+  const ALT_MILK_WORDS = ['oat', 'almond', 'soy', 'coconut', 'macadamia', 'lactose', 'rice'];
+  const milksListedExplicitly = (current.milk_types || []).length > 0;
+  const listHasAltMilk = [...selectedMilks].some(
+    m => ALT_MILK_WORDS.some(alt => m.includes(alt))
+  );
+  const altMilkContradiction = milksListedExplicitly && (
+    (!!current.alt_milk && !listHasAltMilk) ||   // flagged yes, list says no
+    (!current.alt_milk && listHasAltMilk)         // flagged no, list says yes
+  );
+
   const RowCheckboxes = ({ label, items, selected, fieldKey }) => (
     <div>
       <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">{label}</div>
@@ -269,6 +281,11 @@ const StationCapabilityCard = ({ station, choices, onSaved }) => {
           selected={selectedDrinks}
           fieldKey="coffee_types"
         />
+        {selectedDrinks.size === 0 && (
+          <div className="text-xs text-gray-500 italic -mt-2">
+            Nothing ticked = this station can make all drinks.
+          </div>
+        )}
         <RowCheckboxes
           label="Cup sizes"
           items={choices.sizes}
@@ -285,7 +302,15 @@ const StationCapabilityCard = ({ station, choices, onSaved }) => {
               className="mr-1.5 h-4 w-4 accent-amber-600"
             />
             <span>Alt milk available</span>
+            <span className="ml-1 text-gray-400" title="Label only — order routing follows the ticked milk list above, not this box.">ⓘ</span>
           </label>
+          {altMilkContradiction && (
+            <span className={`text-xs px-2 py-0.5 rounded ${current.alt_milk ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'}`}>
+              {current.alt_milk
+                ? '⚠ No alt milk is ticked above — routing follows the milk list, so alt-milk orders will NOT come here.'
+                : '⚠ Alt milks ARE ticked above — routing follows the milk list, so alt-milk orders WILL come here.'}
+            </span>
+          )}
           <label className="inline-flex items-center text-sm cursor-pointer">
             <input
               type="checkbox"
