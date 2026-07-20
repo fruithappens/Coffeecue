@@ -40,26 +40,30 @@ class SettingsService {
    */
   async getBrandingSettings() {
     try {
-      // Try to get from localStorage first
-      const cached = localStorage.getItem('coffee_system_branding');
-      if (cached) {
-        return JSON.parse(cached);
-      }
-      
-      // Otherwise get from API
+      // Server first — the server copy is what the Display screen and SMS
+      // actually read. Preferring the localStorage cache here meant the
+      // form could show branding the server never accepted, so a failed
+      // save looked saved forever while the Display kept the old logo.
       const response = await this.directFetch('/settings/branding', {
         method: 'GET'
       });
-      
+
       if (response.success && response.settings) {
-        // Cache in localStorage
+        // Cache in localStorage (offline fallback only)
         localStorage.setItem('coffee_system_branding', JSON.stringify(response.settings));
         return response.settings;
       }
-      
+
       return null;
     } catch (error) {
-      console.error('Error getting branding settings:', error);
+      console.error('Error getting branding settings from server:', error);
+      // Offline/unreachable: fall back to the last server-confirmed cache
+      const cached = localStorage.getItem('coffee_system_branding');
+      if (cached) {
+        try {
+          return JSON.parse(cached);
+        } catch (_) { /* corrupt cache — fall through to defaults */ }
+      }
       // Return default branding settings
       return {
         systemName: 'CoffeeCue',
@@ -84,18 +88,20 @@ class SettingsService {
     try {
       // Save to localStorage immediately for instant UI updates
       localStorage.setItem('coffee_system_branding', JSON.stringify(settings));
-      
+
       // Then try to save to API
       const response = await this.directFetch('/settings/branding', {
         method: 'PUT',
         body: JSON.stringify({ settings })
       });
-      
+
       return response.success || false;
     } catch (error) {
       console.error('Error updating branding settings:', error);
-      // Still return true since we saved to localStorage
-      return true;
+      // A thrown fetch (expired token, network, 500) means the server did
+      // NOT get the save. Returning true here used to turn that into a
+      // green "saved successfully" while the Display kept the old branding.
+      return false;
     }
   }
   
@@ -135,15 +141,15 @@ class SettingsService {
       const directUrl = `${this.baseUrl}/${apiPath}`;
       console.log(`Using direct URL strategy: ${directUrl}`);
       
-      // Check if token exists in localStorage but not in memory
-      if (!this.token) {
-        const storedToken = localStorage.getItem('coffee_system_token') || 
-                           localStorage.getItem('coffee_auth_token') || 
-                           localStorage.getItem('jwt_token') || null;
-        if (storedToken) {
-          console.log('Found token in localStorage but not in memory, using it for request');
-          this.token = storedToken;
-        }
+      // Always re-read the current token — access tokens expire after 15
+      // minutes and AuthService writes the refreshed one to localStorage.
+      // Caching the boot-time token meant any save made >15 min into a
+      // session went out with an expired token and 401'd.
+      const storedToken = localStorage.getItem('coffee_system_token') ||
+                         localStorage.getItem('coffee_auth_token') ||
+                         localStorage.getItem('jwt_token') || null;
+      if (storedToken) {
+        this.token = storedToken;
       }
       
       // Set headers
