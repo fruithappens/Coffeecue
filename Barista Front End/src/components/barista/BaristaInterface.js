@@ -530,6 +530,7 @@ const BaristaInterface = () => {
       const GLOBAL_SETTING_KEYS = [
         'showNameOnDisplay', 'showOrderDetails', 'showCompletedOrders', 'showWaitTimes',
         'displayTheme', 'displayFontSize', 'displayZoom', 'displayRotation', 'displayMode',
+        'displayCustomMessage',
         'autoSendSmsOnComplete', 'remindAfterDelay', 'reminderDelay',
       ];
       const changed = {};
@@ -3057,50 +3058,49 @@ const BaristaInterface = () => {
               <h2 className="text-xl font-bold mb-4">Display Screen Settings</h2>
               <p className="mb-4">Control what appears on the customer-facing display screen.</p>
 
+              {/* ONE open control — this button, station-scoped, new tab.
+                  There were three ("Open Display Screen", "Open in New
+                  Tab", and a link further down) all doing the same thing. */}
               <div className="flex space-x-4 mb-4">
                 <button
                   className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
                   onClick={openDisplayScreen}
                 >
-                  Open Display Screen
-                </button>
-                <button
-                  className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
-                  onClick={() => {
-                    // "Test Display" used to pop an alert saying the
-                    // feature needs backend work. The display IS the
-                    // backend integration — just open it in a new tab
-                    // alongside the current view as a quick sanity check.
-                    const url = `${window.location.origin}/display${
-                      selectedStation ? `?station=${selectedStation}` : ''
-                    }`;
-                    window.open(url, '_blank', 'noopener');
-                  }}
-                >
-                  Open in New Tab
+                  Open customer Display (new tab)
                 </button>
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Display Header
                   </label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={settings.stationName}
                     onChange={(e) => setSettings({...settings, stationName: e.target.value})}
                     className="w-full p-2 border rounded"
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Custom Message
                   </label>
-                  <input 
-                    type="text" 
+                  {/* Was a dead input — no value, no onChange, saved
+                      nowhere ("custom text goes no where"). Commits on
+                      blur so we don't PUT per keystroke; shows in the
+                      Display footer (sponsor line takes precedence). */}
+                  <input
+                    type="text"
                     placeholder="Enjoy your coffee!"
+                    defaultValue={settings.displayCustomMessage || ''}
+                    onBlur={(e) => {
+                      if ((e.target.value || '') !== (settings.displayCustomMessage || '')) {
+                        setSettings({ ...settings, displayCustomMessage: e.target.value });
+                        showToast('Custom message saved — shows in the Display footer', 'success');
+                      }
+                    }}
                     className="w-full p-2 border rounded"
                   />
                 </div>
@@ -3152,17 +3152,6 @@ const BaristaInterface = () => {
                   </p>
                 </div>
 
-                <div className="pt-2">
-                  <a
-                    href={`/display${stations.find(s => s.id === selectedStation) ? `?station=${selectedStation}` : ''}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-blue-600 hover:text-blue-800 underline"
-                  >
-                    Open customer Display in new window →
-                  </a>
-                </div>
-                
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Display Timeout (minutes)

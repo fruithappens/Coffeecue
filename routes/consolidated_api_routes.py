@@ -3666,7 +3666,7 @@ def get_display_config():
                     "SELECT key, value FROM settings WHERE key IN ("
                     "'showNameOnDisplay','showOrderDetails','showCompletedOrders',"
                     "'showWaitTimes','displayTheme','displayFontSize','displayZoom',"
-                    "'displayRotation','displayMode')"
+                    "'displayRotation','displayMode','displayCustomMessage')"
                 )
                 _rows = {k: v for k, v in scur.fetchall()}
 
@@ -3694,6 +3694,10 @@ def get_display_config():
                 disp['display_zoom'] = _as_int('displayZoom', 100)
                 disp['display_rotation'] = _as_int('displayRotation', 0)
                 disp['display_mode'] = _as_str('displayMode', 'auto')
+                # Barista Display tab's Custom Message (settings KV) —
+                # previously the field saved nowhere while the display
+                # read only the organiser branding blob.
+                disp['custom_message'] = _as_str('displayCustomMessage', '')
         except Exception as e:
             logger.warning(f"display/config: could not read display settings: {e}")
             try:
@@ -3728,7 +3732,7 @@ def get_display_config():
                 "background_portrait": branding.get('bgPortrait') or branding.get('background_portrait') or '',
                 "wait_time": branding.get('waitTime', '10-15'),
                 "header_color": branding.get('headerColor') or branding.get('primaryColor') or '#1e40af',
-                "custom_message": branding.get('customMessage') or branding.get('footerText') or '',
+                "custom_message": disp.get('custom_message') or branding.get('customMessage') or branding.get('footerText') or '',
                 "stations": stations,
                 "app_version": config.get('APP_VERSION', '1.0.0'),
             }
