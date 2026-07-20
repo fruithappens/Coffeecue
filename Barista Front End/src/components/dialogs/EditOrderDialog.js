@@ -9,21 +9,48 @@ import { X, Save, Trash2 } from 'lucide-react';
  * OrderDataService.updateOrder / cancelOrder. Soft cancel — the record is
  * kept for reporting, it just leaves the active queue.
  */
-const EditOrderDialog = ({ order, onClose, onSave, onCancelOrder, saving = false }) => {
+// Suggestion lists for the datalists below. Free text still works (the
+// menu is operator-configurable), but picking from the list avoids the
+// typo class ('flat wite') that then matches nothing downstream.
+const COMMON_DRINKS = [
+  'Latte', 'Flat White', 'Cappuccino', 'Espresso', 'Long Black',
+  'Americano', 'Macchiato', 'Piccolo', 'Mocha', 'Hot Chocolate',
+  'Chai Latte', 'English Breakfast Tea', 'Earl Grey Tea', 'Green Tea',
+  'Peppermint Tea',
+];
+const COMMON_MILKS = [
+  'Full Cream Milk', 'Skim Milk', 'Oat Milk', 'Almond Milk', 'Soy Milk',
+  'Coconut Milk', 'Macadamia Milk', 'Lactose Free Milk', 'No milk',
+];
+
+const EditOrderDialog = ({ order, onClose, onSave, onCancelOrder, saving = false,
+                           drinkOptions = COMMON_DRINKS, milkOptions = COMMON_MILKS }) => {
   const o = order || {};
   const label = o.orderNumber || o.order_number || o.id;
   const [drink, setDrink] = useState(o.coffeeType || o.coffee_type || o.type || '');
   const [milk, setMilk] = useState(o.milkType || o.milk_type || o.milk || '');
   const [size, setSize] = useState((o.size || 'medium').toString().toLowerCase());
   const [sugar, setSugar] = useState(o.sugar || '');
+  // Phone: editable so a number can be added AFTER ordering ("actually,
+  // text me when it's ready"). 'Walk-in' is a placeholder, not a number.
+  const _rawPhone = String(o.phoneNumber || o.phone_number || o.phone || '').trim();
+  const [phone, setPhone] = useState(/^walk-?in$/i.test(_rawPhone) ? '' : _rawPhone);
 
   const handleSave = () => {
-    onSave({
+    const fields = {
       type: (drink || '').trim(),
       milk: (milk || '').trim(),
       size,
       sugar: (sugar || '').trim(),
-    });
+    };
+    // Only send phone when it actually changed — sending it always would
+    // overwrite a real number with '' on unrelated edits.
+    const cleanedPhone = (phone || '').trim();
+    const hadPhone = !/^walk-?in$/i.test(_rawPhone) && _rawPhone !== '';
+    if (cleanedPhone !== (hadPhone ? _rawPhone : '')) {
+      fields.phone = cleanedPhone;
+    }
+    onSave(fields);
   };
 
   const handleCancelOrder = () => {
@@ -51,11 +78,19 @@ const EditOrderDialog = ({ order, onClose, onSave, onCancelOrder, saving = false
         <div className="p-5 space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-600 mb-1">Drink</label>
-            <input value={drink} onChange={(e) => setDrink(e.target.value)} className={inputCls} placeholder="e.g. flat white" />
+            <input value={drink} onChange={(e) => setDrink(e.target.value)} className={inputCls}
+                   placeholder="e.g. flat white" list="edit-order-drinks" autoComplete="off" />
+            <datalist id="edit-order-drinks">
+              {drinkOptions.map(d => <option key={d} value={d} />)}
+            </datalist>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-600 mb-1">Milk</label>
-            <input value={milk} onChange={(e) => setMilk(e.target.value)} className={inputCls} placeholder="e.g. oat, full cream, no milk" />
+            <input value={milk} onChange={(e) => setMilk(e.target.value)} className={inputCls}
+                   placeholder="e.g. oat, full cream, no milk" list="edit-order-milks" autoComplete="off" />
+            <datalist id="edit-order-milks">
+              {milkOptions.map(m => <option key={m} value={m} />)}
+            </datalist>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -70,6 +105,13 @@ const EditOrderDialog = ({ order, onClose, onSave, onCancelOrder, saving = false
               <label className="block text-sm font-medium text-gray-600 mb-1">Sugar</label>
               <input value={sugar} onChange={(e) => setSugar(e.target.value)} className={inputCls} placeholder="e.g. no sugar, 1 sugar" />
             </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-600 mb-1">
+              Mobile number <span className="text-gray-400 font-normal">(optional — enables SMS updates)</span>
+            </label>
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} className={inputCls}
+                   placeholder="e.g. 0412 345 678" type="tel" autoComplete="off" />
           </div>
         </div>
 

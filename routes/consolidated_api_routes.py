@@ -3461,10 +3461,25 @@ def edit_order(order_id):
             if key and v is not None:
                 details[key] = v
                 changed[key] = v
+        # Phone edits update the orders.phone COLUMN (what SMS sends and
+        # the listing serializers read), not order_details. Lets the
+        # barista add a number after the fact — "actually, can you text
+        # me when it's ready?" — which previously wasn't possible.
+        phone_val = None
+        for pk in ('phone', 'phone_number', 'phoneNumber'):
+            if pk in payload and payload[pk] is not None:
+                phone_val = str(payload[pk]).strip()
+                break
+        if phone_val is not None:
+            changed['phone'] = phone_val
         if not changed:
             return jsonify({"success": False, "message": "No editable fields provided"}), 400
-        cursor.execute('UPDATE orders SET order_details = %s, updated_at = %s WHERE id = %s',
-                       (json.dumps(details), datetime.now(), o_id))
+        if phone_val is not None:
+            cursor.execute('UPDATE orders SET order_details = %s, phone = %s, updated_at = %s WHERE id = %s',
+                           (json.dumps(details), phone_val, datetime.now(), o_id))
+        else:
+            cursor.execute('UPDATE orders SET order_details = %s, updated_at = %s WHERE id = %s',
+                           (json.dumps(details), datetime.now(), o_id))
         db.commit()
         return jsonify({"success": True, "message": f"Order {clean_id} updated", "changed": changed})
     except Exception as e:

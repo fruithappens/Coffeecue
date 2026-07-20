@@ -695,13 +695,13 @@ const BaristaInterface = () => {
         }));
         
         // Show success feedback
-        alert(`Reminder sent to ${order.customerName}`);
+        showToast(`Reminder sent to ${order.customerName}`, 'success');
       } else {
         throw new Error(result.error || 'Failed to send reminder');
       }
     } catch (error) {
       console.error('Failed to send reminder:', error);
-      alert(`Failed to send reminder: ${error.message}`);
+      showToast(`Failed to send reminder: ${error.message}`, 'error', 6000);
     }
   };
 
@@ -717,10 +717,10 @@ const BaristaInterface = () => {
     // was, and a rushing barista had no way to tell. Until a real delay
     // mechanism exists in the backend queue, say so and offer the
     // workable alternative.
-    alert(
+    showToast(
       `Delaying orders isn't supported yet — order #${order.orderNumber || order.id} ` +
-      `has NOT been changed. To take it out of your queue, use Move to ` +
-      `send it to another station, or message the customer.`
+      `has NOT been changed. Use Move to send it to another station, or message the customer.`,
+      'info', 8000
     );
   };
 
@@ -756,10 +756,10 @@ const BaristaInterface = () => {
         setEditingOrder(null);
         refreshData();
       } else {
-        alert(`Could not update order: ${(res && res.message) || 'Unknown error'}`);
+        showToast(`Could not update order: ${(res && res.message) || 'Unknown error'}`, 'error', 6000);
       }
     } catch (err) {
-      alert(`Error updating order: ${err.message || 'Unknown error'}`);
+      showToast(`Error updating order: ${err.message || 'Unknown error'}`, 'error', 6000);
     } finally {
       setEditSaving(false);
     }
@@ -775,10 +775,10 @@ const BaristaInterface = () => {
         setEditingOrder(null);
         refreshData();
       } else {
-        alert(`Could not cancel order: ${(res && res.message) || 'Unknown error'}`);
+        showToast(`Could not cancel order: ${(res && res.message) || 'Unknown error'}`, 'error', 6000);
       }
     } catch (err) {
-      alert(`Error cancelling order: ${err.message || 'Unknown error'}`);
+      showToast(`Error cancelling order: ${err.message || 'Unknown error'}`, 'error', 6000);
     } finally {
       setEditSaving(false);
     }
@@ -823,7 +823,7 @@ const BaristaInterface = () => {
       
       if (!orderToComplete) {
         console.error('Could not find order in inProgressOrders array:', orderId);
-        alert('Error: Could not find the order details. Please try again.');
+        showToast('Could not find the order details. Please try again.', 'error', 6000);
         return false;
       }
       
@@ -879,13 +879,13 @@ const BaristaInterface = () => {
         return true;
       } else {
         console.error('Failed to complete order in backend');
-        alert('Failed to complete the order. Please try again.');
+        showToast('Failed to complete the order. Please try again.', 'error', 6000);
       }
       
       return false;
     } catch (err) {
       console.error('Error completing order with notifications:', err);
-      alert(`Error: ${err.message || 'Unknown error completing order'}`);
+      showToast(`${err.message || 'Unknown error completing order'}`, 'error', 6000);
       return false;
     }
   };
@@ -899,9 +899,9 @@ const BaristaInterface = () => {
       if (success) {
         setWaitTime(waitTimeValue);
         setShowWaitTimeDialog(false);
-        alert(`Wait time updated to ${waitTimeValue} minutes`);
+        showToast(`Wait time updated to ${waitTimeValue} minutes`, 'success');
       } else {
-        alert('Failed to update wait time. Please try again.');
+        showToast('Failed to update wait time. Please try again.', 'error', 6000);
       }
     }
   };
@@ -934,7 +934,7 @@ const BaristaInterface = () => {
           : 'Station is back online'
       );
     } catch (e) {
-      alert('Could not change station status: ' + (e?.message || 'unknown error'));
+      showToast('Could not change station status: ' + (e?.message || 'unknown error'), 'error', 6000);
     }
   };
 
@@ -1013,12 +1013,12 @@ const BaristaInterface = () => {
         
         if (result && result.success) {
           setShowWalkInDialog(false);
-          alert(`Group order "${orderDetails.groupName}" with ${result.count} coffees added to the queue!`);
+          showToast(`Group order "${orderDetails.groupName}" with ${result.count} coffees added to the queue!`, 'success');
           // Refresh data to show new orders
           refreshData();
         } else {
           // More detailed error message
-          alert(`Failed to add group order: ${result?.message || 'Unknown error'}`);
+          showToast(`Failed to add group order: ${result?.message || 'Unknown error'}`, 'error', 6000);
         }
         
         return;
@@ -1099,14 +1099,14 @@ const BaristaInterface = () => {
       } else {
         // Don't close dialog on error, let user retry
         console.error('Failed to add walk-in order - keeping dialog open for retry');
-        alert('Failed to add walk-in order. The backend API may not be properly connected or implemented.');
+        showToast('Failed to add walk-in order — the server refused it. Check the details and try again.', 'error', 6000);
       }
     } catch (error) {
       console.error('Error submitting walk-in order:', error);
       
       // Show specific error message if available
       const errorMessage = error?.message || 'Unknown error occurred';
-      alert(`Error adding walk-in order: ${errorMessage}`);
+      showToast(`Error adding walk-in order: ${errorMessage}`, 'error', 6000);
       
       // Don't close dialog on error, let user retry or manually close
       console.error('Walk-in order submission failed - keeping dialog open for retry');
@@ -1157,57 +1157,71 @@ const BaristaInterface = () => {
           </div>
         </div>
         
-        <div className="mt-4 bg-gray-100 p-3 rounded-lg">
-          <div className="text-xl font-bold">{order.size ? `${order.size} ` : ''}{order.coffeeType || 'Coffee'}</div>
-          <div className="text-gray-700">{order.milkType || 'Regular milk'}, {order.sugar || 'No sugar'}</div>
-          {order.extraHot && <div className="text-gray-700">Extra hot</div>}
+        <div className="mt-2 bg-gray-100 p-2 rounded-lg">
+          <div className="text-lg font-bold leading-snug">{order.size ? `${order.size} ` : ''}{order.coffeeType || 'Coffee'}</div>
+          <div className="text-sm text-gray-700">
+            {order.milkType || 'Regular milk'}, {order.sugar || 'No sugar'}
+            {order.extraHot ? ', Extra hot' : ''}
+          </div>
           {order.alternativeMilk && (
-            <div className="mt-1">
-              <span className="inline-block bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">
-                Alternative Milk
-              </span>
-            </div>
+            <span className="inline-block bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded mt-1">
+              Alternative Milk
+            </span>
           )}
         </div>
-        
-        <div className="mt-4 flex space-x-2">
-          {/* Print Label removed — no label-printer integration yet; it was a
-              non-functional stub. Re-add when a printer is wired up. */}
-          <button
-            className="flex-1 bg-gray-200 py-2 rounded flex items-center justify-center space-x-1 hover:bg-gray-300"
-            onClick={() => handleOpenMessageDialog(order)}
-          >
-            <MessageCircle size={18} />
-            <span>Message Customer</span>
-          </button>
-        </div>
-        
-        <button 
-          className="mt-3 w-full bg-green-500 text-white py-3 rounded-lg font-bold text-lg hover:bg-green-600"
-          onClick={() => handleCompleteOrder(order.id)}
-        >
-          COMPLETE ORDER
-        </button>
-        
-        {/* Time pressure bar */}
-        <div className="mt-3 flex items-center space-x-2">
-          <div className="text-sm">Time pressure:</div>
-          <div className="flex-grow bg-gray-200 h-2 rounded-full overflow-hidden">
-            <div 
-              className={`h-2 ${getTimeRatioColor(order.waitTime, order.promisedTime)}`}
-              style={{ 
-                width: `${order.waitTime && order.promisedTime && order.promisedTime > 0 
-                  ? Math.min((order.waitTime / order.promisedTime) * 100, 100) 
-                  : 0}%` 
-              }}
-            ></div>
-          </div>
-          <div className="text-sm">
-            {order.waitTime && order.promisedTime && order.promisedTime > 0 
-              ? Math.floor(Math.min((order.waitTime / order.promisedTime) * 100, 100))
-              : 0}%
-          </div>
-        </div>
+
+        {/* One compact action row: big COMPLETE, small icon-only message
+            button (Steve: the card ate too much vertical space). Messaging
+            is disabled when the order has no phone number — it used to
+            open the dialog and let you type a message that could never
+            send. */}
+        {(() => {
+          const _ph = String(order.phoneNumber || '').trim().toLowerCase();
+          const hasPhone = !!_ph && _ph !== 'walk-in' && _ph !== 'na' && _ph !== 'n/a';
+          return (
+            <div className="mt-2 flex space-x-2">
+              <button
+                className="flex-1 bg-green-500 text-white py-2 rounded-lg font-bold hover:bg-green-600"
+                onClick={() => handleCompleteOrder(order.id)}
+              >
+                COMPLETE ORDER
+              </button>
+              <button
+                className={`px-3 rounded-lg flex items-center justify-center ${hasPhone
+                  ? 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                  : 'bg-gray-100 text-gray-300 cursor-not-allowed'}`}
+                onClick={() => hasPhone && handleOpenMessageDialog(order)}
+                disabled={!hasPhone}
+                title={hasPhone
+                  ? 'Message customer'
+                  : 'No phone number on this order — add one via Edit (pencil) to enable SMS'}
+              >
+                <MessageCircle size={18} />
+              </button>
+            </div>
+          );
+        })()}
+
+        {/* Time-into-order bar. Fills as the order ages against a 5-minute
+            make target (or promisedTime when the API sends one). It used
+            to divide by a promisedTime the /orders listing never provided,
+            so it sat at 0% forever. */}
+        {(() => {
+          const target = order.promisedTime > 0 ? order.promisedTime : 5;
+          const pct = Math.floor(Math.min(((order.waitTime || 0) / target) * 100, 100));
+          return (
+            <div className="mt-2 flex items-center space-x-2 text-xs text-gray-500">
+              <span className="whitespace-nowrap">{order.waitTime || 0} min</span>
+              <div className="flex-grow bg-gray-200 h-1.5 rounded-full overflow-hidden">
+                <div
+                  className={`h-1.5 ${getTimeRatioColor(order.waitTime || 0, target)}`}
+                  style={{ width: `${pct}%` }}
+                ></div>
+              </div>
+              <span className="whitespace-nowrap">target {target} min</span>
+            </div>
+          );
+        })()}
       </div>
     );
   };
@@ -1283,7 +1297,7 @@ const BaristaInterface = () => {
             className="text-sm text-gray-600 bg-gray-200 px-2 py-1 rounded hover:bg-gray-300"
             onClick={() => {
               console.log(`Viewing details for order #${order.id}`);
-              alert(`Order detail viewing requires backend API implementation. Details for order #${order.id} are not available.`);
+              showToast(`Details for order #${order.id} are not available.`, 'info');
             }}
           >
             View Details
@@ -1633,7 +1647,7 @@ const BaristaInterface = () => {
       SettingsService.updateSettings(localSettings)
         .catch(err => console.warn('Could not sync notification settings to backend:', err));
 
-      alert('Notification settings saved');
+      showToast('Notification settings saved', 'success');
     };
     
     return (
@@ -2302,7 +2316,7 @@ const BaristaInterface = () => {
                   // Prompt for item selection to delete
                   const items = getCategoryStock(selectedStockCategory);
                   if (items.length === 0) {
-                    alert(`No ${selectedStockCategory} items to delete`);
+                    showToast(`No ${selectedStockCategory} items to delete`, 'info');
                     return;
                   }
                   
@@ -2324,7 +2338,7 @@ const BaristaInterface = () => {
                         deleteStockItem(selectedStockCategory, item.id);
                       }
                     } else {
-                      alert('Invalid selection');
+                      showToast('Invalid selection', 'error');
                     }
                   }
                 }}
@@ -2752,10 +2766,10 @@ const BaristaInterface = () => {
                         location: settings.stationLocation,
                         baristaName: settings.baristaName
                       });
-                      alert('Station settings saved successfully!');
+                      showToast('Station settings saved successfully!', 'success');
                     } catch (error) {
                       console.error('Error saving station settings:', error);
-                      alert('Error saving station settings. Please try again.');
+                      showToast('Error saving station settings. Please try again.', 'error', 6000);
                     }
                   }}
                 >
@@ -2991,18 +3005,18 @@ const BaristaInterface = () => {
                         if (success) {
                           // Refresh station data to ensure changes are reflected immediately
                           refreshStations().then(() => {
-                            alert('Settings updated successfully!');
+                            showToast('Settings updated successfully!', 'success');
                           });
                         } else {
-                          alert('Changes saved locally. Server update failed but your changes will persist.');
+                          showToast('Server update FAILED — change saved on this device only.', 'error', 6000);
                         }
                       }).catch(error => {
                         console.error('Error updating station:', error);
                         // Still consider it a success since we saved to localStorage
-                        alert('Changes saved locally. Server connection error: ' + (error.message || 'Unknown error'));
+                        showToast('Server connection error — change saved on this device only: ' + (error.message || 'Unknown error'), 'error', 6000);
                       });
                     } else {
-                      alert('Settings updated successfully!');
+                      showToast('Settings updated successfully!', 'success');
                     }
                   }}
                 >
