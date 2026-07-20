@@ -944,7 +944,11 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
       return milks[0]?.id || 'no_milk';
     };
 
-    if (availableMilks.length > 0 && !availableMilks.some(milk => milk.id === orderDetails.milkType)) {
+    // 'no_milk' is always a legitimate choice (black tea / long black) —
+    // it's never in availableMilks, and this reset was snapping the
+    // operator's "No milk" selection back to the default dairy.
+    if (availableMilks.length > 0 && orderDetails.milkType !== 'no_milk'
+        && !availableMilks.some(milk => milk.id === orderDetails.milkType)) {
       const def = _pickDefaultMilk(availableMilks);
       console.log('Milk type not available, updating from', orderDetails.milkType, 'to', def);
       updatedDetails.milkType = def;
@@ -1247,8 +1251,13 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
       if (!x) return false;
       return /(bean|blend|roast|single\s*origin|decaf|colombian?|ethiopian?|brazilian?|kenyan?|guatemalan?)/.test(x);
     };
+    // Tea has no beans and no shots — a stale beanType left over from a
+    // previous coffee selection was being prepended, producing cards like
+    // "medium decaf English Breakfast Tea" (Steve's live find, #1208).
+    const isTea = (orderDetails.coffeeType || '').toLowerCase().includes('tea');
     let coffeeTypeText = orderDetails.coffeeType;
     if (
+      !isTea &&
       orderDetails.beanType &&
       _looksLikeBean(orderDetails.beanType) &&
       !orderDetails.beanType.toLowerCase().includes('house') &&
@@ -1256,13 +1265,14 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
     ) {
       coffeeTypeText = `${orderDetails.beanType} ${orderDetails.coffeeType}`;
     }
-    coffeeTypeText += shotsText;
+    if (!isTea) {
+      coffeeTypeText += shotsText;
+    }
 
     // For tea drinks, append strength / custom-blend info to the
     // notes so the barista sees it. The backend tea-aware stock
     // decrement reads `is_tea`, `tea_double_cup`, and `tea_strength`
     // directly off the order, not the notes.
-    const isTea = (orderDetails.coffeeType || '').toLowerCase().includes('tea');
     let teaNotes = '';
     if (isTea) {
       const bits = [];
@@ -1686,7 +1696,7 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
               </label>
               <select 
                 name="milkType"
-                value={availableMilks.some(milk => milk.id === orderDetails.milkType) ? orderDetails.milkType : (availableMilks.length > 0 ? availableMilks[0].id : 'no_milk')}
+                value={(orderDetails.milkType === 'no_milk' || availableMilks.some(milk => milk.id === orderDetails.milkType)) ? orderDetails.milkType : (availableMilks.length > 0 ? availableMilks[0].id : 'no_milk')}
                 onChange={handleChange}
                 className="w-full p-2 border rounded"
               >
