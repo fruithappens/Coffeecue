@@ -8188,13 +8188,32 @@ def _apply_quick_setup(coffee_system, preset):
         """, (size,))
     summary.append(f"{len(preset.get('sizes', []))} cup size(s)")
 
-    # Sweeteners
+    # Sweeteners. The count-style labels ('no sugar', '1 sugar', ...) are
+    # PREFERENCES, not products — seeding one stock row per label gave
+    # events five parallel 200-sachet counters ("feels like there's a
+    # 5-teaspoon sachet", Steve). Collapse them to ONE 'sugar' row in
+    # sachets; real named sweeteners (honey, stevia, ...) keep their own
+    # rows. A bare 'sugar' row also lets the SMS gate accept any count
+    # ("5 sugars") instead of only the enumerated ones.
+    _sugar_labels, _named_sweeteners = [], []
     for s in preset.get('sweeteners', []):
+        if re.match(r'^(no|half|\d+)\s*sugars?$', str(s).strip().lower()):
+            _sugar_labels.append(s)
+        else:
+            _named_sweeteners.append(s)
+    if _sugar_labels:
+        cur.execute("""
+            INSERT INTO inventory_items (category, name, amount, current_quantity, unit, capacity, minimum_threshold)
+            VALUES ('sugar', 'sugar', 500, 500, 'sachets', 1000, 50)
+        """)
+    for s in _named_sweeteners:
         cur.execute("""
             INSERT INTO inventory_items (category, name, amount, current_quantity, unit, capacity, minimum_threshold)
             VALUES ('sugar', %s, 200, 200, 'sachets', 500, 20)
         """, (s,))
-    summary.append(f"{len(preset.get('sweeteners', []))} sweetener option(s)")
+    summary.append(
+        f"{(1 if _sugar_labels else 0) + len(_named_sweeteners)} sweetener stock row(s)"
+    )
 
     # Drink categories: enable espresso-based drinks; optionally
     # add the non-coffee drinks the operator wants. We seed these as
@@ -8420,8 +8439,16 @@ def _compute_proposed_inventory(preset):
     rows.append(('coffee', 'decaf beans'))
     for size in preset.get('sizes', []) or []:
         rows.append(('cups', str(size).lower().strip()))
+    # Mirror of _apply_quick_setup's sweetener collapse: count-style
+    # labels become ONE 'sugar' row; named sweeteners keep their own.
+    _dr_sugar = False
     for s in preset.get('sweeteners', []) or []:
-        rows.append(('sugar', str(s).lower().strip()))
+        if re.match(r'^(no|half|\d+)\s*sugars?$', str(s).strip().lower()):
+            _dr_sugar = True
+        else:
+            rows.append(('sugar', str(s).lower().strip()))
+    if _dr_sugar:
+        rows.append(('sugar', 'sugar'))
     drinks_cfg = preset.get('drinks', {}) or {}
     for key, drink_rows in EXTRA_DRINKS.items():
         if drinks_cfg.get(key):
