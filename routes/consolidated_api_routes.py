@@ -3664,6 +3664,9 @@ def get_display_config():
             'display_flip_seconds': 10,
             'display_cards_per_page': 0,
             'display_overflow_mode': 'flip',
+            # Touchscreen? On: tap-to-order kiosk button. Off (wall TV):
+            # SMS is promoted as the primary way to order.
+            'display_touch_ordering': True,
         }
         try:
             if coffee_system and getattr(coffee_system, 'db', None):
@@ -3673,7 +3676,8 @@ def get_display_config():
                     "'showNameOnDisplay','showOrderDetails','showCompletedOrders',"
                     "'showWaitTimes','displayTheme','displayFontSize','displayZoom',"
                     "'displayRotation','displayMode','displayCustomMessage',"
-                    "'displayFlipSeconds','displayCardsPerPage','displayOverflowMode')"
+                    "'displayFlipSeconds','displayCardsPerPage','displayOverflowMode',"
+                    "'displayTouchOrdering')"
                 )
                 _rows = {k: v for k, v in scur.fetchall()}
 
@@ -3708,6 +3712,7 @@ def get_display_config():
                 disp['display_flip_seconds'] = _as_int('displayFlipSeconds', 10)
                 disp['display_cards_per_page'] = _as_int('displayCardsPerPage', 0)
                 disp['display_overflow_mode'] = _as_str('displayOverflowMode', 'flip')
+                disp['display_touch_ordering'] = _as_bool('displayTouchOrdering', True)
         except Exception as e:
             logger.warning(f"display/config: could not read display settings: {e}")
             try:
@@ -3732,6 +3737,7 @@ def get_display_config():
                 "display_flip_seconds": disp['display_flip_seconds'],
                 "display_cards_per_page": disp['display_cards_per_page'],
                 "display_overflow_mode": disp['display_overflow_mode'],
+                "display_touch_ordering": disp['display_touch_ordering'],
                 "sms_number": config.get('TWILIO_PHONE_NUMBER', '') or branding.get('smsNumber', ''),
                 "sponsor": sponsor,
                 # Logo for the display screen header. Uploaded via the

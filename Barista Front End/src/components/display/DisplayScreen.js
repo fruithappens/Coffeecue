@@ -188,6 +188,9 @@ const DisplayScreen = () => {
     display_flip_seconds: 10,
     display_cards_per_page: 0,
     display_overflow_mode: 'flip',
+    // Is this screen a TOUCHSCREEN? On: tap-to-order kiosk button.
+    // Off (wall TV nobody can reach): SMS ordering is the primary CTA.
+    display_touch_ordering: true,
   });
 
   // Visual config — sourced from the public /display/config (works with no
@@ -292,6 +295,7 @@ const DisplayScreen = () => {
             display_flip_seconds: c.display_flip_seconds ?? prev.display_flip_seconds,
             display_cards_per_page: c.display_cards_per_page ?? prev.display_cards_per_page,
             display_overflow_mode: c.display_overflow_mode || prev.display_overflow_mode,
+            display_touch_ordering: c.display_touch_ordering ?? prev.display_touch_ordering,
           }));
         }
       } catch (e) { /* defaults OK if backend silent */ }
@@ -794,29 +798,48 @@ const DisplayScreen = () => {
       <footer className={`px-6 md:px-10 py-4 ${theme.panel} ${theme.border} border-t
                           flex items-center justify-between gap-6 flex-wrap`}>
         <div className="flex items-center gap-4 flex-wrap min-w-0">
-          {/* Big touch target for walk-up self-service ordering. */}
-          {kioskEnabled && (
+          {/* Touchscreen displays get the tap-to-order kiosk button (the
+              finger says "this screen is touchable"). Non-touch screens
+              (wall TVs) promote SMS as the PRIMARY way to order instead —
+              a button nobody can press is just confusing. */}
+          {kioskEnabled && config.display_touch_ordering !== false && (
             <button
               onClick={(e) => { e.stopPropagation(); setShowKiosk(true); }}
               className="flex items-center gap-3 rounded-2xl px-7 py-4 text-2xl font-extrabold shadow-md hover:opacity-90 active:scale-95"
               style={{ backgroundColor: headerColor, color: onHeader }}
             >
-              <Coffee size={32} /> Order here
+              <span className="text-3xl" aria-hidden>👆</span> Order here
             </button>
           )}
           {/* Only advertise SMS ordering when a number is actually configured. */}
           {config.sms_number && (
-            <div className="flex items-center min-w-0 rounded-2xl px-5 py-3 shadow-sm bg-white/90 text-gray-800">
-              <MessageCircle size={26} className="mr-3 flex-shrink-0" />
-              <div className="min-w-0">
-                <div className="text-xs font-bold uppercase tracking-wide text-gray-500">
-                  {kioskEnabled ? 'Or order by SMS' : 'Order by SMS'}
-                </div>
-                <div className="text-xl font-extrabold tracking-wide truncate">
-                  {formatSmsNumber(config.sms_number)}
+            (kioskEnabled && config.display_touch_ordering !== false) ? (
+              <div className="flex items-center min-w-0 rounded-2xl px-5 py-3 shadow-sm bg-white/90 text-gray-800">
+                <MessageCircle size={26} className="mr-3 flex-shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-xs font-bold uppercase tracking-wide text-gray-500">
+                    Or order by SMS
+                  </div>
+                  <div className="text-xl font-extrabold tracking-wide truncate">
+                    {formatSmsNumber(config.sms_number)}
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              /* SMS-first CTA for non-touch screens. */
+              <div className="flex items-center min-w-0 rounded-2xl px-7 py-4 shadow-md"
+                   style={{ backgroundColor: headerColor, color: onHeader }}>
+                <MessageCircle size={32} className="mr-4 flex-shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-2xl font-extrabold tracking-wide truncate">
+                    Order by SMS: {formatSmsNumber(config.sms_number)}
+                  </div>
+                  <div className="text-sm font-semibold opacity-90">
+                    Text your order — we'll text you when it's ready
+                  </div>
+                </div>
+              </div>
+            )
           )}
         </div>
         <div className={`text-right max-w-[40%] ${fonts.body} font-medium truncate`}>
