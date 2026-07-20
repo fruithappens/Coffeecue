@@ -246,7 +246,18 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
                 enabled: true,
               };
               if (stockItem.amount <= 0) return;
-              const cat = item.category;
+              // The DB uses several category spellings for sweeteners
+              // ('sugar' from Quick Setup, 'sweetener'/'artificial_sweetener'
+              // from the organiser catalog). The dialog buckets only knew
+              // 'sweeteners', so every sugar row was silently dropped and
+              // the walk-in sweetener dropdown showed nothing.
+              const CAT_TO_BUCKET = {
+                sugar: 'sweeteners',
+                sweetener: 'sweeteners',
+                artificial_sweetener: 'sweeteners',
+                sweeteners: 'sweeteners',
+              };
+              const cat = CAT_TO_BUCKET[item.category] || item.category;
               if (fresh[cat]) fresh[cat].push(stockItem);
             });
 
@@ -808,11 +819,25 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
             });
             
             console.log('Available sweeteners after filtering:', availableSweetenerItems.map(s => s.name));
-            
-            // Add the enabled sweetener names
+
+            // Add the enabled sweetener names. Quick Setup seeds COUNT-style
+            // rows ('no sugar', 'half sugar', '1 sugar', '2 sugar', ...) —
+            // those are the same product at different counts, not distinct
+            // types, so collapse them into ONE 'Sugar' entry (the operator
+            // picks the count with the quantity dropdown next to it).
+            // Real named types (White Sugar, Honey, Stevia) pass through.
+            const COUNT_STYLE_SUGAR = /^(no|half|\d+)\s*sugars?$/i;
+            let hasCountStyleSugar = false;
             availableSweetenerItems.forEach(sweetener => {
-              sweetenerTypes.push(sweetener.name);
+              if (COUNT_STYLE_SUGAR.test((sweetener.name || '').trim())) {
+                hasCountStyleSugar = true;
+              } else {
+                sweetenerTypes.push(sweetener.name);
+              }
             });
+            if (hasCountStyleSugar && !sweetenerTypes.some(t => /sugar/i.test(t))) {
+              sweetenerTypes.push('Sugar');
+            }
           }
           
           // If no sweeteners found in inventory, don't add defaults

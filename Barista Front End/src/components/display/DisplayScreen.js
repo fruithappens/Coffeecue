@@ -563,7 +563,9 @@ const DisplayScreen = () => {
   // orientation (fall back to the other if only one was uploaded). When set,
   // the order columns become translucent panels that hug their content, so
   // the image shows through when the queue is quiet and the boxes grow as
-  // orders arrive.
+  // orders arrive. Panels anchor to the TOP of the screen (under the
+  // header): people standing in front of the display block the bottom
+  // half, so status banners must sit up high to stay visible.
   const bgImage = isPortrait
     ? (config.background_portrait || config.background_landscape || '')
     : (config.background_landscape || config.background_portrait || '');
@@ -695,7 +697,7 @@ const DisplayScreen = () => {
         </main>
       ) : (
       <main className={hasBg
-        ? `flex-grow flex gap-6 md:gap-8 px-6 md:px-10 pb-6 ${isPortrait ? 'flex-col justify-end' : 'flex-row items-end'}`
+        ? `flex-grow flex gap-6 md:gap-8 px-6 md:px-10 pt-6 pb-6 ${isPortrait ? 'flex-col justify-start' : 'flex-row items-start'}`
         : `flex-grow grid gap-6 md:gap-8 px-6 md:px-10 pb-6 ${isPortrait
             ? 'grid-cols-1 grid-rows-2'
             : (showCompleted ? 'grid-cols-2' : 'grid-cols-1')}`}>
