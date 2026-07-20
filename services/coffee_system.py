@@ -5112,20 +5112,28 @@ class CoffeeOrderSystem:
             return None
         try:
             cursor = self.db.cursor()
-            cursor.execute(
-                "SELECT DISTINCT station_id FROM orders "
-                "WHERE status = 'pending' "
-                "AND created_at > NOW() - INTERVAL '30 minutes' "
-                "AND LOWER(order_details->>'type') = %s "
-                "AND LOWER(COALESCE(order_details->>'milk','')) = %s",
-                (str(coffee_type).lower(), str(milk_type or '').lower()),
-            )
-            with_twin = {int(r[0]) for r in cursor.fetchall() if r and r[0] is not None}
-        except Exception:
+            # SAVEPOINT so a failure here can NEVER poison the caller's
+            # in-flight transaction — _assign_station keeps reading station
+            # data after this, and an aborted transaction would crash it
+            # into the kiosk's dumb first-capable fallback (full-sweep
+            # regression: break-window orders landed on CLOSED stations).
+            cursor.execute("SAVEPOINT batch_twin")
             try:
-                self.db.rollback()
+                cursor.execute(
+                    "SELECT DISTINCT station_id FROM orders "
+                    "WHERE status = 'pending' "
+                    "AND created_at > NOW() - INTERVAL '30 minutes' "
+                    "AND LOWER(order_details->>'type') = %s "
+                    "AND LOWER(COALESCE(order_details->>'milk','')) = %s",
+                    (str(coffee_type).lower(), str(milk_type or '').lower()),
+                )
+                with_twin = {int(r[0]) for r in cursor.fetchall()
+                             if r and r[0] is not None}
+                cursor.execute("RELEASE SAVEPOINT batch_twin")
             except Exception:
-                pass
+                cursor.execute("ROLLBACK TO SAVEPOINT batch_twin")
+                return None
+        except Exception:
             return None
         if not with_twin:
             return None
