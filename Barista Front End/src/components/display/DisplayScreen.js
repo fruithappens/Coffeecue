@@ -880,12 +880,28 @@ const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
   const pageSize = measuredFit ?? (isPortrait ? 3 : 4);
   const pageCount = Math.max(1, Math.ceil(orders.length / pageSize));
   const [page, setPage] = useState(0);
+  // Visible countdown to the next flip ("more orders in 8s") so a
+  // customer whose order isn't on this page knows more are coming
+  // instead of walking off — Steve's ask. One 1-second ticker drives
+  // both the countdown text and the flip itself.
+  const FLIP_SECONDS = 10;
+  const [countdown, setCountdown] = useState(FLIP_SECONDS);
   useEffect(() => {
     if (pageCount <= 1) {
       setPage(0);
+      setCountdown(FLIP_SECONDS);
       return undefined;
     }
-    const t = setInterval(() => setPage(p => (p + 1) % pageCount), 10000);
+    setCountdown(FLIP_SECONDS);
+    const t = setInterval(() => {
+      setCountdown(c => {
+        if (c <= 1) {
+          setPage(p => (p + 1) % pageCount);
+          return FLIP_SECONDS;
+        }
+        return c - 1;
+      });
+    }, 1000);
     return () => clearInterval(t);
   }, [pageCount]);
   const safePage = Math.min(page, pageCount - 1);
@@ -951,6 +967,9 @@ const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
                 ))}
                 <span className="ml-2 text-sm">
                   {safePage * pageSize + 1}–{Math.min(orders.length, (safePage + 1) * pageSize)} of {orders.length}
+                </span>
+                <span className="ml-2 text-sm font-semibold">
+                  · more orders in {countdown}s
                 </span>
               </div>
             )}
