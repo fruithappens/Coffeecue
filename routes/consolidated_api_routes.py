@@ -483,6 +483,18 @@ def orders():
                     'size': order_details.get('size', 'Regular'),
                     'extra_hot': order_details.get('temp') == 'extra hot',
                     'extraHot': order_details.get('temp') == 'extra hot',
+                    # Milk metadata for the card colour dot + badges.
+                    # Stored by the walk-in endpoint; absent (→ null /
+                    # false) for SMS orders, which the UI tolerates.
+                    'milk_type_id': order_details.get('milk_type_id'),
+                    'milkTypeId': order_details.get('milk_type_id'),
+                    'alternative_milk': bool(order_details.get('alternative_milk')),
+                    'alternativeMilk': bool(order_details.get('alternative_milk')),
+                    'dairy_free': bool(order_details.get('dairy_free')),
+                    'dairyFree': bool(order_details.get('dairy_free')),
+                    'shots': order_details.get('shots'),
+                    'bean_type': order_details.get('bean_type'),
+                    'beanType': order_details.get('bean_type'),
                     'batch_group': _bg,
                     'batchGroup': _bg,
                     'status': status,
@@ -628,7 +640,27 @@ def orders():
                 'tea_strength':     data.get('tea_strength'),
                 'tea_double_cup':   bool(data.get('tea_double_cup')),
                 'tea_custom_blend': data.get('tea_custom_blend', ''),
+                # Milk metadata the barista cards render (colour dot,
+                # Alternative Milk / dairy-free badges). This rebuild
+                # used to drop them, so walk-in cards lost the badges.
+                'milk_type_id':     data.get('milk_type_id'),
+                'alternative_milk': bool(data.get('alternative_milk')),
+                'dairy_free':       bool(data.get('dairy_free')),
+                # Bean choice + shot count from the dialog (usage stats).
+                'bean_type':        data.get('bean_type'),
             }
+            # Extra hot: every order serializer derives the card badge
+            # from order_details['temp'] == 'extra hot' (the shape the
+            # SMS flow writes). This rebuild dropped the dialog's
+            # extra_hot flag entirely — the checkbox was ticked, the
+            # order stored nothing, and the pending/current cards
+            # showed a normal-temperature order.
+            if data.get('extra_hot') or data.get('extraHot'):
+                order_details['extra_hot'] = True
+                order_details['temp'] = 'extra hot'
+            _shots = data.get('shots')
+            if isinstance(_shots, (int, float)) and _shots == _shots and _shots > 0:
+                order_details['shots'] = _shots
             # Compute price (honor-system) — same logic as the SMS
             # flow. Stashed on order_details so the barista UI's
             # current-order card knows what to charge. Includes the
