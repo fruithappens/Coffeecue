@@ -497,6 +497,14 @@ const DisplayScreen = () => {
       el.requestFullscreen().catch(() => { /* user-gesture issue, ignore */ });
     }
   };
+  // Track fullscreen so the operator chrome (back arrow, station picker,
+  // control buttons) can hide for a clean customer-facing board.
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  useEffect(() => {
+    const onFs = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onFs);
+    return () => document.removeEventListener('fullscreenchange', onFs);
+  }, []);
 
   // "Brewing" should only contain orders the barista has actually
   // started — combining pending+in-progress earlier was misleading
@@ -602,6 +610,10 @@ const DisplayScreen = () => {
       <header className="px-6 md:px-10 pt-5 pb-5 flex items-center justify-between gap-4 shadow-md"
               style={{ backgroundColor: headerColor, color: onHeader }}>
         <div className="flex items-center min-w-0">
+          {/* Operator chrome hides in fullscreen — a customer-facing wall
+              board should show branding and orders, not navigation. Exit
+              fullscreen (Esc / tablet gesture) to get the controls back. */}
+          {!isFullscreen && (
           <button
             onClick={(e) => { e.stopPropagation(); window.location.href = '/'; }}
             className="mr-4 p-2 rounded-full hover:opacity-80 transition flex-shrink-0"
@@ -610,6 +622,7 @@ const DisplayScreen = () => {
           >
             <ArrowLeft size={24} />
           </button>
+          )}
           {config.logo ? (
             <div className="bg-white rounded-xl p-2 mr-4 shadow-sm flex items-center flex-shrink-0">
               <img
@@ -639,6 +652,7 @@ const DisplayScreen = () => {
             </div>
           </div>
         </div>
+        {!isFullscreen && (
         <div className="flex items-center gap-2 flex-shrink-0">
           {stations.length > 1 && (
             <select
@@ -686,6 +700,7 @@ const DisplayScreen = () => {
             <Maximize2 size={20} />
           </button>
         </div>
+        )}
       </header>
 
       {/* --- Connection warning --- */}
@@ -924,31 +939,32 @@ const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
     cardScale = Math.max(0.4, Math.min(1, (availableH) / needed));
   }
   const pageCount = Math.max(1, Math.ceil(orders.length / pageSize));
-  const [page, setPage] = useState(0);
-  // Visible countdown to the next flip ("more orders in 8s") so a
-  // customer whose order isn't on this page knows more are coming
-  // instead of walking off — Steve's ask. One 1-second ticker drives
-  // both the countdown text and the flip itself.
-  const [countdown, setCountdown] = useState(flipSeconds);
+  // WALL-CLOCK synchronised flipping: page and countdown derive from
+  // Date.now() rather than a per-column timer, so Brewing and Ready —
+  // and every display screen in the venue — flip at the same instant
+  // with no shared state (Steve: "if both are spinning they do it in
+  // sync").
+  const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000));
   useEffect(() => {
-    if (pageCount <= 1 || scrollMode) {
-      setPage(0);
-      setCountdown(flipSeconds);
-      return undefined;
-    }
-    setCountdown(flipSeconds);
-    const t = setInterval(() => {
-      setCountdown(c => {
-        if (c <= 1) {
-          setPage(p => (p + 1) % pageCount);
-          return flipSeconds;
-        }
-        return c - 1;
-      });
-    }, 1000);
+    if (pageCount <= 1 || scrollMode) return undefined;
+    const t = setInterval(() => setNowSec(Math.floor(Date.now() / 1000)), 250);
     return () => clearInterval(t);
-  }, [pageCount, flipSeconds, scrollMode]);
-  const safePage = Math.min(page, pageCount - 1);
+  }, [pageCount, scrollMode]);
+  const safePage = pageCount <= 1 ? 0
+    : Math.floor(nowSec / flipSeconds) % pageCount;
+  const countdown = flipSeconds - (nowSec % flipSeconds);
+  // Y-axis spin on page change: the whole panel turns edge-on (the
+  // background branding shows through for a few frames) and comes back
+  // with the next page. spinTick keys the <section> so the CSS
+  // animation retriggers per flip — and 0 means "first load, no spin".
+  const prevPageRef = useRef(safePage);
+  const [spinTick, setSpinTick] = useState(0);
+  useEffect(() => {
+    if (prevPageRef.current !== safePage) {
+      prevPageRef.current = safePage;
+      setSpinTick(t => t + 1);
+    }
+  }, [safePage]);
   const visibleOrders = orders.slice(safePage * pageSize, safePage * pageSize + pageSize);
   // Continuous-scroll mode: when overflowing, loop the FULL list in a
   // slow marquee (list rendered twice for a seamless wrap).
@@ -965,8 +981,15 @@ const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
   const title = isReady ? 'Ready for Pickup' : 'Brewing';
 
   return (
-    <section className={`rounded-3xl overflow-hidden flex flex-col ${theme.panel} shadow-xl
-                        ${hasBg ? (isPortrait ? 'w-full max-h-[42vh]' : 'flex-1 min-w-0 max-h-[78vh]') : ''}`}>
+    <section key={spinTick}
+      className={`rounded-3xl overflow-hidden flex flex-col ${theme.panel} shadow-xl
+                        ${hasBg ? (isPortrait ? 'w-full max-h-[42vh]' : 'flex-1 min-w-0 max-h-[78vh]') : ''}`}
+      style={spinTick > 0 ? { animation: 'displayPanelSpin 0.8s ease' } : undefined}>
+      <style>{`@keyframes displayPanelSpin {
+        0%   { transform: perspective(1400px) rotateY(0deg); }
+        50%  { transform: perspective(1400px) rotateY(88deg); }
+        100% { transform: perspective(1400px) rotateY(0deg); }
+      }`}</style>
       <header className={`${headerCls} px-6 py-4 flex items-center justify-between flex-shrink-0`}>
         <div className="flex items-center">
           {icon}
@@ -1016,13 +1039,10 @@ const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
             </div>
           </div>
         ) : (
+          /* Content swap only — the page-change animation is the panel's
+             Y-axis spin on <section>, so no inner fade here. */
           <div className="grid grid-cols-1 gap-4 md:gap-6" key={safePage}
-               style={{ animation: pageCount > 1 ? 'displayPageFlip 0.6s ease' : 'none',
-                        zoom: cardScale }}>
-            <style>{`@keyframes displayPageFlip {
-              from { opacity: 0; transform: translateY(14px); }
-              to   { opacity: 1; transform: translateY(0); }
-            }`}</style>
+               style={{ zoom: cardScale }}>
             {visibleOrders.map(o => (
               <div key={o.id} data-kcard>
                 <OrderCard
