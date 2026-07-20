@@ -3658,6 +3658,12 @@ def get_display_config():
             'display_zoom': 100,
             'display_rotation': 0,
             'display_mode': 'auto',
+            # Board overflow controls (barista Display tab): seconds per
+            # page flip, fixed cards-per-page (0 = auto-measure, 3..8 =
+            # scale cards to fit), and 'flip' vs continuous 'scroll'.
+            'display_flip_seconds': 10,
+            'display_cards_per_page': 0,
+            'display_overflow_mode': 'flip',
         }
         try:
             if coffee_system and getattr(coffee_system, 'db', None):
@@ -3666,7 +3672,8 @@ def get_display_config():
                     "SELECT key, value FROM settings WHERE key IN ("
                     "'showNameOnDisplay','showOrderDetails','showCompletedOrders',"
                     "'showWaitTimes','displayTheme','displayFontSize','displayZoom',"
-                    "'displayRotation','displayMode','displayCustomMessage')"
+                    "'displayRotation','displayMode','displayCustomMessage',"
+                    "'displayFlipSeconds','displayCardsPerPage','displayOverflowMode')"
                 )
                 _rows = {k: v for k, v in scur.fetchall()}
 
@@ -3698,6 +3705,9 @@ def get_display_config():
                 # previously the field saved nowhere while the display
                 # read only the organiser branding blob.
                 disp['custom_message'] = _as_str('displayCustomMessage', '')
+                disp['display_flip_seconds'] = _as_int('displayFlipSeconds', 10)
+                disp['display_cards_per_page'] = _as_int('displayCardsPerPage', 0)
+                disp['display_overflow_mode'] = _as_str('displayOverflowMode', 'flip')
         except Exception as e:
             logger.warning(f"display/config: could not read display settings: {e}")
             try:
@@ -3719,6 +3729,9 @@ def get_display_config():
                 "display_zoom": disp['display_zoom'],
                 "display_rotation": disp['display_rotation'],
                 "display_mode": disp['display_mode'],
+                "display_flip_seconds": disp['display_flip_seconds'],
+                "display_cards_per_page": disp['display_cards_per_page'],
+                "display_overflow_mode": disp['display_overflow_mode'],
                 "sms_number": config.get('TWILIO_PHONE_NUMBER', '') or branding.get('smsNumber', ''),
                 "sponsor": sponsor,
                 # Logo for the display screen header. Uploaded via the

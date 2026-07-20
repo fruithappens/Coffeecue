@@ -534,6 +534,7 @@ const BaristaInterface = () => {
         'showNameOnDisplay', 'showOrderDetails', 'showCompletedOrders', 'showWaitTimes',
         'displayTheme', 'displayFontSize', 'displayZoom', 'displayRotation', 'displayMode',
         'displayCustomMessage',
+        'displayFlipSeconds', 'displayCardsPerPage', 'displayOverflowMode',
         'autoSendSmsOnComplete', 'remindAfterDelay', 'reminderDelay',
       ];
       const changed = {};
@@ -3130,6 +3131,60 @@ const BaristaInterface = () => {
                     Use this as an escape hatch.
                   </p>
                 </div>
+
+                {/* Board overflow controls — how the Display handles more
+                    orders than fit on screen (Steve's ask). */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      When orders overflow
+                    </label>
+                    <select
+                      value={settings.displayOverflowMode || 'flip'}
+                      onChange={(e) => setSettings({...settings, displayOverflowMode: e.target.value})}
+                      className="w-full p-2 border rounded"
+                    >
+                      <option value="flip">Page flip (with countdown)</option>
+                      <option value="scroll">Continuous scroll loop</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Seconds per page
+                    </label>
+                    <select
+                      value={settings.displayFlipSeconds ?? 10}
+                      onChange={(e) => setSettings({...settings, displayFlipSeconds: parseInt(e.target.value, 10)})}
+                      className="w-full p-2 border rounded"
+                      disabled={(settings.displayOverflowMode || 'flip') !== 'flip'}
+                    >
+                      <option value={5}>5 seconds</option>
+                      <option value={8}>8 seconds</option>
+                      <option value={10}>10 seconds</option>
+                      <option value={15}>15 seconds</option>
+                      <option value={20}>20 seconds</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Orders per page
+                    </label>
+                    <select
+                      value={settings.displayCardsPerPage ?? 0}
+                      onChange={(e) => setSettings({...settings, displayCardsPerPage: parseInt(e.target.value, 10)})}
+                      className="w-full p-2 border rounded"
+                    >
+                      <option value={0}>Auto — fit to screen</option>
+                      {[3, 4, 5, 6, 7, 8].map(n => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 -mt-2">
+                  Choosing more orders per page than naturally fit scales the cards down
+                  (3 minimum, 8 maximum). Auto measures the screen and never cuts cards off.
+                </p>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">

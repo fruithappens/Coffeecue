@@ -182,6 +182,12 @@ const DisplayScreen = () => {
     display_zoom: 100,
     display_rotation: 0,
     display_mode: 'auto',
+    // Board overflow controls (operator-set in the barista Display tab):
+    // seconds per page flip, fixed cards-per-page (0 = auto-measure,
+    // 3..8 = scale cards to fit), and flip vs continuous scroll.
+    display_flip_seconds: 10,
+    display_cards_per_page: 0,
+    display_overflow_mode: 'flip',
   });
 
   // Visual config — sourced from the public /display/config (works with no
@@ -195,6 +201,15 @@ const DisplayScreen = () => {
   const showDetails = config.show_order_details !== false;
   const showCompleted = config.show_completed !== false;
   const showWaitTimes = config.show_wait_times !== false;
+  // Board overflow controls, operator-set in the barista Display tab.
+  // cardsPerPage 0 = auto-measure; 3..8 = force N and scale cards to fit.
+  const boardOpts = {
+    flipSeconds: config.display_flip_seconds > 0 ? Number(config.display_flip_seconds) : 10,
+    cardsPerPage: config.display_cards_per_page > 0
+      ? Math.min(8, Math.max(3, Number(config.display_cards_per_page)))
+      : 0,
+    overflowMode: config.display_overflow_mode === 'scroll' ? 'scroll' : 'flip',
+  };
   // CSS rotation for hardware screens mounted sideways (a vertical
   // TV on a stand fed by an HDMI source that can't itself rotate,
   // an AirPlay'd iPad on a wall mount, etc). 0/90/180/270 only.
@@ -273,6 +288,10 @@ const DisplayScreen = () => {
             display_zoom: c.display_zoom || prev.display_zoom,
             display_rotation: c.display_rotation ?? prev.display_rotation,
             display_mode: c.display_mode || prev.display_mode,
+            // Board overflow controls (barista Display tab)
+            display_flip_seconds: c.display_flip_seconds ?? prev.display_flip_seconds,
+            display_cards_per_page: c.display_cards_per_page ?? prev.display_cards_per_page,
+            display_overflow_mode: c.display_overflow_mode || prev.display_overflow_mode,
           }));
         }
       } catch (e) { /* defaults OK if backend silent */ }
@@ -684,6 +703,7 @@ const DisplayScreen = () => {
         <main className="flex-grow px-6 md:px-10 pb-6 overflow-hidden">
           <Column
             kind="ready"
+            boardOpts={boardOpts}
             hasBg={hasBg}
             theme={theme}
             fonts={fonts}
@@ -708,6 +728,7 @@ const DisplayScreen = () => {
         {isPortrait && showCompleted && (
           <Column
             kind="ready"
+            boardOpts={boardOpts}
             hasBg={hasBg}
             theme={theme}
             fonts={fonts}
@@ -722,6 +743,7 @@ const DisplayScreen = () => {
 
         <Column
           kind="brewing"
+          boardOpts={boardOpts}
           hasBg={hasBg}
           theme={theme}
           fonts={fonts}
@@ -736,6 +758,7 @@ const DisplayScreen = () => {
         {!isPortrait && showCompleted && (
           <Column
             kind="ready"
+            boardOpts={boardOpts}
             hasBg={hasBg}
             theme={theme}
             fonts={fonts}
@@ -844,7 +867,8 @@ const DisplayScreen = () => {
 
 // --- Subcomponent: a column of orders ---
 const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
-                  showCustomerName, showDetails, newReadyMap, hasBg }) => {
+                  showCustomerName, showDetails, newReadyMap, hasBg,
+                  boardOpts = {} }) => {
   const isReady = kind === 'ready';
   // Auto page-flip: a wall display can't be scrolled. The first version
   // used a FIXED guess (6 per page in landscape), so 5 tall cards
@@ -854,6 +878,8 @@ const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
   // size, re-measured on resize and whenever the queue changes.
   const bodyRef = useRef(null);
   const [measuredFit, setMeasuredFit] = useState(null);
+  const [availableH, setAvailableH] = useState(null);
+  const [cardH, setCardH] = useState(null);
   useEffect(() => {
     const measure = () => {
       const el = bodyRef.current;
@@ -870,42 +896,64 @@ const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
         ? window.innerHeight * (isPortrait ? 0.42 : 0.78) - headerAndPadding
         : el.clientHeight - 8;
       const pagerReserve = 44; // dots + "x–y of z" row
+      // NOTE: offsetHeight is a layout value — unaffected by the CSS
+      // `zoom` we may apply below, so this can't feed back on itself.
       const n = Math.floor((available - pagerReserve + gap) / (card.offsetHeight + gap));
       setMeasuredFit(Math.max(1, n));
+      setAvailableH(available);
+      setCardH(card.offsetHeight);
     };
     measure();
     window.addEventListener('resize', measure);
     return () => window.removeEventListener('resize', measure);
   }, [orders.length, isPortrait, hasBg]);
-  const pageSize = measuredFit ?? (isPortrait ? 3 : 4);
+
+  // Operator board controls (barista Display tab). cardsPerPage 3..8
+  // forces N per page and SCALES the cards down to fit; 0 = auto.
+  const flipSeconds = boardOpts.flipSeconds > 0 ? boardOpts.flipSeconds : 10;
+  const forcedN = boardOpts.cardsPerPage || 0;
+  const scrollMode = boardOpts.overflowMode === 'scroll';
+
+  const pageSize = forcedN >= 3 ? forcedN : (measuredFit ?? (isPortrait ? 3 : 4));
+  // Card scale for forced N: shrink until N cards + pager fit the
+  // available height. Never below 40% (unreadable) or above 100%.
+  let cardScale = 1;
+  if (forcedN >= 3 && availableH && cardH) {
+    const gap = 24;
+    const needed = forcedN * cardH + (forcedN - 1) * gap + 44;
+    cardScale = Math.max(0.4, Math.min(1, (availableH) / needed));
+  }
   const pageCount = Math.max(1, Math.ceil(orders.length / pageSize));
   const [page, setPage] = useState(0);
   // Visible countdown to the next flip ("more orders in 8s") so a
   // customer whose order isn't on this page knows more are coming
   // instead of walking off — Steve's ask. One 1-second ticker drives
   // both the countdown text and the flip itself.
-  const FLIP_SECONDS = 10;
-  const [countdown, setCountdown] = useState(FLIP_SECONDS);
+  const [countdown, setCountdown] = useState(flipSeconds);
   useEffect(() => {
-    if (pageCount <= 1) {
+    if (pageCount <= 1 || scrollMode) {
       setPage(0);
-      setCountdown(FLIP_SECONDS);
+      setCountdown(flipSeconds);
       return undefined;
     }
-    setCountdown(FLIP_SECONDS);
+    setCountdown(flipSeconds);
     const t = setInterval(() => {
       setCountdown(c => {
         if (c <= 1) {
           setPage(p => (p + 1) % pageCount);
-          return FLIP_SECONDS;
+          return flipSeconds;
         }
         return c - 1;
       });
     }, 1000);
     return () => clearInterval(t);
-  }, [pageCount]);
+  }, [pageCount, flipSeconds, scrollMode]);
   const safePage = Math.min(page, pageCount - 1);
   const visibleOrders = orders.slice(safePage * pageSize, safePage * pageSize + pageSize);
+  // Continuous-scroll mode: when overflowing, loop the FULL list in a
+  // slow marquee (list rendered twice for a seamless wrap).
+  const scrolling = scrollMode && orders.length > pageSize;
+  const scrollDurationS = Math.max(12, orders.length * 4);
   // Over a full-screen background, render a frosted-white panel with dark
   // text so cards stay legible whatever the image, and let the panel hug
   // its content (compact when empty, growing as orders arrive).
@@ -939,9 +987,38 @@ const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
               </div>
             : <Empty theme={theme}
                      text={isReady ? 'Nothing ready yet — keep an eye on the brewing list' : 'All caught up'} />
+        ) : scrolling ? (
+          /* Continuous-scroll loop (operator option): the FULL list
+             glides upward in a slow marquee, rendered twice for a
+             seamless wrap. No pager, no countdown. */
+          <div className="overflow-hidden"
+               style={{ maxHeight: availableH ? `${availableH}px` : undefined }}>
+            <style>{`@keyframes displayScrollLoop {
+              from { transform: translateY(0); }
+              to   { transform: translateY(-50%); }
+            }`}</style>
+            <div className="grid grid-cols-1 gap-4 md:gap-6"
+                 style={{ animation: `displayScrollLoop ${scrollDurationS}s linear infinite`,
+                          zoom: cardScale }}>
+              {[0, 1].map(copy => orders.map(o => (
+                <div key={`${copy}-${o.id}`} data-kcard>
+                  <OrderCard
+                    order={o}
+                    variant={isReady ? 'ready' : 'brewing'}
+                    fonts={fonts}
+                    theme={theme}
+                    showCustomerName={showCustomerName}
+                    showDetails={showDetails}
+                    isNew={copy === 0 && isReady && newReadyMap.has(String(o.id))}
+                  />
+                </div>
+              )))}
+            </div>
+          </div>
         ) : (
           <div className="grid grid-cols-1 gap-4 md:gap-6" key={safePage}
-               style={{ animation: pageCount > 1 ? 'displayPageFlip 0.6s ease' : 'none' }}>
+               style={{ animation: pageCount > 1 ? 'displayPageFlip 0.6s ease' : 'none',
+                        zoom: cardScale }}>
             <style>{`@keyframes displayPageFlip {
               from { opacity: 0; transform: translateY(14px); }
               to   { opacity: 1; transform: translateY(0); }
