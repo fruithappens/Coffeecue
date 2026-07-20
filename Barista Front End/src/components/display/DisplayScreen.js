@@ -981,21 +981,34 @@ const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
   const title = isReady ? 'Ready for Pickup' : 'Brewing';
 
   return (
-    <section key={spinTick}
-      className={`rounded-3xl overflow-hidden flex flex-col ${theme.panel} shadow-xl
-                        ${hasBg ? (isPortrait ? 'w-full max-h-[42vh]' : 'flex-1 min-w-0 max-h-[78vh]') : ''}`}
-      style={spinTick > 0
-        ? { animation: 'displayPanelSpin 1.4s ease-in-out', backfaceVisibility: 'hidden' }
-        : undefined}>
-      {/* Full 360° turn, one direction (Steve: "right through to
-          invisible ... then rotates all the way through right around").
-          With the backface hidden the panel vanishes from 90° to 270° —
-          the background branding owns the screen for that stretch —
-          then swings back into view with the next page. */}
+    /* Full 360° turn in one direction, but as a pane of GLASS rather
+       than a vanishing paper card: a frosted translucent BACK face is
+       what you see from 90° to 270°, so the panel keeps physical
+       presence mid-turn while the background branding still shows
+       through it (Steve: total disappearance was "a bit jarring"). */
+    <div key={spinTick}
+         className={hasBg ? (isPortrait ? 'w-full' : 'flex-1 min-w-0') : 'h-full'}
+         style={{ perspective: '1600px' }}>
       <style>{`@keyframes displayPanelSpin {
-        0%   { transform: perspective(1400px) rotateY(0deg); }
-        100% { transform: perspective(1400px) rotateY(360deg); }
+        0%   { transform: rotateY(0deg); }
+        100% { transform: rotateY(360deg); }
       }`}</style>
+      <div className="relative h-full"
+           style={{ transformStyle: 'preserve-3d',
+                    animation: spinTick > 0 ? 'displayPanelSpin 1.4s ease-in-out' : 'none' }}>
+        {/* Frosted back face (pre-rotated 180°): visible only while the
+            panel is turned away. */}
+        <div className="absolute inset-0 rounded-3xl"
+             style={{ transform: 'rotateY(180deg)',
+                      backfaceVisibility: 'hidden',
+                      background: 'rgba(255,255,255,0.35)',
+                      backdropFilter: 'blur(8px)',
+                      WebkitBackdropFilter: 'blur(8px)',
+                      border: '1px solid rgba(255,255,255,0.55)' }} />
+    <section
+      className={`rounded-3xl overflow-hidden flex flex-col ${theme.panel} shadow-xl h-full
+                        ${hasBg ? (isPortrait ? 'w-full max-h-[42vh]' : 'w-full max-h-[78vh]') : ''}`}
+      style={{ backfaceVisibility: 'hidden' }}>
       <header className={`${headerCls} px-6 py-4 flex items-center justify-between flex-shrink-0`}>
         <div className="flex items-center">
           {icon}
@@ -1080,6 +1093,8 @@ const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
         )}
       </div>
     </section>
+      </div>
+    </div>
   );
 };
 
