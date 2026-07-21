@@ -357,6 +357,8 @@ const BaristaInterface = () => {
   const [messageStatus, setMessageStatus] = useState({});
   const [successMessage, setSuccessMessage] = useState('');
   const [showDisplayScreen, setShowDisplayScreen] = useState(false);
+  // QR popup for the Screen-links card ({url, label} or null).
+  const [screenLinkQr, setScreenLinkQr] = useState(null);
 
   // Use the stock hook for station-specific stock management
   const {
@@ -3034,6 +3036,87 @@ const BaristaInterface = () => {
               Open it on a tablet or external monitor; portrait /
               landscape now flips automatically based on viewport.
             </div>
+
+            {/* Screen links — every display URL findable in one place,
+                copyable, QR-scannable to another device, with short
+                paths a human can type into a TV browser (Steve's ask). */}
+            <div className="bg-white rounded-lg shadow-md p-4 mb-4">
+              <h2 className="text-xl font-bold mb-1">Screen links</h2>
+              <p className="text-sm text-gray-600 mb-3">
+                Open these on any TV, tablet or phone — <b>no login needed</b>. Short paths are
+                easy to type into a TV browser; Copy puts the full link on the clipboard;
+                QR lets another device scan it straight off this screen.
+              </p>
+              <div className="space-y-2">
+                {[{ id: '', name: 'All stations' },
+                  ...stations.map(s => ({ id: s.id, name: s.name }))].map(r => (
+                  <div key={r.id === '' ? 'all' : r.id} className="border rounded p-2">
+                    <div className="font-semibold text-sm mb-1">{r.name}</div>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { key: 'tv', label: '📺 TV board' },
+                        { key: 'kiosk', label: '👆 Touch kiosk' },
+                        { key: 'pickup', label: '✅ Pickup only' },
+                      ].map(v => {
+                        const shortPath = `/${v.key}${r.id}`;
+                        const url = `${window.location.origin}${shortPath}`;
+                        return (
+                          <div key={v.key} className="flex items-center gap-2 bg-gray-50 rounded px-2 py-1">
+                            <span className="text-xs text-gray-500">{v.label}</span>
+                            <code className="text-sm font-bold">{shortPath}</code>
+                            <button
+                              className="text-blue-600 text-xs underline"
+                              onClick={() => {
+                                try {
+                                  navigator.clipboard.writeText(url);
+                                  showToast(`Copied ${url}`, 'success');
+                                } catch (_) {
+                                  showToast(url, 'info', 8000);
+                                }
+                              }}
+                            >
+                              Copy
+                            </button>
+                            <button
+                              className="text-blue-600 text-xs underline"
+                              onClick={() => setScreenLinkQr({ url, label: `${r.name} — ${v.label}` })}
+                            >
+                              QR
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* QR popup — scan with the target device's camera to open the
+                link there. Generated via a public QR image service; these
+                links are public-by-design so nothing sensitive leaves. */}
+            {screenLinkQr && (
+              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+                   onClick={() => setScreenLinkQr(null)}>
+                <div className="bg-white rounded-xl p-6 text-center shadow-xl"
+                     onClick={(e) => e.stopPropagation()}>
+                  <div className="font-bold mb-3">{screenLinkQr.label}</div>
+                  <img
+                    alt={`QR code for ${screenLinkQr.url}`}
+                    width={220}
+                    height={220}
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(screenLinkQr.url)}`}
+                  />
+                  <div className="mt-3 text-sm text-gray-600 break-all max-w-[260px]">{screenLinkQr.url}</div>
+                  <button
+                    className="mt-4 px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
+                    onClick={() => setScreenLinkQr(null)}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="bg-white rounded-lg shadow-md p-4 mb-4">
               <h2 className="text-xl font-bold mb-4">Display Screen Settings</h2>
