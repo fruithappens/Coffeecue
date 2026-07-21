@@ -1939,6 +1939,17 @@ class CoffeeOrderSystem:
             f"Wrong? Reply CANCEL. Add a coffee with FRIEND."
         )
 
+    def _default_milk(self):
+        """The event's 'normal' milk for orders that don't specify one:
+        full cream (or the local wording for standard dairy) when stocked,
+        else the first available milk."""
+        milks = [str(m).lower() for m in (self._get_available_milk_types() or [])]
+        for want in ('full cream', 'whole', 'dairy', 'regular', 'standard'):
+            for m in milks:
+                if want in m:
+                    return m
+        return milks[0] if milks else 'full cream'
+
     def _next_order_step(self, phone, name, order_details, prefix=''):
         """Save state and ask for the next MISSING order field — or confirm if
         the order is already complete. Lets a pre-filled order (parsed from the
@@ -1968,9 +1979,22 @@ class CoffeeOrderSystem:
             self._set_conversation_state(phone, 'awaiting_coffee_type', {'name': name, 'order_details': od})
             return f"{prefix}What can I get you? (e.g. flat white, latte, cappuccino — or MENU for the list)"
         if 'milk' not in od:
-            self._set_conversation_state(phone, 'awaiting_milk', state_data)
-            milks = self._get_available_milk_types() or ['full cream']
-            return f"{prefix}{milk_note}What milk for your {od['type']}? ({', '.join(milks)}, or 'no milk')"
+            if milk_note:
+                # They NAMED a milk we can't make — never swap dairy in
+                # behind their back (allergy risk). This case still asks.
+                self._set_conversation_state(phone, 'awaiting_milk', state_data)
+                milks = self._get_available_milk_types() or ['full cream']
+                return f"{prefix}{milk_note}What milk for your {od['type']}? ({', '.join(milks)}, or 'no milk')"
+            # No milk mentioned at all: "flat white" means the normal one
+            # (Steve, 2026-07-21) — default to the event's standard dairy
+            # instead of interrogating the customer. NOT silent: the
+            # confirmation recap spells the milk out with a CANCEL path.
+            # Teas default to no milk (milk-on-the-side is the norm).
+            if 'tea' in str(od.get('type', '')).lower():
+                od['milk'] = 'no milk'
+            else:
+                od['milk'] = self._default_milk()
+            state_data = {'name': name, 'order_details': od}
         if 'size' not in od:
             sizes = self._get_available_sizes(od.get('type')) or ['medium']
             if len(sizes) == 1:
@@ -2061,9 +2085,11 @@ class CoffeeOrderSystem:
             if reparsed:
                 parsed = reparsed
 
-        # Resolve each drink. Milk is the one field we never guess (allergen
-        # safety + matches the single-order flow, which always asks milk).
-        # Size/sugar fall back to sensible defaults shown in the recap.
+        # Resolve each drink. Unspecified milk defaults to the event's
+        # standard dairy ("2 lattes" means normal milk — Steve), shown in
+        # each order's confirmation. A milk they NAMED but we can't make
+        # still hard-stops (allergen safety — never swap dairy in
+        # silently). Size/sugar fall back to defaults shown in the recap.
         available_types = self._get_available_coffee_types() or []
         resolved = []
         for _seg, od in parsed:
@@ -2074,7 +2100,7 @@ class CoffeeOrderSystem:
             if self.nlp.is_black_coffee(drink):
                 od['milk'] = 'no milk'
             if not od.get('milk'):
-                return self._multi_drink_fallback(phone, name, "I need to know the milk for each coffee")
+                od['milk'] = 'no milk' if 'tea' in str(drink or '').lower() else self._default_milk()
             if not self._milk_is_makeable(od.get('milk')):
                 return self._multi_drink_fallback(phone, name, f"we don't have {od.get('milk')} milk")
             if not od.get('size'):
@@ -5808,10 +5834,17 @@ class CoffeeOrderSystem:
             # A "strong" or "double" order adds a shot — best effort.
             if (processed_details.get('strength') or '').lower() in ('strong', 'double', 'extra shot'):
                 shots += 1
-            if shots > 0 and coffee_type:
+            # Bean stock is in KILOGRAMS; one shot uses ~8g of beans.
+            # Passing the raw shot count deducted 1kg PER SHOT — station
+            # 1's 7.5kg "ran out" in a day of testing and the walk-in
+            # dialog rightly stopped offering espresso drinks (Steve:
+            # "where are the coffee options gone?").
+            GRAMS_PER_SHOT = 8
+            bean_kg = shots * GRAMS_PER_SHOT / 1000.0
+            if bean_kg > 0 and coffee_type:
                 if self._decrement_inventory_item(
                     cursor, db_type, category='coffee', name=coffee_type,
-                    amount=shots, station_id=station_id, restock=restock,
+                    amount=bean_kg, station_id=station_id, restock=restock,
                 ):
                     result['decremented'].append(f"coffee:{coffee_type}")
                 else:
