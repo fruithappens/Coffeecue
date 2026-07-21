@@ -60,6 +60,35 @@ import MultiLevelInventory from '../organiser/MultiLevelInventory';
 import StationCapabilitiesEditor from './StationCapabilitiesEditor';
 import EnhancedStationCapabilities from '../organiser/EnhancedStationCapabilities';
 
+// True-to-life display preview: the REAL /display page in an iframe,
+// rendered at external-screen size (1280×720, 16:9) and scaled down to
+// fit its container — so what the operator sees IS what the TV shows,
+// live, flips and all. pointer-events off: it's a preview, not a portal.
+const ScaledDisplayPreview = ({ url }) => {
+  const wrapRef = React.useRef(null);
+  const [scale, setScale] = React.useState(0.3);
+  React.useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return undefined;
+    const measure = () => setScale((el.clientWidth || 384) / 1280);
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
+  return (
+    <div ref={wrapRef}
+         className="relative w-full overflow-hidden rounded-lg border bg-gray-900"
+         style={{ aspectRatio: '16 / 9' }}>
+      <iframe
+        title={`Display preview ${url}`}
+        src={url}
+        style={{ width: 1280, height: 720, transform: `scale(${scale})`,
+                 transformOrigin: 'top left', border: 0, pointerEvents: 'none' }}
+      />
+    </div>
+  );
+};
+
 const BaristaInterface = () => {
   // Use the AppMode context
   const { isDemoMode, toggleAppMode } = useAppMode();
@@ -359,6 +388,10 @@ const BaristaInterface = () => {
   const [showDisplayScreen, setShowDisplayScreen] = useState(false);
   // QR popup for the Screen-links card ({url, label} or null).
   const [screenLinkQr, setScreenLinkQr] = useState(null);
+  // In-page preview popup for a screen link ({url, label} or null).
+  const [screenLinkPreview, setScreenLinkPreview] = useState(null);
+  // Which station the Screen-links card shows (null = the active one).
+  const [linkStation, setLinkStation] = useState(null);
 
   // Use the stock hook for station-specific stock management
   const {
@@ -3047,18 +3080,38 @@ const BaristaInterface = () => {
                 easy to type into a TV browser; Copy puts the full link on the clipboard;
                 QR lets another device scan it straight off this screen.
               </p>
-              <div className="space-y-2">
-                {[{ id: '', name: 'All stations' },
-                  ...stations.map(s => ({ id: s.id, name: s.name }))].map(r => (
-                  <div key={r.id === '' ? 'all' : r.id} className="border rounded p-2">
-                    <div className="font-semibold text-sm mb-1">{r.name}</div>
+              {/* One station at a time (defaults to the station being
+                  viewed) — an event with 50 stations shouldn't mean 150
+                  rows of links (Steve). */}
+              {(() => {
+                const chosen = linkStation === null ? String(selectedStation ?? '') : linkStation;
+                const chosenName = chosen === ''
+                  ? 'All stations'
+                  : (stations.find(s => String(s.id) === String(chosen))?.name || `Station ${chosen}`);
+                return (
+                  <>
+                    <div className="flex items-center gap-2 mb-2">
+                      <label className="text-sm font-medium text-gray-700">Links for:</label>
+                      <select
+                        value={chosen}
+                        onChange={(e) => setLinkStation(e.target.value)}
+                        className="p-2 border rounded text-sm"
+                      >
+                        {stations.map(s => (
+                          <option key={s.id} value={String(s.id)}>
+                            {s.name}{String(s.id) === String(selectedStation) ? ' (this station)' : ''}
+                          </option>
+                        ))}
+                        <option value="">All stations</option>
+                      </select>
+                    </div>
                     <div className="flex flex-wrap gap-2">
                       {[
                         { key: 'tv', label: '📺 TV board' },
                         { key: 'kiosk', label: '👆 Touch kiosk' },
                         { key: 'pickup', label: '✅ Pickup only' },
                       ].map(v => {
-                        const shortPath = `/${v.key}${r.id}`;
+                        const shortPath = `/${v.key}${chosen}`;
                         const url = `${window.location.origin}${shortPath}`;
                         return (
                           <div key={v.key} className="flex items-center gap-2 bg-gray-50 rounded px-2 py-1">
@@ -3079,18 +3132,44 @@ const BaristaInterface = () => {
                             </button>
                             <button
                               className="text-blue-600 text-xs underline"
-                              onClick={() => setScreenLinkQr({ url, label: `${r.name} — ${v.label}` })}
+                              onClick={() => setScreenLinkQr({ url, label: `${chosenName} — ${v.label}` })}
                             >
                               QR
+                            </button>
+                            <button
+                              className="text-blue-600 text-xs underline"
+                              onClick={() => setScreenLinkPreview({ url, label: `${chosenName} — ${v.label}` })}
+                            >
+                              Preview
                             </button>
                           </div>
                         );
                       })}
                     </div>
-                  </div>
-                ))}
-              </div>
+                  </>
+                );
+              })()}
             </div>
+
+            {/* In-page link preview — the real screen, scaled, without
+                leaving the page. */}
+            {screenLinkPreview && (
+              <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
+                   onClick={() => setScreenLinkPreview(null)}>
+                <div className="bg-white rounded-xl p-4 shadow-xl w-full max-w-3xl"
+                     onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="font-bold">{screenLinkPreview.label}</div>
+                    <button className="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300 text-sm"
+                            onClick={() => setScreenLinkPreview(null)}>
+                      Close
+                    </button>
+                  </div>
+                  <ScaledDisplayPreview url={screenLinkPreview.url} />
+                  <div className="mt-2 text-sm text-gray-600 break-all">{screenLinkPreview.url}</div>
+                </div>
+              </div>
+            )}
 
             {/* QR popup — scan with the target device's camera to open the
                 link there. Generated via a public QR image service; these
@@ -3319,38 +3398,13 @@ const BaristaInterface = () => {
             </div>
             
             <div className="bg-white rounded-lg shadow-md p-4">
-              <h2 className="text-xl font-bold mb-4">Preview</h2>
-              <div className="border p-4 rounded-lg bg-gray-50">
-                <div className="bg-amber-800 text-white p-4 text-center">
-                  <h1 className="text-2xl font-bold">{settings.stationName}</h1>
-                  <p>Ready for Pickup</p>
-                  <div className="text-sm text-gray-200 mt-1">Station #{selectedStation}</div>
-                </div>
-                
-                <div className="p-4">
-                  {/* Show only orders for this specific station */}
-                  {completedOrders.length > 0 ? (
-                    <div className="space-y-2">
-                      {completedOrders.slice(0, 3).map(order => (
-                        <div key={order.id} className="border-l-4 border-green-500 bg-white p-3 rounded shadow-sm">
-                          <div className="font-bold">
-                            {settings.showNameOnDisplay ? order.customerName : `Order #${order.id}`}
-                          </div>
-                          <div>{order.coffeeType || 'Coffee'}</div>
-                          {order.alternativeMilk && (
-                            <div className="text-xs text-blue-600">Alternative Milk</div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-6 text-gray-500">
-                      <p>No orders ready for pickup at Station #{selectedStation}</p>
-                      <p className="text-sm text-gray-400">Complete orders to see them here</p>
-                    </div>
-                  )}
-                </div>
-              </div>
+              <h2 className="text-xl font-bold mb-1">Preview — live 16:9</h2>
+              <p className="text-sm text-gray-600 mb-3">
+                This is the REAL customer display, scaled down — exactly what the
+                external screen shows, live orders, page flips and all. (The old
+                preview was a hand-drawn mock that looked nothing like the screen.)
+              </p>
+              <ScaledDisplayPreview url={`/display?station=${selectedStation}`} />
             </div>
           </div>
         )}
