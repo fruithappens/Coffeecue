@@ -3523,12 +3523,17 @@ class CoffeeOrderSystem:
             state_data['vip'] = True
 
         if 'milk' not in order_details:
-            self._set_conversation_state(phone, 'awaiting_milk', state_data)
-            milks = self._get_available_milk_types() or ['full cream', 'skim']
-            return (
-                f"Got it — {order_details['type']} for {name}. "
-                f"What milk would you like? ({', '.join(milks)}, or 'no milk')"
-            )
+            # Unspecified milk means the normal one (Steve, 2026-07-21):
+            # default to the event's standard dairy (teas: no milk) and
+            # let the read-back / confirmation show it with a CANCEL
+            # path. A milk they NAMED that we can't make still asks
+            # (handled upstream) — dairy is never swapped in silently.
+            if 'tea' in str(order_details.get('type', '')).lower():
+                order_details['milk'] = 'no milk'
+            else:
+                order_details['milk'] = self._default_milk()
+            state_data = {'name': name, 'order_details': order_details,
+                          **({'vip': True} if state_data.get('vip') else {})}
 
         # Phrase the read-back differently for black coffees so we don't say
         # "with no milk milk".
@@ -3993,10 +3998,14 @@ class CoffeeOrderSystem:
 
         # Step through missing fields one at a time (same as the primary
         # ordering flow) so customers can correct typos before the order
-        # is committed.
+        # is committed. Unspecified milk defaults to standard dairy
+        # (teas: no milk), shown in the read-back — kept in sync with
+        # the primary flow (Steve, 2026-07-21).
         if 'milk' not in order_details:
-            self._set_conversation_state(phone, 'awaiting_friend_milk', shared_state)
-            return f"Got it — {order_details['type']} for {friend_name}. What milk? (full cream, skim, soy, almond, oat, lactose free, or 'no milk')"
+            if 'tea' in str(order_details.get('type', '')).lower():
+                order_details['milk'] = 'no milk'
+            else:
+                order_details['milk'] = self._default_milk()
 
         milk = order_details['milk']
         milk_phrase = '' if milk == 'no milk' else f" with {milk} milk"
