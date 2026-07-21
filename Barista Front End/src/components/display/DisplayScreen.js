@@ -647,10 +647,13 @@ const DisplayScreen = () => {
               {currentStation
                 ? `${currentStation.name}${currentStation.location ? ` · ${currentStation.location}` : ''}`
                 : 'Loading station…'}
-              {showWaitTimes && (
+              {/* The old "Live · refreshes every 8s" was implementation
+                  detail customers don't need (Steve). The operator's
+                  Custom Message lives here instead — guaranteed visible
+                  even when the sponsor line owns the footer. */}
+              {config.custom_message && (
                 <span className="ml-3 inline-flex items-center">
-                  <Clock size={14} className="mr-1" />
-                  Live · refreshes every 8s
+                  {config.custom_message}
                 </span>
               )}
             </div>
