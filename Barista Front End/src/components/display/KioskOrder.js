@@ -22,7 +22,13 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { X, ArrowLeft, Plus, Minus, Check, Loader, MapPin, Zap } from 'lucide-react';
 
-const IDLE_MS = 30000; // close after 30s of no interaction
+// Idle handling: after IDLE_WARN_MS of no touch, a full-screen countdown
+// appears for IDLE_COUNTDOWN_SECONDS ("tap to keep ordering"); if it runs
+// out, the overlay closes and the kiosk returns to the live board — an
+// abandoned half-order can't hold the display hostage (Steve's spec:
+// ~20s quiet, then a visible 10s countdown).
+const IDLE_WARN_MS = 20000;
+const IDLE_COUNTDOWN_SECONDS = 10;
 
 const drinkEmoji = (name) => {
   const n = (name || '').toLowerCase();
@@ -47,7 +53,10 @@ const milkEmoji = (name) => {
 const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
   const [menu, setMenu] = useState(null);
   const [loadingMenu, setLoadingMenu] = useState(true);
-  const [step, setStep] = useState('name'); // name → drink → milk → size → sugar → location → phone → review → done
+  // Drink FIRST (Steve: "the first thing that should appear is not the
+  // person's name, but the coffee type") — the order is the point; the
+  // name and phone/collection come at the end.
+  const [step, setStep] = useState('drink'); // drink → milk → size → sugar → name → location → phone → review → done
   const [name, setName] = useState('');
   const [drink, setDrink] = useState(null);
   const [milk, setMilk] = useState(null);
@@ -65,16 +74,36 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
     return Number.isFinite(n) ? n : null;
   }, [stationId]);
 
-  // --- 30s inactivity auto-close -----------------------------------------
+  // --- inactivity: silent 20s, then a VISIBLE 10s countdown, then close ---
   const idleRef = useRef(null);
+  const countdownRef = useRef(null);
+  const [idleCountdown, setIdleCountdown] = useState(null); // null = no warning up
   const resetIdle = useCallback(() => {
     if (idleRef.current) clearTimeout(idleRef.current);
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    setIdleCountdown(null);
     if (step === 'done') return; // success screen has its own timer
-    idleRef.current = setTimeout(() => { if (onClose) onClose(); }, IDLE_MS);
+    idleRef.current = setTimeout(() => {
+      setIdleCountdown(IDLE_COUNTDOWN_SECONDS);
+      countdownRef.current = setInterval(() => {
+        setIdleCountdown(c => {
+          if (c == null) return null;
+          if (c <= 1) {
+            clearInterval(countdownRef.current);
+            if (onClose) onClose();
+            return 0;
+          }
+          return c - 1;
+        });
+      }, 1000);
+    }, IDLE_WARN_MS);
   }, [step, onClose]);
   useEffect(() => {
     resetIdle();
-    return () => { if (idleRef.current) clearTimeout(idleRef.current); };
+    return () => {
+      if (idleRef.current) clearTimeout(idleRef.current);
+      if (countdownRef.current) clearInterval(countdownRef.current);
+    };
   }, [step, name, drink, milk, size, sugar, chosenStation, phone, resetIdle]);
 
   useEffect(() => {
@@ -170,7 +199,9 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
   const needsSizeStep = sizeChoices.length > 1;
 
   // After sugar: choose a station if there's a choice, else auto-route.
-  const afterSugar = () => {
+  const afterSugar = () => setStep('name');
+  // After the name: choose a station if there's a choice, else auto-route.
+  const afterName = () => {
     if (capable.length > 1) { setStep('location'); return; }
     const only = capable.length === 1 ? capable[0] : null;
     setChosenStation(only);
@@ -261,14 +292,31 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
          onPointerDown={resetIdle}
          style={{ background: `linear-gradient(135deg, ${headerColor}ee, #000000cc)` }}>
+
+      {/* Idle countdown — big, unmissable, tap-to-dismiss. */}
+      {idleCountdown != null && idleCountdown > 0 && (
+        <div className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-6"
+             onPointerDown={(e) => { e.stopPropagation(); resetIdle(); }}>
+          <div className="bg-white rounded-3xl p-10 text-center shadow-2xl max-w-md">
+            <div className="text-8xl font-black mb-2" style={{ color: headerColor }}>{idleCountdown}</div>
+            <div className="text-3xl font-extrabold text-gray-800 mb-2">Still there?</div>
+            <div className="text-xl text-gray-600">
+              Tap anywhere to keep ordering — otherwise this screen goes back
+              to the order board in {idleCountdown} second{idleCountdown === 1 ? '' : 's'}.
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="w-full max-w-3xl max-h-[92vh] overflow-y-auto rounded-3xl p-6 md:p-8"
            style={{ backgroundColor: '#f8fafc' }}>
 
-        {/* ---------- NAME ---------- */}
+        {/* ---------- NAME (after the drink is built) ---------- */}
         {step === 'name' && (
           <>
-            <Header title="Order here ☕" />
-            <p className="text-xl text-gray-600 mb-3 font-medium">What's your first name?</p>
+            <Header title="Almost done — who's it for?"
+                    onBack={() => setStep('sugar')} />
+            <p className="text-xl text-gray-600 mb-3 font-medium">First name for the order</p>
             <input
               autoFocus value={name} onChange={(e) => setName(e.target.value)}
               placeholder="Type your name"
@@ -276,7 +324,7 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
               style={{ borderColor: name ? headerColor : undefined }}
             />
             <button
-              disabled={name.trim().length < 2} onClick={() => setStep('drink')}
+              disabled={name.trim().length < 2} onClick={afterName}
               className="mt-6 w-full py-5 rounded-2xl text-2xl font-extrabold text-white disabled:opacity-40"
               style={{ backgroundColor: headerColor }}>
               Next →
@@ -284,10 +332,10 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
           </>
         )}
 
-        {/* ---------- DRINK ---------- */}
+        {/* ---------- DRINK (first screen) ---------- */}
         {step === 'drink' && (
           <>
-            <Header title={`Hi ${name.trim()} — pick a drink`} onBack={() => setStep('name')} />
+            <Header title="Order here ☕ — pick a drink" />
             {loadingMenu ? (
               <div className="flex items-center justify-center py-16 text-gray-500"><Loader className="animate-spin mr-2" /> Loading menu…</div>
             ) : (menu?.coffee_types || []).length === 0 ? (
@@ -398,7 +446,7 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
         {/* ---------- LOCATION (only when >1 station can make it) ---------- */}
         {step === 'location' && (
           <>
-            <Header title="Collect from?" onBack={() => setStep('sugar')} />
+            <Header title="Collect from?" onBack={() => setStep('name')} />
             <div className="grid grid-cols-1 gap-3">
               {myStation != null && capable.includes(myStation) && (
                 <button onClick={() => chooseStation(myStation)}
@@ -430,7 +478,7 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
         {step === 'phone' && (
           <>
             <Header title="Want a text when it’s ready?"
-                    onBack={() => setStep(capable.length > 1 ? 'location' : 'sugar')} />
+                    onBack={() => setStep(capable.length > 1 ? 'location' : 'name')} />
             <p className="text-xl text-gray-600 mb-3 font-medium">
               {collectingHere
                 ? "Pop in your mobile and we’ll text you when it’s ready — or just wait nearby and watch the board for your name. No phone needed."
