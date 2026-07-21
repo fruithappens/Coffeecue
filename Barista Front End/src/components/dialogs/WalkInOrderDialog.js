@@ -183,6 +183,22 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
         // validity useEffect re-runs and the dropdown updates.
         const stockKey = `coffee_stock_station_${targetStation.id}`;
 
+        // Ignore-stock ("unlimited stock") mode: the event keeps taking
+        // orders regardless of counters. The SMS bot already honours it —
+        // but this dialog silently HID zero-stock items, so when the bean
+        // counter bugged out to 0 the espresso menu vanished for walk-ins
+        // while SMS kept selling (Steve's find). When the mode is ON we
+        // keep offering everything; the barista low-stock banner is the
+        // honest signal to restock.
+        let unlimitedStock = false;
+        try {
+          const { default: ApiServiceClass0 } = await import('../../services/ApiService');
+          const u = await new ApiServiceClass0().get('/settings/unlimited-stock');
+          unlimitedStock = !!(u && (u.enabled ?? u.data?.enabled));
+        } catch (e) {
+          console.warn('Could not read unlimited-stock setting (assuming off):', e);
+        }
+
         // Read cached localStorage immediately so the dialog has
         // SOMETHING to show while the API call is in flight.
         let cachedStock = null;
@@ -195,7 +211,8 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
         if (cachedStock) {
           Object.keys(cachedStock).forEach(category => {
             if (Array.isArray(cachedStock[category])) {
-              inventory[category] = cachedStock[category].filter(item => item && item.amount > 0);
+              inventory[category] = cachedStock[category].filter(
+                item => item && (unlimitedStock || item.amount > 0));
             }
           });
         }
@@ -245,7 +262,7 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
                 category:          item.category             || cached?.category,
                 enabled: true,
               };
-              if (stockItem.amount <= 0) return;
+              if (stockItem.amount <= 0 && !unlimitedStock) return;
               // The DB uses several category spellings for sweeteners
               // ('sugar' from Quick Setup, 'sweetener'/'artificial_sweetener'
               // from the organiser catalog). The dialog buckets only knew
@@ -284,7 +301,21 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
             setInventoryError('Could not load station inventory (network down + no cache)');
           }
         }
-        
+
+        // Ignore-stock mode: inflate zero/negative counters so every
+        // downstream "amount > 0" availability gate passes — one
+        // transform instead of patching a dozen checks. The REAL
+        // amounts were already written to the localStorage cache above,
+        // so nothing dishonest is persisted.
+        if (unlimitedStock) {
+          ['milk', 'coffee', 'cups', 'sweeteners', 'drinks', 'other'].forEach(cat => {
+            if (Array.isArray(inventory[cat])) {
+              inventory[cat] = inventory[cat].map(i =>
+                i && i.amount > 0 ? i : { ...i, amount: 999 });
+            }
+          });
+        }
+
         setStationInventory(inventory);
         
         // Also load global settings for milk types

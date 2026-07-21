@@ -388,6 +388,40 @@ const BaristaInterface = () => {
   const [showDisplayScreen, setShowDisplayScreen] = useState(false);
   // QR popup for the Screen-links card ({url, label} or null).
   const [screenLinkQr, setScreenLinkQr] = useState(null);
+
+  // Low-stock watch. The backend has had /inventory/low-stock all along
+  // but NOTHING in the barista UI read it — Steve sat at station 1 with
+  // the bean counter at zero and never saw a whisper. Poll it, show a
+  // persistent red banner, toast + sound ONCE per item (no nagging).
+  const [lowStockItems, setLowStockItems] = useState([]);
+  const alertedLowStockRef = useRef(new Set());
+  useEffect(() => {
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const api = new (await import('../../services/ApiService')).default();
+        const r = await api.get(`/inventory/low-stock?station_id=${selectedStation}`);
+        if (cancelled) return;
+        const items = (r && r.items) || [];
+        setLowStockItems(items);
+        const fresh = items.filter(i => !alertedLowStockRef.current.has(i.id));
+        if (fresh.length > 0) {
+          fresh.forEach(i => alertedLowStockRef.current.add(i.id));
+          const names = fresh.map(i =>
+            `${i.name} (${parseFloat(i.amount) || 0}${i.unit ? ` ${i.unit}` : ''} left)`).join(', ');
+          showToast(`⚠ LOW STOCK: ${names} — restock or turn the item off in Stock`, 'error', 10000);
+          try {
+            window.dispatchEvent(new CustomEvent('stock:alert'));
+          } catch (_) { /* very old browsers */ }
+        }
+      } catch (e) {
+        console.warn('low-stock check failed (non-fatal):', e?.message);
+      }
+    };
+    check();
+    const t = setInterval(check, 60000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, [selectedStation]);
   // In-page preview popup for a screen link ({url, label} or null).
   const [screenLinkPreview, setScreenLinkPreview] = useState(null);
   // Which station the Screen-links card shows (null = the active one).
@@ -2221,6 +2255,27 @@ const BaristaInterface = () => {
                 Refreshing...
               </span>
             )}
+          </div>
+        )}
+
+        {/* LOW STOCK banner — persistent while anything is at/below its
+            threshold, on every tab. With ignore-stock mode on, orders
+            keep flowing, so this is the barista's ONLY warning that the
+            real-world supplies need topping up. */}
+        {lowStockItems.length > 0 && (
+          <div className="mb-3 rounded-lg border-l-4 border-red-600 bg-red-50 px-4 py-3 text-red-800">
+            <div className="font-bold flex items-center">
+              ⚠ Low stock at this station
+            </div>
+            <div className="text-sm mt-1">
+              {lowStockItems.map(i =>
+                `${i.name}: ${parseFloat(i.amount) || 0}${i.unit ? ` ${i.unit}` : ''} left (min ${parseFloat(i.minimum_threshold) || 0})`
+              ).join(' · ')}
+            </div>
+            <div className="text-xs mt-1 text-red-700">
+              Orders keep coming — restock from back of house, or turn the item off
+              in the Stock tab so customers stop ordering it.
+            </div>
           </div>
         )}
         
