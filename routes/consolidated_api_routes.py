@@ -8019,6 +8019,67 @@ def upsert_branding_settings():
 
 
 # ----------------------------------------------------------------------
+# Pre-event pre-orders (client request via Steve): before the event
+# opens, SMS orders are SAVED as customer preferences instead of being
+# made; the reply template is operator-editable live ({name} {order}
+# {event} {sponsor} placeholders — plus any free text: date, opening
+# time, spiel). Config in settings KV 'pre_event_settings'.
+# ----------------------------------------------------------------------
+@bp.route('/settings/pre-event', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def get_pre_event_settings():
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        cfg = _kv_get(coffee_system.db, 'pre_event_settings', default={}) or {}
+        # Uptake counter so the organiser can see how many pre-orders are in.
+        count = 0
+        try:
+            cur = coffee_system.db.cursor()
+            cur.execute(
+                "SELECT COUNT(*) FROM customer_preferences WHERE preferred_drink IS NOT NULL")
+            row = cur.fetchone()
+            count = (row[0] if not isinstance(row, dict) else list(row.values())[0]) or 0
+        except Exception:
+            try:
+                coffee_system.db.rollback()
+            except Exception:
+                pass
+        return jsonify({
+            'success': True,
+            'settings': {
+                'enabled': bool(cfg.get('enabled')),
+                'message': cfg.get('message') or '',
+            },
+            'default_message': coffee_system.PRE_EVENT_DEFAULT_MESSAGE
+                if hasattr(coffee_system, 'PRE_EVENT_DEFAULT_MESSAGE') else '',
+            'saved_preorders': count,
+        })
+    except Exception as e:
+        logger.error(f"get_pre_event_settings error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/settings/pre-event', methods=['PUT', 'POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def upsert_pre_event_settings():
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        data = request.get_json(silent=True) or {}
+        payload = data.get('settings') if isinstance(data.get('settings'), dict) else data
+        cfg = {
+            'enabled': bool(payload.get('enabled')),
+            'message': str(payload.get('message') or '')[:1600],
+        }
+        _kv_put(coffee_system.db, 'pre_event_settings', cfg)
+        return jsonify({'success': True, 'settings': cfg})
+    except Exception as e:
+        logger.error(f"upsert_pre_event_settings error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ----------------------------------------------------------------------
 # Admin SMS alerts — text a nominated number on error/critical events.
 # See services/admin_alerts.py. Config in settings KV 'admin_alerts'.
 # ----------------------------------------------------------------------
