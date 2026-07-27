@@ -756,7 +756,7 @@ def send_announcement():
 
 BROADCAST_MAX_RECIPIENTS = 500
 BROADCAST_MAX_MESSAGE_LEN = 480  # well under 4 concatenated SMS segments
-BROADCAST_AUDIENCES = {'today', 'active_today', 'in_progress'}
+BROADCAST_AUDIENCES = {'today', 'active_today', 'in_progress', 'preorders'}
 
 
 def _broadcast_recipients(cursor, audience):
@@ -765,8 +765,17 @@ def _broadcast_recipients(cursor, audience):
     - today:        anyone who placed an order in the last 24 h
     - active_today: today's customers whose latest order isn't completed/cancelled
     - in_progress:  only people whose order is currently being made
+    - preorders:    everyone with a saved usual (pre-event pre-orders +
+                    returning customers) — the audience for the morning
+                    "doors open, we can have your coffee ready" blast
     """
-    if audience == 'in_progress':
+    if audience == 'preorders':
+        cursor.execute("""
+            SELECT DISTINCT phone FROM customer_preferences
+            WHERE phone IS NOT NULL AND phone <> ''
+              AND preferred_drink IS NOT NULL
+        """)
+    elif audience == 'in_progress':
         cursor.execute("""
             SELECT DISTINCT phone FROM orders
             WHERE status = 'in-progress'

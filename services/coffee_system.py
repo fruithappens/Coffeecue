@@ -983,9 +983,181 @@ class CoffeeOrderSystem:
         
         elif message_upper in ['DELETE', 'FORGET ME', 'STOP']:
             return self._handle_delete_command(phone, state)
-        
+
+        # ETA scheduling ("im 15 mins away", "my eta is 20min") — the
+        # client's arrival flow: after the morning comms blast, guests
+        # text their ETA and we schedule their saved usual so it lands in
+        # the barista queue a few minutes before they walk up.
+        eta_minutes = self._parse_eta_minutes(message)
+        if eta_minutes is not None:
+            customer = self.get_customer(phone)
+            eta_name = (customer.get('name') or '') if customer else ''
+            return self._handle_eta(phone, eta_name, eta_minutes)
+
         # No special command detected
         return None
+
+    @staticmethod
+    def _parse_eta_minutes(message):
+        """'im 15 mins away' / 'my eta is 20min' / 'eta 10' → minutes.
+
+        A bare '15 min' with no arrival-ish context word is IGNORED so a
+        normal order text can never be misread as an ETA. Returns None
+        when the message isn't an ETA."""
+        low = (message or '').lower()
+        m = re.search(r'\beta\s*(?:is\s*)?[:\-]?\s*(\d{1,3})\b', low)
+        if not m:
+            m = re.search(r'\b(\d{1,3})\s*min(?:ute)?s?\b', low)
+            if m and not re.search(
+                    r'\b(away|there|arriv\w*|off|out|leav\w*|driv\w*|walk\w*|from)\b', low):
+                m = None
+        if not m:
+            return None
+        n = int(m.group(1))
+        return n if 0 < n <= 180 else None
+
+    # Scheduled orders drop into the barista queue this many minutes
+    # before the customer's stated arrival, so the coffee is fresh when
+    # they walk up rather than made the moment they text.
+    ETA_PREP_LEAD_MIN = 5
+
+    def _get_preferred_order(self, phone):
+        """The customer's saved usual as an order_details dict, or None."""
+        try:
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            cursor = self.db.cursor()
+            cursor.execute(
+                "SELECT name, preferred_drink, preferred_milk, preferred_size, "
+                "preferred_sugar FROM customer_preferences WHERE phone = %s",
+                (phone,))
+            row = cursor.fetchone()
+            if not row:
+                return None
+            if isinstance(row, dict):
+                name, drink, milk, size, sugar = (row.get('name'), row.get('preferred_drink'),
+                                                  row.get('preferred_milk'), row.get('preferred_size'),
+                                                  row.get('preferred_sugar'))
+            else:
+                name, drink, milk, size, sugar = row
+            if not drink:
+                return None
+            return {
+                'name': name,
+                'type': drink,
+                'milk': milk or self._default_milk(),
+                'size': size or 'medium',
+                'sugar': sugar or 'no sugar',
+            }
+        except Exception as e:
+            logger.warning(f"_get_preferred_order failed: {e}")
+            return None
+
+    def _handle_eta(self, phone, name, minutes):
+        """Schedule the customer's usual for their stated arrival time."""
+        prefs = self._get_preferred_order(phone)
+        if not prefs:
+            return (f"Got it — about {minutes} min away! Text us your order now "
+                    f"(e.g. 'medium latte with full cream') and we'll get it "
+                    f"underway so it's ready when you arrive.")
+        display_name = name or prefs.get('name') or 'there'
+        return self._create_scheduled_order(phone, display_name, prefs, minutes)
+
+    def _create_scheduled_order(self, phone, name, order_details, minutes):
+        """Insert an order with status='scheduled' that
+        promote_due_scheduled_orders() flips to pending ETA_PREP_LEAD_MIN
+        minutes before arrival. No stock moves until it's made."""
+        try:
+            now = datetime.now()
+            arrival = now + timedelta(minutes=minutes)
+            fire_at = now + timedelta(minutes=max(0, minutes - self.ETA_PREP_LEAD_MIN))
+            od = dict(order_details or {})
+            try:
+                station_id, _delayed = self._assign_station(
+                    bool(od.get('vip')), od.get('milk'), od.get('type'), od.get('size'))
+            except Exception:
+                station_id = 1
+            od.update({
+                'name': name,
+                'order_type': 'sms',
+                'scheduled': True,
+                'fire_at': fire_at.isoformat(),
+                'arrival_at': arrival.isoformat(),
+                'notes': ((od.get('notes') or '') +
+                          f" (arriving ~{arrival.strftime('%H:%M')})").strip(),
+            })
+            cursor = self.db.cursor()
+            order_number = None
+            try:
+                cursor.execute("SELECT nextval('order_number_seq')")
+                srow = cursor.fetchone()
+                if srow:
+                    sval = srow[0] if not isinstance(srow, dict) else list(srow.values())[0]
+                    order_number = str(int(sval))
+            except Exception:
+                try:
+                    self.db.rollback()
+                except Exception:
+                    pass
+            if not order_number:
+                order_number = f"S{now.strftime('%H%M%S')}"
+            cursor = self.db.cursor()
+            cursor.execute(
+                "INSERT INTO orders (order_number, phone, order_details, status, "
+                "station_id, created_at, updated_at, queue_priority) "
+                "VALUES (%s, %s, %s, 'scheduled', %s, %s, %s, 5)",
+                (order_number, phone, json.dumps(od), station_id, now, now))
+            self.db.commit()
+            self._set_conversation_state(phone, 'completed')
+            summary = self.nlp.format_order_summary(od)
+            return (f"Great {name}! Your {summary} is scheduled — we'll start "
+                    f"making it just before you arrive, ready about "
+                    f"{arrival.strftime('%H:%M')}. Order #{order_number}. "
+                    f"Reply CANCEL to cancel.")
+        except Exception as e:
+            logger.error(f"_create_scheduled_order failed: {e}")
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            return ("Sorry, we couldn't schedule that just now — text your "
+                    "order when you arrive and we'll make it straight away.")
+
+    def promote_due_scheduled_orders(self):
+        """Flip due scheduled orders to pending. Called lazily from the
+        order-listing endpoints (the barista UI polls every 15-30s), so no
+        cron is needed and promotion latency is bounded by the poll."""
+        try:
+            cursor = self.db.cursor()
+            cursor.execute("SELECT id, order_details FROM orders WHERE status = 'scheduled'")
+            rows = cursor.fetchall() or []
+            now_iso = datetime.now().isoformat()
+            due = []
+            for r in rows:
+                oid = r[0] if not isinstance(r, dict) else r.get('id')
+                raw = r[1] if not isinstance(r, dict) else r.get('order_details')
+                try:
+                    d = json.loads(raw) if isinstance(raw, str) else (raw or {})
+                except Exception:
+                    d = {}
+                if str(d.get('fire_at') or '') <= now_iso:
+                    due.append(oid)
+            if due:
+                cursor.execute(
+                    "UPDATE orders SET status = 'pending', updated_at = NOW() "
+                    "WHERE id = ANY(%s)", (due,))
+                self.db.commit()
+                logger.info(f"promoted {len(due)} scheduled order(s) to pending")
+            return len(due)
+        except Exception as e:
+            logger.warning(f"promote_due_scheduled_orders: {e}")
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            return 0
     
     def _handle_status_command(self, phone):
         """Handle STATUS command - check order status"""
