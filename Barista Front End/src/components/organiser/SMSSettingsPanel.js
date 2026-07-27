@@ -1,5 +1,114 @@
 import React, { useState, useEffect } from 'react';
 import MessageService from '../../services/MessageService';
+import ApiServiceClass from '../../services/ApiService';
+
+const api = new ApiServiceClass();
+
+/**
+ * Pre-event pre-orders (client request): before the event opens, SMS
+ * orders are SAVED as the customer's usual instead of being made. The
+ * reply template is editable live — placeholders {name} {order} {event}
+ * {sponsor}, plus any free text (date, opening time, spiel). On event
+ * day, switch it OFF: returning customers get "Welcome back — your
+ * usual X?" built from what they saved.
+ */
+const PreEventCard = () => {
+  const [enabled, setEnabled] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [defaultMsg, setDefaultMsg] = useState('');
+  const [savedCount, setSavedCount] = useState(null);
+  const [status, setStatus] = useState(null); // {type,text}
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await api.get('/settings/pre-event');
+        if (r && r.success) {
+          setEnabled(!!r.settings.enabled);
+          setMsg(r.settings.message || '');
+          setDefaultMsg(r.default_message || '');
+          setSavedCount(r.saved_preorders ?? null);
+        }
+      } catch (e) {
+        setStatus({ type: 'error', text: 'Could not load pre-event settings' });
+      }
+    })();
+  }, []);
+
+  const save = async (nextEnabled = enabled, nextMsg = msg) => {
+    setSaving(true);
+    setStatus(null);
+    try {
+      const r = await api.request('/settings/pre-event', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: nextEnabled, message: nextMsg }),
+      });
+      if (r && r.success) {
+        setStatus({ type: 'success', text: nextEnabled
+          ? 'Pre-event mode is ON — texts now SAVE orders instead of making coffee.'
+          : 'Pre-event mode is OFF — texts place live orders as normal.' });
+      } else {
+        setStatus({ type: 'error', text: (r && r.error) || 'Server did not confirm the save' });
+      }
+    } catch (e) {
+      setStatus({ type: 'error', text: `Save failed: ${e?.message || 'network error'}` });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="bg-white shadow-md rounded-lg p-6 mb-6 border-l-4"
+         style={{ borderLeftColor: enabled ? '#d97706' : '#e5e7eb' }}>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-bold mb-1">Pre-event pre-orders</h2>
+          <p className="text-gray-600 text-sm">
+            While ON, SMS orders are <b>saved as the customer's usual</b> — no coffee is
+            queued. On event day, switch OFF: when they text again we offer exactly what
+            they saved. {savedCount != null && (
+              <b>{savedCount} pre-order{savedCount === 1 ? '' : 's'} saved so far.</b>
+            )}
+          </p>
+        </div>
+        <label className="flex items-center gap-2 flex-shrink-0 cursor-pointer">
+          <input type="checkbox" checked={enabled}
+                 onChange={(e) => { setEnabled(e.target.checked); save(e.target.checked, msg); }} />
+          <span className="font-bold">{enabled ? 'ON' : 'OFF'}</span>
+        </label>
+      </div>
+
+      <div className="mt-4">
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Reply sent after a pre-order is saved
+        </label>
+        <textarea
+          value={msg}
+          onChange={(e) => setMsg(e.target.value)}
+          onBlur={() => save(enabled, msg)}
+          rows={3}
+          className="w-full p-2 border rounded font-mono text-sm"
+          placeholder={defaultMsg || "Thanks {name}! We've saved your {order} for {event}. On event day, text this number when you arrive and we'll get your order underway."}
+        />
+        <p className="text-xs text-gray-500 mt-1">
+          Placeholders: <code>{'{name}'}</code> <code>{'{order}'}</code> <code>{'{event}'}</code> <code>{'{sponsor}'}</code>.
+          Free text welcome — add the date, opening time, a spiel — and edit any time;
+          the change applies to the very next text. Leave blank to use the default.
+          Plain characters keep SMS cost at one segment.
+        </p>
+      </div>
+
+      {status && (
+        <div className={`mt-3 p-2 rounded text-sm ${status.type === 'success'
+          ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+          {saving ? 'Saving…' : status.text}
+        </div>
+      )}
+    </div>
+  );
+};
 
 /**
  * Component for configuring SMS settings for the event
@@ -107,6 +216,8 @@ const SMSSettingsPanel = () => {
   }
   
   return (
+    <>
+    <PreEventCard />
     <div className="bg-white shadow-md rounded-lg p-6">
       <h2 className="text-xl font-bold mb-2">SMS Notification Settings</h2>
       <p className="text-gray-600 mb-6">Configure how SMS notifications are sent to customers</p>
@@ -293,6 +404,7 @@ const SMSSettingsPanel = () => {
         </button>
       </div>
     </div>
+    </>
   );
 };
 

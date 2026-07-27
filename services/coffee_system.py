@@ -1908,6 +1908,75 @@ class CoffeeOrderSystem:
             break
         return name, order
 
+    # Default reply when a pre-event pre-order is saved. Editable by the
+    # organiser (settings KV 'pre_event_settings'.message); placeholders
+    # {name} {order} {event} are substituted. Plain ASCII (SMS cost).
+    PRE_EVENT_DEFAULT_MESSAGE = (
+        "Thanks {name}! We've saved your {order} for {event}. "
+        "On event day, text this number when you arrive and we'll get "
+        "your order underway."
+    )
+
+    def _pre_event_settings(self):
+        """Pre-event pre-order mode (client request via Steve): before the
+        event opens, SMS orders are SAVED as the customer's preference
+        instead of being made. Read fresh from the settings table (no
+        cache) so the organiser's toggle applies to the next text."""
+        try:
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            cursor = self.db.cursor()
+            cursor.execute("SELECT value FROM settings WHERE key = 'pre_event_settings'")
+            row = cursor.fetchone()
+            raw = row[0] if row and not isinstance(row, dict) else (row.get('value') if row else None)
+            if raw:
+                data = json.loads(raw) if isinstance(raw, str) else raw
+                if isinstance(data, dict):
+                    return data
+        except Exception as e:
+            logger.debug(f"_pre_event_settings read failed: {e}")
+        return {'enabled': False}
+
+    def _pre_event_response(self, phone, name, order_details):
+        """Save the completed order as this customer's preference (their
+        'usual') and reply with the configured pre-event message. On event
+        day — mode switched off — the welcome-back flow offers exactly
+        what they saved ('Welcome back! Your usual medium latte...?')."""
+        od = dict(order_details or {})
+        od.setdefault('sugar', 'no sugar')
+        try:
+            self._save_customer_preferences(phone, name, od)
+        except Exception as e:
+            logger.error(f"pre-event preference save failed: {e}")
+            return ("Sorry, we couldn't save your pre-order just now — "
+                    "please try again in a minute.")
+        self._set_conversation_state(phone, 'completed')
+        cfg = self._pre_event_settings()
+        template = (cfg.get('message') or '').strip() or self.PRE_EVENT_DEFAULT_MESSAGE
+        summary = self.nlp.format_order_summary(od)
+
+        # Tolerant substitution: unknown/misspelled placeholders stay as
+        # literal text instead of crashing the SMS — the organiser edits
+        # this template live mid-campaign (date, opening time, spiel...).
+        class _SafeDict(dict):
+            def __missing__(self, key):
+                return '{' + key + '}'
+        sponsor = ''
+        try:
+            info = self.get_sponsor_info() if hasattr(self, 'get_sponsor_info') else None
+            if isinstance(info, dict) and info.get('name'):
+                sponsor = info['name']
+        except Exception:
+            pass
+        try:
+            return template.format_map(_SafeDict(
+                name=name, order=summary, event=self.event_name, sponsor=sponsor))
+        except Exception:
+            return self.PRE_EVENT_DEFAULT_MESSAGE.format(
+                name=name, order=summary, event=self.event_name)
+
     def _place_order(self, phone, name, order_details, prefix=''):
         """Auto-place a completed order — no YES step. Customers kept thinking
         the order was done after telling us what they wanted; the YES was a
@@ -1915,6 +1984,11 @@ class CoffeeOrderSystem:
         order, and tells them it's placed + how to fix it (CANCEL / FRIEND)."""
         od = dict(order_details or {})
         od.setdefault('sugar', 'no sugar')
+        # PRE-EVENT MODE: save instead of make. All the parsing, milk
+        # defaults and validation above still ran, so what we save is a
+        # complete, makeable order.
+        if self._pre_event_settings().get('enabled'):
+            return f"{prefix}{self._pre_event_response(phone, name, od)}"
         summary = self.nlp.format_order_summary(od)
         order_response = self._confirm_order(phone, od, name)
         if not isinstance(order_response, str):
@@ -2109,6 +2183,15 @@ class CoffeeOrderSystem:
                 od['size'] = 'medium' if 'medium' in lower else sizes[0]
             od.setdefault('sugar', 'no sugar')
             resolved.append(od)
+
+        # PRE-EVENT MODE: preferences store ONE usual per phone — save the
+        # first drink and say so rather than silently dropping the rest.
+        if self._pre_event_settings().get('enabled'):
+            msg = self._pre_event_response(phone, name, resolved[0])
+            if len(resolved) > 1:
+                msg += ("\n(Pre-orders save ONE coffee per phone — we kept the "
+                        "first; order the rest on the day.)")
+            return msg
 
         # Place them. The FIRST order establishes the group_id (its order
         # number) and the station; every sibling is forced to that station and
