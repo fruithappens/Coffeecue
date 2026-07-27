@@ -416,7 +416,14 @@ def orders():
             # Get coffee system from app context
             coffee_system = current_app.config.get('coffee_system')
             db = coffee_system.db
-            
+
+            # Lazy promotion of due ETA-scheduled orders — the barista UI
+            # polls this endpoint, so due orders surface within one poll.
+            try:
+                coffee_system.promote_due_scheduled_orders()
+            except Exception:
+                pass
+
             # Build query with filters
             cursor = db.cursor()
             query_conditions = []
@@ -904,6 +911,13 @@ def get_pending_orders():
         # silent 500 even though the orders themselves are fine.
         try:
             db.rollback()
+        except Exception:
+            pass
+
+        # Surface due ETA-scheduled orders (lazy promotion — this
+        # endpoint is polled by the barista UI).
+        try:
+            coffee_system.promote_due_scheduled_orders()
         except Exception:
             pass
 

@@ -30,6 +30,7 @@ const DashboardTab = () => {
   const { stations } = useStations();
   const [quickStatus, setQuickStatus] = useState(null);
   const [broadcastOpen, setBroadcastOpen] = useState(false);
+  const [broadcastAudience, setBroadcastAudience] = useState('today');
   const [broadcastMsg, setBroadcastMsg] = useState('');
   const [broadcastSending, setBroadcastSending] = useState(false);
 
@@ -59,7 +60,7 @@ const DashboardTab = () => {
       const r = await api.request('/support/broadcast/customers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, audience: 'today' }),
+        body: JSON.stringify({ message: text, audience: broadcastAudience }),
       });
       setQuickStatus({ label: 'Broadcast Message', state: 'ok',
                        message: `Sent to ${r?.sent || r?.recipient_count || 'recipients'}` });
@@ -288,8 +289,20 @@ const DashboardTab = () => {
           {broadcastOpen && (
             <div className="mt-3 p-3 border border-blue-200 bg-blue-50 rounded">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Broadcast message to today's customers
+                Broadcast message
               </label>
+              {/* Audience: today's customers, or everyone with a saved
+                  usual (pre-orders) — the morning "doors open, we can
+                  have your coffee ready" blast goes to the latter. */}
+              <select
+                value={broadcastAudience}
+                onChange={(e) => setBroadcastAudience(e.target.value)}
+                className="w-full mb-2 p-2 border border-gray-300 rounded text-sm"
+              >
+                <option value="today">Today's customers (ordered in the last 24h)</option>
+                <option value="preorders">Pre-order list (everyone with a saved usual)</option>
+                <option value="active_today">Active orders only (not yet completed)</option>
+              </select>
               <textarea
                 value={broadcastMsg}
                 onChange={(e) => setBroadcastMsg(e.target.value)}
