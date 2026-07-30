@@ -2171,7 +2171,14 @@ class CoffeeOrderSystem:
         # defaults and validation above still ran, so what we save is a
         # complete, makeable order.
         if self._pre_event_settings().get('enabled'):
-            return f"{prefix}{self._pre_event_response(phone, name, od)}"
+            # The pre-event template greets by name itself ("Thanks {name}!…"),
+            # so the caller's "Thanks Sarah! " prefix produced a doubled
+            # "Thanks Sarah! Thanks Sarah!" (bench catch, features_flow).
+            # Keep the prefix only for custom templates with no self-greeting.
+            _tpl = (self._pre_event_settings().get('message') or '').strip() \
+                or self.PRE_EVENT_DEFAULT_MESSAGE
+            _pfx = '' if '{name}' in _tpl else prefix
+            return f"{_pfx}{self._pre_event_response(phone, name, od)}"
         summary = self.nlp.format_order_summary(od)
         order_response = self._confirm_order(phone, od, name)
         if not isinstance(order_response, str):
