@@ -9,6 +9,7 @@ import VipOrdersList from './VipOrdersList';
 import BatchGroupsList from './BatchGroupsList';
 import RegularOrdersList from './RegularOrdersList';
 import GroupBadge from './GroupBadge';
+import SourceBadge from './SourceBadge';
 
 const PendingOrdersSection = ({
   orders,
@@ -276,6 +277,7 @@ const PendingOrdersSection = ({
                   <div className="font-bold">#{order.orderNumber} - {order.customerName}</div>
                   <div className="text-sm flex items-center space-x-1">
                     <GroupBadge info={groupInfoByOrderId[order.id]} />
+                    <SourceBadge order={order} />
                     <span>{order.waitTime} min</span>
                     <div className={`w-3 h-3 rounded-full ${getTimeRatioColor(order.waitTime, order.promisedTime)}`}></div>
                   </div>
@@ -287,7 +289,6 @@ const PendingOrdersSection = ({
                         SMS "Large oat latte" landed in the queue rendered as just
                         "latte, oat, no sugar" — barista couldn't see the size. */}
                     <span>
-                      {order.size ? `${order.size} ` : ''}
                       {order.size ? `${order.size} ` : ''}{order.coffeeType}, {order.milkType}, {order.sugar}
                     </span>
                     {/* Honor-system price tag. Only renders when

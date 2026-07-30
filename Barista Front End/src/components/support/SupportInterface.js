@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Activity, Settings, Users, MessageSquare, Terminal, AlertTriangle,
-  Coffee, RefreshCw, BarChart3, Phone, ArrowLeft, Menu, Ban, Printer
+  Coffee, RefreshCw, BarChart3, Phone, ArrowLeft, Menu, Ban, Printer, CalendarClock
 } from 'lucide-react';
 
 import ErrorMonitoring from './ErrorMonitoring';
@@ -19,6 +19,7 @@ import DiagnosticsTab from '../support-tabs/DiagnosticsTab';
 import EmergencyTab from '../support-tabs/EmergencyTab';
 import SmsBlocklistTab from '../support-tabs/SmsBlocklistTab';
 import PrintersTab from '../support-tabs/PrintersTab';
+import EventsAirTab from '../support-tabs/EventsAirTab';
 
 const SupportInterface = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -56,6 +57,7 @@ const SupportInterface = () => {
     { id: 'sms-test', label: 'SMS Test', icon: Phone, component: SMSTestSimulator },
     { id: 'sms-blocklist', label: 'SMS Block', icon: Ban, component: SmsBlocklistTab },
     { id: 'printers', label: 'Printers', icon: Printer, component: PrintersTab },
+    { id: 'eventsair', label: 'EventsAir', icon: CalendarClock, component: EventsAirTab },
     { id: 'users', label: 'Users', icon: Users, component: UsersAccessTab },
     { id: 'diagnostics', label: 'Diagnose', icon: Terminal, component: DiagnosticsTab },
     { id: 'emergency', label: 'Emergency', icon: AlertTriangle, component: EmergencyTab }

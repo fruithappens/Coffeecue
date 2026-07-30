@@ -54,6 +54,7 @@ import StationChat from '../support/StationChat';
 import OrderNotificationHandler from '../shared/OrderNotificationHandler';
 import PendingOrdersSection from './PendingOrdersSection';
 import GroupBadge from './GroupBadge';
+import SourceBadge from './SourceBadge';
 import QueueIntelligence from '../support/QueueIntelligence';
 import StationLoadBalancer from '../support/StationLoadBalancer';
 import DynamicStaffAllocation from '../organiser/DynamicStaffAllocation';
@@ -1277,6 +1278,7 @@ const BaristaInterface = () => {
             {/* Group badge — still part of a group while being made, so the
                 barista knows to hold it for collection with its siblings. */}
             <GroupBadge info={groupInfoByOrderId[order.id]} />
+            <SourceBadge order={order} />
             {order.priority && (
               <div className="mt-1 bg-red-100 text-red-700 px-2 py-1 rounded text-sm font-medium">
                 PRIORITY
