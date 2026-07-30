@@ -20,6 +20,150 @@ const STATUS_TONES = {
   cancelled: 'bg-gray-200 text-gray-600',
 };
 
+// Label design card — see the label EXACTLY as it will print (same
+// renderer, same pixels) and toggle what appears on it. Presentation
+// options apply at render time, so even already-queued jobs pick up a
+// change.
+const LabelDesignCard = () => {
+  const [settings, setSettings] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const loadSettings = useCallback(async () => {
+    try {
+      const r = await api.request('/print/label-settings');
+      setSettings(r?.settings || {});
+    } catch (e) { setSettings({}); }
+  }, []);
+
+  const refreshPreview = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('coffee_system_token');
+      const r = await fetch('/api/print/preview?sample=1', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!r.ok) return;
+      const blob = await r.blob();
+      setPreviewUrl(old => {
+        if (old) URL.revokeObjectURL(old);
+        return URL.createObjectURL(blob);
+      });
+    } catch (e) { /* preview stays stale */ }
+  }, []);
+
+  useEffect(() => { loadSettings(); refreshPreview(); }, [loadSettings, refreshPreview]);
+
+  const save = async (patch) => {
+    setBusy(true);
+    const r = await api.request('/print/label-settings',
+      { method: 'PUT', body: JSON.stringify(patch) })
+      .catch(e => ({ success: false, message: e?.message }));
+    setBusy(false);
+    if (r?.success) {
+      setSettings(s => ({ ...s, ...r.settings }));
+      refreshPreview();
+    } else {
+      showToast(`Save failed: ${r?.message || 'unknown'}`, 'error');
+    }
+  };
+
+  const toggle = (key, label, hint) => (
+    <label className="flex items-center space-x-2 text-sm py-1">
+      <input
+        type="checkbox"
+        disabled={busy || !settings}
+        checked={!!settings?.[key]}
+        onChange={(e) => save({ [key]: e.target.checked })}
+      />
+      <span>{label}</span>
+      {hint && <span className="text-xs text-gray-400">{hint}</span>}
+    </label>
+  );
+
+  return (
+    <div className="bg-white rounded-lg shadow-md p-4">
+      <h2 className="text-xl font-bold mb-1">Label design</h2>
+      <p className="text-sm text-gray-500 mb-3">
+        Exactly what the printer will produce (58mm wide; the label cuts at
+        the image height). Order number, name and drink always print —
+        baristas need them. The rest is yours:
+      </p>
+      <div className="flex flex-col md:flex-row gap-6">
+        <div className="flex-1 min-w-[16rem]">
+          {toggle('show_event_name', 'Event name',
+            settings?.event_name_effective ? `("${settings.event_name_effective}")` : '')}
+          {toggle('show_logo', 'Event logo',
+            settings?.logo_available ? '(from Branding)' : '(no logo uploaded in Branding yet)')}
+          {toggle('show_station_time', 'Station + time line')}
+          <label className="block text-sm mt-2">
+            <span className="text-gray-600">Ordering instructions line</span>
+            <input
+              className="mt-1 w-full border rounded px-2 py-1.5"
+              defaultValue={settings?.instructions_text || ''}
+              placeholder="e.g. Order: SMS 0489 263 333 or the event app"
+              disabled={busy || !settings}
+              onBlur={(e) => {
+                if ((settings?.instructions_text || '') !== e.target.value.trim()) {
+                  save({ instructions_text: e.target.value.trim() });
+                }
+              }}
+            />
+          </label>
+          <label className="block text-sm mt-2">
+            <span className="text-gray-600">Footer line (website / sponsor)</span>
+            <input
+              className="mt-1 w-full border rounded px-2 py-1.5"
+              defaultValue={settings?.footer_text || ''}
+              placeholder="e.g. CoffeeCue - coffeecue.com  or  Wallfly - wallfly.com.au"
+              disabled={busy || !settings}
+              onBlur={(e) => {
+                if ((settings?.footer_text || '') !== e.target.value.trim()) {
+                  save({ footer_text: e.target.value.trim() });
+                }
+              }}
+            />
+          </label>
+          <label className="block text-sm mt-2">
+            <span className="text-gray-600">Event name override (blank = use the event's name)</span>
+            <input
+              className="mt-1 w-full border rounded px-2 py-1.5"
+              defaultValue={settings?.event_name || ''}
+              placeholder={settings?.event_name_effective || ''}
+              disabled={busy || !settings}
+              onBlur={(e) => {
+                if ((settings?.event_name || '') !== e.target.value.trim()) {
+                  save({ event_name: e.target.value.trim() });
+                }
+              }}
+            />
+          </label>
+          <button
+            className="mt-3 bg-gray-200 text-gray-700 px-3 py-1.5 rounded text-sm hover:bg-gray-300"
+            onClick={refreshPreview}
+          >
+            Refresh preview
+          </button>
+        </div>
+        <div className="flex-shrink-0 text-center">
+          {previewUrl ? (
+            <img
+              src={previewUrl}
+              alt="Label preview"
+              className="border rounded shadow-sm mx-auto"
+              style={{ width: '203px', imageRendering: 'pixelated' }}
+            />
+          ) : (
+            <div className="w-[203px] h-48 border rounded flex items-center justify-center text-gray-400 text-sm">
+              Loading preview…
+            </div>
+          )}
+          <div className="text-xs text-gray-400 mt-1">shown at 50% — prints 58mm wide</div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const PrintersTab = () => {
   const [printers, setPrinters] = useState([]);
   const [jobs, setJobs] = useState([]);
@@ -72,6 +216,9 @@ const PrintersTab = () => {
 
   return (
     <div className="p-4 space-y-6">
+      {/* What the labels look like + design options */}
+      <LabelDesignCard />
+
       {/* Printer fleet */}
       <div className="bg-white rounded-lg shadow-md p-4">
         <div className="flex items-center justify-between mb-3">

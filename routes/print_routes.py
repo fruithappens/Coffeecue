@@ -312,7 +312,8 @@ def cloudprnt_fetch():
         except Exception:
             pass
         from services.label_printer import render_label
-        png = render_label(payload, job.get('width_dots'))
+        png = render_label(payload, job.get('width_dots'),
+                           options=_label_options(db))
         cur.execute(
             "UPDATE print_jobs SET status = 'fetched', fetched_at = NOW() WHERE id = %s",
             (token,))
@@ -651,12 +652,89 @@ def update_printer(printer_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+DEFAULT_LABEL_SETTINGS = {
+    'show_event_name': False,
+    'show_logo': False,
+    'show_station_time': True,
+    'footer_text': '',
+    'instructions_text': '',
+}
+
+
+def _label_options(db):
+    """label_settings KV + live data (event name from branding, logo from
+    the branding blob) → the renderer's options dict."""
+    from routes.consolidated_api_routes import _kv_get
+    stored = _kv_get(db, 'label_settings', default={}) or {}
+    opts = {**DEFAULT_LABEL_SETTINGS, **stored}
+    try:
+        cs = current_app.config.get('coffee_system')
+        opts.setdefault('event_name', getattr(cs, 'event_name', '') or '')
+        if not (opts.get('event_name') or '').strip():
+            opts['event_name'] = getattr(cs, 'event_name', '') or ''
+    except Exception:
+        pass
+    if opts.get('show_logo'):
+        try:
+            branding = _kv_get(db, 'branding_settings', default={}) or {}
+            opts['logo_data'] = (branding.get('clientLogo')
+                                 or branding.get('logo') or '')
+        except Exception:
+            opts['logo_data'] = ''
+    return opts
+
+
+@bp.route('/label-settings', methods=['GET'])
+@jwt_required_with_demo()
+def get_label_settings():
+    db = _db()
+    from routes.consolidated_api_routes import _kv_get
+    stored = _kv_get(db, 'label_settings', default={}) or {}
+    merged = {**DEFAULT_LABEL_SETTINGS, **stored}
+    try:
+        cs = current_app.config.get('coffee_system')
+        merged['event_name_effective'] = (merged.get('event_name')
+                                          or getattr(cs, 'event_name', '') or '')
+        branding = _kv_get(db, 'branding_settings', default={}) or {}
+        merged['logo_available'] = bool(branding.get('clientLogo')
+                                        or branding.get('logo'))
+    except Exception:
+        pass
+    return jsonify({'success': True, 'settings': merged})
+
+
+@bp.route('/label-settings', methods=['PUT'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def put_label_settings():
+    """Save the label design options. Presentation-only — applied at
+    render time, so the next fetch of any queued job already uses them."""
+    db = _db()
+    body = request.get_json(silent=True) or {}
+    from routes.consolidated_api_routes import _kv_get, _kv_put
+    stored = _kv_get(db, 'label_settings', default={}) or {}
+    for key in ('show_event_name', 'show_logo', 'show_station_time'):
+        if key in body:
+            stored[key] = bool(body[key])
+    if 'footer_text' in body:
+        stored['footer_text'] = str(body['footer_text'] or '').strip()[:60]
+    if 'instructions_text' in body:
+        stored['instructions_text'] = str(body['instructions_text'] or '').strip()[:60]
+    if 'event_name' in body:
+        # Blank = follow the system event name; non-blank = override.
+        stored['event_name'] = str(body['event_name'] or '').strip()[:40]
+    _kv_put(db, 'label_settings', stored)
+    return jsonify({'success': True,
+                    'settings': {**DEFAULT_LABEL_SETTINGS, **stored}})
+
+
 @bp.route('/preview', methods=['GET'])
 @jwt_required_with_demo()
 def preview_label():
     """Browser-viewable label preview — iterate the design without paper.
     ?order_id=... renders that order's snapshot; no order_id renders the
-    calibration test label. ?width= overrides PRINT_WIDTH_DOTS."""
+    calibration test label; ?sample=1 renders a realistic (non-test)
+    sample order for the designer. ?width= overrides PRINT_WIDTH_DOTS."""
     db = _db()
     _ensure_tables(db)
     order_id = request.args.get('order_id')
@@ -668,13 +746,16 @@ def preview_label():
                 return jsonify({'success': False, 'message': 'order not found'}), 404
         else:
             payload = {
-                'test': True, 'order_number': '047', 'name': 'Stephanie Routley',
+                'order_number': '047', 'name': 'Stephanie Routley',
                 'drink': 'flat white', 'size': 'medium', 'milk': 'oat',
                 'modifiers': ['Extra hot', '1 sugar'], 'station_name': 'Coffee Station 1',
                 'ts': datetime.now().isoformat(),
             }
+            if request.args.get('sample') != '1':
+                payload['test'] = True
         from services.label_printer import render_label
-        png = render_label(payload, int(width) if width else None)
+        png = render_label(payload, int(width) if width else None,
+                           options=_label_options(db))
         return Response(png, mimetype='image/png')
     except Exception as e:
         logger.error(f"preview_label error: {e}")
