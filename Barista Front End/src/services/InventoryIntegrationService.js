@@ -349,7 +349,9 @@ class InventoryIntegrationService {
     // config instead of an empty mirror. Sync still runs if hydration
     // fails (offline keeps working off the last local copy).
     this.hydrateFromServer()
-      .catch(() => {})
+      .catch((e) => {
+        console.warn('Server hydration failed, using local mirrors:', e?.message);
+      })
       .finally(() => {
         console.log('Initial inventory sync...');
         this.syncInventoryToStations();
