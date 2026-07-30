@@ -154,6 +154,129 @@ def render_label_png(order: dict, branding: Optional[dict] = None,
     return buf.getvalue()
 
 
+# ---------------------------------------------------------------------------
+# Spec renderer for the Star mC-Label3 (58mm linerless, 203dpi).
+#
+# Differences from render_label_png above (kept for the AirPrint path):
+#  - Renders from a PAYLOAD SNAPSHOT (never re-reads the live order).
+#  - 1-bit monochrome output — no greys, maximum thermal contrast.
+#  - Width = printers.width_dots (default PRINT_WIDTH_DOTS 406 ≈ 50.8mm
+#    printable at 8 dots/mm) — verified by test print on hardware.
+#  - Height is content-driven, clamped to [LABEL_MIN_HEIGHT,
+#    LABEL_MAX_HEIGHT]; the cutter cuts at image end, so image height IS
+#    the physical label length.
+#  - Privacy: first name + last initial only (labels sit on cups in a
+#    public venue).
+# ---------------------------------------------------------------------------
+import os
+
+PRINT_WIDTH_DOTS = int(os.environ.get('PRINT_WIDTH_DOTS', '406'))
+LABEL_MIN_HEIGHT = int(os.environ.get('LABEL_MIN_HEIGHT', '380'))
+LABEL_MAX_HEIGHT = int(os.environ.get('LABEL_MAX_HEIGHT', '520'))
+
+
+def label_display_name(full_name: str) -> str:
+    """'Stephanie Routley' -> 'Stephanie R.' — cup-label privacy."""
+    parts = [p for p in str(full_name or '').strip().split() if p]
+    if not parts:
+        return 'Customer'
+    if len(parts) == 1:
+        return parts[0][:18]
+    return f"{parts[0][:16]} {parts[1][0].upper()}."
+
+
+def render_label(payload: dict, width_dots: int = None) -> bytes:
+    """Render a print-job payload snapshot to a 1-bit PNG.
+
+    payload keys (all optional, sensible fallbacks):
+      order_number, name, drink, size, milk, modifiers (list[str]),
+      station_name, ts (ISO time string), test (bool).
+    """
+    from PIL import Image, ImageDraw
+    from datetime import datetime
+
+    W = int(width_dots or PRINT_WIDTH_DOTS)
+    payload = payload or {}
+
+    order_number = str(payload.get('order_number') or '—')
+    name = label_display_name(payload.get('name'))
+    size = str(payload.get('size') or '').strip()
+    drink = str(payload.get('drink') or 'Coffee').strip()
+    milk = str(payload.get('milk') or '').strip()
+    modifiers = [str(m) for m in (payload.get('modifiers') or []) if m]
+    station = str(payload.get('station_name') or '').strip()
+    ts = str(payload.get('ts') or '')[:16]
+    try:
+        hhmm = datetime.fromisoformat(ts).strftime('%H:%M') if ts else datetime.now().strftime('%H:%M')
+    except Exception:
+        hhmm = datetime.now().strftime('%H:%M')
+
+    drink_line_parts = [p for p in (size.title(), drink.title()) if p]
+    drink_line = ' '.join(drink_line_parts)
+    if milk and milk.lower() not in ('no milk', 'none', 'standard', ''):
+        drink_line += f" · {milk.title()}"
+
+    # Oversized canvas; crop to content at the end.
+    img = Image.new('1', (W, LABEL_MAX_HEIGHT), 1)  # 1-bit, white
+    draw = ImageDraw.Draw(img)
+
+    f_num = _load_font(120)
+    f_name = _load_font(52)
+    f_drink = _load_font(36)
+    f_mods = _load_font(30)
+    f_foot = _load_font(24)
+
+    margin = 10
+    y = 8
+    if payload.get('test'):
+        # Calibration header + ruler ticks every 50 dots so the operator
+        # can verify PRINT_WIDTH_DOTS against the physical stock.
+        draw.text((margin, y), 'TEST LABEL', fill=0, font=f_drink)
+        y += 44
+        for x in range(0, W, 50):
+            draw.line([(x, y), (x, y + 12)], fill=0)
+            draw.text((x + 2, y + 12), str(x), fill=0, font=f_foot)
+        y += 40
+
+    # 1. Order number — the arm's-length element.
+    draw.text((margin, y), f"#{order_number}", fill=0, font=f_num)
+    y += 126
+
+    # 2. Customer name.
+    draw.text((margin, y), name, fill=0, font=f_name)
+    y += 60
+
+    # 3. Drink line (wraps once if long).
+    if len(drink_line) > 24:
+        draw.text((margin, y), drink_line[:24], fill=0, font=f_drink)
+        y += 40
+        draw.text((margin, y), drink_line[24:48], fill=0, font=f_drink)
+        y += 42
+    else:
+        draw.text((margin, y), drink_line, fill=0, font=f_drink)
+        y += 42
+
+    # 4. Modifiers.
+    if modifiers:
+        draw.text((margin, y), ', '.join(modifiers)[:34], fill=0, font=f_mods)
+        y += 36
+
+    # 5. Footer: station + time, separated by a rule.
+    y += 4
+    draw.line([(margin, y), (W - margin, y)], fill=0)
+    y += 6
+    foot = ' · '.join([p for p in (station, hhmm) if p]) or hhmm
+    draw.text((margin, y), foot[:40], fill=0, font=f_foot)
+    y += 32
+
+    height = max(LABEL_MIN_HEIGHT, min(LABEL_MAX_HEIGHT, y))
+    img = img.crop((0, 0, W, height))
+
+    buf = io.BytesIO()
+    img.save(buf, format='PNG')
+    return buf.getvalue()
+
+
 def send_png_to_printer(ip: str, port: int, png_bytes: bytes,
                         timeout: float = 5.0) -> tuple[bool, str]:
     """Best-effort raw-socket dispatch to a network printer.
