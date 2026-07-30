@@ -1,0 +1,21 @@
+{
+  "cloudBase": "https://web-production-4cc9c.up.railway.app",
+  "pollIntervalMs": 3000,
+  "port": 8631,
+  "printers": [
+    {
+      "name": "Station 1 mC-Label3 (via agent)",
+      "mac": "00:11:62:45:7C:88",
+      "ip": "192.168.1.50",
+      "port": 9100,
+      "protocol": "star-raster"
+    },
+    {
+      "name": "Station 2 Epson TM-T82",
+      "mac": "EPSON-STN2-000001",
+      "ip": "192.168.1.51",
+      "port": 9100,
+      "protocol": "escpos"
+    }
+  ]
+}
