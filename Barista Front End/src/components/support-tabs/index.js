@@ -6,3 +6,4 @@ export { default as CommunicationsTab } from './CommunicationsTab';
 export { default as UsersAccessTab } from './UsersAccessTab';
 export { default as DiagnosticsTab } from './DiagnosticsTab';
 export { default as EmergencyTab } from './EmergencyTab';
+export { default as PrintersTab } from './PrintersTab';
