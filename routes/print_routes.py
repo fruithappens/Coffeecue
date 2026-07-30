@@ -1,0 +1,604 @@
+"""Label print subsystem: job queue + Star CloudPRNT endpoints + app API.
+
+Architecture (see the print build spec):
+
+    POST /api/print/label ─► print_jobs (queued) ─► drivers
+      - cloudprnt:   the mC-Label3 POLLS /cloudprnt over HTTPS (pull) —
+                     works behind any NAT/4G router, no inbound ports.
+      - starprnt_lan / escpos_lan: a local agent polls /api/print/jobs
+                     and pushes raster over TCP 9100 (Scenario C/D).
+
+Design rules honoured here:
+  - Payloads are SNAPSHOTS taken at enqueue time; reprints reproduce the
+    original label even if the order was edited afterwards.
+  - The poll path stays light (<200ms): no rendering during POST
+    /cloudprnt — the PNG renders at GET-job time from the snapshot.
+  - A dead printer NEVER blocks order flow; failures land on the job row
+    and in the log, and the UI degrades to on-screen alerts.
+  - Unknown printer MACs are auto-registered DISABLED (heartbeat only)
+    so new hardware onboards zero-touch but can't pull jobs until an
+    operator enables + assigns it.
+"""
+from __future__ import annotations
+
+import json
+import logging
+import os
+import uuid
+from datetime import datetime, timedelta
+
+from flask import Blueprint, current_app, jsonify, request, Response
+
+from auth import jwt_required_with_demo, role_required_with_demo
+
+logger = logging.getLogger(__name__)
+
+# App-facing API (JWT'd) and the printer-facing CloudPRNT endpoint
+# (public by necessity — printers can't OAuth) live on two blueprints.
+bp = Blueprint('print_api', __name__, url_prefix='/api/print')
+cloudprnt_bp = Blueprint('cloudprnt', __name__)
+
+CLOUDPRNT_POLL_TIMEOUT_S = int(os.environ.get('CLOUDPRNT_POLL_TIMEOUT_S', '15'))
+PRINT_RETRY_MAX = int(os.environ.get('PRINT_RETRY_MAX', '3'))
+PRINT_FETCH_TIMEOUT_S = int(os.environ.get('PRINT_FETCH_TIMEOUT_S', '60'))
+CLOUDPRNT_SHARED_SECRET = os.environ.get('CLOUDPRNT_SHARED_SECRET', '')
+
+
+# ---------------------------------------------------------------------------
+# Schema (lazy-created, matching the repo's ensure-tables pattern)
+# ---------------------------------------------------------------------------
+
+def _db():
+    return current_app.config.get('coffee_system').db
+
+
+def _ensure_tables(db):
+    try:
+        cur = db.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS printers (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(100) NOT NULL DEFAULT 'Printer',
+                station_id INTEGER,
+                driver VARCHAR(20) NOT NULL DEFAULT 'cloudprnt',
+                mac_address VARCHAR(32) UNIQUE,
+                ip_address VARCHAR(64),
+                width_dots INTEGER NOT NULL DEFAULT 406,
+                enabled BOOLEAN NOT NULL DEFAULT FALSE,
+                last_poll_at TIMESTAMP,
+                last_status TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS print_jobs (
+                id VARCHAR(36) PRIMARY KEY,
+                printer_id INTEGER REFERENCES printers(id),
+                order_id VARCHAR(50),
+                type VARCHAR(10) NOT NULL DEFAULT 'label',
+                status VARCHAR(12) NOT NULL DEFAULT 'queued',
+                payload TEXT,
+                attempts INTEGER NOT NULL DEFAULT 0,
+                error TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                fetched_at TIMESTAMP,
+                printed_at TIMESTAMP
+            )
+        """)
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_print_jobs_poll
+            ON print_jobs (printer_id, status, created_at)
+        """)
+        db.commit()
+    except Exception as e:
+        logger.warning(f"print tables ensure failed: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+
+def _norm_mac(mac):
+    return str(mac or '').replace(':', '').replace('-', '').strip().upper()
+
+
+def _row_to_dict(cur, row):
+    if row is None:
+        return None
+    if isinstance(row, dict):
+        return dict(row)
+    cols = [d[0] for d in cur.description]
+    return dict(zip(cols, row))
+
+
+# ---------------------------------------------------------------------------
+# Lazy sweeps (no cron): retry stuck jobs on every poll
+# ---------------------------------------------------------------------------
+
+def _sweep_stuck_jobs(db):
+    """Jobs stuck in 'fetched' beyond PRINT_FETCH_TIMEOUT_S mean the
+    printer died mid-print. Fail them; requeue while attempts remain."""
+    try:
+        cur = db.cursor()
+        cutoff = datetime.now() - timedelta(seconds=PRINT_FETCH_TIMEOUT_S)
+        cur.execute(
+            "UPDATE print_jobs SET status = CASE WHEN attempts < %s THEN 'queued' "
+            "ELSE 'failed' END, attempts = attempts + 1, "
+            "error = COALESCE(error,'') || ' [fetch timeout]' "
+            "WHERE status = 'fetched' AND fetched_at < %s",
+            (PRINT_RETRY_MAX, cutoff))
+        if cur.rowcount:
+            logger.warning(f"print sweep: {cur.rowcount} stuck job(s) handled")
+        db.commit()
+    except Exception as e:
+        logger.warning(f"print job sweep failed: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+
+# ---------------------------------------------------------------------------
+# Payload snapshot
+# ---------------------------------------------------------------------------
+
+def _snapshot_order(db, order_number, station_id=None):
+    """Freeze the label data NOW. Never re-read the live order at print
+    time — what was queued is what prints."""
+    cur = db.cursor()
+    cur.execute(
+        "SELECT order_number, order_details, station_id FROM orders "
+        "WHERE order_number = %s", (str(order_number),))
+    row = cur.fetchone()
+    if not row:
+        return None
+    if isinstance(row, dict):
+        onum, od_raw, o_station = row.get('order_number'), row.get('order_details'), row.get('station_id')
+    else:
+        onum, od_raw, o_station = row
+    try:
+        od = json.loads(od_raw) if isinstance(od_raw, str) else (od_raw or {})
+    except Exception:
+        od = {}
+    sid = station_id or o_station
+    station_name = f"Station {sid}" if sid else ''
+    try:
+        c2 = db.cursor()
+        c2.execute("SELECT COALESCE(name,'') FROM station_stats WHERE station_id = %s", (sid,))
+        r2 = c2.fetchone()
+        if r2 and (r2[0] if not isinstance(r2, dict) else r2.get('coalesce')):
+            station_name = r2[0] if not isinstance(r2, dict) else list(r2.values())[0]
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+    modifiers = []
+    if od.get('extra_hot') or od.get('temp') == 'extra hot':
+        modifiers.append('Extra hot')
+    sugar = str(od.get('sugar') or '')
+    if sugar and sugar.lower() not in ('no sugar', 'none', '0'):
+        modifiers.append(sugar)
+    if od.get('strength'):
+        modifiers.append(str(od['strength']))
+    if od.get('decaf'):
+        modifiers.append('DECAF')
+    return {
+        'order_number': onum,
+        'name': od.get('name') or 'Customer',
+        'drink': od.get('type') or 'Coffee',
+        'size': od.get('size') or '',
+        'milk': od.get('milk') or '',
+        'modifiers': modifiers,
+        'station_name': station_name,
+        'ts': datetime.now().isoformat(),
+    }
+
+
+def _enqueue(db, printer_id, payload, order_id=None, job_type='label'):
+    """Insert a queued job. Idempotent for label jobs: an identical
+    queued job for the same order+printer is returned, not duplicated."""
+    cur = db.cursor()
+    if order_id and job_type == 'label':
+        cur.execute(
+            "SELECT id FROM print_jobs WHERE printer_id = %s AND order_id = %s "
+            "AND status = 'queued' AND type = 'label' LIMIT 1",
+            (printer_id, str(order_id)))
+        row = cur.fetchone()
+        if row:
+            return (row[0] if not isinstance(row, dict) else row.get('id')), False
+    job_id = str(uuid.uuid4())
+    cur.execute(
+        "INSERT INTO print_jobs (id, printer_id, order_id, type, status, payload) "
+        "VALUES (%s, %s, %s, %s, 'queued', %s)",
+        (job_id, printer_id, str(order_id) if order_id else None, job_type,
+         json.dumps(payload)))
+    db.commit()
+    return job_id, True
+
+
+# ---------------------------------------------------------------------------
+# CloudPRNT (Star CloudPRNT Version 1, simple HTTP polling)
+# ---------------------------------------------------------------------------
+
+def _cloudprnt_auth_ok():
+    if not CLOUDPRNT_SHARED_SECRET:
+        return True
+    return request.args.get('secret') == CLOUDPRNT_SHARED_SECRET
+
+
+@cloudprnt_bp.route('/cloudprnt', methods=['POST'])
+def cloudprnt_poll():
+    """Printer heartbeat + job availability. Kept FAST: no rendering here."""
+    if not _cloudprnt_auth_ok():
+        return jsonify({'jobReady': False}), 403
+    db = _db()
+    _ensure_tables(db)
+    _sweep_stuck_jobs(db)
+    body = request.get_json(silent=True) or {}
+    mac = _norm_mac(body.get('printerMAC') or body.get('printerMac')
+                    or request.args.get('mac'))
+    if not mac:
+        return jsonify({'jobReady': False})
+    try:
+        cur = db.cursor()
+        cur.execute("SELECT * FROM printers WHERE mac_address = %s", (mac,))
+        printer = _row_to_dict(cur, cur.fetchone())
+        status_json = json.dumps({
+            'statusCode': body.get('statusCode'),
+            'status': body.get('status'),
+            'printingInProgress': body.get('printingInProgress'),
+        })
+        if printer is None:
+            # Zero-touch onboarding: register DISABLED; operator enables
+            # + assigns a station in the Support print panel.
+            cur.execute(
+                "INSERT INTO printers (name, mac_address, enabled, last_poll_at, last_status) "
+                "VALUES (%s, %s, FALSE, NOW(), %s)",
+                (f"New printer {mac[-4:]}", mac, status_json))
+            db.commit()
+            logger.info(f"cloudprnt: auto-registered new printer MAC {mac} (disabled)")
+            return jsonify({'jobReady': False})
+        cur.execute(
+            "UPDATE printers SET last_poll_at = NOW(), last_status = %s WHERE id = %s",
+            (status_json, printer['id']))
+        db.commit()
+        if not printer.get('enabled'):
+            return jsonify({'jobReady': False})
+        cur.execute(
+            "SELECT id FROM print_jobs WHERE printer_id = %s AND status = 'queued' "
+            "ORDER BY created_at ASC LIMIT 1", (printer['id'],))
+        job = cur.fetchone()
+        if not job:
+            return jsonify({'jobReady': False})
+        token = job[0] if not isinstance(job, dict) else job.get('id')
+        return jsonify({
+            'jobReady': True,
+            'mediaTypes': ['image/png'],
+            'jobToken': token,
+            'deleteMethod': 'DELETE',
+        })
+    except Exception as e:
+        logger.error(f"cloudprnt poll error: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return jsonify({'jobReady': False})
+
+
+@cloudprnt_bp.route('/cloudprnt', methods=['GET'])
+def cloudprnt_fetch():
+    """Printer fetches the job body. Render the PNG from the snapshot."""
+    if not _cloudprnt_auth_ok():
+        return Response(status=403)
+    db = _db()
+    _ensure_tables(db)
+    token = request.args.get('token') or ''
+    mac = _norm_mac(request.args.get('mac'))
+    try:
+        cur = db.cursor()
+        cur.execute(
+            "SELECT j.*, p.mac_address, p.width_dots FROM print_jobs j "
+            "JOIN printers p ON p.id = j.printer_id WHERE j.id = %s", (token,))
+        job = _row_to_dict(cur, cur.fetchone())
+        # The token is an unguessable capability, but a job for printer A
+        # must never print on printer B: the MAC has to match too.
+        if not job or (mac and _norm_mac(job.get('mac_address')) != mac):
+            return Response(status=404)
+        payload = {}
+        try:
+            payload = json.loads(job.get('payload') or '{}')
+        except Exception:
+            pass
+        from services.label_printer import render_label
+        png = render_label(payload, job.get('width_dots'))
+        cur.execute(
+            "UPDATE print_jobs SET status = 'fetched', fetched_at = NOW() WHERE id = %s",
+            (token,))
+        db.commit()
+        return Response(png, mimetype='image/png')
+    except Exception as e:
+        logger.error(f"cloudprnt fetch error: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return Response(status=500)
+
+
+@cloudprnt_bp.route('/cloudprnt', methods=['DELETE'])
+def cloudprnt_confirm():
+    """Printer reports the print result."""
+    if not _cloudprnt_auth_ok():
+        return Response(status=403)
+    db = _db()
+    _ensure_tables(db)
+    token = request.args.get('token') or ''
+    code = str(request.args.get('code') or '')
+    try:
+        cur = db.cursor()
+        cur.execute("SELECT attempts FROM print_jobs WHERE id = %s", (token,))
+        row = cur.fetchone()
+        if not row:
+            return jsonify({'success': True})
+        attempts = (row[0] if not isinstance(row, dict) else row.get('attempts')) or 0
+        if code in ('200', 'OK', 'ok', ''):
+            cur.execute(
+                "UPDATE print_jobs SET status = 'printed', printed_at = NOW() WHERE id = %s",
+                (token,))
+        elif attempts + 1 < PRINT_RETRY_MAX:
+            # Automatic retry: back to queued, next poll re-delivers.
+            cur.execute(
+                "UPDATE print_jobs SET status = 'queued', attempts = attempts + 1, "
+                "error = %s WHERE id = %s", (f'printer result {code}', token))
+        else:
+            cur.execute(
+                "UPDATE print_jobs SET status = 'failed', attempts = attempts + 1, "
+                "error = %s WHERE id = %s", (f'printer result {code} (retries exhausted)', token))
+            logger.error(f"print job {token} failed permanently (code {code})")
+        db.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"cloudprnt confirm error: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False}), 500
+
+
+# ---------------------------------------------------------------------------
+# App-facing API
+# ---------------------------------------------------------------------------
+
+@bp.route('/label', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def print_label():
+    db = _db()
+    _ensure_tables(db)
+    data = request.get_json(silent=True) or {}
+    order_id = data.get('order_id')
+    station_id = data.get('station_id')
+    if not order_id:
+        return jsonify({'success': False, 'message': 'order_id is required'}), 400
+    try:
+        cur = db.cursor()
+        cur.execute(
+            "SELECT * FROM printers WHERE enabled = TRUE AND station_id = %s "
+            "ORDER BY id LIMIT 1", (station_id,))
+        printer = _row_to_dict(cur, cur.fetchone())
+        if not printer:
+            return jsonify({'success': False,
+                            'message': 'No enabled printer for this station'}), 404
+        payload = _snapshot_order(db, order_id, station_id)
+        if not payload:
+            return jsonify({'success': False, 'message': f'Order {order_id} not found'}), 404
+        job_id, created = _enqueue(db, printer['id'], payload, order_id=order_id)
+        return jsonify({'success': True, 'job_id': job_id, 'duplicate': not created})
+    except Exception as e:
+        logger.error(f"print_label error: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@bp.route('/reprint', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def reprint():
+    db = _db()
+    _ensure_tables(db)
+    data = request.get_json(silent=True) or {}
+    job_id = data.get('job_id')
+    try:
+        cur = db.cursor()
+        cur.execute("SELECT * FROM print_jobs WHERE id = %s", (str(job_id),))
+        job = _row_to_dict(cur, cur.fetchone())
+        if not job:
+            return jsonify({'success': False, 'message': 'job not found'}), 404
+        payload = {}
+        try:
+            payload = json.loads(job.get('payload') or '{}')
+        except Exception:
+            pass
+        new_id, _ = _enqueue(db, job['printer_id'], payload,
+                             order_id=None, job_type=job.get('type') or 'label')
+        return jsonify({'success': True, 'job_id': new_id})
+    except Exception as e:
+        logger.error(f"reprint error: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@bp.route('/test', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def test_print():
+    db = _db()
+    _ensure_tables(db)
+    data = request.get_json(silent=True) or {}
+    printer_id = data.get('printer_id')
+    try:
+        payload = {
+            'test': True,
+            'order_number': '000',
+            'name': 'Test Print',
+            'drink': 'Calibration',
+            'size': '',
+            'milk': '',
+            'modifiers': ['width ruler below'],
+            'station_name': 'Setup',
+            'ts': datetime.now().isoformat(),
+        }
+        job_id, _ = _enqueue(db, int(printer_id), payload, job_type='test')
+        return jsonify({'success': True, 'job_id': job_id})
+    except Exception as e:
+        logger.error(f"test_print error: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@bp.route('/jobs', methods=['GET'])
+@jwt_required_with_demo()
+def print_jobs_list():
+    db = _db()
+    _ensure_tables(db)
+    _sweep_stuck_jobs(db)
+    status = request.args.get('status')
+    station_id = request.args.get('station_id')
+    try:
+        cur = db.cursor()
+        q = ("SELECT j.id, j.printer_id, j.order_id, j.type, j.status, j.attempts, "
+             "j.error, j.created_at, j.printed_at, p.name AS printer_name, "
+             "p.station_id FROM print_jobs j LEFT JOIN printers p ON p.id = j.printer_id "
+             "WHERE 1=1")
+        params = []
+        if status:
+            q += " AND j.status = %s"
+            params.append(status)
+        if station_id:
+            q += " AND p.station_id = %s"
+            params.append(int(station_id))
+        q += " ORDER BY j.created_at DESC LIMIT 20"
+        cur.execute(q, params)
+        cols = [d[0] for d in cur.description]
+        jobs = []
+        for row in cur.fetchall():
+            d = dict(zip(cols, row)) if not isinstance(row, dict) else dict(row)
+            for k in ('created_at', 'printed_at'):
+                if hasattr(d.get(k), 'isoformat'):
+                    d[k] = d[k].isoformat()
+            jobs.append(d)
+        return jsonify({'success': True, 'jobs': jobs})
+    except Exception as e:
+        logger.error(f"print_jobs_list error: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@bp.route('/printers', methods=['GET'])
+@jwt_required_with_demo()
+def printers_list():
+    db = _db()
+    _ensure_tables(db)
+    try:
+        cur = db.cursor()
+        cur.execute("SELECT * FROM printers ORDER BY id")
+        cols = [d[0] for d in cur.description]
+        out = []
+        now = datetime.now()
+        for row in cur.fetchall():
+            d = dict(zip(cols, row)) if not isinstance(row, dict) else dict(row)
+            lp = d.get('last_poll_at')
+            online = bool(lp and (now - lp).total_seconds() <= CLOUDPRNT_POLL_TIMEOUT_S)
+            d['online'] = online
+            d['seconds_since_poll'] = int((now - lp).total_seconds()) if lp else None
+            for k in ('last_poll_at', 'created_at'):
+                if hasattr(d.get(k), 'isoformat'):
+                    d[k] = d[k].isoformat()
+            try:
+                d['last_status'] = json.loads(d.get('last_status') or '{}')
+            except Exception:
+                pass
+            out.append(d)
+        return jsonify({'success': True, 'printers': out})
+    except Exception as e:
+        logger.error(f"printers_list error: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@bp.route('/printers/<int:printer_id>', methods=['PATCH'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def update_printer(printer_id):
+    """Enable/assign a printer from the Support panel (onboarding step)."""
+    db = _db()
+    _ensure_tables(db)
+    data = request.get_json(silent=True) or {}
+    sets, params = [], []
+    for field in ('name', 'station_id', 'enabled', 'width_dots', 'ip_address', 'driver'):
+        if field in data:
+            sets.append(f"{field} = %s")
+            params.append(data[field])
+    if not sets:
+        return jsonify({'success': False, 'message': 'nothing to update'}), 400
+    try:
+        cur = db.cursor()
+        params.append(printer_id)
+        cur.execute(f"UPDATE printers SET {', '.join(sets)} WHERE id = %s", params)
+        db.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"update_printer error: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@bp.route('/preview', methods=['GET'])
+@jwt_required_with_demo()
+def preview_label():
+    """Browser-viewable label preview — iterate the design without paper.
+    ?order_id=... renders that order's snapshot; no order_id renders the
+    calibration test label. ?width= overrides PRINT_WIDTH_DOTS."""
+    db = _db()
+    _ensure_tables(db)
+    order_id = request.args.get('order_id')
+    width = request.args.get('width')
+    try:
+        if order_id:
+            payload = _snapshot_order(db, order_id)
+            if not payload:
+                return jsonify({'success': False, 'message': 'order not found'}), 404
+        else:
+            payload = {
+                'test': True, 'order_number': '047', 'name': 'Stephanie Routley',
+                'drink': 'flat white', 'size': 'medium', 'milk': 'oat',
+                'modifiers': ['Extra hot', '1 sugar'], 'station_name': 'Coffee Station 1',
+                'ts': datetime.now().isoformat(),
+            }
+        from services.label_printer import render_label
+        png = render_label(payload, int(width) if width else None)
+        return Response(png, mimetype='image/png')
+    except Exception as e:
+        logger.error(f"preview_label error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500

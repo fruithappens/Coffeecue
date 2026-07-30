@@ -547,6 +547,17 @@ def create_app():
     if has_readiness_api:
         app.register_blueprint(readiness_bp)
         logger.info("Readiness API routes registered")
+
+    # Print subsystem: /api/print/* (JWT'd app API) + /cloudprnt (public
+    # printer-polling endpoint for the Star mC-Label3 — printers can't
+    # OAuth; job delivery is MAC-gated with capability tokens).
+    try:
+        from routes.print_routes import bp as print_api_bp, cloudprnt_bp
+        app.register_blueprint(print_api_bp)
+        app.register_blueprint(cloudprnt_bp)
+        logger.info("Print API + CloudPRNT routes registered")
+    except Exception as print_err:
+        logger.error(f"Print routes failed to register: {print_err}")
         
     if has_support_api:
         app.register_blueprint(support_api_bp)
