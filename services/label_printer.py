@@ -52,7 +52,13 @@ def _load_font(size: int):
             return ImageFont.truetype(path, size)
         except Exception:
             continue
-    return ImageFont.load_default()
+    try:
+        # Pillow >= 10.1 embeds a scalable font (Aileron Regular), so
+        # containers with no system TTFs (e.g. Railway) still render at
+        # the requested size instead of the ~10px bitmap default.
+        return ImageFont.load_default(size)
+    except TypeError:
+        return ImageFont.load_default()
 
 
 def render_label_png(order: dict, branding: Optional[dict] = None,
