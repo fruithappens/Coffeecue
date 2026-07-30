@@ -2008,6 +2008,14 @@ def _station_can_make_order(db, station_id, order_details):
     requested_type = (order_details.get('type') or '').strip().lower()
     requested_milk = (order_details.get('milk') or '').strip().lower()
 
+    # 'no milk' (black coffee / tea) is ALWAYS makeable — every station
+    # can not-add milk. Without this, the canonicaliser below stripped
+    # the ' milk' suffix, turned 'no milk' into 'no', found 'no' in no
+    # station's milk list, and BLOCKED every long black at every station
+    # (full-sweep regression, matrix mx05/07/11/12).
+    if requested_milk in ('no milk', 'none', 'black'):
+        requested_milk = ''
+
     # Strip decaf prefix from drink type for the capability check —
     # decaf flat white is still a flat white capability-wise.
     if requested_type.startswith('decaf '):

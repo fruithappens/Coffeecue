@@ -5457,6 +5457,14 @@ class CoffeeOrderSystem:
             bool: Whether this order will be delayed until next break
         """
         try:
+            # 'no milk' is not a milk requirement — normalising it away up
+            # front keeps every downstream milk filter honest. Left in, the
+            # ".replace(' milk','')" canonicalisers turned it into the
+            # phantom milk 'no', no station "stocked" it, and every long
+            # black was refused (full-sweep regression, matrix mx07).
+            if milk_type and str(milk_type).strip().lower() in ('no milk', 'none', 'black'):
+                milk_type = None
+
             # Clear any ABORTED transaction left by an earlier failure on this
             # shared connection. Without this, every query below dies with
             # InFailedSqlTransaction and the outer except's last-resort

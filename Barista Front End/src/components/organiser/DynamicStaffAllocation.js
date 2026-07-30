@@ -402,9 +402,14 @@ const DynamicStaffAllocation = () => {
                         }}
                         className="border rounded px-2 py-1 text-xs"
                       >
+                        {/* Values are the CANONICAL station statuses the
+                            routing understands (active/inactive/maintenance).
+                            This select used to write 'break'/'offline' —
+                            statuses half the code treated as open and half
+                            as closed (station 2 got stuck that way). */}
                         <option value="active">Active</option>
-                        <option value="break">Break</option>
-                        <option value="offline">Offline</option>
+                        <option value="inactive">On break / closed</option>
+                        <option value="maintenance">Offline (maintenance)</option>
                       </select>
                     </td>
                   )}
