@@ -330,23 +330,49 @@ def create_backup():
         from utils.database import get_db_connection
         db = get_db_connection()
         cursor = db.cursor()
-        
-        # Get orders
-        cursor.execute("SELECT * FROM orders")
+
+        # NAMED columns, deliberately. This used to do SELECT * and label
+        # positional row[N]s — orders came back with order_number stored
+        # under 'customer_phone' and details under 'items': a backup that
+        # LOOKED fine and restored garbage. Emergency-tab audit catch.
+        cursor.execute("""
+            SELECT order_number, phone, order_details, status, station_id,
+                   created_at FROM orders ORDER BY created_at
+        """)
         orders = []
         for row in cursor.fetchall():
-            orders.append({'id': row[0], 'customer_phone': row[1], 'items': row[2]})
-        
-        # Get stations
-        cursor.execute("SELECT * FROM stations")
+            onum, phone, details, status, sid, created = (
+                row if not isinstance(row, dict)
+                else (row.get('order_number'), row.get('phone'),
+                      row.get('order_details'), row.get('status'),
+                      row.get('station_id'), row.get('created_at')))
+            orders.append({
+                'order_number': onum,
+                'phone': phone,
+                'order_details': details if not hasattr(details, 'items') or isinstance(details, dict) else str(details),
+                'status': status,
+                'station_id': sid,
+                'created_at': created.isoformat() if hasattr(created, 'isoformat') else str(created),
+            })
+
+        cursor.execute("SELECT id, name, location, status FROM stations ORDER BY id")
         stations = []
         for row in cursor.fetchall():
-            stations.append({'id': row[0], 'name': row[1], 'is_active': row[2]})
-        
+            sid, name, loc, status = (
+                row if not isinstance(row, dict)
+                else (row.get('id'), row.get('name'),
+                      row.get('location'), row.get('status')))
+            stations.append({'id': sid, 'name': name,
+                             'location': loc, 'status': status})
+
         # Get settings
         cursor.execute("SELECT key, value FROM settings")
-        settings = {row[0]: row[1] for row in cursor.fetchall()}
-        
+        settings = {}
+        for row in cursor.fetchall():
+            k, v = (row if not isinstance(row, dict)
+                    else (row.get('key'), row.get('value')))
+            settings[k] = v
+
         cursor.close()
         
         # Create backup data
