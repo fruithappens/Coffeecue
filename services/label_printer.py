@@ -178,7 +178,10 @@ import os
 
 PRINT_WIDTH_DOTS = int(os.environ.get('PRINT_WIDTH_DOTS', '406'))
 LABEL_MIN_HEIGHT = int(os.environ.get('LABEL_MIN_HEIGHT', '380'))
-LABEL_MAX_HEIGHT = int(os.environ.get('LABEL_MAX_HEIGHT', '520'))
+# 640 dots ≈ 80mm of stock — leaves room for the optional logo + event
+# name + footer line without cropping; plain labels still cut short
+# because height is content-driven.
+LABEL_MAX_HEIGHT = int(os.environ.get('LABEL_MAX_HEIGHT', '640'))
 
 
 def label_display_name(full_name: str) -> str:
@@ -191,18 +194,53 @@ def label_display_name(full_name: str) -> str:
     return f"{parts[0][:16]} {parts[1][0].upper()}."
 
 
-def render_label(payload: dict, width_dots: int = None) -> bytes:
+def _decode_logo_to_1bit(logo_data_uri: str, max_width: int, max_height: int = 120):
+    """Branding logo (base64 data URI) → 1-bit dithered PIL image sized to
+    the label, or None on any problem. Never raises — a broken logo must
+    never break a label."""
+    try:
+        import base64
+        import io as _io
+        from PIL import Image
+        raw = logo_data_uri.split(',', 1)[1] if ',' in logo_data_uri else logo_data_uri
+        img = Image.open(_io.BytesIO(base64.b64decode(raw)))
+        # Flatten transparency onto white before thresholding.
+        if img.mode in ('RGBA', 'LA', 'P'):
+            bg = Image.new('RGB', img.size, 'white')
+            img = img.convert('RGBA')
+            bg.paste(img, mask=img.split()[-1])
+            img = bg
+        img = img.convert('L')
+        ratio = min(max_width / img.width, max_height / img.height, 1.0)
+        img = img.resize((max(1, int(img.width * ratio)),
+                          max(1, int(img.height * ratio))))
+        return img.convert('1')  # Floyd-Steinberg dither — thermal-friendly
+    except Exception:
+        return None
+
+
+def render_label(payload: dict, width_dots: int = None,
+                 options: dict = None) -> bytes:
     """Render a print-job payload snapshot to a 1-bit PNG.
 
     payload keys (all optional, sensible fallbacks):
       order_number, name, drink, size, milk, modifiers (list[str]),
       station_name, ts (ISO time string), test (bool).
+
+    options (label_settings KV — presentation only, applied at RENDER
+    time so a design change affects queued jobs too):
+      show_event_name (bool), event_name (str),
+      show_logo (bool), logo_data (base64 data URI, from branding),
+      show_station_time (bool, default True),
+      footer_text (str — e.g. 'CoffeeCue - coffeecue.com' or a
+      sponsor/reseller line; empty = no footer line).
     """
     from PIL import Image, ImageDraw
     from datetime import datetime
 
     W = int(width_dots or PRINT_WIDTH_DOTS)
     payload = payload or {}
+    options = options or {}
 
     order_number = str(payload.get('order_number') or '—')
     name = label_display_name(payload.get('name'))
@@ -244,6 +282,20 @@ def render_label(payload: dict, width_dots: int = None) -> bytes:
             draw.text((x + 2, y + 12), str(x), fill=0, font=f_foot)
         y += 40
 
+    # 0a. Logo (branding, dithered to 1-bit), centred.
+    if options.get('show_logo') and options.get('logo_data'):
+        logo = _decode_logo_to_1bit(options['logo_data'], W - 2 * margin)
+        if logo is not None:
+            img.paste(logo, ((W - logo.width) // 2, y))
+            y += logo.height + 8
+
+    # 0b. Event name header.
+    if options.get('show_event_name') and (options.get('event_name') or '').strip():
+        f_event = _load_font(28)
+        draw.text((margin, y), str(options['event_name']).strip()[:26],
+                  fill=0, font=f_event)
+        y += 36
+
     # 1. Order number — the arm's-length element.
     draw.text((margin, y), f"#{order_number}", fill=0, font=f_num)
     y += 126
@@ -267,13 +319,31 @@ def render_label(payload: dict, width_dots: int = None) -> bytes:
         draw.text((margin, y), ', '.join(modifiers)[:34], fill=0, font=f_mods)
         y += 36
 
-    # 5. Footer: station + time, separated by a rule.
-    y += 4
-    draw.line([(margin, y), (W - margin, y)], fill=0)
-    y += 6
-    foot = ' · '.join([p for p in (station, hhmm) if p]) or hhmm
-    draw.text((margin, y), foot[:40], fill=0, font=f_foot)
-    y += 32
+    # 5. Footer: station + time, separated by a rule (toggleable).
+    if options.get('show_station_time', True):
+        y += 4
+        draw.line([(margin, y), (W - margin, y)], fill=0)
+        y += 6
+        foot = ' · '.join([p for p in (station, hhmm) if p]) or hhmm
+        draw.text((margin, y), foot[:40], fill=0, font=f_foot)
+        y += 32
+
+    # 6. Ordering instructions + branding footer — both optional,
+    # centred, small. instructions_text is the "how to order again"
+    # line ('Order: SMS 0489 263 333 or the event app'); footer_text is
+    # branding/reseller ('CoffeeCue - coffeecue.com', Wallfly, ...).
+    f_brand = _load_font(22)
+    for line in (str(options.get('instructions_text') or '').strip(),
+                 str(options.get('footer_text') or '').strip()):
+        if not line:
+            continue
+        try:
+            tw = draw.textlength(line[:38], font=f_brand)
+        except Exception:
+            tw = len(line[:38]) * 11
+        draw.text((max(margin, (W - int(tw)) // 2), y),
+                  line[:38], fill=0, font=f_brand)
+        y += 28
 
     height = max(LABEL_MIN_HEIGHT, min(LABEL_MAX_HEIGHT, y))
     img = img.crop((0, 0, W, height))
