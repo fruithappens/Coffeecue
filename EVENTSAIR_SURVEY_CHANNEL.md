@@ -44,6 +44,31 @@ Name it "☕ Coffee Order — <Break Name>". Milk left unanswered defaults
 to full cream **and the confirmation SMS recaps it** (visible, never
 silent — house rule).
 
+## First EA access — the 20-minute session (do this FIRST)
+
+Everything below is clickable in **Support → EventsAir** — no terminal
+needed:
+
+1. **Paste credentials** into the "EventsAir API credentials" card
+   (Client ID, Client secret, tenant GraphQL endpoint, EA event ID) →
+   **Save** → **Test connection**. Green toast = authenticated.
+2. **Inspect schema** → wait a few seconds → a report appears with a
+   findings list ("survey response fetch: …", "webhook subscription
+   create: …", "app push mutation: none visible"). **Copy report** and
+   paste it back to Claude — the integration's GraphQL queries get
+   patched to the tenant's real field names from it (the "few tweaks").
+3. While in EA's console: create the **☕ Coffee Order survey** (design
+   below) and note its survey ID; also note whether a contact can
+   re-submit the same survey (open question #2).
+4. Optional extras worth grabbing in the same sitting: scan a badge and
+   photograph/dump the QR string (research checklist #6), and check
+   whether an event-app external link accepts `?cid={ContactID}` merge
+   fields (#7) — that link is what lights up kiosk pre-identification,
+   which is already live: `/display/order?cid=…` greets the attendee by
+   name, skips the name+phone steps, and texts their registered number.
+
+After the query patch lands, continue with the runbook below.
+
 ## Setup runbook (once credentials exist)
 
 1. Set the env vars; redeploy. Keep `EA_SURVEY_CHANNEL_ENABLED=false`.

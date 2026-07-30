@@ -2869,6 +2869,17 @@ def pickup_order(order_id):
                         pass
 
             _emit_order_status_change(clean_id, 'picked_up')
+
+            # EA Phase-2 write-back: EA-linked orders push a summary line
+            # onto the attendee's EventsAir custom field. Daemon thread,
+            # gated on the channel + writeback toggles — zero impact when
+            # off, and never on the pickup response either way.
+            try:
+                from routes.ea_survey_routes import maybe_writeback_order
+                maybe_writeback_order(current_app._get_current_object(), clean_id)
+            except Exception:
+                pass
+
             return jsonify({"success": True, "message": "Order marked as picked up successfully"})
         else:
             logger.error(f"Failed to update order: {clean_id}")
@@ -3984,6 +3995,37 @@ def create_kiosk_order():
             sugar = 'No sugar'
         note = (data.get('note') or data.get('notes') or '').strip()
 
+        # EventsAir pre-identification (research Phase 4.8): the EA app
+        # links here with ?cid={ContactID}; the kiosk passes it through.
+        # Name and phone come from the SERVER-side attendee mirror — the
+        # browser never sees the number. Unknown/absent cid changes
+        # nothing.
+        ea_contact_id = str(data.get('ea_contact_id') or '').strip()
+        ea_phone = ''
+        if ea_contact_id:
+            try:
+                cur0 = db.cursor()
+                cur0.execute("SELECT to_regclass('ea_attendees') IS NOT NULL")
+                _r0 = cur0.fetchone()
+                if _r0 and (_r0[0] if not isinstance(_r0, dict) else list(_r0.values())[0]):
+                    cur0.execute(
+                        "SELECT first_name, last_name, mobile_e164 FROM ea_attendees "
+                        "WHERE ea_contact_id = %s", (ea_contact_id,))
+                    att = cur0.fetchone()
+                    if att:
+                        fn, ln, mob = ((att.get('first_name'), att.get('last_name'),
+                                        att.get('mobile_e164'))
+                                       if isinstance(att, dict) else att)
+                        if not name:
+                            name = ' '.join(p for p in ((fn or '').strip(),
+                                                        (ln or '').strip()[:1]) if p)
+                        ea_phone = (mob or '').strip()
+                    else:
+                        ea_contact_id = ''  # unknown cid — behave as anonymous
+            except Exception as ea_err:
+                logger.warning(f"kiosk EA lookup skipped (fail-open): {ea_err}")
+                ea_contact_id = ''
+
         if not name or len(name) < 2:
             return jsonify({'success': False, 'message': 'Please enter your name.'}), 400
         if not coffee_type:
@@ -4031,6 +4073,10 @@ def create_kiosk_order():
                 phone = coffee_system._normalize_phone(raw_phone)
             except Exception:
                 phone = raw_phone
+        # EA-identified and no number typed: use the registration mobile
+        # (resolved server-side above) so the ready-SMS just works.
+        if not phone and ea_phone:
+            phone = ea_phone
 
         try:
             db.rollback()
@@ -4131,6 +4177,10 @@ def create_kiosk_order():
             'station_id': target,
             'stationId': target,
         }
+        if ea_contact_id:
+            # EA-linked kiosk order: carries the contact id so Phase-2
+            # write-back (and future EA notifications) can find them.
+            order_details['ea_contact_id'] = ea_contact_id
         try:
             if hasattr(coffee_system, '_compute_order_price'):
                 pv, pf = coffee_system._compute_order_price({

@@ -69,6 +69,28 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
   const [result, setResult] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
 
+  // EventsAir pre-identification: the EA event app links to this page
+  // with ?cid={ContactID}. We ask the server who that is (first name +
+  // has_phone only — the number itself never reaches the browser) and
+  // skip the name/phone steps. Unknown cid or channel off → normal flow.
+  const [eaIdentity, setEaIdentity] = useState(null); // {cid, firstName, hasPhone}
+  useEffect(() => {
+    const cid = new URLSearchParams(window.location.search).get('cid');
+    if (!cid) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`/api/ea/hello?cid=${encodeURIComponent(cid)}`);
+        const b = await r.json();
+        if (!cancelled && r.ok && b.success && b.first_name) {
+          setEaIdentity({ cid, firstName: b.first_name, hasPhone: !!b.has_phone });
+          setName(b.first_name);
+        }
+      } catch (e) { /* anonymous flow */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   const myStation = useMemo(() => {
     const n = parseInt(stationId, 10);
     return Number.isFinite(n) ? n : null;
@@ -198,8 +220,12 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
   const sizeChoices = menu?.sizes || [];
   const needsSizeStep = sizeChoices.length > 1;
 
-  // After sugar: choose a station if there's a choice, else auto-route.
-  const afterSugar = () => setStep('name');
+  // After sugar: EA-identified visitors skip the name step (we already
+  // greeted them by their registration name); everyone else types one.
+  const afterSugar = () => {
+    if (eaIdentity) { afterName(); return; }
+    setStep('name');
+  };
   // After the name: choose a station if there's a choice, else auto-route.
   const afterName = () => {
     if (capable.length > 1) { setStep('location'); return; }
@@ -211,8 +237,13 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
   // with no phone / on international roaming must still be able to order. If
   // they skip, they watch the board for their name (and the collect-from
   // station is shown on review + the board). Entering a number just opts them
-  // into a ready-SMS.
-  const routeFromStation = () => setStep('phone');
+  // into a ready-SMS. EA-identified attendees whose registration has a
+  // mobile skip the step entirely — the server attaches it for the
+  // ready-SMS without the number ever reaching this screen.
+  const routeFromStation = () => {
+    if (eaIdentity && eaIdentity.hasPhone) { setStep('review'); return; }
+    setStep('phone');
+  };
   const chooseStation = (sid) => { setChosenStation(sid); routeFromStation(); };
 
   const collectingHere = myStation != null && chosenStation === myStation;
@@ -235,6 +266,7 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
           station_id: myStation,
           preferred_station: chosenStation,
           phone: phone.trim(),
+          ea_contact_id: eaIdentity?.cid || undefined,
         }),
       });
       const b = await r.json();
@@ -335,7 +367,22 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
         {/* ---------- DRINK (first screen) ---------- */}
         {step === 'drink' && (
           <>
-            <Header title="Order here ☕ — pick a drink" />
+            <Header title={eaIdentity
+              ? `Hi ${eaIdentity.firstName}! Pick a drink ☕`
+              : 'Order here ☕ — pick a drink'} />
+            {eaIdentity && (
+              <div className="flex items-center justify-center -mt-2 mb-2">
+                <span className="text-sm text-gray-500">
+                  Ordering as <strong>{eaIdentity.firstName}</strong> (from your event registration)
+                </span>
+                <button
+                  className="ml-2 text-sm text-blue-600 underline"
+                  onClick={() => { setEaIdentity(null); setName(''); }}
+                >
+                  Not you?
+                </button>
+              </div>
+            )}
             {loadingMenu ? (
               <div className="flex items-center justify-center py-16 text-gray-500"><Loader className="animate-spin mr-2" /> Loading menu…</div>
             ) : (menu?.coffee_types || []).length === 0 ? (
@@ -525,9 +572,11 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
                 <MapPin size={20} /> Collect from {chosenStation != null ? stationName(chosenStation) : 'the next available station'}
                 {chosenStation != null && waitText(chosenStation) ? ` · ${waitText(chosenStation)}` : ''}
               </div>
-              {phone.trim() && (
+              {phone.trim() ? (
                 <div className="mt-1 text-base text-gray-500">We'll text {phone.trim()} when it's ready.</div>
-              )}
+              ) : (eaIdentity && eaIdentity.hasPhone && (
+                <div className="mt-1 text-base text-gray-500">We'll text your registered number when it's ready.</div>
+              ))}
             </div>
             {/* Impossible combination: say so BEFORE they tap, and
                 disable the button — it used to show the error while
