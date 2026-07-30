@@ -10,11 +10,38 @@ up here as unticked rows.
 
 ## ⏯ RESUME HERE — for the next session told to "continue testing"
 
-**State of play (updated 2026-07-19, batch 2):** 25 suites + Phase C UI
-tests; **Phase B+ queue AND journey/matrix batch 2 are COMPLETE.** Latest
-runs all green: batch-2 suites 60/0/1→ then matrix 23/0/0 after the last
-fix (the standing warn is the schedule design note; empty-stock refusal
-leg auto-skips while the event runs unlimited-stock mode).
+**State of play (updated 2026-07-31, post-#184):** 33 registered suites.
+The 2026-07-30 full sweep ran 203/6/3/3; all six failures were
+root-caused and fixed (no-milk phantom-milk routing, non-canonical
+station statuses, stale queue orders), stations re-ran green. Since then
+three feature systems shipped WITH their permanent guards in the same
+PRs: **print system** (#175–#178: `print_preview` catches the
+bitmap-font regression by PNG size, `print_pipeline` replays the whole
+CloudPRNT cycle with a simulated MAC — 11/11 live), **EventsAir survey
+channel** (#179–#183: `ea_channel` asserts an unsigned webhook can NEVER
+2xx; channel dark behind `EA_SURVEY_CHANNEL_ENABLED`), and the
+**feature-wave guards** (#183: `features_ro` + `features_flow` covering
+sugar-as-one-item, honest low-stock feed, broadcast audiences, milk
+default, ETA scheduling, pre-event divert). The features suites' FIRST
+run caught bugs #17–18: the doubled "Thanks {name}! Thanks {name}!"
+pre-event greeting, and the preorders broadcast audience counting ~400
+recipients — mostly the bench's own accumulated fake phones (a real
+blast would have billed an SMS per ghost). Broadcast now excludes the
+bench prefix and `POST /api/support/bench-hygiene` purges residue (the
+flow suite self-cleans through it). Uptime ping added (#184: scheduled
+GitHub Action on /api/health, emails on double failure).
+
+**Next when told to continue:** (1) browser-only-config audit → KV
+migration (IMPROVEMENTS #7, in progress); (2) inventory status
+vocabulary (IMPROVEMENTS #6); (3) the security sweep the moment Steve
+says go; (4) mC-Label3 physical print test when the printer arrives
+(~mid-August); (5) EA live wiring the day credentials land — runbook in
+`EVENTSAIR_SURVEY_CHANNEL.md`, schema inspector ready in Support → EventsAir.
+
+**Prior state (2026-07-19, batch 2):** Phase B+ queue AND journey/matrix
+batch 2 COMPLETE; batch-2 suites 60/0/1, matrix 23/0/0 (the standing
+warn is the schedule design note; empty-stock refusal leg auto-skips
+while the event runs unlimited-stock mode).
 
 Everything shipped as PRs #109–#121, each validated live. Building these
 tests caught and fixed **TEN real bugs**: the second FRIEND wiped the
@@ -323,7 +350,8 @@ Cypress) · ⚠️ mutating (needs opt-in / test event)
 
 ## 10. UI-only surface (Phase C — Cypress)
 Barista: 12 tabs + Messages bubble + walk-in/wait dialogs. Organiser: 11
-sections. Support: 9 tabs. Display: orders/pickup modes + kiosk touch flow.
+sections. Support: 11 tabs (now incl. Printers + EventsAir). Display:
+orders/pickup modes + kiosk touch flow (incl. `?cid=` pre-identified lane).
 Mobile layouts for all three. Cypress is installed; start with the
 click-paths listed in the parked section above.
 
@@ -338,6 +366,12 @@ click-paths listed in the parked section above.
   queue/wait/routing/group suites. Validated live 2026-07-18: 103/0/1.
 - **Phase B+ (this queue):** items 1–8 above.
 - **Phase C (after B+):** Cypress UI automation.
+- **Phase D (2026-07-21→31, done):** Steve's live-feedback wave — ~40 PRs
+  (#146–#184): display board flip/spin/controls, kiosk drink-first +
+  touchscreen toggle, sugar model, milk defaults, low-stock surfacing,
+  pre-event pre-orders, ETA scheduling, broadcast audiences, print
+  system, EA survey channel — each landing with bench guards
+  (suites_print / suites_ea / suites_features). Bench bug count: 18.
 - **Security sweep (on Steve's word):** role gates, user CRUD, auth edges.
 
 ## Re-enumerating the surface (run when the app grows)

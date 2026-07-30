@@ -6,18 +6,19 @@ for the upcoming **400-person event**. Nothing here is currently broken
 for events at the scale run so far; these are the places where margin is
 thinnest or behaviour is quietly less than it appears.
 
-Evidence base: the full test campaign (26 bench suites, 23 UI tests,
-14 bugs found+fixed) + the 2026-07-20 load test (two runs, 720 requests,
-0 errors: 48 orders in ~11s ≈ 100× the event's realistic peak; read p95
-1.5s under 20 pollers; SMS turn p95 ~2.8s under 12-way burst).
+Evidence base: the full test campaign (33 bench suites, 23 UI tests,
+**18 bugs found+fixed by the bench alone**, latest full sweep 2026-07-30
+203 pass / all 6 fails fixed) + the 2026-07-20 load test (two runs, 720
+requests, 0 errors: 48 orders in ~11s ≈ 100× the event's realistic peak;
+read p95 1.5s under 20 pollers; SMS turn p95 ~2.8s under 12-way burst).
 
 ## Tier 1 — do before the 400-person event
 
 | # | Weak point | Why it matters at 400 pax | Proposed fix | Effort |
 |---|---|---|---|---|
-| 1 | **Security not yet swept** — role gates unverified; Twilio creds were once committed; webhook signature validation missing | A public event is when someone pokes at it | Run the parked security sweep (role-gate suite + creds rotation + Twilio signature check) | ~half day incl. fixes |
-| 2 | **Single Railway instance, no monitoring** — if the dyno dies mid-rush, everything stops and nobody is alerted | 400 people notice a 5-minute outage | Add a dead-simple uptime ping (UptimeRobot-class, free) on /api/display/config + Railway restart-on-failure is already on; agree a "display down" paper fallback with baristas | 1 hour |
-| 3 | **Real-SMS smoke untested per-event** — the bench is zero-real-SMS by design; carrier quirks only show on real phones | The duplicate-SMS bug came from a real phone | Event-morning ritual: the group test tool (`run_group_test.sh`) with 3-5 real phones + review its report; budget ~10 SMS | 15 min on the day |
+| 1 | **Security not yet swept** — role gates unverified; Twilio creds were once committed; webhook signature validation missing | A public event is when someone pokes at it | Run the parked security sweep (role-gate suite + creds rotation + Twilio signature check). Steve 2026-07-31: "happy to address shortly" | ~half day incl. fixes |
+| 2 | ~~Single instance, no monitoring~~ **FIXED 2026-07-31 (#184)** | — | Scheduled GitHub Action pings /api/health every 10 min; two consecutive failures fail the workflow → GitHub emails the owner. Still agree the "display down" paper fallback with baristas | done |
+| 3 | **Real-SMS smoke untested per-event** — the bench is zero-real-SMS by design; carrier quirks only show on real phones | The duplicate-SMS bug came from a real phone | Event-morning ritual: the group test tool (`run_group_test.sh`) with 3-5 real phones + review its report; budget ~10 SMS. Steve is up for a test run — script being prepared | 15 min on the day |
 
 ## Tier 2 — worth doing soon (functional gaps found by testing)
 
@@ -26,7 +27,7 @@ Evidence base: the full test campaign (26 bench suites, 23 UI tests,
 | 4 | ~~SMS templates are decorative~~ **FIXED 2026-07-20 (#135)** | ready/started SMS now template-driven (sms_ready_message / sms_started_message, placeholders {name} {drink} {order_number} {station}), blank = default, GSM-7 cost guard warns; confirm stays hardcoded by design (dynamic queue/group/price) | proven live: bench writes a marked template and reads back the rendered customer message | done |
 | 5 | ~~Roster names silently dropped~~ **FIXED 2026-07-20 (#135)** | station_schedule.barista_name persists; today's schedule prefers the shift's own name (falls back to the station's assignee) | bench asserts persistence every run | done |
 | 6 | **Inventory status vocabulary split** | Stored `low_stock/in_stock` vs computed `good/warning/danger` depending on endpoint | Pick the computed family as canon, delete the stored writes, one serializer | small |
-| 7 | **Some organiser config is browser-only** | A few settings (parts of station inventory config, walk-in defaults) live in localStorage — a different laptop shows different config | Continue the KV-backend migration pattern already used elsewhere | medium |
+| 7 | **Some organiser config is browser-only** | A few settings (parts of station inventory config, walk-in defaults) live in localStorage — a different laptop shows different config | Continue the KV-backend migration pattern already used elsewhere. IN PROGRESS 2026-07-31 (audit under way) | medium |
 
 **Bonus find while fixing #4 (bug #15, fixed in #135):** the settings cache
 never invalidated on the bulk settings PUT — ANY setting the server had
@@ -54,3 +55,14 @@ organiser changed in the UI. Now evicted per written key.
   anomalies (no reply, error-ish replies, confirmed-but-no-order).
 - `bash testbench/run_load_test.sh` — the load test above; run it any
   evening before the event for a fresh PASS.
+
+## Added 2026-07-31 (feature-wave hardening)
+- Permanent suites: `print_preview`/`print_pipeline` (mC-Label3
+  CloudPRNT), `ea_channel` (EventsAir survey channel, unsigned-webhook
+  wall), `features_ro`/`features_flow` (sugar model, low-stock feed,
+  broadcast audiences, milk default, ETA scheduling, pre-event divert).
+- `POST /api/support/bench-hygiene` — purges bench-simulator residue
+  from customer_preferences; the broadcast audiences also structurally
+  exclude the bench phone prefix (bug #18: a preorders blast would have
+  billed ~400 SMS to the bench's own ghosts).
+- Uptime workflow `.github/workflows/uptime.yml` (#184).
