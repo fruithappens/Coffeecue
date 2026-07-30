@@ -1079,6 +1079,9 @@ class CoffeeOrderSystem:
                     bool(od.get('vip')), od.get('milk'), od.get('type'), od.get('size'))
             except Exception:
                 station_id = 1
+            # Customer-facing summary must not include the arrival note below:
+            # the reply already states the ready time, so build it first.
+            summary = self.nlp.format_order_summary(od)
             od.update({
                 'name': name,
                 'order_type': 'sms',
@@ -1111,7 +1114,6 @@ class CoffeeOrderSystem:
                 (order_number, phone, json.dumps(od), station_id, now, now))
             self.db.commit()
             self._set_conversation_state(phone, 'completed')
-            summary = self.nlp.format_order_summary(od)
             return (f"Great {name}! Your {summary} is scheduled — we'll start "
                     f"making it just before you arrive, ready about "
                     f"{arrival.strftime('%H:%M')}. Order #{order_number}. "
