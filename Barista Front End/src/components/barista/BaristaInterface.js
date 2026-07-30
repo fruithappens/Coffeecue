@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { ToastManager, showToast } from '../shared/Toast';
 import AuthService from '../../services/AuthService';
+import printService from '../../services/PrintService';
 import { 
   Coffee, Package, Calendar, Check, Monitor, Settings,
   MessageCircle, Printer, Plus, Clock,
@@ -180,6 +181,30 @@ const BaristaInterface = () => {
   };
   
   const [activeTab, setActiveTabState] = useState(loadActiveTab());
+
+  // Label printer (Star mC-Label3 via CloudPRNT). The list is polled so the
+  // header chip tracks online/offline; auto-print is a per-DEVICE choice
+  // (this tablet opts in), stored in localStorage per station.
+  const [printers, setPrinters] = useState([]);
+  const [autoPrintLabels, setAutoPrintLabelsState] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    const loadPrinters = async () => {
+      const list = await printService.getPrinters();
+      if (!cancelled) setPrinters(list);
+    };
+    loadPrinters();
+    const timer = setInterval(loadPrinters, 30000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, []);
+  useEffect(() => {
+    setAutoPrintLabelsState(printService.isAutoPrintEnabled(selectedStation));
+  }, [selectedStation]);
+  const stationPrinter = printService.findStationPrinter(printers, selectedStation);
+  const setAutoPrintLabels = (enabled) => {
+    printService.setAutoPrint(selectedStation, enabled);
+    setAutoPrintLabelsState(enabled);
+  };
 
   // Role gate for manager-only tabs. A plain BARISTA on the floor should
   // see order-flow tools only (Orders, Stock, Inventory AI, Schedule,
@@ -876,16 +901,39 @@ const BaristaInterface = () => {
   // if the order isn't actually grouped.
   const handleStartGroup = async (order) => {
     const gid = order.groupId || order.group_id;
-    if (!gid) return startOrder(order);
+    if (!gid) return startOrderWithLabel(order);
     const members = (pendingOrders || []).filter(
       o => (o.groupId || o.group_id) === gid
     );
-    if (members.length === 0) return startOrder(order);
+    if (members.length === 0) return startOrderWithLabel(order);
     for (const m of members) {
       // Sequential so the backend/station load updates cleanly per order.
       // eslint-disable-next-line no-await-in-loop
-      await startOrder(m);
+      await startOrderWithLabel(m);
     }
+  };
+
+  // Queue a cup label. Fire-and-forget: printing must never block or fail
+  // the order flow — a problem surfaces as a toast and in the Support
+  // print queue, nothing else.
+  const handlePrintLabel = async (order, { reprint = false } = {}) => {
+    const id = order?.id || order;
+    const r = reprint
+      ? await printService.reprintLabel(id)
+      : await printService.printLabel(id, selectedStation);
+    if (r?.success) {
+      showToast(`Label queued for order #${id}`, 'success');
+    } else {
+      showToast(`Label not printed: ${r?.message || 'printer unavailable'}`, 'warning');
+    }
+  };
+
+  const startOrderWithLabel = async (order) => {
+    const result = await startOrder(order);
+    if (autoPrintLabels && stationPrinter) {
+      handlePrintLabel(order);
+    }
+    return result;
   };
 
   // Enhanced order completion function with guaranteed notifications
@@ -1285,6 +1333,17 @@ const BaristaInterface = () => {
               >
                 <MessageCircle size={18} />
               </button>
+              {stationPrinter && (
+                <button
+                  className="px-3 rounded-lg flex items-center justify-center bg-gray-200 hover:bg-gray-300 text-gray-700"
+                  onClick={() => handlePrintLabel(order)}
+                  title={stationPrinter.online
+                    ? 'Print cup label'
+                    : 'Print cup label (printer looks offline — job will queue)'}
+                >
+                  <Printer size={18} />
+                </button>
+              )}
             </div>
           );
         })()}
@@ -1353,18 +1412,27 @@ const BaristaInterface = () => {
           )}
         </div>
         <div className="mt-3 flex space-x-2">
-          <button 
+          <button
             className="flex-1 bg-amber-600 text-white py-1 rounded text-sm hover:bg-amber-700"
             onClick={() => handleSendReminder(order)}
           >
             Remind
           </button>
-          <button 
+          <button
             className="flex-1 bg-green-500 text-white py-1 rounded text-sm hover:bg-green-600"
             onClick={() => markOrderPickedUp(order.id)}
           >
             Picked Up
           </button>
+          {stationPrinter && (
+            <button
+              className="px-2 bg-gray-200 text-gray-700 py-1 rounded text-sm hover:bg-gray-300 flex items-center"
+              onClick={() => handlePrintLabel(order, { reprint: true })}
+              title="Reprint label (uses the original order details)"
+            >
+              <Printer size={14} />
+            </button>
+          )}
         </div>
       </div>
     );
@@ -2017,6 +2085,23 @@ const BaristaInterface = () => {
             );
           })}
 
+          {/* Label printer chip — only shown when this station has an
+              enabled printer assigned. Green = polled within the last 15s,
+              red = printer has stopped polling (power/WiFi). Desktop only,
+              like the station pills. */}
+          {stationPrinter && (
+            <div
+              className={`px-3 py-1 rounded-full text-sm hidden md:flex items-center ${
+                stationPrinter.online ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}
+              title={stationPrinter.online
+                ? `${stationPrinter.name || 'Label printer'}: online`
+                : `${stationPrinter.name || 'Label printer'}: OFFLINE — check power/WiFi. Labels will queue and print when it reconnects.`}
+            >
+              <Printer size={14} className="mr-1" />
+              {stationPrinter.online ? 'Labels' : 'Labels off'}
+            </div>
+          )}
+
           {/* Customer questions + station chat now live in the blue Messages
               bubble (bottom-right); the static HELP button was removed to
               declutter the header. */}
@@ -2305,7 +2390,7 @@ const BaristaInterface = () => {
               orders={pendingOrders}
               filter={filter}
               onFilterChange={setFilter}
-              onStartOrder={startOrder}
+              onStartOrder={startOrderWithLabel}
               onProcessBatch={processBatch}
               onSendMessage={handleOpenMessageDialog}
               onDelayOrder={handleDelayOrder}
@@ -2779,6 +2864,47 @@ const BaristaInterface = () => {
             <div className="bg-white rounded-lg shadow-md p-4">
               <h2 className="text-xl font-bold mb-4">Notification Settings</h2>
               <NotificationSettings />
+            </div>
+            {/* Label Printing — per-device auto-print toggle. Deliberately
+                OFF by default: the operator opts each station's tablet in
+                once the printer is confirmed working. */}
+            <div className="bg-white rounded-lg shadow-md p-4">
+              <h2 className="text-xl font-bold mb-4">Label Printing</h2>
+              {stationPrinter ? (
+                <div className="space-y-3">
+                  <div className="text-sm text-gray-600 flex items-center">
+                    <Printer size={16} className="mr-2" />
+                    {stationPrinter.name || 'Label printer'} —{' '}
+                    <span className={stationPrinter.online ? 'text-green-600 font-medium ml-1' : 'text-red-600 font-medium ml-1'}>
+                      {stationPrinter.online ? 'online' : 'offline'}
+                    </span>
+                  </div>
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={autoPrintLabels}
+                      onChange={(e) => setAutoPrintLabels(e.target.checked)}
+                    />
+                    <span>Automatically print a cup label when an order is started</span>
+                  </label>
+                  <button
+                    className="bg-gray-200 text-gray-700 px-3 py-1.5 rounded text-sm hover:bg-gray-300"
+                    onClick={async () => {
+                      const r = await printService.testPrint(stationPrinter.id);
+                      showToast(r?.success ? 'Test label queued' : `Test failed: ${r?.message || 'unknown'}`,
+                        r?.success ? 'success' : 'error');
+                    }}
+                  >
+                    Print test label
+                  </button>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">
+                  No label printer is assigned to this station. Printers are set
+                  up in Support → Printers (they appear there automatically the
+                  first time they connect).
+                </p>
+              )}
             </div>
             <div className="bg-white rounded-lg shadow-md p-4">
               <h2 className="text-xl font-bold mb-4">Auto-Refresh Settings</h2>

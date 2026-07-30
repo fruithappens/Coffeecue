@@ -385,6 +385,13 @@ def print_label():
         return jsonify({'success': False, 'message': 'order_id is required'}), 400
     try:
         cur = db.cursor()
+        if not station_id:
+            # Callers usually don't know the station — take it from the order.
+            cur.execute("SELECT station_id FROM orders WHERE order_number = %s",
+                        (str(order_id),))
+            row = cur.fetchone()
+            if row:
+                station_id = row[0] if not isinstance(row, dict) else row.get('station_id')
         cur.execute(
             "SELECT * FROM printers WHERE enabled = TRUE AND station_id = %s "
             "ORDER BY id LIMIT 1", (station_id,))
@@ -414,12 +421,24 @@ def reprint():
     _ensure_tables(db)
     data = request.get_json(silent=True) or {}
     job_id = data.get('job_id')
+    order_id = data.get('order_id')
     try:
         cur = db.cursor()
-        cur.execute("SELECT * FROM print_jobs WHERE id = %s", (str(job_id),))
+        if job_id:
+            cur.execute("SELECT * FROM print_jobs WHERE id = %s", (str(job_id),))
+        elif order_id:
+            # Barista cards know the order, not the job — clone the most
+            # recent label job for that order.
+            cur.execute(
+                "SELECT * FROM print_jobs WHERE order_id = %s AND type = 'label' "
+                "ORDER BY created_at DESC LIMIT 1", (str(order_id),))
+        else:
+            return jsonify({'success': False,
+                            'message': 'job_id or order_id required'}), 400
         job = _row_to_dict(cur, cur.fetchone())
         if not job:
-            return jsonify({'success': False, 'message': 'job not found'}), 404
+            return jsonify({'success': False,
+                            'message': 'no previous label for this order'}), 404
         payload = {}
         try:
             payload = json.loads(job.get('payload') or '{}')
@@ -502,6 +521,64 @@ def print_jobs_list():
         return jsonify({'success': True, 'jobs': jobs})
     except Exception as e:
         logger.error(f"print_jobs_list error: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@bp.route('/jobs/<job_id>/retry', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def retry_job(job_id):
+    """Put a failed (or stuck-fetched) job back on the queue with a fresh
+    retry budget. The printer picks it up on its next poll."""
+    db = _db()
+    _ensure_tables(db)
+    try:
+        cur = db.cursor()
+        cur.execute(
+            "UPDATE print_jobs SET status = 'queued', attempts = 0, error = NULL, "
+            "fetched_at = NULL WHERE id = %s AND status IN ('failed', 'fetched', 'cancelled')",
+            (job_id,))
+        if cur.rowcount == 0:
+            db.commit()
+            return jsonify({'success': False,
+                            'message': 'job not found or not retryable'}), 404
+        db.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"retry_job error: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@bp.route('/jobs/<job_id>/cancel', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def cancel_job(job_id):
+    """Remove a job from the queue before the printer takes it. A job the
+    printer has already fetched can't be un-sent, so only queued jobs
+    cancel."""
+    db = _db()
+    _ensure_tables(db)
+    try:
+        cur = db.cursor()
+        cur.execute(
+            "UPDATE print_jobs SET status = 'cancelled', error = 'cancelled by operator' "
+            "WHERE id = %s AND status = 'queued'", (job_id,))
+        if cur.rowcount == 0:
+            db.commit()
+            return jsonify({'success': False,
+                            'message': 'job not found or already taken by the printer'}), 404
+        db.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"cancel_job error: {e}")
         try:
             db.rollback()
         except Exception:

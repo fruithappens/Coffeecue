@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
   Activity, Settings, Users, MessageSquare, Terminal, AlertTriangle,
-  Coffee, RefreshCw, BarChart3, Phone, ArrowLeft, Menu, Ban
+  Coffee, RefreshCw, BarChart3, Phone, ArrowLeft, Menu, Ban, Printer
 } from 'lucide-react';
 
 import ErrorMonitoring from './ErrorMonitoring';
 import SettingsService from '../../services/SettingsService';
 import SMSTestSimulator from './SMSTestSimulator';
+import { ToastManager } from '../shared/Toast';
 
 // Import tab components directly (no lazy loading for now)
 import DashboardTab from '../support-tabs/DashboardTab';
@@ -17,6 +18,7 @@ import UsersAccessTab from '../support-tabs/UsersAccessTab';
 import DiagnosticsTab from '../support-tabs/DiagnosticsTab';
 import EmergencyTab from '../support-tabs/EmergencyTab';
 import SmsBlocklistTab from '../support-tabs/SmsBlocklistTab';
+import PrintersTab from '../support-tabs/PrintersTab';
 
 const SupportInterface = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -53,6 +55,7 @@ const SupportInterface = () => {
     { id: 'communications', label: 'Comms', icon: MessageSquare, component: CommunicationsTab },
     { id: 'sms-test', label: 'SMS Test', icon: Phone, component: SMSTestSimulator },
     { id: 'sms-blocklist', label: 'SMS Block', icon: Ban, component: SmsBlocklistTab },
+    { id: 'printers', label: 'Printers', icon: Printer, component: PrintersTab },
     { id: 'users', label: 'Users', icon: Users, component: UsersAccessTab },
     { id: 'diagnostics', label: 'Diagnose', icon: Terminal, component: DiagnosticsTab },
     { id: 'emergency', label: 'Emergency', icon: AlertTriangle, component: EmergencyTab }
@@ -63,6 +66,8 @@ const SupportInterface = () => {
 
   return (
     <div className="flex h-screen bg-gray-50">
+      {/* Toasts (Printers tab and friends dispatch app:toast events). */}
+      <ToastManager />
       {/* Mobile drawer backdrop — tap to close. */}
       {mobileNavOpen && (
         <div className="md:hidden fixed inset-0 bg-black bg-opacity-40 z-30" onClick={() => setMobileNavOpen(false)}></div>
