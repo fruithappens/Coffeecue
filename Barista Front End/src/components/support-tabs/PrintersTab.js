@@ -94,7 +94,24 @@ const LabelDesignCard = () => {
             settings?.event_name_effective ? `("${settings.event_name_effective}")` : '')}
           {toggle('show_logo', 'Event logo',
             settings?.logo_available ? '(from Branding)' : '(no logo uploaded in Branding yet)')}
+          {toggle('show_name', 'Customer name', '(off = number-only cups)')}
           {toggle('show_station_time', 'Station + time line')}
+          <label className="flex items-center space-x-2 text-sm py-1">
+            <span>Text alignment</span>
+            <select
+              className="border rounded px-2 py-1"
+              disabled={busy || !settings}
+              value={settings?.align || 'left'}
+              onChange={(e) => save({ align: e.target.value })}
+            >
+              <option value="left">Left</option>
+              <option value="center">Centred</option>
+            </select>
+          </label>
+          <div className="text-sm text-gray-600 mt-2 mb-1">Divider lines</div>
+          {toggle('rule_below_logo', 'Below logo')}
+          {toggle('rule_below_number', 'Below order number')}
+          {toggle('rule_below_drink', 'Below drink details')}
           <label className="block text-sm mt-2">
             <span className="text-gray-600">Ordering instructions line</span>
             <input
