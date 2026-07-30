@@ -661,6 +661,9 @@ DEFAULT_LABEL_SETTINGS = {
     'rule_below_logo': False,
     'rule_below_number': False,
     'rule_below_drink': False,
+    'rule_above_station': True,
+    'rule_above_footer': False,
+    'rule_between_footer_lines': False,
     'footer_text': '',
     'instructions_text': '',
 }
@@ -720,7 +723,8 @@ def put_label_settings():
     stored = _kv_get(db, 'label_settings', default={}) or {}
     for key in ('show_event_name', 'show_logo', 'show_station_time',
                 'show_name', 'rule_below_logo', 'rule_below_number',
-                'rule_below_drink'):
+                'rule_below_drink', 'rule_above_station',
+                'rule_above_footer', 'rule_between_footer_lines'):
         if key in body:
             stored[key] = bool(body[key])
     if body.get('align') in ('left', 'center'):
