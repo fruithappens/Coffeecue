@@ -27,6 +27,127 @@ const Row = ({ label, children }) => (
   </div>
 );
 
+// Credentials card — writes to the EventsAir KV config (secrets are
+// write-only: the GET returns *_set booleans, never values). This is
+// what makes first API access self-serve: paste, save, test, inspect.
+const CredentialsCard = ({ onChanged }) => {
+  const [cfg, setCfg] = useState(null);
+  const [draft, setDraft] = useState({ client_id: '', client_secret: '',
+    tenant_endpoint: '', event_id: '' });
+  const [busy, setBusy] = useState(false);
+  const [report, setReport] = useState(null);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await api.request('/integrations/eventsair/config');
+      const c = r?.config || {};
+      setCfg(c);
+      setDraft(d => ({ ...d,
+        client_id: c.client_id || '',
+        tenant_endpoint: c.tenant_endpoint || '',
+        event_id: c.event_id || '' }));
+    } catch (e) { setCfg({}); }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const save = async () => {
+    setBusy(true);
+    const body = { ...draft, enabled: true };
+    if (!body.client_secret) delete body.client_secret; // blank = keep stored
+    const r = await api.request('/integrations/eventsair/config',
+      { method: 'PUT', body: JSON.stringify(body) })
+      .catch(e => ({ success: false, error: e?.message }));
+    setBusy(false);
+    showToast(r?.success ? 'EA credentials saved' : `Save failed: ${r?.error || 'unknown'}`,
+      r?.success ? 'success' : 'error');
+    load();
+    if (onChanged) onChanged();
+  };
+
+  const testConnection = async () => {
+    setBusy(true);
+    const r = await api.request('/integrations/eventsair/status')
+      .catch(e => ({ success: false, error: e?.message }));
+    setBusy(false);
+    const h = r?.health || {};
+    showToast(h.token_ok ? 'Connected — EA token OK'
+      : (h.detail || r?.error || 'Connection test failed'),
+    h.token_ok ? 'success' : 'error', 6000);
+  };
+
+  const inspectSchema = async () => {
+    setBusy(true);
+    setReport(null);
+    const r = await api.request('/ea/introspect')
+      .catch(e => ({ success: false, message: e?.message }));
+    setBusy(false);
+    if (r?.success) {
+      setReport(r.report);
+      showToast('Schema inspected — copy the report below and send it to Claude', 'success', 6000);
+    } else {
+      showToast(`Inspection failed: ${r?.message || 'unknown'}`, 'error', 6000);
+    }
+  };
+
+  const field = (key, label, type = 'text', placeholder = '') => (
+    <label className="block text-sm mb-2">
+      <span className="text-gray-600">{label}</span>
+      <input
+        type={type}
+        className="mt-1 w-full border rounded px-2 py-1.5"
+        value={draft[key]}
+        placeholder={placeholder}
+        onChange={e => setDraft(d => ({ ...d, [key]: e.target.value }))}
+      />
+    </label>
+  );
+
+  return (
+    <div className="bg-white rounded-lg shadow-md p-4">
+      <h3 className="text-lg font-bold mb-2">EventsAir API credentials</h3>
+      <p className="text-sm text-gray-500 mb-3">
+        Paste the API key details from EventsAir here, Save, then Test
+        connection. Once connected, Inspect schema produces the report that
+        finalises the integration queries.
+      </p>
+      {field('client_id', 'Client ID')}
+      {field('client_secret', 'Client secret' + (cfg?.client_secret_set ? ' (already set — leave blank to keep)' : ''), 'password')}
+      {field('tenant_endpoint', 'Tenant GraphQL endpoint', 'text', 'https://…eventsair…/graphql')}
+      {field('event_id', 'EA event ID')}
+      <div className="flex space-x-2 mt-3">
+        <button className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700 disabled:opacity-40"
+                disabled={busy} onClick={save}>Save</button>
+        <button className="bg-gray-200 text-gray-700 px-3 py-1.5 rounded text-sm hover:bg-gray-300 disabled:opacity-40"
+                disabled={busy} onClick={testConnection}>Test connection</button>
+        <button className="bg-purple-600 text-white px-3 py-1.5 rounded text-sm hover:bg-purple-700 disabled:opacity-40"
+                disabled={busy} onClick={inspectSchema}>Inspect schema</button>
+      </div>
+      {report && (
+        <div className="mt-3">
+          <div className="flex items-center justify-between">
+            <h4 className="font-semibold text-sm">Schema report</h4>
+            <button
+              className="text-sm text-blue-600 underline"
+              onClick={() => {
+                navigator.clipboard.writeText(JSON.stringify(report, null, 2))
+                  .then(() => showToast('Report copied to clipboard', 'success'));
+              }}
+            >
+              Copy report
+            </button>
+          </div>
+          <ul className="mt-1 text-sm list-disc ml-5">
+            {(report.findings || []).map((f, i) => <li key={i}>{f}</li>)}
+          </ul>
+          <pre className="mt-2 bg-gray-50 border rounded p-2 text-xs overflow-x-auto max-h-64 overflow-y-auto">
+            {JSON.stringify(report, null, 2)}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const EventsAirTab = () => {
   const [status, setStatus] = useState(null);
   const [log, setLog] = useState([]);
@@ -95,6 +216,11 @@ const EventsAirTab = () => {
               {status?.mirror_count ?? 0} contacts
               {status?.mirror_synced_at ? ` (synced ${status.mirror_synced_at})` : ''}
             </Row>
+            <Row label="Order write-back to EA">
+              {status?.writeback_enabled
+                ? (status?.custom_field_created ? 'on (field created)' : 'on (field pending first order)')
+                : 'off'}
+            </Row>
             <Row label="Last webhook">{status?.last_webhook_at || 'never'}</Row>
             <Row label="Today">
               {['processed', 'failed', 'duplicate', 'ignored']
@@ -145,6 +271,8 @@ const EventsAirTab = () => {
           </>
         )}
       </div>
+
+      <CredentialsCard onChanged={refresh} />
 
       <div className="bg-white rounded-lg shadow-md p-4">
         <h3 className="text-lg font-bold mb-2">Webhook log (last 10)</h3>

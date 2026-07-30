@@ -99,6 +99,10 @@ def _ensure_tables(db):
                 processed_at TIMESTAMP
             )
         """)
+        cur.execute("ALTER TABLE ea_config ADD COLUMN IF NOT EXISTS "
+                    "custom_field_id VARCHAR(64)")
+        cur.execute("ALTER TABLE ea_config ADD COLUMN IF NOT EXISTS "
+                    "writeback_enabled BOOLEAN DEFAULT FALSE")
         cur.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS source VARCHAR(20)")
         cur.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS ea_response_id VARCHAR(64)")
         cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_ea_response "
@@ -580,6 +584,8 @@ def ea_status():
                     'signing_secret_set': bool(row.get('signing_secret')),
                     'survey_ids': _survey_ids(row),
                     'question_map_set': bool(_question_map(row)),
+                    'writeback_enabled': bool(row.get('writeback_enabled')),
+                    'custom_field_created': bool(row.get('custom_field_id')),
                     'last_webhook_at': str(last_webhook) if last_webhook else None,
                     'mirror_count': mirror_count,
                     'mirror_synced_at': str(mirror_synced) if mirror_synced else None,
@@ -618,6 +624,9 @@ def ea_put_config():
     if body.get('signature_mode') in ('svix', 'raw'):
         sets.append("signature_mode=%s")
         params.append(body['signature_mode'])
+    if 'writeback_enabled' in body:
+        sets.append("writeback_enabled=%s")
+        params.append(bool(body['writeback_enabled']))
     if 'webhook_subscription_id' in body:
         sets.append("webhook_subscription_id=%s")
         params.append(str(body['webhook_subscription_id'] or ''))
@@ -757,6 +766,81 @@ def ea_test_order():
                     'status': status, 'error': error,
                     'order_number': order_number,
                     'response_id': response_id})
+
+
+@bp.route('/introspect', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin'])
+def ea_introspect():
+    """One-click schema inspection: what does THIS tenant's schema call
+    the entities our TODO_EA queries guess at? Run from the Support EA
+    tab on first API access; the report drives the query patch-up."""
+    db = _db()
+    _ensure_tables(db)
+    client = _client(db)
+    if client.is_stub():
+        return jsonify({'success': False,
+                        'message': 'No EA credentials configured yet — set '
+                                   'client id/secret/tenant endpoint first'}), 400
+    from services.eventsair.introspect import run_introspection
+    ok, report = run_introspection(client)
+    if not ok:
+        return jsonify({'success': False, 'message': report}), 502
+    return jsonify({'success': True, 'report': report})
+
+
+@bp.route('/hello', methods=['GET'])
+def ea_hello():
+    """Kiosk pre-identification (research Phase 4.8): the EA event app
+    links to the kiosk with ?cid={ContactID}; the kiosk asks who that is.
+
+    Public and privacy-tight: returns FIRST NAME + has_phone only, never
+    the number or email. The phone is attached server-side at order time.
+    """
+    if not channel_enabled():
+        return jsonify({'success': False, 'message': 'EA survey channel disabled'}), 503
+    cid = (request.args.get('cid') or '').strip()
+    if not cid:
+        return jsonify({'success': False, 'message': 'cid required'}), 400
+    db = _db()
+    _ensure_tables(db)
+    cur = db.cursor()
+    cur.execute("SELECT first_name, mobile_e164 FROM ea_attendees "
+                "WHERE ea_contact_id = %s", (cid,))
+    row = cur.fetchone()
+    if not row:
+        return jsonify({'success': False, 'message': 'unknown contact'}), 404
+    first, mobile = ((row.get('first_name'), row.get('mobile_e164'))
+                     if isinstance(row, dict) else row)
+    if not (first or '').strip():
+        return jsonify({'success': False, 'message': 'unknown contact'}), 404
+    return jsonify({'success': True, 'first_name': first.strip(),
+                    'has_phone': bool(mobile)})
+
+
+def maybe_writeback_order(app_obj, order_number):
+    """Hook for order completion/pickup: if the channel + write-back are
+    on and the order is EA-linked, push a summary line onto the
+    attendee's custom field in a daemon thread. Zero impact otherwise."""
+    if not channel_enabled():
+        return
+    def run():
+        from utils.database import get_db_connection, close_connection
+        conn = None
+        try:
+            conn = get_db_connection()
+            cfg_row = _row_from_conn(conn)
+            if not cfg_row.get('writeback_enabled'):
+                return
+            from services.eventsair.writeback import writeback_order
+            writeback_order(conn, load_config_from_conn(conn), cfg_row,
+                            order_number)
+        except Exception as e:
+            logger.warning(f"EA writeback hook: {e}")
+        finally:
+            if conn is not None:
+                close_connection(conn)
+    threading.Thread(target=run, daemon=True).start()
 
 
 # ---------------------------------------------------------------------------
