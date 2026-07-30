@@ -759,6 +759,14 @@ BROADCAST_MAX_MESSAGE_LEN = 480  # well under 4 concatenated SMS segments
 BROADCAST_AUDIENCES = {'today', 'active_today', 'in_progress', 'preorders'}
 
 
+# The Test Bench's simulator phones all share this prefix (never a real
+# customer's number — see testbench/bench/core.py FAKE_PHONE_PREFIX).
+# Broadcast audiences must NEVER include them: the bench found the
+# 'preorders' audience counting ~400 recipients, mostly accumulated bench
+# rows — a real blast would have BILLED an SMS attempt per fake number.
+BENCH_PHONE_PREFIX = '+6140000'
+
+
 def _broadcast_recipients(cursor, audience):
     """Return a list of distinct E.164 phone numbers for the given audience.
 
@@ -769,31 +777,36 @@ def _broadcast_recipients(cursor, audience):
                     returning customers) — the audience for the morning
                     "doors open, we can have your coffee ready" blast
     """
+    bench_like = BENCH_PHONE_PREFIX + '%'
     if audience == 'preorders':
         cursor.execute("""
             SELECT DISTINCT phone FROM customer_preferences
             WHERE phone IS NOT NULL AND phone <> ''
+              AND phone NOT LIKE %s
               AND preferred_drink IS NOT NULL
-        """)
+        """, (bench_like,))
     elif audience == 'in_progress':
         cursor.execute("""
             SELECT DISTINCT phone FROM orders
             WHERE status = 'in-progress'
               AND phone IS NOT NULL AND phone <> ''
-        """)
+              AND phone NOT LIKE %s
+        """, (bench_like,))
     elif audience == 'active_today':
         cursor.execute("""
             SELECT DISTINCT phone FROM orders
             WHERE created_at >= NOW() - INTERVAL '24 hours'
               AND status NOT IN ('completed', 'cancelled', 'picked_up')
               AND phone IS NOT NULL AND phone <> ''
-        """)
+              AND phone NOT LIKE %s
+        """, (bench_like,))
     else:  # 'today'
         cursor.execute("""
             SELECT DISTINCT phone FROM orders
             WHERE created_at >= NOW() - INTERVAL '24 hours'
               AND phone IS NOT NULL AND phone <> ''
-        """)
+              AND phone NOT LIKE %s
+        """, (bench_like,))
 
     rows = cursor.fetchall() or []
     out = []
@@ -832,6 +845,41 @@ def broadcast_preview():
     except Exception as e:
         logger.error(f"broadcast_preview error: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@support_api_bp.route('/api/support/bench-hygiene', methods=['POST'])
+@support_role_required
+def bench_hygiene():
+    """Purge Test-Bench residue from customer_preferences: rows whose
+    phone carries the bench simulator prefix. These are never real
+    customers, but they inflate the 'preorders' broadcast audience (the
+    bench counted ~400 recipients, mostly its own past runs). The prefix
+    is a server-side constant — no caller-supplied patterns."""
+    conn = None
+    try:
+        from utils.database import get_db_connection, close_connection
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM customer_preferences WHERE phone LIKE %s",
+                       (BENCH_PHONE_PREFIX + '%',))
+        deleted = cursor.rowcount
+        conn.commit()
+        return jsonify({'status': 'success', 'deleted': deleted})
+    except Exception as e:
+        logger.error(f"bench_hygiene error: {e}")
+        try:
+            if conn is not None:
+                conn.rollback()
+        except Exception:
+            pass
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+    finally:
+        try:
+            if conn is not None:
+                from utils.database import close_connection
+                close_connection(conn)
+        except Exception:
+            pass
 
 
 @support_api_bp.route('/api/support/broadcast/customers', methods=['POST'])
