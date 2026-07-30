@@ -332,17 +332,33 @@ def render_label(payload: dict, width_dots: int = None,
     # centred, small. instructions_text is the "how to order again"
     # line ('Order: SMS 0489 263 333 or the event app'); footer_text is
     # branding/reseller ('CoffeeCue - coffeecue.com', Wallfly, ...).
-    f_brand = _load_font(22)
+    # Shrink-to-fit: try smaller fonts before truncating — the first
+    # live render clipped 'or the event app' off the right edge.
     for line in (str(options.get('instructions_text') or '').strip(),
                  str(options.get('footer_text') or '').strip()):
         if not line:
             continue
-        try:
-            tw = draw.textlength(line[:38], font=f_brand)
-        except Exception:
-            tw = len(line[:38]) * 11
+        line = line[:60]
+        fitted, tw = None, W
+        for size in (22, 20, 18, 16):
+            f_try = _load_font(size)
+            try:
+                tw = draw.textlength(line, font=f_try)
+            except Exception:
+                tw = len(line) * (size // 2 + 1)
+            if tw <= W - 2 * margin:
+                fitted = f_try
+                break
+        if fitted is None:
+            fitted = _load_font(16)
+            while line and tw > W - 2 * margin:
+                line = line[:-1]
+                try:
+                    tw = draw.textlength(line, font=fitted)
+                except Exception:
+                    tw = len(line) * 9
         draw.text((max(margin, (W - int(tw)) // 2), y),
-                  line[:38], fill=0, font=f_brand)
+                  line, fill=0, font=fitted)
         y += 28
 
     height = max(LABEL_MIN_HEIGHT, min(LABEL_MAX_HEIGHT, y))
