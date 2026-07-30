@@ -329,58 +329,86 @@ def create_backup():
     try:
         from utils.database import get_db_connection
         db = get_db_connection()
-        cursor = db.cursor()
 
         # NAMED columns, deliberately. This used to do SELECT * and label
         # positional row[N]s — orders came back with order_number stored
         # under 'customer_phone' and details under 'items': a backup that
         # LOOKED fine and restored garbage. Emergency-tab audit catch.
-        cursor.execute("""
-            SELECT order_number, phone, order_details, status, station_id,
-                   created_at FROM orders ORDER BY created_at
-        """)
+        #
+        # Each section runs on its own cursor inside its own try: the
+        # first live probe found the endpoint had NEVER worked on prod —
+        # it queried a `stations` table that doesn't exist there (the
+        # canonical station data lives in station_stats), and that one
+        # error zeroed the entire backup. A missing relation now
+        # degrades one section (with an errors[] note), not the backup.
+        errors = []
+
         orders = []
-        for row in cursor.fetchall():
-            onum, phone, details, status, sid, created = (
-                row if not isinstance(row, dict)
-                else (row.get('order_number'), row.get('phone'),
-                      row.get('order_details'), row.get('status'),
-                      row.get('station_id'), row.get('created_at')))
-            orders.append({
-                'order_number': onum,
-                'phone': phone,
-                'order_details': details if not hasattr(details, 'items') or isinstance(details, dict) else str(details),
-                'status': status,
-                'station_id': sid,
-                'created_at': created.isoformat() if hasattr(created, 'isoformat') else str(created),
-            })
+        try:
+            cursor = db.cursor()
+            cursor.execute("""
+                SELECT order_number, phone, order_details, status, station_id,
+                       created_at FROM orders ORDER BY created_at
+            """)
+            for row in cursor.fetchall():
+                onum, phone, details, status, sid, created = (
+                    row if not isinstance(row, dict)
+                    else (row.get('order_number'), row.get('phone'),
+                          row.get('order_details'), row.get('status'),
+                          row.get('station_id'), row.get('created_at')))
+                orders.append({
+                    'order_number': onum,
+                    'phone': phone,
+                    'order_details': details if not hasattr(details, 'items') or isinstance(details, dict) else str(details),
+                    'status': status,
+                    'station_id': sid,
+                    'created_at': created.isoformat() if hasattr(created, 'isoformat') else str(created),
+                })
+            cursor.close()
+        except Exception as sec_err:
+            db.rollback()
+            errors.append(f'orders: {sec_err}')
 
-        cursor.execute("SELECT id, name, location, status FROM stations ORDER BY id")
         stations = []
-        for row in cursor.fetchall():
-            sid, name, loc, status = (
-                row if not isinstance(row, dict)
-                else (row.get('id'), row.get('name'),
-                      row.get('location'), row.get('status')))
-            stations.append({'id': sid, 'name': name,
-                             'location': loc, 'status': status})
+        try:
+            cursor = db.cursor()
+            cursor.execute("""
+                SELECT station_id, name, location, status, barista_name
+                FROM station_stats ORDER BY station_id
+            """)
+            for row in cursor.fetchall():
+                sid, name, loc, status, barista = (
+                    row if not isinstance(row, dict)
+                    else (row.get('station_id'), row.get('name'),
+                          row.get('location'), row.get('status'),
+                          row.get('barista_name')))
+                stations.append({'id': sid, 'name': name, 'location': loc,
+                                 'status': status, 'barista_name': barista})
+            cursor.close()
+        except Exception as sec_err:
+            db.rollback()
+            errors.append(f'stations: {sec_err}')
 
-        # Get settings
-        cursor.execute("SELECT key, value FROM settings")
         settings = {}
-        for row in cursor.fetchall():
-            k, v = (row if not isinstance(row, dict)
-                    else (row.get('key'), row.get('value')))
-            settings[k] = v
-
-        cursor.close()
+        try:
+            cursor = db.cursor()
+            cursor.execute("SELECT key, value FROM settings")
+            for row in cursor.fetchall():
+                k, v = (row if not isinstance(row, dict)
+                        else (row.get('key'), row.get('value')))
+                settings[k] = v
+            cursor.close()
+        except Exception as sec_err:
+            db.rollback()
+            errors.append(f'settings: {sec_err}')
         
         # Create backup data
         backup_data = {
             'timestamp': datetime.now().isoformat(),
             'orders': orders,
             'stations': stations,
-            'settings': settings
+            'settings': settings,
+            'partial_errors': errors,
         }
         
         filename = f"backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
