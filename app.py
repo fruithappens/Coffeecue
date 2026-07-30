@@ -558,6 +558,17 @@ def create_app():
         logger.info("Print API + CloudPRNT routes registered")
     except Exception as print_err:
         logger.error(f"Print routes failed to register: {print_err}")
+
+    # EventsAir Survey Order Channel (BETA): /api/ea/* + `flask ea` CLI.
+    # Gated by EA_SURVEY_CHANNEL_ENABLED (default off) — routes exist but
+    # refuse work while the flag is down; zero impact on SMS ordering.
+    try:
+        from routes.ea_survey_routes import bp as ea_survey_bp
+        app.register_blueprint(ea_survey_bp)
+        logger.info("EA survey channel routes registered (flag: %s)",
+                    os.environ.get('EA_SURVEY_CHANNEL_ENABLED', 'false'))
+    except Exception as ea_err:
+        logger.error(f"EA survey routes failed to register: {ea_err}")
         
     if has_support_api:
         app.register_blueprint(support_api_bp)
