@@ -285,6 +285,52 @@ class InventoryIntegrationService {
   /**
    * Update the StockService to use organizer-defined inventory
    */
+  /**
+   * Pull the server's copies of the event inventory + per-station config
+   * into the localStorage mirrors this service reads.
+   *
+   * Why: the organiser pages save BOTH to the backend
+   * (/event-inventory and /settings/station-inventory-configs) and to
+   * localStorage — but this service only ever read localStorage. On the
+   * organiser's laptop everything looked fine; a barista iPad that had
+   * never opened the organiser pages had EMPTY mirrors, so station
+   * stock derived from nothing (IMPROVEMENTS.md Tier-2 #7). Hydrating
+   * before the initial sync makes any device server-fresh on load.
+   *
+   * Server wins when it has data; an empty/unreachable server never
+   * wipes local state (first-ever-run safety).
+   */
+  async hydrateFromServer() {
+    const token = localStorage.getItem('coffee_system_token');
+    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+    const grab = async (path) => {
+      const r = await fetch(path, { headers });
+      if (!r.ok) throw new Error(`${path} -> ${r.status}`);
+      return r.json();
+    };
+    try {
+      // The endpoint returns the raw category dict (not a wrapper).
+      const inv = await grab('/api/event-inventory');
+      const items = (inv && (inv.inventory || inv.data)) || inv;
+      if (items && typeof items === 'object' && Object.keys(items).length > 0) {
+        localStorage.setItem('event_inventory', JSON.stringify(items));
+      }
+    } catch (e) {
+      console.warn('event-inventory hydration skipped:', e?.message);
+    }
+    try {
+      const cfg = await grab('/api/settings/station-inventory-configs');
+      if (cfg?.configs && Object.keys(cfg.configs).length > 0) {
+        localStorage.setItem('station_inventory_configs', JSON.stringify(cfg.configs));
+      }
+      if (cfg?.quantities && Object.keys(cfg.quantities).length > 0) {
+        localStorage.setItem('station_inventory_quantities', JSON.stringify(cfg.quantities));
+      }
+    } catch (e) {
+      console.warn('station-config hydration skipped:', e?.message);
+    }
+  }
+
   initializeStockServiceIntegration() {
     // Listen for inventory changes and sync them (throttled)
     window.addEventListener('inventory:updated', () => {
@@ -298,9 +344,16 @@ class InventoryIntegrationService {
       this.throttledSyncInventoryToStations();
     });
 
-    // Initial sync (immediate)
-    console.log('Initial inventory sync...');
-    this.syncInventoryToStations();
+    // Hydrate the localStorage mirrors from the server FIRST, then run
+    // the initial sync — a fresh device gets the organiser's real
+    // config instead of an empty mirror. Sync still runs if hydration
+    // fails (offline keeps working off the last local copy).
+    this.hydrateFromServer()
+      .catch(() => {})
+      .finally(() => {
+        console.log('Initial inventory sync...');
+        this.syncInventoryToStations();
+      });
   }
 
   /**
