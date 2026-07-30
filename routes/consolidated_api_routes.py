@@ -490,6 +490,12 @@ def orders():
                     'size': order_details.get('size', 'Regular'),
                     'extra_hot': order_details.get('temp') == 'extra hot',
                     'extraHot': order_details.get('temp') == 'extra hot',
+                    # Order channel: 'sms' (default) | 'walkin' | 'ea_app'.
+                    # The barista card shows an APP chip for ea_app, and
+                    # needsContact marks orders that can't get ready-SMS
+                    # (barista calls the name instead).
+                    'orderSource': order_details.get('source') or 'sms',
+                    'needsContact': bool(order_details.get('needs_contact')),
                     # Milk metadata for the card colour dot + badges.
                     # Stored by the walk-in endpoint; absent (→ null /
                     # false) for SMS orders, which the UI tolerates.
@@ -1000,6 +1006,9 @@ def get_pending_orders():
                               or 'extra hot' in (order_details.get('notes') or '').lower()),
                 'extraHot': (order_details.get('temp') == 'extra hot'
                              or 'extra hot' in (order_details.get('notes') or '').lower()),
+                # Order channel + no-SMS flag (EA app orders).
+                'orderSource': order_details.get('source') or 'sms',
+                'needsContact': bool(order_details.get('needs_contact')),
                 # The customer's latest unanswered SMS, shown on the card.
                 'customer_message': questions_by_phone.get(str(phone or '')),
                 'customerMessage': questions_by_phone.get(str(phone or '')),
@@ -1152,6 +1161,9 @@ def get_in_progress_orders():
                 'coffeeType': coffee_type,
                 'milkType': milk_type,
                 'extraHot': extra_hot,
+                # Order channel + no-SMS flag (EA app orders).
+                'orderSource': order_details.get('source') or 'sms',
+                'needsContact': bool(order_details.get('needs_contact')),
                 'customer_message': questions_by_phone.get(str(phone or '')),
                 'customerMessage': questions_by_phone.get(str(phone or '')),
                 'createdAt': created_at.isoformat() if hasattr(created_at, 'isoformat') else created_at,

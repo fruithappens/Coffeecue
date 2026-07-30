@@ -5,6 +5,7 @@ import { getTimeRatioColor, getOrderBackgroundColor } from '../../utils/orderUti
 import { useSettings } from '../../hooks/useSettings';
 import { getMilkColorStyle, getMilkDotStyle } from '../../utils/milkColorHelper';
 import GroupBadge from './GroupBadge';
+import SourceBadge from './SourceBadge';
 import '../../styles/milkColors.css';
 
 const RegularOrdersList = ({ orders, onStartOrder, onSendMessage, onDelayOrder, onEditOrder, onMoveOrder, batchHintsByOrderId = {}, groupInfoByOrderId = {}, onStartGroup }) => {
@@ -52,6 +53,7 @@ const RegularOrdersList = ({ orders, onStartOrder, onSendMessage, onDelayOrder, 
                 {/* Group badge — this coffee was ordered together with
                     others (multi-drink SMS or FRIEND order); serve as one. */}
                 <GroupBadge info={groupInfoByOrderId[order.id]} />
+                <SourceBadge order={order} />
                 {/* Batch hint badges — small amber tags telling the
                     barista this order can be made alongside N
                     others of the same kind. */}
