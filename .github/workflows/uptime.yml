@@ -1,0 +1,34 @@
+# Uptime ping — the cheapest possible "is Coffee Cue up?" monitor.
+#
+# Every 10 minutes GitHub curls the production health endpoint. If it
+# fails (after one retry 30s later, so a single transient blip doesn't
+# page anyone), the workflow fails and GitHub emails the repo owner —
+# so an outage is noticed before a queue of delegates notices it.
+#
+# No secrets, no cost, no external service. workflow_dispatch lets you
+# test it from the Actions tab.
+name: Uptime ping
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Probe /api/health
+        run: |
+          URL="https://web-production-4cc9c.up.railway.app/api/health"
+          if curl -fsS --max-time 20 "$URL" > /dev/null; then
+            echo "up"
+            exit 0
+          fi
+          echo "first probe failed — retrying in 30s (transient blip filter)"
+          sleep 30
+          curl -fsS --max-time 20 "$URL" > /dev/null && echo "up (after retry)" || {
+            echo "::error::Coffee Cue production health check FAILED twice — check Railway"
+            exit 1
+          }
