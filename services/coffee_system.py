@@ -558,7 +558,16 @@ class CoffeeOrderSystem:
         if customer and customer.get('name'):
             # Welcome back returning customer
             name = customer.get('name')
-            
+
+            # EA registration match, first contact ever: "Welcome back"
+            # would be wrong (they've never texted us) and they can have
+            # no usual yet — greet by name off the registration list.
+            # Plain ASCII only (SMS segment cost).
+            if customer.get('ea_matched'):
+                self._set_conversation_state(phone, 'awaiting_coffee_type', {'name': name})
+                return (f"Hi {name}! You're registered for {self.event_name} - "
+                        "what coffee would you like?")
+
             usual_suggestions = self._get_usual_order_suggestion(phone, name)
             if usual_suggestions:
                 # Start a new conversation state with suggestion context
@@ -8009,14 +8018,53 @@ class CoffeeOrderSystem:
             """, (phone,))
             
             customer = cursor.fetchone()
-            
+
             if not customer:
-                return None
-            
+                return self._ea_attendee_as_customer(phone)
+
             return dict(customer)
-            
+
         except Exception as e:
             logger.error(f"Error getting customer: {str(e)}")
+            return None
+
+    def _ea_attendee_as_customer(self, phone):
+        """EventsAir registration-list fallback (research Phase 1.3).
+
+        A first-time texter whose mobile matches the event's synced
+        attendee mirror is treated as a known customer: greeted by first
+        name, no name question, and their orders carry the name from
+        registration. Unmatched numbers behave exactly as before.
+
+        Data-driven, no feature flag: the ea_attendees mirror is empty
+        until the EA integration is configured and synced, so this is a
+        no-op today. to_regclass avoids an exception (and the transaction
+        poisoning that comes with it) when the table doesn't exist yet.
+        """
+        try:
+            from services.eventsair.survey import normalize_phone_e164
+            e164 = normalize_phone_e164(phone)
+            if not e164:
+                return None
+            cursor = self.db.cursor(cursor_factory=RealDictCursor)
+            cursor.execute("SELECT to_regclass('ea_attendees') IS NOT NULL AS ok")
+            row = cursor.fetchone()
+            if not (row and row.get('ok')):
+                return None
+            cursor.execute(
+                "SELECT ea_contact_id, first_name, last_name FROM ea_attendees "
+                "WHERE mobile_e164 = %s LIMIT 1", (e164,))
+            att = cursor.fetchone()
+            if not att:
+                return None
+            first = (att.get('first_name') or '').strip()
+            if not first:
+                return None
+            return {'phone': phone, 'name': first,
+                    'ea_contact_id': att.get('ea_contact_id'),
+                    'ea_matched': True}
+        except Exception as e:
+            logger.warning(f"EA attendee lookup failed (non-fatal): {e}")
             return None
     
     def get_customers(self, search=None, limit=50):
