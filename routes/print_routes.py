@@ -656,6 +656,11 @@ DEFAULT_LABEL_SETTINGS = {
     'show_event_name': False,
     'show_logo': False,
     'show_station_time': True,
+    'show_name': True,
+    'align': 'left',
+    'rule_below_logo': False,
+    'rule_below_number': False,
+    'rule_below_drink': False,
     'footer_text': '',
     'instructions_text': '',
 }
@@ -713,9 +718,13 @@ def put_label_settings():
     body = request.get_json(silent=True) or {}
     from routes.consolidated_api_routes import _kv_get, _kv_put
     stored = _kv_get(db, 'label_settings', default={}) or {}
-    for key in ('show_event_name', 'show_logo', 'show_station_time'):
+    for key in ('show_event_name', 'show_logo', 'show_station_time',
+                'show_name', 'rule_below_logo', 'rule_below_number',
+                'rule_below_drink'):
         if key in body:
             stored[key] = bool(body[key])
+    if body.get('align') in ('left', 'center'):
+        stored['align'] = body['align']
     if 'footer_text' in body:
         stored['footer_text'] = str(body['footer_text'] or '').strip()[:60]
     if 'instructions_text' in body:

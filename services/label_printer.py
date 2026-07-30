@@ -272,6 +272,32 @@ def render_label(payload: dict, width_dots: int = None,
 
     margin = 10
     y = 8
+
+    # Design controls: whole-label alignment + divider rules between
+    # sections (Steve: "a bit more overall design control").
+    centred = str(options.get('align') or 'left').lower() == 'center'
+
+    def put(text, font, dy):
+        """Draw one line honouring the alignment; advance y by dy."""
+        nonlocal y
+        x = margin
+        if centred:
+            try:
+                tw = draw.textlength(text, font=font)
+            except Exception:
+                tw = len(text) * 10
+            x = max(margin, (W - int(tw)) // 2)
+        draw.text((x, y), text, fill=0, font=font)
+        y += dy
+
+    def rule(flag_key, default=False):
+        """Optional horizontal divider between sections."""
+        nonlocal y
+        if options.get(flag_key, default):
+            y += 4
+            draw.line([(margin, y), (W - margin, y)], fill=0)
+            y += 8
+
     if payload.get('test'):
         # Calibration header + ruler ticks every 50 dots so the operator
         # can verify PRINT_WIDTH_DOTS against the physical stock.
@@ -282,42 +308,37 @@ def render_label(payload: dict, width_dots: int = None,
             draw.text((x + 2, y + 12), str(x), fill=0, font=f_foot)
         y += 40
 
-    # 0a. Logo (branding, dithered to 1-bit), centred.
+    # 0a. Logo (branding, dithered to 1-bit), always centred.
     if options.get('show_logo') and options.get('logo_data'):
         logo = _decode_logo_to_1bit(options['logo_data'], W - 2 * margin)
         if logo is not None:
             img.paste(logo, ((W - logo.width) // 2, y))
             y += logo.height + 8
+            rule('rule_below_logo')
 
     # 0b. Event name header.
     if options.get('show_event_name') and (options.get('event_name') or '').strip():
-        f_event = _load_font(28)
-        draw.text((margin, y), str(options['event_name']).strip()[:26],
-                  fill=0, font=f_event)
-        y += 36
+        put(str(options['event_name']).strip()[:26], _load_font(28), 36)
 
     # 1. Order number — the arm's-length element.
-    draw.text((margin, y), f"#{order_number}", fill=0, font=f_num)
-    y += 126
+    put(f"#{order_number}", f_num, 126)
+    rule('rule_below_number')
 
-    # 2. Customer name.
-    draw.text((margin, y), name, fill=0, font=f_name)
-    y += 60
+    # 2. Customer name (toggleable — some events run number-only cups).
+    if options.get('show_name', True):
+        put(name, f_name, 60)
 
     # 3. Drink line (wraps once if long).
     if len(drink_line) > 24:
-        draw.text((margin, y), drink_line[:24], fill=0, font=f_drink)
-        y += 40
-        draw.text((margin, y), drink_line[24:48], fill=0, font=f_drink)
-        y += 42
+        put(drink_line[:24], f_drink, 40)
+        put(drink_line[24:48], f_drink, 42)
     else:
-        draw.text((margin, y), drink_line, fill=0, font=f_drink)
-        y += 42
+        put(drink_line, f_drink, 42)
 
     # 4. Modifiers.
     if modifiers:
-        draw.text((margin, y), ', '.join(modifiers)[:34], fill=0, font=f_mods)
-        y += 36
+        put(', '.join(modifiers)[:34], f_mods, 36)
+    rule('rule_below_drink')
 
     # 5. Footer: station + time, separated by a rule (toggleable).
     if options.get('show_station_time', True):
@@ -325,8 +346,7 @@ def render_label(payload: dict, width_dots: int = None,
         draw.line([(margin, y), (W - margin, y)], fill=0)
         y += 6
         foot = ' · '.join([p for p in (station, hhmm) if p]) or hhmm
-        draw.text((margin, y), foot[:40], fill=0, font=f_foot)
-        y += 32
+        put(foot[:40], f_foot, 32)
 
     # 6. Ordering instructions + branding footer — both optional,
     # centred, small. instructions_text is the "how to order again"
