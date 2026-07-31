@@ -36,19 +36,24 @@ const LabelDesignCard = () => {
     } catch (e) { setSettings({}); }
   }, []);
 
+  const [ticketPreviewUrl, setTicketPreviewUrl] = useState(null);
+
   const refreshPreview = useCallback(async () => {
-    try {
-      const token = localStorage.getItem('coffee_system_token');
-      const r = await fetch('/api/print/preview?sample=1', {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!r.ok) return;
-      const blob = await r.blob();
-      setPreviewUrl(old => {
-        if (old) URL.revokeObjectURL(old);
-        return URL.createObjectURL(blob);
-      });
-    } catch (e) { /* preview stays stale */ }
+    const token = localStorage.getItem('coffee_system_token');
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+    const grab = async (url, setter) => {
+      try {
+        const r = await fetch(url, { headers });
+        if (!r.ok) return;
+        const blob = await r.blob();
+        setter(old => {
+          if (old) URL.revokeObjectURL(old);
+          return URL.createObjectURL(blob);
+        });
+      } catch (e) { /* preview stays stale */ }
+    };
+    grab('/api/print/preview?sample=1', setPreviewUrl);
+    grab('/api/print/preview?sample=1&ticket=1', setTicketPreviewUrl);
   }, []);
 
   useEffect(() => { loadSettings(); refreshPreview(); }, [loadSettings, refreshPreview]);
@@ -115,6 +120,9 @@ const LabelDesignCard = () => {
           {toggle('rule_above_station', 'Above station + time')}
           {toggle('rule_above_footer', 'Above instructions/footer')}
           {toggle('rule_between_footer_lines', 'Between instructions and footer')}
+          <div className="text-sm text-gray-600 mt-2 mb-1">Customer ticket stubs</div>
+          {toggle('ticket_on_walkup', 'Print a number ticket for walk-up & kiosk orders',
+            '(the deli-counter slip, right preview)')}
           <label className="block text-sm mt-2">
             <span className="text-gray-600">Ordering instructions line</span>
             <input
@@ -164,20 +172,39 @@ const LabelDesignCard = () => {
             Refresh preview
           </button>
         </div>
-        <div className="flex-shrink-0 text-center">
-          {previewUrl ? (
-            <img
-              src={previewUrl}
-              alt="Label preview"
-              className="border rounded shadow-sm mx-auto"
-              style={{ width: '203px', imageRendering: 'pixelated' }}
-            />
-          ) : (
-            <div className="w-[203px] h-48 border rounded flex items-center justify-center text-gray-400 text-sm">
-              Loading preview…
+        <div className="flex-shrink-0 flex gap-4">
+          <div className="text-center">
+            {previewUrl ? (
+              <img
+                src={previewUrl}
+                alt="Cup label preview"
+                className="border rounded shadow-sm mx-auto"
+                style={{ width: '203px', imageRendering: 'pixelated' }}
+              />
+            ) : (
+              <div className="w-[203px] h-48 border rounded flex items-center justify-center text-gray-400 text-sm">
+                Loading preview…
+              </div>
+            )}
+            <div className="text-xs text-gray-400 mt-1">cup label · 50% · 58mm</div>
+          </div>
+          {settings?.ticket_on_walkup && (
+            <div className="text-center">
+              {ticketPreviewUrl ? (
+                <img
+                  src={ticketPreviewUrl}
+                  alt="Ticket stub preview"
+                  className="border rounded shadow-sm mx-auto"
+                  style={{ width: '203px', imageRendering: 'pixelated' }}
+                />
+              ) : (
+                <div className="w-[203px] h-40 border rounded flex items-center justify-center text-gray-400 text-sm">
+                  Loading…
+                </div>
+              )}
+              <div className="text-xs text-gray-400 mt-1">customer ticket · 50%</div>
             </div>
           )}
-          <div className="text-xs text-gray-400 mt-1">shown at 50% — prints 58mm wide</div>
         </div>
       </div>
     </div>
