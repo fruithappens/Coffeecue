@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "testbench",
+      "runtimeExecutable": "venv/bin/python3",
+      "runtimeArgs": ["testbench/app.py"],
+      "port": 5055
+    },
+    {
+      "name": "backend",
+      "runtimeExecutable": "venv/bin/python3",
+      "runtimeArgs": ["run_server.py"],
+      "port": 5001
+    },
+    {
+      "name": "frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["start", "--prefix", "Barista Front End"],
+      "port": 3000
+    }
+  ]
+}

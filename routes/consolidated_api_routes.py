@@ -3961,11 +3961,19 @@ def _kiosk_menu_data(coffee_system):
             out.append(entry)
         return out
 
+    sugar_self_serve = False
+    try:
+        sugar_self_serve = coffee_system._sugar_self_serve()
+    except Exception:
+        pass
     return {
         'stations': stations,
         'coffee_types': build('coffee_types'),
         'milks': build('milk_types'),
         'sizes': build('sizes'),
+        # Kiosk skips its sugar question when the venue runs
+        # help-yourself sugar (baristas never add it).
+        'sugar_self_serve': sugar_self_serve,
     }
 
 
@@ -4004,6 +4012,14 @@ def create_kiosk_order():
         sugar = data.get('sugar')
         if sugar is None or sugar == '':
             sugar = 'No sugar'
+        # Self-serve sugar venues: baristas never add it, so no order may
+        # carry it (the kiosk UI also skips the question; this guards the
+        # API too).
+        try:
+            if coffee_system._sugar_self_serve():
+                sugar = 'No sugar'
+        except Exception:
+            pass
         note = (data.get('note') or data.get('notes') or '').strip()
 
         # EventsAir pre-identification (research Phase 4.8): the EA app

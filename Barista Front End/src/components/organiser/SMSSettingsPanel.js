@@ -12,6 +12,81 @@ const api = new ApiServiceClass();
  * day, switch it OFF: returning customers get "Welcome back — your
  * usual X?" built from what they saved.
  */
+/**
+ * Self-serve sugar — for venues where baristas never add sugar and it's
+ * help-yourself at the counter. ON: SMS acknowledges a sugar request
+ * with "Sugar is help-yourself at the counter" instead of putting it on
+ * the barista card; the kiosk skips its sugar question; the walk-in
+ * dialog hides the sweetener picker.
+ */
+const SelfServeSugarCard = () => {
+  const [enabled, setEnabled] = useState(false);
+  const [status, setStatus] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await api.get('/settings');
+        const v = r?.settings?.sugar_self_serve ?? r?.data?.sugar_self_serve;
+        setEnabled(String(v).toLowerCase() === 'true');
+      } catch (e) { /* default off */ }
+    })();
+  }, []);
+
+  const save = async (next) => {
+    setSaving(true);
+    setStatus(null);
+    try {
+      const r = await api.request('/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sugar_self_serve: next }),
+      });
+      if (r && (r.success || r.status === 'success')) {
+        setEnabled(next);
+        setStatus({ type: 'success', text: next
+          ? 'ON - baristas never add sugar. SMS says "help-yourself at the counter"; kiosk and walk-in skip the question.'
+          : 'OFF - sugar requests go on the barista card as normal.' });
+      } else {
+        setStatus({ type: 'error', text: (r && (r.error || r.message)) || 'Server did not confirm the save' });
+      }
+    } catch (e) {
+      setStatus({ type: 'error', text: `Save failed: ${e?.message || 'network error'}` });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-lg shadow-md p-4 mb-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-bold">Self-serve sugar</h3>
+          <p className="text-sm text-gray-500">
+            For venues where sugar is help-yourself at the counter and
+            baristas never add it. Customers who ask for sugar are told
+            where to find it - it never lands on the barista's card.
+          </p>
+        </div>
+        <button
+          className={`ml-4 flex-shrink-0 px-4 py-2 rounded-lg font-semibold ${
+            enabled ? 'bg-amber-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+          disabled={saving}
+          onClick={() => save(!enabled)}
+        >
+          {enabled ? 'ON' : 'OFF'}
+        </button>
+      </div>
+      {status && (
+        <div className={`mt-2 text-sm ${status.type === 'error' ? 'text-red-600' : 'text-green-700'}`}>
+          {status.text}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const PreEventCard = () => {
   const [enabled, setEnabled] = useState(false);
   const [msg, setMsg] = useState('');
@@ -218,6 +293,7 @@ const SMSSettingsPanel = () => {
   return (
     <>
     <PreEventCard />
+    <SelfServeSugarCard />
     <div className="bg-white shadow-md rounded-lg p-6">
       <h2 className="text-xl font-bold mb-2">SMS Notification Settings</h2>
       <p className="text-gray-600 mb-6">Configure how SMS notifications are sent to customers</p>

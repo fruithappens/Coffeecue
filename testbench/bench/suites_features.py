@@ -206,6 +206,29 @@ def suite_features_flow(rn):
     finally:
         c.req("PUT", "/api/settings/pre-event", body=orig)
 
+    # --- self-serve sugar mode (#199) -------------------------------------
+    ph4 = rn.next_phone()
+    no4 = None
+    try:
+        c.req("PUT", "/api/settings", body={"sugar_self_serve": True})
+        _sim(c, ph4, "medium latte with 2 sugars")
+        ok4, r4 = _sim(c, ph4, f"{BENCH_TAG}Sasha")
+        m = _re.search(r"#([A-Za-z]{0,3}\d+)", r4 or "")
+        no4 = m.group(1) if m else None
+        row = _find_order(_pending(c), no4) if no4 else None
+        card_sugar = str((row or {}).get("sugar") or "").lower()
+        step("self-serve sugar: reply says help-yourself, card carries NO sugar",
+             bool(no4) and "help-yourself" in (r4 or "").lower()
+             and card_sugar in ("no sugar", ""),
+             f"order #{no4}, card sugar={card_sugar!r}, reply={((r4 or '')[:90])!r}",
+             suggestion="Self-serve venues: a requested sugar must never land "
+                        "on the barista card; the customer is told where to "
+                        "find it (#199).")
+    finally:
+        if no4:
+            c.post(f"/api/orders/{no4}/cancel")
+        c.req("PUT", "/api/settings", body={"sugar_self_serve": False})
+
     # --- self-clean: purge the preference rows these flows created --------
     hc, hb, _ = c.post("/api/support/bench-hygiene")
     deleted = (hb or {}).get("deleted") if isinstance(hb, dict) else None

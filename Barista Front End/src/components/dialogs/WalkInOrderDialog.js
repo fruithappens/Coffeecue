@@ -21,6 +21,20 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
   const [availableCoffeeTypes, setAvailableCoffeeTypes] = useState([]);
   const [availableSizes, setAvailableSizes] = useState([]);
   const [availableSweeteners, setAvailableSweeteners] = useState([]);
+  // Self-serve sugar venues: baristas never add sugar, so the picker is
+  // hidden and the order always goes through sweetener-free.
+  const [sugarSelfServe, setSugarSelfServe] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch('/api/display/menu');
+        const b = r.ok ? await r.json() : null;
+        if (!cancelled && b?.menu?.sugar_self_serve) setSugarSelfServe(true);
+      } catch (e) { /* default: show the picker */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
   const [availableBeanTypes, setAvailableBeanTypes] = useState([]);
   const [stationInventory, setStationInventory] = useState(null);
   const [loadingInventory, setLoadingInventory] = useState(true);
@@ -917,7 +931,8 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
       updatedDetails.shots = String(walkinDefaults.default_shots);
       hasChanges = true;
     }
-    if (orderDetails.sweetenerQuantity === '0' && walkinDefaults.default_sweetener_qty != null
+    if (!sugarSelfServe && orderDetails.sweetenerQuantity === '0'
+        && walkinDefaults.default_sweetener_qty != null
         && String(walkinDefaults.default_sweetener_qty) !== '0') {
       updatedDetails.sweetenerQuantity = String(walkinDefaults.default_sweetener_qty);
       hasChanges = true;
@@ -1244,7 +1259,7 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
     
     // Format sugar field from separate type and quantity
     let sugarText = 'No sugar';
-    if (orderDetails.sweetenerType !== 'None' && parseInt(orderDetails.sweetenerQuantity) > 0) {
+    if (!sugarSelfServe && orderDetails.sweetenerType !== 'None' && parseInt(orderDetails.sweetenerQuantity) > 0) {
       const qty = parseInt(orderDetails.sweetenerQuantity);
       if (qty === 1) {
         sugarText = `1 ${orderDetails.sweetenerType}`;
@@ -1818,7 +1833,13 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
             return null;
           })()}
           
-          <div className="grid grid-cols-2 gap-4 mb-4">
+          {sugarSelfServe && (
+            <div className="mb-4 p-2 bg-amber-50 border border-amber-200 rounded text-sm text-amber-800">
+              Sugar is self-serve at the counter - baristas don't add it, so
+              there's nothing to pick here.
+            </div>
+          )}
+          <div className={`grid grid-cols-2 gap-4 mb-4 ${sugarSelfServe ? 'hidden' : ''}`}>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Sweetener Type
