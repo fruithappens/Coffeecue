@@ -66,3 +66,10 @@ organiser changed in the UI. Now evicted per written key.
   exclude the bench phone prefix (bug #18: a preorders blast would have
   billed ~400 SMS to the bench's own ghosts).
 - Uptime workflow `.github/workflows/uptime.yml` (#184).
+- `bash testbench/run_live_mirror.sh` — the DISASTER TAB (the "display
+  down paper fallback" answered): polls the live queue every 10s from
+  the operator's laptop, rewrites `live_mirror/board.html` (keep open in
+  a tab; red APP UNREACHABLE banner + last-known queue if prod dies;
+  self-flags if the mirror itself stops) + `orders.csv` (Excel-ready).
+  Optional Google Sheet feed via `sheets_webhook_template.gs` (5-min
+  one-time Apps Script setup in Steve's Google account).
