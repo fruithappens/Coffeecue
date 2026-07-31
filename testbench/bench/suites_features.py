@@ -296,6 +296,41 @@ def suite_features_flow(rn):
         if no6:
             c.post(f"/api/orders/{no6}/cancel")
 
+    # --- bean dose: a latte burns exactly ONE configured dose (#202) ------
+    ph7 = rn.next_phone()
+    no7 = None
+    try:
+        _sc, sb, _ = c.get("/api/settings")
+        cfg = (sb or {}).get("settings") or (sb or {}).get("data") or {}
+        try:
+            dose_kg = float(cfg.get("beans_grams_per_shot") or 22) / 1000.0
+        except (TypeError, ValueError):
+            dose_kg = 0.022
+        beans_before = _beans_total()
+        _sim(c, ph7, "medium latte")
+        ok7, r7 = _sim(c, ph7, f"{BENCH_TAG}Piper")
+        m = _re.search(r"#([A-Za-z]{0,3}\d+)", r7 or "")
+        no7 = m.group(1) if m else None
+        if no7:
+            c.post(f"/api/orders/{no7}/start")
+            c.post(f"/api/orders/{no7}/complete")
+            burned = round(beans_before - _beans_total(), 3)
+            step("a latte burns exactly one configured bean dose",
+                 abs(burned - round(dose_kg, 3)) <= 0.002,
+                 f"order #{no7}, burned {burned}kg vs dose {round(dose_kg, 3)}kg "
+                 f"(beans_grams_per_shot={cfg.get('beans_grams_per_shot') or '22 default'})",
+                 suggestion="Bean depletion must follow the configured dose "
+                            "(AU standard 20-22g; default 22g high-side for "
+                            "wastage) — 8g was the wrong-context Italian "
+                            "single (#202).")
+            c.post(f"/api/orders/{no7}/pickup")
+        else:
+            step("a latte burns exactly one configured bean dose", False,
+                 f"couldn't place latte: {((r7 or '')[:80])!r}")
+    finally:
+        if no7:
+            c.post(f"/api/orders/{no7}/cancel")
+
     # --- self-clean: purge the preference rows these flows created --------
     hc, hb, _ = c.post("/api/support/bench-hygiene")
     deleted = (hb or {}).get("deleted") if isinstance(hb, dict) else None
