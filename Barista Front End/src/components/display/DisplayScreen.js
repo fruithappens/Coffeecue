@@ -752,21 +752,25 @@ const DisplayScreen = () => {
             <h1 className={`${isPortrait ? 'text-4xl' : 'text-5xl'} font-extrabold tracking-tight leading-tight truncate`}>
               {config.event_name || config.system_name}
             </h1>
-            <div className="text-sm md:text-base flex items-center mt-1.5" style={{ color: onHeaderDim }}>
-              <MapPin size={14} className="mr-1" />
+            {/* Station name nearly title-sized (Steve: "much larger, only
+                slightly smaller than Treenet 2026") — it's the thing a
+                customer across the room reads to know WHICH queue this
+                board is. The custom message stays small below it. */}
+            <div className={`${isPortrait ? 'text-2xl' : 'text-3xl'} font-bold flex items-center mt-1 leading-tight truncate`}>
+              <MapPin size={isPortrait ? 22 : 26} className="mr-2 flex-shrink-0" />
               {currentStation
                 ? `${currentStation.name}${currentStation.location ? ` · ${currentStation.location}` : ''}`
                 : 'Loading station…'}
-              {/* The old "Live · refreshes every 8s" was implementation
-                  detail customers don't need (Steve). The operator's
-                  Custom Message lives here instead — guaranteed visible
-                  even when the sponsor line owns the footer. */}
-              {config.custom_message && (
-                <span className="ml-3 inline-flex items-center">
-                  {config.custom_message}
-                </span>
-              )}
             </div>
+            {/* The old "Live · refreshes every 8s" was implementation
+                detail customers don't need (Steve). The operator's
+                Custom Message lives here instead — guaranteed visible
+                even when the sponsor line owns the footer. */}
+            {config.custom_message && (
+              <div className="text-sm md:text-base mt-1 truncate" style={{ color: onHeaderDim }}>
+                {config.custom_message}
+              </div>
+            )}
           </div>
         </div>
         {!isFullscreen && (
