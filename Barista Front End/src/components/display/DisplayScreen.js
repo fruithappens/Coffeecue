@@ -25,7 +25,7 @@
 //   - Tap-anywhere to toggle fullscreen on iPad
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Coffee, Check, Clock, ArrowLeft, RefreshCw, MapPin,
-         Maximize2, MessageCircle, RotateCw } from 'lucide-react';
+         Maximize2, MessageCircle, RotateCw, Volume2, VolumeX } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import OrderDataService from '../../services/OrderDataService';
 import StationsService from '../../services/StationsService';
@@ -253,6 +253,105 @@ const DisplayScreen = () => {
   const newReadyRef = useRef(new Map());
   const prevReadyIdsRef = useRef(new Set());
 
+  // --- Voice announcements: "Order number one five nine, for Sarah" ---
+  // Web Speech API — the TV's browser does the talking and the audio
+  // rides the TV's own output (HDMI). No recordings, no cloud, works
+  // offline. OFF by default; the tap that enables it doubles as the
+  // browser's required audio-unlock gesture, and we confirm out loud so
+  // the operator knows sound is actually reaching the TV speakers.
+  // Refs (not state) inside the announce path so the long-lived polling
+  // effect never needs new dependencies.
+  const [announceOn, setAnnounceOn] = useState(
+    () => localStorage.getItem('coffee_display_announce') === 'true'
+  );
+  const announceOnRef = useRef(announceOn);
+  const announceQueueRef = useRef([]);
+  const speakingRef = useRef(false);
+  const announcedIdsRef = useRef(new Set());
+  const firstPollRef = useRef(true);
+  useEffect(() => { announceOnRef.current = announceOn; }, [announceOn]);
+  useEffect(() => () => {
+    try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) { /* noop */ }
+  }, []);
+
+  const playChime = () => {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      const ctx = new Ctx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.25, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.4);
+      osc.onended = () => { try { ctx.close(); } catch (e) { /* noop */ } };
+    } catch (e) { /* a missing chime never blocks the announcement */ }
+  };
+
+  const speakNextAnnouncement = () => {
+    if (speakingRef.current || !announceOnRef.current) return;
+    const text = announceQueueRef.current.shift();
+    if (!text || !('speechSynthesis' in window)) return;
+    speakingRef.current = true;
+    playChime();
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 0.95;
+    try {
+      const voices = window.speechSynthesis.getVoices() || [];
+      const voice = voices.find(v => /en[-_]AU/i.test(v.lang))
+        || voices.find(v => /^en/i.test(v.lang));
+      if (voice) u.voice = voice;
+    } catch (e) { /* default voice is fine */ }
+    const done = () => {
+      speakingRef.current = false;
+      setTimeout(speakNextAnnouncement, 400);
+    };
+    u.onend = done;
+    u.onerror = done;
+    // Let the chime land before the voice starts.
+    setTimeout(() => window.speechSynthesis.speak(u), 450);
+  };
+
+  const enqueueAnnouncements = (readyOrders) => {
+    if (!announceOnRef.current || !('speechSynthesis' in window)) return;
+    readyOrders.forEach(o => {
+      const id = String(o.id);
+      if (announcedIdsRef.current.has(id)) return;
+      announcedIdsRef.current.add(id);
+      // Digits read one at a time — "one five nine" carries over venue
+      // noise better than "a hundred and fifty-nine".
+      const digits = String(o.order_number || o.id)
+        .replace(/\D/g, '').split('').join(' ');
+      const first = String(o.customerName || '').trim().split(' ')[0];
+      let text = `Order number ${digits || String(o.order_number || o.id)}`;
+      if (first && first.toLowerCase() !== 'customer') text += `, for ${first}`;
+      announceQueueRef.current.push(text);
+      // A backlog of stale announcements helps nobody — keep the last 6.
+      if (announceQueueRef.current.length > 6) announceQueueRef.current.shift();
+    });
+    speakNextAnnouncement();
+  };
+
+  const toggleAnnouncements = () => {
+    const next = !announceOn;
+    setAnnounceOn(next);
+    try { localStorage.setItem('coffee_display_announce', next ? 'true' : 'false'); } catch (e) { /* noop */ }
+    announceOnRef.current = next;
+    if (next && 'speechSynthesis' in window) {
+      playChime();
+      const u = new SpeechSynthesisUtterance('Order announcements on');
+      setTimeout(() => window.speechSynthesis.speak(u), 450);
+    } else {
+      try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) { /* noop */ }
+      announceQueueRef.current = [];
+      speakingRef.current = false;
+    }
+  };
+
   // --- Fetch display config from backend ---
   useEffect(() => {
     let cancelled = false;
@@ -443,6 +542,17 @@ const DisplayScreen = () => {
         for (const [id, ts] of newReadyRef.current) {
           if (nowTs - ts > 30000) newReadyRef.current.delete(id);
         }
+
+        // Voice: announce orders that JUST became ready. The first poll
+        // is baseline (announcing the whole board on page load would be
+        // chaos); dedupe lives inside enqueueAnnouncements.
+        const newlyReady = next.ready.filter(
+          o => !prevReadyIdsRef.current.has(String(o.id)));
+        if (!firstPollRef.current && newlyReady.length) {
+          enqueueAnnouncements(newlyReady);
+        }
+        firstPollRef.current = false;
+
         prevReadyIdsRef.current = currentReadyIds;
 
         setOrders(next);
@@ -682,6 +792,17 @@ const DisplayScreen = () => {
               ))}
             </select>
           )}
+          <button
+            onClick={(e) => { e.stopPropagation(); toggleAnnouncements(); }}
+            className="p-2 rounded-full hover:opacity-80"
+            style={{ backgroundColor: announceOn ? '#16a34a' : headerChip,
+                     color: announceOn ? '#ffffff' : onHeader }}
+            title={announceOn
+              ? 'Voice announcements ON - tap to mute'
+              : 'Read new READY orders aloud through this screen (tap to enable - you should hear a confirmation)'}
+          >
+            {announceOn ? <Volume2 size={24} /> : <VolumeX size={24} />}
+          </button>
           <button
             onClick={(e) => { e.stopPropagation(); setOrientation(orientation === 'portrait' ? 'landscape' : 'portrait'); }}
             className="p-2 rounded-full hover:opacity-80"
