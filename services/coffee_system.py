@@ -2160,6 +2160,30 @@ class CoffeeOrderSystem:
             return self.PRE_EVENT_DEFAULT_MESSAGE.format(
                 name=name, order=summary, event=self.event_name)
 
+    def _sugar_self_serve(self):
+        """True when the venue runs help-yourself sugar (baristas never
+        add it). SMS then strips requested sugar from the order and tells
+        the customer where to find it; kiosk/walk-in skip the question."""
+        try:
+            return str(self._get_setting('sugar_self_serve', 'false')).lower() == 'true'
+        except Exception:
+            return False
+
+    # Plain ASCII (SMS segment cost rule).
+    SUGAR_SELF_SERVE_NOTE = " Sugar is help-yourself at the counter."
+
+    def _apply_self_serve_sugar(self, od):
+        """Strip a requested sugar when self-serve mode is on. Returns
+        True when the customer HAD asked for sugar (so replies can say
+        where to get it)."""
+        if not self._sugar_self_serve():
+            return False
+        asked = str(od.get('sugar') or '').strip().lower()
+        if asked and asked not in ('no sugar', 'none', '0'):
+            od['sugar'] = 'no sugar'
+            return True
+        return False
+
     def _place_order(self, phone, name, order_details, prefix=''):
         """Auto-place a completed order — no YES step. Customers kept thinking
         the order was done after telling us what they wanted; the YES was a
@@ -2167,6 +2191,7 @@ class CoffeeOrderSystem:
         order, and tells them it's placed + how to fix it (CANCEL / FRIEND)."""
         od = dict(order_details or {})
         od.setdefault('sugar', 'no sugar')
+        sugar_redirect = self._apply_self_serve_sugar(od)
         # PRE-EVENT MODE: save instead of make. All the parsing, milk
         # defaults and validation above still ran, so what we save is a
         # complete, makeable order.
@@ -2199,7 +2224,8 @@ class CoffeeOrderSystem:
         # pricing round-trip).
         return (
             f"{prefix}{order_response}\n"
-            f"That's: {summary}.{self._format_price_tail(od)} "
+            f"That's: {summary}.{self.SUGAR_SELF_SERVE_NOTE if sugar_redirect else ''}"
+            f"{self._format_price_tail(od)} "
             f"Wrong? Reply CANCEL. Add a coffee with FRIEND."
         )
 
@@ -2374,6 +2400,11 @@ class CoffeeOrderSystem:
             od.setdefault('sugar', 'no sugar')
             resolved.append(od)
 
+        # Self-serve sugar venues: strip any requested sugar from every
+        # drink; one note on the reply covers the lot.
+        multi_sugar_redirect = any(
+            self._apply_self_serve_sugar(od) for od in resolved)
+
         # PRE-EVENT MODE: preferences store ONE usual per phone — save the
         # first drink and say so rather than silently dropping the rest.
         if self._pre_event_settings().get('enabled'):
@@ -2423,6 +2454,7 @@ class CoffeeOrderSystem:
         return (
             f"Got it {name}! {len(placed)} coffees ordered together:\n"
             + "\n".join(lines)
+            + (self.SUGAR_SELF_SERVE_NOTE + "\n" if multi_sugar_redirect else "")
             + f"{total_line}\n"
             "Same station, ready together. Wrong? Reply CANCEL."
         )

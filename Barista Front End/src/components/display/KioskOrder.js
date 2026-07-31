@@ -347,7 +347,7 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
         {step === 'name' && (
           <>
             <Header title="Almost done — who's it for?"
-                    onBack={() => setStep('sugar')} />
+                    onBack={() => setStep(menu?.sugar_self_serve ? 'size' : 'sugar')} />
             <p className="text-xl text-gray-600 mb-3 font-medium">First name for the order</p>
             <input
               autoFocus value={name} onChange={(e) => setName(e.target.value)}
@@ -458,7 +458,7 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
                     active={size?.value === s.value}
                     disabled={!ok}
                     sub={!ok ? 'Not available with your choices' : null}
-                    onClick={() => { if (ok) { setSize(s); setStep('sugar'); } }} />
+                    onClick={() => { if (ok) { setSize(s); if (menu?.sugar_self_serve) { setSugar(0); afterSugar(); } else { setStep('sugar'); } } }} />
                 );
               })}
             </div>
