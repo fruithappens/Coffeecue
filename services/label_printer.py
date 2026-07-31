@@ -340,11 +340,12 @@ def render_label(payload: dict, width_dots: int = None,
         put(', '.join(modifiers)[:34], f_mods, 36)
     rule('rule_below_drink')
 
-    # 5. Footer: station + time, separated by a rule (toggleable).
+    # 5. Station + time. The rule above it used to be hardcoded —
+    # Steve's review: every divider should be a choice. Default ON so
+    # existing labels look unchanged until the operator says otherwise.
     if options.get('show_station_time', True):
-        y += 4
-        draw.line([(margin, y), (W - margin, y)], fill=0)
-        y += 6
+        rule('rule_above_station', default=True)
+        y += 2
         foot = ' · '.join([p for p in (station, hhmm) if p]) or hhmm
         put(foot[:40], f_foot, 32)
 
@@ -354,10 +355,16 @@ def render_label(payload: dict, width_dots: int = None,
     # branding/reseller ('CoffeeCue - coffeecue.com', Wallfly, ...).
     # Shrink-to-fit: try smaller fonts before truncating — the first
     # live render clipped 'or the event app' off the right edge.
-    for line in (str(options.get('instructions_text') or '').strip(),
-                 str(options.get('footer_text') or '').strip()):
-        if not line:
-            continue
+    # Optional dividers: one above the whole block, one between the
+    # instructions and sponsor/footer lines.
+    footer_lines = [ln for ln in
+                    (str(options.get('instructions_text') or '').strip(),
+                     str(options.get('footer_text') or '').strip()) if ln]
+    if footer_lines:
+        rule('rule_above_footer')
+    for idx, line in enumerate(footer_lines):
+        if idx == 1:
+            rule('rule_between_footer_lines')
         line = line[:60]
         fitted, tw = None, W
         for size in (22, 20, 18, 16):

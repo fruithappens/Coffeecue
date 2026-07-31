@@ -112,6 +112,9 @@ const LabelDesignCard = () => {
           {toggle('rule_below_logo', 'Below logo')}
           {toggle('rule_below_number', 'Below order number')}
           {toggle('rule_below_drink', 'Below drink details')}
+          {toggle('rule_above_station', 'Above station + time')}
+          {toggle('rule_above_footer', 'Above instructions/footer')}
+          {toggle('rule_between_footer_lines', 'Between instructions and footer')}
           <label className="block text-sm mt-2">
             <span className="text-gray-600">Ordering instructions line</span>
             <input
