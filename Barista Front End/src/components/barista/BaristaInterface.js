@@ -24,7 +24,8 @@ import {
   formatTimeSince,
   formatBatchName,
   calculateMinutesDiff,
-  buildGroupInfo
+  buildGroupInfo,
+  applicableStages
 } from '../../utils/orderUtils';
 import { getMilkColorStyle, getMilkDotStyle } from '../../utils/milkColorHelper';
 import '../../styles/milkColors.css';
@@ -205,6 +206,59 @@ const BaristaInterface = () => {
   const setAutoPrintLabels = (enabled) => {
     printService.setAutoPrint(selectedStation, enabled);
     setAutoPrintLabelsState(enabled);
+  };
+
+  // Team mode: multiple baristas sharing THIS iPad divide an order into
+  // stages (shots / milk) and tick their part on the card. Per-device
+  // like auto-print — the iPad is the station's screen.
+  const [teamMode, setTeamModeState] = useState(false);
+  useEffect(() => {
+    setTeamModeState(localStorage.getItem(
+      `coffee_cue_team_mode_station_${selectedStation}`) === 'true');
+  }, [selectedStation]);
+  const setTeamMode = (enabled) => {
+    try {
+      localStorage.setItem(`coffee_cue_team_mode_station_${selectedStation}`,
+        enabled ? 'true' : 'false');
+    } catch (e) { /* device pref only */ }
+    setTeamModeState(enabled);
+  };
+  // Optimistic local stage state layered over the polled value so a tap
+  // feels instant; the next poll reconciles with the server.
+  const [stageOverrides, setStageOverrides] = useState({});
+  const orderStages = (order) => ({
+    ...(order.stages || {}),
+    ...(stageOverrides[order.id] || {}),
+  });
+  // Which stages apply to a drink lives in orderUtils.applicableStages
+  // (shared with the pending work-type tags). More helpers than chips is
+  // fine — chips are per-stage, not per-person.
+  const toggleStage = async (order, stage) => {
+    const current = !!orderStages(order)[stage];
+    const next = !current;
+    setStageOverrides(s => ({
+      ...s,
+      [order.id]: { ...(s[order.id] || {}), [stage]: next ? new Date().toISOString() : undefined },
+    }));
+    try {
+      const resp = await fetch(`/api/orders/${order.id}/stage`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('coffee_system_token') || ''}`,
+        },
+        body: JSON.stringify({ stage, done: next }),
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    } catch (e) {
+      // Revert the optimistic tick and say so — a silent placebo tick
+      // would tell the other barista a stage is done when it isn't.
+      setStageOverrides(s => ({
+        ...s,
+        [order.id]: { ...(s[order.id] || {}), [stage]: current ? new Date().toISOString() : undefined },
+      }));
+      showToast(`Couldn't save the ${stage} tick - try again`, 'error');
+    }
   };
 
   // Role gate for manager-only tabs. A plain BARISTA on the floor should
@@ -1307,6 +1361,35 @@ const BaristaInterface = () => {
           )}
         </div>
 
+        {/* Team mode stage chips: two-plus baristas sharing this iPad
+            tick their part (shots / milk). COMPLETE stays the explicit
+            final tap — it lights up when every part is ticked but never
+            fires itself (an accidental complete would SMS the customer). */}
+        {teamMode && (() => {
+          const stages = applicableStages(order);
+          if (stages.length === 0) return null;
+          const done = orderStages(order);
+          return (
+            <div className="mt-2 flex space-x-2">
+              {stages.map(stage => (
+                <button
+                  key={stage}
+                  className={`flex-1 py-2 rounded-lg font-semibold text-sm border-2 ${
+                    done[stage]
+                      ? 'bg-green-100 border-green-500 text-green-800'
+                      : 'bg-white border-gray-300 text-gray-600 hover:border-gray-400'}`}
+                  onClick={() => toggleStage(order, stage)}
+                  title={done[stage]
+                    ? `${stage} done - tap to undo`
+                    : `Tap when the ${stage} ${stage === 'shots' ? 'are' : 'is'} done`}
+                >
+                  {done[stage] ? '✓ ' : ''}{stage === 'shots' ? '☕ Shots' : '🥛 Milk'}
+                </button>
+              ))}
+            </div>
+          );
+        })()}
+
         {/* One compact action row: big COMPLETE, small icon-only message
             button (Steve: the card ate too much vertical space). Messaging
             is disabled when the order has no phone number — it used to
@@ -1315,13 +1398,19 @@ const BaristaInterface = () => {
         {(() => {
           const _ph = String(order.phoneNumber || '').trim().toLowerCase();
           const hasPhone = !!_ph && _ph !== 'walk-in' && _ph !== 'na' && _ph !== 'n/a';
+          const _stages = teamMode ? applicableStages(order) : [];
+          const _done = orderStages(order);
+          const allStagesDone = _stages.length > 0 && _stages.every(s => _done[s]);
           return (
             <div className="mt-2 flex space-x-2">
               <button
-                className="flex-1 bg-green-500 text-white py-2 rounded-lg font-bold hover:bg-green-600"
+                className={`flex-1 text-white py-2 rounded-lg font-bold ${
+                  allStagesDone
+                    ? 'bg-green-600 hover:bg-green-700 ring-2 ring-green-300 animate-pulse'
+                    : 'bg-green-500 hover:bg-green-600'}`}
                 onClick={() => handleCompleteOrder(order.id)}
               >
-                COMPLETE ORDER
+                {allStagesDone ? 'ALL PARTS DONE - COMPLETE' : 'COMPLETE ORDER'}
               </button>
               <button
                 className={`px-3 rounded-lg flex items-center justify-center ${hasPhone
@@ -2390,6 +2479,7 @@ const BaristaInterface = () => {
             {/* Pending Orders */}
             <PendingOrdersSection
               orders={pendingOrders}
+              teamMode={teamMode}
               filter={filter}
               onFilterChange={setFilter}
               onStartOrder={startOrderWithLabel}
@@ -2866,6 +2956,24 @@ const BaristaInterface = () => {
             <div className="bg-white rounded-lg shadow-md p-4">
               <h2 className="text-xl font-bold mb-4">Notification Settings</h2>
               <NotificationSettings />
+            </div>
+            {/* Team mode — stage chips for multiple baristas sharing this
+                station's iPad. Per-device, default OFF: solo baristas
+                never see the extra chips. */}
+            <div className="bg-white rounded-lg shadow-md p-4">
+              <h2 className="text-xl font-bold mb-4">Team Mode</h2>
+              <label className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={teamMode}
+                  onChange={(e) => setTeamMode(e.target.checked)}
+                />
+                <span>
+                  Stage chips on current orders — when two or more baristas
+                  share this screen, each ticks their part (☕ shots / 🥛 milk)
+                  and COMPLETE lights up when every part is done
+                </span>
+              </label>
             </div>
             {/* Label Printing — per-device auto-print toggle. Deliberately
                 OFF by default: the operator opts each station's tablet in

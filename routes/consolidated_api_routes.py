@@ -1172,6 +1172,8 @@ def get_in_progress_orders():
                 'coffeeType': coffee_type,
                 'milkType': milk_type,
                 'extraHot': extra_hot,
+                # Team mode: which stages (shots/milk) are already done.
+                'stages': order_details.get('stages') or {},
                 # Order channel + no-SMS flag (EA app orders).
                 'orderSource': order_details.get('source') or 'sms',
                 'needsContact': bool(order_details.get('needs_contact')),
@@ -2753,6 +2755,58 @@ def order_message_history(order_number):
         except Exception:
             pass
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/orders/<order_id>/stage', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def set_order_stage(order_id):
+    """Team mode: tick (or untick) one stage of an in-progress order —
+    'shots' or 'milk' — so two-plus baristas sharing a station's iPad can
+    divide the work and see each other's progress. Stamps a timestamp
+    into order_details.stages.<stage>; COMPLETE stays a separate,
+    explicit action (an accidental tap must never fire the ready-SMS)."""
+    try:
+        data = request.get_json(silent=True) or {}
+        stage = str(data.get('stage') or '').strip().lower()
+        done = data.get('done', True)
+        if stage not in ('shots', 'milk'):
+            return jsonify({'success': False,
+                            'message': "stage must be 'shots' or 'milk'"}), 400
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        clean_id = clean_order_id(order_id)
+        cursor = db.cursor()
+        cursor.execute("SELECT order_details FROM orders WHERE order_number = %s",
+                       (clean_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({'success': False,
+                            'message': f'Order {clean_id} not found'}), 404
+        od_raw = row[0] if not isinstance(row, dict) else row.get('order_details')
+        od = json.loads(od_raw) if isinstance(od_raw, str) else (od_raw or {})
+        stages = od.get('stages') or {}
+        if done:
+            stages[stage] = datetime.now().isoformat()
+        else:
+            stages.pop(stage, None)
+        cursor.execute(
+            "UPDATE orders SET order_details = order_details || %s::jsonb "
+            "WHERE order_number = %s",
+            (json.dumps({'stages': stages}), clean_id))
+        db.commit()
+        return jsonify({'success': True, 'stages': stages})
+    except Exception as e:
+        logger.error(f"set_order_stage error: {e}")
+        try:
+            current_app.config.get('coffee_system').db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 
 @bp.route('/orders/<order_id>/pickup', methods=['POST'])

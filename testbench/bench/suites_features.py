@@ -229,6 +229,36 @@ def suite_features_flow(rn):
             c.post(f"/api/orders/{no4}/cancel")
         c.req("PUT", "/api/settings", body={"sugar_self_serve": False})
 
+    # --- team-mode stage ticks (#200) -------------------------------------
+    ph5 = rn.next_phone()
+    no5 = None
+    try:
+        _sim(c, ph5, "medium latte")
+        ok5, r5 = _sim(c, ph5, f"{BENCH_TAG}Toby")
+        m = _re.search(r"#([A-Za-z]{0,3}\d+)", r5 or "")
+        no5 = m.group(1) if m else None
+        if no5:
+            c.post(f"/api/orders/{no5}/start")
+            sc, sb, _ = c.post(f"/api/orders/{no5}/stage",
+                               {"stage": "shots", "done": True})
+            _c6, ib, _ = c.get("/api/orders?status=in-progress")
+            rows = ib.get("data") or ib.get("orders") or []
+            row = _find_order(rows if isinstance(rows, list) else [], no5)
+            got = ((row or {}).get("stages") or {})
+            step("team mode: a shots tick survives to the next poll",
+                 sc == 200 and (sb or {}).get("success") is True
+                 and bool(got.get("shots")),
+                 f"order #{no5}, POST={sc}, polled stages={got}",
+                 suggestion="Stage ticks must be server-backed — a tick only "
+                            "on one device tells the other barista a lie.")
+            bc, _bb, _ = c.post(f"/api/orders/{no5}/stage",
+                                {"stage": "espresso", "done": True})
+            step("team mode: unknown stage names are refused",
+                 bc == 400, f"HTTP {bc} (expected 400)")
+    finally:
+        if no5:
+            c.post(f"/api/orders/{no5}/cancel")
+
     # --- self-clean: purge the preference rows these flows created --------
     hc, hb, _ = c.post("/api/support/bench-hygiene")
     deleted = (hb or {}).get("deleted") if isinstance(hb, dict) else None
