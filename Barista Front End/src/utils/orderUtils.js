@@ -34,6 +34,21 @@ export const parseServerDate = (value) => {
  * @param {Array} orders - all visible orders
  * @returns {Object} map of orderId -> { groupId, groupLabel, size, position }
  */
+// Which team-mode stages a drink actually involves. No Shots chip for
+// teas/chocolate/etc; no Milk chip for black coffees. Shared by the
+// in-progress stage chips AND the pending work-type tags so the two can
+// never disagree about what a drink needs.
+const NO_SHOT_DRINKS = /tea|chai|matcha|hot choc|chocolate|babycino|juice|smoothie|water/i;
+export const applicableStages = (order) => {
+  const out = [];
+  if (!NO_SHOT_DRINKS.test(String(order.coffeeType || order.coffee_type || ''))) {
+    out.push('shots');
+  }
+  const milk = String(order.milkType || order.milk_type || '').toLowerCase();
+  if (milk && !['no milk', 'none', 'black', ''].includes(milk)) out.push('milk');
+  return out;
+};
+
 export const buildGroupInfo = (orders) => {
   const groups = {};
   (orders || []).forEach((o) => {
@@ -50,12 +65,20 @@ export const buildGroupInfo = (orders) => {
         String(b.orderNumber ?? b.id), undefined, { numeric: true }
       )
     );
+    // "2 of 3 made" — how many of the group's coffees are already done
+    // (completed or collected). Lets any barista read the group's true
+    // state off a single card instead of counting cards (Steve).
+    const made = members.filter((m) => {
+      const st = String(m.status || m.rawStatus || '').toLowerCase();
+      return st === 'completed' || st === 'picked_up' || st === 'picked-up';
+    }).length;
     members.forEach((m, i) => {
       byId[m.id] = {
         groupId: gid,
         groupLabel: m.groupLabel || m.group_label || 'Group',
         size: members.length,
         position: i + 1,
+        made,
       };
     });
   });

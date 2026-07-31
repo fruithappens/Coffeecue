@@ -10,9 +10,11 @@ import BatchGroupsList from './BatchGroupsList';
 import RegularOrdersList from './RegularOrdersList';
 import GroupBadge from './GroupBadge';
 import SourceBadge from './SourceBadge';
+import WorkTypeBadge from './WorkTypeBadge';
 
 const PendingOrdersSection = ({
   orders,
+  teamMode,
   filter,
   onFilterChange,
   onStartOrder,
@@ -250,6 +252,7 @@ const PendingOrdersSection = ({
             {/* Regular Orders Section */}
             {regularOrders.length > 0 && (
               <RegularOrdersList
+                teamMode={teamMode}
                 orders={regularOrders}
                 onStartOrder={onStartOrder}
                 onSendMessage={onSendMessage}
@@ -278,6 +281,7 @@ const PendingOrdersSection = ({
                   <div className="text-sm flex items-center space-x-1">
                     <GroupBadge info={groupInfoByOrderId[order.id]} />
                     <SourceBadge order={order} />
+                    <WorkTypeBadge order={order} teamMode={teamMode} />
                     <span>{order.waitTime} min</span>
                     <div className={`w-3 h-3 rounded-full ${getTimeRatioColor(order.waitTime, order.promisedTime)}`}></div>
                   </div>

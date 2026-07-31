@@ -6,9 +6,12 @@ import { useSettings } from '../../hooks/useSettings';
 import { getMilkColorStyle, getMilkDotStyle } from '../../utils/milkColorHelper';
 import GroupBadge from './GroupBadge';
 import SourceBadge from './SourceBadge';
+import WorkTypeBadge from './WorkTypeBadge';
 import '../../styles/milkColors.css';
 
-const RegularOrdersList = ({ orders, onStartOrder, onSendMessage, onDelayOrder, onEditOrder, onMoveOrder, batchHintsByOrderId = {}, groupInfoByOrderId = {}, onStartGroup }) => {
+const RegularOrdersList = ({
+  orders,
+  teamMode, onStartOrder, onSendMessage, onDelayOrder, onEditOrder, onMoveOrder, batchHintsByOrderId = {}, groupInfoByOrderId = {}, onStartGroup }) => {
   const { settings } = useSettings();
   
   // Debug first order's milk info
@@ -54,6 +57,7 @@ const RegularOrdersList = ({ orders, onStartOrder, onSendMessage, onDelayOrder, 
                     others (multi-drink SMS or FRIEND order); serve as one. */}
                 <GroupBadge info={groupInfoByOrderId[order.id]} />
                 <SourceBadge order={order} />
+                <WorkTypeBadge order={order} teamMode={teamMode} />
                 {/* Batch hint badges — small amber tags telling the
                     barista this order can be made alongside N
                     others of the same kind. */}
