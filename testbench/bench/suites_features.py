@@ -259,6 +259,43 @@ def suite_features_flow(rn):
         if no5:
             c.post(f"/api/orders/{no5}/cancel")
 
+    # --- no-coffee drinks must not burn beans (bug #19, #201) -------------
+    def _beans_total():
+        from .suites_deep import _inventory
+        total = 0.0
+        for r in (_inventory(c) or []):
+            if str(r.get("category")).lower() == "coffee":
+                total += float(r.get("amount") or r.get("current_quantity") or 0)
+        return round(total, 3)
+
+    ph6 = rn.next_phone()
+    no6 = None
+    try:
+        beans_before = _beans_total()
+        _sim(c, ph6, "medium hot chocolate")
+        ok6, r6 = _sim(c, ph6, f"{BENCH_TAG}Harper")
+        m = _re.search(r"#([A-Za-z]{0,3}\d+)", r6 or "")
+        no6 = m.group(1) if m else None
+        if no6:
+            c.post(f"/api/orders/{no6}/start")
+            c.post(f"/api/orders/{no6}/complete")
+            beans_after = _beans_total()
+            step("hot chocolate burns NO coffee beans",
+                 beans_after == beans_before,
+                 f"order #{no6}, beans {beans_before} -> {beans_after}",
+                 suggestion="The shot decrement excluded only TEA and "
+                            "defaulted everything else to 1 shot — every hot "
+                            "chocolate/chai/babycino drained 8g of beans "
+                            "(bug #19). Non-coffee drinks must leave the "
+                            "coffee category untouched.")
+            c.post(f"/api/orders/{no6}/pickup")
+        else:
+            step("hot chocolate burns NO coffee beans", False,
+                 f"couldn't place hot chocolate: {((r6 or '')[:80])!r}")
+    finally:
+        if no6:
+            c.post(f"/api/orders/{no6}/cancel")
+
     # --- self-clean: purge the preference rows these flows created --------
     hc, hb, _ = c.post("/api/support/bench-hygiene")
     deleted = (hb or {}).get("deleted") if isinstance(hb, dict) else None

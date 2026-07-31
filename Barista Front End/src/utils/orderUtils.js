@@ -38,6 +38,11 @@ export const parseServerDate = (value) => {
 // teas/chocolate/etc; no Milk chip for black coffees. Shared by the
 // in-progress stage chips AND the pending work-type tags so the two can
 // never disagree about what a drink needs.
+// KEEP ALIGNED with services/coffee_system.py _NO_COFFEE_DRINK_RE — the
+// backend twin of this pattern also decides which drinks burn coffee
+// beans in stock. Name-based because drinks are inventory names, not
+// recipes; if a per-drink "contains coffee" flag ever lands in the
+// menu, both should read it instead.
 const NO_SHOT_DRINKS = /tea|chai|matcha|hot choc|chocolate|babycino|juice|smoothie|water/i;
 export const applicableStages = (order) => {
   const out = [];

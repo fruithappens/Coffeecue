@@ -6062,6 +6062,22 @@ class CoffeeOrderSystem:
         'piccolo': 1, 'macchiato': 1, 'cortado': 1,
     }
 
+    # Drinks that contain NO espresso. ONE shared truth — used by stock
+    # depletion below (no bean burn) and mirrored by the team-mode stage
+    # chips in the frontend (utils/orderUtils.applicableStages — keep the
+    # two patterns aligned). Name-based because drinks are inventory
+    # names, not recipes with ingredient lists; if a per-drink
+    # "contains coffee" flag ever lands in the menu, both should read it.
+    # Steve's audit question found the bug this fixes: the shot decrement
+    # excluded only TEA and defaulted everything else to 1 shot, so every
+    # hot chocolate/chai/matcha/babycino burned 8g of beans from stock.
+    _NO_COFFEE_DRINK_RE = re.compile(
+        r'tea|chai|matcha|hot choc|chocolate|babycino|juice|smoothie|water',
+        re.IGNORECASE)
+
+    def _drink_uses_coffee(self, coffee_type):
+        return not self._NO_COFFEE_DRINK_RE.search(str(coffee_type or ''))
+
     def _decrement_stock_for_order(self, conn, db_type, station_id, processed_details, restock=False):
         """Decrement the milk and coffee an order consumed.
 
@@ -6150,12 +6166,32 @@ class CoffeeOrderSystem:
                 })
 
         # --- coffee shots -------------------------------------------
-        # Tea uses no coffee beans. Skip the shot decrement entirely.
-        if not is_tea:
-            shots = self._COFFEE_SHOTS_BY_TYPE.get(coffee_type, 1)
-            # A "strong" or "double" order adds a shot — best effort.
-            if (processed_details.get('strength') or '').lower() in ('strong', 'double', 'extra shot'):
-                shots += 1
+        # Only drinks that actually CONTAIN espresso burn beans. Was
+        # `if not is_tea:` — hot chocolate/chai/matcha/babycino fell
+        # through to the 1-shot default and silently drained bean stock
+        # (bug #19, found by Steve asking how "no shots" was decided).
+        if not is_tea and self._drink_uses_coffee(coffee_type):
+            # Steve's audit: shot COUNTS must reach the bean math. Café
+            # practice here is "run another full extraction" (not a
+            # bigger basket), so N shots = N x 8g. Priority order:
+            #   1. explicit shots field (walk-in dialog sends shots: 2)
+            #   2. strength words: strong/double/extra +1, triple +2,
+            #      quad +3 (SMS "quad shot latte" parses into strength)
+            #   3. per-type base (currently 1 for every espresso drink)
+            shots = 0
+            try:
+                shots = int(processed_details.get('shots') or 0)
+            except (TypeError, ValueError):
+                shots = 0
+            if shots <= 0:
+                shots = self._COFFEE_SHOTS_BY_TYPE.get(coffee_type, 1)
+                strength = (processed_details.get('strength') or '').lower()
+                if 'quad' in strength:
+                    shots += 3
+                elif 'triple' in strength:
+                    shots += 2
+                elif strength in ('strong', 'double', 'extra shot') or 'double' in strength:
+                    shots += 1
             # Bean stock is in KILOGRAMS; one shot uses ~8g of beans.
             # Passing the raw shot count deducted 1kg PER SHOT — station
             # 1's 7.5kg "ran out" in a day of testing and the walk-in
