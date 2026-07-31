@@ -109,3 +109,4 @@ backups/
 # Test Bench credentials — NEVER commit (created locally by the operator)
 .bench_env
 testbench/.bench_env
+testbench/live_mirror/
