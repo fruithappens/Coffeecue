@@ -396,6 +396,79 @@ def render_label(payload: dict, width_dots: int = None,
     return buf.getvalue()
 
 
+def render_ticket(payload: dict, width_dots: int = None,
+                  options: dict = None) -> bytes:
+    """Customer ticket stub — the deli-counter number, on sticky stock.
+
+    Printed for walk-up/kiosk customers so they leave the counter with
+    their order number in hand (or stuck to a laptop lid). Distinct from
+    the cup label: the NUMBER is the hero, the drink is a reminder line,
+    and it says where to collect. Honours event name / instructions /
+    footer from the same label_settings the designer edits.
+    """
+    from PIL import Image, ImageDraw
+    from datetime import datetime
+
+    W = int(width_dots or PRINT_WIDTH_DOTS)
+    payload = payload or {}
+    options = options or {}
+
+    order_number = str(payload.get('order_number') or '—')
+    drink = str(payload.get('drink') or '').strip()
+    size = str(payload.get('size') or '').strip()
+    station = str(payload.get('station_name') or '').strip()
+    drink_line = ' '.join(p for p in (size.title(), drink.title()) if p)
+    try:
+        hhmm = datetime.fromisoformat(
+            str(payload.get('ts') or '')[:16]).strftime('%H:%M')
+    except Exception:
+        hhmm = datetime.now().strftime('%H:%M')
+
+    img = Image.new('1', (W, LABEL_MAX_HEIGHT), 1)
+    draw = ImageDraw.Draw(img)
+    margin = 10
+
+    def centred(text, font, dy):
+        nonlocal y
+        try:
+            tw = draw.textlength(text, font=font)
+        except Exception:
+            tw = len(text) * 10
+        draw.text((max(margin, (W - int(tw)) // 2), y), text, fill=0, font=font)
+        y += dy
+
+    y = 10
+    ev = str(options.get('event_name') or '').strip()
+    if options.get('show_event_name') and ev:
+        centred(ev[:26], _load_font(26), 32)
+    centred('YOUR ORDER', _load_font(28), 40)
+    centred(f"#{order_number}", _load_font(150), 158)
+    if drink_line:
+        centred(drink_line[:24], _load_font(30), 38)
+    if station:
+        centred(f"Collect: {station}"[:30], _load_font(26), 34)
+    y += 2
+    draw.line([(margin, y), (W - margin, y)], fill=0)
+    y += 8
+    instructions = str(options.get('instructions_text') or '').strip()
+    if instructions:
+        f_small = _load_font(20)
+        try:
+            tw = draw.textlength(instructions[:44], font=f_small)
+        except Exception:
+            tw = len(instructions[:44]) * 9
+        draw.text((max(margin, (W - int(tw)) // 2), y),
+                  instructions[:44], fill=0, font=f_small)
+        y += 26
+    centred(hhmm, _load_font(20), 26)
+
+    height = max(280, min(LABEL_MAX_HEIGHT, y + 6))
+    img = img.crop((0, 0, W, height))
+    buf = io.BytesIO()
+    img.save(buf, format='PNG')
+    return buf.getvalue()
+
+
 def send_png_to_printer(ip: str, port: int, png_bytes: bytes,
                         timeout: float = 5.0) -> tuple[bool, str]:
     """Best-effort raw-socket dispatch to a network printer.

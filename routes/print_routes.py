@@ -196,14 +196,15 @@ def _snapshot_order(db, order_number, station_id=None):
 
 
 def _enqueue(db, printer_id, payload, order_id=None, job_type='label'):
-    """Insert a queued job. Idempotent for label jobs: an identical
-    queued job for the same order+printer is returned, not duplicated."""
+    """Insert a queued job. Idempotent for label AND ticket jobs: an
+    identical queued job for the same order+printer+type is returned,
+    not duplicated (double-tap safety)."""
     cur = db.cursor()
-    if order_id and job_type == 'label':
+    if order_id and job_type in ('label', 'ticket'):
         cur.execute(
             "SELECT id FROM print_jobs WHERE printer_id = %s AND order_id = %s "
-            "AND status = 'queued' AND type = 'label' LIMIT 1",
-            (printer_id, str(order_id)))
+            "AND status = 'queued' AND type = %s LIMIT 1",
+            (printer_id, str(order_id), job_type))
         row = cur.fetchone()
         if row:
             return (row[0] if not isinstance(row, dict) else row.get('id')), False
@@ -311,9 +312,10 @@ def cloudprnt_fetch():
             payload = json.loads(job.get('payload') or '{}')
         except Exception:
             pass
-        from services.label_printer import render_label
-        png = render_label(payload, job.get('width_dots'),
-                           options=_label_options(db))
+        from services.label_printer import render_label, render_ticket
+        renderer = render_ticket if job.get('type') == 'ticket' else render_label
+        png = renderer(payload, job.get('width_dots'),
+                       options=_label_options(db))
         cur.execute(
             "UPDATE print_jobs SET status = 'fetched', fetched_at = NOW() WHERE id = %s",
             (token,))
@@ -412,6 +414,76 @@ def print_label():
         except Exception:
             pass
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@bp.route('/ticket', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def print_ticket():
+    """Customer ticket stub (deli-counter number) for an order — the
+    walk-up/kiosk take-away slip. Same routing as /label."""
+    db = _db()
+    _ensure_tables(db)
+    data = request.get_json(silent=True) or {}
+    order_id = data.get('order_id')
+    station_id = data.get('station_id')
+    if not order_id:
+        return jsonify({'success': False, 'message': 'order_id is required'}), 400
+    try:
+        job_id, created = _enqueue_ticket(db, order_id, station_id)
+        if not job_id:
+            return jsonify({'success': False,
+                            'message': created or 'no enabled printer'}), 404
+        return jsonify({'success': True, 'job_id': job_id})
+    except Exception as e:
+        logger.error(f"print_ticket error: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+def _enqueue_ticket(db, order_id, station_id=None):
+    """Snapshot + queue a ticket job on the station's enabled printer.
+    Returns (job_id, created) or (None, reason). Shared by the manual
+    endpoint and the auto-print-on-walkup hooks."""
+    cur = db.cursor()
+    if not station_id:
+        cur.execute("SELECT station_id FROM orders WHERE order_number = %s",
+                    (str(order_id),))
+        row = cur.fetchone()
+        if row:
+            station_id = row[0] if not isinstance(row, dict) else row.get('station_id')
+    cur.execute(
+        "SELECT * FROM printers WHERE enabled = TRUE AND station_id = %s "
+        "ORDER BY id LIMIT 1", (station_id,))
+    printer = _row_to_dict(cur, cur.fetchone())
+    if not printer:
+        return None, 'No enabled printer for this station'
+    payload = _snapshot_order(db, order_id, station_id)
+    if not payload:
+        return None, f'Order {order_id} not found'
+    return _enqueue(db, printer['id'], payload, order_id=order_id,
+                    job_type='ticket')
+
+
+def maybe_print_ticket(db, order_id, station_id=None):
+    """Auto-ticket hook for walk-up/kiosk order creation. Fires only when
+    the designer's ticket_on_walkup toggle is ON and the station has an
+    enabled printer. Never raises — printing must never block an order."""
+    try:
+        from routes.consolidated_api_routes import _kv_get
+        stored = _kv_get(db, 'label_settings', default={}) or {}
+        if not stored.get('ticket_on_walkup'):
+            return
+        _enqueue_ticket(db, order_id, station_id)
+    except Exception as e:
+        logger.warning(f"auto ticket skipped (non-fatal): {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
 
 
 @bp.route('/reprint', methods=['POST'])
@@ -664,6 +736,7 @@ DEFAULT_LABEL_SETTINGS = {
     'rule_above_station': True,
     'rule_above_footer': False,
     'rule_between_footer_lines': False,
+    'ticket_on_walkup': False,
     'footer_text': '',
     'instructions_text': '',
 }
@@ -724,7 +797,8 @@ def put_label_settings():
     for key in ('show_event_name', 'show_logo', 'show_station_time',
                 'show_name', 'rule_below_logo', 'rule_below_number',
                 'rule_below_drink', 'rule_above_station',
-                'rule_above_footer', 'rule_between_footer_lines'):
+                'rule_above_footer', 'rule_between_footer_lines',
+                'ticket_on_walkup'):
         if key in body:
             stored[key] = bool(body[key])
     if body.get('align') in ('left', 'center'):
@@ -766,9 +840,11 @@ def preview_label():
             }
             if request.args.get('sample') != '1':
                 payload['test'] = True
-        from services.label_printer import render_label
-        png = render_label(payload, int(width) if width else None,
-                           options=_label_options(db))
+        from services.label_printer import render_label, render_ticket
+        renderer = (render_ticket if request.args.get('ticket') == '1'
+                    else render_label)
+        png = renderer(payload, int(width) if width else None,
+                       options=_label_options(db))
         return Response(png, mimetype='image/png')
     except Exception as e:
         logger.error(f"preview_label error: {e}")

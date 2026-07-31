@@ -876,6 +876,17 @@ def orders():
                     'vip': order_details.get('vip', False),
                 })
 
+                # Walk-up ticket stub: when the designer's ticket toggle
+                # is on, a barista-entered walk-in prints the customer a
+                # deli-counter number slip. Fire-and-forget.
+                if (order_details.get('source') == 'walkin'
+                        or order_details.get('order_type') == 'walk-in'):
+                    try:
+                        from routes.print_routes import maybe_print_ticket
+                        maybe_print_ticket(db, order_number, station_id)
+                    except Exception:
+                        pass
+
                 return jsonify({
                     'status': 'success',
                     'data': {
@@ -4249,6 +4260,15 @@ def create_kiosk_order():
             nr = nc.fetchone()
             if nr and (nr[0] if not isinstance(nr, dict) else nr.get('name')):
                 station_name = nr[0] if not isinstance(nr, dict) else nr.get('name')
+        except Exception:
+            pass
+
+        # Kiosk ticket stub: self-entry customers get the same
+        # deli-counter number slip as barista walk-ups when the
+        # designer's ticket toggle is on. Fire-and-forget.
+        try:
+            from routes.print_routes import maybe_print_ticket
+            maybe_print_ticket(db, order_number, target)
         except Exception:
             pass
 
