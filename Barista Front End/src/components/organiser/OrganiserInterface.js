@@ -29,6 +29,7 @@ import EnhancedScheduleManagement from './EnhancedScheduleManagement';
 import MenuManagement from './MenuManagement';
 import StationDefaults from './StationDefaults';
 import QuickSetup from './QuickSetup';
+import SetupWizard from './SetupWizard';
 import ReadinessTab from './ReadinessTab';
 import SmsFlowReference from './SmsFlowReference';
 import InventoryIntegrationService from '../../services/InventoryIntegrationService';
@@ -49,6 +50,7 @@ const OrganiserInterface = () => {
   
   // Navigation state
   const [activeSection, setActiveSection] = useState('dashboard'); // Default to Live Ops Dashboard
+  const [showSetupWizard, setShowSetupWizard] = useState(false);
 
   // Account menu (the top-right avatar) + working log out. Both the avatar
   // and the sidebar "Log out" were dead before — no handler at all.
@@ -420,7 +422,28 @@ const OrganiserInterface = () => {
         <main className="p-6">
           {/* Quick Setup */}
           {activeSection === 'quickSetup' && (
-            <QuickSetup />
+            <>
+              {/* Guided questionnaire — the "answer 12 questions, we
+                  build the event" path for operators who don't know the
+                  menus yet. Writes through the same endpoints as the
+                  one-page Quick Setup below. */}
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4 flex items-center justify-between">
+                <div>
+                  <div className="font-bold text-blue-900">New here? Try the guided setup</div>
+                  <div className="text-sm text-blue-800">Answer about 12 quick questions (3 minutes) and the event builds itself — stations, milks, sizes, drinks, hours. Everything stays editable afterwards.</div>
+                </div>
+                <button
+                  className="ml-4 flex-shrink-0 bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700"
+                  onClick={() => setShowSetupWizard(true)}
+                >
+                  Start questionnaire
+                </button>
+              </div>
+              <QuickSetup />
+            </>
+          )}
+          {showSetupWizard && (
+            <SetupWizard onClose={() => setShowSetupWizard(false)} />
           )}
 
           {activeSection === 'readiness' && (
