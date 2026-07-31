@@ -490,6 +490,11 @@ def orders():
                     'size': order_details.get('size', 'Regular'),
                     'extra_hot': order_details.get('temp') == 'extra hot',
                     'extraHot': order_details.get('temp') == 'extra hot',
+                    # Team mode stage ticks. The guard's first live run
+                    # caught this endpoint missing the field: a tick
+                    # SAVED but vanished from the next poll — the other
+                    # serializer had it, this one didn't.
+                    'stages': order_details.get('stages') or {},
                     # Order channel: 'sms' (default) | 'walkin' | 'ea_app'.
                     # The barista card shows an APP chip for ea_app, and
                     # needsContact marks orders that can't get ready-SMS

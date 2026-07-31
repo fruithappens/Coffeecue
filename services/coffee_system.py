@@ -6171,10 +6171,27 @@ class CoffeeOrderSystem:
         # through to the 1-shot default and silently drained bean stock
         # (bug #19, found by Steve asking how "no shots" was decided).
         if not is_tea and self._drink_uses_coffee(coffee_type):
-            shots = self._COFFEE_SHOTS_BY_TYPE.get(coffee_type, 1)
-            # A "strong" or "double" order adds a shot — best effort.
-            if (processed_details.get('strength') or '').lower() in ('strong', 'double', 'extra shot'):
-                shots += 1
+            # Steve's audit: shot COUNTS must reach the bean math. Café
+            # practice here is "run another full extraction" (not a
+            # bigger basket), so N shots = N x 8g. Priority order:
+            #   1. explicit shots field (walk-in dialog sends shots: 2)
+            #   2. strength words: strong/double/extra +1, triple +2,
+            #      quad +3 (SMS "quad shot latte" parses into strength)
+            #   3. per-type base (currently 1 for every espresso drink)
+            shots = 0
+            try:
+                shots = int(processed_details.get('shots') or 0)
+            except (TypeError, ValueError):
+                shots = 0
+            if shots <= 0:
+                shots = self._COFFEE_SHOTS_BY_TYPE.get(coffee_type, 1)
+                strength = (processed_details.get('strength') or '').lower()
+                if 'quad' in strength:
+                    shots += 3
+                elif 'triple' in strength:
+                    shots += 2
+                elif strength in ('strong', 'double', 'extra shot') or 'double' in strength:
+                    shots += 1
             # Bean stock is in KILOGRAMS; one shot uses ~8g of beans.
             # Passing the raw shot count deducted 1kg PER SHOT — station
             # 1's 7.5kg "ran out" in a day of testing and the walk-in
