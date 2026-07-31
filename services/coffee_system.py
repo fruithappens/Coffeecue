@@ -6192,13 +6192,23 @@ class CoffeeOrderSystem:
                     shots += 2
                 elif strength in ('strong', 'double', 'extra shot') or 'double' in strength:
                     shots += 1
-            # Bean stock is in KILOGRAMS; one shot uses ~8g of beans.
-            # Passing the raw shot count deducted 1kg PER SHOT — station
-            # 1's 7.5kg "ran out" in a day of testing and the walk-in
-            # dialog rightly stopped offering espresso drinks (Steve:
-            # "where are the coffee options gone?").
-            GRAMS_PER_SHOT = 8
-            bean_kg = shots * GRAMS_PER_SHOT / 1000.0
+            # Bean stock is in KILOGRAMS. Dose per extraction is a
+            # SETTING (beans_grams_per_shot), default 22g — the top of
+            # the Australian standard (20-22g double-basket dose; the
+            # double IS the default drink in AU practice), deliberately
+            # high-side per Steve: dial-in shots, spills and staff
+            # coffees never enter the system, so stock maths should err
+            # toward "you still have beans". The old hardcoded 8g was
+            # the classic Italian SINGLE dose — wrong context (Steve's
+            # audit); before that, the raw shot count deducted 1kg PER
+            # SHOT and drained 7.5kg in a day of testing.
+            try:
+                grams_per_shot = float(self._get_setting('beans_grams_per_shot', '22'))
+                if not (1 <= grams_per_shot <= 60):
+                    grams_per_shot = 22.0
+            except (TypeError, ValueError):
+                grams_per_shot = 22.0
+            bean_kg = shots * grams_per_shot / 1000.0
             if bean_kg > 0 and coffee_type:
                 if self._decrement_inventory_item(
                     cursor, db_type, category='coffee', name=coffee_type,

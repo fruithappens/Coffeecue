@@ -11,6 +11,95 @@ import ApiServiceClass from '../../services/ApiService';
 const apiService = new ApiServiceClass();
 
 /**
+ * Coffee bean dose per shot — drives how many grams of beans each drink
+ * deducts from stock. Default 22g: the top of the Australian standard
+ * (cafes here dose 20-22g in a double basket, and the double IS the
+ * standard drink), deliberately a touch high because dial-in shots,
+ * spills and staff coffees never get entered — stock maths should err
+ * toward "you still have beans" (Steve). A strong/double burns two
+ * doses (another full extraction, not a bigger basket).
+ */
+const BeanDoseCard = () => {
+  const [grams, setGrams] = useState('22');
+  const [status, setStatus] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await apiService.request('/settings');
+        const v = r?.settings?.beans_grams_per_shot ?? r?.data?.beans_grams_per_shot;
+        if (v != null && String(v) !== '') setGrams(String(v));
+      } catch (e) { /* default 22 */ }
+    })();
+  }, []);
+
+  const save = async () => {
+    const n = parseFloat(grams);
+    if (!Number.isFinite(n) || n < 1 || n > 60) {
+      setStatus({ type: 'error', text: 'Enter a dose between 1 and 60 grams.' });
+      return;
+    }
+    setSaving(true);
+    setStatus(null);
+    try {
+      const r = await apiService.request('/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ beans_grams_per_shot: n }),
+      });
+      if (r && (r.success || r.status === 'success')) {
+        setStatus({ type: 'success',
+          text: `Saved - every espresso drink now deducts ${n}g of beans (double/strong: ${n * 2}g).` });
+      } else {
+        setStatus({ type: 'error', text: (r && (r.error || r.message)) || 'Server did not confirm the save' });
+      }
+    } catch (e) {
+      setStatus({ type: 'error', text: `Save failed: ${e?.message || 'network error'}` });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h3 className="text-lg font-bold">Coffee dose per drink</h3>
+          <p className="text-sm text-gray-500">
+            Grams of beans each espresso drink deducts from stock. Australian
+            standard is 20-22g (double-basket); keep it on the high side so
+            dial-in shots, spills and staff coffees don't quietly eat your
+            margin. Strong/double burns two doses; triple and quad scale up.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <input
+            type="number" min="1" max="60" step="0.5"
+            className="w-20 p-2 border rounded text-lg text-center"
+            value={grams}
+            onChange={(e) => setGrams(e.target.value)}
+          />
+          <span className="text-gray-600">g</span>
+          <button
+            className="px-4 py-2 bg-amber-600 text-white rounded-md font-semibold hover:bg-amber-700 disabled:opacity-50"
+            disabled={saving}
+            onClick={save}
+          >
+            Save
+          </button>
+        </div>
+      </div>
+      {status && (
+        <div className={`mt-2 text-sm ${status.type === 'error' ? 'text-red-600' : 'text-green-700'}`}>
+          {status.text}
+        </div>
+      )}
+    </div>
+  );
+};
+
+/**
  * Event Stock Management Component
  * Manages total stock levels for the entire event
  */
@@ -336,6 +425,7 @@ const EventStockManagement = () => {
 
   return (
     <div className="p-6">
+      <BeanDoseCard />
       <div className="mb-6">
         <div className="flex justify-between items-center">
           <div>
