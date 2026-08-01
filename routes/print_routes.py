@@ -312,8 +312,10 @@ def cloudprnt_fetch():
             payload = json.loads(job.get('payload') or '{}')
         except Exception:
             pass
-        from services.label_printer import render_label, render_ticket
-        renderer = render_ticket if job.get('type') == 'ticket' else render_label
+        from services.label_printer import (render_label, render_ticket,
+                                            render_banner)
+        renderer = {'ticket': render_ticket,
+                    'banner': render_banner}.get(job.get('type'), render_label)
         png = renderer(payload, job.get('width_dots'),
                        options=_label_options(db))
         cur.execute(
@@ -437,6 +439,49 @@ def print_ticket():
         return jsonify({'success': True, 'job_id': job_id})
     except Exception as e:
         logger.error(f"print_ticket error: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@bp.route('/banner', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def print_banner():
+    """Sideways banner on the label roll: free text, stock width becomes
+    banner height (any roll 40-80mm — the printer row's width_dots
+    drives it), length grows with the text up to ~30cm. Steve's express-
+    table signage straight off the thermal printer."""
+    db = _db()
+    _ensure_tables(db)
+    data = request.get_json(silent=True) or {}
+    text = str(data.get('text') or '').strip()
+    if not text:
+        return jsonify({'success': False, 'message': 'text is required'}), 400
+    printer_id = data.get('printer_id')
+    station_id = data.get('station_id')
+    try:
+        cur = db.cursor()
+        if printer_id:
+            cur.execute("SELECT * FROM printers WHERE id = %s AND enabled = TRUE",
+                        (int(printer_id),))
+        else:
+            cur.execute(
+                "SELECT * FROM printers WHERE enabled = TRUE AND station_id = %s "
+                "ORDER BY id LIMIT 1", (station_id,))
+        printer = _row_to_dict(cur, cur.fetchone())
+        if not printer:
+            return jsonify({'success': False,
+                            'message': 'No enabled printer found'}), 404
+        job_id, _created = _enqueue(db, printer['id'],
+                                    {'text': text[:60],
+                                     'ts': datetime.now().isoformat()},
+                                    job_type='banner')
+        return jsonify({'success': True, 'job_id': job_id})
+    except Exception as e:
+        logger.error(f"print_banner error: {e}")
         try:
             db.rollback()
         except Exception:
@@ -840,9 +885,15 @@ def preview_label():
             }
             if request.args.get('sample') != '1':
                 payload['test'] = True
-        from services.label_printer import render_label, render_ticket
-        renderer = (render_ticket if request.args.get('ticket') == '1'
-                    else render_label)
+        from services.label_printer import (render_label, render_ticket,
+                                            render_banner)
+        banner_text = request.args.get('banner')
+        if banner_text:
+            renderer = render_banner
+            payload = {'text': banner_text}
+        else:
+            renderer = (render_ticket if request.args.get('ticket') == '1'
+                        else render_label)
         png = renderer(payload, int(width) if width else None,
                        options=_label_options(db))
         return Response(png, mimetype='image/png')

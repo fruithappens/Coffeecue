@@ -146,6 +146,29 @@ def suite_print_pipeline(rn):
              suggestion="A job fetched by the wrong printer would print a "
                         "label at the wrong station — MAC gate is the wall.")
 
+        # 4b. banner: free text renders as a LONG sideways strip (#205) —
+        # height (print length) must exceed width, proving the rotation.
+        bnc, bnb, _ = c.post("/api/print/banner",
+                             {"text": "ZZBENCH BANNER", "printer_id": printer_id})
+        step("banner job enqueued", bnc == 200 and (bnb or {}).get("success"),
+             f"HTTP {bnc}")
+        _c5, b5, _ = c.req("POST", "/cloudprnt", auth=False,
+                           body={"printerMAC": BENCH_MAC})
+        btok = (b5 or {}).get("jobToken")
+        if btok:
+            bfc, bfbody = _raw_get(
+                c, f"/cloudprnt?token={btok}&mac={BENCH_MAC}")
+            bw = _png_width(bfbody)
+            bh = int.from_bytes(bfbody[20:24], "big") if len(bfbody) > 24 else 0
+            step("banner strip is sideways (length >> roll width)",
+                 bfc == 200 and bw == 406 and bh > bw,
+                 f"{bw}x{bh}px",
+                 suggestion="The banner must rotate 90 degrees so the roll "
+                            "width becomes its height — a short label here "
+                            "means the rotation is lost.")
+            c.req("DELETE", f"/cloudprnt?token={btok}&mac={BENCH_MAC}&code=200",
+                  auth=False)
+
         # 5. failure path: code=500 requeues; the SAME token is served again
         dc, _d, _ = c.req("DELETE",
                           f"/cloudprnt?token={token}&mac={BENCH_MAC}&code=500",

@@ -3052,6 +3052,45 @@ const BaristaInterface = () => {
                   >
                     Print test label
                   </button>
+                  {/* Sideways banner: free text printed lengthwise down
+                      the roll — the stock width (40-80mm) becomes the
+                      banner height, up to ~30cm long. Express-table
+                      signage straight off the printer (Steve). */}
+                  <div className="flex gap-2 pt-2 border-t mt-2">
+                    <input
+                      id="bannerTextInput"
+                      className="flex-1 border rounded px-2 py-1.5 text-sm"
+                      placeholder="Banner text, e.g. FLAT WHITE"
+                      maxLength={60}
+                    />
+                    <button
+                      className="bg-gray-700 text-white px-3 py-1.5 rounded text-sm hover:bg-gray-800"
+                      onClick={async () => {
+                        const el = document.getElementById('bannerTextInput');
+                        const text = (el?.value || '').trim();
+                        if (!text) { showToast('Type the banner text first', 'warning'); return; }
+                        try {
+                          const resp = await fetch('/api/print/banner', {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              'Authorization': `Bearer ${localStorage.getItem('coffee_system_token') || ''}`,
+                            },
+                            body: JSON.stringify({ text, printer_id: stationPrinter.id }),
+                          });
+                          const b = await resp.json();
+                          showToast(b?.success ? `Banner "${text}" queued`
+                            : `Banner failed: ${b?.message || 'unknown'}`,
+                          b?.success ? 'success' : 'error');
+                          if (b?.success && el) el.value = '';
+                        } catch (e) {
+                          showToast(`Banner failed: ${e?.message || 'network'}`, 'error');
+                        }
+                      }}
+                    >
+                      Print banner
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <p className="text-sm text-gray-500">
