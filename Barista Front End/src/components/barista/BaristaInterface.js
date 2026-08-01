@@ -56,6 +56,7 @@ import OrderNotificationHandler from '../shared/OrderNotificationHandler';
 import PendingOrdersSection from './PendingOrdersSection';
 import GroupBadge from './GroupBadge';
 import SourceBadge from './SourceBadge';
+import RushMixStrip from './RushMixStrip';
 import QueueIntelligence from '../support/QueueIntelligence';
 import StationLoadBalancer from '../support/StationLoadBalancer';
 import DynamicStaffAllocation from '../organiser/DynamicStaffAllocation';
@@ -989,6 +990,41 @@ const BaristaInterface = () => {
       handlePrintLabel(order);
     }
     return result;
+  };
+
+  // Express batch (the big-event "flat white table" flow): start a whole
+  // tray of same-kind pending orders, and complete a made tray in one
+  // tap — every ready-SMS then says "collect from the FLAT WHITE table
+  // at <station>" via the batch-complete endpoint's collection note.
+  const handleStartRushBatch = async (group) => {
+    await processBatchSelection(group.map(o => o.id));
+  };
+  const handleBatchComplete = async (group, tableLabel) => {
+    try {
+      const resp = await fetch('/api/orders/batch-complete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('coffee_system_token') || ''}`,
+        },
+        body: JSON.stringify({
+          order_ids: group.map(o => o.id),
+          collection_label: tableLabel,
+        }),
+      });
+      const body = await resp.json();
+      const done = (body.completed || []).length;
+      const failedCount = (body.failed || []).length;
+      if (failedCount === 0 && done > 0) {
+        showToast(`Tray done - ${done} order(s) ready, SMSes say "${tableLabel}"`, 'success', 5000);
+      } else {
+        showToast(`Tray: ${done} completed, ${failedCount} FAILED - check those cards`,
+          'warning', 8000);
+      }
+      refreshData();
+    } catch (e) {
+      showToast(`Batch complete failed: ${e?.message || 'unknown'}`, 'error');
+    }
   };
 
   // Enhanced order completion function with guaranteed notifications
@@ -2457,6 +2493,14 @@ const BaristaInterface = () => {
         
         {/* Orders Tab */}
         {!loading && activeTab === 'orders' && (
+          <>
+          <RushMixStrip
+            pendingOrders={pendingOrders}
+            inProgressOrders={inProgressOrders}
+            stationName={currentStationObj?.name || `Station ${selectedStation}`}
+            onStartBatch={handleStartRushBatch}
+            onBatchComplete={handleBatchComplete}
+          />
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {/* Current Order (In Progress) */}
             <div>
@@ -2506,8 +2550,9 @@ const BaristaInterface = () => {
               onSendMessage={handleOpenMessageDialog}
             />
           </div>
+          </>
         )}
-        
+
         {/* Stock Management Tab */}
         {!loading && activeTab === 'stock' && (
           <div className="p-4">

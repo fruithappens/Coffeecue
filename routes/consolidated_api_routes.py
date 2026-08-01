@@ -2682,7 +2682,12 @@ def _render_ready_message(order_number, order_details, station_id):
     """
     name = order_details.get('name') or 'there'
     description = _sms_description(order_details)
-    station_label = f"Station {station_id}" if station_id else "the counter"
+    # Express-batch orders carry a collection note ("the FLAT WHITE
+    # table at Coffee Station 1") that replaces the plain station text —
+    # riding the existing {station} placeholder, so custom templates
+    # keep working untouched.
+    station_label = (str(order_details.get('collection_note') or '').strip()
+                     or (f"Station {station_id}" if station_id else "the counter"))
     sponsor = ''
     try:
         cs = current_app.config.get('coffee_system')
@@ -2760,6 +2765,75 @@ def order_message_history(order_number):
         except Exception:
             pass
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/orders/batch-complete', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def batch_complete_orders():
+    """Express batch (the big-event 'flat white table' flow): complete a
+    tray of same-kind orders in ONE action. Each order is stamped with a
+    collection note first ('the FLAT WHITE table at Coffee Station 1'),
+    which the ready-SMS renders via its {station} placeholder, then
+    completed through the REAL complete endpoint one by one — stock,
+    WebSocket, SMS and the display all behave exactly as for individual
+    completes. Per-order results returned; one failure never aborts the
+    tray (Steve: orders must not be lost to the bulk process)."""
+    try:
+        data = request.get_json(silent=True) or {}
+        order_ids = [str(o) for o in (data.get('order_ids') or []) if o]
+        collection_label = str(data.get('collection_label') or '').strip()[:80]
+        if not order_ids:
+            return jsonify({'success': False, 'message': 'order_ids required'}), 400
+        if len(order_ids) > 60:
+            return jsonify({'success': False,
+                            'message': 'batch too large (max 60)'}), 400
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        # Stamp the collection note on every order BEFORE completing —
+        # the SMS renders during the complete call.
+        if collection_label:
+            cursor = db.cursor()
+            for oid in order_ids:
+                cursor.execute(
+                    "UPDATE orders SET order_details = order_details || %s::jsonb "
+                    "WHERE order_number = %s",
+                    (json.dumps({'collection_note': collection_label}),
+                     clean_order_id(oid)))
+            db.commit()
+        from flask_jwt_extended import create_access_token
+        service_token = create_access_token(
+            identity='express-batch',
+            additional_claims={'role': 'staff', 'source': 'batch-complete'})
+        client = current_app.test_client()
+        completed, failed = [], []
+        for oid in order_ids:
+            try:
+                resp = client.post(
+                    f'/api/orders/{clean_order_id(oid)}/complete',
+                    headers={'Authorization': f'Bearer {service_token}'})
+                body = resp.get_json(silent=True) or {}
+                if resp.status_code == 200 and body.get('success', True):
+                    completed.append(oid)
+                else:
+                    failed.append({'order': oid,
+                                   'error': body.get('message') or f'HTTP {resp.status_code}'})
+            except Exception as one_err:
+                failed.append({'order': oid, 'error': str(one_err)})
+        return jsonify({'success': len(failed) == 0,
+                        'completed': completed, 'failed': failed,
+                        'collection_label': collection_label})
+    except Exception as e:
+        logger.error(f"batch_complete_orders error: {e}")
+        try:
+            current_app.config.get('coffee_system').db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 
 @bp.route('/orders/<order_id>/stage', methods=['POST'])

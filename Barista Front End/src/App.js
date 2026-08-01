@@ -4,6 +4,7 @@ import LandingPage from './components/shared/LandingPage';
 import BaristaInterface from './components/barista/BaristaInterface';
 import Organiser from './components/organiser/Organiser';
 import DisplayScreen from './components/display/DisplayScreen';
+import SignPage from './components/display/SignPage';
 import DisplaySelector from './components/display/DisplaySelector';
 import SupportInterface from './components/support/SupportInterface';
 import LoginPage from './components/auth/LoginPage';
@@ -657,6 +658,7 @@ function App() {
           
           {/* Display routes - publicly accessible */}
           <Route path="/display" element={<DisplayScreen />} />
+          <Route path="/sign" element={<SignPage />} />
           <Route path="/displays" element={<DisplaySelector />} />
           
           {/* Protected routes with role-based access control */}

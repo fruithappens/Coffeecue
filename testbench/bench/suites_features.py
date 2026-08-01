@@ -331,6 +331,49 @@ def suite_features_flow(rn):
         if no7:
             c.post(f"/api/orders/{no7}/cancel")
 
+    # --- express batch: tray complete + table wording (#203) --------------
+    ph8, ph9 = rn.next_phone(), rn.next_phone()
+    batch_nos = []
+    try:
+        for ph, nm in ((ph8, f"{BENCH_TAG}Quinn"), (ph9, f"{BENCH_TAG}Reese")):
+            _sim(c, ph, "medium latte")
+            _ok, rr = _sim(c, ph, nm)
+            m = _re.search(r"#([A-Za-z]{0,3}\d+)", rr or "")
+            if m:
+                batch_nos.append(m.group(1))
+        if len(batch_nos) == 2:
+            for n in batch_nos:
+                c.post(f"/api/orders/{n}/start")
+            label = "the FLAT WHITE table at Coffee Station 1"
+            bc, bb, _ = c.post("/api/orders/batch-complete",
+                               {"order_ids": batch_nos,
+                                "collection_label": label})
+            done = (bb or {}).get("completed") or []
+            step("express batch: one tap completes the whole tray",
+                 bc == 200 and len(done) == 2 and not (bb or {}).get("failed"),
+                 f"orders {batch_nos}, completed={len(done)}, "
+                 f"failed={(bb or {}).get('failed')}",
+                 suggestion="Batch complete must finish EVERY order it was "
+                            "given and report per-order failures — orders "
+                            "must never be lost to the bulk process (Steve).")
+            _mc, mb, _ = c.get(f"/api/orders/{batch_nos[0]}/messages")
+            texts = " ".join(str(m.get("body") or m.get("message") or "")
+                             for m in ((mb or {}).get("messages") or []))
+            step("express batch: ready-SMS says collect from the table",
+                 "FLAT WHITE table" in texts,
+                 f"recorded SMS mentions table: {'FLAT WHITE table' in texts}",
+                 suggestion="The collection note must ride the {station} "
+                            "placeholder into the ready SMS — otherwise "
+                            "customers walk to the wrong counter.")
+            for n in batch_nos:
+                c.post(f"/api/orders/{n}/pickup")
+        else:
+            step("express batch: one tap completes the whole tray", False,
+                 f"could only place {len(batch_nos)}/2 lattes")
+    finally:
+        for n in batch_nos:
+            c.post(f"/api/orders/{n}/cancel")
+
     # --- self-clean: purge the preference rows these flows created --------
     hc, hb, _ = c.post("/api/support/bench-hygiene")
     deleted = (hb or {}).get("deleted") if isinstance(hb, dict) else None
