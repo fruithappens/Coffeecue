@@ -278,7 +278,7 @@ def suite_features_flow(rn):
         no6 = m.group(1) if m else None
         if no6:
             c.post(f"/api/orders/{no6}/start")
-            c.post(f"/api/orders/{no6}/complete")
+            c.post(f"/api/orders/{no6}/complete", {"test_no_send": True})
             beans_after = _beans_total()
             step("hot chocolate burns NO coffee beans",
                  beans_after == beans_before,
@@ -313,7 +313,7 @@ def suite_features_flow(rn):
         no7 = m.group(1) if m else None
         if no7:
             c.post(f"/api/orders/{no7}/start")
-            c.post(f"/api/orders/{no7}/complete")
+            c.post(f"/api/orders/{no7}/complete", {"test_no_send": True})
             burned = round(beans_before - _beans_total(), 3)
             step("a latte burns exactly one configured bean dose",
                  abs(burned - round(dose_kg, 3)) <= 0.002,
@@ -347,7 +347,8 @@ def suite_features_flow(rn):
             label = "the FLAT WHITE table at Coffee Station 1"
             bc, bb, _ = c.post("/api/orders/batch-complete",
                                {"order_ids": batch_nos,
-                                "collection_label": label})
+                                "collection_label": label,
+                                "test_no_send": True})
             done = (bb or {}).get("completed") or []
             step("express batch: one tap completes the whole tray",
                  bc == 200 and len(done) == 2 and not (bb or {}).get("failed"),

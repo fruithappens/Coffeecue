@@ -2665,6 +2665,27 @@ def _notify_customer_order_ready(phone, order_number, order_details, station_id)
             order_details = {}
 
         body = _render_ready_message(order_number, order_details, station_id)
+
+        # BENCH WALL: the Test Bench's simulator phones all share the
+        # +6140000 prefix (never a real customer). A bench-created order
+        # completed WITHOUT the test_no_send flag used to fall through
+        # to a REAL Twilio attempt here — caught 2026-08-01 when the
+        # express-batch guard's ready-SMS never recorded. Record the
+        # rendered message instead of sending, so template propagation
+        # stays provable and the zero-real-SMS rule holds structurally,
+        # whatever the caller forgot.
+        if str(phone).startswith('+6140000'):
+            try:
+                _bc = current_app.config.get('coffee_system').db.cursor()
+                _bc.execute("""
+                    INSERT INTO order_messages (order_number, phone, message, message_sid)
+                    VALUES (%s, %s, %s, %s)
+                """, (order_number, phone, body, 'bench_guard'))
+                current_app.config.get('coffee_system').db.commit()
+            except Exception as _bg_err:
+                logger.warning(f"bench-guard message record skipped: {_bg_err}")
+            return
+
         messaging_service.send_message(phone, body)
     except Exception as exc:
         logger.error(f"Error sending ready-notification SMS: {exc}")
@@ -2810,11 +2831,18 @@ def batch_complete_orders():
             identity='express-batch',
             additional_claims={'role': 'staff', 'source': 'batch-complete'})
         client = current_app.test_client()
+        # Forward the test flags so a bench tray records its SMSes
+        # instead of sending, same as individual completes.
+        inner_body = {}
+        for flag in ('test_no_send', 'dry_run'):
+            if data.get(flag):
+                inner_body[flag] = True
         completed, failed = [], []
         for oid in order_ids:
             try:
                 resp = client.post(
                     f'/api/orders/{clean_order_id(oid)}/complete',
+                    json=inner_body,
                     headers={'Authorization': f'Bearer {service_token}'})
                 body = resp.get_json(silent=True) or {}
                 if resp.status_code == 200 and body.get('success', True):
