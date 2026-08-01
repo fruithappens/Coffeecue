@@ -178,10 +178,44 @@ import os
 
 PRINT_WIDTH_DOTS = int(os.environ.get('PRINT_WIDTH_DOTS', '406'))
 LABEL_MIN_HEIGHT = int(os.environ.get('LABEL_MIN_HEIGHT', '380'))
+# Ceiling for GROW mode (label_scale_mode='grow'): the sticker gets
+# longer instead of the text getting smaller. 4800 dots ≈ 60cm at
+# 203dpi — a full sentence's worth of stock, per Steve.
+LABEL_GROW_MAX_HEIGHT = int(os.environ.get('LABEL_GROW_MAX_HEIGHT', '4800'))
 # 640 dots ≈ 80mm of stock — leaves room for the optional logo + event
 # name + footer line without cropping; plain labels still cut short
 # because height is content-driven.
 LABEL_MAX_HEIGHT = int(os.environ.get('LABEL_MAX_HEIGHT', '640'))
+
+
+def _wrap_to_width(draw, text, font, max_px):
+    """Word-wrap `text` so no line exceeds max_px at `font`. Used by
+    GROW mode, where long text takes MORE STOCK instead of shrinking
+    (Steve: 'a really long sentence might use 50-60cm of sticker where
+    COFFEE only uses 15'). Long single words are hard-split."""
+    words, lines, current = str(text or '').split(), [], ''
+    def width_of(s):
+        try:
+            return draw.textlength(s, font=font)
+        except Exception:
+            return len(s) * 10
+    for word in words:
+        candidate = f"{current} {word}".strip()
+        if width_of(candidate) <= max_px or not current:
+            current = candidate
+            # A single word longer than the roll: split it.
+            while width_of(current) > max_px and len(current) > 1:
+                cut = len(current) - 1
+                while cut > 1 and width_of(current[:cut]) > max_px:
+                    cut -= 1
+                lines.append(current[:cut])
+                current = current[cut:]
+        else:
+            lines.append(current)
+            current = word
+    if current:
+        lines.append(current)
+    return lines or ['']
 
 
 def label_display_name(full_name: str) -> str:
@@ -260,8 +294,15 @@ def render_label(payload: dict, width_dots: int = None,
     if milk and milk.lower() not in ('no milk', 'none', 'standard', ''):
         drink_line += f" · {milk.title()}"
 
+    # Sizing mode (Steve): 'compact' shrinks text to fit a short label
+    # (the original behaviour); 'grow' keeps the text big and lets the
+    # LABEL get longer — a long sentence eats more stock instead of
+    # becoming unreadable.
+    grow = str((options or {}).get('label_scale_mode') or 'compact').lower() == 'grow'
+    canvas_h = LABEL_GROW_MAX_HEIGHT if grow else LABEL_MAX_HEIGHT
+
     # Oversized canvas; crop to content at the end.
-    img = Image.new('1', (W, LABEL_MAX_HEIGHT), 1)  # 1-bit, white
+    img = Image.new('1', (W, canvas_h), 1)  # 1-bit, white
     draw = ImageDraw.Draw(img)
 
     f_num = _load_font(120)
@@ -328,8 +369,12 @@ def render_label(payload: dict, width_dots: int = None,
     if options.get('show_name', True):
         put(name, f_name, 60)
 
-    # 3. Drink line (wraps once if long).
-    if len(drink_line) > 24:
+    # 3. Drink line. GROW mode wraps every word onto as many lines as it
+    # needs (label gets longer); compact keeps the original two-line cap.
+    if grow:
+        for ln in _wrap_to_width(draw, drink_line, f_drink, W - 2 * margin):
+            put(ln, f_drink, 42)
+    elif len(drink_line) > 24:
         put(drink_line[:24], f_drink, 40)
         put(drink_line[24:48], f_drink, 42)
     else:
@@ -337,7 +382,12 @@ def render_label(payload: dict, width_dots: int = None,
 
     # 4. Modifiers.
     if modifiers:
-        put(', '.join(modifiers)[:34], f_mods, 36)
+        mods_text = ', '.join(modifiers)
+        if grow:
+            for ln in _wrap_to_width(draw, mods_text, f_mods, W - 2 * margin):
+                put(ln, f_mods, 36)
+        else:
+            put(mods_text[:34], f_mods, 36)
     rule('rule_below_drink')
 
     # 5. Station + time. The rule above it used to be hardcoded —
@@ -365,7 +415,19 @@ def render_label(payload: dict, width_dots: int = None,
     for idx, line in enumerate(footer_lines):
         if idx == 1:
             rule('rule_between_footer_lines')
-        line = line[:60]
+        line = line[:400] if grow else line[:60]
+        if grow:
+            # GROW: keep the size, wrap onto more lines (more stock).
+            f_grow = _load_font(22)
+            for ln in _wrap_to_width(draw, line, f_grow, W - 2 * margin):
+                try:
+                    tw_g = draw.textlength(ln, font=f_grow)
+                except Exception:
+                    tw_g = len(ln) * 11
+                draw.text((max(margin, (W - int(tw_g)) // 2), y),
+                          ln, fill=0, font=f_grow)
+                y += 28
+            continue
         fitted, tw = None, W
         for size in (22, 20, 18, 16):
             f_try = _load_font(size)
@@ -388,7 +450,7 @@ def render_label(payload: dict, width_dots: int = None,
                   line, fill=0, font=fitted)
         y += 28
 
-    height = max(LABEL_MIN_HEIGHT, min(LABEL_MAX_HEIGHT, y))
+    height = max(LABEL_MIN_HEIGHT, min(canvas_h, y))
     img = img.crop((0, 0, W, height))
 
     buf = io.BytesIO()
@@ -492,6 +554,14 @@ def render_banner(payload: dict, width_dots: int = None,
 
     W = int(width_dots or PRINT_WIDTH_DOTS)
     text = str((payload or {}).get('text') or 'COFFEE').strip()[:60] or 'COFFEE'
+    # GROW (default for banners — the whole point of a banner is big
+    # text): keep the glyphs as tall as the roll allows and let the
+    # strip run as long as it needs, up to the length cap. COMPACT
+    # shrinks the text so a long phrase stays on a short strip.
+    grow = str((options or {}).get('banner_scale_mode')
+               or (options or {}).get('label_scale_mode') or 'grow').lower() != 'compact'
+    max_len = BANNER_MAX_DOTS if not grow else int(
+        os.environ.get('BANNER_GROW_MAX_DOTS', '6000'))  # ~75cm
 
     # Find the biggest font whose glyph height fits the roll width and
     # whose length fits the cap. Measured with a scratch canvas.
@@ -506,7 +576,7 @@ def render_banner(payload: dict, width_dots: int = None,
             tw, th = r - l, b - t
         except Exception:
             tw, th = len(text) * size // 2, size
-        if th <= W - 16 and tw <= BANNER_MAX_DOTS - 32:
+        if th <= W - 16 and tw <= max_len - 32:
             chosen_font, text_w, text_h = f, tw, th
             break
         size -= 10

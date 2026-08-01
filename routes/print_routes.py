@@ -782,6 +782,8 @@ DEFAULT_LABEL_SETTINGS = {
     'rule_above_footer': False,
     'rule_between_footer_lines': False,
     'ticket_on_walkup': False,
+    'label_scale_mode': 'compact',
+    'banner_scale_mode': 'grow',
     'footer_text': '',
     'instructions_text': '',
 }
@@ -848,10 +850,16 @@ def put_label_settings():
             stored[key] = bool(body[key])
     if body.get('align') in ('left', 'center'):
         stored['align'] = body['align']
+    if body.get('label_scale_mode') in ('compact', 'grow'):
+        stored['label_scale_mode'] = body['label_scale_mode']
+    if body.get('banner_scale_mode') in ('compact', 'grow'):
+        stored['banner_scale_mode'] = body['banner_scale_mode']
+    # 400 chars: enough for a full sentence in GROW mode (the label
+    # lengthens to hold it); compact mode still truncates at render.
     if 'footer_text' in body:
-        stored['footer_text'] = str(body['footer_text'] or '').strip()[:60]
+        stored['footer_text'] = str(body['footer_text'] or '').strip()[:400]
     if 'instructions_text' in body:
-        stored['instructions_text'] = str(body['instructions_text'] or '').strip()[:60]
+        stored['instructions_text'] = str(body['instructions_text'] or '').strip()[:400]
     if 'event_name' in body:
         # Blank = follow the system event name; non-blank = override.
         stored['event_name'] = str(body['event_name'] or '').strip()[:40]

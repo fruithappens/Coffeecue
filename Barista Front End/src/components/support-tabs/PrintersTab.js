@@ -29,6 +29,9 @@ const LabelDesignCard = () => {
   const [previewUrl, setPreviewUrl] = useState(null);
   const [busy, setBusy] = useState(false);
   const [bannerText, setBannerText] = useState('FLAT WHITE');
+  // Preview at any roll width (Steve: the design card was stuck at
+  // 58mm even though printers can declare 40-80mm rolls).
+  const [previewWidth, setPreviewWidth] = useState(406);
   const [bannerPreviewUrl, setBannerPreviewUrl] = useState(null);
 
   const refreshBannerPreview = async () => {
@@ -36,7 +39,7 @@ const LabelDesignCard = () => {
     if (!text) return;
     try {
       const token = localStorage.getItem('coffee_system_token');
-      const r = await fetch(`/api/print/preview?banner=${encodeURIComponent(text)}`, {
+      const r = await fetch(`/api/print/preview?banner=${encodeURIComponent(text)}&width=${previewWidth}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!r.ok) return;
@@ -71,9 +74,9 @@ const LabelDesignCard = () => {
         });
       } catch (e) { /* preview stays stale */ }
     };
-    grab('/api/print/preview?sample=1', setPreviewUrl);
-    grab('/api/print/preview?sample=1&ticket=1', setTicketPreviewUrl);
-  }, []);
+    grab(`/api/print/preview?sample=1&width=${previewWidth}`, setPreviewUrl);
+    grab(`/api/print/preview?sample=1&ticket=1&width=${previewWidth}`, setTicketPreviewUrl);
+  }, [previewWidth]);
 
   useEffect(() => { loadSettings(); refreshPreview(); }, [loadSettings, refreshPreview]);
 
@@ -108,9 +111,11 @@ const LabelDesignCard = () => {
     <div className="bg-white rounded-lg shadow-md p-4">
       <h2 className="text-xl font-bold mb-1">Label design</h2>
       <p className="text-sm text-gray-500 mb-3">
-        Exactly what the printer will produce (58mm wide; the label cuts at
-        the image height). Order number, name and drink always print —
-        baristas need them. The rest is yours:
+        Exactly what the printer will produce — preview any roll width
+        below (each printer carries its own in the table). The label cuts
+        at the image height, so "keep text big" makes long text use more
+        sticker instead of shrinking. Order number, name and drink always
+        print; the rest is yours:
       </p>
       <div className="flex flex-col md:flex-row gap-6">
         <div className="flex-1 min-w-[16rem]">
@@ -130,6 +135,31 @@ const LabelDesignCard = () => {
             >
               <option value="left">Left</option>
               <option value="center">Centred</option>
+            </select>
+          </label>
+          <label className="flex items-center space-x-2 text-sm py-1">
+            <span>Long text</span>
+            <select
+              className="border rounded px-2 py-1"
+              disabled={busy || !settings}
+              value={settings?.label_scale_mode || 'compact'}
+              onChange={(e) => save({ label_scale_mode: e.target.value })}
+            >
+              <option value="compact">Shrink text (short label)</option>
+              <option value="grow">Keep text big (longer label)</option>
+            </select>
+          </label>
+          <label className="flex items-center space-x-2 text-sm py-1">
+            <span>Preview roll</span>
+            <select
+              className="border rounded px-2 py-1"
+              value={String(previewWidth)}
+              onChange={(e) => setPreviewWidth(parseInt(e.target.value, 10))}
+            >
+              <option value="320">40mm</option>
+              <option value="406">58mm</option>
+              <option value="576">72mm</option>
+              <option value="640">80mm</option>
             </select>
           </label>
           <div className="text-sm text-gray-600 mt-2 mb-1">Divider lines</div>
@@ -203,6 +233,16 @@ const LabelDesignCard = () => {
                 placeholder="e.g. FLAT WHITE"
                 onChange={(e) => setBannerText(e.target.value)}
               />
+              <select
+                className="border rounded px-2 py-1 text-sm"
+                disabled={busy || !settings}
+                value={settings?.banner_scale_mode || 'grow'}
+                onChange={(e) => save({ banner_scale_mode: e.target.value })}
+                title="Grow: keep the letters big and run the strip longer. Compact: shrink to a short strip."
+              >
+                <option value="grow">Big letters</option>
+                <option value="compact">Short strip</option>
+              </select>
               <button
                 className="bg-gray-200 text-gray-700 px-3 py-1.5 rounded text-sm hover:bg-gray-300"
                 onClick={refreshBannerPreview}
@@ -367,6 +407,7 @@ const PrintersTab = () => {
                   <th className="py-2 pr-3">MAC</th>
                   <th className="py-2 pr-3">Station</th>
                   <th className="py-2 pr-3">Width</th>
+                  <th className="py-2 pr-3">Driver</th>
                   <th className="py-2 pr-3">Enabled</th>
                   <th className="py-2 pr-3">Last poll</th>
                   <th className="py-2"></th>
@@ -429,6 +470,22 @@ const PrintersTab = () => {
                         <option value="406">58mm (406)</option>
                         <option value="576">72mm (576)</option>
                         <option value="640">80mm (640)</option>
+                      </select>
+                    </td>
+                    <td className="py-2 pr-3">
+                      {/* Per-printer driver: CloudPRNT (the printer
+                          polls us) vs a LAN agent pushing Star raster
+                          or ESC/POS. Different brands per station is
+                          expected (Steve). */}
+                      <select
+                        className="border rounded px-1 py-1 text-xs"
+                        value={p.driver || 'cloudprnt'}
+                        onChange={(e) => patchPrinter(p, { driver: e.target.value },
+                          'Driver saved')}
+                      >
+                        <option value="cloudprnt">CloudPRNT (Star)</option>
+                        <option value="starprnt_lan">Star raster via agent</option>
+                        <option value="escpos_lan">ESC/POS via agent (Epson)</option>
                       </select>
                     </td>
                     <td className="py-2 pr-3">

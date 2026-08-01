@@ -81,6 +81,47 @@ def suite_print_preview(rn):
                  "stopped working — labels render unreadably small while every "
                  "status stays 200. See PR #176.",
                  refs=[] if big_enough else ["services/label_printer.py"]))
+
+    # Roll width is honoured (#206): an 80mm preview must be 640 dots.
+    wcode, wbody = _raw_get(c, "/api/print/preview?sample=1&width=640")
+    wok = wcode == 200 and _png_width(wbody) == 640
+    out.append(R("print_prev", "preview honours the requested roll width",
+                 "pass" if wok else "fail",
+                 f"HTTP {wcode}, width={_png_width(wbody)} (expected 640)",
+                 suggestion="" if wok else
+                 "Printers declare rolls from 40-80mm; a preview stuck at "
+                 "58mm lies about what the other stations will print.",
+                 refs=[] if wok else ["routes/print_routes.py"]))
+
+    # GROW mode (#206): the same long text must produce a TALLER label
+    # than compact — the sticker grows instead of the text shrinking.
+    def _png_height(b):
+        return int.from_bytes(b[20:24], "big") if len(b) > 24 else 0
+    _sc, sb, _ = c.get("/api/print/label-settings")
+    prev_mode = ((sb or {}).get("settings") or {}).get("label_scale_mode", "compact")
+    prev_instr = ((sb or {}).get("settings") or {}).get("instructions_text", "")
+    long_text = ("Order ahead any time by texting this number and we will "
+                 "have it waiting when you arrive")
+    try:
+        c.req("PUT", "/api/print/label-settings",
+              body={"label_scale_mode": "compact", "instructions_text": long_text})
+        _c1, compact_png = _raw_get(c, "/api/print/preview?sample=1")
+        c.req("PUT", "/api/print/label-settings",
+              body={"label_scale_mode": "grow"})
+        _c2, grow_png = _raw_get(c, "/api/print/preview?sample=1")
+        ch, gh = _png_height(compact_png), _png_height(grow_png)
+        grew = gh > ch
+        out.append(R("print_prev", "grow mode makes the LABEL longer, not the text smaller",
+                     "pass" if grew else "fail",
+                     f"compact {ch}px vs grow {gh}px",
+                     suggestion="" if grew else
+                     "In grow mode a long sentence must consume more sticker "
+                     "(Steve) — shrinking the text instead defeats the mode.",
+                     refs=[] if grew else ["services/label_printer.py"]))
+    finally:
+        c.req("PUT", "/api/print/label-settings",
+              body={"label_scale_mode": prev_mode,
+                    "instructions_text": prev_instr})
     return out
 
 
