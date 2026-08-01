@@ -469,6 +469,75 @@ def render_ticket(payload: dict, width_dots: int = None,
     return buf.getvalue()
 
 
+# Longest banner the cutter will be asked for: 2400 dots ≈ 30cm at
+# 203dpi. Env-tunable for shops with longer rolls or nerves.
+BANNER_MAX_DOTS = int(os.environ.get('BANNER_MAX_DOTS', '2400'))
+
+
+def render_banner(payload: dict, width_dots: int = None,
+                  options: dict = None) -> bytes:
+    """Sideways banner on the label roll (Steve): free text rendered
+    SIDEWAYS so the stock width (40-80mm depending on the roll) becomes
+    the banner's HEIGHT and the length is whatever the text needs — a
+    30cm FLAT WHITE sticker for the express table, cut straight off the
+    printer.
+
+    payload: {'text': 'FLAT WHITE'} (anything else ignored).
+    width_dots comes from the printer row (58mm roll ≈ 406 printable
+    dots; 40mm ≈ 320; 80mm ≈ 640), so every stock size just works.
+    Shrink-to-fit: the font fills the roll width; if the text would run
+    past BANNER_MAX_DOTS the font steps down before truncating.
+    """
+    from PIL import Image, ImageDraw
+
+    W = int(width_dots or PRINT_WIDTH_DOTS)
+    text = str((payload or {}).get('text') or 'COFFEE').strip()[:60] or 'COFFEE'
+
+    # Find the biggest font whose glyph height fits the roll width and
+    # whose length fits the cap. Measured with a scratch canvas.
+    scratch = Image.new('1', (8, 8), 1)
+    sdraw = ImageDraw.Draw(scratch)
+    chosen_font, text_w, text_h = None, 0, 0
+    size = int(W * 0.9)
+    while size >= 40:
+        f = _load_font(size)
+        try:
+            l, t, r, b = sdraw.textbbox((0, 0), text, font=f)
+            tw, th = r - l, b - t
+        except Exception:
+            tw, th = len(text) * size // 2, size
+        if th <= W - 16 and tw <= BANNER_MAX_DOTS - 32:
+            chosen_font, text_w, text_h = f, tw, th
+            break
+        size -= 10
+    if chosen_font is None:
+        chosen_font = _load_font(40)
+        while text and True:
+            try:
+                l, t, r, b = sdraw.textbbox((0, 0), text, font=chosen_font)
+                text_w, text_h = r - l, b - t
+            except Exception:
+                text_w, text_h = len(text) * 20, 40
+            if text_w <= BANNER_MAX_DOTS - 32:
+                break
+            text = text[:-1]
+
+    # Draw horizontally, then rotate 90° so the strip prints lengthwise.
+    horiz = Image.new('1', (text_w + 32, W), 1)
+    hdraw = ImageDraw.Draw(horiz)
+    try:
+        l, t, _r, _b = hdraw.textbbox((16, 0), text, font=chosen_font)
+        y_off = (W - text_h) // 2 - (t - 0)
+    except Exception:
+        y_off = (W - text_h) // 2
+    hdraw.text((16, y_off), text, fill=0, font=chosen_font)
+    banner = horiz.rotate(90, expand=True)  # (W wide x length tall)
+
+    buf = io.BytesIO()
+    banner.save(buf, format='PNG')
+    return buf.getvalue()
+
+
 def send_png_to_printer(ip: str, port: int, png_bytes: bytes,
                         timeout: float = 5.0) -> tuple[bool, str]:
     """Best-effort raw-socket dispatch to a network printer.

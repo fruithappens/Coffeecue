@@ -28,6 +28,25 @@ const LabelDesignCard = () => {
   const [settings, setSettings] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [bannerText, setBannerText] = useState('FLAT WHITE');
+  const [bannerPreviewUrl, setBannerPreviewUrl] = useState(null);
+
+  const refreshBannerPreview = async () => {
+    const text = bannerText.trim();
+    if (!text) return;
+    try {
+      const token = localStorage.getItem('coffee_system_token');
+      const r = await fetch(`/api/print/preview?banner=${encodeURIComponent(text)}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!r.ok) return;
+      const blob = await r.blob();
+      setBannerPreviewUrl(old => {
+        if (old) URL.revokeObjectURL(old);
+        return URL.createObjectURL(blob);
+      });
+    } catch (e) { /* stays stale */ }
+  };
 
   const loadSettings = useCallback(async () => {
     try {
@@ -171,6 +190,55 @@ const LabelDesignCard = () => {
           >
             Refresh preview
           </button>
+          {/* Sideways banner: preview it here, print it to any enabled
+              printer. Stock width (40-80mm per printer) = banner height,
+              length up to ~30cm. */}
+          <div className="mt-4 pt-3 border-t">
+            <div className="text-sm text-gray-600 mb-1">Sideways banner (roll signage)</div>
+            <div className="flex gap-2">
+              <input
+                className="flex-1 border rounded px-2 py-1.5 text-sm"
+                value={bannerText}
+                maxLength={60}
+                placeholder="e.g. FLAT WHITE"
+                onChange={(e) => setBannerText(e.target.value)}
+              />
+              <button
+                className="bg-gray-200 text-gray-700 px-3 py-1.5 rounded text-sm hover:bg-gray-300"
+                onClick={refreshBannerPreview}
+              >
+                Preview
+              </button>
+            </div>
+            {bannerPreviewUrl && (
+              <div className="mt-2 overflow-x-auto border rounded bg-gray-50 p-2">
+                {/* Shown rotated back to horizontal so it reads like the
+                    physical banner will when peeled off. */}
+                <img
+                  src={bannerPreviewUrl}
+                  alt="Banner preview"
+                  style={{ height: '60px', width: 'auto', imageRendering: 'pixelated',
+                           transform: 'rotate(-90deg) translateX(-100%)',
+                           transformOrigin: 'top left', display: 'none' }}
+                  onLoad={(e) => {
+                    // Simpler: draw rotated onto a canvas sized for it.
+                    const img = e.target;
+                    const canvas = document.getElementById('bannerPreviewCanvas');
+                    if (!canvas) return;
+                    canvas.width = img.naturalHeight;
+                    canvas.height = img.naturalWidth;
+                    const ctx = canvas.getContext('2d');
+                    ctx.save();
+                    ctx.translate(0, img.naturalWidth);
+                    ctx.rotate(-Math.PI / 2);
+                    ctx.drawImage(img, 0, 0);
+                    ctx.restore();
+                  }}
+                />
+                <canvas id="bannerPreviewCanvas" style={{ height: '60px', width: 'auto' }} />
+              </div>
+            )}
+          </div>
         </div>
         <div className="flex-shrink-0 flex gap-4">
           <div className="text-center">
@@ -298,6 +366,7 @@ const PrintersTab = () => {
                   <th className="py-2 pr-3">Name</th>
                   <th className="py-2 pr-3">MAC</th>
                   <th className="py-2 pr-3">Station</th>
+                  <th className="py-2 pr-3">Width</th>
                   <th className="py-2 pr-3">Enabled</th>
                   <th className="py-2 pr-3">Last poll</th>
                   <th className="py-2"></th>
@@ -341,6 +410,25 @@ const PrintersTab = () => {
                         {stations.map(s => (
                           <option key={s.id} value={s.id}>{s.name || `Station ${s.id}`}</option>
                         ))}
+                      </select>
+                    </td>
+                    <td className="py-2 pr-3">
+                      {/* Printable dots across the roll — drives labels,
+                          tickets AND banner height. 203dpi ≈ 8 dots/mm:
+                          40mm stock ≈ 320, 58mm ≈ 406 (50.8mm printable),
+                          80mm ≈ 640. Check the printer's spec sheet for
+                          its exact printable width. */}
+                      <select
+                        className="border rounded px-1 py-1 text-xs"
+                        value={String(p.width_dots || 406)}
+                        onChange={(e) => patchPrinter(
+                          p, { width_dots: parseInt(e.target.value, 10) },
+                          'Roll width saved')}
+                      >
+                        <option value="320">40mm (320)</option>
+                        <option value="406">58mm (406)</option>
+                        <option value="576">72mm (576)</option>
+                        <option value="640">80mm (640)</option>
                       </select>
                     </td>
                     <td className="py-2 pr-3">
