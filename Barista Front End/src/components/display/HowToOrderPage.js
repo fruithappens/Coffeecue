@@ -72,13 +72,13 @@ const HowToOrderPage = () => {
         <div className="border-4 border-blue-600 rounded-3xl p-6 text-center">
           <div className="text-3xl font-extrabold text-blue-700 mb-1">SCAN TO ORDER</div>
           <div className="text-lg text-gray-600 mb-4">
-            Works on WiFi — no SIM or data plan needed
+            No SIM, no app — just WiFi
           </div>
           <img src={qr(orderUrl)} alt="Scan to order"
                className="mx-auto w-56 h-56" />
           <div className="text-base text-gray-500 mt-3">
-            Point your camera, tap your coffee.<br />
-            The page tells you when it's ready.
+            Tap your coffee, then <b>keep the page open</b> —<br />
+            it counts down and turns green when ready.
           </div>
         </div>
 
@@ -86,7 +86,7 @@ const HowToOrderPage = () => {
         <div className="border-4 border-gray-800 rounded-3xl p-6 text-center">
           <div className="text-3xl font-extrabold mb-1">SCAN TO TEXT</div>
           <div className="text-lg text-gray-600 mb-4">
-            Opens a message with the number filled in
+            We'll buzz your phone when it's ready
           </div>
           {smsUri ? (
             <img src={qr(smsUri)} alt="Scan to text us"
@@ -97,6 +97,10 @@ const HowToOrderPage = () => {
             </div>
           )}
           <div className="text-base text-gray-500 mt-3">
+            Opens a text with our number filled in — send it,
+            then <b>pocket your phone</b> until it buzzes.
+          </div>
+          <div className="text-base text-gray-500 mt-2">
             Or text us directly:<br />
             <span className="text-2xl font-bold text-gray-800">
               {prettyNumber(config.sms_number)}
