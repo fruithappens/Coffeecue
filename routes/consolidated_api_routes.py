@@ -5,7 +5,7 @@ This module provides a standardized API structure for the entire application,
 consolidating endpoints from various modules into a coherent API design.
 """
 import logging
-from flask import Blueprint, jsonify, request, current_app
+from flask import Blueprint, jsonify, request, current_app, Response
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from datetime import datetime, timedelta
 import json
@@ -4525,6 +4525,110 @@ def simulate_sms():
         })
     except Exception as e:
         logger.error(f"simulate_sms error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@bp.route('/qr', methods=['GET'])
+def generate_qr():
+    """Public QR PNG generator: /api/qr?data=<urlencoded>&size=10
+
+    Powers the scan-to-order posters and the delegate splash screen —
+    both the WEB ordering link and the pre-filled SMS link. Public
+    because the things it encodes are public (an ordering URL, the
+    event's own SMS number); it encodes whatever it's given and reads
+    nothing from the database."""
+    data = request.args.get('data') or ''
+    if not data or len(data) > 512:
+        return jsonify({'success': False,
+                        'message': 'data required (max 512 chars)'}), 400
+    try:
+        box = max(4, min(20, int(request.args.get('size') or 10)))
+    except (TypeError, ValueError):
+        box = 10
+    try:
+        import io as _io
+        import qrcode
+        qr = qrcode.QRCode(border=2, box_size=box,
+                           error_correction=qrcode.constants.ERROR_CORRECT_M)
+        qr.add_data(data)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color='black', back_color='white')
+        buf = _io.BytesIO()
+        img.save(buf, format='PNG')
+        return Response(buf.getvalue(), mimetype='image/png',
+                        headers={'Cache-Control': 'public, max-age=300'})
+    except Exception as e:
+        logger.error(f"generate_qr error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@bp.route('/orders/<order_id>/track', methods=['GET'])
+def track_order_public(order_id):
+    """Public status of ONE order, for the phone that placed it.
+
+    This is how a WiFi-only customer gets their 'ready' notification
+    with no SMS at all: the ordering page keeps polling this and shows
+    'You're #3' -> 'Being made' -> 'READY - collect from Station 1'.
+
+    Deliberately minimal: status, queue position, first name and where
+    to collect. No phone number, no other customers' data — an order
+    number is guessable, so nothing sensitive may live here."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        clean_id = clean_order_id(order_id)
+        cur = db.cursor()
+        cur.execute(
+            "SELECT status, station_id, order_details, created_at FROM orders "
+            "WHERE order_number = %s", (clean_id,))
+        row = cur.fetchone()
+        if not row:
+            return jsonify({'success': False, 'message': 'not found'}), 404
+        status, station_id, od_raw, created_at = (
+            row if not isinstance(row, dict)
+            else (row.get('status'), row.get('station_id'),
+                  row.get('order_details'), row.get('created_at')))
+        od = json.loads(od_raw) if isinstance(od_raw, str) else (od_raw or {})
+        # Queue position: how many pending orders at this station are older.
+        position = None
+        if status == 'pending':
+            cur.execute(
+                "SELECT COUNT(*) FROM orders WHERE status = 'pending' "
+                "AND station_id = %s AND created_at <= %s",
+                (station_id, created_at))
+            r2 = cur.fetchone()
+            position = (r2[0] if not isinstance(r2, dict) else list(r2.values())[0]) if r2 else None
+        station_name = f"Station {station_id}" if station_id else ''
+        try:
+            c2 = db.cursor()
+            c2.execute("SELECT COALESCE(name,'') FROM station_stats WHERE station_id = %s",
+                       (station_id,))
+            r3 = c2.fetchone()
+            if r3 and (r3[0] if not isinstance(r3, dict) else list(r3.values())[0]):
+                station_name = r3[0] if not isinstance(r3, dict) else list(r3.values())[0]
+        except Exception:
+            db.rollback()
+        first_name = str(od.get('name') or '').split(' ')[0]
+        return jsonify({
+            'success': True,
+            'order_number': clean_id,
+            'status': status,
+            'position': position,
+            'first_name': first_name,
+            'drink': _drink_display_name(od, default='Coffee'),
+            'station_name': station_name,
+            'collection_note': od.get('collection_note') or '',
+        })
+    except Exception as e:
+        logger.error(f"track_order_public error: {e}")
+        try:
+            current_app.config.get('coffee_system').db.rollback()
+        except Exception:
+            pass
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
