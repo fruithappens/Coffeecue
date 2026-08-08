@@ -93,6 +93,28 @@ def suite_features_ro(rn):
                  "feed either cries wolf or hides a real outage.",
                  refs=[] if (shape_ok and honest) else ["routes/inventory_routes.py"]))
 
+    # --- scan-to-order: QR + public tracking (#207) ------------------------
+    qc, qbody = None, b''
+    try:
+        r = c.s.get(f"{c.base}/api/qr?data=https%3A%2F%2Fexample.com%2Forder&size=8",
+                    timeout=15)
+        qc, qbody = r.status_code, r.content
+    except Exception as e:
+        qc, qbody = 0, str(e).encode()
+    qr_ok = qc == 200 and qbody[:8] == b"\x89PNG\r\n\x1a\n"
+    out.append(R("features_ro", "QR generator returns a scannable PNG",
+                 "pass" if qr_ok else "fail",
+                 f"HTTP {qc}, {len(qbody)} bytes",
+                 suggestion="" if qr_ok else
+                 "The scan-to-order posters and the delegate splash screen "
+                 "both render their QR codes from this endpoint (#207).",
+                 refs=[] if qr_ok else ["routes/consolidated_api_routes.py"]))
+    # A bad/oversized payload must be refused, not rendered.
+    bqc, _bq, _ = c.get("/api/qr")
+    out.append(R("features_ro", "QR generator refuses an empty payload",
+                 "pass" if bqc == 400 else "fail", f"HTTP {bqc} (expected 400)",
+                 refs=[] if bqc == 400 else ["routes/consolidated_api_routes.py"]))
+
     # --- broadcast audience ------------------------------------------------
     gc, gb, _ = c.get("/api/support/broadcast/preview?audience=preorders")
     good = gc == 200 and isinstance(gb, dict)

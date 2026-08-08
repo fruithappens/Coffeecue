@@ -5,6 +5,8 @@ import BaristaInterface from './components/barista/BaristaInterface';
 import Organiser from './components/organiser/Organiser';
 import DisplayScreen from './components/display/DisplayScreen';
 import SignPage from './components/display/SignPage';
+import MobileOrderPage from './components/display/MobileOrderPage';
+import HowToOrderPage from './components/display/HowToOrderPage';
 import DisplaySelector from './components/display/DisplaySelector';
 import SupportInterface from './components/support/SupportInterface';
 import LoginPage from './components/auth/LoginPage';
@@ -659,6 +661,11 @@ function App() {
           {/* Display routes - publicly accessible */}
           <Route path="/display" element={<DisplayScreen />} />
           <Route path="/sign" element={<SignPage />} />
+          {/* Scan-to-order: /order = the guest's own phone (WiFi, no
+              SIM needed); /how = the delegate splash screen with both
+              QR codes. Both public — they ARE the customer entry. */}
+          <Route path="/order" element={<MobileOrderPage />} />
+          <Route path="/how" element={<HowToOrderPage />} />
           <Route path="/displays" element={<DisplaySelector />} />
           
           {/* Protected routes with role-based access control */}

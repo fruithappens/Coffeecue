@@ -50,7 +50,7 @@ const milkEmoji = (name) => {
   return '🥛';
 };
 
-const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
+const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose, onOrderPlaced }) => {
   const [menu, setMenu] = useState(null);
   const [loadingMenu, setLoadingMenu] = useState(true);
   // Drink FIRST (Steve: "the first thing that should appear is not the
@@ -105,6 +105,7 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
     if (countdownRef.current) clearInterval(countdownRef.current);
     setIdleCountdown(null);
     if (step === 'done') return; // success screen has its own timer
+    if (onOrderPlaced) return;   // personal phone: never auto-close
     idleRef.current = setTimeout(() => {
       setIdleCountdown(IDLE_COUNTDOWN_SECONDS);
       countdownRef.current = setInterval(() => {
@@ -119,7 +120,7 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
         });
       }, 1000);
     }, IDLE_WARN_MS);
-  }, [step, onClose]);
+  }, [step, onClose, onOrderPlaced]);
   useEffect(() => {
     resetIdle();
     return () => {
@@ -273,7 +274,13 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose }) => {
       if (r.ok && b.success) {
         setResult(b);
         setStep('done');
-        setTimeout(() => { if (onClose) onClose(); }, 12000);
+        if (onOrderPlaced) {
+          // Phone flow: the page becomes a live status card. No
+          // auto-close — the customer watches for READY here.
+          onOrderPlaced(b.order_number);
+        } else {
+          setTimeout(() => { if (onClose) onClose(); }, 12000);
+        }
       } else {
         setErrorMsg(b.message || 'Could not place your order. Please see a barista.');
       }
