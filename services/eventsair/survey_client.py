@@ -113,22 +113,56 @@ class EASurveyClient(EventsAirClient):
 
     def fetch_contacts_page(self, ea_event_id: str, skip: int = 0,
                             take: int = 200, modified_since: str = None):
-        """One page of the attendee mirror sync (contactsPaged).
+        """One page of the attendee mirror sync.
 
-        TODO_EA: confirm paging arg names (skip/take vs cursor) and the
-        modified-since filter shape.
+        Rewritten against the REAL schema (introspected 2026-08-18). The
+        original was guesswork and could not have worked: it asked for
+        `contactsPaged(skip:, take:, modifiedSince:)` returning
+        `totalCount` and flat `mobile` / `email` fields. EventsAir actually
+        uses offset/limit paging, puts the number under
+        `contactPhoneNumbers.mobile`, and calls the address `primaryEmail`.
+        There is no totalCount on ContactPage — it has items + pageInfo.
+
+        Also pulls each contact's CUSTOM FIELDS, which is how a coffee
+        preference reaches us: an organiser can put "oat latte, 1 sugar,
+        medium" on the attendee record, and ordering becomes a
+        confirmation rather than a conversation.
         """
         query = """
-        query Contacts($eventId: ID!, $skip: Int!, $take: Int!, $since: DateTime) {
+        query Contacts($eventId: ID!, $offset: NonNegativeInt, $limit: PaginationLimit) {
           event(id: $eventId) {
-            contactsPaged(skip: $skip, take: $take, modifiedSince: $since) {
-              totalCount
-              items { id firstName lastName mobile email }
+            contactsPaged(offset: $offset, limit: $limit) {
+              items {
+                id firstName lastName primaryEmail externalIdentifier
+                contactPhoneNumbers { mobile inCountryMobile }
+                customFieldsPaged(offset: 0, limit: 50) {
+                  items { name value uniqueCode }
+                }
+              }
             }
           }
         }"""
-        return self.graphql(query, {'eventId': ea_event_id, 'skip': skip,
-                                    'take': take, 'since': modified_since})
+        ok, data = self.graphql(query, {'eventId': ea_event_id,
+                                        'offset': skip, 'limit': take})
+        if ok:
+            return ok, data
+        # Custom fields are the most likely thing a tenant restricts, and
+        # losing the whole sync over them would be worse than losing the
+        # preference. Retry without them before giving up.
+        slim = """
+        query Contacts($eventId: ID!, $offset: NonNegativeInt, $limit: PaginationLimit) {
+          event(id: $eventId) {
+            contactsPaged(offset: $offset, limit: $limit) {
+              items {
+                id firstName lastName primaryEmail externalIdentifier
+                contactPhoneNumbers { mobile inCountryMobile }
+              }
+            }
+          }
+        }"""
+        return self.graphql(slim, {'eventId': ea_event_id,
+                                   'offset': skip, 'limit': take})
+
 
     # ------------------------------------------------------------------
     def list_webhook_event_types(self):

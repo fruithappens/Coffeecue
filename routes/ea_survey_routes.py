@@ -88,6 +88,15 @@ def _ensure_tables(db):
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_ea_attendees_mobile "
                     "ON ea_attendees(mobile_e164)")
+        # A coffee preference held on the ATTENDEE record ("oat latte, 1
+        # sugar, medium") turns ordering from a conversation into a
+        # confirmation. Stored as the raw text plus the whole custom-field
+        # blob, so a field renamed in EA can be re-mapped from mirrored
+        # data instead of forcing a full re-sync.
+        cur.execute("ALTER TABLE ea_attendees ADD COLUMN IF NOT EXISTS "
+                    "coffee_pref TEXT")
+        cur.execute("ALTER TABLE ea_attendees ADD COLUMN IF NOT EXISTS "
+                    "custom_fields TEXT")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS ea_webhook_log (
                 correlation_id VARCHAR(100) PRIMARY KEY,
@@ -101,6 +110,10 @@ def _ensure_tables(db):
         """)
         cur.execute("ALTER TABLE ea_config ADD COLUMN IF NOT EXISTS "
                     "custom_field_id VARCHAR(64)")
+        # Which custom field holds the coffee preference, when a client
+        # names it something the built-in hints miss.
+        cur.execute("ALTER TABLE ea_config ADD COLUMN IF NOT EXISTS "
+                    "coffee_field_hint VARCHAR(100)")
         cur.execute("ALTER TABLE ea_config ADD COLUMN IF NOT EXISTS "
                     "writeback_enabled BOOLEAN DEFAULT FALSE")
         cur.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS source VARCHAR(20)")
@@ -526,21 +539,68 @@ def _question_map(cfg_row):
         return {}
 
 
-def _upsert_attendee(conn, contact):
+# Custom-field names an organiser might plausibly use for the same thing.
+# Matched case-insensitively on a substring so "Coffee Preference",
+# "coffee order" and "Barista Notes" all land. Configurable via the
+# ea_config row when a client uses something unexpected.
+_COFFEE_FIELD_HINTS = ('coffee', 'barista', 'beverage', 'drink')
+
+
+def _extract_coffee_pref(contact, hint=None):
+    """Pull the coffee-preference custom field out of a contact, if present.
+
+    Returns (preference_text, all_fields_dict). The text is deliberately
+    left RAW: the SMS parser already turns "oat latte 1 sugar medium" into
+    a structured order, so re-implementing that here would be a second
+    copy of the same logic, free to drift from the first.
+    """
+    fields = {}
+    try:
+        items = ((contact.get('customFieldsPaged') or {}).get('items')) or []
+        for f in items:
+            name = str(f.get('name') or '').strip()
+            if name:
+                fields[name] = f.get('value')
+    except Exception:
+        return None, {}
+    hints = ((hint,) if hint else ()) + _COFFEE_FIELD_HINTS
+    for h in hints:
+        for name, value in fields.items():
+            if h and h.lower() in name.lower():
+                text = value if isinstance(value, str) else json.dumps(value)
+                text = (text or '').strip()
+                if text:
+                    return text, fields
+    return None, fields
+
+
+def _contact_mobile(contact):
+    """EventsAir nests the number; inCountryMobile is the local-format
+    twin, used as a fallback when the international one is blank."""
+    ph = contact.get('contactPhoneNumbers') or {}
+    return (ph.get('mobile') or ph.get('inCountryMobile') or '').strip()
+
+
+def _upsert_attendee(conn, contact, coffee_hint=None):
     if not contact.get('id'):
         return
+    pref, fields = _extract_coffee_pref(contact, coffee_hint)
     cur = conn.cursor()
     cur.execute("""
         INSERT INTO ea_attendees (ea_contact_id, first_name, last_name,
-                                  mobile_e164, email, synced_at)
-        VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                                  mobile_e164, email, coffee_pref,
+                                  custom_fields, synced_at)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
         ON CONFLICT (ea_contact_id) DO UPDATE SET
           first_name=EXCLUDED.first_name, last_name=EXCLUDED.last_name,
           mobile_e164=EXCLUDED.mobile_e164, email=EXCLUDED.email,
+          coffee_pref=EXCLUDED.coffee_pref,
+          custom_fields=EXCLUDED.custom_fields,
           synced_at=CURRENT_TIMESTAMP
     """, (str(contact['id']), contact.get('firstName'), contact.get('lastName'),
-          normalize_phone_e164(contact.get('mobile') or '') or None,
-          contact.get('email')))
+          normalize_phone_e164(_contact_mobile(contact)) or None,
+          contact.get('primaryEmail'), pref,
+          json.dumps(fields) if fields else None))
     conn.commit()
 
 
@@ -690,12 +750,22 @@ def ea_sync_attendees():
                             'synced': total}), 502
         page = (((data.get('event') or {}).get('contactsPaged') or {}).get('items')) or []
         for contact in page:
-            _upsert_attendee(db, contact)
+            _upsert_attendee(db, contact, row.get('coffee_field_hint'))
             total += 1
         if len(page) < 200:
             break
         skip += 200
-    return jsonify({'success': True, 'synced': total})
+    # Counts that decide whether preference-led ordering is viable: an
+    # attendee with no mobile cannot be texted, and one with no preference
+    # still has to be asked.
+    cur = db.cursor()
+    cur.execute("SELECT COUNT(*) FROM ea_attendees WHERE mobile_e164 IS NOT NULL")
+    with_mobile = (cur.fetchone() or [0])[0]
+    cur.execute("SELECT COUNT(*) FROM ea_attendees "
+                "WHERE coffee_pref IS NOT NULL AND coffee_pref <> ''")
+    with_pref = (cur.fetchone() or [0])[0]
+    return jsonify({'success': True, 'synced': total,
+                    'with_mobile': with_mobile, 'with_coffee_pref': with_pref})
 
 
 @bp.route('/test-order', methods=['POST'])
