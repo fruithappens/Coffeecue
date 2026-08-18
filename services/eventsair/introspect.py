@@ -27,11 +27,17 @@ query CoffeeCueIntrospect {
 }
 """
 
+# NOTE: GraphQL exposes INPUT object members as `inputFields`, not `fields`
+# — `fields` is null for them. Asking only for `fields` made every mutation
+# input look like it did not exist ("not_found"), which is exactly the
+# information needed to CALL a mutation rather than just discover its name.
 TYPE_FIELDS_QUERY = """
 query TypeFields($name: String!) {
   __type(name: $name) {
     name
+    kind
     fields { name type { name kind ofType { name } } }
+    inputFields { name type { name kind ofType { name } } }
   }
 }
 """
@@ -80,10 +86,16 @@ def describe_types(client, names):
     for tname in [n.strip() for n in names if n and n.strip()]:
         tok, tdata = client.graphql(TYPE_FIELDS_QUERY, {'name': tname})
         tinfo = (tdata or {}).get('__type') if tok else None
-        if tinfo and tinfo.get('fields'):
+        if not tinfo:
+            missing.append(tname)
+            continue
+        # Output types carry `fields`; INPUT_OBJECT carries `inputFields`.
+        members = tinfo.get('fields') or tinfo.get('inputFields')
+        if members:
             out[tname] = [{'name': f.get('name'),
-                           'type': _type_name(f.get('type'))}
-                          for f in tinfo['fields']]
+                           'type': _type_name(f.get('type')),
+                           'kind': tinfo.get('kind')}
+                          for f in members]
         else:
             missing.append(tname)
     return {'types': out, 'not_found': missing}
