@@ -4,15 +4,24 @@
   "port": 8631,
   "printers": [
     {
-      "name": "Station 1 mC-Label3 (via agent)",
+      "_comment": "USB / OS-installed printer. Get 'queue' from `lpstat -p`.",
+      "name": "Station 1 mC-Label3 (USB via CUPS)",
       "mac": "00:11:62:45:7C:88",
+      "protocol": "cups",
+      "queue": "Star_MCL32__STR_001_",
+      "dpi": 203
+    },
+    {
+      "_comment": "Networked Star. Only when the printer can't reach the cloud itself.",
+      "name": "Station 2 mC-Label3 (LAN)",
+      "mac": "00:11:62:45:7C:89",
       "ip": "192.168.1.50",
       "port": 9100,
       "protocol": "star-raster"
     },
     {
-      "name": "Station 2 Epson TM-T82",
-      "mac": "EPSON-STN2-000001",
+      "name": "Station 3 Epson TM-T82",
+      "mac": "EPSON-STN3-000001",
       "ip": "192.168.1.51",
       "port": 9100,
       "protocol": "escpos"

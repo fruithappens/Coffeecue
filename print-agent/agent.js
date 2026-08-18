@@ -15,13 +15,23 @@
  *
  * IMPORTANT: a printer is driven EITHER by its own native CloudPRNT client
  * OR by this agent — never both. Two pollers with the same MAC would steal
- * each other's jobs. The Star mC-Label3 supports CloudPRNT natively; only
- * point the agent at it if the venue network blocks the printer's own
- * outbound HTTPS.
+ * each other's jobs. The Star mC-Label3 supports CloudPRNT natively, but
+ * ONLY over a network interface; point the agent at it when the printer is
+ * USB-attached (see "cups" below) or when the venue network blocks the
+ * printer's own outbound HTTPS.
  *
  * Protocol rules (do NOT mix):
- *   - protocol "star-raster"  -> Star printers ONLY (mC-Label3, TSP100…).
- *   - protocol "escpos"       -> Epson (and ESC/POS-compatible) ONLY.
+ *   - protocol "star-raster"  -> Star printers ONLY (mC-Label3, TSP100…),
+ *                                over TCP 9100. Needs "ip".
+ *   - protocol "escpos"       -> Epson (and ESC/POS-compatible) ONLY,
+ *                                over TCP 9100. Needs "ip".
+ *   - protocol "cups"         -> ANY printer the host OS already prints to,
+ *                                including USB-attached ones. Needs "queue"
+ *                                (the CUPS queue name, `lpstat -p`). The
+ *                                vendor driver does the rasterising, so we
+ *                                hand it the PNG untouched and never build
+ *                                raster bytes ourselves — which is why this
+ *                                path is brand-agnostic.
  * Sending ESC/POS to a Star, or Star raster to an Epson, prints garbage.
  *
  * Crash safety: between fetch and confirm the PNG sits in spool/ on disk.
@@ -45,6 +55,7 @@ const net = require('net');
 const http = require('http');
 const https = require('https');
 const zlib = require('zlib');
+const { execFile } = require('child_process');
 
 const HERE = __dirname;
 const CONFIG_PATH = path.join(HERE, 'config.json');
@@ -74,8 +85,19 @@ function loadConfig() {
   cfg.port = cfg.port || 8631;
   cfg.printers = cfg.printers || [];
   for (const p of cfg.printers) {
-    if (!['star-raster', 'escpos'].includes(p.protocol)) {
-      log(`Printer "${p.name}": unknown protocol "${p.protocol}" (use star-raster or escpos)`);
+    if (!['star-raster', 'escpos', 'cups'].includes(p.protocol)) {
+      log(`Printer "${p.name}": unknown protocol "${p.protocol}" (use star-raster, escpos or cups)`);
+      process.exit(1);
+    }
+    // "cups" hands off to the OS spooler, so it needs a queue name, not an
+    // address. Catch the mix-up at startup rather than at the first label.
+    if (p.protocol === 'cups') {
+      if (!p.queue) {
+        log(`Printer "${p.name}": protocol "cups" needs "queue" (see \`lpstat -p\`)`);
+        process.exit(1);
+      }
+    } else if (!p.ip) {
+      log(`Printer "${p.name}": protocol "${p.protocol}" needs "ip" (TCP 9100)`);
       process.exit(1);
     }
     p.port = p.port || 9100;
@@ -257,6 +279,67 @@ function sendToPrinter(printer, bytes) {
 }
 
 // ---------------------------------------------------------------------------
+// CUPS dispatch (USB / any OS-installed printer)
+// ---------------------------------------------------------------------------
+// The vendor driver owns the rasterising here, so the PNG goes to `lp`
+// exactly as the server rendered it. `lp` returns as soon as the spooler
+// ACCEPTS the file, which is NOT proof it reached the printer — so we then
+// wait for the job to leave the queue before reporting success, keeping the
+// cloud's retry accounting honest (a job stuck on a paper-out printer must
+// not be confirmed as printed).
+function sendToCups(printer, pngPath) {
+  return new Promise((resolve) => {
+    const buf = fs.readFileSync(pngPath);
+    const dots = { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) };  // PNG IHDR
+    const dpi = printer.dpi || 203;
+    // Size the PAGE to the image and declare the image's true resolution, so
+    // CUPS maps one dot to one dot. Do NOT use fit-to-page: it stretches the
+    // label to whatever media the driver has selected (a Star mC-Label3
+    // defaults to 72mm) and the design overflows narrower stock. Deriving the
+    // page per job — rather than hardcoding a label size — is also what lets
+    // grow-mode labels and the 30cm banners come out at their real length.
+    const mm = (d) => (d / dpi * 25.4).toFixed(1);
+    const args = [
+      '-d', printer.queue,
+      '-o', `PageSize=Custom.${mm(dots.w)}x${mm(dots.h)}mm`,
+      '-o', `ppi=${dpi}`,
+    ];
+    for (const [k, v] of Object.entries(printer.cupsOptions || {})) {
+      args.push('-o', `${k}=${v}`);
+    }
+    args.push(pngPath);
+    execFile('lp', args, { timeout: 15000 }, (err, stdout, stderr) => {
+      if (err) {
+        return resolve({ ok: false, detail: `lp failed: ${(stderr || err.message).trim()}` });
+      }
+      const geom = `${dots.w}x${dots.h} dots -> ${mm(dots.w)}x${mm(dots.h)}mm @${dpi}dpi`;
+      const m = String(stdout).match(/request id is (\S+)/);
+      const jobId = m ? m[1] : null;
+      if (!jobId) return resolve({ ok: true, detail: `queued on ${printer.queue} (${geom})` });
+      waitForCupsJob(printer, jobId, resolve, 0, geom);
+    });
+  });
+}
+
+// Poll `lpstat` until the job drains out of the queue. Anything still sitting
+// there after the grace period is treated as a failure — better a duplicate
+// label after a genuine retry than a silently lost one.
+function waitForCupsJob(printer, jobId, resolve, waitedMs = 0, geom = '') {
+  const STEP = 500;
+  const LIMIT = 20000;
+  execFile('lpstat', ['-o', printer.queue], { timeout: 5000 }, (err, stdout) => {
+    const stillQueued = !err && String(stdout).includes(jobId);
+    if (!stillQueued) {
+      return resolve({ ok: true, detail: `printed via CUPS queue ${printer.queue} (${jobId}; ${geom})` });
+    }
+    if (waitedMs >= LIMIT) {
+      return resolve({ ok: false, detail: `${jobId} still queued on ${printer.queue} after ${LIMIT / 1000}s — printer offline, out of paper or paused?` });
+    }
+    setTimeout(() => waitForCupsJob(printer, jobId, resolve, waitedMs + STEP, geom), STEP);
+  });
+}
+
+// ---------------------------------------------------------------------------
 // cloud queue client (CloudPRNT on behalf of the printer)
 // ---------------------------------------------------------------------------
 function cloudRequest(cfg, method, urlPath, body) {
@@ -291,9 +374,14 @@ function spoolPaths(token) {
 
 async function printSpooledJob(cfg, printer, token) {
   const { png: pngPath, meta: metaPath } = spoolPaths(token);
-  const png = decodePng(fs.readFileSync(pngPath));
-  const bytes = buildRasterFor(printer, png);
-  const result = await sendToPrinter(printer, bytes);
+  // CUPS takes the PNG as-is; only the TCP paths need raster conversion.
+  let result;
+  if (printer.protocol === 'cups') {
+    result = await sendToCups(printer, pngPath);
+  } else {
+    const png = decodePng(fs.readFileSync(pngPath));
+    result = await sendToPrinter(printer, buildRasterFor(printer, png));
+  }
   const code = result.ok ? '200' : '500';
   // Honest confirm: 200 only when the transport really delivered.
   try {
