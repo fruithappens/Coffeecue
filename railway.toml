@@ -1,21 +1,16 @@
 # NOTE: this repo carries BOTH railway.json and railway.toml. Railway reads
 # one of them, and which one wins is not obvious from here — so keep the
-# deploy settings IDENTICAL in both. A healthcheck that exists in only one
-# file is a healthcheck you cannot rely on.
+# deploy settings IDENTICAL in both.
+#
+# healthcheckPath was added here on 2026-08-18 and REVERTED the same day:
+# production stopped serving entirely (TLS handshake fine, no HTTP response)
+# and did not recover on its own. The app itself was proven healthy — it
+# boots and answers /api/health 200 locally on the exact merged commit — so
+# the healthcheck config is the only remaining variable. Do not re-add it
+# without watching the Railway deploy logs live.
 [build]
 builder = "dockerfile"
 
 [deploy]
 startCommand = "python run_server.py"
 restartPolicyType = "ON_FAILURE"
-
-# Without a healthcheck Railway has no signal for when the new container is
-# ready, so it can cut traffic over to a process that is still starting and
-# stop the old one that was mid-request. That is how a customer's confirmed
-# coffee order was lost at 04:33 on 2026-08-18: their SMS arrived ~4 minutes
-# after a merge, was recorded, and then died mid-processing.
-#
-# With it, Railway waits for /api/health to answer on the NEW container
-# before sending it traffic.
-healthcheckPath = "/api/health"
-healthcheckTimeout = 300
