@@ -133,7 +133,7 @@ class EASurveyClient(EventsAirClient):
           event(id: $eventId) {
             contactsPaged(offset: $offset, limit: $limit) {
               items {
-                id firstName lastName primaryEmail externalIdentifier
+                id internalNumber firstName lastName primaryEmail externalIdentifier
                 contactPhoneNumbers { mobile inCountryMobile }
                 userDefinedField1 userDefinedField2
                 userDefinedField3 userDefinedField4
@@ -156,7 +156,7 @@ class EASurveyClient(EventsAirClient):
           event(id: $eventId) {
             contactsPaged(offset: $offset, limit: $limit) {
               items {
-                id firstName lastName primaryEmail externalIdentifier
+                id internalNumber firstName lastName primaryEmail externalIdentifier
                 contactPhoneNumbers { mobile inCountryMobile }
                 userDefinedField1 userDefinedField2
                 userDefinedField3 userDefinedField4

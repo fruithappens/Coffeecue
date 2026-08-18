@@ -105,6 +105,16 @@ def _ensure_tables(db):
                     "mobile_alt_e164 VARCHAR(20)")
         cur.execute("ALTER TABLE ea_attendees ADD COLUMN IF NOT EXISTS "
                     "mobile_source VARCHAR(20)")
+        # EventsAir's SHORT human id — the "ID 56" printed on the contact
+        # record and the name badge. The GraphQL `id` is a long opaque
+        # value nobody can read out or type. Steve's walk-up case: a guest
+        # says "fifty-six" at the cart, or taps four digits, and we know
+        # who they are without scanning anything. Indexed because that
+        # lookup happens with someone standing in front of you.
+        cur.execute("ALTER TABLE ea_attendees ADD COLUMN IF NOT EXISTS "
+                    "internal_number INTEGER")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_ea_attendees_internal "
+                    "ON ea_attendees(internal_number)")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS ea_webhook_log (
                 correlation_id VARCHAR(100) PRIMARY KEY,
@@ -628,6 +638,13 @@ def _extract_coffee_pref(contact, hint=None):
     return None, fields
 
 
+def _as_int(v):
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return None
+
+
 def _contact_mobile(contact, prefer_local=True):
     """Pick which number to text, and return the other as a fallback.
 
@@ -664,11 +681,13 @@ def _upsert_attendee(conn, contact, coffee_hint=None):
     chosen, alternate, source = _contact_mobile(contact)
     cur = conn.cursor()
     cur.execute("""
-        INSERT INTO ea_attendees (ea_contact_id, first_name, last_name,
+        INSERT INTO ea_attendees (ea_contact_id, internal_number,
+                                  first_name, last_name,
                                   mobile_e164, mobile_alt_e164, mobile_source,
                                   email, coffee_pref, custom_fields, synced_at)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
         ON CONFLICT (ea_contact_id) DO UPDATE SET
+          internal_number=EXCLUDED.internal_number,
           first_name=EXCLUDED.first_name, last_name=EXCLUDED.last_name,
           mobile_e164=EXCLUDED.mobile_e164,
           mobile_alt_e164=EXCLUDED.mobile_alt_e164,
@@ -677,7 +696,8 @@ def _upsert_attendee(conn, contact, coffee_hint=None):
           coffee_pref=EXCLUDED.coffee_pref,
           custom_fields=EXCLUDED.custom_fields,
           synced_at=CURRENT_TIMESTAMP
-    """, (str(contact['id']), contact.get('firstName'), contact.get('lastName'),
+    """, (str(contact['id']), _as_int(contact.get('internalNumber')),
+          contact.get('firstName'), contact.get('lastName'),
           normalize_phone_e164(chosen) or None,
           normalize_phone_e164(alternate or '') or None, source,
           contact.get('primaryEmail'), pref,
