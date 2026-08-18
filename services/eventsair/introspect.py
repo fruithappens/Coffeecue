@@ -38,6 +38,7 @@ query TypeFields($name: String!) {
     kind
     fields { name type { name kind ofType { name } } }
     inputFields { name type { name kind ofType { name } } }
+    enumValues { name }
   }
 }
 """
@@ -89,11 +90,17 @@ def describe_types(client, names):
         if not tinfo:
             missing.append(tname)
             continue
-        # Output types carry `fields`; INPUT_OBJECT carries `inputFields`.
-        members = tinfo.get('fields') or tinfo.get('inputFields')
+        # GraphQL splits a type's members three ways and returns null for
+        # the two that do not apply: OBJECT -> fields, INPUT_OBJECT ->
+        # inputFields, ENUM -> enumValues. Asking for only some of them
+        # makes real types look absent — SurveyType reported not_found
+        # purely because it is an enum.
+        members = (tinfo.get('fields') or tinfo.get('inputFields')
+                   or tinfo.get('enumValues'))
         if members:
             out[tname] = [{'name': f.get('name'),
-                           'type': _type_name(f.get('type')),
+                           # enumValues carry no type — the name IS the value
+                           'type': _type_name(f.get('type')) if f.get('type') else '',
                            'kind': tinfo.get('kind')}
                           for f in members]
         else:
