@@ -447,6 +447,44 @@ def suite_print_cloudprnt_result(rn):
                  "re-delivered on the next poll — an infinite reprint loop.",
                  refs=[] if ok else ["routes/print_routes.py"]))
 
+    # A printer's horizontal offset must actually widen the delivered PNG,
+    # or the correction is cosmetic. Measured on the live mC-Label3: content
+    # landed 58 dots left of the 58mm label, so the calibration ruler's "50"
+    # printed as "0". Padding is applied at DELIVERY, so the fetched image
+    # must come back wider by exactly the offset.
+    pcode, pbody, _ = c.get("/api/print/printers")
+    printers = (pbody or {}).get("printers") or [] if isinstance(pbody, dict) else []
+    bench = next((p for p in printers if str(p.get("mac_address")) == "AA1122334455"), None)
+    if bench:
+        was_off = bench.get("offset_dots") or 0
+        was_en = bench.get("enabled")
+        c.req("PATCH", f"/api/print/printers/{bench['id']}",
+              body={"enabled": True, "offset_dots": 58})
+        jcode, jbody, _ = c.req("POST", "/api/print/test", body={"printer_id": bench["id"]})
+        jid = (jbody or {}).get("job_id") if isinstance(jbody, dict) else None
+        widths = {}
+        for label, off in (("with offset", 58), ("without", 0)):
+            if off != 58:
+                c.req("PATCH", f"/api/print/printers/{bench['id']}", body={"offset_dots": 0})
+                jcode, jbody, _ = c.req("POST", "/api/print/test", body={"printer_id": bench["id"]})
+                jid = (jbody or {}).get("job_id") if isinstance(jbody, dict) else None
+            if jid:
+                fc, fb = _raw_get(c, f"/cloudprnt?token={jid}&mac=AA1122334455&type=image%2Fpng")
+                widths[label] = _png_width(fb) if fc == 200 else None
+                c.req("POST", f"/api/print/jobs/{jid}/cancel", body={})
+        w_off, w_no = widths.get("with offset"), widths.get("without")
+        ok_shift = bool(w_off and w_no and w_off - w_no == 58)
+        out.append(R("cloudprnt", "printer offset widens the delivered label",
+                     "pass" if ok_shift else "fail",
+                     f"offset=58 -> {w_off} dots, offset=0 -> {w_no} dots (want +58)",
+                     suggestion="" if ok_shift else
+                     "Without this the correction is cosmetic and content keeps "
+                     "landing off the left edge of the stock.",
+                     refs=[] if ok_shift else ["routes/print_routes.py"]))
+        # Leave the bench printer exactly as found.
+        c.req("PATCH", f"/api/print/printers/{bench['id']}",
+              body={"offset_dots": was_off, "enabled": bool(was_en)})
+
     # Colon-form MAC must behave identically — the printer self-test prints
     # it with colons while the UI stores it bare.
     code2 = result('200 OK', mac='00:11:62:45:73:8F')
