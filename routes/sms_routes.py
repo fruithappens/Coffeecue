@@ -487,11 +487,55 @@ def _sms_webhook_inner():
         return Response(response, mimetype='text/xml')
     except Exception as e:
         logger.error(f"Error processing SMS: {str(e)}", exc_info=True)
-        
-        # Create a simple response for error cases
+
+        # A failure here used to be a DEAD END: "our system is experiencing
+        # issues, try again shortly" told the customer nothing about WHAT to
+        # send, so a confirmed order became a person who never got coffee.
+        #
+        # The conversation state lives in its own table and SURVIVES the
+        # failure — so the customer is still exactly where they were and
+        # only needs to know what to resend. Seen live: a redeploy killed
+        # the request mid-order at 04:33; the customer's "Yes" was recorded
+        # with processed=false and the reply was a shrug.
         resp = MessagingResponse()
-        resp.message("Sorry, our system is experiencing issues. Please try again shortly.")
+        resp.message(_recovery_prompt(request.values.get('From', '')))
         return str(resp)
+
+
+# What to tell a customer whose message we failed to process. Keyed on the
+# conversation state they are still sitting in, so the reply is an ACTION
+# they can take rather than an apology. Plain ASCII only: non-ASCII turns
+# the SMS into UCS-2 and doubles the cost of every segment.
+_RECOVERY_BY_STATE = {
+    'awaiting_name': "Sorry, we dropped that one. What's your first name?",
+    'awaiting_coffee_type': "Sorry, we dropped that one. What coffee would you like?",
+    'awaiting_milk': "Sorry, we dropped that one. Which milk would you like?",
+    'awaiting_size': "Sorry, we dropped that one. What size would you like?",
+    'awaiting_sugar': "Sorry, we dropped that one. How many sugars?",
+    'awaiting_confirmation': ("Sorry, we dropped that one - your order is still "
+                              "waiting. Reply YES to confirm it."),
+}
+_RECOVERY_DEFAULT = ("Sorry, we dropped that one. Please send your last message "
+                     "again and we'll pick up where you left off.")
+
+
+def _recovery_prompt(phone):
+    """State-aware retry instruction, with the generic line as a fallback.
+
+    Wrapped in its own try/except: this runs INSIDE an error handler, so it
+    must never be the reason a customer gets no reply at all.
+    """
+    try:
+        if not phone:
+            return _RECOVERY_DEFAULT
+        coffee_system = current_app.config.get('coffee_system')
+        if not coffee_system:
+            return _RECOVERY_DEFAULT
+        state = coffee_system._get_conversation_state(phone) or {}
+        return _RECOVERY_BY_STATE.get(state.get('state'), _RECOVERY_DEFAULT)
+    except Exception as recovery_err:
+        logger.warning(f"recovery prompt lookup failed: {recovery_err}")
+        return _RECOVERY_DEFAULT
 
 def _process_inbound_via_provider(provider_name: str):
     """Shared handler for non-Twilio inbound webhooks (ClickSend, Cellcast,

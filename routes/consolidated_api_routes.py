@@ -6787,6 +6787,69 @@ def debug_inventory_schema():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@bp.route('/sms/dropped', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def sms_dropped():
+    """Inbound messages we accepted but never finished processing.
+
+    A row stays processed=false when handling threw part-way — a redeploy
+    mid-request, a database blip, an unhandled edge case. That is a real
+    customer whose order did not land, and until now nothing surfaced it:
+    the row simply sat there. Found the hard way when a confirmed order was
+    lost at 04:33 during a deploy and the only trace was processed=false.
+
+    Deliberately excludes the last `grace` seconds (default 60) so a message
+    being processed right now is not reported as dropped.
+
+    Params: grace=<seconds>, hours=<lookback, default 6>, limit (<=200).
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        if not coffee_system:
+            return jsonify({'success': False, 'message': 'System unavailable'}), 503
+        grace = max(0, min(int(request.args.get('grace', 60)), 3600))
+        hours = max(1, min(int(request.args.get('hours', 6)), 168))
+        limit = max(1, min(int(request.args.get('limit', 50)), 200))
+        cur = coffee_system.db.cursor()
+        cur.execute(
+            """
+            SELECT id, phone_number, message_body, received_at
+            FROM sms_messages
+            WHERE processed = FALSE
+              AND received_at < NOW() - (%s * INTERVAL '1 second')
+              AND received_at > NOW() - (%s * INTERVAL '1 hour')
+            ORDER BY received_at DESC
+            LIMIT %s
+            """,
+            (grace, hours, limit))
+        rows = cur.fetchall()
+        dropped = []
+        for r in rows:
+            rid, phone, body, at = (
+                (r['id'], r['phone_number'], r['message_body'], r['received_at'])
+                if isinstance(r, dict) else (r[0], r[1], r[2], r[3]))
+            dropped.append({
+                'id': rid,
+                'phone': phone,
+                'message': body,
+                'received_at': at.isoformat() if hasattr(at, 'isoformat') else str(at),
+            })
+        return jsonify({
+            'success': True,
+            'count': len(dropped),
+            'dropped': dropped,
+            'window_hours': hours,
+        })
+    except Exception as e:
+        logger.error(f"sms_dropped error: {e}")
+        try:
+            coffee_system.db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 @bp.route('/sms/log', methods=['GET'])
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff'])
