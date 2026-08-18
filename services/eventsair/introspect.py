@@ -65,6 +65,30 @@ def _relevant(name: str) -> bool:
     return any(k in low for k in KEYWORDS)
 
 
+def describe_types(client, names):
+    """Drill into SPECIFIC named types and return their fields.
+
+    The full scan only follows types reachable from keyword-matched root
+    fields, so entities named in ways we did not anticipate are invisible
+    to it — the real schema turned out to expose attendees under `event`
+    rather than a top-level contacts query, and `Event` never appeared in
+    the report. It also takes ~83 seconds, long enough that the browser
+    aborts it. Naming types directly answers a specific question in one
+    round trip each.
+    """
+    out, missing = {}, []
+    for tname in [n.strip() for n in names if n and n.strip()]:
+        tok, tdata = client.graphql(TYPE_FIELDS_QUERY, {'name': tname})
+        tinfo = (tdata or {}).get('__type') if tok else None
+        if tinfo and tinfo.get('fields'):
+            out[tname] = [{'name': f.get('name'),
+                           'type': _type_name(f.get('type'))}
+                          for f in tinfo['fields']]
+        else:
+            missing.append(tname)
+    return {'types': out, 'not_found': missing}
+
+
 def run_introspection(client):
     """Full flow: introspect roots, filter to relevant fields, drill into
     interesting types. Returns (ok, report_dict_or_error). Never raises."""
