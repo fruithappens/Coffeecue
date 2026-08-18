@@ -473,20 +473,29 @@ const PrintersTab = () => {
                       </select>
                     </td>
                     <td className="py-2 pr-3">
-                      {/* Per-printer driver: CloudPRNT (the printer
-                          polls us) vs a LAN agent pushing Star raster
-                          or ESC/POS. Different brands per station is
-                          expected (Steve). */}
+                      {/* Per-printer driver. The distinction that actually
+                          matters operationally is WHO POLLS WHOM: with
+                          CloudPRNT the printer calls us and needs nothing
+                          else running; every other option needs the local
+                          print agent alive or jobs just sit in 'queued'.
+                          That confusion cost real debugging time when the
+                          mC-Label3 arrived on USB, so the labels say it. */}
                       <select
                         className="border rounded px-1 py-1 text-xs"
                         value={p.driver || 'cloudprnt'}
                         onChange={(e) => patchPrinter(p, { driver: e.target.value },
                           'Driver saved')}
                       >
-                        <option value="cloudprnt">CloudPRNT (Star)</option>
-                        <option value="starprnt_lan">Star raster via agent</option>
-                        <option value="escpos_lan">ESC/POS via agent (Epson)</option>
+                        <option value="cloudprnt">CloudPRNT — printer polls us (no agent)</option>
+                        <option value="cups_agent">USB / OS printer — via agent</option>
+                        <option value="starprnt_lan">Star raster TCP 9100 — via agent</option>
+                        <option value="escpos_lan">ESC/POS TCP 9100 — via agent (Epson)</option>
                       </select>
+                      {p.driver && p.driver !== 'cloudprnt' && (
+                        <div className="text-[10px] text-amber-700 mt-0.5">
+                          needs print agent running
+                        </div>
+                      )}
                     </td>
                     <td className="py-2 pr-3">
                       <label className="inline-flex items-center">

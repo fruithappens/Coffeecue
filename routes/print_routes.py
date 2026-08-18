@@ -228,6 +228,18 @@ def _cloudprnt_auth_ok():
     return request.args.get('secret') == CLOUDPRNT_SHARED_SECRET
 
 
+# How a printer is actually driven. Kept here because the Support UI and
+# this endpoint must agree — a label that doesn't match reality is how an
+# operator ends up debugging the wrong half of the system (see #209: a USB
+# printer sat in 'queued' while its row claimed a LAN driver).
+#   cloudprnt    - the printer polls us itself over the network. No agent.
+#   cups_agent   - print-agent hands the PNG to the host OS spooler (USB).
+#   starprnt_lan - print-agent pushes Star raster to TCP 9100.
+#   escpos_lan   - print-agent pushes ESC/POS to TCP 9100 (Epson).
+# Everything except 'cloudprnt' needs the local agent RUNNING to print.
+VALID_DRIVERS = ('cloudprnt', 'cups_agent', 'starprnt_lan', 'escpos_lan')
+
+
 @cloudprnt_bp.route('/cloudprnt', methods=['POST'])
 def cloudprnt_poll():
     """Printer heartbeat + job availability. Kept FAST: no rendering here."""
@@ -748,6 +760,14 @@ def update_printer(printer_id):
     _ensure_tables(db)
     data = request.get_json(silent=True) or {}
     sets, params = [], []
+    if 'driver' in data and data['driver'] not in VALID_DRIVERS:
+        # Silently storing a typo would leave the UI describing a transport
+        # that doesn't exist, which is worse than refusing the change.
+        return jsonify({
+            'success': False,
+            'message': f"Unknown driver '{data['driver']}'. "
+                       f"Valid: {', '.join(VALID_DRIVERS)}",
+        }), 400
     for field in ('name', 'station_id', 'enabled', 'width_dots', 'ip_address', 'driver'):
         if field in data:
             sets.append(f"{field} = %s")

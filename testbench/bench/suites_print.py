@@ -299,8 +299,62 @@ def suite_print_fit(rn):
     return out
 
 
+def suite_print_driver_truth(rn):
+    """The driver label must match how the printer is really driven.
+
+    When the mC-Label3 arrived on USB, its row claimed 'starprnt_lan' and
+    no value existed that could describe the truth at all — so the Support
+    UI confidently named a transport that wasn't in use while jobs sat in
+    'queued'. A label that cannot be right is worse than no label: it
+    sends you debugging the wrong half of the system.
+    """
+    c, out = rn.client, []
+    code, body, _ = c.get("/api/print/printers")
+    printers = (body or {}).get("printers") or [] if isinstance(body, dict) else []
+    valid = ("cloudprnt", "cups_agent", "starprnt_lan", "escpos_lan")
+
+    bad = [p for p in printers if (p.get("driver") or "cloudprnt") not in valid]
+    out.append(R("print_driver", "every printer's driver is a known value",
+                 "pass" if not bad else "fail",
+                 f"{len(printers)} printer(s), {len(bad)} unknown"
+                 + ("" if not bad else f": {[p.get('driver') for p in bad]}"),
+                 refs=[] if not bad else ["routes/print_routes.py"]))
+
+    # The backend must REFUSE an unknown driver rather than store it: a
+    # silently-accepted typo is exactly how a label stops matching reality.
+    target = next((p for p in printers if p.get("id")), None)
+    if not target:
+        return out
+    was = target.get("driver")
+    pcode, _pb, _ = c.req("PATCH", f"/api/print/printers/{target['id']}",
+                          body={"driver": "definitely-not-a-driver"})
+    refused = pcode == 400
+    out.append(R("print_driver", "backend refuses an unknown driver",
+                 "pass" if refused else "fail", f"HTTP {pcode} (want 400)",
+                 suggestion="" if refused else
+                 "An unvalidated driver string lets the Support UI describe "
+                 "a transport that does not exist.",
+                 refs=[] if refused else ["routes/print_routes.py"]))
+
+    _c, after, _ = c.get("/api/print/printers")
+    rows = (after or {}).get("printers") or [] if isinstance(after, dict) else []
+    now = next((p for p in rows if p.get("id") == target["id"]), {})
+    unchanged = now.get("driver") == was
+    if not unchanged:
+        # Never leave a real printer row holding junk, even when the server
+        # under test is missing the validation this suite is checking for.
+        c.req("PATCH", f"/api/print/printers/{target['id']}", body={"driver": was})
+    out.append(R("print_driver", "rejected driver was not persisted",
+                 "pass" if unchanged else "fail",
+                 f"driver={now.get('driver')!r} (was {was!r})"
+                 + ("" if unchanged else " — restored"),
+                 refs=[] if unchanged else ["routes/print_routes.py"]))
+    return out
+
+
 PRINT_SUITES = [
     ("print_preview", suite_print_preview, True),
     ("print_pipeline", suite_print_pipeline, True),
     ("print_fit", suite_print_fit, False),
+    ("print_driver", suite_print_driver_truth, True),
 ]
