@@ -955,24 +955,55 @@ def ea_test_order():
 # "My coffee" — the attendee's own page (public, like the kiosk)
 # ---------------------------------------------------------------------------
 
-def _find_attendee(db, cid):
-    """Resolve by EA contact id OR the short badge number."""
-    cid = (cid or '').strip()
-    if not cid:
-        return None
-    cur = db.cursor()
-    cols = ("ea_contact_id, internal_number, first_name, mobile_e164, "
-            "coffee_pref, coffee_pref_local")
-    cur.execute(f"SELECT {cols} FROM ea_attendees WHERE ea_contact_id = %s", (cid,))
-    row = cur.fetchone()
-    if not row and cid.isdigit():
-        cur.execute(f"SELECT {cols} FROM ea_attendees WHERE internal_number = %s",
-                    (int(cid),))
-        row = cur.fetchone()
+_ATT_COLS = ("ea_contact_id, internal_number, first_name, mobile_e164, "
+             "coffee_pref, coffee_pref_local")
+
+
+def _row_to_attendee(row):
     if not row:
         return None
-    keys = [c.strip() for c in cols.split(',')]
+    keys = [c.strip() for c in _ATT_COLS.split(',')]
     return dict(row) if isinstance(row, dict) else dict(zip(keys, row))
+
+
+def _find_attendee(db, cid=None, phone=None):
+    """Resolve an attendee by contact id, badge number, or THEIR OWN MOBILE.
+
+    Badge number alone is a weak ask: people do not memorise it and it may
+    not even be printed. A mobile is the identifier everyone already knows,
+    needs nothing on the badge, and cannot be enumerated by a stranger the
+    way a searchable name list could. It is also the number we need for
+    notifications, so matching on it confirms we hold a working one.
+
+    Matched against BOTH stored numbers — someone may give the overseas
+    number they registered with even though we chose their local SIM.
+    """
+    cur = db.cursor()
+    cid = (cid or '').strip()
+    if cid:
+        cur.execute(f"SELECT {_ATT_COLS} FROM ea_attendees WHERE ea_contact_id = %s",
+                    (cid,))
+        rec = _row_to_attendee(cur.fetchone())
+        if rec:
+            return rec
+        if cid.isdigit():
+            cur.execute(f"SELECT {_ATT_COLS} FROM ea_attendees "
+                        "WHERE internal_number = %s", (int(cid),))
+            rec = _row_to_attendee(cur.fetchone())
+            if rec:
+                return rec
+
+    phone = (phone or '').strip()
+    if phone:
+        e164 = normalize_phone_e164(phone)
+        if e164:
+            cur.execute(f"SELECT {_ATT_COLS} FROM ea_attendees "
+                        "WHERE mobile_e164 = %s OR mobile_alt_e164 = %s "
+                        "LIMIT 1", (e164, e164))
+            rec = _row_to_attendee(cur.fetchone())
+            if rec:
+                return rec
+    return None
 
 
 def _their_usual(rec):
@@ -997,7 +1028,7 @@ def ea_me():
     """
     db = _db()
     _ensure_tables(db)
-    rec = _find_attendee(db, request.args.get('cid'))
+    rec = _find_attendee(db, request.args.get('cid'), request.args.get('phone'))
     if not rec:
         return jsonify({'success': False, 'message': 'unknown contact'}), 404
 
@@ -1045,7 +1076,7 @@ def ea_me_set_usual():
         return jsonify({'success': False, 'message': 'Too long.'}), 400
     db = _db()
     _ensure_tables(db)
-    rec = _find_attendee(db, data.get('cid'))
+    rec = _find_attendee(db, data.get('cid'), data.get('phone'))
     if not rec:
         return jsonify({'success': False, 'message': 'unknown contact'}), 404
     try:
@@ -1075,7 +1106,7 @@ def ea_me_order():
     data = request.get_json(silent=True) or {}
     db = _db()
     _ensure_tables(db)
-    rec = _find_attendee(db, data.get('cid'))
+    rec = _find_attendee(db, data.get('cid'), data.get('phone'))
     if not rec:
         return jsonify({'success': False, 'message': 'unknown contact'}), 404
     usual = _their_usual(rec)

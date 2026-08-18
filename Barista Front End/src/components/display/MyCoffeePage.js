@@ -19,6 +19,7 @@ import { useSearchParams } from 'react-router-dom';
 import KioskOrder from './KioskOrder';
 
 const STORAGE_KEY = 'coffee_cue_my_cid';
+const PHONE_KEY = 'coffee_cue_my_phone';
 
 const STATUS = {
   pending: { title: 'In the queue', tone: 'bg-blue-600' },
@@ -35,6 +36,11 @@ const MyCoffeePage = () => {
     () => paramCid || localStorage.getItem(STORAGE_KEY) || ''
   );
   const [me, setMe] = useState(null);
+  // Mobile first: almost nobody knows their badge number, and it may not
+  // even be printed. Everyone knows their own phone. It is also the number
+  // we need for notifications, so matching on it proves we hold a good one.
+  const [mode, setMode] = useState('phone');
+  const [phone, setPhone] = useState(() => localStorage.getItem(PHONE_KEY) || '');
   const [entry, setEntry] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -42,18 +48,30 @@ const MyCoffeePage = () => {
   const [draft, setDraft] = useState('');
   const [fullOrder, setFullOrder] = useState(false);
 
-  const load = useCallback(async (id, { quiet } = {}) => {
+  const load = useCallback(async (id, { quiet, byPhone } = {}) => {
     if (!id) return;
     if (!quiet) setBusy(true);
     try {
-      const r = await fetch(`/api/ea/me?cid=${encodeURIComponent(id)}`);
+      const q = byPhone
+        ? `phone=${encodeURIComponent(id)}`
+        : `cid=${encodeURIComponent(id)}`;
+      const r = await fetch(`/api/ea/me?${q}`);
       const b = await r.json();
       if (b?.success) {
         setMe(b);
-        localStorage.setItem(STORAGE_KEY, id);
+        // Adopt the CONTACT ID the server resolved, whichever way they got
+        // in. Without this, someone who identified by phone left `cid`
+        // empty and every later call — order, save usual — would 404.
+        if (b.cid) {
+          localStorage.setItem(STORAGE_KEY, b.cid);
+          setCid((prev) => (prev === b.cid ? prev : b.cid));
+        }
+        if (byPhone) localStorage.setItem(PHONE_KEY, id);
         setError('');
       } else if (!quiet) {
-        setError("We don't recognise that number.");
+        setError(byPhone
+          ? "We can't find that number. Try the number you registered with, or use your badge number."
+          : "We don't recognise that badge number.");
         setMe(null);
       }
     } catch (e) {
@@ -63,7 +81,12 @@ const MyCoffeePage = () => {
     }
   }, []);
 
-  useEffect(() => { if (cid) load(cid); }, [cid, load]);
+  useEffect(() => {
+    if (cid) load(cid);
+    else if (phone) load(phone, { byPhone: true });
+    // Only on mount / after an identifier changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cid, load]);
 
   // While an order is live, keep the status fresh without the person
   // having to do anything — this page IS the notification for anyone
@@ -128,7 +151,8 @@ const MyCoffeePage = () => {
 
   const forget = () => {
     localStorage.removeItem(STORAGE_KEY);
-    setCid(''); setMe(null); setEntry(''); setError('');
+    localStorage.removeItem(PHONE_KEY);
+    setCid(''); setPhone(''); setMe(null); setEntry(''); setError('');
   };
 
   // ---- not identified yet -------------------------------------------------
@@ -139,23 +163,38 @@ const MyCoffeePage = () => {
           <div className="text-5xl mb-3" aria-hidden>☕</div>
           <h1 className="text-2xl font-bold mb-1">Your coffee</h1>
           <p className="text-gray-600 mb-6">
-            Enter the number on your name badge and we'll remember you.
+            {mode === 'phone'
+              ? "Enter your mobile — the one you registered with — and we'll remember you."
+              : "Enter the number on your name badge and we'll remember you."}
           </p>
           <input
-            className="w-full border-2 rounded-xl px-4 py-4 text-2xl text-center tracking-widest"
-            inputMode="numeric"
-            placeholder="e.g. 56"
+            className="w-full border-2 rounded-xl px-4 py-4 text-2xl text-center"
+            inputMode={mode === 'phone' ? 'tel' : 'numeric'}
+            placeholder={mode === 'phone' ? '0412 345 678' : 'e.g. 56'}
             value={entry}
             onChange={(e) => setEntry(e.target.value.trim())}
-            onKeyDown={(e) => { if (e.key === 'Enter' && entry) setCid(entry); }}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter' || !entry) return;
+              if (mode === 'phone') load(entry, { byPhone: true }); else setCid(entry);
+            }}
           />
           {error && <p className="text-red-600 mt-3">{error}</p>}
           <button
             className="w-full mt-4 py-4 rounded-xl bg-blue-600 text-white text-lg font-semibold disabled:opacity-40"
             disabled={!entry || busy}
-            onClick={() => setCid(entry)}
+            onClick={() => {
+              if (mode === 'phone') load(entry, { byPhone: true }); else setCid(entry);
+            }}
           >
             {busy ? 'Checking…' : "That's me"}
+          </button>
+          <button
+            className="w-full mt-3 py-2 text-blue-700 underline text-sm"
+            onClick={() => { setMode(mode === 'phone' ? 'badge' : 'phone'); setEntry(''); setError(''); }}
+          >
+            {mode === 'phone'
+              ? 'Use my name badge number instead'
+              : 'Use my mobile number instead'}
           </button>
           <button
             className="w-full mt-3 py-3 text-gray-600 underline"
