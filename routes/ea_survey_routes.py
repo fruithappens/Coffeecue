@@ -943,6 +943,49 @@ def ea_test_order():
                     'response_id': response_id})
 
 
+@bp.route('/attendee', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def ea_attendee_detail():
+    """What the mirror holds for ONE attendee — for checking a round trip.
+
+    /hello is deliberately privacy-tight (first name + has_phone only), so
+    there was no way to confirm that a preference edited in EventsAir
+    actually reached us, or WHEN. This is the staff-side view: the stored
+    preference, which phone number was chosen and why, and the sync time.
+
+    Accepts the long EA contact id or the short badge number, same as
+    /hello. Admin/staff only — it returns contact details.
+    """
+    cid = (request.args.get('cid') or '').strip()
+    if not cid:
+        return jsonify({'success': False, 'message': 'cid required'}), 400
+    db = _db()
+    _ensure_tables(db)
+    cur = db.cursor()
+    cols = ("ea_contact_id, internal_number, first_name, last_name, "
+            "mobile_e164, mobile_alt_e164, mobile_source, email, "
+            "coffee_pref, custom_fields, synced_at")
+    cur.execute(f"SELECT {cols} FROM ea_attendees WHERE ea_contact_id = %s", (cid,))
+    row = cur.fetchone()
+    if not row and cid.isdigit():
+        cur.execute(f"SELECT {cols} FROM ea_attendees WHERE internal_number = %s",
+                    (int(cid),))
+        row = cur.fetchone()
+    if not row:
+        return jsonify({'success': False, 'message': 'unknown contact'}), 404
+    keys = [c.strip() for c in cols.split(',')]
+    rec = dict(row) if isinstance(row, dict) else dict(zip(keys, row))
+    for k, v in list(rec.items()):
+        if hasattr(v, 'isoformat'):
+            rec[k] = v.isoformat()
+    try:
+        rec['custom_fields'] = json.loads(rec.get('custom_fields') or '{}')
+    except Exception:
+        pass
+    return jsonify({'success': True, 'attendee': rec})
+
+
 @bp.route('/surveys', methods=['GET'])
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff'])
