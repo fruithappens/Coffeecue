@@ -1059,9 +1059,18 @@ def ea_hello():
     db = _db()
     _ensure_tables(db)
     cur = db.cursor()
+    # Accept EITHER identifier. The app's merge field supplies EventsAir's
+    # long opaque contact id; a person at the counter supplies the SHORT
+    # number printed on their badge ("56"). Both name the same attendee and
+    # both must work: ?cid= from the app link, and punch-in at the cart for
+    # anyone whose phone is flat or who never opened the app.
     cur.execute("SELECT first_name, mobile_e164 FROM ea_attendees "
                 "WHERE ea_contact_id = %s", (cid,))
     row = cur.fetchone()
+    if not row and cid.isdigit():
+        cur.execute("SELECT first_name, mobile_e164 FROM ea_attendees "
+                    "WHERE internal_number = %s", (int(cid),))
+        row = cur.fetchone()
     if not row:
         return jsonify({'success': False, 'message': 'unknown contact'}), 404
     first, mobile = ((row.get('first_name'), row.get('mobile_e164'))
