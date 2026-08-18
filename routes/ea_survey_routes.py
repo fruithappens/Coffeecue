@@ -768,6 +768,69 @@ def ea_test_order():
                     'response_id': response_id})
 
 
+@bp.route('/surveys', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def ea_list_surveys():
+    """List the surveys on the configured event, with their TYPE.
+
+    EventsAir distinguishes GENERAL, SESSION and ON_AIR_MEETING_HUB_PROFILE
+    surveys (SurveyType), and the session editor's "Session Survey" picker
+    only offers SESSION ones — so a survey built as GENERAL is invisible
+    there and looks like it failed to save. This endpoint answers "what did
+    I actually create, and of which type?" from the API rather than by
+    hunting through the EA UI.
+
+    Written against the real schema: surveys hang off event(id), there is
+    no top-level surveys query. Tries the paged form first and falls back
+    to the unpaged one, because the field's arguments are not visible in a
+    type-fields introspection.
+    """
+    db = _db()
+    _ensure_tables(db)
+    client = _client(db)
+    if client.is_stub():
+        return jsonify({'success': False,
+                        'message': 'No EA credentials configured yet'}), 400
+    event_id = getattr(client, 'event_id', None)
+    if not event_id:
+        return jsonify({'success': False, 'message': 'No EA event id configured'}), 400
+
+    attempts = [
+        ("""query CoffeeCueSurveys($eventId: ID!) {
+              event(id: $eventId) {
+                id name
+                surveysPaged(offset: 0, limit: 100) {
+                  items { id name type }
+                }
+              }
+            }""", 'surveysPaged'),
+        ("""query CoffeeCueSurveys($eventId: ID!) {
+              event(id: $eventId) { id name surveysPaged { items { id name type } } }
+            }""", 'surveysPaged (no paging args)'),
+    ]
+    errors = []
+    for query, label in attempts:
+        ok, data = client.graphql(query, {'eventId': event_id})
+        if not ok:
+            errors.append(f'{label}: {data}')
+            continue
+        ev = (data or {}).get('event') or {}
+        items = ((ev.get('surveysPaged') or {}).get('items')) or []
+        return jsonify({
+            'success': True,
+            'event': {'id': ev.get('id'), 'name': ev.get('name')},
+            'via': label,
+            'count': len(items),
+            'surveys': items,
+            'note': ('A survey only shows in a session\'s "Session Survey" '
+                     'picker when its type is SESSION. Question text is NOT '
+                     'readable until at least one response exists — Survey '
+                     'exposes responses, not a question list.'),
+        })
+    return jsonify({'success': False, 'message': ' | '.join(errors)}), 502
+
+
 @bp.route('/introspect', methods=['GET'])
 @jwt_required_with_demo()
 @role_required_with_demo(['admin'])
