@@ -126,12 +126,12 @@ def render_label_png(order: dict, branding: Optional[dict] = None,
     if station_id:
         draw.text((W - 150, y + 10), f"St {station_id}", fill='black', font=f_drink)
     y += 104
-    draw.text((16, y), name[:22], fill='black', font=f_name)
+    draw.text((16, y), _fit_to_width(draw, name, f_name, W - 32), fill='black', font=f_name)
     y += 54
-    draw.text((16, y), drink_line[:26], fill='black', font=f_drink)
+    draw.text((16, y), _fit_to_width(draw, drink_line, f_drink, W - 32), fill='black', font=f_drink)
     y += 46
     if extras_line:
-        draw.text((16, y), extras_line[:40], fill='black', font=f_extras)
+        draw.text((16, y), _fit_to_width(draw, extras_line, f_extras, W - 32), fill='black', font=f_extras)
         y += 36
 
     # Pickup QR bottom-right, if a URL was supplied.
@@ -216,6 +216,34 @@ def _wrap_to_width(draw, text, font, max_px):
     if current:
         lines.append(current)
     return lines or ['']
+
+
+def _fit_to_width(draw, text, font, max_px):
+    """Shorten `text` with an ellipsis until it fits max_px at `font`.
+
+    Character caps (`text[:24]`) can't do this job: 24 narrow characters
+    and 24 wide ones are very different widths, so a cap chosen to suit
+    one drink silently clipped another off the edge of the label. A real
+    order came out as 'Medium Cappuccino * Sk' / 'Milk' — the 'im' fell
+    off the roll. Losing characters from a drink name is worse than an
+    ellipsis, because the barista can't tell it happened.
+    """
+    text = str(text or '')
+
+    def width_of(s):
+        try:
+            return draw.textlength(s, font=font)
+        except Exception:
+            return len(s) * 10
+
+    if width_of(text) <= max_px:
+        return text
+    # ASCII '...' rather than a single-glyph ellipsis: the embedded
+    # fallback font used on Railway has no guaranteed U+2026.
+    cut = len(text)
+    while cut > 1 and width_of(text[:cut] + '...') > max_px:
+        cut -= 1
+    return text[:cut].rstrip() + '...'
 
 
 def label_display_name(full_name: str) -> str:
@@ -359,7 +387,8 @@ def render_label(payload: dict, width_dots: int = None,
 
     # 0b. Event name header.
     if options.get('show_event_name') and (options.get('event_name') or '').strip():
-        put(str(options['event_name']).strip()[:26], _load_font(28), 36)
+        put(_fit_to_width(draw, str(options['event_name']).strip(),
+                          _load_font(28), W - 2 * margin), _load_font(28), 36)
 
     # 1. Order number — the arm's-length element.
     put(f"#{order_number}", f_num, 126)
@@ -374,11 +403,14 @@ def render_label(payload: dict, width_dots: int = None,
     if grow:
         for ln in _wrap_to_width(draw, drink_line, f_drink, W - 2 * margin):
             put(ln, f_drink, 42)
-    elif len(drink_line) > 24:
-        put(drink_line[:24], f_drink, 40)
-        put(drink_line[24:48], f_drink, 42)
     else:
-        put(drink_line, f_drink, 42)
+        # Compact still caps at two lines, but both are measured, not
+        # counted — see _fit_to_width for what counting cost us.
+        d_lines = _wrap_to_width(draw, drink_line, f_drink, W - 2 * margin)
+        put(d_lines[0], f_drink, 40 if len(d_lines) > 1 else 42)
+        if len(d_lines) > 1:
+            put(_fit_to_width(draw, ' '.join(d_lines[1:]), f_drink, W - 2 * margin),
+                f_drink, 42)
 
     # 4. Modifiers.
     if modifiers:
@@ -387,7 +419,7 @@ def render_label(payload: dict, width_dots: int = None,
             for ln in _wrap_to_width(draw, mods_text, f_mods, W - 2 * margin):
                 put(ln, f_mods, 36)
         else:
-            put(mods_text[:34], f_mods, 36)
+            put(_fit_to_width(draw, mods_text, f_mods, W - 2 * margin), f_mods, 36)
     rule('rule_below_drink')
 
     # 5. Station + time. The rule above it used to be hardcoded —
