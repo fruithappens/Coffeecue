@@ -279,6 +279,57 @@ function sendToPrinter(printer, bytes) {
 }
 
 // ---------------------------------------------------------------------------
+// tiny 1-bit PNG encoder (self-test pattern only)
+// ---------------------------------------------------------------------------
+// The CUPS path sends images, not raster, so the local test pattern has to be
+// wrapped as a PNG. Mirrors what the server renders: greyscale, bit depth 1.
+function encodeGreyPng(raster) {
+  const { rows, rowBytes, width, height } = raster;
+  // PNG rows are filter-byte prefixed; 1 = black in our raster, 0 in PNG.
+  const raw = Buffer.alloc(height * (rowBytes + 1));
+  for (let y = 0; y < height; y++) {
+    raw[y * (rowBytes + 1)] = 0; // filter: none
+    for (let x = 0; x < rowBytes; x++) {
+      raw[y * (rowBytes + 1) + 1 + x] = ~rows[y * rowBytes + x] & 0xff;
+    }
+  }
+  const chunk = (type, data) => {
+    const len = Buffer.alloc(4);
+    len.writeUInt32BE(data.length);
+    const td = Buffer.concat([Buffer.from(type, 'ascii'), data]);
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(crc32(td) >>> 0);
+    return Buffer.concat([len, td, crc]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 1;  // bit depth
+  ihdr[9] = 0;  // greyscale
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', ihdr),
+    chunk('IDAT', zlib.deflateSync(raw)),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
+}
+
+let CRC_TABLE = null;
+function crc32(buf) {
+  if (!CRC_TABLE) {
+    CRC_TABLE = new Int32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+      CRC_TABLE[n] = c;
+    }
+  }
+  let c = 0xffffffff;
+  for (const b of buf) c = CRC_TABLE[(c ^ b) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+// ---------------------------------------------------------------------------
 // CUPS dispatch (USB / any OS-installed printer)
 // ---------------------------------------------------------------------------
 // The vendor driver owns the rasterising here, so the PNG goes to `lp`
@@ -511,9 +562,20 @@ function startStatusServer(cfg) {
               }
             }
             const raster = { rows, rowBytes, width: rowBytes * 8, height };
-            const bytes = printer.protocol === 'star-raster'
-              ? buildStarRaster(raster) : buildEscposRaster(raster);
-            const result = await sendToPrinter(printer, bytes);
+            let result;
+            if (printer.protocol === 'cups') {
+              // No raster for CUPS — the driver wants an image, so write the
+              // pattern out as a PNG and spool it like any other label.
+              const tmp = path.join(SPOOL_DIR, 'selftest.png');
+              fs.mkdirSync(SPOOL_DIR, { recursive: true });
+              fs.writeFileSync(tmp, encodeGreyPng(raster));
+              result = await sendToCups(printer, tmp);
+              try { fs.unlinkSync(tmp); } catch (_) { /* best effort */ }
+            } else {
+              const bytes = printer.protocol === 'star-raster'
+                ? buildStarRaster(raster) : buildEscposRaster(raster);
+              result = await sendToPrinter(printer, bytes);
+            }
             send(result.ok ? 200 : 502, { ok: result.ok, detail: result.detail });
           } catch (e) {
             send(500, { ok: false, message: e.message });
@@ -586,9 +648,15 @@ if (require.main === module) {
     selftest(args[1]);
   } else {
     const cfg = loadConfig();
+    const once = args.includes('--once');
     log(`Coffee Cue print agent starting — ${cfg.printers.length} printer(s), cloud ${cfg.cloudBase}`);
-    startStatusServer(cfg);
-    mainLoop(cfg, args.includes('--once')).catch((e) => {
+    // The status server holds the event loop open, so --once would drain the
+    // queue and then hang forever instead of exiting. A one-shot run has
+    // nothing to serve anyway.
+    if (!once) startStatusServer(cfg);
+    mainLoop(cfg, once).then(() => {
+      if (once) { log('one-shot cycle complete'); process.exit(0); }
+    }).catch((e) => {
       log(`fatal: ${e.message}`);
       process.exit(1);
     });
