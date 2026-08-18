@@ -98,6 +98,13 @@ def _ensure_tables(db):
                     "coffee_pref TEXT")
         cur.execute("ALTER TABLE ea_attendees ADD COLUMN IF NOT EXISTS "
                     "custom_fields TEXT")
+        # The number NOT chosen, plus which EA field the chosen one came
+        # from. Keeps the decision visible, and gives a fallback when a
+        # freshly-bought local SIM turns out to be wrong.
+        cur.execute("ALTER TABLE ea_attendees ADD COLUMN IF NOT EXISTS "
+                    "mobile_alt_e164 VARCHAR(20)")
+        cur.execute("ALTER TABLE ea_attendees ADD COLUMN IF NOT EXISTS "
+                    "mobile_source VARCHAR(20)")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS ea_webhook_log (
                 correlation_id VARCHAR(100) PRIMARY KEY,
@@ -621,31 +628,58 @@ def _extract_coffee_pref(contact, hint=None):
     return None, fields
 
 
-def _contact_mobile(contact):
-    """EventsAir nests the number; inCountryMobile is the local-format
-    twin, used as a fallback when the international one is blank."""
+def _contact_mobile(contact, prefer_local=True):
+    """Pick which number to text, and return the other as a fallback.
+
+    EventsAir keeps two: `mobile` (the number they registered with) and
+    `inCountryMobile` — EA labels it "Local Mobile Number". They are not
+    interchangeable. An overseas delegate registers with their home
+    number, flies to Australia, buys a local SIM, and puts it in the local
+    field. Texting the home number then reaches a handset in a drawer in
+    another country, or costs them international SMS to receive a message
+    about a coffee thirty metres away.
+
+    So the LOCAL number wins when present. That is the phone in their
+    pocket at the event, which is the only one that matters for "your
+    coffee is ready". The other is kept as a fallback rather than
+    discarded — if the local SIM is wrong or dead, the registered number
+    is the next best thing.
+
+    Returns (chosen, alternate, source).
+    """
     ph = contact.get('contactPhoneNumbers') or {}
-    return (ph.get('mobile') or ph.get('inCountryMobile') or '').strip()
+    local = (ph.get('inCountryMobile') or '').strip()
+    home = (ph.get('mobile') or '').strip()
+    if prefer_local and local:
+        return local, (home or None), 'inCountryMobile'
+    if home:
+        return home, (local or None), 'mobile'
+    return local, None, ('inCountryMobile' if local else None)
 
 
 def _upsert_attendee(conn, contact, coffee_hint=None):
     if not contact.get('id'):
         return
     pref, fields = _extract_coffee_pref(contact, coffee_hint)
+    chosen, alternate, source = _contact_mobile(contact)
     cur = conn.cursor()
     cur.execute("""
         INSERT INTO ea_attendees (ea_contact_id, first_name, last_name,
-                                  mobile_e164, email, coffee_pref,
-                                  custom_fields, synced_at)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                                  mobile_e164, mobile_alt_e164, mobile_source,
+                                  email, coffee_pref, custom_fields, synced_at)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
         ON CONFLICT (ea_contact_id) DO UPDATE SET
           first_name=EXCLUDED.first_name, last_name=EXCLUDED.last_name,
-          mobile_e164=EXCLUDED.mobile_e164, email=EXCLUDED.email,
+          mobile_e164=EXCLUDED.mobile_e164,
+          mobile_alt_e164=EXCLUDED.mobile_alt_e164,
+          mobile_source=EXCLUDED.mobile_source,
+          email=EXCLUDED.email,
           coffee_pref=EXCLUDED.coffee_pref,
           custom_fields=EXCLUDED.custom_fields,
           synced_at=CURRENT_TIMESTAMP
     """, (str(contact['id']), contact.get('firstName'), contact.get('lastName'),
-          normalize_phone_e164(_contact_mobile(contact)) or None,
+          normalize_phone_e164(chosen) or None,
+          normalize_phone_e164(alternate or '') or None, source,
           contact.get('primaryEmail'), pref,
           json.dumps(fields) if fields else None))
     conn.commit()
