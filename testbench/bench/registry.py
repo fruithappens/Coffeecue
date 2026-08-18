@@ -15,10 +15,12 @@ from .suites_customer import CUSTOMER_SUITES
 from .suites_stress import STRESS_SUITES
 from .suites_pipeline import PIPELINE_SUITES
 from .suites_print import PRINT_SUITES
+from .suites_resilience import RESILIENCE_SUITES
 from .suites_ea import EA_SUITES
 from .suites_features import FEATURE_SUITES
 
 ALL_SUITES = (BASE_SUITES + DEEP_SUITES + MATRIX_SUITES
               + JOURNEY_SUITES + COVERAGE_SUITES + LIFECYCLE_SUITES
               + CUSTOMER_SUITES + STRESS_SUITES + PIPELINE_SUITES
-              + PRINT_SUITES + EA_SUITES + FEATURE_SUITES)
+              + PRINT_SUITES + RESILIENCE_SUITES
+              + EA_SUITES + FEATURE_SUITES)
