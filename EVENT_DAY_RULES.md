@@ -37,6 +37,11 @@ setup for an event, because it survives the laptop sleeping.
 Support -> Printers shows a printer as offline when nothing is polling
 it, and queueing to one now warns instead of showing a green tick.
 
+## 2b. Printer setup
+
+See `PRINTER_SETUP.md` for getting a Star printer onto the network and
+adopted. Credentials are deliberately not in the repo — ask Steve.
+
 ## 3. Check for dropped messages
 
 ```
