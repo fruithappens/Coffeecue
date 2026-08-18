@@ -102,6 +102,33 @@ def _norm_mac(mac):
     return str(mac or '').replace(':', '').replace('-', '').strip().upper()
 
 
+def _cloudprnt_success(code) -> bool:
+    """Did the printer report a successful print?
+
+    The mC-Label3 reports success as the string "200 OK". The old test was
+    an exact-match tuple ('200', 'OK', 'ok', '') which "200 OK" does not
+    satisfy, so every successful print was recorded as a FAILURE, requeued,
+    and re-delivered on the next poll — an infinite reprint loop that only
+    stopped when retries ran out. Seen live on 2026-08-18: one label
+    reprinted every 5s until the printer was disabled.
+
+    Star reports an HTTP-status-like token, so judge the FIRST token: 2xx
+    or a literal OK. Matching "OK" anywhere would wrongly pass codes that
+    merely contain those letters (e.g. "TOKEN").
+
+    An ABSENT code stays success, deliberately. It is the pre-existing
+    behaviour, and the two failure modes are not equal: treating a missing
+    code as failure re-creates the reprint loop for any firmware that omits
+    it (the TSP143IV arriving next may differ), whereas treating it as
+    success costs at most one un-reprinted label, recoverable from the UI.
+    """
+    c = str(code or '').strip().upper()
+    if not c:
+        return True
+    first = c.split()[0]
+    return first.startswith('2') or first == 'OK'
+
+
 def _row_to_dict(cur, row):
     if row is None:
         return None
@@ -405,7 +432,13 @@ def cloudprnt_confirm():
         if not row:
             return jsonify({'success': True})
         attempts = (row[0] if not isinstance(row, dict) else row.get('attempts')) or 0
-        if code in ('200', 'OK', 'ok', ''):
+        ok = _cloudprnt_success(code)
+        # Method and status are not in the app log (only Railway's HTTP log),
+        # so this single line is what makes a protocol argument diagnosable.
+        logger.info("cloudprnt result token=%s mac=%s code=%r -> %s",
+                    token, _norm_mac(request.args.get('mac')), code,
+                    'OK' if ok else 'FAIL')
+        if ok:
             cur.execute(
                 "UPDATE print_jobs SET status = 'printed', printed_at = NOW() WHERE id = %s",
                 (token,))
