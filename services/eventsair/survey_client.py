@@ -134,6 +134,7 @@ class EASurveyClient(EventsAirClient):
             contactsPaged(offset: $offset, limit: $limit) {
               items {
                 id internalNumber firstName lastName primaryEmail externalIdentifier
+                biography
                 contactPhoneNumbers { mobile inCountryMobile }
                 userDefinedField1 userDefinedField2
                 userDefinedField3 userDefinedField4
