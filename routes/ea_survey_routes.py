@@ -829,9 +829,13 @@ def ea_webhook_log():
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff'])
 def ea_sync_attendees():
-    """Manual full mirror refresh (paged). Honest in stub mode."""
-    if not channel_enabled():
-        return jsonify({'success': False, 'message': 'EA survey channel disabled'}), 503
+    """Manual full mirror refresh (paged). Honest in stub mode.
+
+    Not gated on the survey channel flag either — this READS attendees
+    from EventsAir into our own mirror. It places no orders and writes
+    nothing back to EA. Credentials are still required, so with none
+    configured it stays in stub mode and says so.
+    """
     db = _db()
     _ensure_tables(db)
     row = _ea_row(db)
@@ -1041,9 +1045,14 @@ def ea_hello():
 
     Public and privacy-tight: returns FIRST NAME + has_phone only, never
     the number or email. The phone is attached server-side at order time.
+
+    NOT gated on the survey channel flag. The survey path was abandoned in
+    favour of an app link straight to the ordering page, and identity
+    lookup has nothing to do with it: this reads one first name from a
+    mirror we already hold, creates nothing, and sends nothing. Leaving it
+    behind that flag meant ?cid= silently failed to recognise anyone and
+    the page asked for a name it already knew.
     """
-    if not channel_enabled():
-        return jsonify({'success': False, 'message': 'EA survey channel disabled'}), 503
     cid = (request.args.get('cid') or '').strip()
     if not cid:
         return jsonify({'success': False, 'message': 'cid required'}), 400
