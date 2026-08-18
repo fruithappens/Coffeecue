@@ -29,11 +29,24 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# EventsAir GraphQL + OAuth endpoints. The token URL is confirmed by the
-# developer portal; the GraphQL URL is the documented API host. Both are
-# overridable via config for the sandbox (eventsairtest.com).
-DEFAULT_TOKEN_URL = 'https://login.eventsair.com/connect/token'   # TODO_EA: confirm exact token endpoint
-DEFAULT_GRAPHQL_URL = 'https://api.eventsair.com/graphql'          # TODO_EA: confirm exact GraphQL endpoint
+# EventsAir GraphQL + OAuth endpoints, confirmed against the developer
+# portal (developer.eventsair.com/docs/guides/access-token/ and
+# /issue-queries/) once real credentials were available.
+#
+# Authentication is Microsoft Entra (Azure AD), NOT an EventsAir-hosted
+# login: the tenant GUID below is EventsAir's own and is the same for every
+# customer. The previous guess, login.eventsair.com, is not a real host —
+# it failed DNS resolution, which read as "token FETCH FAILED" in the UI
+# and looked like a credential problem rather than a wrong URL.
+DEFAULT_TOKEN_URL = ('https://login.microsoftonline.com/'
+                     'dff76352-1ded-46e8-96a4-1a83718b2d3a/oauth2/v2.0/token')
+DEFAULT_GRAPHQL_URL = 'https://api.eventsair.com/graphql'
+
+# Entra requires a scope naming the API being called; without it the token
+# request is rejected. `.default` means "every permission already granted to
+# this application", which is what a client-credentials app wants.
+DEFAULT_SCOPE = ('https://eventsairprod.onmicrosoft.com/'
+                 '85d8f626-4e3d-4357-89c6-327d4e6d3d93/.default')
 
 
 @dataclass
@@ -64,8 +77,13 @@ class EventsAirClient:
         self.vip_categories = [
             c.strip().lower() for c in (config.get('vip_categories') or []) if c
         ]
-        self.token_url = (config.get('token_url') or DEFAULT_TOKEN_URL).strip()
+        self.token_url = (config.get('token_url') or os.getenv('EA_TOKEN_URL')
+                          or DEFAULT_TOKEN_URL).strip()
         self.graphql_url = (config.get('graphql_url') or DEFAULT_GRAPHQL_URL).strip()
+        # Overridable so the sandbox tenant (eventsairtest.com) can be pointed
+        # at without a code change.
+        self.scope = (config.get('scope') or os.getenv('EA_SCOPE')
+                      or DEFAULT_SCOPE).strip()
         self.testing_mode = os.getenv('TESTING_MODE', 'false').lower() == 'true'
         self._token = None
         self._token_expires_at = 0.0
@@ -97,12 +115,19 @@ class EventsAirClient:
                     'grant_type': 'client_credentials',
                     'client_id': self.client_id,
                     'client_secret': self.client_secret,
-                    # TODO_EA: confirm whether a 'scope' / 'audience' is required.
+                    # Required by Entra — omitting it gets the request
+                    # rejected outright.
+                    'scope': self.scope,
                 },
                 timeout=10,
             )
             if resp.status_code // 100 != 2:
-                logger.error("EventsAir token fetch %s: %s", resp.status_code, resp.text[:200])
+                # Entra returns a JSON body naming the actual problem
+                # (AADSTS codes). Log enough of it to act on: "unauthorized
+                # client", "invalid secret" and "wrong scope" are very
+                # different fixes and previously looked identical.
+                logger.error("EventsAir token fetch %s from %s: %s",
+                             resp.status_code, self.token_url, resp.text[:400])
                 return None
             payload = resp.json() or {}
             self._token = payload.get('access_token')
