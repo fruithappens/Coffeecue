@@ -482,7 +482,19 @@ def render_label(payload: dict, width_dots: int = None,
                   line, fill=0, font=fitted)
         y += 28
 
-    height = max(LABEL_MIN_HEIGHT, min(canvas_h, y))
+    # Minimum label LENGTH. The cutter cuts at the image end, so this is
+    # literally how much media each label consumes — a floor of 380 dots
+    # (47.5mm) left 14mm blank on a short label ("Steve / Small Flat
+    # White"), about 5.6 metres of stock across a 400-cup event, while a
+    # long label wasted only 4.5mm. Settable so it can be tuned against a
+    # real cutter rather than guessed: too short risks the cut landing
+    # awkwardly, too long wastes media on every single cup.
+    try:
+        floor = int(options.get('min_height_dots') or LABEL_MIN_HEIGHT)
+    except (TypeError, ValueError):
+        floor = LABEL_MIN_HEIGHT
+    floor = max(120, min(floor, canvas_h))   # never below ~15mm
+    height = max(floor, min(canvas_h, y))
     img = img.crop((0, 0, W, height))
 
     buf = io.BytesIO()

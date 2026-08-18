@@ -952,6 +952,10 @@ def update_printer(printer_id):
 
 
 DEFAULT_LABEL_SETTINGS = {
+    # Minimum label LENGTH in dots (the cutter cuts at image end, so this
+    # is media consumed per cup). 380 = 47.5mm was leaving 14mm blank on
+    # short labels. Tune against the real cutter.
+    'min_height_dots': 380,
     'show_event_name': False,
     'show_logo': False,
     'show_station_time': True,
