@@ -195,6 +195,51 @@ def _snapshot_order(db, order_number, station_id=None):
     }
 
 
+def _printer_liveness(db, printer_id):
+    """Is anything actually collecting jobs for this printer right now?
+
+    A queued job is not a printed job. Whether it ever prints depends on
+    something POLLING us — the printer itself on CloudPRNT, or the local
+    agent for USB/LAN drivers. When nothing is polling, jobs pile up in
+    'queued' with attempts=0 and the operator gets silence: that is
+    exactly how a stopped agent cost a real debugging session, with the
+    driver dropdown blamed instead. Returns (online, seconds, name).
+    """
+    try:
+        cur = db.cursor()
+        cur.execute("SELECT name, last_poll_at FROM printers WHERE id = %s",
+                    (int(printer_id),))
+        row = cur.fetchone()
+        if not row:
+            return None, None, None
+        name, last_poll = (row['name'], row['last_poll_at']) if isinstance(row, dict) \
+            else (row[0], row[1])
+        if not last_poll:
+            return False, None, name
+        secs = int((datetime.now(last_poll.tzinfo) - last_poll).total_seconds())
+        return secs <= CLOUDPRNT_POLL_TIMEOUT_S, secs, name
+    except Exception as e:
+        logger.warning(f"printer liveness check failed: {e}")
+        return None, None, None
+
+
+def _offline_note(db, printer_id):
+    """Human-readable warning to hand back with a queued job, or None.
+    The job still queues — it prints when the printer/agent returns."""
+    online, secs, name = _printer_liveness(db, printer_id)
+    if online is None or online:
+        return None
+    who = name or f"Printer {printer_id}"
+    when = "has never checked in" if secs is None else (
+        f"last checked in {secs // 60} min ago" if secs >= 120
+        else f"last checked in {secs}s ago")
+    return (f"Queued, but {who} {when} — nothing is collecting jobs, so it "
+            f"will not print yet. If this printer is USB or LAN-via-agent, "
+            f"start the print agent; if it is CloudPRNT, check the printer "
+            f"is powered on and on the network. The job prints as soon as "
+            f"it reconnects.")
+
+
 def _enqueue(db, printer_id, payload, order_id=None, job_type='label'):
     """Insert a queued job. Idempotent for label AND ticket jobs: an
     identical queued job for the same order+printer+type is returned,
@@ -420,7 +465,11 @@ def print_label():
         if not payload:
             return jsonify({'success': False, 'message': f'Order {order_id} not found'}), 404
         job_id, created = _enqueue(db, printer['id'], payload, order_id=order_id)
-        return jsonify({'success': True, 'job_id': job_id, 'duplicate': not created})
+        body = {'success': True, 'job_id': job_id, 'duplicate': not created}
+        warning = _offline_note(db, printer['id'])
+        if warning:
+            body['warning'] = warning
+        return jsonify(body)
     except Exception as e:
         logger.error(f"print_label error: {e}")
         try:
@@ -448,7 +497,16 @@ def print_ticket():
         if not job_id:
             return jsonify({'success': False,
                             'message': created or 'no enabled printer'}), 404
-        return jsonify({'success': True, 'job_id': job_id})
+        body = {'success': True, 'job_id': job_id}
+        cur = db.cursor()
+        cur.execute("SELECT printer_id FROM print_jobs WHERE id = %s", (job_id,))
+        prow = cur.fetchone()
+        if prow:
+            pid = prow[0] if not isinstance(prow, dict) else prow.get('printer_id')
+            warning = _offline_note(db, pid)
+            if warning:
+                body['warning'] = warning
+        return jsonify(body)
     except Exception as e:
         logger.error(f"print_ticket error: {e}")
         try:
@@ -491,7 +549,11 @@ def print_banner():
                                     {'text': text[:60],
                                      'ts': datetime.now().isoformat()},
                                     job_type='banner')
-        return jsonify({'success': True, 'job_id': job_id})
+        body = {'success': True, 'job_id': job_id}
+        warning = _offline_note(db, printer['id'])
+        if warning:
+            body['warning'] = warning
+        return jsonify(body)
     except Exception as e:
         logger.error(f"print_banner error: {e}")
         try:
@@ -594,6 +656,21 @@ def test_print():
     _ensure_tables(db)
     data = request.get_json(silent=True) or {}
     printer_id = data.get('printer_id')
+    if printer_id is None:
+        # Was int(None) -> a raw TypeError in the response body.
+        station_id = data.get('station_id')
+        if station_id is not None:
+            cur = db.cursor()
+            cur.execute("SELECT id FROM printers WHERE station_id = %s AND enabled "
+                        "ORDER BY id LIMIT 1", (int(station_id),))
+            row = cur.fetchone()
+            printer_id = (row[0] if not isinstance(row, dict) else row.get('id')) if row else None
+        if printer_id is None:
+            return jsonify({
+                'success': False,
+                'message': 'printer_id is required (or station_id with an '
+                           'enabled printer assigned to it).',
+            }), 400
     try:
         payload = {
             'test': True,
@@ -607,7 +684,11 @@ def test_print():
             'ts': datetime.now().isoformat(),
         }
         job_id, _ = _enqueue(db, int(printer_id), payload, job_type='test')
-        return jsonify({'success': True, 'job_id': job_id})
+        warning = _offline_note(db, printer_id)
+        body = {'success': True, 'job_id': job_id}
+        if warning:
+            body['warning'] = warning
+        return jsonify(body)
     except Exception as e:
         logger.error(f"test_print error: {e}")
         try:
