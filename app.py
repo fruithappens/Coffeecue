@@ -197,6 +197,18 @@ def create_app():
     app = Flask(__name__, static_folder='static', static_url_path='/static')
     app.secret_key = config.SECRET_KEY
 
+    # Keep the last few hundred warnings/errors in memory so Support ->
+    # Diagnostics can show REAL logs. Railway logs to stdout with no file
+    # to read back, which is why that endpoint used to return fabricated
+    # "Sample log message" entries — diagnostics that lie cost an hour
+    # during a live incident. Installed first so startup problems are
+    # captured too.
+    try:
+        from utils import log_buffer
+        log_buffer.install()
+    except Exception as log_err:  # never block startup for diagnostics
+        logger.warning(f"log buffer not installed: {log_err}")
+
     # Railway (and any other reverse-proxy host) terminates SSL at the
     # edge and forwards the request to the backend container over HTTP.
     # Without ProxyFix, Flask's url_for() and any 308/redirect responses

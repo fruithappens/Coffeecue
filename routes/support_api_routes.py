@@ -164,22 +164,46 @@ def get_performance_metrics():
 @support_api_bp.route('/api/diagnostics/logs', methods=['GET'])
 @support_role_required
 def get_system_logs():
-    """Get recent system logs"""
+    """Recent REAL warnings and errors, newest first.
+
+    This used to synthesise "Sample log message 0".."9" and present them
+    as system logs. Fabricated diagnostics are worse than none: during an
+    incident they look like a working log viewer and send you hunting in
+    the wrong place — which is exactly what happened while chasing a lost
+    SMS order on 2026-08-18.
+
+    Records come from an in-memory ring buffer (utils/log_buffer), since
+    Railway logs to stdout and there is no file to read back. That means
+    the window is bounded and RESETS ON REDEPLOY — stated plainly in the
+    response so nobody reads an empty list as "nothing went wrong".
+
+    Params: limit (<=500), level=ERROR|WARNING.
+    """
     try:
-        limit = request.args.get('limit', 50, type=int)
-        # In production, this would read from actual log files
-        # For now, return mock data
-        logs = []
-        for i in range(min(limit, 10)):
-            logs.append({
-                'timestamp': (datetime.now() - timedelta(minutes=i*5)).isoformat(),
-                'level': ['INFO', 'WARN', 'ERROR'][i % 3],
-                'message': f'Sample log message {i}'
+        from utils import log_buffer
+        limit = min(request.args.get('limit', 50, type=int) or 50, 500)
+        level = request.args.get('level')
+        handler = log_buffer.get_handler()
+        if handler is None:
+            return jsonify({
+                'logs': [],
+                'available': False,
+                'note': ('Log capture is not installed on this instance, so no '
+                         'history is available — this is NOT evidence that '
+                         'nothing went wrong.'),
             })
-        return jsonify(logs)
+        entries = handler.snapshot(limit=limit, level=level)
+        return jsonify({
+            'logs': entries,
+            'available': True,
+            'count': len(entries),
+            'note': ('In-memory buffer of WARNING and above, newest first. '
+                     'Resets on redeploy, so an empty list means "nothing '
+                     'captured since the last deploy", not "nothing broke".'),
+        })
     except Exception as e:
         logger.error(f"Error getting logs: {e}")
-        return jsonify([])
+        return jsonify({'logs': [], 'available': False, 'note': str(e)}), 500
 
 @support_api_bp.route('/api/diagnostics/test', methods=['POST'])
 @support_role_required

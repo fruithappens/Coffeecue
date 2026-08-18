@@ -62,6 +62,35 @@ def suite_resilience(rn):
                      "A wider grace window must never report MORE dropped "
                      "messages, or the report will cry wolf during normal load.",
                      refs=[] if graced else ["routes/consolidated_api_routes.py"]))
+    # 2. Diagnostics must not INVENT data. The logs endpoint used to
+    #    synthesise "Sample log message 0".."9"; during the 04:33 incident
+    #    that looked like a working log viewer and wasted an hour. A lying
+    #    diagnostic is worse than an absent one.
+    lcode, lbody, _ = c.get("/api/diagnostics/logs?limit=20")
+    raw = str(lbody)
+    fabricated = "Sample log message" in raw
+    out.append(R("resilience", "diagnostics logs are real, not fabricated",
+                 "fail" if fabricated else "pass",
+                 f"HTTP {lcode}, "
+                 + ("FABRICATED sample data returned" if fabricated
+                    else f"available={(lbody or {}).get('available') if isinstance(lbody, dict) else 'n/a'}"),
+                 suggestion="" if not fabricated else
+                 "The endpoint is generating placeholder entries and "
+                 "presenting them as system logs. During an incident this "
+                 "sends the operator hunting in the wrong place.",
+                 refs=[] if not fabricated else ["routes/support_api_routes.py"]))
+
+    # An empty buffer is legitimate (it resets on redeploy) but the response
+    # must SAY so, or an operator reads "no logs" as "nothing went wrong".
+    if lcode == 200 and isinstance(lbody, dict):
+        honest = bool(lbody.get("note"))
+        out.append(R("resilience", "empty log window is explained, not implied",
+                     "pass" if honest else "fail",
+                     f"note={(lbody.get('note') or '')[:80]!r}",
+                     suggestion="" if honest else
+                     "Without a note, an empty list reads as 'nothing broke' "
+                     "when it actually means 'nothing captured since deploy'.",
+                     refs=[] if honest else ["routes/support_api_routes.py"]))
     return out
 
 
