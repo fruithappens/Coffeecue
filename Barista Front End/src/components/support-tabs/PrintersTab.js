@@ -496,6 +496,9 @@ const PrintersTab = () => {
                           needs print agent running
                         </div>
                       )}
+                      <div className="text-[10px] text-gray-400 mt-0.5">
+                        describes the connection; doesn't change it
+                      </div>
                     </td>
                     <td className="py-2 pr-3">
                       <label className="inline-flex items-center">
@@ -522,8 +525,17 @@ const PrintersTab = () => {
                           : 'Enable the printer first'}
                         onClick={async () => {
                           const r = await printService.testPrint(p.id);
-                          showToast(r?.success ? 'Test label queued' : `Test failed: ${r?.message || 'unknown'}`,
-                            r?.success ? 'success' : 'error');
+                          // "Queued" is not "printed". If nothing is polling
+                          // for this printer the job will sit there, so say so
+                          // instead of showing a green tick — a stopped agent
+                          // once read as a broken printer for an hour.
+                          if (r?.warning) {
+                            showToast(r.warning, 'warning', 9000);
+                          } else {
+                            showToast(r?.success ? 'Test label queued'
+                              : `Test failed: ${r?.message || 'unknown'}`,
+                              r?.success ? 'success' : 'error');
+                          }
                           refresh();
                         }}
                       >

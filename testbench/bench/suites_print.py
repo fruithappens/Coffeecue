@@ -352,9 +352,68 @@ def suite_print_driver_truth(rn):
     return out
 
 
+def suite_print_offline_warning(rn):
+    """Queueing to a printer nobody polls must SAY so, not show success.
+
+    Reproduces the real incident: the print agent was stopped, so every
+    job sat in 'queued' with attempts=0 while the UI answered "Test label
+    queued" with a green tick. The operator concluded the printer was
+    broken and spent the next stretch changing driver dropdowns, which
+    cannot affect anything. "Queued" is not "printed" — when nothing is
+    collecting jobs, the response has to say it.
+    """
+    c, out = rn.client, []
+    code, body, _ = c.get("/api/print/printers")
+    printers = (body or {}).get("printers") or [] if isinstance(body, dict) else []
+
+    # Bench printers never poll, so they are permanently "offline" — the
+    # exact condition we need, without touching a real printer.
+    stale = next((p for p in printers
+                  if p.get("seconds_since_poll") is None
+                  or p["seconds_since_poll"] > 60), None)
+    if not stale:
+        return [R("print_offline", "an un-polled printer exists to test against",
+                  "skip", "every printer is currently live")]
+
+    was_enabled = stale.get("enabled")
+    if not was_enabled:
+        c.req("PATCH", f"/api/print/printers/{stale['id']}", body={"enabled": True})
+    tcode, tbody, _ = c.req("POST", "/api/print/test",
+                            body={"printer_id": stale["id"]})
+    warned = isinstance(tbody, dict) and bool(tbody.get("warning"))
+    out.append(R("print_offline", "queueing to an un-polled printer returns a warning",
+                 "pass" if warned else "fail",
+                 f"HTTP {tcode}, warning={(tbody or {}).get('warning') if isinstance(tbody, dict) else None!r}",
+                 suggestion="" if warned else
+                 "Without this the UI shows a green 'queued' tick while the "
+                 "job cannot print, and the printer gets blamed.",
+                 refs=[] if warned else ["routes/print_routes.py",
+                                         "Barista Front End/src/components/support-tabs/PrintersTab.js"]))
+
+    # Missing printer_id used to surface a raw int() TypeError.
+    ncode, nbody, _ = c.req("POST", "/api/print/test", body={})
+    clean = ncode == 400 and "int()" not in str((nbody or {}).get("message", ""))
+    out.append(R("print_offline", "test print without a printer fails cleanly",
+                 "pass" if clean else "fail",
+                 f"HTTP {ncode}: {(nbody or {}).get('message') if isinstance(nbody, dict) else nbody!r}",
+                 suggestion="" if clean else
+                 "A raw TypeError in the response body tells the operator nothing.",
+                 refs=[] if clean else ["routes/print_routes.py"]))
+
+    # Self-clean: the job we queued can never print (nothing polls that
+    # printer), so cancel it rather than leaving litter in the queue.
+    job_id = (tbody or {}).get("job_id") if isinstance(tbody, dict) else None
+    if job_id:
+        c.req("POST", f"/api/print/jobs/{job_id}/cancel", body={})
+    if not was_enabled:
+        c.req("PATCH", f"/api/print/printers/{stale['id']}", body={"enabled": False})
+    return out
+
+
 PRINT_SUITES = [
     ("print_preview", suite_print_preview, True),
     ("print_pipeline", suite_print_pipeline, True),
     ("print_fit", suite_print_fit, False),
     ("print_driver", suite_print_driver_truth, True),
+    ("print_offline", suite_print_offline_warning, True),
 ]
