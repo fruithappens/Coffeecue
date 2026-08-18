@@ -27,6 +27,7 @@ Design notes:
 from __future__ import annotations
 
 import json
+import re as _re
 import logging
 import os
 import threading
@@ -545,6 +546,26 @@ def _question_map(cfg_row):
 # ea_config row when a client uses something unexpected.
 _COFFEE_FIELD_HINTS = ('coffee', 'barista', 'beverage', 'drink')
 
+# EventsAir has TWO unrelated places a preference can live, and the UI
+# calls both "fields":
+#   - customFieldsPaged  — named fields, so we can match on the name
+#   - userDefinedField1..4 — four flat String slots on Contact. The label
+#     an organiser types ("Coffee Type") is EVENT configuration and does
+#     NOT come back with the contact, so there is no name to match on.
+# Steve set his up as User-Defined Field 1, which the name-matching path
+# would never have found — the sync would have returned everyone with no
+# preference and looked like the data was missing.
+#
+# So for the UDF slots we identify by CONTENT: whichever slot mentions a
+# drink we serve is the coffee one. Self-configuring, and it does not care
+# which of the four an organiser picked.
+_UDF_SLOTS = ('userDefinedField1', 'userDefinedField2',
+              'userDefinedField3', 'userDefinedField4')
+_DRINK_WORDS = _re.compile(
+    r'latte|flat\s*white|cappu?ccino|long\s*black|short\s*black|espresso|'
+    r'macchiato|mocha|piccolo|cortado|americano|hot\s*choc|chai|matcha|tea',
+    _re.IGNORECASE)
+
 
 def _extract_coffee_pref(contact, hint=None):
     """Pull the coffee-preference custom field out of a contact, if present.
@@ -562,15 +583,41 @@ def _extract_coffee_pref(contact, hint=None):
             if name:
                 fields[name] = f.get('value')
     except Exception:
-        return None, {}
-    hints = ((hint,) if hint else ()) + _COFFEE_FIELD_HINTS
-    for h in hints:
+        fields = {}
+    # The four flat slots are recorded too, so an operator can SEE what is
+    # in them even when none looks like a drink.
+    for slot in _UDF_SLOTS:
+        val = contact.get(slot)
+        if val not in (None, ''):
+            fields[slot] = val
+
+    def _text(v):
+        return (v if isinstance(v, str) else json.dumps(v) or '').strip()
+
+    # 1. An explicit override wins — a field name OR a slot like
+    #    'userDefinedField2', for clients who name things unexpectedly.
+    if hint:
         for name, value in fields.items():
-            if h and h.lower() in name.lower():
-                text = value if isinstance(value, str) else json.dumps(value)
-                text = (text or '').strip()
-                if text:
-                    return text, fields
+            if hint.lower() in name.lower():
+                t = _text(value)
+                if t:
+                    return t, fields
+
+    # 2. A NAMED custom field whose name mentions coffee.
+    for h in _COFFEE_FIELD_HINTS:
+        for name, value in fields.items():
+            if name in _UDF_SLOTS:
+                continue
+            if h in name.lower():
+                t = _text(value)
+                if t:
+                    return t, fields
+
+    # 3. A user-defined slot whose CONTENT mentions a drink we serve.
+    for slot in _UDF_SLOTS:
+        t = _text(fields.get(slot))
+        if t and _DRINK_WORDS.search(t):
+            return t, fields
     return None, fields
 
 
