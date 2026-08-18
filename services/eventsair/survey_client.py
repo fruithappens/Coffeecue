@@ -135,6 +135,8 @@ class EASurveyClient(EventsAirClient):
               items {
                 id firstName lastName primaryEmail externalIdentifier
                 contactPhoneNumbers { mobile inCountryMobile }
+                userDefinedField1 userDefinedField2
+                userDefinedField3 userDefinedField4
                 customFieldsPaged(offset: 0, limit: 50) {
                   items { name value uniqueCode }
                 }
@@ -156,6 +158,8 @@ class EASurveyClient(EventsAirClient):
               items {
                 id firstName lastName primaryEmail externalIdentifier
                 contactPhoneNumbers { mobile inCountryMobile }
+                userDefinedField1 userDefinedField2
+                userDefinedField3 userDefinedField4
               }
             }
           }
