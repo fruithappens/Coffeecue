@@ -77,3 +77,28 @@ The `star-raster` output follows Star's raster-mode documentation but has
 not yet been validated against a physical mC-Label3 (whose primary,
 fully verified path is native CloudPRNT — no agent involved). Before an
 event, run one Test print through whichever path you'll actually use.
+
+## USB printers (protocol: `cups`)
+
+A printer plugged into the station machine by USB can't reach the cloud, so it
+never polls and jobs sit in `queued` forever. Run the agent with protocol
+`cups` and it bridges the gap: it polls the cloud on that printer's behalf and
+hands each label to the OS spooler.
+
+1. Install the vendor driver and confirm the OS can print. Find the queue name:
+
+   ```
+   lpstat -p
+   ```
+
+2. Put that name in `config.json` as `queue`, with `"protocol": "cups"`.
+
+3. Run `node agent.js --once` and check `agent.log`.
+
+**Sizing — the one thing that bites.** The agent sets the CUPS page size from
+each PNG's own dimensions and passes `ppi` (203 for these Star units), so a dot
+renders as a dot. It deliberately does NOT pass `fit-to-page`: that scales the
+label up to whatever media the driver has selected, and a Star mC-Label3
+defaults to **72mm** stock. On narrower labels the design comes out oversized
+and clipped off the edge. If prints look enlarged and cut off, that default is
+the first thing to check — not the label design.
