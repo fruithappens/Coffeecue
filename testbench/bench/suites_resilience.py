@@ -91,6 +91,48 @@ def suite_resilience(rn):
                      "Without a note, an empty list reads as 'nothing broke' "
                      "when it actually means 'nothing captured since deploy'.",
                      refs=[] if honest else ["routes/support_api_routes.py"]))
+    # 3. CORS: an arbitrary site must not be handed access to the API.
+    #    The app used to append '*' to the allowed origins on every Railway
+    #    boot "for same-origin requests" — but same-origin never consults
+    #    CORS, so that only ever granted OTHER sites access, and it silently
+    #    overrode whatever CORS_ALLOWED_ORIGINS was set to.
+    evil = "https://evil.example.com"
+    hdrs = {}
+    try:
+        r = c.s.get(f"{c.base}/api/health", headers={"Origin": evil}, timeout=20)
+        hdrs = {k.lower(): v for k, v in r.headers.items()}
+    except Exception as e:
+        out.append(R("resilience", "CORS headers readable", "warn", str(e)))
+        return out
+
+    echoed = hdrs.get("access-control-allow-origin", "")
+    leaks = echoed == evil or echoed == "*"
+    out.append(R("resilience", "API does not grant CORS to arbitrary origins",
+                 "fail" if leaks else "pass",
+                 f"Origin: {evil} -> Allow-Origin: {echoed!r}",
+                 suggestion="" if not leaks else
+                 "Any website can call this API from a visitor's browser. "
+                 "Same-origin requests never use CORS, so a wildcard buys "
+                 "the app's own UI nothing.",
+                 refs=[] if not leaks else ["app.py"]))
+
+    # Duplicated CORS headers are invalid and some browsers reject the
+    # response outright — which would break a white-label frontend served
+    # from its own domain. Two writers (Flask-CORS + a manual after_request)
+    # were emitting one each.
+    try:
+        raw = c.s.get(f"{c.base}/api/health", headers={"Origin": evil}, timeout=20).raw
+        dupes = [h for h in ("Access-Control-Allow-Credentials", "Access-Control-Allow-Methods")
+                 if len(raw.headers.getlist(h)) > 1]
+    except Exception:
+        dupes = []
+    out.append(R("resilience", "CORS headers are not sent twice",
+                 "pass" if not dupes else "fail",
+                 "no duplicates" if not dupes else f"duplicated: {dupes}",
+                 suggestion="" if not dupes else
+                 "Duplicate CORS headers are invalid; some browsers reject "
+                 "the response, breaking cross-origin frontends.",
+                 refs=[] if not dupes else ["app.py"]))
     return out
 
 

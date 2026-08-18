@@ -307,9 +307,33 @@ def create_app():
         allowed_origins.append(railway_domain)
         allowed_origins.append(railway_domain.replace('https://', 'http://'))  # Both protocols
     
-    # Also allow wildcard for same-origin requests on Railway
-    if os.getenv('RAILWAY_ENVIRONMENT'):
+    # Railway's own public domain, so a browser on the deployed site is
+    # always allowed. Deliberately NOT a wildcard: the previous code did
+    # `allowed_origins.append('*')` here "for same-origin requests", but
+    # same-origin requests never consult CORS at all — the wildcard bought
+    # the app's own UI nothing while granting every other site on the
+    # internet access. It also silently defeated CORS_ALLOWED_ORIGINS:
+    # setting that variable correctly did not help, because '*' was
+    # appended back on every Railway boot. The startup smell-check below
+    # was therefore warning about a state this code guaranteed.
+    # Escape hatch: if tightening this ever breaks a deployment that
+    # genuinely serves its frontend from another domain, CORS_ALLOW_ANY_ORIGIN
+    # restores the old behaviour without a code change or redeploy-to-fix.
+    # Off by default — it is the insecure option, so it has to be asked for.
+    if os.getenv('CORS_ALLOW_ANY_ORIGIN', '').lower() == 'true':
+        logger.warning("CORS_ALLOW_ANY_ORIGIN=true — every origin is allowed. "
+                       "Intended as a temporary unblock, not a setting to leave on.")
         allowed_origins.append('*')
+
+    for var in ('RAILWAY_PUBLIC_DOMAIN', 'RAILWAY_STATIC_URL'):
+        domain = (os.getenv(var) or '').strip()
+        if not domain:
+            continue
+        host = domain.replace('https://', '').replace('http://', '').strip('/')
+        for scheme in ('https://', 'http://'):
+            candidate = f"{scheme}{host}"
+            if candidate not in allowed_origins:
+                allowed_origins.append(candidate)
     
     CORS(app,
          resources={r"/*": {"origins": allowed_origins}},
@@ -357,14 +381,16 @@ def create_app():
         # startup. The warning is a nicety, not a critical path.
         logger.debug(f"CORS smell-check skipped: {cors_warn_err}")
     
-    # Add CORS headers manually for all responses
+    # NOTE: no manual CORS headers here. Flask-CORS (configured above)
+    # already sets them, and this block used to `add` a second copy of
+    # each — responses went out with two Allow-Credentials and two
+    # Allow-Methods headers. Duplicated CORS headers are invalid and some
+    # browsers reject the response outright, which would break any
+    # white-label deployment serving the frontend from its own domain.
+    # It also asserted Allow-Credentials: true on EVERY response,
+    # regardless of what Flask-CORS had decided.
     @app.after_request
     def after_request(response):
-        # CORS headers are handled by Flask-CORS extension
-    # response.headers.add('Access-Control-Allow-Origin', '*')
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With,Accept')
-        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-        response.headers.add('Access-Control-Allow-Credentials', 'true')
         # Only log CORS headers for non-OPTIONS requests to reduce log noise
         if request.method != 'OPTIONS':
             logger.info(f"Added CORS headers to response for: {request.path}")
