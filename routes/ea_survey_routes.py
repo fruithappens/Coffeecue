@@ -782,7 +782,18 @@ def ea_introspect():
         return jsonify({'success': False,
                         'message': 'No EA credentials configured yet — set '
                                    'client id/secret/tenant endpoint first'}), 400
-    from services.eventsair.introspect import run_introspection
+    # ?types=Event,Contact drills into named types only — one round trip
+    # each, seconds not minutes. The full scan is thorough but slow enough
+    # (~83s against the live tenant) that the browser aborts it, and it can
+    # only see types reachable from keyword-matched root fields.
+    wanted = (request.args.get('types') or '').strip()
+    from services.eventsair.introspect import run_introspection, describe_types
+    if wanted:
+        try:
+            return jsonify({'success': True,
+                            'report': describe_types(client, wanted.split(','))})
+        except Exception as e:
+            return jsonify({'success': False, 'message': str(e)}), 502
     ok, report = run_introspection(client)
     if not ok:
         return jsonify({'success': False, 'message': report}), 502
