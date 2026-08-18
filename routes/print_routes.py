@@ -89,6 +89,15 @@ def _ensure_tables(db):
             CREATE INDEX IF NOT EXISTS idx_print_jobs_poll
             ON print_jobs (printer_id, status, created_at)
         """)
+        # Horizontal correction, in dots, for printers that do not place a
+        # raw image where the label actually is. Measured on the live
+        # mC-Label3 over CloudPRNT: the calibration ruler's "50" printed as
+        # "0", i.e. content landed ~58 dots left of the label — exactly the
+        # 464-406 slack between 58mm stock and our render width. Ticks stayed
+        # evenly spaced, so it is a pure translation, not scaling. Per
+        # printer because the TSP143IV arriving next may not need it.
+        cur.execute("ALTER TABLE printers ADD COLUMN IF NOT EXISTS "
+                    "offset_dots INTEGER NOT NULL DEFAULT 0")
         db.commit()
     except Exception as e:
         logger.warning(f"print tables ensure failed: {e}")
@@ -100,6 +109,42 @@ def _ensure_tables(db):
 
 def _norm_mac(mac):
     return str(mac or '').replace(':', '').replace('-', '').strip().upper()
+
+
+def _shift_right(png_bytes, offset_dots):
+    """Pad `offset_dots` of blank on the LEFT so content lands on the label.
+
+    Some printers do not place a raw image where the label physically is.
+    Measured on the mC-Label3 over CloudPRNT: the calibration ruler's "50"
+    printed as "0" and "TEST LABEL" as "ST LABEL" — content sat ~58 dots
+    left of the stock, which is exactly 464-406, the slack between 58mm
+    media and our render width. Tick spacing was unchanged, so it is a
+    translation, not scaling, and padding is the honest correction.
+
+    Done here rather than in the renderer so the label DESIGN stays one
+    canvas at one width; only delivery to a particular printer is adjusted,
+    and the preview keeps matching the design. Returns the input untouched
+    on 0 / missing / any failure — a print that is offset beats no print.
+    """
+    try:
+        offset = int(offset_dots or 0)
+    except (TypeError, ValueError):
+        return png_bytes
+    if offset <= 0:
+        return png_bytes
+    try:
+        import io
+        from PIL import Image
+        src = Image.open(io.BytesIO(png_bytes))
+        out = Image.new(src.mode, (src.width + offset, src.height),
+                        255 if src.mode in ('1', 'L') else 'white')
+        out.paste(src, (offset, 0))
+        buf = io.BytesIO()
+        out.save(buf, format='PNG')
+        return buf.getvalue()
+    except Exception as e:
+        logger.warning(f"print offset shift failed (sending unshifted): {e}")
+        return png_bytes
 
 
 def _cloudprnt_success(code) -> bool:
@@ -384,7 +429,8 @@ def cloudprnt_fetch():
     try:
         cur = db.cursor()
         cur.execute(
-            "SELECT j.*, p.mac_address, p.width_dots FROM print_jobs j "
+            "SELECT j.*, p.mac_address, p.width_dots, p.offset_dots "
+            "FROM print_jobs j "
             "JOIN printers p ON p.id = j.printer_id WHERE j.id = %s", (token,))
         job = _row_to_dict(cur, cur.fetchone())
         # The token is an unguessable capability, but a job for printer A
@@ -402,6 +448,7 @@ def cloudprnt_fetch():
                     'banner': render_banner}.get(job.get('type'), render_label)
         png = renderer(payload, job.get('width_dots'),
                        options=_label_options(db))
+        png = _shift_right(png, job.get('offset_dots'))
         cur.execute(
             "UPDATE print_jobs SET status = 'fetched', fetched_at = NOW() WHERE id = %s",
             (token,))
@@ -882,7 +929,8 @@ def update_printer(printer_id):
             'message': f"Unknown driver '{data['driver']}'. "
                        f"Valid: {', '.join(VALID_DRIVERS)}",
         }), 400
-    for field in ('name', 'station_id', 'enabled', 'width_dots', 'ip_address', 'driver'):
+    for field in ('name', 'station_id', 'enabled', 'width_dots', 'ip_address',
+                  'driver', 'offset_dots'):
         if field in data:
             sets.append(f"{field} = %s")
             params.append(data[field])
