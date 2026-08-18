@@ -586,6 +586,17 @@ _COFFEE_FIELD_HINTS = ('coffee', 'barista', 'beverage', 'drink')
 # which of the four an organiser picked.
 _UDF_SLOTS = ('userDefinedField1', 'userDefinedField2',
               'userDefinedField3', 'userDefinedField4')
+
+# A labelled line in the BIO. Steve's find: bio is one of the only fields
+# an attendee can actually edit themselves in the EventsAir app (photo,
+# socials and bio are the lot), so a line like
+#     Coffee: medium oat latte, 1 sugar
+# is the one genuinely self-service, app-native way to keep a preference
+# current. The trade-off is that a bio is PUBLIC — worth saying out loud
+# to attendees rather than discovering later.
+_BIO_COFFEE_RE = _re.compile(
+    r'(?:^|\n)\s*(?:coffee|drink|barista)\s*[:\-]\s*(?P<pref>[^\n]{2,120})',
+    _re.IGNORECASE)
 _DRINK_WORDS = _re.compile(
     r'latte|flat\s*white|cappu?ccino|long\s*black|short\s*black|espresso|'
     r'macchiato|mocha|piccolo|cortado|americano|hot\s*choc|chai|matcha|tea',
@@ -643,6 +654,19 @@ def _extract_coffee_pref(contact, hint=None):
         t = _text(fields.get(slot))
         if t and _DRINK_WORDS.search(t):
             return t, fields
+
+    # 4. A labelled line in the bio — last, because it is the least
+    #    deliberate place for it and the most likely to contain prose that
+    #    merely mentions coffee. Requires the explicit "Coffee:" label, so
+    #    "I enjoy coffee and long walks" is not mistaken for an order.
+    bio = _text(contact.get('biography'))
+    if bio:
+        fields['biography'] = bio
+        m = _BIO_COFFEE_RE.search(bio)
+        if m:
+            pref = m.group('pref').strip().rstrip('.')
+            if pref and _DRINK_WORDS.search(pref):
+                return pref, fields
     return None, fields
 
 
