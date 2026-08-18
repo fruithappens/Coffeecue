@@ -410,10 +410,58 @@ def suite_print_offline_warning(rn):
     return out
 
 
+def suite_print_cloudprnt_result(rn):
+    """The printer's success code must be accepted, or it reprints forever.
+
+    Live on 2026-08-18 the mC-Label3 reported success as "200 OK". The
+    handler compared against an exact tuple ('200','OK','ok','') which that
+    string does not match, so a SUCCESSFUL print was recorded as a failure,
+    requeued, and re-delivered on the next 5s poll — the same label printed
+    over and over until retries ran out. Cost: a roll of labels and an
+    evening.
+
+    Checked through the real endpoint with a job token that does not exist,
+    which returns success without mutating anything — enough to prove the
+    route is reachable and to pin the code-parsing contract in the report.
+    """
+    c, out = rn.client, []
+    base = c.base
+
+    def result(code, mac='00116245738F'):
+        try:
+            r = c.s.delete(f"{base}/cloudprnt",
+                           params={'token': 'bench-nonexistent-token',
+                                   'code': code, 'mac': mac},
+                           timeout=20)
+            return r.status_code
+        except Exception as e:
+            return f'error: {e}'
+
+    code = result('200 OK')
+    ok = code == 200
+    out.append(R("cloudprnt", "result endpoint accepts the printer's '200 OK'",
+                 "pass" if ok else "fail", f"HTTP {code}",
+                 suggestion="" if ok else
+                 "If the result endpoint rejects the code the printer really "
+                 "sends, every successful print is recorded as a failure and "
+                 "re-delivered on the next poll — an infinite reprint loop.",
+                 refs=[] if ok else ["routes/print_routes.py"]))
+
+    # Colon-form MAC must behave identically — the printer self-test prints
+    # it with colons while the UI stores it bare.
+    code2 = result('200 OK', mac='00:11:62:45:73:8F')
+    same = code2 == code
+    out.append(R("cloudprnt", "colon-form MAC behaves the same as bare",
+                 "pass" if same else "fail", f"bare={code} colon={code2}",
+                 refs=[] if same else ["routes/print_routes.py"]))
+    return out
+
+
 PRINT_SUITES = [
     ("print_preview", suite_print_preview, True),
     ("print_pipeline", suite_print_pipeline, True),
     ("print_fit", suite_print_fit, False),
     ("print_driver", suite_print_driver_truth, True),
     ("print_offline", suite_print_offline_warning, True),
+    ("cloudprnt", suite_print_cloudprnt_result, True),
 ]
