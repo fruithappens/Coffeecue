@@ -24,7 +24,7 @@ const STATUS_TONES = {
 // renderer, same pixels) and toggle what appears on it. Presentation
 // options apply at render time, so even already-queued jobs pick up a
 // change.
-const LabelDesignCard = () => {
+const LabelDesignCard = ({ printers = [], onPrinted }) => {
   const [settings, setSettings] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -33,6 +33,8 @@ const LabelDesignCard = () => {
   // 58mm even though printers can declare 40-80mm rolls).
   const [previewWidth, setPreviewWidth] = useState(406);
   const [bannerPreviewUrl, setBannerPreviewUrl] = useState(null);
+  const [bannerPrinterId, setBannerPrinterId] = useState('');
+  const enabledPrinters = (printers || []).filter((pr) => pr.enabled);
 
   const refreshBannerPreview = async () => {
     const text = bannerText.trim();
@@ -249,6 +251,38 @@ const LabelDesignCard = () => {
               >
                 Preview
               </button>
+              {/* The endpoint existed from the start but nothing called it,
+                  so banners could only ever be previewed. Target defaults to
+                  the first enabled printer; with several, pick one. */}
+              <select
+                className="border rounded px-2 py-1 text-sm"
+                value={bannerPrinterId || ''}
+                onChange={(e) => setBannerPrinterId(e.target.value)}
+                title="Which printer to print the banner on"
+              >
+                {enabledPrinters.length === 0 && <option value="">No enabled printer</option>}
+                {enabledPrinters.map((pr) => (
+                  <option key={pr.id} value={pr.id}>{pr.name}</option>
+                ))}
+              </select>
+              <button
+                className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700 disabled:opacity-40"
+                disabled={!bannerText.trim() || enabledPrinters.length === 0}
+                onClick={async () => {
+                  const target = bannerPrinterId || enabledPrinters[0]?.id;
+                  const r = await printService.printBanner(bannerText.trim(), target);
+                  if (r?.warning) {
+                    showToast(r.warning, 'warning', 9000);
+                  } else {
+                    showToast(r?.success ? 'Banner sent to printer'
+                      : `Banner failed: ${r?.message || 'unknown'}`,
+                      r?.success ? 'success' : 'error');
+                  }
+                  if (onPrinted) onPrinted();
+                }}
+              >
+                Print banner
+              </button>
             </div>
             {bannerPreviewUrl && (
               <div className="mt-2 overflow-x-auto border rounded bg-gray-50 p-2">
@@ -372,7 +406,7 @@ const PrintersTab = () => {
   return (
     <div className="p-4 space-y-6">
       {/* What the labels look like + design options */}
-      <LabelDesignCard />
+      <LabelDesignCard printers={printers} onPrinted={refresh} />
 
       {/* Printer fleet */}
       <div className="bg-white rounded-lg shadow-md p-4">

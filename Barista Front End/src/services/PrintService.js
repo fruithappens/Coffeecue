@@ -52,6 +52,12 @@ class PrintService {
     return this._call('/test', 'POST', { printer_id: printerId });
   }
 
+  /** Sideways banner (roll signage): free text down the label roll.
+      Stock width becomes the banner HEIGHT, length grows with the text. */
+  printBanner(text, printerId) {
+    return this._call('/banner', 'POST', { text, printer_id: printerId });
+  }
+
   /** All registered printers with online/offline derived from last poll. */
   async getPrinters() {
     const r = await this._call('/printers');
