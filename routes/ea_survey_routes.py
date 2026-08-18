@@ -115,6 +115,14 @@ def _ensure_tables(db):
                     "internal_number INTEGER")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_ea_attendees_internal "
                     "ON ea_attendees(internal_number)")
+        # The attendee's OWN preference, set on our page. EventsAir cannot
+        # be the place they maintain this — the only self-editable fields
+        # in the EA app are photo, socials and bio, and bio is public.
+        # So EA seeds a preference and Coffee Cue owns it thereafter.
+        # Kept in a SEPARATE column so a re-sync from EA never overwrites
+        # what a person chose themselves.
+        cur.execute("ALTER TABLE ea_attendees ADD COLUMN IF NOT EXISTS "
+                    "coffee_pref_local TEXT")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS ea_webhook_log (
                 correlation_id VARCHAR(100) PRIMARY KEY,
@@ -941,6 +949,162 @@ def ea_test_order():
                     'status': status, 'error': error,
                     'order_number': order_number,
                     'response_id': response_id})
+
+
+# ---------------------------------------------------------------------------
+# "My coffee" — the attendee's own page (public, like the kiosk)
+# ---------------------------------------------------------------------------
+
+def _find_attendee(db, cid):
+    """Resolve by EA contact id OR the short badge number."""
+    cid = (cid or '').strip()
+    if not cid:
+        return None
+    cur = db.cursor()
+    cols = ("ea_contact_id, internal_number, first_name, mobile_e164, "
+            "coffee_pref, coffee_pref_local")
+    cur.execute(f"SELECT {cols} FROM ea_attendees WHERE ea_contact_id = %s", (cid,))
+    row = cur.fetchone()
+    if not row and cid.isdigit():
+        cur.execute(f"SELECT {cols} FROM ea_attendees WHERE internal_number = %s",
+                    (int(cid),))
+        row = cur.fetchone()
+    if not row:
+        return None
+    keys = [c.strip() for c in cols.split(',')]
+    return dict(row) if isinstance(row, dict) else dict(zip(keys, row))
+
+
+def _their_usual(rec):
+    """What they last chose beats what EventsAir was told."""
+    return ((rec.get('coffee_pref_local') or '').strip()
+            or (rec.get('coffee_pref') or '').strip() or None)
+
+
+@bp.route('/me', methods=['GET'])
+def ea_me():
+    """Everything the attendee's personal page needs, in one call.
+
+    The app link is STATIC — every attendee opens the same URL — so the
+    page identifies them once (badge number) and remembers it on the
+    device. This returns their first name, their usual, and any order
+    already in flight, so a returning visitor sees status rather than an
+    order form.
+
+    Public, and deliberately narrow: never the phone number or email. The
+    number is attached server-side when an order is placed, so a page that
+    anyone can open never holds it.
+    """
+    db = _db()
+    _ensure_tables(db)
+    rec = _find_attendee(db, request.args.get('cid'))
+    if not rec:
+        return jsonify({'success': False, 'message': 'unknown contact'}), 404
+
+    active = None
+    try:
+        cur = db.cursor()
+        # Their most recent order that has not been collected yet.
+        cur.execute(
+            "SELECT order_number, status FROM orders "
+            "WHERE phone = %s AND status IN ('pending','in-progress','completed') "
+            "ORDER BY created_at DESC LIMIT 1",
+            (rec.get('mobile_e164') or '',))
+        arow = cur.fetchone()
+        if arow:
+            num, st = (arow['order_number'], arow['status']) \
+                if isinstance(arow, dict) else (arow[0], arow[1])
+            active = {'order_number': num, 'status': st}
+    except Exception as e:
+        logger.warning(f"ea_me active-order lookup failed: {e}")
+
+    return jsonify({
+        'success': True,
+        'cid': rec.get('ea_contact_id'),
+        'badge': rec.get('internal_number'),
+        'first_name': rec.get('first_name'),
+        'usual': _their_usual(rec),
+        'has_phone': bool(rec.get('mobile_e164')),
+        'active_order': active,
+    })
+
+
+@bp.route('/me/usual', methods=['POST'])
+def ea_me_set_usual():
+    """Attendee saves/changes their own usual. Stored locally, not in EA."""
+    data = request.get_json(silent=True) or {}
+    text = (data.get('usual') or '').strip()
+    if len(text) > 200:
+        return jsonify({'success': False, 'message': 'Too long.'}), 400
+    db = _db()
+    _ensure_tables(db)
+    rec = _find_attendee(db, data.get('cid'))
+    if not rec:
+        return jsonify({'success': False, 'message': 'unknown contact'}), 404
+    try:
+        cur = db.cursor()
+        cur.execute("UPDATE ea_attendees SET coffee_pref_local = %s "
+                    "WHERE ea_contact_id = %s",
+                    (text or None, rec['ea_contact_id']))
+        db.commit()
+    except Exception as e:
+        logger.error(f"set usual failed: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': str(e)}), 500
+    return jsonify({'success': True, 'usual': text or None})
+
+
+@bp.route('/me/order', methods=['POST'])
+def ea_me_order():
+    """One tap: place their usual.
+
+    The saved text goes through the SAME parser SMS ordering uses, so
+    "half strength medium oat latte" means here exactly what it means in a
+    text message — one behaviour, not two that can drift apart.
+    """
+    data = request.get_json(silent=True) or {}
+    db = _db()
+    _ensure_tables(db)
+    rec = _find_attendee(db, data.get('cid'))
+    if not rec:
+        return jsonify({'success': False, 'message': 'unknown contact'}), 404
+    usual = _their_usual(rec)
+    if not usual:
+        return jsonify({'success': False, 'message': 'no usual saved yet'}), 400
+
+    coffee_system = current_app.config.get('coffee_system')
+    if not coffee_system:
+        return jsonify({'success': False, 'message': 'System unavailable'}), 503
+    try:
+        parsed = coffee_system.nlp.parse_order(usual) or {}
+    except Exception as e:
+        logger.error(f"usual parse failed: {e}")
+        parsed = {}
+    if not parsed.get('type'):
+        return jsonify({'success': False,
+                        'message': f'Could not read "{usual}" as a drink. '
+                                   'Try editing your usual.'}), 400
+
+    # Reuse the kiosk order endpoint so routing, availability and stock all
+    # behave identically — no second ordering path to keep in step.
+    payload = {
+        'name': rec.get('first_name') or 'Guest',
+        'coffee_type': parsed.get('type'),
+        'size': parsed.get('size') or '',
+        'milk': parsed.get('milk') or '',
+        'sugar': parsed.get('sugar') or 'No sugar',
+        # The phone is attached HERE, server-side. The page never sees it.
+        'phone': rec.get('mobile_e164') or '',
+        'station_id': data.get('station_id'),
+    }
+    with current_app.test_client() as c:
+        r = c.post('/api/display/order', json=payload)
+        body = r.get_json() or {}
+    body['ordered'] = usual
+    return jsonify(body), r.status_code
 
 
 @bp.route('/attendee', methods=['GET'])
