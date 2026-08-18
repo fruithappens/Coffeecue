@@ -262,21 +262,41 @@ def emergency_stop():
             ON CONFLICT (key) DO UPDATE SET value = 'true'
         """)
         
-        # Stop all active orders
+        # Freeze active orders, REMEMBERING what each one was so Resume can
+        # put it back exactly. The old code sent everything to 'pending' on
+        # resume, which silently demoted every in-progress drink a barista
+        # was halfway through. The previous status is stashed inside
+        # order_details rather than a new column so this needs no migration.
         cursor.execute("""
-            UPDATE orders SET status = 'paused', notes = 'Emergency stop activated'
+            UPDATE orders
+            SET status = 'paused',
+                barista_notes = 'Emergency stop activated',
+                order_details = jsonb_set(
+                    COALESCE(order_details, '{}'::jsonb),
+                    '{_paused_from}', to_jsonb(status), true)
             WHERE status IN ('pending', 'in-progress')
         """)
+        paused = cursor.rowcount
         db.commit()
         cursor.close()
-        
-        logger.warning("Emergency stop activated by user")
+
+        logger.warning(f"Emergency stop activated by user — {paused} order(s) frozen")
         return jsonify({
             'status': 'success',
-            'message': 'Emergency stop activated'
+            'paused': paused,
+            'message': f'Emergency stop activated — {paused} order(s) frozen. '
+                       f'They are hidden from the barista screens until you '
+                       f'press Resume, which restores each to what it was.'
         })
     except Exception as e:
+        # Without this rollback a failure here leaves the connection in an
+        # aborted transaction and the NEXT query fails too — the last thing
+        # you want in the middle of an emergency.
         logger.error(f"Emergency stop failed: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
         return jsonify({
             'status': 'error',
             'message': str(e)
@@ -296,21 +316,35 @@ def emergency_resume():
             UPDATE settings SET value = 'false' WHERE key = 'emergency_mode'
         """)
         
-        # Resume paused orders
+        # Put every frozen order back to EXACTLY what it was. Falls back to
+        # 'pending' only for rows with no remembered status (e.g. frozen by
+        # an older build), which is the safe direction: an order wrongly
+        # queued gets made again, an order wrongly marked in-progress can be
+        # missed entirely.
         cursor.execute("""
-            UPDATE orders SET status = 'pending', notes = 'Operations resumed'
+            UPDATE orders
+            SET status = COALESCE(order_details->>'_paused_from', 'pending'),
+                barista_notes = 'Operations resumed',
+                order_details = (COALESCE(order_details, '{}'::jsonb) - '_paused_from')
             WHERE status = 'paused'
         """)
+        resumed = cursor.rowcount
         db.commit()
         cursor.close()
-        
-        logger.info("System operations resumed")
+
+        logger.info(f"System operations resumed — {resumed} order(s) restored")
         return jsonify({
             'status': 'success',
-            'message': 'Operations resumed'
+            'resumed': resumed,
+            'message': f'Operations resumed — {resumed} order(s) restored to '
+                       f'their previous state.'
         })
     except Exception as e:
         logger.error(f"Resume operations failed: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
         return jsonify({
             'status': 'error',
             'message': str(e)
@@ -325,9 +359,11 @@ def clear_all_queues():
         db = get_db_connection()
         cursor = db.cursor()
         
-        # Cancel all pending orders
+        # Cancel all pending orders. Deliberately does NOT touch
+        # in-progress drinks — a barista mid-pour should finish.
         cursor.execute("""
-            UPDATE orders SET status = 'cancelled', notes = 'Cleared by support'
+            UPDATE orders SET status = 'cancelled',
+                              barista_notes = 'Cleared by support'
             WHERE status = 'pending'
         """)
         cancelled_count = cursor.rowcount
@@ -341,6 +377,10 @@ def clear_all_queues():
         })
     except Exception as e:
         logger.error(f"Clear queues failed: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
         return jsonify({
             'status': 'error',
             'message': str(e)
@@ -525,20 +565,27 @@ def clear_station_queue(station_id):
         db = get_db_connection()
         cursor = db.cursor()
         
-        # Clear station queue
+        # Clear this station's WAITING orders only — an in-progress drink
+        # is left alone so a barista mid-pour is not cut off.
         cursor.execute("""
-            UPDATE orders SET status = 'cancelled', notes = 'Queue cleared by support'
+            UPDATE orders SET status = 'cancelled',
+                              barista_notes = 'Queue cleared by support'
             WHERE station_id = %s AND status = 'pending'
         """, (station_id,))
         cancelled_count = cursor.rowcount
         db.commit()
         cursor.close()
-        
+
         return jsonify({
             'status': 'success',
+            'cancelled': cancelled_count,
             'message': f'Cleared {cancelled_count} orders from station queue'
         })
     except Exception as e:
+        try:
+            db.rollback()
+        except Exception:
+            pass
         return jsonify({
             'status': 'error',
             'message': str(e)

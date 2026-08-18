@@ -64,6 +64,33 @@ else
   ok "DisplayScreen.js not found (skipped)"
 fi
 
+
+# ---------------------------------------------------------------------------
+# Check 4: SQL must not write columns the orders table does not have.
+#
+# Every emergency control that mutated orders wrote `notes = '...'`. There is
+# no `notes` column — it is `barista_notes`. So "Stop All Operations",
+# "Resume Operations" and "Clear ALL Queues" all returned HTTP 500 and did
+# NOTHING, and nobody knew until they were tested. A dead button in the
+# emergency panel is worse than no button: it is discovered mid-crisis.
+#
+# The check greps for writes to `orders` naming a column that is not in the
+# schema. Extend ORDERS_PHANTOM as new near-miss names appear.
+# ---------------------------------------------------------------------------
+note "Check 4: SQL does not write phantom columns on the orders table"
+ORDERS_PHANTOM='notes|customer_name|drink|order_status'
+hits=$(grep -rnE "UPDATE[[:space:]]+orders[[:space:]]+SET" routes/ services/ --include='*.py' -A 2 2>/dev/null \
+  | grep -E "(^|[^_a-z])($ORDERS_PHANTOM)[[:space:]]*=" \
+  | grep -vE "barista_notes" \
+  | grep -vE "^[^:]*:[0-9]+[:-][[:space:]]*#" \
+  || true)
+if [ -n "$hits" ]; then
+  bad "SQL writes a column the orders table does not have (it is barista_notes, not notes):"
+  printf '%s\n' "$hits" | sed 's/^/      /'
+else
+  ok "none"
+fi
+
 printf '\n'
 if [ "$FAIL" -ne 0 ]; then
   echo "Consistency checks FAILED — see above. These guard against the 'two views of the same fact disagree' bug class."
