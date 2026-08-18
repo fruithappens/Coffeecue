@@ -241,7 +241,66 @@ def suite_print_pipeline(rn):
     return out
 
 
+def suite_print_fit(rn):
+    """Guards the #209 clipping class: text must never run off the roll.
+
+    A real label came out as "Medium Cappuccino * Sk" / "Milk" — the "im"
+    fell off the edge, because the renderer split the drink line on a
+    CHARACTER count (drink_line[:24]) while the roll is measured in
+    PIXELS. Silent character loss is the dangerous part: nothing errors,
+    every status is 200, and the barista can't tell the label is wrong.
+
+    Ink touching the final pixel column means something was cut off.
+    """
+    out = []
+    try:
+        # The bench runs from testbench/; the renderer lives at the repo root.
+        import os as _os, sys as _sys
+        _root = _os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+        if _root not in _sys.path:
+            _sys.path.insert(0, _root)
+        from PIL import Image
+        from services.label_printer import render_label
+    except Exception as e:
+        return [R("print_fit", "renderer importable for fit checks", "fail",
+                  f"import failed: {e}", refs=["services/label_printer.py"])]
+
+    import io
+    cases = [
+        ("Skim Milk cappuccino (the #209 reproducer)",
+         {"size": "Medium", "drink": "Cappuccino", "milk": "Skim Milk"}),
+        ("longest realistic drink + milk",
+         {"size": "Large", "drink": "Caramel Macchiato", "milk": "Lactose Free Milk"}),
+        ("long single word (no space to wrap on)",
+         {"size": "Large", "drink": "Frappuccinooooooooooooo", "milk": "Oat"}),
+    ]
+    for label, drink in cases:
+        try:
+            png = render_label({
+                "order_number": "1377", "name": "Alexandra W.",
+                "station_id": 1, "modifiers": ["Extra hot", "2 sugars"],
+                **drink,
+            }, 406, {})
+            im = Image.open(io.BytesIO(png)).convert("1")
+            w, h = im.size
+            edge = sum(1 for y in range(h) if im.getpixel((w - 1, y)) == 0)
+        except Exception as e:
+            out.append(R("print_fit", f"renders: {label}", "fail", str(e),
+                         refs=["services/label_printer.py"]))
+            continue
+        out.append(R("print_fit", f"no text clipped off the roll: {label}",
+                     "pass" if edge == 0 else "fail",
+                     f"{edge} ink pixels in the final column (want 0)",
+                     suggestion="" if edge == 0 else
+                     "Text is running off the label edge and characters are "
+                     "being lost silently. Use _fit_to_width/_wrap_to_width "
+                     "(pixel-measured) rather than a character cap.",
+                     refs=[] if edge == 0 else ["services/label_printer.py"]))
+    return out
+
+
 PRINT_SUITES = [
     ("print_preview", suite_print_preview, True),
     ("print_pipeline", suite_print_pipeline, True),
+    ("print_fit", suite_print_fit, False),
 ]
