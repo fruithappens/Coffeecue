@@ -6,6 +6,7 @@ import Organiser from './components/organiser/Organiser';
 import DisplayScreen from './components/display/DisplayScreen';
 import SignPage from './components/display/SignPage';
 import MobileOrderPage from './components/display/MobileOrderPage';
+import MyCoffeePage from './components/display/MyCoffeePage';
 import HowToOrderPage from './components/display/HowToOrderPage';
 import DisplaySelector from './components/display/DisplaySelector';
 import SupportInterface from './components/support/SupportInterface';
@@ -665,6 +666,9 @@ function App() {
               SIM needed); /how = the delegate splash screen with both
               QR codes. Both public — they ARE the customer entry. */}
           <Route path="/order" element={<MobileOrderPage />} />
+          {/* Personal "my coffee" page — the link that lives in the
+              EventsAir app. Static url, identity remembered per device. */}
+          <Route path="/my" element={<MyCoffeePage />} />
           <Route path="/how" element={<HowToOrderPage />} />
           <Route path="/displays" element={<DisplaySelector />} />
           
