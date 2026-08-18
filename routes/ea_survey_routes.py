@@ -1004,10 +1004,17 @@ def ea_me():
     active = None
     try:
         cur = db.cursor()
-        # Their most recent order that has not been collected yet.
+        # Their most recent order that is still live — and only a RECENT
+        # one. A 'completed' order stays completed until someone marks it
+        # picked up, which often never happens, so without a time bound a
+        # cup collected this morning would still be showing READY tonight
+        # and the person could never get back to the order button. Found
+        # exactly that on the first live check: a completed order from
+        # hours earlier presented as current.
         cur.execute(
             "SELECT order_number, status FROM orders "
             "WHERE phone = %s AND status IN ('pending','in-progress','completed') "
+            "AND created_at > NOW() - INTERVAL '3 hours' "
             "ORDER BY created_at DESC LIMIT 1",
             (rec.get('mobile_e164') or '',))
         arow = cur.fetchone()
