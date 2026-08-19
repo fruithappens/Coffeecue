@@ -123,6 +123,14 @@ def _ensure_tables(db):
         # what a person chose themselves.
         cur.execute("ALTER TABLE ea_attendees ADD COLUMN IF NOT EXISTS "
                     "coffee_pref_local TEXT")
+        # The name THEY want on the cup. EventsAir holds the registered
+        # name, which is not always the one someone answers to: a Robert
+        # who goes by Bob, an alias, or a person fetching a coffee for a
+        # colleague. The phone number is the identity that matters — the
+        # name is a label, and the person holding the phone should own it.
+        # Separate column so an EA re-sync never overwrites their choice.
+        cur.execute("ALTER TABLE ea_attendees ADD COLUMN IF NOT EXISTS "
+                    "display_name_local TEXT")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS ea_webhook_log (
                 correlation_id VARCHAR(100) PRIMARY KEY,
@@ -980,7 +988,7 @@ def ea_test_order():
 # ---------------------------------------------------------------------------
 
 _ATT_COLS = ("ea_contact_id, internal_number, first_name, mobile_e164, "
-             "coffee_pref, coffee_pref_local")
+             "coffee_pref, coffee_pref_local, display_name_local")
 
 
 def _row_to_attendee(row):
@@ -1053,6 +1061,12 @@ def _their_usual(rec):
             or (rec.get('coffee_pref') or '').strip() or None)
 
 
+def _their_name(rec):
+    """The name they chose, else the one EventsAir registered."""
+    return ((rec.get('display_name_local') or '').strip()
+            or (rec.get('first_name') or '').strip() or 'Guest')
+
+
 @bp.route('/me', methods=['GET'])
 def ea_me():
     """Everything the attendee's personal page needs, in one call.
@@ -1116,7 +1130,9 @@ def ea_me():
         'success': True,
         'cid': rec.get('ea_contact_id'),
         'badge': rec.get('internal_number'),
-        'first_name': rec.get('first_name'),
+        'first_name': _their_name(rec),
+        'registered_name': rec.get('first_name'),
+        'name_overridden': bool((rec.get('display_name_local') or '').strip()),
         'usual': _their_usual(rec),
         'has_phone': bool(rec.get('mobile_e164')),
         'active_order': active,
@@ -1149,6 +1165,36 @@ def ea_me_set_usual():
             pass
         return jsonify({'success': False, 'message': str(e)}), 500
     return jsonify({'success': True, 'usual': text or None})
+
+
+@bp.route('/me/name', methods=['POST'])
+def ea_me_set_name():
+    """Set the name that goes on the cup.
+
+    The registered name is not always the one someone answers to, and the
+    phone may be shared or lent — the person holding it decides. Blank
+    clears the override and falls back to EventsAir's name.
+    """
+    data = request.get_json(silent=True) or {}
+    name = (data.get('name') or '').strip()[:40]
+    db = _db()
+    _ensure_tables(db)
+    rec = _find_attendee(db, data.get('cid'), data.get('phone'))
+    if not rec:
+        return jsonify({'success': False, 'message': 'unknown contact'}), 404
+    try:
+        cur = db.cursor()
+        cur.execute("UPDATE ea_attendees SET display_name_local = %s "
+                    "WHERE ea_contact_id = %s", (name or None, rec['ea_contact_id']))
+        db.commit()
+    except Exception as e:
+        logger.error(f"set name failed: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': str(e)}), 500
+    return jsonify({'success': True, 'first_name': name or rec.get('first_name')})
 
 
 @bp.route('/me/order', methods=['POST'])
@@ -1185,7 +1231,7 @@ def ea_me_order():
     # Reuse the kiosk order endpoint so routing, availability and stock all
     # behave identically — no second ordering path to keep in step.
     payload = {
-        'name': rec.get('first_name') or 'Guest',
+        'name': _their_name(rec),
         'coffee_type': parsed.get('type'),
         'size': parsed.get('size') or '',
         'milk': parsed.get('milk') or '',

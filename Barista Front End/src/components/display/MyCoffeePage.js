@@ -50,6 +50,10 @@ const MyCoffeePage = () => {
   // When one mobile belongs to several attendees (a delegate who booked
   // for their team), we ask instead of guessing.
   const [choices, setChoices] = useState(null);
+  // The name on the cup. The phone identifies them; the name is theirs to
+  // set — nicknames, aliases, or fetching one for a colleague.
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
 
   const load = useCallback(async (id, { quiet, byPhone } = {}) => {
     if (!id) return;
@@ -152,6 +156,24 @@ const MyCoffeePage = () => {
       const b = await r.json();
       if (b?.success) { setEditing(false); await load(cid); }
       else setError(b?.message || 'Could not save that.');
+    } catch (e) {
+      setError('Network problem — try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveName = async () => {
+    setBusy(true);
+    try {
+      const r = await fetch('/api/ea/me/name', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cid, name: nameDraft }),
+      });
+      const b = await r.json();
+      if (b?.success) { setEditingName(false); await load(cid); }
+      else setError(b?.message || 'Could not save that name.');
     } catch (e) {
       setError('Network problem — try again.');
     } finally {
@@ -295,7 +317,36 @@ const MyCoffeePage = () => {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6">
       <div className="w-full max-w-md text-center">
-        <h1 className="text-3xl font-bold mb-1">Hi {me.first_name}</h1>
+        {editingName ? (
+          <div className="mb-5 text-left">
+            <label className="block text-sm text-gray-600 mb-1">
+              Name for the cup
+            </label>
+            <input
+              className="w-full border-2 rounded-xl px-4 py-3 text-lg"
+              placeholder={me.registered_name || 'Your name'}
+              value={nameDraft}
+              maxLength={40}
+              onChange={(e) => setNameDraft(e.target.value)}
+            />
+            <div className="flex gap-2 mt-3">
+              <button className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-semibold disabled:opacity-40"
+                      disabled={busy} onClick={saveName}>Save</button>
+              <button className="flex-1 py-3 rounded-xl bg-gray-200 font-semibold"
+                      onClick={() => setEditingName(false)}>Cancel</button>
+            </div>
+          </div>
+        ) : (
+          <h1 className="text-3xl font-bold mb-1">
+            Hi {me.first_name}
+            <button
+              className="ml-2 align-middle text-sm font-normal text-blue-600 underline"
+              onClick={() => { setNameDraft(me.name_overridden ? me.first_name : ''); setEditingName(true); }}
+            >
+              edit
+            </button>
+          </h1>
+        )}
 
         {me.usual ? (
           <>
@@ -353,7 +404,7 @@ const MyCoffeePage = () => {
         </button>
 
         <button className="mt-8 text-xs text-gray-400 underline" onClick={forget}>
-          Not {me.first_name}?
+          Not {me.first_name}? Start again
         </button>
       </div>
 
