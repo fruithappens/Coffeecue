@@ -4,18 +4,15 @@ import ReactDOM from 'react-dom/client';
 // no effect in dev. See utils/consoleSilencer.js for the rationale
 // and the window.__expressoEnableConsole escape hatch.
 import './utils/consoleSilencer';
-// MUST run before App is imported/rendered. Touching localStorage throws
-// in a cross-origin iframe on iOS, and App.js reads it during boot — the
-// page went blank inside the EventsAir app for exactly that reason.
-import { installSafeStorage } from './utils/safeStorage';
-
-const storageShimmed = installSafeStorage();
-if (storageShimmed) {
-  // Not an error worth hiding: it explains why nothing is remembered.
-  console.warn('[coffee-cue] localStorage unavailable (embedded/private '
-    + 'browsing) — using in-memory storage for this session.');
-}
-
+// Storage guard. Touching localStorage THROWS in a cross-origin iframe on
+// iOS, and App.js reads it during boot — that is why the page went blank
+// inside the EventsAir app. Imported here as a side effect so the shim is
+// installed at MODULE-EVALUATION time, before App's own module body runs.
+// It has to be a plain side-effect import rather than a call between
+// imports: ES modules hoist all imports, so a statement in the middle
+// would not actually run earlier, and it breaks the import/first lint
+// rule that CRA promotes to a build error.
+import './utils/installSafeStorage';
 import './index.css';
 import App from './App';
 
