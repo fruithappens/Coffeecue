@@ -281,7 +281,10 @@ const MyCoffeePage = () => {
         </div>
         {fullOrder && (
           <div className="fixed inset-0 bg-white z-50 overflow-auto">
-            <KioskOrder onClose={() => setFullOrder(false)} />
+            <KioskOrder
+              eaCid={cid}
+              onClose={() => { setFullOrder(false); load(cid); }}
+            />
           </div>
         )}
       </div>
@@ -356,7 +359,13 @@ const MyCoffeePage = () => {
 
       {fullOrder && (
         <div className="fixed inset-0 bg-white z-50 overflow-auto">
-          <KioskOrder onClose={() => { setFullOrder(false); load(cid); }} />
+          {/* eaCid so the order is filed against THIS person: their name on
+              the cup, their phone attached server-side, and the order then
+              shows here as theirs instead of vanishing. */}
+          <KioskOrder
+            eaCid={cid}
+            onClose={() => { setFullOrder(false); load(cid); }}
+          />
         </div>
       )}
     </div>
