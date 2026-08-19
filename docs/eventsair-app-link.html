@@ -11,16 +11,23 @@
      shows their usual with a single Order button, or live status while
      a coffee is being made.
 
-     NOTE: the server only permits framing for the anonymous attendee
-     pages (/my, /order, /how, /display, /sign). Staff screens refuse to
-     be framed on purpose.
+     Deliberately byte-for-byte the same SHAPE as the ePosters embed that
+     is known to work in a live EventsAir app: same attribute order, same
+     inline-style spacing, and NO extra attributes. The editor sanitises
+     HTML, and an attribute it does not expect (an `allow` policy, for
+     instance) is enough for it to drop or mangle the tag — which looks
+     exactly like a blocked iframe.
+
+     Verified from a foreign origin: /my renders inside a cross-origin
+     iframe, so the server side is not the constraint. The server permits
+     framing for the anonymous attendee pages only (/my, /order, /how,
+     /display, /sign); staff screens refuse on purpose.
+
+     If it is still blank after pasting: reopen Tools -> Source code and
+     check what was actually SAVED. If the iframe tag is gone or altered,
+     the editor stripped it and the button version is the way.
      =================================================================== -->
 
 <div style="position:fixed;top:0;left:0;width:100%;height:100%;margin:0;padding:0">
-  <iframe
-     src="https://web-production-4cc9c.up.railway.app/my"
-     style="display:block;width:100%;height:100%;border:none;margin:0;padding:0"
-     width="auto" height="auto"
-     allow="clipboard-write"
-     allowfullscreen="allowfullscreen"></iframe>
+  <iframe style="display: block; width: 100%; height: 100%; border: none; margin: 0; padding: 0;" src="https://web-production-4cc9c.up.railway.app/my" width="auto" height="auto" allowfullscreen="allowfullscreen"></iframe>
 </div>
