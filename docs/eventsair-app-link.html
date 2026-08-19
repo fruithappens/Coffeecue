@@ -1,37 +1,26 @@
 <!-- ===================================================================
-     Coffee Cue — EventsAir attendee app link
-     Paste into the Static Content module: Tools -> Source code.
+     Coffee Cue — EventsAir attendee app
+     Static Content module -> HTML item -> Open HTML Editor -> Tools ->
+     Source code. Paste this, replacing everything.
 
-     Points at /my, the personal page: it asks once for the badge number,
-     remembers the person on that device, then shows their usual with a
-     single Order button, or live status while a coffee is being made.
+     Embeds /my full-screen INSIDE the app, the same way other events
+     embed their ePosters app. Better than a link: no new tab to lose,
+     and an attendee can come back to watch their order.
 
-     Inline styles only. EventsAir's editor strips <style> blocks and
-     classes, so everything has to live on the element.
+     /my asks once who they are (mobile number, or badge number), then
+     shows their usual with a single Order button, or live status while
+     a coffee is being made.
+
+     NOTE: the server only permits framing for the anonymous attendee
+     pages (/my, /order, /how, /display, /sign). Staff screens refuse to
+     be framed on purpose.
      =================================================================== -->
 
-<div style="text-align:center;padding:28px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
-
-  <div style="font-size:44px;line-height:1;margin-bottom:8px">&#9749;</div>
-
-  <h2 style="margin:0 0 6px;font-size:24px;color:#111">Coffee</h2>
-  <p style="margin:0 0 26px;font-size:16px;color:#555">
-    Order your usual in one tap.
-  </p>
-
-  <a href="https://web-production-4cc9c.up.railway.app/my"
-     style="display:inline-block;background:#2563eb;color:#ffffff;
-            font-size:21px;font-weight:700;text-decoration:none;
-            padding:18px 38px;border-radius:14px;
-            box-shadow:0 2px 6px rgba(0,0,0,.18)">
-    Order a coffee
-  </a>
-
-  <p style="margin:18px auto 0;max-width:340px;font-size:14px;
-            line-height:1.5;color:#666">
-    First time? Enter the number on your name badge and we'll remember you.
-    After that it's one tap &mdash; and the page tells you when your coffee
-    is ready, so you don't need to watch for a text.
-  </p>
-
+<div style="position:fixed;top:0;left:0;width:100%;height:100%;margin:0;padding:0">
+  <iframe
+     src="https://web-production-4cc9c.up.railway.app/my"
+     style="display:block;width:100%;height:100%;border:none;margin:0;padding:0"
+     width="auto" height="auto"
+     allow="clipboard-write"
+     allowfullscreen="allowfullscreen"></iframe>
 </div>
