@@ -3,7 +3,18 @@
   <head>
     <meta charset="utf-8" />
     <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- viewport-fit=cover lets the page fill a notched iPhone instead of
+         being letterboxed inside an app webview; the safe areas are then
+         handled in CSS with env(safe-area-inset-*). Matched to what the
+         ePosters app (which works in the EventsAir app) declares.
+
+         Deliberately NOT copying its user-scalable=no / maximum-scale=1:
+         those stop someone pinch-zooming, which is a real accessibility
+         loss for anyone who needs to enlarge text to read a coffee menu.
+         The reason people usually add them is to stop iOS zooming when an
+         input is focused, and that only happens below 16px — our inputs
+         are larger, so we get the benefit without the cost. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#000000" />
     <meta
       name="description"
