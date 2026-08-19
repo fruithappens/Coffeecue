@@ -65,5 +65,57 @@
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
+
+    <!-- Blank-screen reporter.
+         A white page tells you nothing. On a phone inside an event app
+         there is no console, no dev tools and no way for the person
+         holding it to say anything more useful than "it's not working" —
+         which is exactly where we ended up.
+
+         This paints the actual error onto the page, and separately
+         reports a page that loaded HTML but never rendered anything. It
+         runs BEFORE the bundle, so it also catches a bundle that fails
+         to parse or execute at all. Inline on purpose: an external file
+         cannot report its own failure to load. -->
+    <script>
+      (function () {
+        var reported = false;
+        function show(kind, detail) {
+          if (reported) return;
+          reported = true;
+          try {
+            var el = document.getElementById('root');
+            if (!el) return;
+            el.innerHTML =
+              '<div style="font:16px/1.5 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;'
+              + 'padding:24px;max-width:640px;margin:0 auto;color:#111">'
+              + '<h2 style="margin:0 0 8px;font-size:20px">Coffee Cue could not start</h2>'
+              + '<p style="margin:0 0 16px;color:#555">Please show this to the organiser.</p>'
+              + '<pre style="white-space:pre-wrap;word-break:break-word;background:#f4f4f5;'
+              + 'border:1px solid #ddd;border-radius:8px;padding:12px;font-size:13px">'
+              + kind + '\n' + detail + '\n\n' + navigator.userAgent
+              + '\nframed: ' + (window.top !== window.self) + '</pre></div>';
+          } catch (e) { /* nothing further we can do */ }
+        }
+        window.addEventListener('error', function (e) {
+          show('Script error', (e && (e.message || e.type)) + ' @ '
+            + ((e && e.filename) || '?') + ':' + ((e && e.lineno) || '?'));
+        });
+        window.addEventListener('unhandledrejection', function (e) {
+          show('Unhandled promise rejection',
+            String((e && e.reason && (e.reason.message || e.reason)) || e));
+        });
+        // Nothing rendered after a generous wait: the bundle never ran, or
+        // ran and produced nothing. Either way the person sees WHY.
+        setTimeout(function () {
+          var el = document.getElementById('root');
+          if (el && el.children.length === 0) {
+            show('The page loaded but nothing rendered',
+              'The app bundle did not start. This usually means it was '
+              + 'blocked from loading, or storage/cookies are restricted here.');
+          }
+        }, 8000);
+      })();
+    </script>
   </body>
 </html>
