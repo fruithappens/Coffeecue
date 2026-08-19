@@ -191,7 +191,9 @@ const MyCoffeePage = () => {
   // ---- one number, several people ----------------------------------------
   if (!me && choices) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6">
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6"
+           style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top))',
+                    paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
         <div className="w-full max-w-sm text-center">
           <h1 className="text-2xl font-bold mb-1">Which one are you?</h1>
           <p className="text-gray-600 mb-6">
@@ -221,7 +223,9 @@ const MyCoffeePage = () => {
   // ---- not identified yet -------------------------------------------------
   if (!me) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6">
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6"
+           style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top))',
+                    paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
         <div className="w-full max-w-sm text-center">
           <div className="text-5xl mb-3" aria-hidden>☕</div>
           <h1 className="text-2xl font-bold mb-1">Your coffee</h1>
@@ -281,7 +285,9 @@ const MyCoffeePage = () => {
     const copy = STATUS[active.status] || { title: 'Checking…', tone: 'bg-gray-400' };
     const ready = active.status === 'completed';
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center p-6">
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center p-6"
+           style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top))',
+                    paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
         <div className="w-full max-w-md">
           <div className={`${copy.tone} text-white rounded-2xl p-6 text-center shadow-lg
                            ${ready ? 'animate-pulse' : ''}`}>
@@ -315,7 +321,9 @@ const MyCoffeePage = () => {
 
   // ---- identified, nothing in flight -------------------------------------
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6">
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6"
+         style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top))',
+                  paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
       <div className="w-full max-w-md text-center">
         {editingName ? (
           <div className="mb-5 text-left">
