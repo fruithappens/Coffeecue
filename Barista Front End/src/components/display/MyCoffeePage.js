@@ -47,6 +47,9 @@ const MyCoffeePage = () => {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [fullOrder, setFullOrder] = useState(false);
+  // When one mobile belongs to several attendees (a delegate who booked
+  // for their team), we ask instead of guessing.
+  const [choices, setChoices] = useState(null);
 
   const load = useCallback(async (id, { quiet, byPhone } = {}) => {
     if (!id) return;
@@ -57,7 +60,14 @@ const MyCoffeePage = () => {
         : `cid=${encodeURIComponent(id)}`;
       const r = await fetch(`/api/ea/me?${q}`);
       const b = await r.json();
+      if (b?.choose) {
+        setChoices(b.choose);
+        setMe(null);
+        setError('');
+        return;
+      }
       if (b?.success) {
+        setChoices(null);
         setMe(b);
         // Adopt the CONTACT ID the server resolved, whichever way they got
         // in. Without this, someone who identified by phone left `cid`
@@ -152,8 +162,39 @@ const MyCoffeePage = () => {
   const forget = () => {
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(PHONE_KEY);
-    setCid(''); setPhone(''); setMe(null); setEntry(''); setError('');
+    setCid(''); setPhone(''); setMe(null); setEntry('');
+    setError(''); setChoices(null);
   };
+
+  // ---- one number, several people ----------------------------------------
+  if (!me && choices) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6">
+        <div className="w-full max-w-sm text-center">
+          <h1 className="text-2xl font-bold mb-1">Which one are you?</h1>
+          <p className="text-gray-600 mb-6">
+            More than one person uses that number.
+          </p>
+          {choices.map((p) => (
+            <button
+              key={p.cid}
+              className="w-full mb-3 py-4 rounded-xl bg-white border-2 border-blue-600
+                         text-blue-700 text-lg font-semibold"
+              onClick={() => { setChoices(null); setCid(p.cid); }}
+            >
+              {p.first_name}{p.badge ? ` · badge ${p.badge}` : ''}
+            </button>
+          ))}
+          <button
+            className="w-full mt-2 py-3 text-gray-600 underline"
+            onClick={() => { setChoices(null); setEntry(''); }}
+          >
+            None of these — try again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // ---- not identified yet -------------------------------------------------
   if (!me) {

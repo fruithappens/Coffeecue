@@ -1019,15 +1019,32 @@ def _find_attendee(db, cid=None, phone=None):
 
     phone = (phone or '').strip()
     if phone:
-        e164 = normalize_phone_e164(phone)
-        if e164:
-            cur.execute(f"SELECT {_ATT_COLS} FROM ea_attendees "
-                        "WHERE mobile_e164 = %s OR mobile_alt_e164 = %s "
-                        "LIMIT 1", (e164, e164))
-            rec = _row_to_attendee(cur.fetchone())
-            if rec:
-                return rec
+        matches = _find_attendees_by_phone(db, phone)
+        if len(matches) == 1:
+            return matches[0]
+        # 0 or several: the caller decides. Silently picking one would greet
+        # a stranger by someone else's name and put their coffee on the
+        # wrong person's history.
     return None
+
+
+def _find_attendees_by_phone(db, phone):
+    """EVERY attendee on a number, not the first one found.
+
+    One phone can legitimately belong to several people — a delegate who
+    books for their whole team registers five contacts against their own
+    mobile. The old lookup took LIMIT 1, so one of them silently won and
+    the other four were told 'Hi <someone else>' with no way to correct
+    it. Steve hit exactly that.
+    """
+    e164 = normalize_phone_e164((phone or '').strip())
+    if not e164:
+        return []
+    cur = db.cursor()
+    cur.execute(f"SELECT {_ATT_COLS} FROM ea_attendees "
+                "WHERE mobile_e164 = %s OR mobile_alt_e164 = %s "
+                "ORDER BY internal_number LIMIT 10", (e164, e164))
+    return [_row_to_attendee(r) for r in (cur.fetchall() or []) if r]
 
 
 def _their_usual(rec):
@@ -1052,8 +1069,23 @@ def ea_me():
     """
     db = _db()
     _ensure_tables(db)
-    rec = _find_attendee(db, request.args.get('cid'), request.args.get('phone'))
+    cid_arg = request.args.get('cid')
+    phone_arg = request.args.get('phone')
+    rec = _find_attendee(db, cid_arg, phone_arg)
     if not rec:
+        # A shared number is not a failure — it is a question. Hand back
+        # who it could be so the person can say which one they are.
+        if phone_arg and not cid_arg:
+            people = _find_attendees_by_phone(db, phone_arg)
+            if len(people) > 1:
+                return jsonify({
+                    'success': False,
+                    'choose': [{'cid': p['ea_contact_id'],
+                                'badge': p.get('internal_number'),
+                                'first_name': p.get('first_name')}
+                               for p in people],
+                    'message': 'More than one person uses that number.',
+                }), 300
         return jsonify({'success': False, 'message': 'unknown contact'}), 404
 
     active = None
