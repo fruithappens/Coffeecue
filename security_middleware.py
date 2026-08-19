@@ -37,10 +37,39 @@ limiter = Limiter(
     enabled=not _testing,
 )
 
+# Public, attendee-facing pages that an event app is expected to EMBED.
+# EventsAir's Static Content module hosts an iframe — that is how other
+# events run their ePosters app — and it is a much better experience than
+# a link: the page lives inside the app, so someone can come back to their
+# order without leaving it.
+#
+# Framing is allowed ONLY for these. Everything else keeps DENY, because
+# the clickjacking risk is real for the screens that matter: a framed
+# /barista or /support could be overlaid to trick a logged-in operator
+# into clicking something. These pages have no session to hijack — they
+# are anonymous ordering surfaces — so there is nothing to steal by
+# framing them.
+EMBEDDABLE_PREFIXES = ('/my', '/order', '/how', '/display', '/sign')
+
+
+def _is_embeddable(path):
+    path = (path or '').rstrip('/') or '/'
+    return any(path == p or path.startswith(p + '/') or path.startswith(p + '?')
+               for p in EMBEDDABLE_PREFIXES)
+
+
 def add_security_headers(response):
     """Add comprehensive security headers to all responses"""
-    # Prevent clickjacking
-    response.headers['X-Frame-Options'] = 'DENY'
+    embeddable = _is_embeddable(request.path)
+
+    # Prevent clickjacking — except on the anonymous pages an event app
+    # is meant to embed.
+    if embeddable:
+        # X-Frame-Options has no "any origin" value; omitting it and
+        # letting frame-ancestors govern is the modern, correct way.
+        response.headers.pop('X-Frame-Options', None)
+    else:
+        response.headers['X-Frame-Options'] = 'DENY'
     
     # Prevent MIME type sniffing
     response.headers['X-Content-Type-Options'] = 'nosniff'
@@ -60,7 +89,10 @@ def add_security_headers(response):
         "object-src 'none'",
         "base-uri 'self'",
         "form-action 'self'",
-        "frame-ancestors 'none'",
+        # 'none' blocks every embed; the attendee pages need to be
+        # embeddable by an event app on a domain we do not control and
+        # cannot enumerate per client.
+        "frame-ancestors *" if embeddable else "frame-ancestors 'none'",
         "upgrade-insecure-requests"
     ]
     response.headers['Content-Security-Policy'] = "; ".join(csp_directives)

@@ -133,6 +133,40 @@ def suite_resilience(rn):
                  "Duplicate CORS headers are invalid; some browsers reject "
                  "the response, breaking cross-origin frontends.",
                  refs=[] if not dupes else ["app.py"]))
+    # 4. Framing: the attendee pages must be EMBEDDABLE (an event app hosts
+    #    them in an iframe) and the staff screens must NOT be. Both
+    #    directions matter — a framed /support could be overlaid to trick a
+    #    logged-in operator, while a blocked /my just renders blank inside
+    #    the app and looks broken.
+    def frame_headers(path):
+        try:
+            r = c.s.get(f"{c.base}{path}", timeout=20)
+            h = {k.lower(): v for k, v in r.headers.items()}
+            return (h.get('x-frame-options', ''),
+                    h.get('content-security-policy', ''))
+        except Exception:
+            return (None, None)
+
+    xfo, csp = frame_headers('/my')
+    open_ok = (not xfo) and ("frame-ancestors 'none'" not in (csp or ''))
+    out.append(R("resilience", "attendee page can be embedded by an event app",
+                 "pass" if open_ok else "fail",
+                 f"X-Frame-Options={xfo!r}, frame-ancestors blocked={'yes' if not open_ok else 'no'}",
+                 suggestion="" if open_ok else
+                 "The EventsAir app embeds this in an iframe; DENY makes it "
+                 "render blank and look broken to every attendee.",
+                 refs=[] if open_ok else ["security_middleware.py"]))
+
+    sxfo, scsp = frame_headers('/support')
+    staff_safe = (sxfo or '').upper() == 'DENY' or "frame-ancestors 'none'" in (scsp or '')
+    out.append(R("resilience", "staff screens still refuse to be framed",
+                 "pass" if staff_safe else "fail",
+                 f"X-Frame-Options={sxfo!r}",
+                 suggestion="" if staff_safe else
+                 "A framed staff screen can be overlaid to trick a logged-in "
+                 "operator into clicking something. Only anonymous pages "
+                 "should be embeddable.",
+                 refs=[] if staff_safe else ["security_middleware.py"]))
     return out
 
 
