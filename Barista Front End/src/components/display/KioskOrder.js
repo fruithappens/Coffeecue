@@ -50,7 +50,8 @@ const milkEmoji = (name) => {
   return '🥛';
 };
 
-const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose, onOrderPlaced }) => {
+const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose, onOrderPlaced,
+                      eaCid }) => {
   const [menu, setMenu] = useState(null);
   const [loadingMenu, setLoadingMenu] = useState(true);
   // Drink FIRST (Steve: "the first thing that should appear is not the
@@ -75,7 +76,14 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose, onOrderPlaced
   // skip the name/phone steps. Unknown cid or channel off → normal flow.
   const [eaIdentity, setEaIdentity] = useState(null); // {cid, firstName, hasPhone}
   useEffect(() => {
-    const cid = new URLSearchParams(window.location.search).get('cid');
+    // The cid can arrive two ways: in the URL (an app link with a merge
+    // field) or as a PROP from /my, which holds the identity in state
+    // after the person identified themselves once. Without the prop this
+    // component asked a known attendee for their name and phone all over
+    // again, and the resulting order was attributed to whatever they
+    // typed — so it never appeared as their order and the label carried
+    // the wrong name.
+    const cid = eaCid || new URLSearchParams(window.location.search).get('cid');
     if (!cid) return;
     let cancelled = false;
     (async () => {
@@ -89,7 +97,7 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose, onOrderPlaced
       } catch (e) { /* anonymous flow */ }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [eaCid]);
 
   const myStation = useMemo(() => {
     const n = parseInt(stationId, 10);
