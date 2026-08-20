@@ -27,6 +27,43 @@ const STATUS = {
   completed: { title: 'READY — come and get it', tone: 'bg-green-600' },
 };
 
+const SUGARS = [
+  { name: 'No sugar', value: 'no sugar' },
+  { name: '1 sugar', value: '1 sugar' },
+  { name: '2 sugars', value: '2 sugars' },
+  { name: '3 sugars', value: '3 sugars' },
+];
+
+// Drinks with no milk in them. Same list the barista stage chips and the
+// bean-stock maths use — keep the three aligned if it ever changes.
+const NO_MILK = /long black|short black|espresso|tea|juice|water/i;
+const needsMilk = (drink) => !!drink && !NO_MILK.test(drink);
+
+// One row of tappable options. Big targets: this is used one-handed while
+// queueing, not at a desk.
+const Choice = ({ label, options, value, onPick }) => (
+  <div className="mb-4">
+    <div className="text-sm text-gray-600 mb-2">{label}</div>
+    <div className="flex flex-wrap gap-2">
+      {options.map((o) => {
+        const v = o.value || o.name;
+        const on = value === v;
+        return (
+          <button
+            key={v}
+            onClick={() => onPick(on ? '' : v)}
+            className={`px-4 py-3 rounded-xl border-2 text-base font-medium ${
+              on ? 'bg-blue-600 border-blue-600 text-white'
+                 : 'bg-white border-gray-300 text-gray-800'}`}
+          >
+            {o.name || v}
+          </button>
+        );
+      })}
+    </div>
+  </div>
+);
+
 const MyCoffeePage = () => {
   const [params] = useSearchParams();
   // ?cid= wins (a merge field, if the app ever supplies one), then whatever
@@ -45,7 +82,6 @@ const MyCoffeePage = () => {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState('');
   const [fullOrder, setFullOrder] = useState(false);
   // When one mobile belongs to several attendees (a delegate who booked
   // for their team), we ask instead of guessing.
@@ -54,6 +90,12 @@ const MyCoffeePage = () => {
   // set — nicknames, aliases, or fetching one for a colleague.
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
+  // The usual is PICKED from the live menu, never typed. Free text was a
+  // hangover from SMS, where a text message was all we had. Here there is
+  // a real browser, so a chosen option cannot be misspelled, cannot name a
+  // drink we do not make, and needs no parsing on the way back.
+  const [menu, setMenu] = useState(null);
+  const [pick, setPick] = useState({ drink: '', milk: '', size: '', sugar: '' });
 
   const load = useCallback(async (id, { quiet, byPhone } = {}) => {
     if (!id) return;
@@ -124,6 +166,44 @@ const MyCoffeePage = () => {
     return () => { try { lock && lock.release(); } catch (e) { /* noop */ } };
   }, [me?.active_order]);
 
+  // Opening the editor starts from what they already chose, so changing
+  // one thing does not mean re-picking everything.
+  useEffect(() => {
+    if (!editing) return;
+    const u = (me?.usual || '').toLowerCase();
+    if (!u) return;
+    setPick((prev) => (prev.drink ? prev : {
+      drink: (menu?.coffee_types || []).map((o) => o.value)
+        .filter((v) => u.includes(v)).sort((a, b) => b.length - a.length)[0] || '',
+      milk: (menu?.milks || []).map((o) => o.value).find((v) => u.includes(v)) || '',
+      size: (menu?.sizes || []).map((o) => o.value).find((v) => u.includes(v)) || '',
+      sugar: SUGARS.map((o) => o.value).find((v) => u.includes(v)) || '',
+    }));
+  }, [editing, menu, me?.usual]);
+
+  useEffect(() => {
+    if (!editing || menu) return;
+    (async () => {
+      try {
+        const r = await fetch('/api/display/menu');
+        const b = await r.json();
+        setMenu((b && (b.menu || b)) || null);
+      } catch (e) { setMenu(null); }
+    })();
+  }, [editing, menu]);
+
+  // Compose what gets saved. Built from menu VALUES, so it always matches
+  // something we actually serve.
+  const composed = () => {
+    const bits = [];
+    if (pick.size) bits.push(pick.size);
+    if (pick.drink) bits.push(pick.drink);
+    let out = bits.join(' ');
+    if (pick.milk) out += ` with ${pick.milk}`;
+    if (pick.sugar) out += `, ${pick.sugar}`;
+    return out.trim();
+  };
+
   const orderUsual = async () => {
     setBusy(true); setError('');
     try {
@@ -151,7 +231,7 @@ const MyCoffeePage = () => {
       const r = await fetch('/api/ea/me/usual', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cid, usual: draft }),
+        body: JSON.stringify({ cid, usual: composed() }),
       });
       const b = await r.json();
       if (b?.success) { setEditing(false); await load(cid); }
@@ -191,7 +271,7 @@ const MyCoffeePage = () => {
   // ---- one number, several people ----------------------------------------
   if (!me && choices) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6"
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center p-6"
            style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top))',
                     paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
         <div className="w-full max-w-sm text-center">
@@ -223,7 +303,7 @@ const MyCoffeePage = () => {
   // ---- not identified yet -------------------------------------------------
   if (!me) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6"
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center p-6"
            style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top))',
                     paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
         <div className="w-full max-w-sm text-center">
@@ -321,7 +401,7 @@ const MyCoffeePage = () => {
 
   // ---- identified, nothing in flight -------------------------------------
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6"
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center p-6"
          style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top))',
                   paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
       <div className="w-full max-w-md text-center">
@@ -378,19 +458,37 @@ const MyCoffeePage = () => {
 
         {editing ? (
           <div className="mt-6 text-left">
-            <label className="block text-sm text-gray-600 mb-1">
-              Your usual — write it how you'd say it
-            </label>
-            <input
-              className="w-full border-2 rounded-xl px-4 py-3"
-              placeholder="e.g. Medium oat latte, 1 sugar"
-              value={draft}
-              maxLength={200}
-              onChange={(e) => setDraft(e.target.value)}
-            />
-            <div className="flex gap-2 mt-3">
+            {!menu ? (
+              <p className="text-gray-500 py-6 text-center">Loading the menu…</p>
+            ) : (
+              <>
+                <Choice label="Drink" options={(menu.coffee_types || [])}
+                        value={pick.drink}
+                        onPick={(v) => setPick({ ...pick, drink: v })} />
+                {/* Milk is irrelevant to a long black or a tea, so only ask
+                    once a drink that takes it has been chosen. */}
+                {needsMilk(pick.drink) && (
+                  <Choice label="Milk" options={(menu.milks || [])}
+                          value={pick.milk}
+                          onPick={(v) => setPick({ ...pick, milk: v })} />
+                )}
+                <Choice label="Size" options={(menu.sizes || [])}
+                        value={pick.size}
+                        onPick={(v) => setPick({ ...pick, size: v })} />
+                {/* Hidden entirely where the venue puts sugar on the counter. */}
+                {!menu.sugar_self_serve && (
+                  <Choice label="Sugar" options={SUGARS} value={pick.sugar}
+                          onPick={(v) => setPick({ ...pick, sugar: v })} />
+                )}
+                <p className="mt-4 mb-1 text-sm text-gray-600">Your usual will be</p>
+                <p className="text-lg font-semibold min-h-[1.75rem]">
+                  {composed() || <span className="text-gray-400">pick a drink…</span>}
+                </p>
+              </>
+            )}
+            <div className="flex gap-2 mt-4">
               <button className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-semibold disabled:opacity-40"
-                      disabled={busy} onClick={saveUsual}>Save</button>
+                      disabled={busy || !pick.drink} onClick={saveUsual}>Save</button>
               <button className="flex-1 py-3 rounded-xl bg-gray-200 font-semibold"
                       onClick={() => setEditing(false)}>Cancel</button>
             </div>
@@ -398,7 +496,7 @@ const MyCoffeePage = () => {
         ) : (
           <button
             className="w-full mt-3 py-3 rounded-xl bg-white border-2 border-blue-600 text-blue-600 font-semibold"
-            onClick={() => { setDraft(me.usual || ''); setEditing(true); }}
+            onClick={() => setEditing(true)}
           >
             {me.usual ? 'Change my usual' : 'Save my usual'}
           </button>
