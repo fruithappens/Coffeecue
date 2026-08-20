@@ -28,6 +28,7 @@ This module gives the operator three controls:
 All three are admin-only. EXPORT contains PII (phone numbers) by design
 — it's the client's own data, handed back to the client.
 """
+import json as _json
 import logging
 from datetime import datetime
 
@@ -141,7 +142,6 @@ def export_event_data():
         # datetime/Decimal values are JSON-serialised by Flask's encoder via
         # default=str — set it on the response to avoid 500s on those types.
         from flask import Response
-        import json as _json
         body = _json.dumps({"status": "success", "snapshot": snapshot}, default=str)
         return Response(body, mimetype="application/json")
     except Exception as e:
@@ -359,6 +359,88 @@ def import_event_data():
                         pass
             if settings_rows:
                 result["config_restored"].append(f"settings ({len(settings_rows)})")
+
+            # --- catalog_items: THE MENU. Exported all along but never
+            #     restored, so reloading a saved event brought back the
+            #     branding and lost what was actually on offer — the part
+            #     an operator most wants back when reusing an event.
+            #     (category, item_id) is a real unique key, so this is a
+            #     clean upsert: existing rows update, new ones insert,
+            #     nothing is duplicated on a repeat import.
+            catalog_rows = tables.get("catalog_items") or []
+            cat_cols = ["category", "item_id", "display_name", "short_name",
+                        "subcategory", "properties", "sort_order",
+                        "is_active", "is_custom"]
+            catalog_done = 0
+            for row in catalog_rows:
+                if not row.get("category") or not row.get("item_id"):
+                    continue
+                vals = []
+                for col in cat_cols:
+                    v = row.get(col)
+                    # properties is jsonb; psycopg needs a string, and a
+                    # dict arrives here after the JSON round trip.
+                    if col == "properties" and isinstance(v, (dict, list)):
+                        v = _json.dumps(v)
+                    vals.append(v)
+                updates = ", ".join(f"{c} = EXCLUDED.{c}" for c in cat_cols
+                                    if c not in ("category", "item_id"))
+                try:
+                    cursor.execute(
+                        f"INSERT INTO catalog_items ({', '.join(cat_cols)}) "
+                        f"VALUES ({', '.join(['%s'] * len(cat_cols))}) "
+                        f"ON CONFLICT (category, item_id) DO UPDATE SET {updates}",
+                        vals)
+                    catalog_done += 1
+                except Exception as ce:
+                    logger.warning(f"import catalog {row.get('item_id')}: {ce}")
+                    try:
+                        db.rollback()
+                    except Exception:
+                        pass
+            if catalog_done:
+                result["config_restored"].append(f"menu items ({catalog_done})")
+
+            # --- inventory_items: what each station stocks. No unique
+            #     constraint exists, so match on the natural key by hand
+            #     rather than blind-inserting, which would duplicate every
+            #     item on a second import.
+            inv_rows = tables.get("inventory_items") or []
+            inv_cols = ["amount", "unit", "capacity", "minimum_threshold", "notes"]
+            inv_done = 0
+            for row in inv_rows:
+                name, cat = row.get("name"), row.get("category")
+                if not name:
+                    continue
+                station = row.get("station_id")
+                try:
+                    cursor.execute(
+                        "SELECT id FROM inventory_items WHERE name = %s "
+                        "AND category IS NOT DISTINCT FROM %s "
+                        "AND station_id IS NOT DISTINCT FROM %s",
+                        (name, cat, station))
+                    hit = cursor.fetchone()
+                    if hit:
+                        sets = ", ".join(f"{c} = %s" for c in inv_cols)
+                        cursor.execute(
+                            f"UPDATE inventory_items SET {sets} WHERE id = %s",
+                            [row.get(c) for c in inv_cols]
+                            + [hit[0] if not isinstance(hit, dict) else hit.get("id")])
+                    else:
+                        cols = ["name", "category", "station_id"] + inv_cols
+                        cursor.execute(
+                            f"INSERT INTO inventory_items ({', '.join(cols)}) "
+                            f"VALUES ({', '.join(['%s'] * len(cols))})",
+                            [name, cat, station] + [row.get(c) for c in inv_cols])
+                    inv_done += 1
+                except Exception as ie:
+                    logger.warning(f"import inventory {name}: {ie}")
+                    try:
+                        db.rollback()
+                    except Exception:
+                        pass
+            if inv_done:
+                result["config_restored"].append(f"stock items ({inv_done})")
             # inventory_items + catalog_items left as a follow-up: restoring
             # them safely needs id/conflict handling per table; customers +
             # settings cover the returning-event case. Flagged in the UI.
