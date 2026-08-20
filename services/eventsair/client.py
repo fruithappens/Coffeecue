@@ -236,7 +236,17 @@ class EventsAirClient:
 
     # ----- health -----
 
-    def health(self) -> dict:
+    def health(self, probe: bool = False) -> dict:
+        """Describe the integration's configuration.
+
+        probe=False (the default) answers from local config ONLY. It must
+        stay that way: this is called from /api/health and /api/ea/status,
+        and a status endpoint that blocks on a third party can take the
+        whole site down with it — which is exactly what happened on
+        2026-08-20, when one /api/ea/status request hung production for
+        19 minutes. Pass probe=True only where a caller has explicitly
+        asked to test reachability and can afford to wait.
+        """
         if self.testing_mode:
             return {'name': 'eventsair', 'configured': self.configured(),
                     'detail': 'TESTING_MODE — stub calls', 'stub': True}
@@ -247,7 +257,11 @@ class EventsAirClient:
             return {'name': 'eventsair', 'configured': False,
                     'detail': f'not configured (missing: {", ".join(missing)})',
                     'stub': True}
-        # Configured + live: a token fetch is the cheapest reachability probe.
+        if not probe:
+            return {'name': 'eventsair', 'configured': True,
+                    'detail': 'configured (not probed)', 'stub': False}
+        # Explicitly asked to test reachability: a token fetch is the
+        # cheapest probe. Only ever reached when probe=True.
         token = self.get_token()
         return {'name': 'eventsair', 'configured': True,
                 'detail': 'configured; token ok' if token else 'configured; token FETCH FAILED',
