@@ -54,12 +54,22 @@ const defaultBranding = {
 const storedBranding = getStoredBranding();
 const brandingConfig = storedBranding ? { ...defaultBranding, ...storedBranding } : defaultBranding;
 
-// Function to update branding configuration
-export const updateBranding = (newBranding) => {
+// Function to update branding configuration.
+//
+// `reload` defaults to true for backwards compatibility, but callers that
+// are ALSO saving to the server must pass { reload: false } and reload
+// themselves once the request has finished. Reloading mid-save tears down
+// the page and aborts the in-flight fetch: small payloads sometimes made
+// it out in time, large ones (a logo plus two backgrounds) arrived at the
+// server truncated and were rejected as unparseable JSON. That is the bug
+// where branding "saved successfully" and was gone when you came back —
+// localStorage had been written and the reload read it straight back, so
+// the screen looked right while the server never received anything.
+export const updateBranding = (newBranding, { reload = true } = {}) => {
   const updated = { ...brandingConfig, ...newBranding };
   localStorage.setItem('coffee_system_branding', JSON.stringify(updated));
-  // Reload to apply changes
-  window.location.reload();
+  if (reload) window.location.reload();
+  return updated;
 };
 
 // Function to reset to default branding

@@ -141,7 +141,49 @@ const BrandingSettings = () => {
     setSuccess('');
     
     try {
-      // Update centralized branding config
+      // THE SERVER SAVE GOES FIRST, AND WE WAIT FOR IT.
+      //
+      // updateBranding() calls window.location.reload(). It used to be
+      // called here, BEFORE this request, which tore the page down while
+      // the save was still in flight. Small payloads occasionally escaped
+      // in time; a logo plus two backgrounds did not, and the server
+      // received a truncated body it could not parse (400 -> 500). The UI
+      // still said "saved" because localStorage had been written and the
+      // reload read it straight back. Nothing reached the database.
+      let serverSaved = false;
+      try {
+        const result = await SettingsService.updateBrandingSettings(settings);
+        serverSaved = !!result;
+      } catch (err) {
+        console.error('Backend branding save failed:', err);
+      }
+
+      if (!serverSaved) {
+        // Do NOT reload — that would discard what they typed and show the
+        // old values back, which is how this failure used to hide itself.
+        setError('Server save FAILED — the Display screen and SMS will keep the OLD branding. '
+          + 'Check your internet connection (or log out and back in), then press Save again.');
+        return;
+      }
+
+      setSuccess('Branding settings saved successfully!');
+      // Nudge App.js to refresh the page title with the new event_name
+      // without waiting for its 60s poll.
+      try {
+        window.dispatchEvent(new CustomEvent('branding_updated', { detail: settings }));
+      } catch (_) { /* CustomEvent unavailable in very old browsers */ }
+
+      // Apply theme colors to document
+      if (settings.customBranding) {
+        document.documentElement.style.setProperty('--primary-color', settings.primaryColor);
+        document.documentElement.style.setProperty('--secondary-color', settings.secondaryColor);
+        document.documentElement.style.setProperty('--text-color', settings.textColor);
+        document.documentElement.style.setProperty('--bg-color', settings.backgroundColor);
+      }
+
+      // Now it is safe to write the local copy. reload:false because the
+      // save is already done and a reload here would only throw away the
+      // success message.
       updateBranding({
         companyName: settings.companyName,
         systemName: settings.systemName,
@@ -157,39 +199,7 @@ const BrandingSettings = () => {
         accentColor: settings.textColor,
         logo: settings.clientLogo,
         customCSS: settings.customCSS || ''
-      });
-      
-      // Also save to backend. Previously this swallowed any error
-      // silently and showed "saved successfully" even when the
-      // backend had returned 404 — operators reported that the
-      // client name and other branding fields didn't actually save.
-      let serverSaved = false;
-      try {
-        const result = await SettingsService.updateBrandingSettings(settings);
-        serverSaved = !!result;
-      } catch (err) {
-        console.error('Backend branding save failed:', err);
-      }
-
-      if (serverSaved) {
-        setSuccess('Branding settings saved successfully!');
-        // Nudge App.js to refresh the page title with the new event_name
-        // without waiting for its 60s poll.
-        try {
-          window.dispatchEvent(new CustomEvent('branding_updated', { detail: settings }));
-        } catch (_) { /* CustomEvent unavailable in very old browsers */ }
-      } else {
-        setError('Server save FAILED — the Display screen and SMS will keep the OLD branding. '
-          + 'Check your internet connection (or log out and back in), then press Save again.');
-      }
-      
-      // Apply theme colors to document
-      if (settings.customBranding) {
-        document.documentElement.style.setProperty('--primary-color', settings.primaryColor);
-        document.documentElement.style.setProperty('--secondary-color', settings.secondaryColor);
-        document.documentElement.style.setProperty('--text-color', settings.textColor);
-        document.documentElement.style.setProperty('--bg-color', settings.backgroundColor);
-      }
+      }, { reload: false });
     } catch (err) {
       console.error('Error saving branding settings:', err);
       setError('Failed to save branding settings');
