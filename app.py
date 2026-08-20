@@ -1,4 +1,5 @@
 import os
+import time
 import logging
 import eventlet
 from flask import Flask, request, jsonify, render_template, redirect, url_for, g, session, current_app
@@ -415,9 +416,43 @@ def create_app():
     
     # Initialize core services
     try:
-        # Get database connection from PostgreSQL
-        logger.info("Attempting to connect to PostgreSQL database")
-        db = get_db_connection(config.DATABASE_URL)
+        # Get database connection from PostgreSQL, PATIENTLY.
+        #
+        # This used to be a single attempt that re-raised on failure, so a
+        # database that was briefly unreachable killed the process. Railway
+        # restarts it, it fails again, and the result is a crash loop that
+        # the edge reports as "Application failed to respond" — total
+        # outage from a blip. That is what happened on 2026-08-20: over two
+        # hours down, while the application code itself was fine.
+        #
+        # A database restart, failover or brief network wobble is measured
+        # in seconds, so wait through it instead of dying. Still gives up
+        # eventually — a genuinely misconfigured DATABASE_URL should fail
+        # loudly rather than hang forever — but by then the platform has
+        # restarted us and we simply wait again, which is the behaviour
+        # wanted anyway.
+        db = None
+        attempts = int(os.getenv('DB_CONNECT_ATTEMPTS', '12'))
+        delay = float(os.getenv('DB_CONNECT_DELAY_S', '5'))
+        for attempt in range(1, attempts + 1):
+            try:
+                logger.info("Connecting to PostgreSQL (attempt %d/%d)",
+                            attempt, attempts)
+                db = get_db_connection(config.DATABASE_URL)
+                if attempt > 1:
+                    logger.warning("Database reachable after %d attempts "
+                                   "(~%.0fs of waiting)", attempt,
+                                   (attempt - 1) * delay)
+                break
+            except Exception as conn_err:
+                if attempt >= attempts:
+                    logger.error("Database still unreachable after %d "
+                                 "attempts over ~%.0fs: %s",
+                                 attempts, attempts * delay, conn_err)
+                    raise
+                logger.warning("Database not reachable yet (%s) — retrying "
+                               "in %.0fs", str(conn_err)[:120], delay)
+                time.sleep(delay)
         
         coffee_system = CoffeeOrderSystem(db, vars(config))
         logger.info(f"Database initialized successfully using PostgreSQL")
