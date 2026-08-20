@@ -29,6 +29,7 @@ from __future__ import annotations
 import json
 import re as _re
 import logging
+import secrets
 import os
 import threading
 from datetime import datetime, timedelta
@@ -1078,6 +1079,91 @@ def _their_name(rec):
             or (rec.get('first_name') or '').strip() or 'Guest')
 
 
+GUEST_ID_PREFIX = 'local:'
+_NAME_OK = _re.compile(r"[^\w \-'.]", _re.UNICODE)
+
+
+def _clean_name(raw) -> str:
+    """A name fit for a cup label and an SMS.
+
+    Stripped of control characters and punctuation that has no business in
+    a name, collapsed to single spaces, and capped. This lands on a printed
+    label and in a text message, so anything exotic either breaks the
+    renderer or doubles the SMS cost by forcing UCS-2.
+    """
+    s = _NAME_OK.sub('', str(raw or '')).strip()
+    s = _re.sub(r'\s+', ' ', s)
+    return s[:40]
+
+
+@bp.route('/guest', methods=['POST'])
+def ea_guest():
+    """Register someone who is not in EventsAir, by name and number.
+
+    Exhibitors, AV crew, venue staff and speakers are frequently absent
+    from the attendee list, and before this they hit a dead end on the
+    personal page: 'we can't find that number', no way forward. Orders
+    have always been stored in Coffee Cue's own database with a phone
+    number and a name — EventsAir is a source of names, not a gatekeeper
+    — so there is no reason to turn these people away.
+
+    Creates a LOCAL attendee whose id is prefixed 'local:' so an
+    EventsAir sync can never overwrite it or mistake it for a real
+    contact. Idempotent: the same number gives back the same person, with
+    the name updated, rather than a new record on every visit.
+    """
+    body = request.get_json(silent=True) or {}
+    phone = str(body.get('phone') or '').strip()
+    name = _clean_name(body.get('name'))
+    if not name:
+        return jsonify({'success': False,
+                        'message': 'Please give a name for the cup.'}), 400
+    e164 = normalize_phone_e164(phone)
+    if not e164:
+        return jsonify({'success': False,
+                        'message': 'That does not look like a mobile number.'}), 400
+
+    db = _db()
+    _ensure_tables(db)
+
+    # They may be in EventsAir after all — a typo the first time, or a
+    # sync that has since run. Never shadow a real contact with a guest.
+    existing = _find_attendees_by_phone(db, e164)
+    real = [p for p in existing
+            if not str(p.get('ea_contact_id') or '').startswith(GUEST_ID_PREFIX)]
+    if len(real) == 1:
+        return jsonify({'success': True, 'cid': real[0]['ea_contact_id'],
+                        'matched_existing': True})
+    if len(real) > 1:
+        return jsonify({
+            'success': False,
+            'choose': [{'cid': p['ea_contact_id'],
+                        'badge': p.get('internal_number'),
+                        'first_name': p.get('first_name')}
+                       for p in real],
+            'message': 'More than one person uses that number.'}), 300
+
+    cur = db.cursor()
+    prior = [p for p in existing
+             if str(p.get('ea_contact_id') or '').startswith(GUEST_ID_PREFIX)]
+    if prior:
+        cid = prior[0]['ea_contact_id']
+        cur.execute("UPDATE ea_attendees SET display_name_local = %s, "
+                    "first_name = %s WHERE ea_contact_id = %s",
+                    (name, name, cid))
+    else:
+        cid = GUEST_ID_PREFIX + secrets.token_hex(6)
+        cur.execute(
+            "INSERT INTO ea_attendees (ea_contact_id, first_name, "
+            "display_name_local, mobile_e164, synced_at) "
+            "VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)",
+            (cid, name, name, e164))
+    db.commit()
+    logger.info(f"EA guest registered: {cid} ({name})")
+    return jsonify({'success': True, 'cid': cid, 'first_name': name,
+                    'guest': True})
+
+
 @bp.route('/me', methods=['GET'])
 def ea_me():
     """Everything the attendee's personal page needs, in one call.
@@ -1111,6 +1197,14 @@ def ea_me():
                                for p in people],
                     'message': 'More than one person uses that number.',
                 }), 300
+        # An unknown PHONE is not necessarily a stranger — exhibitors,
+        # crew and speakers are never in the EventsAir attendee list but
+        # still want coffee. Tell the page it may ask for a name and
+        # carry on. A bad BADGE number stays a plain error: badges are
+        # ours, so one we do not know is a typo, not a new person.
+        if phone_arg and not cid_arg:
+            return jsonify({'success': False, 'guest_ok': True,
+                            'message': 'not registered'}), 404
         return jsonify({'success': False, 'message': 'unknown contact'}), 404
 
     active = None
