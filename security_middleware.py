@@ -89,13 +89,31 @@ def add_security_headers(response):
         "object-src 'none'",
         "base-uri 'self'",
         "form-action 'self'",
-        # 'none' blocks every embed; the attendee pages need to be
-        # embeddable by an event app on a domain we do not control and
-        # cannot enumerate per client.
-        "frame-ancestors *" if embeddable else "frame-ancestors 'none'",
+        # Attendee pages: NO frame-ancestors directive at all.
+        #
+        # 'frame-ancestors *' was not enough. Per CSP, the * wildcard
+        # matches network schemes only — it explicitly does NOT match
+        # file:, data: or blob:. The EventsAir attendee app is a Cordova
+        # app whose own document is loaded from file:// on iOS, so its
+        # frames were refused while the very same page embedded fine from
+        # https:// in a desktop browser. That is exactly what we saw: it
+        # worked in Chrome against wwevents.attendee.eventsair.com and was
+        # blank in the native app, every time.
+        #
+        # The ePosters app that works in that same app ships no CSP at
+        # all, which is why it was never affected.
+        #
+        # Omitting the directive is deliberate rather than lazy: naming
+        # schemes (file: capacitor: ionic:) would have to guess at every
+        # wrapper a client's app might use, and guessing wrong looks
+        # identical to being blocked. These pages hold no session and no
+        # personal data — the staff screens, which do, keep
+        # frame-ancestors 'none' and X-Frame-Options: DENY.
+        None if embeddable else "frame-ancestors 'none'",
         "upgrade-insecure-requests"
     ]
-    response.headers['Content-Security-Policy'] = "; ".join(csp_directives)
+    response.headers['Content-Security-Policy'] = "; ".join(
+        d for d in csp_directives if d)
     
     # Report-Only CSP for monitoring (optional)
     # response.headers['Content-Security-Policy-Report-Only'] = "; ".join(csp_directives)
