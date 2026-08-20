@@ -148,10 +148,16 @@ def suite_resilience(rn):
             return (None, None)
 
     xfo, csp = frame_headers('/my')
-    open_ok = (not xfo) and ("frame-ancestors 'none'" not in (csp or ''))
+    # No X-Frame-Options AND no frame-ancestors directive at all. A
+    # 'frame-ancestors *' is NOT sufficient: the wildcard does not match
+    # file:, and the EventsAir app is a Cordova app served from file://
+    # on iOS — it embedded fine from https in a browser and was blank in
+    # the native app until the directive was dropped entirely.
+    open_ok = (not xfo) and ('frame-ancestors' not in (csp or ''))
     out.append(R("resilience", "attendee page can be embedded by an event app",
                  "pass" if open_ok else "fail",
-                 f"X-Frame-Options={xfo!r}, frame-ancestors blocked={'yes' if not open_ok else 'no'}",
+                 f"X-Frame-Options={xfo!r}, frame-ancestors present="
+                 f"{'yes' if 'frame-ancestors' in (csp or '') else 'no'}",
                  suggestion="" if open_ok else
                  "The EventsAir app embeds this in an iframe; DENY makes it "
                  "render blank and look broken to every attendee.",
