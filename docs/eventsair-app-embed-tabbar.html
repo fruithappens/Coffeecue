@@ -1,0 +1,27 @@
+<!-- ===================================================================
+     Coffee Cue — EventsAir attendee app embed (TAB-BAR SAFE)
+
+     Use this when the module sits in the app's BOTTOM TAB BAR rather
+     than as a normal menu item.
+
+     Why a second version exists. The ePosters embed uses
+     `position: fixed` with `height: 100%`, and that works where it is
+     placed. In a bottom-tab container it can collapse to nothing:
+     `height: 100%` only resolves when every ancestor has a height, and
+     `position: fixed` — which normally escapes that — falls back to
+     behaving like `absolute` as soon as any ancestor has a CSS
+     transform, which is what animated tab bars use. The iframe then
+     computes to ZERO height.
+
+     A zero-height iframe looks exactly like a blocked one, and it
+     explains the symptom that never fitted anything else: a blank
+     screen with no error, even though the page inside had loaded and
+     rendered — including its own error reporter. You cannot see any of
+     it in a frame 0 pixels tall.
+
+     100vh is measured against the VIEWPORT, so no ancestor can collapse
+     it, and min-height is a floor in case vh is reported oddly inside a
+     webview.
+     =================================================================== -->
+
+<div style="position: relative; width: 100%; height: 100vh; min-height: 640px; margin: 0; padding: 0; overflow: hidden;"><iframe style="display: block; width: 100%; height: 100vh; min-height: 640px; border: none; margin: 0; padding: 0;" src="https://web-production-4cc9c.up.railway.app/my" width="auto" height="auto" allowfullscreen="allowfullscreen"></iframe></div>
