@@ -12,5 +12,5 @@
 builder = "dockerfile"
 
 [deploy]
-startCommand = "gunicorn --worker-class eventlet --workers 1 --bind 0.0.0.0:${PORT:-5001} --timeout 120 --graceful-timeout 30 --access-logfile - wsgi:application"
+startCommand = "gunicorn -c gunicorn.conf.py wsgi:application"
 restartPolicyType = "ON_FAILURE"

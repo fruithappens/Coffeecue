@@ -75,4 +75,4 @@ ENV NODE_ENV=production
 # DEVELOPMENT server, which froze production whenever one request blocked
 # on an outbound call, and silently truncated large uploads. See wsgi.py.
 # Shell form (not exec form) so ${PORT} is expanded by the shell.
-CMD gunicorn --worker-class eventlet --workers 1 --bind 0.0.0.0:${PORT:-5001} --timeout 120 --graceful-timeout 30 --access-logfile - wsgi:application
+CMD ["gunicorn", "-c", "gunicorn.conf.py", "wsgi:application"]
