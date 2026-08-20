@@ -86,6 +86,11 @@ const MyCoffeePage = () => {
   // When one mobile belongs to several attendees (a delegate who booked
   // for their team), we ask instead of guessing.
   const [choices, setChoices] = useState(null);
+  // Set when the number is not in EventsAir. Exhibitors, crew and speakers
+  // are never in the attendee list, so instead of turning them away we ask
+  // for a name — the order only ever needed a name and a number anyway.
+  const [guestAsk, setGuestAsk] = useState(false);
+  const [guestName, setGuestName] = useState('');
   // The name on the cup. The phone identifies them; the name is theirs to
   // set — nicknames, aliases, or fetching one for a colleague.
   const [editingName, setEditingName] = useState(false);
@@ -123,6 +128,12 @@ const MyCoffeePage = () => {
           setCid((prev) => (prev === b.cid ? prev : b.cid));
         }
         if (byPhone) localStorage.setItem(PHONE_KEY, id);
+        setError('');
+      } else if (b?.guest_ok && byPhone) {
+        // Not registered — but that is not the same as not welcome.
+        setGuestAsk(true);
+        setChoices(null);
+        setMe(null);
         setError('');
       } else if (!quiet) {
         setError(byPhone
@@ -294,6 +305,76 @@ const MyCoffeePage = () => {
             onClick={() => { setChoices(null); setEntry(''); }}
           >
             None of these — try again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const registerGuest = async () => {
+    const name = guestName.trim();
+    if (!name) return;
+    setBusy(true); setError('');
+    try {
+      const r = await fetch('/api/ea/guest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: entry, name }),
+      });
+      const b = await r.json();
+      if (b?.choose) { setChoices(b.choose); setGuestAsk(false); return; }
+      if (b?.success && b.cid) {
+        localStorage.setItem(STORAGE_KEY, b.cid);
+        localStorage.setItem(PHONE_KEY, entry);
+        setGuestAsk(false);
+        setGuestName('');
+        setCid(b.cid);
+        load(b.cid);
+      } else {
+        setError(b?.message || 'Could not save that name.');
+      }
+    } catch (e) {
+      setError('Network problem — try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // ---- not in EventsAir: ask for a name and carry on ----------------------
+  if (guestAsk) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center p-6"
+           style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top))',
+                    paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
+        <div className="w-full max-w-sm text-center">
+          <div className="text-5xl mb-3" aria-hidden>☕</div>
+          <h1 className="text-2xl font-bold mb-1">What's your name?</h1>
+          <p className="text-gray-600 mb-6">
+            That number isn't on the delegate list — no problem. Give us a
+            name for the cup and you're set.
+          </p>
+          <input
+            className="w-full border-2 rounded-xl px-4 py-4 text-2xl text-center"
+            autoFocus
+            autoComplete="given-name"
+            placeholder="First name"
+            value={guestName}
+            onChange={(e) => setGuestName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') registerGuest(); }}
+          />
+          {error && <p className="text-red-600 mt-3">{error}</p>}
+          <button
+            className="w-full mt-4 py-4 rounded-xl bg-blue-600 text-white text-lg font-semibold disabled:opacity-40"
+            disabled={!guestName.trim() || busy}
+            onClick={registerGuest}
+          >
+            {busy ? 'Saving…' : 'Continue'}
+          </button>
+          <button
+            className="w-full mt-3 py-2 text-blue-700 underline text-sm"
+            onClick={() => { setGuestAsk(false); setError(''); setEntry(''); }}
+          >
+            Try a different number
           </button>
         </div>
       </div>
