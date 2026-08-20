@@ -749,6 +749,17 @@ def _upsert_attendee(conn, contact, coffee_hint=None):
 # ops API (§4.4)
 # ---------------------------------------------------------------------------
 
+def _wants_probe() -> bool:
+    """Only reach out to EventsAir when the caller explicitly asks.
+
+    /api/ea/status is loaded by the Organiser screen on every visit. Making
+    it contact Microsoft by default is what hung production for 19 minutes
+    on 2026-08-20. Opt in with ?probe=1 when you actually want the round
+    trip tested.
+    """
+    return str(request.args.get('probe', '')).lower() in ('1', 'true', 'yes')
+
+
 @bp.route('/status', methods=['GET'])
 @jwt_required_with_demo()
 def ea_status():
@@ -780,7 +791,7 @@ def ea_status():
         _sweep_stale(current_app._get_current_object())
     return jsonify({'success': True,
                     'channel_enabled': channel_enabled(),
-                    'ea': client.health(),
+                    'ea': client.health(probe=_wants_probe()),
                     'subscription_id': row.get('webhook_subscription_id'),
                     'signing_secret_set': bool(row.get('signing_secret')),
                     'survey_ids': _survey_ids(row),

@@ -71,4 +71,8 @@ ENV PORT=5001
 ENV NODE_ENV=production
 
 # Start command
-CMD ["python", "run_server.py"]
+# Serve with gunicorn, NOT run_server.py. run_server.py drives Werkzeug's
+# DEVELOPMENT server, which froze production whenever one request blocked
+# on an outbound call, and silently truncated large uploads. See wsgi.py.
+# Shell form (not exec form) so ${PORT} is expanded by the shell.
+CMD gunicorn --worker-class eventlet --workers 1 --bind 0.0.0.0:${PORT:-5001} --timeout 120 --graceful-timeout 30 --access-logfile - wsgi:application
