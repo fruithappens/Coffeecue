@@ -269,26 +269,54 @@ const BrandingSettings = () => {
   // DB is the robust choice). Capped so a giant image can't bloat the
   // settings row.
   const MAX_LOGO_BYTES = 400 * 1024; // 400KB
-  const handleLogoUpload = (event) => {
+  const handleLogoUpload = async (event) => {
     const file = event.target.files && event.target.files[0];
     if (!file) return;
     if (!file.type.startsWith('image/')) {
       setError('Please choose an image file (PNG, JPG, SVG).');
       return;
     }
-    if (file.size > MAX_LOGO_BYTES) {
-      setError(`Logo is ${(file.size / 1024).toFixed(0)}KB — please use an image under 400KB `
-        + '(resize/compress it). Big images slow the display screen.');
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setSettings(prev => ({ ...prev, clientLogo: e.target.result }));
-      setSuccess('Logo loaded — click Save to apply it to the display + login.');
+
+    // SVG is vector: already tiny, and putting it through a canvas would
+    // rasterise it and throw away the thing that makes it worth using.
+    const isSvg = file.type === 'image/svg+xml' || /\.svg$/i.test(file.name || '');
+
+    const finish = (dataUrl, note) => {
+      setSettings(prev => ({ ...prev, clientLogo: dataUrl }));
+      setSuccess(`Logo loaded${note || ''} — click Save to apply it to the display + login.`);
       setError('');
     };
-    reader.onerror = () => setError('Could not read that image file.');
-    reader.readAsDataURL(file);
+
+    if (isSvg || file.size <= MAX_LOGO_BYTES) {
+      const reader = new FileReader();
+      reader.onload = (e) => finish(e.target.result);
+      reader.onerror = () => setError('Could not read that image file.');
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    // Too big: SHRINK IT rather than refusing. The background uploader has
+    // done this all along; the logo told the operator to go and resize the
+    // file themselves, which reads like the format was rejected — Steve hit
+    // exactly that with a JPEG and concluded JPEGs were unsupported.
+    //
+    // Logos are small on screen, so 600px is plenty. PNG first, because a
+    // logo usually needs its transparent background; only fall back to JPEG
+    // (which cannot do transparency) if PNG will not fit the budget.
+    try {
+      setError('');
+      setSuccess('Resizing your logo…');
+      let dataUrl = await compressImageFile(file, 600, 0.92, MAX_LOGO_BYTES, 'image/png');
+      let note = ' and resized';
+      if (dataUrl.length * 0.75 > MAX_LOGO_BYTES) {
+        dataUrl = await compressImageFile(file, 600, 0.85, MAX_LOGO_BYTES, 'image/jpeg');
+        note = ' and resized (saved as JPEG — any transparent background is now white)';
+      }
+      finish(dataUrl, note);
+    } catch (err) {
+      setSuccess('');
+      setError('Could not resize that image — try a PNG or JPG under 400KB.');
+    }
   };
 
   // Downscale + JPEG-compress an image file to a data URI in the browser.
@@ -297,7 +325,8 @@ const BrandingSettings = () => {
   // background never reached the Display). A wallpaper only needs ~1920px, and
   // JPEG at ~0.72 brings it to a few hundred KB — small enough to save and
   // fast to render. Quality steps down until it's under the target size.
-  const compressImageFile = (file, maxDim = 1920, startQuality = 0.72, targetBytes = 700 * 1024) =>
+  const compressImageFile = (file, maxDim = 1920, startQuality = 0.72,
+                             targetBytes = 700 * 1024, mime = 'image/jpeg') =>
     new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -312,10 +341,16 @@ const BrandingSettings = () => {
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, w, h);
             let q = startQuality;
-            let dataUrl = canvas.toDataURL('image/jpeg', q);
-            while (dataUrl.length > targetBytes && q > 0.4) {
-              q -= 0.1;
-              dataUrl = canvas.toDataURL('image/jpeg', q);
+            let dataUrl = canvas.toDataURL(mime, q);
+            // PNG is lossless — toDataURL ignores the quality argument, so
+            // stepping it would re-encode the identical bytes five times.
+            // Size comes from the downscale alone; the caller falls back to
+            // JPEG if that is not enough.
+            if (mime !== 'image/png') {
+              while (dataUrl.length > targetBytes && q > 0.4) {
+                q -= 0.1;
+                dataUrl = canvas.toDataURL(mime, q);
+              }
             }
             resolve(dataUrl);
           } catch (err) { reject(err); }
