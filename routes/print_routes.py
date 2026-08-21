@@ -991,7 +991,20 @@ def _label_options(db):
     if opts.get('show_logo'):
         try:
             branding = _kv_get(db, 'branding_settings', default={}) or {}
-            opts['logo_data'] = (branding.get('clientLogo')
+            # A LABEL logo is not the same asset as the screen logo.
+            #
+            # The screen logo is shown big on the login and display screens
+            # and can be detailed and full-colour. The label prints at about
+            # 7mm on a 1-bit thermal head, so it needs to be simple and high
+            # contrast — Steve's current one is a sponsor-plus-event banner
+            # made for the sticker, which is legible on a cup and turns to
+            # mush anywhere small.
+            #
+            # labelLogo wins when set; otherwise fall back to the screen logo
+            # exactly as before, so events that only ever upload one image
+            # behave identically.
+            opts['logo_data'] = (branding.get('labelLogo')
+                                 or branding.get('clientLogo')
                                  or branding.get('logo') or '')
         except Exception:
             opts['logo_data'] = ''

@@ -279,7 +279,12 @@ const BrandingSettings = () => {
   // DB is the robust choice). Capped so a giant image can't bloat the
   // settings row.
   const MAX_LOGO_BYTES = 400 * 1024; // 400KB
-  const handleLogoUpload = (event) => {
+  // Shared by BOTH logos. `field` is 'clientLogo' (login + display screens)
+  // or 'labelLogo' (the sticker printed on a cup or lid) — two genuinely
+  // different assets. The screen logo can be detailed and full-colour; the
+  // label prints at about 7mm on a 1-bit thermal head and needs to be simple
+  // and high contrast, so one image doing both jobs does neither well.
+  const handleLogoUploadFor = (field, doneMsg) => (event) => {
     const file = event.target.files && event.target.files[0];
     if (!file) return;
     if (!file.type.startsWith('image/')) {
@@ -293,13 +298,18 @@ const BrandingSettings = () => {
     }
     const reader = new FileReader();
     reader.onload = (e) => {
-      setSettings(prev => ({ ...prev, clientLogo: e.target.result }));
-      setSuccess('Logo loaded — click Save to apply it to the display + login.');
+      setSettings(prev => ({ ...prev, [field]: e.target.result }));
+      setSuccess(doneMsg);
       setError('');
     };
     reader.onerror = () => setError('Could not read that image file.');
     reader.readAsDataURL(file);
   };
+
+  const handleLogoUpload = handleLogoUploadFor(
+    'clientLogo', 'Logo loaded — click Save to apply it to the display + login.');
+  const handleLabelLogoUpload = handleLogoUploadFor(
+    'labelLogo', 'Sticker logo loaded — click Save to apply it to printed labels.');
 
   // Downscale + JPEG-compress an image file to a data URI in the browser.
   // Full-screen backgrounds straight off a phone/camera are multi-MB, which
@@ -514,6 +524,55 @@ const BrandingSettings = () => {
                     PNG/JPG/SVG under 400KB. Shows on the customer display
                     screen and the login page. Click Save to apply.
                   </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Sticker logo. A separate asset from the screen logo above:
+                this one is printed about 7mm tall in 1-bit black and white
+                on a cup or lid, where fine detail and pale colours vanish. */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Sticker logo (printed on cups and lids)
+              </label>
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <div className="flex items-center gap-4">
+                  {settings.labelLogo ? (
+                    <img
+                      src={settings.labelLogo}
+                      alt="Sticker logo preview"
+                      className="h-16 w-auto max-w-[160px] object-contain border border-gray-200 rounded bg-white p-1"
+                    />
+                  ) : (
+                    <div className="h-16 w-28 flex items-center justify-center border border-dashed border-gray-300 rounded text-xs text-gray-400 text-center px-1">
+                      Using screen logo
+                    </div>
+                  )}
+                  <div className="flex flex-col gap-2">
+                    <label className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center cursor-pointer text-sm w-fit">
+                      <Upload className="mr-2" size={16} />
+                      {settings.labelLogo ? 'Replace sticker logo' : 'Upload sticker logo'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleLabelLogoUpload}
+                        className="hidden"
+                      />
+                    </label>
+                    {settings.labelLogo && (
+                      <button
+                        type="button"
+                        onClick={() => setSettings(prev => ({ ...prev, labelLogo: '' }))}
+                        className="text-xs text-red-600 hover:underline w-fit"
+                      >
+                        Remove sticker logo
+                      </button>
+                    )}
+                    <p className="text-xs text-gray-500 max-w-prose">
+                      Optional. Keep it simple and high contrast — fine detail
+                      disappears at 7mm. Leave empty to print the logo above.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
