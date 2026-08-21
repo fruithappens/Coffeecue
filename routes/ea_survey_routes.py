@@ -1123,9 +1123,25 @@ def _find_attendees_by_phone(db, phone):
     if not e164:
         return []
     cur = db.cursor()
-    cur.execute(f"SELECT {_ATT_COLS} FROM ea_attendees "
-                "WHERE mobile_e164 = %s OR mobile_alt_e164 = %s "
-                "ORDER BY internal_number LIMIT 10", (e164, e164))
+    # ea_attendees is shared across events - it holds whoever was synced
+    # last. With attendee lookup OFF, those rows belong to a different
+    # client and nobody here should be matched against them: Steve entered
+    # his own mobile on /my at CTN26 and was greeted by the name from
+    # another event's list, along with that record's saved "usual".
+    #
+    # 'local:' rows are this event's own guests, minted by /guest from a
+    # name and number the person just gave, so they stay searchable - that
+    # is what makes /my remember someone between visits when EA is not in
+    # use.
+    if attendee_lookup_enabled(db):
+        cur.execute(f"SELECT {_ATT_COLS} FROM ea_attendees "
+                    "WHERE mobile_e164 = %s OR mobile_alt_e164 = %s "
+                    "ORDER BY internal_number LIMIT 10", (e164, e164))
+    else:
+        cur.execute(f"SELECT {_ATT_COLS} FROM ea_attendees "
+                    "WHERE (mobile_e164 = %s OR mobile_alt_e164 = %s) "
+                    "AND ea_contact_id LIKE 'local:%%' "
+                    "ORDER BY internal_number LIMIT 10", (e164, e164))
     return [_row_to_attendee(r) for r in (cur.fetchall() or []) if r]
 
 
