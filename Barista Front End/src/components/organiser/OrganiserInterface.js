@@ -3,7 +3,8 @@ import {
   Coffee, Users, Clock, Calendar, Settings,
   LogOut, Bell, Sliders,
   FileText, Activity, Brain, Zap, LineChart,
-  Radio, Shield, Package, ArrowLeft, CheckCircle, Database, MessageSquare, Menu
+  Radio, Shield, Package, ArrowLeft, CheckCircle, Database, Menu,
+  HelpCircle
 } from 'lucide-react';
 // MessageSquare, TrendingUp, BarChart, Layers, UserPlus were imported
 // but unused — left in the original sprawl. Trimmed in batch G of the
@@ -38,6 +39,32 @@ import { useAppMode } from '../../context/AppContext';
 import useStations from '../../hooks/useStations';
 import brandingConfig from '../../config/brandingConfig';
 
+// Sections the sidebar can reach. Anything not in here falls through to
+// the "under development" placeholder below.
+const KNOWN_SECTIONS = [
+  'quickSetup', 'operations', 'stations', 'orders', 'eventLifecycle',
+  'schedule', 'insights', 'communication', 'users', 'settings', 'help',
+];
+
+// Sub-tab bar shared by the grouped sidebar sections (Operations,
+// Orders, Insights, Settings). Same visual language as the Stations
+// tabs so the two levels of navigation read consistently: the sidebar
+// picks the area of the job, these pick the screen within it.
+const SubTabs = ({ tabs, active, onChange }) => (
+  <div className="mb-6 bg-white p-2 rounded-lg shadow flex">
+    {tabs.map(({ id, label, Icon }) => (
+      <button
+        key={id}
+        className={`flex-1 py-2 px-4 rounded-md ${active === id ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+        onClick={() => onChange(id)}
+      >
+        <Icon size={16} className="inline-block mr-1" />
+        {label}
+      </button>
+    ))}
+  </div>
+);
+
 /**
  * Organiser Interface Component
  * Main interface for event organizers and admins
@@ -47,7 +74,14 @@ const OrganiserInterface = () => {
   const { stations, loading, refreshData } = useStations();
   
   // Navigation state
-  const [activeSection, setActiveSection] = useState('dashboard'); // Default to Live Ops Dashboard
+  // Sidebar area. Grouped sections own a sub-tab below (opsTab etc).
+  const [activeSection, setActiveSection] = useState('operations');
+  // Operations opens on Live rather than Readiness so the landing screen
+  // is unchanged from when these were two separate sidebar items.
+  const [opsTab, setOpsTab] = useState('dashboard');
+  const [ordersTab, setOrdersTab] = useState('all');
+  const [insightsTab, setInsightsTab] = useState('analytics');
+  const [settingsTab, setSettingsTab] = useState('system');
   const [showSetupWizard, setShowSetupWizard] = useState(false);
 
   // Account menu (the top-right avatar) + working log out. Both the avatar
@@ -121,6 +155,12 @@ const OrganiserInterface = () => {
         
         <nav className="flex-1 px-2 py-4 overflow-y-auto" onClick={() => setMobileNavOpen(false)}>
           <div className="space-y-1">
+            {/* Sidebar groups sections by the job being done, not by
+                screen. Sixteen items became eleven: Readiness + Live Ops
+                are one event-day area (Operations), Orders + Group Orders
+                one Orders area, Analytics + Queue + Forecast one Insights
+                area, Settings + Event Data one Settings area. Each group
+                renders a SubTabs bar; nothing was deleted, only reparented. */}
             {/* Quick Setup wizard — discoverable up top so a fresh
                 event configuration takes one click instead of 30. */}
             <button
@@ -135,81 +175,39 @@ const OrganiserInterface = () => {
               {sidebarOpen && <span>Quick Setup</span>}
             </button>
 
-            {/* Event Readiness — pairs with Quick Setup. Operator runs
-                this just before doors open to verify SMS + stations +
-                inventory + capabilities are all green. */}
+            {/* Operations — Readiness (pre-doors checks, test SMS, admin
+                alerts) and Live (the during-service command centre).
+                Same operator, same day, one click apart. */}
             <button
               className={`w-full flex items-center px-3 py-2 rounded-md ${
-                activeSection === 'readiness'
+                activeSection === 'operations'
                   ? 'bg-amber-100 text-amber-800'
                   : 'text-gray-700 hover:bg-gray-100'
               }`}
-              onClick={() => setActiveSection('readiness')}
-            >
-              <CheckCircle size={20} className="mr-3" />
-              {sidebarOpen && <span>Readiness</span>}
-            </button>
-
-            {/* Live Operations Dashboard */}
-            <button
-              className={`w-full flex items-center px-3 py-2 rounded-md ${
-                activeSection === 'dashboard'
-                  ? 'bg-amber-100 text-amber-800'
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
-              onClick={() => setActiveSection('dashboard')}
+              onClick={() => setActiveSection('operations')}
             >
               <Activity size={20} className="mr-3" />
-              {sidebarOpen && <span>Live Ops</span>}
+              {sidebarOpen && <span>Operations</span>}
             </button>
-            
+
             {/* Stations */}
             <button
               className={`w-full flex items-center px-3 py-2 rounded-md ${
-                activeSection === 'stations' 
-                  ? 'bg-amber-100 text-amber-800' 
+                activeSection === 'stations'
+                  ? 'bg-amber-100 text-amber-800'
                   : 'text-gray-700 hover:bg-gray-100'
               }`}
-              onClick={() => {
-                setActiveSection('stations');
-                setStationTab('settings');
-              }}
+              onClick={() => setActiveSection('stations')}
             >
               <Coffee size={20} className="mr-3" />
               {sidebarOpen && <span>Stations</span>}
             </button>
-            
-            {/* Queue Psychology */}
+
+            {/* Orders — all orders, plus group orders */}
             <button
               className={`w-full flex items-center px-3 py-2 rounded-md ${
-                activeSection === 'queuePsychology' 
-                  ? 'bg-amber-100 text-amber-800' 
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
-              onClick={() => setActiveSection('queuePsychology')}
-            >
-              <Brain size={20} className="mr-3" />
-              {sidebarOpen && <span>Queue AI</span>}
-            </button>
-            
-            {/* Event Lifecycle */}
-            <button
-              className={`w-full flex items-center px-3 py-2 rounded-md ${
-                activeSection === 'eventLifecycle' 
-                  ? 'bg-amber-100 text-amber-800' 
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
-              onClick={() => setActiveSection('eventLifecycle')}
-            >
-              <Zap size={20} className="mr-3" />
-              {sidebarOpen && <span>Event Phases</span>}
-            </button>
-            
-            {/* Orders */}
-            <button
-              className={`w-full flex items-center px-3 py-2 rounded-md ${
-                activeSection === 'orders' 
-                  ? 'bg-amber-100 text-amber-800' 
+                activeSection === 'orders'
+                  ? 'bg-amber-100 text-amber-800'
                   : 'text-gray-700 hover:bg-gray-100'
               }`}
               onClick={() => setActiveSection('orders')}
@@ -217,38 +215,29 @@ const OrganiserInterface = () => {
               <Clock size={20} className="mr-3" />
               {sidebarOpen && <span>Orders</span>}
             </button>
-            
-            {/* Group Orders */}
+
+            {/* Event Phases. NOTE: its phases (SETUP / PRE_EVENT /
+                MORNING_PEAK ...) are hardcoded in EventLifecycleManagement
+                and do NOT read the sessions entered in Schedule, so it
+                describes a generic event day rather than this one. Left as
+                its own item until it is driven by real sessions. */}
             <button
               className={`w-full flex items-center px-3 py-2 rounded-md ${
-                activeSection === 'groupOrders' 
-                  ? 'bg-amber-100 text-amber-800' 
+                activeSection === 'eventLifecycle'
+                  ? 'bg-amber-100 text-amber-800'
                   : 'text-gray-700 hover:bg-gray-100'
               }`}
-              onClick={() => setActiveSection('groupOrders')}
+              onClick={() => setActiveSection('eventLifecycle')}
             >
-              <FileText size={20} className="mr-3" />
-              {sidebarOpen && <span>Group Orders</span>}
+              <Zap size={20} className="mr-3" />
+              {sidebarOpen && <span>Event Phases</span>}
             </button>
-            
-            {/* Users */}
+
+            {/* Schedule — the real, server-backed session agenda */}
             <button
               className={`w-full flex items-center px-3 py-2 rounded-md ${
-                activeSection === 'users' 
-                  ? 'bg-amber-100 text-amber-800' 
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
-              onClick={() => setActiveSection('users')}
-            >
-              <Users size={20} className="mr-3" />
-              {sidebarOpen && <span>Users</span>}
-            </button>
-            
-            {/* Schedule */}
-            <button
-              className={`w-full flex items-center px-3 py-2 rounded-md ${
-                activeSection === 'schedule' 
-                  ? 'bg-amber-100 text-amber-800' 
+                activeSection === 'schedule'
+                  ? 'bg-amber-100 text-amber-800'
                   : 'text-gray-700 hover:bg-gray-100'
               }`}
               onClick={() => setActiveSection('schedule')}
@@ -256,25 +245,30 @@ const OrganiserInterface = () => {
               <Calendar size={20} className="mr-3" />
               {sidebarOpen && <span>Schedule</span>}
             </button>
-            
-            {/* Analytics Dashboard */}
+
+            {/* Insights — Analytics (real, historical), Queue and Forecast.
+                NOTE: all three are read-only. Analytics charts are sample
+                data (its own banner says so). Queue and Forecast do read live
+                orders, but their toggles — message tone, auto-adjust,
+                auto-order — persist nothing and nothing downstream reads
+                them. Real live figures are Operations -> Live. */}
             <button
               className={`w-full flex items-center px-3 py-2 rounded-md ${
-                activeSection === 'analytics' 
-                  ? 'bg-amber-100 text-amber-800' 
+                activeSection === 'insights'
+                  ? 'bg-amber-100 text-amber-800'
                   : 'text-gray-700 hover:bg-gray-100'
               }`}
-              onClick={() => setActiveSection('analytics')}
+              onClick={() => setActiveSection('insights')}
             >
-              <LineChart size={20} className="mr-3" />
-              {sidebarOpen && <span>Analytics</span>}
+              <Brain size={20} className="mr-3" />
+              {sidebarOpen && <span>Insights</span>}
             </button>
-            
+
             {/* Communication Hub */}
             <button
               className={`w-full flex items-center px-3 py-2 rounded-md ${
-                activeSection === 'communication' 
-                  ? 'bg-amber-100 text-amber-800' 
+                activeSection === 'communication'
+                  ? 'bg-amber-100 text-amber-800'
                   : 'text-gray-700 hover:bg-gray-100'
               }`}
               onClick={() => setActiveSection('communication')}
@@ -282,30 +276,25 @@ const OrganiserInterface = () => {
               <Radio size={20} className="mr-3" />
               {sidebarOpen && <span>Comms Hub</span>}
             </button>
-            
-            {/* Predictive Intelligence */}
+
+            {/* Users */}
             <button
               className={`w-full flex items-center px-3 py-2 rounded-md ${
-                activeSection === 'predictive' 
-                  ? 'bg-amber-100 text-amber-800' 
+                activeSection === 'users'
+                  ? 'bg-amber-100 text-amber-800'
                   : 'text-gray-700 hover:bg-gray-100'
               }`}
-              onClick={() => setActiveSection('predictive')}
+              onClick={() => setActiveSection('users')}
             >
-              <Shield size={20} className="mr-3" />
-              {sidebarOpen && <span>AI Predict</span>}
+              <Users size={20} className="mr-3" />
+              {sidebarOpen && <span>Users</span>}
             </button>
-            
-            {/* Messages — removed in batch G of the system audit. The
-                section just rendered "Message center functionality coming
-                soon." Use the Communications Hub or Support → Broadcast
-                for real inter-station / customer messaging. */}
 
-            {/* Settings */}
+            {/* Settings — system settings, plus Event Data export/wipe */}
             <button
               className={`w-full flex items-center px-3 py-2 rounded-md ${
-                activeSection === 'settings' 
-                  ? 'bg-amber-100 text-amber-800' 
+                activeSection === 'settings'
+                  ? 'bg-amber-100 text-amber-800'
                   : 'text-gray-700 hover:bg-gray-100'
               }`}
               onClick={() => setActiveSection('settings')}
@@ -314,33 +303,25 @@ const OrganiserInterface = () => {
               {sidebarOpen && <span>Settings</span>}
             </button>
 
-            {/* How SMS Works — read-only reference explaining the SMS bot
-                conversation flow, what's event-driven vs built-in, and
-                what it remembers. Helps organisers understand/explain it. */}
+            {/* Help — currently the SMS bot reference. A home for operator
+                documentation so the next explainer does not need a
+                sidebar item of its own. */}
             <button
               className={`w-full flex items-center px-3 py-2 rounded-md ${
-                activeSection === 'smsGuide'
+                activeSection === 'help'
                   ? 'bg-amber-100 text-amber-800'
                   : 'text-gray-700 hover:bg-gray-100'
               }`}
-              onClick={() => setActiveSection('smsGuide')}
+              onClick={() => setActiveSection('help')}
             >
-              <MessageSquare size={20} className="mr-3" />
-              {sidebarOpen && <span>How SMS Works</span>}
+              <HelpCircle size={20} className="mr-3" />
+              {sidebarOpen && <span>Help</span>}
             </button>
 
-            {/* Event Data — export / wipe / re-import (per-client lifecycle) */}
-            <button
-              className={`w-full flex items-center px-3 py-2 rounded-md ${
-                activeSection === 'eventData'
-                  ? 'bg-amber-100 text-amber-800'
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
-              onClick={() => setActiveSection('eventData')}
-            >
-              <Database size={20} className="mr-3" />
-              {sidebarOpen && <span>Event Data</span>}
-            </button>
+            {/* Messages — removed in batch G of the system audit. The
+                section just rendered "Message center functionality coming
+                soon." Use the Communications Hub or Support → Broadcast
+                for real inter-station / customer messaging. */}
           </div>
         </nav>
         
@@ -366,21 +347,19 @@ const OrganiserInterface = () => {
             </button>
             <h1 className="text-xl font-bold text-gray-800 truncate">
             {activeSection === 'quickSetup' && '⚡ Quick Setup'}
-            {activeSection === 'readiness' && '✅ Event Readiness'}
-            {activeSection === 'dashboard' && '🚀 Live Operations Command Center'}
+            {activeSection === 'operations' && (opsTab === 'readiness' ? '✅ Event Readiness' : '🚀 Live Operations Command Center')}
             {activeSection === 'stations' && 'Station Management'}
-            {activeSection === 'queuePsychology' && 'Queue Psychology & Customer Intelligence'}
+            {activeSection === 'orders' && (ordersTab === 'groups' ? 'Group Orders' : 'All Orders Overview')}
             {activeSection === 'eventLifecycle' && 'Event Lifecycle Management'}
-            {activeSection === 'analytics' && '📊 Real-Time Analytics Dashboard'}
-            {activeSection === 'communication' && '📡 Communication Hub'}
-            {activeSection === 'predictive' && '🤖 Predictive Intelligence & Resilience'}
-            {activeSection === 'orders' && 'All Orders Overview'}
-            {activeSection === 'users' && 'User Management'}
             {activeSection === 'schedule' && 'Event Schedule'}
-            {activeSection === 'messages' && 'Message Center'}
-            {activeSection === 'settings' && 'System Settings'}
-            {activeSection === 'smsGuide' && '📱 How the SMS Bot Works'}
-            {activeSection === 'eventData' && 'Event Data'}
+            {activeSection === 'insights' && (
+              insightsTab === 'queue' ? 'Queue Psychology & Customer Intelligence'
+              : insightsTab === 'forecast' ? '🤖 Predictive Intelligence & Resilience'
+              : '📊 Real-Time Analytics Dashboard')}
+            {activeSection === 'communication' && '📡 Communication Hub'}
+            {activeSection === 'users' && 'User Management'}
+            {activeSection === 'settings' && (settingsTab === 'eventData' ? 'Event Data' : 'System Settings')}
+            {activeSection === 'help' && '📱 How the SMS Bot Works'}
             </h1>
           </div>
 
@@ -444,18 +423,22 @@ const OrganiserInterface = () => {
             <SetupWizard onClose={() => setShowSetupWizard(false)} />
           )}
 
-          {activeSection === 'readiness' && (
-            <ReadinessTab />
-          )}
-
-          {/* Dashboard */}
-          {activeSection === 'dashboard' && (
-            <EnhancedLiveOperationsDashboard />
-          )}
-          
-          {/* Queue Psychology */}
-          {activeSection === 'queuePsychology' && (
-            <QueuePsychologyIntelligence />
+          {/* Operations — pre-doors readiness and the live command centre.
+              Sequential rather than duplicate: Readiness is what you run
+              before doors open, Live is what you watch during service. */}
+          {activeSection === 'operations' && (
+            <div>
+              <SubTabs
+                active={opsTab}
+                onChange={setOpsTab}
+                tabs={[
+                  { id: 'readiness', label: 'Readiness', Icon: CheckCircle },
+                  { id: 'dashboard', label: 'Live', Icon: Activity },
+                ]}
+              />
+              {opsTab === 'readiness' && <ReadinessTab />}
+              {opsTab === 'dashboard' && <EnhancedLiveOperationsDashboard />}
+            </div>
           )}
           
           {/* Event Lifecycle */}
@@ -616,39 +599,65 @@ const OrganiserInterface = () => {
             </div>
           )}
           
-          {/* Orders Overview Section */}
+          {/* Orders — individual orders and group orders, one area. */}
           {activeSection === 'orders' && (
-            <div className="bg-white rounded-lg shadow p-6">
-              <AllOrdersTab />
-            </div>
-          )}
-          
-          {/* Group Orders Section */}
-          {activeSection === 'groupOrders' && (
-            <div className="bg-white rounded-lg shadow">
-              <GroupOrdersTab 
-                onSubmitGroupOrders={(groupOrder) => {
-                  // Handle group order submission
-                  const result = OrderDataService.submitGroupOrder(groupOrder);
-                  return result;
-                }} 
+            <div>
+              <SubTabs
+                active={ordersTab}
+                onChange={setOrdersTab}
+                tabs={[
+                  { id: 'all', label: 'All Orders', Icon: Clock },
+                  { id: 'groups', label: 'Group Orders', Icon: FileText },
+                ]}
               />
+              {ordersTab === 'all' && (
+                <div className="bg-white rounded-lg shadow p-6">
+                  <AllOrdersTab />
+                </div>
+              )}
+              {ordersTab === 'groups' && (
+                <div className="bg-white rounded-lg shadow">
+                  <GroupOrdersTab
+                    onSubmitGroupOrders={(groupOrder) => {
+                      // Handle group order submission
+                      const result = OrderDataService.submitGroupOrder(groupOrder);
+                      return result;
+                    }}
+                  />
+                </div>
+              )}
             </div>
           )}
           
-          {/* Analytics Dashboard */}
-          {activeSection === 'analytics' && (
-            <AnalyticsDashboard />
+          {/* Insights — Analytics, Queue and Forecast.
+
+              NOTE for whoever picks this up: Analytics renders sample data,
+              not this event's numbers. Queue and Forecast do read live orders
+              via hooks, but persist NOTHING. Their controls —
+              message tone (Precise/Friendly/Gamified), Auto-adjust,
+              Auto-order — are component state only. No localStorage, no
+              settings write, and nothing downstream reads them. They are
+              read-only views with controls that look actionable. */}
+          {activeSection === 'insights' && (
+            <div>
+              <SubTabs
+                active={insightsTab}
+                onChange={setInsightsTab}
+                tabs={[
+                  { id: 'analytics', label: 'Analytics', Icon: LineChart },
+                  { id: 'queue', label: 'Queue', Icon: Brain },
+                  { id: 'forecast', label: 'Forecast', Icon: Shield },
+                ]}
+              />
+              {insightsTab === 'analytics' && <AnalyticsDashboard />}
+              {insightsTab === 'queue' && <QueuePsychologyIntelligence />}
+              {insightsTab === 'forecast' && <PredictiveIntelligence />}
+            </div>
           )}
           
           {/* Communication Hub */}
           {activeSection === 'communication' && (
             <EnhancedCommunicationHub />
-          )}
-          
-          {/* Predictive Intelligence */}
-          {activeSection === 'predictive' && (
-            <PredictiveIntelligence />
           )}
           
           {/* User Management */}
@@ -658,19 +667,29 @@ const OrganiserInterface = () => {
             </div>
           )}
           
-          {/* Settings - Branding */}
+          {/* Settings — system settings, plus the per-client Event Data
+              lifecycle (export / wipe / re-import). Both are "configure the
+              installation" rather than "run the event". */}
           {activeSection === 'settings' && (
-            <EventSettings />
+            <div>
+              <SubTabs
+                active={settingsTab}
+                onChange={setSettingsTab}
+                tabs={[
+                  { id: 'system', label: 'System Settings', Icon: Settings },
+                  { id: 'eventData', label: 'Event Data', Icon: Database },
+                ]}
+              />
+              {settingsTab === 'system' && <EventSettings />}
+              {settingsTab === 'eventData' && <EventDataManagement />}
+            </div>
           )}
 
-          {/* How SMS Works — read-only reference for organisers */}
-          {activeSection === 'smsGuide' && (
+          {/* Help — operator documentation. Currently the SMS bot flow
+              reference; add further explainers here rather than adding
+              sidebar items. */}
+          {activeSection === 'help' && (
             <SmsFlowReference />
-          )}
-
-          {/* Event Data — export / wipe / re-import */}
-          {activeSection === 'eventData' && (
-            <EventDataManagement />
           )}
           
           {/* Schedule Management */}
@@ -680,20 +699,15 @@ const OrganiserInterface = () => {
           
           {/* Messages section removed in batch G — see sidebar comment. */}
           
-          {/* Placeholder for other sections */}
-          {activeSection !== 'dashboard' && 
-           activeSection !== 'stations' && 
-           activeSection !== 'groupOrders' &&
-           activeSection !== 'queuePsychology' &&
-           activeSection !== 'eventLifecycle' &&
-           activeSection !== 'analytics' &&
-           activeSection !== 'communication' &&
-           activeSection !== 'predictive' &&
-           activeSection !== 'settings' &&
-           activeSection !== 'schedule' &&
-           activeSection !== 'orders' &&
-           activeSection !== 'users' &&
-           activeSection !== 'messages' && (
+          {/* Unknown section fallback.
+
+              This was a blacklist of 13 !== comparisons, and it had drifted:
+              'readiness', 'quickSetup', 'smsGuide' and 'eventData' were never
+              added to it, so "This section is under development." rendered
+              underneath four working screens. A whitelist cannot drift the
+              same way — a new section that forgets to register here shows the
+              placeholder instead of silently doubling up. */}
+          {!KNOWN_SECTIONS.includes(activeSection) && (
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-xl font-semibold mb-4">{activeSection.charAt(0).toUpperCase() + activeSection.slice(1)}</h2>
               <p className="text-gray-600">This section is under development.</p>
