@@ -27,6 +27,15 @@ const STATUS = {
   completed: { title: 'READY — come and get it', tone: 'bg-green-600' },
 };
 
+// Sentinel for "a drink that isn't on the list".
+const OTHER = '__other__';
+
+// The modifiers people actually ask for, as one-tap chips. They are
+// appended as plain words because the SMS parser already understands
+// them - "double shot" becomes strength, "extra hot" becomes temp - so
+// the same text works whether it arrives from here or from a text.
+const QUICK_NOTES = ['extra hot', 'double shot', 'half strength', 'decaf', 'no foam'];
+
 const SUGARS = [
   { name: 'No sugar', value: 'no sugar' },
   { name: '1 sugar', value: '1 sugar' },
@@ -274,11 +283,38 @@ const MyCoffeePage = () => {
   const composed = () => {
     const bits = [];
     if (pick.size) bits.push(pick.size);
-    if (pick.drink) bits.push(pick.drink);
+    // `other` lets someone name a drink the picker does not list - a
+    // ristretto, a piccolo, a long macchiato. The parser knows far more
+    // drinks than any menu shows, and anything it still cannot place
+    // reaches the barista as a note rather than being lost.
+    const drink = pick.drink === OTHER ? (pick.other || '').trim() : pick.drink;
+    if (drink) bits.push(drink);
     let out = bits.join(' ');
     if (pick.milk) out += ` with ${pick.milk}`;
     if (pick.sugar) out += `, ${pick.sugar}`;
-    return out.trim();
+    // Chips go INTO the drink text: the parser understands "extra hot" and
+    // "double shot" and turns them into structured temp/strength, which is
+    // what drives the barista card. Free text goes after a pipe instead,
+    // because the parser DISCARDS what it cannot place - "no foam" was
+    // simply lost, and "light on the chocolate" came back as skim milk.
+    const chips = (pick.chips || []);
+    if (chips.length) out += `, ${chips.join(', ')}`;
+    const note = (pick.notes || '').trim();
+    return (note ? `${out.trim()} | ${note}` : out.trim());
+  };
+
+  // What to show the person: the pipe is plumbing, not copy.
+  const composedLabel = () => composed().replace(' | ', ' — ');
+
+  // Opening the editor on an existing usual should show what was saved.
+  // Only the free-text half is restored: drink/size/milk/sugar and the
+  // chips are re-picked from the menu, which is the part that must match
+  // what the event actually offers today.
+  const startEditing = () => {
+    const saved = String(me?.usual || '');
+    const note = saved.includes('|') ? saved.split('|')[1].trim() : '';
+    setPick((prev) => ({ ...prev, notes: note }));
+    setEditing(true);
   };
 
   const orderUsual = async () => {
@@ -614,7 +650,9 @@ const MyCoffeePage = () => {
         {me.usual ? (
           <>
             <p className="text-gray-600 mb-1">Your usual</p>
-            <p className="text-2xl font-semibold mb-6">{me.usual}</p>
+            {/* The pipe separates drink from barista note in storage; it
+                is not something to show a customer. */}
+            <p className="text-2xl font-semibold mb-6">{String(me.usual).replace(' | ', ' — ')}</p>
             <button
               className="w-full py-5 rounded-2xl bg-blue-600 text-white text-xl font-bold shadow disabled:opacity-40"
               disabled={busy}
@@ -637,9 +675,18 @@ const MyCoffeePage = () => {
               <p className="text-gray-500 py-6 text-center">Loading the menu…</p>
             ) : (
               <>
-                <Choice label="Drink" options={(menu.coffee_types || [])}
+                <Choice label="Drink"
+                        options={[...(menu.coffee_types || []), { name: 'Something else', value: OTHER }]}
                         value={pick.drink}
                         onPick={(v) => setPick({ ...pick, drink: v })} />
+                {pick.drink === OTHER && (
+                  <input
+                    className="w-full border-2 rounded-xl px-4 py-3 text-lg mb-2"
+                    placeholder="e.g. ristretto, piccolo, long macchiato"
+                    value={pick.other || ''}
+                    onChange={(e) => setPick({ ...pick, other: e.target.value })}
+                  />
+                )}
                 {/* Milk is irrelevant to a long black or a tea, so only ask
                     once a drink that takes it has been chosen. */}
                 {needsMilk(pick.drink) && (
@@ -655,15 +702,46 @@ const MyCoffeePage = () => {
                   <Choice label="Sugar" options={SUGARS} value={pick.sugar}
                           onPick={(v) => setPick({ ...pick, sugar: v })} />
                 )}
+                {/* Anything else the barista should know. Chips for the
+                    common ones, free text for the rest. */}
+                <div className="mt-4">
+                  <p className="text-sm text-gray-600 mb-1">Anything else?</p>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {QUICK_NOTES.map((q) => {
+                      const cur = (pick.chips || []);
+                      const on = cur.includes(q);
+                      return (
+                        <button
+                          key={q}
+                          type="button"
+                          className={`px-3 py-1.5 rounded-full text-sm border ${on ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300'}`}
+                          onClick={() => setPick({
+                            ...pick,
+                            chips: on ? cur.filter(x => x !== q) : [...cur, q],
+                          })}
+                        >
+                          {q}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <input
+                    className="w-full border-2 rounded-xl px-4 py-3 text-base"
+                    placeholder="Anything else for the barista"
+                    value={pick.notes || ''}
+                    onChange={(e) => setPick({ ...pick, notes: e.target.value })}
+                  />
+                </div>
                 <p className="mt-4 mb-1 text-sm text-gray-600">Your usual will be</p>
                 <p className="text-lg font-semibold min-h-[1.75rem]">
-                  {composed() || <span className="text-gray-400">pick a drink…</span>}
+                  {composedLabel() || <span className="text-gray-400">pick a drink…</span>}
                 </p>
               </>
             )}
             <div className="flex gap-2 mt-4">
               <button className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-semibold disabled:opacity-40"
-                      disabled={busy || !pick.drink} onClick={saveUsual}>Save</button>
+                      disabled={busy || !pick.drink || (pick.drink === OTHER && !(pick.other || '').trim())}
+                      onClick={saveUsual}>Save</button>
               <button className="flex-1 py-3 rounded-xl bg-gray-200 font-semibold"
                       onClick={() => setEditing(false)}>Cancel</button>
             </div>
@@ -671,7 +749,7 @@ const MyCoffeePage = () => {
         ) : (
           <button
             className="w-full mt-3 py-3 rounded-xl bg-white border-2 border-blue-600 text-blue-600 font-semibold"
-            onClick={() => setEditing(true)}
+            onClick={startEditing}
           >
             {me.usual ? 'Change my usual' : 'Save my usual'}
           </button>
