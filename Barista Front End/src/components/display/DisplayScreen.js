@@ -43,11 +43,18 @@ const THEMES = {
 };
 
 // Font size scale — controls the giant order number cells.
+//
+// `name` sits between `num` and `body` on purpose. The name used to be
+// rendered at `body` size UNDER the number, which made it about a third
+// of the number's height — but a customer scanning this screen from
+// across a room is usually looking for their NAME, not a number they
+// may not have memorised. It now sits beside the number, large enough
+// to find at the same distance.
 const FONT_SCALE = {
-  small:        { num: 'text-6xl',  body: 'text-lg',  label: 'text-sm' },
-  medium:       { num: 'text-7xl',  body: 'text-xl',  label: 'text-base' },
-  large:        { num: 'text-8xl',  body: 'text-2xl', label: 'text-lg' },
-  'extra-large':{ num: 'text-9xl',  body: 'text-3xl', label: 'text-xl' },
+  small:        { num: 'text-6xl',  name: 'text-3xl', body: 'text-lg',  label: 'text-sm' },
+  medium:       { num: 'text-7xl',  name: 'text-4xl', body: 'text-xl',  label: 'text-base' },
+  large:        { num: 'text-8xl',  name: 'text-5xl', body: 'text-2xl', label: 'text-lg' },
+  'extra-large':{ num: 'text-9xl',  name: 'text-6xl', body: 'text-3xl', label: 'text-xl' },
 };
 
 // Pick the layout for the current viewport + setting combination.
@@ -104,17 +111,24 @@ const OrderCard = ({ order, variant, fonts, theme, showCustomerName, showDetails
                      ${isNew && variant === 'ready' ? 'animate-pulse-once' : ''}`}>
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          {/* GIANT order number */}
-          <div className={`${fonts.num} font-extrabold leading-none tracking-tight ${theme.text}`}>
-            #{order.order_number}
-          </div>
-          {showCustomerName && (
-            <div className={`${fonts.body} mt-3 ${theme.text} truncate`}>
-              {formatCustomerLine(order)}
+          {/* Order number and name share a row, baseline-aligned. The
+              number stays the anchor you can read across a room; the
+              name is now big enough to find from the same distance
+              instead of being a caption under it. flex-wrap so a long
+              name drops to its own line on a narrow screen rather than
+              squeezing the number. */}
+          <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1 min-w-0">
+            <div className={`${fonts.num} font-extrabold leading-none tracking-tight ${theme.text} flex-shrink-0`}>
+              #{order.order_number}
             </div>
-          )}
+            {showCustomerName && (
+              <div className={`${fonts.name} font-semibold leading-none ${theme.text} truncate min-w-0`}>
+                {formatCustomerLine(order)}
+              </div>
+            )}
+          </div>
           {showDetails && (
-            <div className={`${fonts.label} mt-1 ${theme.subtext}`}>
+            <div className={`${fonts.label} mt-3 ${theme.subtext}`}>
               {[order.size, order.milkType, order.coffeeType]
                 .filter(Boolean)
                 .join(' · ')}
