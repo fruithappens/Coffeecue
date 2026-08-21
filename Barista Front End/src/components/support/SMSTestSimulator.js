@@ -77,11 +77,19 @@ const SMSTestSimulator = () => {
       const stationsData = await StationsService.getStations();
       setStations(stationsData || []);
       
-      // Load menu items
-      const savedMenu = localStorage.getItem('event_menu');
-      if (savedMenu) {
-        const menu = JSON.parse(savedMenu);
-        setMenuItems(Object.values(menu).filter(item => item.enabled));
+      // Load menu items from the EVENT INVENTORY — the store that actually
+      // drives SMS, the kiosk and the barista. This used to read
+      // localStorage 'event_menu', written by the retired Menu Items tab and
+      // read by nothing on the server, so the simulator could offer drinks
+      // the real bot would refuse.
+      const invRaw = localStorage.getItem('event_inventory');
+      if (invRaw) {
+        const inv = JSON.parse(invRaw);
+        const drinks = [
+          ...(Array.isArray(inv.drinks) ? inv.drinks : []),
+          ...(Array.isArray(inv.coffee) ? inv.coffee : []),
+        ].filter(d => d && d.enabled && d.name);
+        setMenuItems(drinks.map(d => ({ id: d.id || d.name, name: d.name })));
       }
       
       // Load available milk types from inventory
