@@ -95,6 +95,13 @@ const MyCoffeePage = () => {
   // are never in the attendee list, so instead of turning them away we ask
   // for a name — the order only ever needed a name and a number anyway.
   const [guestAsk, setGuestAsk] = useState(false);
+  // The number the failed lookup actually used. NOT the same as `entry`:
+  // the guest prompt is also reached on arrival, from a number this device
+  // remembered, where the person has typed nothing. Registering then sent
+  // an empty phone and the server answered "that is not a valid mobile
+  // number" — about a field the person was never shown, while they were
+  // being asked for a NAME.
+  const [guestPhone, setGuestPhone] = useState('');
   const [guestName, setGuestName] = useState('');
   // The name on the cup. The phone identifies them; the name is theirs to
   // set — nicknames, aliases, or fetching one for a colleague.
@@ -139,6 +146,7 @@ const MyCoffeePage = () => {
         setError('');
       } else if (b?.guest_ok && byPhone) {
         // Not registered — but that is not the same as not welcome.
+        setGuestPhone(id);
         setGuestAsk(true);
         setChoices(null);
         setMe(null);
@@ -372,18 +380,28 @@ const MyCoffeePage = () => {
   const registerGuest = async () => {
     const name = guestName.trim();
     if (!name) return;
+    // Whichever number got us here: typed just now, or restored from this
+    // device on arrival.
+    const phoneForGuest = (guestPhone || entry || phone || '').trim();
+    if (!phoneForGuest) {
+      // Should not happen, but a name screen must never fail with a
+      // complaint about a number field it never showed.
+      setGuestAsk(false);
+      setError('Please enter your mobile number first.');
+      return;
+    }
     setBusy(true); setError('');
     try {
       const r = await fetch('/api/ea/guest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: entry, name }),
+        body: JSON.stringify({ phone: phoneForGuest, name }),
       });
       const b = await r.json();
       if (b?.choose) { setChoices(b.choose); setGuestAsk(false); return; }
       if (b?.success && b.cid) {
         localStorage.setItem(STORAGE_KEY, b.cid);
-        localStorage.setItem(PHONE_KEY, entry);
+        localStorage.setItem(PHONE_KEY, phoneForGuest);
         setGuestAsk(false);
         setGuestName('');
         setCid(b.cid);
@@ -438,7 +456,7 @@ const MyCoffeePage = () => {
           </button>
           <button
             className="w-full mt-3 py-2 text-blue-700 underline text-sm"
-            onClick={() => { setGuestAsk(false); setError(''); setEntry(''); }}
+            onClick={() => { setGuestAsk(false); setError(''); setEntry(''); setGuestPhone(''); }}
           >
             Try a different number
           </button>
