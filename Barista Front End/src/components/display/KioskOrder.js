@@ -91,7 +91,17 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose, onOrderPlaced
         const r = await fetch(`/api/ea/hello?cid=${encodeURIComponent(cid)}`);
         const b = await r.json();
         if (!cancelled && r.ok && b.success && b.first_name) {
-          setEaIdentity({ cid, firstName: b.first_name, hasPhone: !!b.has_phone });
+          setEaIdentity({
+            cid,
+            firstName: b.first_name,
+            hasPhone: !!b.has_phone,
+            // 'local:' means /api/ea/guest minted this a moment ago for
+            // someone who typed their own details — an exhibitor, AV crew,
+            // a speaker. They have no event registration and no number on
+            // file with the organiser, so the copy below must not claim
+            // either.
+            guest: String(cid).startsWith('local:'),
+          });
           setName(b.first_name);
         }
       } catch (e) { /* anonymous flow */ }
@@ -388,7 +398,8 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose, onOrderPlaced
             {eaIdentity && (
               <div className="flex items-center justify-center -mt-2 mb-2">
                 <span className="text-sm text-gray-500">
-                  Ordering as <strong>{eaIdentity.firstName}</strong> (from your event registration)
+                  Ordering as <strong>{eaIdentity.firstName}</strong>
+                  {eaIdentity.guest ? '' : ' (from your event registration)'}
                 </span>
                 <button
                   className="ml-2 text-sm text-blue-600 underline"
@@ -590,7 +601,11 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose, onOrderPlaced
               {phone.trim() ? (
                 <div className="mt-1 text-base text-gray-500">We'll text {phone.trim()} when it's ready.</div>
               ) : (eaIdentity && eaIdentity.hasPhone && (
-                <div className="mt-1 text-base text-gray-500">We'll text your registered number when it's ready.</div>
+                <div className="mt-1 text-base text-gray-500">
+                  {eaIdentity.guest
+                    ? "We'll text the number you gave us when it's ready."
+                    : "We'll text your registered number when it's ready."}
+                </div>
               ))}
             </div>
             {/* Impossible combination: say so BEFORE they tap, and
