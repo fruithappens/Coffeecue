@@ -163,7 +163,9 @@ const MyCoffeePage = () => {
         setError(byPhone
           ? (badgeLookup
               ? "We can't find that number. Try the number you registered with, or use your badge number."
-              : "We can't find that number. Try the number you registered with, or just order without one.")
+              // No attendee list is consulted at this event, so there is
+              // no "number you registered with" to appeal to.
+              : "We haven't seen that number here yet. Check it, or just order without one.")
           : badgeLookup
             ? "We don't recognise that badge number."
             // Badge lookup is off for this event, so never name a badge.
@@ -396,7 +398,9 @@ const MyCoffeePage = () => {
     }
   };
 
-  // ---- not in EventsAir: ask for a name and carry on ----------------------
+  // ---- no match: ask for a name and carry on ------------------------------
+  // Reached two ways, and the copy must not assume which: nobody was found
+  // on the attendee list, OR this event never consults one.
   if (guestAsk) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center p-6"
@@ -404,10 +408,16 @@ const MyCoffeePage = () => {
                     paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
         <div className="w-full max-w-sm text-center">
           <div className="text-5xl mb-3" aria-hidden>☕</div>
-          <h1 className="text-2xl font-bold mb-1">What's your name?</h1>
+          <h1 className="text-2xl font-bold mb-1">What&apos;s your first name?</h1>
           <p className="text-gray-600 mb-6">
-            That number isn't on the delegate list — no problem. Give us a
-            name for the cup and you're set.
+            {/* Only claim a list was checked when one actually was. With
+                attendee lookup off, nothing consults the delegate list by
+                design, so "that number isn't on the delegate list" states
+                a result we never went looking for - and reads as though
+                the person has been turned away by it. */}
+            {badgeLookup
+              ? "That number isn't on the delegate list — no problem. Give us a name for the cup and you're set."
+              : "Just a name for the cup and you're set."}
           </p>
           <input
             className="w-full border-2 rounded-xl px-4 py-4 text-2xl text-center"
