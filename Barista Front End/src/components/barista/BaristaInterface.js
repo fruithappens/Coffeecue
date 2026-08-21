@@ -7,7 +7,8 @@ import {
   Coffee, Package, Calendar, Check, Monitor, Settings,
   MessageCircle, Printer, Plus, Clock,
   Bell, XCircle, RefreshCw, Edit, ArrowLeft, ChevronDown,
-  Send, CheckCircle, Brain, Scale, Users, MoreHorizontal, Wrench, Shuffle
+  Send, CheckCircle, Brain, Scale, Users, MoreHorizontal, Wrench, Shuffle,
+  Truck
 } from 'lucide-react';
 
 // Import app mode context
@@ -280,6 +281,40 @@ const BaristaInterface = () => {
   const isManager = ['admin', 'staff', 'organizer', 'organiser', 'event_organizer'].includes(_currentRole);
   const MANAGER_ONLY_TABS = ['display', 'queue', 'balance', 'capabilities', 'staff', 'settings'];
 
+  // Desktop tab bar, grouped by the job being done. Twelve tabs in one
+  // row had become a wall of similar-looking words — Stock next to
+  // Inventory, Queue Rules next to Balance, Staff next to Schedule —
+  // where the difference between neighbours was not obvious from the
+  // label.
+  //
+  // activeTab still holds the LEAF id, so every `activeTab === 'stock'`
+  // content block below is untouched, and the mobile bottom bar (which
+  // sets leaf ids directly) keeps working as it is.
+  const BARISTA_GROUPS = [
+    { id: 'orders',    label: 'Orders',    Icon: Coffee, tab: 'orders' },
+    { id: 'completed', label: 'Completed', Icon: Check,  tab: 'completed' },
+    { id: 'stockGrp',  label: 'Stock',     Icon: Package, tabs: [
+        // Same subject, different scope: what this station has in front
+        // of it, versus every station plus forecasting.
+        { id: 'stock',     label: 'This Station', Icon: Package },
+        { id: 'inventory', label: 'All Stations', Icon: Truck },
+      ] },
+    { id: 'queueGrp',  label: 'Queue',     Icon: Brain, tabs: [
+        { id: 'queue',   label: 'Rules',   Icon: Brain },
+        { id: 'balance', label: 'Balance', Icon: Scale },
+      ] },
+    { id: 'teamGrp',   label: 'Team',      Icon: Users, tabs: [
+        { id: 'staff',    label: 'Staff',    Icon: Users },
+        { id: 'schedule', label: 'Schedule', Icon: Calendar },
+      ] },
+    { id: 'stationGrp', label: 'Station',  Icon: Settings, tabs: [
+        { id: 'capabilities', label: 'Capabilities', Icon: Settings },
+        { id: 'display',      label: 'Display',      Icon: Monitor },
+        { id: 'settings',     label: 'Settings',     Icon: Settings },
+      ] },
+    { id: 'tools',     label: 'Tools',     Icon: Wrench, tab: 'tools' },
+  ];
+
   // Wrapper function to persist active tab when it changes
   const setActiveTab = (tab) => {
     setActiveTabState(tab);
@@ -301,6 +336,11 @@ const BaristaInterface = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isManager, activeTab]);
   
+  // Remembers which leaf each group was last on, so leaving a group and
+  // coming back returns to the screen you were using rather than the
+  // first one.
+  const [groupSubTab, setGroupSubTab] = useState({});
+
   // State to track dismissed info panels
   const [dismissedPanels, setDismissedPanels] = useState(() => {
     // Try to load from localStorage
@@ -2272,103 +2312,75 @@ const BaristaInterface = () => {
         </div>
       </header>
 
-      {/* Navigation Tabs (desktop). On mobile these are replaced by the
-          fixed bottom tab bar below, so the 11 tabs never overflow. */}
-      <div className="bg-white border-b shadow-sm hidden md:flex">
-        <button 
-          className={`py-4 px-6 font-medium flex items-center ${activeTab === 'orders' ? 'border-b-2 border-amber-600 bg-white text-amber-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-          onClick={() => setActiveTab('orders')}
-        >
-          <Coffee size={18} className="mr-1" />
-          Orders
-        </button>
-        <button 
-          className={`py-4 px-6 font-medium flex items-center ${activeTab === 'stock' ? 'border-b-2 border-amber-600 bg-white text-amber-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-          onClick={() => setActiveTab('stock')}
-        >
-          <Package size={18} className="mr-1" />
-          Stock
-        </button>
-        <button
-          className={`py-4 px-6 font-medium flex items-center ${activeTab === 'completed' ? 'border-b-2 border-amber-600 bg-white text-amber-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-          onClick={() => setActiveTab('completed')}
-        >
-          <Check size={18} className="mr-1" />
-          Completed
-        </button>
-        {/* Barista Tools — available to every barista (not manager-gated): a
-            shot timer, drink recipes, dial-in helper, etc. All offline. */}
-        <button
-          className={`py-4 px-6 font-medium flex items-center ${activeTab === 'tools' ? 'border-b-2 border-amber-600 bg-white text-amber-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-          onClick={() => setActiveTab('tools')}
-        >
-          <Wrench size={18} className="mr-1" />
-          Tools
-        </button>
-        {/* Manager-only tabs (admin/staff/organiser). Hidden from a plain
-            barista — these are event-configuration concerns (and several
-            duplicate the Organiser interface). A barista sees just Orders /
-            Stock / Completed; Capabilities in particular drives SMS routing. */}
-        {isManager && (
-        <>
-        <button
-          className={`py-4 px-6 font-medium flex items-center ${activeTab === 'inventory' ? 'border-b-2 border-amber-600 bg-white text-amber-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-          onClick={() => setActiveTab('inventory')}
-        >
-          <Package size={18} className="mr-1" />
-          Inventory
-        </button>
-        <button
-          className={`py-4 px-6 font-medium flex items-center ${activeTab === 'schedule' ? 'border-b-2 border-amber-600 bg-white text-amber-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-          onClick={() => setActiveTab('schedule')}
-        >
-          <Calendar size={18} className="mr-1" />
-          Schedule
-        </button>
-        <button
-          className={`py-4 px-6 font-medium flex items-center ${activeTab === 'display' ? 'border-b-2 border-amber-600 bg-white text-amber-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-          onClick={() => setActiveTab('display')}
-        >
-          <Monitor size={18} className="mr-1" />
-          Display
-        </button>
-        <button
-          className={`py-4 px-6 font-medium flex items-center ${activeTab === 'queue' ? 'border-b-2 border-amber-600 bg-white text-amber-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-          onClick={() => setActiveTab('queue')}
-        >
-          <Brain size={18} className="mr-1" />
-          Queue Rules
-        </button>
-        <button
-          className={`py-4 px-6 font-medium flex items-center ${activeTab === 'balance' ? 'border-b-2 border-amber-600 bg-white text-amber-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-          onClick={() => setActiveTab('balance')}
-        >
-          <Scale size={18} className="mr-1" />
-          Balance
-        </button>
-        <button
-          className={`py-4 px-6 font-medium flex items-center ${activeTab === 'capabilities' ? 'border-b-2 border-amber-600 bg-white text-amber-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-          onClick={() => setActiveTab('capabilities')}
-        >
-          <Settings size={18} className="mr-1" />
-          Capabilities
-        </button>
-        <button
-          className={`py-4 px-6 font-medium flex items-center ${activeTab === 'staff' ? 'border-b-2 border-amber-600 bg-white text-amber-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-          onClick={() => setActiveTab('staff')}
-        >
-          <Users size={18} className="mr-1" />
-          Staff
-        </button>
-        <button
-          className={`py-4 px-6 font-medium flex items-center ${activeTab === 'settings' ? 'border-b-2 border-amber-600 bg-white text-amber-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-          onClick={() => setActiveTab('settings')}
-        >
-          <Settings size={18} className="mr-1" />
-          Settings
-        </button>
-        </>
-        )}
+      {/* Navigation Tabs (desktop), grouped. On mobile these are replaced
+          by the fixed bottom tab bar below.
+
+          Groups render only the leaves the current role may see, so a
+          plain barista's "Team" collapses to just Schedule (Staff is
+          manager-only) — and when a group has one visible leaf it is
+          drawn as a plain tab under that leaf's own name, rather than a
+          heading over a single-item sub-bar. */}
+      <div className="hidden md:block bg-white border-b shadow-sm">
+        <div className="flex">
+          {BARISTA_GROUPS.map((g) => {
+            const leaves = (g.tabs || [{ id: g.tab, label: g.label, Icon: g.Icon }])
+              .filter((t) => isManager || !MANAGER_ONLY_TABS.includes(t.id));
+            if (leaves.length === 0) return null;
+            const isActive = leaves.some((t) => t.id === activeTab);
+            // One visible leaf: show it under its own name.
+            const single = leaves.length === 1;
+            const label = single ? leaves[0].label : g.label;
+            const Icon = single ? leaves[0].Icon : g.Icon;
+            return (
+              <button
+                key={g.id}
+                className={`py-4 px-6 font-medium flex items-center ${isActive ? 'border-b-2 border-amber-600 bg-white text-amber-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                onClick={() => {
+                  if (isActive) return;
+                  // Return to the leaf last used in this group.
+                  const remembered = groupSubTab[g.id];
+                  const target = leaves.some((t) => t.id === remembered)
+                    ? remembered
+                    : leaves[0].id;
+                  setActiveTab(target);
+                }}
+              >
+                <Icon size={18} className="mr-1" />
+                {label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Sub-tabs for the active group. Only drawn when the group has
+            more than one leaf this role can see. */}
+        {(() => {
+          const g = BARISTA_GROUPS.find(
+            (grp) => (grp.tabs || []).some((t) => t.id === activeTab)
+          );
+          if (!g) return null;
+          const leaves = g.tabs.filter(
+            (t) => isManager || !MANAGER_ONLY_TABS.includes(t.id)
+          );
+          if (leaves.length < 2) return null;
+          return (
+            <div className="flex bg-white border-t border-gray-100 px-4">
+              {leaves.map(({ id, label, Icon }) => (
+                <button
+                  key={id}
+                  className={`py-2 px-4 text-sm font-medium flex items-center border-b-2 ${activeTab === id ? 'border-amber-500 text-amber-800' : 'border-transparent text-gray-500 hover:text-gray-800'}`}
+                  onClick={() => {
+                    setActiveTab(id);
+                    setGroupSubTab((prev) => ({ ...prev, [g.id]: id }));
+                  }}
+                >
+                  <Icon size={15} className="mr-1" />
+                  {label}
+                </button>
+              ))}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Mobile bottom tab bar — replaces the overflowing top tab row on
