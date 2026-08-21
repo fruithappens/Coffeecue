@@ -30,6 +30,7 @@ import EnhancedScheduleManagement from './EnhancedScheduleManagement';
 import QuickSetup from './QuickSetup';
 import SetupWizard from './SetupWizard';
 import ReadinessTab from './ReadinessTab';
+import SubTabs from '../shared/SubTabs';
 import SmsFlowReference from './SmsFlowReference';
 import InventoryIntegrationService from '../../services/InventoryIntegrationService';
 import StationsService from '../../services/StationsService';
@@ -45,25 +46,6 @@ const KNOWN_SECTIONS = [
   'quickSetup', 'operations', 'stations', 'orders', 'eventLifecycle',
   'schedule', 'insights', 'communication', 'users', 'settings', 'help',
 ];
-
-// Sub-tab bar shared by the grouped sidebar sections (Operations,
-// Orders, Insights, Settings). Same visual language as the Stations
-// tabs so the two levels of navigation read consistently: the sidebar
-// picks the area of the job, these pick the screen within it.
-const SubTabs = ({ tabs, active, onChange }) => (
-  <div className="mb-6 bg-white p-2 rounded-lg shadow flex">
-    {tabs.map(({ id, label, Icon }) => (
-      <button
-        key={id}
-        className={`flex-1 py-2 px-4 rounded-md ${active === id ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-        onClick={() => onChange(id)}
-      >
-        <Icon size={16} className="inline-block mr-1" />
-        {label}
-      </button>
-    ))}
-  </div>
-);
 
 /**
  * Organiser Interface Component
