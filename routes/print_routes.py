@@ -1036,7 +1036,8 @@ def put_label_settings():
             stored[key] = bool(body[key])
     if body.get('align') in ('left', 'center'):
         stored['align'] = body['align']
-    if body.get('label_scale_mode') in ('compact', 'grow'):
+    # 'lid' = the half-height sticker for a cup lid (58 x ~40mm).
+    if body.get('label_scale_mode') in ('compact', 'grow', 'lid'):
         stored['label_scale_mode'] = body['label_scale_mode']
     if body.get('banner_scale_mode') in ('compact', 'grow'):
         stored['banner_scale_mode'] = body['banner_scale_mode']

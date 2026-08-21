@@ -187,6 +187,14 @@ LABEL_GROW_MAX_HEIGHT = int(os.environ.get('LABEL_GROW_MAX_HEIGHT', '4800'))
 # because height is content-driven.
 LABEL_MAX_HEIGHT = int(os.environ.get('LABEL_MAX_HEIGHT', '640'))
 
+# LID mode: a half-height sticker for the top of a takeaway lid instead of
+# the side of the cup. 40mm at 203dpi = 320 dots, on the same 58mm stock.
+# It fits because the order number and name come down a long way — on a lid
+# the label is read from directly above, not picked out of a line-up of
+# cups on a bench. 30mm floor so a short order does not pad blank stock.
+LID_MAX_HEIGHT = int(os.environ.get('LID_MAX_HEIGHT', '320'))
+LID_MIN_HEIGHT = int(os.environ.get('LID_MIN_HEIGHT', '240'))
+
 
 def _wrap_to_width(draw, text, font, max_px):
     """Word-wrap `text` so no line exceeds max_px at `font`. Used by
@@ -326,21 +334,29 @@ def render_label(payload: dict, width_dots: int = None,
     # (the original behaviour); 'grow' keeps the text big and lets the
     # LABEL get longer — a long sentence eats more stock instead of
     # becoming unreadable.
-    grow = str((options or {}).get('label_scale_mode') or 'compact').lower() == 'grow'
-    canvas_h = LABEL_GROW_MAX_HEIGHT if grow else LABEL_MAX_HEIGHT
+    _mode = str((options or {}).get('label_scale_mode') or 'compact').lower()
+    grow = _mode == 'grow'
+    lid = _mode == 'lid'
+    canvas_h = (LABEL_GROW_MAX_HEIGHT if grow
+                else LID_MAX_HEIGHT if lid
+                else LABEL_MAX_HEIGHT)
 
     # Oversized canvas; crop to content at the end.
     img = Image.new('1', (W, canvas_h), 1)  # 1-bit, white
     draw = ImageDraw.Draw(img)
 
-    f_num = _load_font(120)
-    f_name = _load_font(52)
-    f_drink = _load_font(36)
-    f_mods = _load_font(30)
-    f_foot = _load_font(24)
+    if lid:
+        # Roughly half of each, so the same elements fit 40mm.
+        f_num, f_name = _load_font(64), _load_font(34)
+        f_drink, f_mods, f_foot = _load_font(26), _load_font(22), _load_font(18)
+        A_NUM, A_NAME, A_DRINK, A_DRINK1, A_MODS, A_FOOT = 68, 40, 30, 28, 26, 22
+    else:
+        f_num, f_name = _load_font(120), _load_font(52)
+        f_drink, f_mods, f_foot = _load_font(36), _load_font(30), _load_font(24)
+        A_NUM, A_NAME, A_DRINK, A_DRINK1, A_MODS, A_FOOT = 126, 60, 42, 40, 36, 32
 
     margin = 10
-    y = 8
+    y = 4 if lid else 8
 
     # Design controls: whole-label alignment + divider rules between
     # sections (Steve: "a bit more overall design control").
@@ -379,24 +395,26 @@ def render_label(payload: dict, width_dots: int = None,
 
     # 0a. Logo (branding, dithered to 1-bit), always centred.
     if options.get('show_logo') and options.get('logo_data'):
-        logo = _decode_logo_to_1bit(options['logo_data'], W - 2 * margin)
+        logo = _decode_logo_to_1bit(options['logo_data'], W - 2 * margin,
+                                    max_height=56 if lid else 120)
         if logo is not None:
             img.paste(logo, ((W - logo.width) // 2, y))
-            y += logo.height + 8
+            y += logo.height + (4 if lid else 8)
             rule('rule_below_logo')
 
     # 0b. Event name header.
     if options.get('show_event_name') and (options.get('event_name') or '').strip():
+        _f_ev = _load_font(20 if lid else 28)
         put(_fit_to_width(draw, str(options['event_name']).strip(),
-                          _load_font(28), W - 2 * margin), _load_font(28), 36)
+                          _f_ev, W - 2 * margin), _f_ev, 24 if lid else 36)
 
     # 1. Order number — the arm's-length element.
-    put(f"#{order_number}", f_num, 126)
+    put(f"#{order_number}", f_num, A_NUM)
     rule('rule_below_number')
 
     # 2. Customer name (toggleable — some events run number-only cups).
     if options.get('show_name', True):
-        put(name, f_name, 60)
+        put(name, f_name, A_NAME)
 
     # 3. Drink line. GROW mode wraps every word onto as many lines as it
     # needs (label gets longer); compact keeps the original two-line cap.
@@ -407,19 +425,19 @@ def render_label(payload: dict, width_dots: int = None,
         # Compact still caps at two lines, but both are measured, not
         # counted — see _fit_to_width for what counting cost us.
         d_lines = _wrap_to_width(draw, drink_line, f_drink, W - 2 * margin)
-        put(d_lines[0], f_drink, 40 if len(d_lines) > 1 else 42)
+        put(d_lines[0], f_drink, A_DRINK1 if len(d_lines) > 1 else A_DRINK)
         if len(d_lines) > 1:
             put(_fit_to_width(draw, ' '.join(d_lines[1:]), f_drink, W - 2 * margin),
-                f_drink, 42)
+                f_drink, A_DRINK)
 
     # 4. Modifiers.
     if modifiers:
         mods_text = ', '.join(modifiers)
         if grow:
             for ln in _wrap_to_width(draw, mods_text, f_mods, W - 2 * margin):
-                put(ln, f_mods, 36)
+                put(ln, f_mods, A_MODS)
         else:
-            put(_fit_to_width(draw, mods_text, f_mods, W - 2 * margin), f_mods, 36)
+            put(_fit_to_width(draw, mods_text, f_mods, W - 2 * margin), f_mods, A_MODS)
     rule('rule_below_drink')
 
     # 5. Station + time. The rule above it used to be hardcoded —
@@ -429,7 +447,7 @@ def render_label(payload: dict, width_dots: int = None,
         rule('rule_above_station', default=True)
         y += 2
         foot = ' · '.join([p for p in (station, hhmm) if p]) or hhmm
-        put(foot[:40], f_foot, 32)
+        put(foot[:40], f_foot, A_FOOT)
 
     # 6. Ordering instructions + branding footer — both optional,
     # centred, small. instructions_text is the "how to order again"
@@ -439,7 +457,10 @@ def render_label(payload: dict, width_dots: int = None,
     # live render clipped 'or the event app' off the right edge.
     # Optional dividers: one above the whole block, one between the
     # instructions and sponsor/footer lines.
-    footer_lines = [ln for ln in
+    # No room for the ordering/branding footer on a 40mm lid, and the height
+    # cap would slice it mid-word — which reads as a printer fault rather
+    # than a design choice. Drop it deliberately instead.
+    footer_lines = [] if lid else [ln for ln in
                     (str(options.get('instructions_text') or '').strip(),
                      str(options.get('footer_text') or '').strip()) if ln]
     if footer_lines:
@@ -489,10 +510,13 @@ def render_label(payload: dict, width_dots: int = None,
     # long label wasted only 4.5mm. Settable so it can be tuned against a
     # real cutter rather than guessed: too short risks the cut landing
     # awkwardly, too long wastes media on every single cup.
+    # The cup label's 380-dot floor is taller than an entire lid label, so
+    # lid mode carries its own 30mm floor / 40mm ceiling.
+    _floor_default = LID_MIN_HEIGHT if lid else LABEL_MIN_HEIGHT
     try:
-        floor = int(options.get('min_height_dots') or LABEL_MIN_HEIGHT)
+        floor = int(options.get('min_height_dots') or _floor_default)
     except (TypeError, ValueError):
-        floor = LABEL_MIN_HEIGHT
+        floor = _floor_default
     floor = max(120, min(floor, canvas_h))   # never below ~15mm
     height = max(floor, min(canvas_h, y))
     img = img.crop((0, 0, W, height))

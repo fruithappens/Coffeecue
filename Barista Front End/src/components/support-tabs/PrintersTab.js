@@ -140,7 +140,7 @@ const LabelDesignCard = ({ printers = [], onPrinted }) => {
             </select>
           </label>
           <label className="flex items-center space-x-2 text-sm py-1">
-            <span>Long text</span>
+            <span>Label size</span>
             <select
               className="border rounded px-2 py-1"
               disabled={busy || !settings}
@@ -149,6 +149,7 @@ const LabelDesignCard = ({ printers = [], onPrinted }) => {
             >
               <option value="compact">Shrink text (short label)</option>
               <option value="grow">Keep text big (longer label)</option>
+              <option value="lid">Half height — for a cup lid (~40mm)</option>
             </select>
           </label>
           <label className="flex items-center space-x-2 text-sm py-1">
