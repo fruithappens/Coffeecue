@@ -409,7 +409,7 @@ const EnhancedStationCapabilities = () => {
                           </div>
                           <button
                             className="text-xs bg-gray-300 text-gray-600 px-2 py-1 rounded cursor-not-allowed"
-                            title="Reassignment from this panel isn't wired up. Use Barista → Queue AI to influence routing, or change a station's capabilities to redirect new orders."
+                            title="Reassignment from this panel isn't wired up. Use Insights → Queue to influence routing, or change a station's capabilities to redirect new orders."
                             disabled
                           >
                             Assign
