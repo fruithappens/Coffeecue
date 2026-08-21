@@ -107,7 +107,10 @@ const MyCoffeePage = () => {
   const [menu, setMenu] = useState(null);
   const [pick, setPick] = useState({ drink: '', milk: '', size: '', sugar: '' });
 
-  const load = useCallback(async (id, { quiet, byPhone } = {}) => {
+  // `restored` marks a lookup the PERSON did not ask for: re-identifying
+  // from an id this device remembered. A failure there is not their
+  // mistake and must not be reported as one.
+  const load = useCallback(async (id, { quiet, byPhone, restored } = {}) => {
     if (!id) return;
     if (!quiet) setBusy(true);
     try {
@@ -140,12 +143,31 @@ const MyCoffeePage = () => {
         setChoices(null);
         setMe(null);
         setError('');
+      } else if (restored) {
+        // A remembered id that no longer resolves - a different event now
+        // holds the attendee list, or badge lookup has since been turned
+        // off. Drop it and show the normal sign-in, with no error: the
+        // person has just arrived and typed nothing.
+        //
+        // This is what produced "we don't recognise that badge number" for
+        // someone who had entered a MOBILE. The message was picked by
+        // `byPhone`, and a restored id is not a phone lookup, so a silent
+        // background retry blamed a badge they never used.
+        try {
+          localStorage.removeItem(STORAGE_KEY);
+        } catch (_) { /* storage blocked - the state reset below still holds */ }
+        setCid('');
+        setMe(null);
+        setError('');
       } else if (!quiet) {
         setError(byPhone
           ? (badgeLookup
               ? "We can't find that number. Try the number you registered with, or use your badge number."
               : "We can't find that number. Try the number you registered with, or just order without one.")
-          : "We don't recognise that badge number.");
+          : badgeLookup
+            ? "We don't recognise that badge number."
+            // Badge lookup is off for this event, so never name a badge.
+            : "We can't find that. Try your mobile number, or just order without one.");
         setMe(null);
       }
     } catch (e) {
@@ -156,8 +178,8 @@ const MyCoffeePage = () => {
   }, []);
 
   useEffect(() => {
-    if (cid) load(cid);
-    else if (phone) load(phone, { byPhone: true });
+    if (cid) load(cid, { restored: true });
+    else if (phone) load(phone, { byPhone: true, restored: true });
     // Only on mount / after an identifier changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cid, load]);
