@@ -854,7 +854,13 @@ const QuickSetup = () => {
             body: JSON.stringify({ event_name: eventName }),
           });
         } catch (brandErr) {
+          // Same treatment as the branding save below: recorded and shown.
+          // This is the key the SMS welcome copy reads, so a silent
+          // failure here means texts keep naming the previous event.
           console.warn('Could not save event_name to /settings:', brandErr);
+          warnings.push(
+            `Event name not saved to SMS settings: ${brandErr?.message || brandErr}`
+          );
         }
         try {
           // Send ONLY the field this screen owns. The server merges under
