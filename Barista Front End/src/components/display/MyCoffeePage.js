@@ -392,8 +392,8 @@ const MyCoffeePage = () => {
           <h1 className="text-2xl font-bold mb-1">Your coffee</h1>
           <p className="text-gray-600 mb-6">
             {mode === 'phone'
-              ? "Enter your mobile — the one you registered with — and we'll remember you."
-              : "Enter the number on your name badge and we'll remember you."}
+              ? "Enter your mobile — the one you registered with. We'll remember your order and text you when it's ready."
+              : "Enter the number on your name badge. We'll remember your order and text you when it's ready."}
           </p>
           <input
             className="w-full border-2 rounded-xl px-4 py-4 text-2xl text-center"
