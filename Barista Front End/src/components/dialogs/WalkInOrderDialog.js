@@ -546,55 +546,60 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
             });
           }
           
-          // Check for non-coffee drinks in inventory (they might be in 'drinks', 'other' or other categories)
-          // We need to check all inventory items for drink-related items
-          const allCategories = ['coffee', 'milk', 'cups', 'sweeteners', 'drinks', 'other'];
-          allCategories.forEach(category => {
-            if (inventory[category]) {
-              inventory[category].forEach(item => {
-                // Check for drink-related items that might indicate available drinks
-                const itemNameLower = item.name.toLowerCase();
-                if (item.amount > 0 && (
-                  itemNameLower.includes('hot chocolate') ||
-                  itemNameLower.includes('chai') ||
-                  itemNameLower.includes('matcha') ||
-                  itemNameLower.includes('tea') ||
-                  itemNameLower.includes('latte powder') ||
-                  itemNameLower.includes('chocolate powder')
-                )) {
-                  console.log(`Found drink-related inventory item: ${item.name} (category: ${category})`);
-                  
-                  // Add corresponding drink types based on inventory
-                  if (itemNameLower.includes('hot chocolate') || itemNameLower.includes('chocolate powder')) {
-                    drinkTypes.add('Hot Chocolate');
+          // Station inventory config, from the SERVER first. localStorage is
+          // only a fallback: a barista iPad that has never opened the
+          // Organiser has no local copy, and without this the operator's
+          // "switch this drink off at this station" would apply on their
+          // laptop and nowhere else.
+          let stationItemConfig = null;
+          try {
+            const _tok = localStorage.getItem('coffee_system_token');
+            const _r = await fetch('/api/settings/station-inventory-configs',
+              { headers: _tok ? { Authorization: `Bearer ${_tok}` } : {} });
+            if (_r.ok) {
+              const _b = await _r.json();
+              const _all = _b.data || _b.configs || _b.station_inventory_configs || _b;
+              stationItemConfig = _all?.[targetStation.id] || _all?.[String(targetStation.id)] || null;
+            }
+          } catch (e) {
+            console.warn('Could not load station inventory config from server:', e);
+          }
+          if (!stationItemConfig) {
+            try {
+              const _raw = localStorage.getItem('station_inventory_configs');
+              if (_raw) {
+                const _p = JSON.parse(_raw);
+                stationItemConfig = _p?.[targetStation.id] || _p?.[String(targetStation.id)] || null;
+              }
+            } catch (e) { /* ignore — absent config just means no opinion */ }
+          }
+
+          // Event-level inventory. A drink switched off for the whole event
+          // must not appear at any station either — Green Tea was disabled
+          // event-wide and still showed up, for the same reason the station
+          // teas did: nothing downstream consulted the setting.
+          let eventItemsOff = new Set();
+          try {
+            const _tok = localStorage.getItem('coffee_system_token');
+            const _r = await fetch('/api/event-inventory',
+              { headers: _tok ? { Authorization: `Bearer ${_tok}` } : {} });
+            if (_r.ok) {
+              const _b = await _r.json();
+              const _inv = _b.data || _b.inventory || _b;
+              Object.values(_inv || {}).forEach(list => {
+                if (!Array.isArray(list)) return;
+                list.forEach(it => {
+                  if (it && it.enabled === false && it.name) {
+                    eventItemsOff.add(String(it.name).toLowerCase()
+                      .replace(/[^a-z0-9]+/g, ' ').trim());
                   }
-                  if (itemNameLower.includes('chai')) {
-                    drinkTypes.add('Chai Latte');
-                  }
-                  if (itemNameLower.includes('matcha')) {
-                    drinkTypes.add('Matcha Latte');
-                  }
-                  if (itemNameLower.includes('tea')) {
-                    // Parse tea types if specified
-                    if (itemNameLower.includes('english breakfast')) {
-                      drinkTypes.add('English Breakfast Tea');
-                    } else if (itemNameLower.includes('earl grey')) {
-                      drinkTypes.add('Earl Grey Tea');
-                    } else if (itemNameLower.includes('green')) {
-                      drinkTypes.add('Green Tea');
-                    } else if (itemNameLower.includes('peppermint')) {
-                      drinkTypes.add('Peppermint Tea');
-                    } else if (itemNameLower.includes('chamomile')) {
-                      drinkTypes.add('Chamomile Tea');
-                    } else {
-                      drinkTypes.add('Tea');
-                    }
-                  }
-                }
+                });
               });
             }
-          });
-          
+          } catch (e) {
+            console.warn('Could not load event inventory for enable check:', e);
+          }
+
           // Load the correct menu configuration
           const coffeeMenu = localStorage.getItem('coffeeMenu');
           const stationMenuAssignments = localStorage.getItem('stationMenuAssignments');
@@ -618,6 +623,123 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
               console.error('Error parsing station assignments:', e);
             }
           }
+          
+          // A drink the operator has TURNED OFF must never come back.
+          //
+          // The scan below infers drinks from inventory item NAMES, and it
+          // used to test `amount > 0` alone. So a tea sitting in stock was
+          // re-added to the same Set the menu checks had just filtered —
+          // deselect Earl Grey at a station and it reappeared anyway. That
+          // is what Steve hit: teas he had switched off still showing on
+          // walk-in orders.
+          //
+          // Two signals, checked in this order:
+          //   1. the stock row's own `enabled` flag. This lives in the
+          //      SERVER-side blob coffee_stock_station_<id>, so it is the
+          //      only one that also applies on the barista iPad.
+          //   2. the event/station menu config. localStorage-only, so it
+          //      only bites on the device that set it — still worth
+          //      honouring where present.
+          // Only an EXPLICIT off counts. Absent means "no opinion", not
+          // "disabled", so drinks that were never in the menu still appear.
+          // The station inventory config is the switch the operator actually
+          // uses ("Capabilities"), and unlike the menu blobs it IS stored
+          // server-side, so it is the only signal that also applies on the
+          // barista iPad. It is keyed by ITEM ID — 'qs-add-drinks-Earl-Grey-Tea'
+          // — while everything above matches on NAME ('earl grey tea'), which
+          // is why a tea switched off at every station still appeared: the two
+          // never met. Normalise both sides and compare.
+          const _configOff = (drinkName) => {
+            const want = String(drinkName || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+            if (!want || !stationItemConfig) return false;
+            for (const byCategory of Object.values(stationItemConfig)) {
+              if (!byCategory || typeof byCategory !== 'object') continue;
+              for (const [itemId, on] of Object.entries(byCategory)) {
+                if (on !== false) continue;          // only an EXPLICIT off counts
+                const norm = String(itemId)
+                  .replace(/^qs-add-[a-z]+-/i, '')   // drop the 'qs-add-drinks-' prefix
+                  .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+                if (norm && norm === want) return true;
+              }
+            }
+            return false;
+          };
+
+          const _menuOff = (drinkName) => {
+            const want = String(drinkName || '').toLowerCase().trim();
+            if (!want) return false;
+            for (const [drinkId, drink] of Object.entries(menuItems)) {
+              const nm = String(drink?.name || drinkId || '').toLowerCase().trim();
+              if (nm !== want) continue;
+              if (drink?.enabled === false) return true;
+              const perStation = stationAssignments?.[targetStation.id]?.[drinkId];
+              if (perStation && perStation.enabled === false) return true;
+            }
+            return false;
+          };
+          const _eventOff = (drinkName) => {
+            const want = String(drinkName || '').toLowerCase()
+              .replace(/[^a-z0-9]+/g, ' ').trim();
+            return !!want && eventItemsOff.has(want);
+          };
+          const _addDrink = (name, item) => {
+            if (item && item.enabled === false) return;   // switched off in station stock
+            if (_eventOff(name)) return;                   // switched off for the whole event
+            if (_configOff(name)) return;                  // switched off in Capabilities (server)
+            if (_menuOff(name)) return;                    // switched off in the menu
+            drinkTypes.add(name);
+          };
+
+          // Check for non-coffee drinks in inventory (they might be in 'drinks', 'other' or other categories)
+          // We need to check all inventory items for drink-related items
+          const allCategories = ['coffee', 'milk', 'cups', 'sweeteners', 'drinks', 'other'];
+          allCategories.forEach(category => {
+            if (inventory[category]) {
+              inventory[category].forEach(item => {
+                // Check for drink-related items that might indicate available drinks
+                const itemNameLower = item.name.toLowerCase();
+                if (item.amount > 0 && (
+                  itemNameLower.includes('hot chocolate') ||
+                  itemNameLower.includes('chai') ||
+                  itemNameLower.includes('matcha') ||
+                  itemNameLower.includes('tea') ||
+                  itemNameLower.includes('latte powder') ||
+                  itemNameLower.includes('chocolate powder')
+                )) {
+                  console.log(`Found drink-related inventory item: ${item.name} (category: ${category})`);
+                  
+                  // Add corresponding drink types based on inventory.
+                  // Via _addDrink so anything switched off — in this stock
+                  // row or in the menu — stays off.
+                  if (itemNameLower.includes('hot chocolate') || itemNameLower.includes('chocolate powder')) {
+                    _addDrink('Hot Chocolate', item);
+                  }
+                  if (itemNameLower.includes('chai')) {
+                    _addDrink('Chai Latte', item);
+                  }
+                  if (itemNameLower.includes('matcha')) {
+                    _addDrink('Matcha Latte', item);
+                  }
+                  if (itemNameLower.includes('tea')) {
+                    // Parse tea types if specified
+                    if (itemNameLower.includes('english breakfast')) {
+                      _addDrink('English Breakfast Tea', item);
+                    } else if (itemNameLower.includes('earl grey')) {
+                      _addDrink('Earl Grey Tea', item);
+                    } else if (itemNameLower.includes('green')) {
+                      _addDrink('Green Tea', item);
+                    } else if (itemNameLower.includes('peppermint')) {
+                      _addDrink('Peppermint Tea', item);
+                    } else if (itemNameLower.includes('chamomile')) {
+                      _addDrink('Chamomile Tea', item);
+                    } else {
+                      _addDrink('Tea', item);
+                    }
+                  }
+                }
+              });
+            }
+          });
           
           // Check drinks following the proper hierarchy:
           // 1. Event-level menu (must be enabled in menuItems)
@@ -686,13 +808,15 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
           // available coffee beans, not from a per-event drink menu.
           const hasCoffeeBeansForFallback =
             inventory.coffee && inventory.coffee.some(c => c.amount > 0);
+          // Still respects an EXPLICIT off. Turning Mocha off at a station
+          // used to be undone here for the same reason the teas came back.
           if (hasCoffeeBeansForFallback) {
             ['Espresso', 'Long Black', 'Flat White', 'Cappuccino', 'Latte', 'Mocha']
-              .forEach(d => drinkTypes.add(d));
+              .forEach(d => { if (!_menuOff(d) && !_configOff(d)) drinkTypes.add(d); });
           } else if (drinkTypes.size === 0) {
             console.warn('No drink types found in menu, inventory, or fallback — offering empty defaults');
             ['Espresso', 'Long Black', 'Flat White', 'Cappuccino', 'Latte', 'Mocha']
-              .forEach(d => drinkTypes.add(d));
+              .forEach(d => { if (!_menuOff(d) && !_configOff(d)) drinkTypes.add(d); });
           }
           
           // Convert Set to Array and sort
