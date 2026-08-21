@@ -536,6 +536,35 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
         // because the sweetener block sits after this try/catch closes.
         let stationItemConfig = null;
 
+        // Canonical cup sizes the EVENT allows, e.g. Set{'medium'}. Also out
+        // here because cup sizes are processed after that try/catch. null
+        // means "no event opinion" — then station stock decides, as before.
+        let eventSizesAllowed = null;
+
+        // Cup names differ by level: the event calls it 'Medium (12oz)',
+        // station stock calls it 'medium'. Reduce both to one of three
+        // canonical sizes so they can be compared. Mirrors
+        // _SIZE_NAME_NORMALIZATION in services/coffee_system.py — keep the
+        // two in step. 'extra large' is tested before the plain words so it
+        // cannot be read as 'large' by accident.
+        const canonSize = (raw) => {
+          const key = String(raw || '').toLowerCase()
+            .replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+          const tokens = new Set(key.split(' '));
+          const MAP = [
+            ['large',  ['extra large', 'large', 'lg', 'l', '16oz', '16 oz', 'xl']],
+            ['small',  ['small', 'sm', 's', '8oz', '8 oz']],
+            ['medium', ['medium', 'regular', 'med', 'reg', 'm', '12oz', '12 oz']],
+          ];
+          for (const [canon, variants] of MAP) {
+            for (const v of variants) {
+              if (v.includes(' ')) { if (key.includes(v)) return canon; }
+              else if (tokens.has(v)) return canon;
+            }
+          }
+          return null;
+        };
+
         // Process coffee and drink inventory - including non-coffee drinks
         try {
           console.log('Processing coffee and drink types from inventory and menu...');
@@ -593,9 +622,16 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
               Object.values(_inv || {}).forEach(list => {
                 if (!Array.isArray(list)) return;
                 list.forEach(it => {
-                  if (it && it.enabled === false && it.name) {
+                  if (!it || !it.name) return;
+                  if (it.enabled === false) {
                     eventItemsOff.add(String(it.name).toLowerCase()
                       .replace(/[^a-z0-9]+/g, ' ').trim());
+                  }
+                  // Cups drive the size list further down.
+                  const cs = canonSize(it.name);
+                  if (cs && String(it.category || '').toLowerCase() === 'cups') {
+                    if (eventSizesAllowed === null) eventSizesAllowed = new Set();
+                    if (it.enabled) eventSizesAllowed.add(cs);
                   }
                 });
               });
@@ -882,8 +918,25 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
         // Process cup sizes inventory directly from station inventory
         try {
           if (inventory && inventory.cups && Array.isArray(inventory.cups)) {
-            // Get cups with amount > 0 directly from inventory and use actual names
-            const availableCups = inventory.cups.filter(cup => cup.amount > 0);
+            // Cups the station physically has AND the event still allows.
+            //
+            // This used to filter on amount > 0 alone, so a size switched off
+            // in Inventory kept appearing on walk-in orders — station stock
+            // still had rows for it. Steve: only Medium ticked, Small still
+            // offered. Two extra gates now: the row's own `enabled` flag, and
+            // the event's cup list, compared by canonical size because the
+            // two levels name cups differently ('Small (8oz)' vs 'small').
+            //
+            // eventSizesAllowed === null means the event has no cup list at
+            // all, in which case station stock decides exactly as before —
+            // absent is never treated as "nothing allowed".
+            const availableCups = inventory.cups.filter(cup => {
+              if (!cup || !(cup.amount > 0)) return false;
+              if (cup.enabled === false) return false;
+              if (eventSizesAllowed === null) return true;
+              const cs = canonSize(cup.name);
+              return cs ? eventSizesAllowed.has(cs) : true;
+            });
             console.log('Available cups in inventory:', availableCups.map(c => c.name));
             
             // Use actual cup names from inventory instead of mapping to generic sizes
