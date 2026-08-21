@@ -8130,12 +8130,52 @@ def _kv_get(db, key, default=None):
         return raw if raw is not None else default
 
 
-def _kv_put(db, key, value):
+def _kv_put(db, key, value, merge=False):
+    """Write a settings blob.
+
+    Default is REPLACE, and that is deliberate: most callers here pass
+    complete state, where a key that has gone away must actually go away.
+    Merging `station_inventory_configs` would resurrect a station you just
+    deleted.
+
+    merge=True is for PARTIAL saves — a screen that owns three fields of a
+    twenty-field blob. Without it, saving "just the SMS number" onto
+    branding_settings takes the base64 logos with it, because they were
+    simply not in the payload.
+
+    Merge semantics: keys present in `value` always win, INCLUDING empty
+    ones. Only keys absent from `value` survive from what was stored. So
+    clearing a logo still works — send '' for it; don't omit it.
+
+    Only dict-on-dict merges. A list, a bool or a scalar replaces, because
+    there is no sensible merge of those and silently concatenating lists
+    would be worse than replacing them.
+
+    The read happens under SELECT ... FOR UPDATE so a concurrent save
+    cannot land between the read and the write. Callers used to do this
+    merge client-side with a GET then a PUT, which had exactly that gap.
+    """
     cur = db.cursor()
     try:
         db.rollback()
     except Exception:
         pass
+
+    if merge and isinstance(value, dict):
+        cur.execute("SELECT value FROM settings WHERE key = %s FOR UPDATE",
+                    (key,))
+        row = cur.fetchone()
+        if row:
+            raw = row['value'] if isinstance(row, dict) else row[0]
+            try:
+                existing = json.loads(raw)
+            except (TypeError, ValueError):
+                # Not JSON — some rows hold plain strings (sponsor_name and
+                # friends). Nothing to merge with; the new value stands.
+                existing = None
+            if isinstance(existing, dict):
+                value = {**existing, **value}
+
     payload = json.dumps(value)
     cur.execute("""
         INSERT INTO settings (key, value, updated_at)
@@ -8476,7 +8516,13 @@ def upsert_branding_settings():
         data = request.get_json() or {}
         # Frontend wraps as {settings: {...}}; tolerate either form.
         payload = data.get('settings') if isinstance(data.get('settings'), dict) else data
-        _kv_put(coffee_system.db, 'branding_settings', payload)
+        # merge=True: this endpoint is reached by screens that own only
+        # part of the blob. Quick Setup sends an event name; the Branding
+        # tab sends colours and base64 images. Replacing meant whichever
+        # saved last erased the other's work — the images being the
+        # expensive half. Clearing an image still works: the Branding tab
+        # sends the field as '' rather than dropping it.
+        _kv_put(coffee_system.db, 'branding_settings', payload, merge=True)
 
         # Sponsor lives in TWO places: the display reads it from this
         # branding blob (showSponsor/sponsorName/sponsorMessage), but the

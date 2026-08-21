@@ -808,6 +808,9 @@ const QuickSetup = () => {
     closePreview();
     setApplying(true);
     setResult(null);
+    // Things that failed but did not stop the setup. Shown to the operator
+    // rather than left in a console nobody has open.
+    const warnings = [];
     try {
       const resp = await api.request('/quick-setup', {
         method: 'POST',
@@ -854,22 +857,26 @@ const QuickSetup = () => {
           console.warn('Could not save event_name to /settings:', brandErr);
         }
         try {
-          // _kv_put REPLACES the blob, not merges. If we just sent
-          // {event_name}, it would wipe out logo/colours/taglines that
-          // the Branding tab manages. Read-merge-write keeps everything
-          // else intact.
-          const existing = await api.request('/settings/branding', { method: 'GET' });
-          const merged = {
-            ...((existing && existing.settings) || {}),
-            event_name: eventName,
-          };
+          // Send ONLY the field this screen owns. The server merges under
+          // a row lock, so the Branding tab's logo and colours survive.
+          // This used to be a client-side GET-then-PUT read-merge-write,
+          // which had a gap: a branding save landing between the two was
+          // silently overwritten.
           await api.request('/settings/branding', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ settings: merged }),
+            body: JSON.stringify({ settings: { event_name: eventName } }),
           });
         } catch (brandErr) {
+          // Recorded and shown, not just logged. NOT thrown: the main
+          // /quick-setup call above has already created stations and
+          // inventory, and account creation still has to run below —
+          // failing the whole apply over the event name would cost more
+          // than it saves.
           console.warn('Could not save event_name to /settings/branding:', brandErr);
+          warnings.push(
+            `Event name not saved: ${brandErr?.message || brandErr}`
+          );
         }
       }
 
@@ -967,6 +974,7 @@ const QuickSetup = () => {
         success: !!resp.success,
         summary: resp.summary || applied.join('; '),
         applied,
+        warnings,
         error: resp.error,
       });
       if (resp.success) {
@@ -1347,6 +1355,13 @@ const QuickSetup = () => {
             <div>
               <p className="font-semibold text-green-800">Applied successfully</p>
               <p className="text-sm text-green-700 mt-1">{result.summary}</p>
+              {/* Partial failures. The setup worked, but something in it
+                  did not — say so here rather than in the console. */}
+              {!!(result.warnings || []).length && (
+                <ul className="mt-2 text-sm text-amber-800 list-disc list-inside">
+                  {result.warnings.map((w, i) => <li key={i}>{w}</li>)}
+                </ul>
+              )}
             </div>
           </div>
         </div>
