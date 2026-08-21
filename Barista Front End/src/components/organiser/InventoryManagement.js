@@ -163,6 +163,7 @@ const InventoryManagement = () => {
   const [newItem, setNewItem] = useState({ name: '', description: '' });
   const [showAddForm, setShowAddForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [saveError, setSaveError] = useState('');
   
   // Reset newItem when category changes to include additional fields
   useEffect(() => {
@@ -258,21 +259,47 @@ const InventoryManagement = () => {
     saveInventory(defaultInventory);
   };
 
-  // Save inventory through the source-of-truth service. The service
-  // writes the backend AND mirrors to localStorage, so existing
-  // components that still read localStorage.event_inventory stay
-  // in sync. Backend errors surface as a console warning — local
-  // state still updates optimistically.
+  // Apply a change to the LATEST inventory, then persist exactly what we
+  // applied.
+  //
+  // Every handler used to build `{...inventory, ...}` from the value captured
+  // in its render and save that. Untick several items quickly and each save
+  // carried a snapshot WITHOUT the previous ticks — the last request to land
+  // won and silently reverted the others. Steve: "thought I had disabled all
+  // except medium... it's all turned off in setup", while the server still
+  // had them on. Only his final toggle had survived.
+  //
+  // Composing inside the updater means every change builds on the one before
+  // it, so a burst of toggles ends up with all of them.
+  const applyAndSave = (mutate) => {
+    setInventory((prev) => {
+      const next = mutate(prev);
+      saveInventory(next);
+      return next;
+    });
+  };
+
+  // Save through the source-of-truth service, which writes the backend AND
+  // mirrors to localStorage so components still reading
+  // localStorage.event_inventory stay in sync.
+  //
+  // A failure has to be VISIBLE. This used to log a console warning and
+  // leave the change on screen, so the operator saw items switched off
+  // while the server still had them on — and only found out when the menu
+  // offered a drink they thought they had removed.
   const saveInventory = (inventoryData) => {
     EventInventoryService.save(inventoryData)
       .then(() => {
+        setSaveError('');
         // Notify the integration service so per-station stock
         // configs re-sync with the new master list.
         InventoryIntegrationService.notifyInventoryUpdated();
       })
       .catch(e => {
         console.error('Error saving inventory to backend:', e);
-        // Local cache still wrote; the operator's edit isn't lost.
+        setSaveError('NOT saved to the server — this screen shows your change '
+          + 'but the menu, kiosk and SMS still have the old list. '
+          + 'Check your connection (or log out and back in) and try again.');
         InventoryIntegrationService.notifyInventoryUpdated();
       });
   };
@@ -300,13 +327,10 @@ const InventoryManagement = () => {
       });
     }
 
-    const updatedInventory = {
-      ...inventory,
-      [activeCategory]: [...(inventory[activeCategory] || []), item]
-    };
-
-    setInventory(updatedInventory);
-    saveInventory(updatedInventory);
+    applyAndSave((prev) => ({
+      ...prev,
+      [activeCategory]: [...(prev[activeCategory] || []), item]
+    }));
     
     // Reset form with proper fields
     const baseItem = { name: '', description: '' };
@@ -321,15 +345,12 @@ const InventoryManagement = () => {
 
   // Edit item
   const saveEdit = (itemId, updatedData) => {
-    const updatedInventory = {
-      ...inventory,
-      [activeCategory]: inventory[activeCategory].map(item =>
+    applyAndSave((prev) => ({
+      ...prev,
+      [activeCategory]: (prev[activeCategory] || []).map(item =>
         item.id === itemId ? { ...item, ...updatedData } : item
       )
-    };
-
-    setInventory(updatedInventory);
-    saveInventory(updatedInventory);
+    }));
     setEditingItem(null);
   };
 
@@ -337,26 +358,20 @@ const InventoryManagement = () => {
   const deleteItem = (itemId) => {
     if (!window.confirm('Are you sure you want to delete this item?')) return;
 
-    const updatedInventory = {
-      ...inventory,
-      [activeCategory]: inventory[activeCategory].filter(item => item.id !== itemId)
-    };
-
-    setInventory(updatedInventory);
-    saveInventory(updatedInventory);
+    applyAndSave((prev) => ({
+      ...prev,
+      [activeCategory]: (prev[activeCategory] || []).filter(item => item.id !== itemId)
+    }));
   };
 
   // Toggle item enabled/disabled
   const toggleItem = (itemId) => {
-    const updatedInventory = {
-      ...inventory,
-      [activeCategory]: inventory[activeCategory].map(item =>
+    applyAndSave((prev) => ({
+      ...prev,
+      [activeCategory]: (prev[activeCategory] || []).map(item =>
         item.id === itemId ? { ...item, enabled: !item.enabled } : item
       )
-    };
-
-    setInventory(updatedInventory);
-    saveInventory(updatedInventory);
+    }));
   };
 
   // Filter items based on search
@@ -385,6 +400,11 @@ const InventoryManagement = () => {
   return (
     <div className="bg-white rounded-lg shadow-lg p-6">
       <QuickSetupStatusBanner section="event_inventory" />
+      {saveError && (
+        <div className="mb-4 p-3 rounded-md bg-red-50 border border-red-300 text-red-800 text-sm">
+          {saveError}
+        </div>
+      )}
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-800">Inventory Management</h2>
         <button
