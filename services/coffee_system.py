@@ -3763,13 +3763,32 @@ class CoffeeOrderSystem:
         Medium was ticked but the SMS bot accepted "Large oat latte".
         """
         unlimited = self._is_unlimited_stock_mode()
+
+        # PREFER the Organiser's own list. The Inventory screen writes the
+        # settings KV 'event_inventory'; only Quick Setup ever wrote the
+        # inventory_items TABLE this function used to read. On a real event
+        # that table can be EMPTY while the operator has carefully ticked
+        # exactly one cup size — and an empty table fell through to
+        # ['small','medium','large'], so the menu offered sizes that had
+        # been switched off. Steve hit exactly that: only Medium ticked,
+        # Small still on offer. Same fix already applied to drinks in
+        # _get_available_extra_drinks; the table remains the fallback for
+        # legacy events with no KV blob.
+        kv_names = self._event_cup_names()
+        if kv_names is not None:
+            raw_names = kv_names
+        else:
+            raw_names = None
+
         try:
             try:
                 self.db.rollback()
             except Exception:
                 pass
             cursor = self.db.cursor()
-            if unlimited:
+            if raw_names is not None:
+                pass
+            elif unlimited:
                 cursor.execute("""
                     SELECT name FROM inventory_items
                     WHERE category = 'cups'
@@ -3780,7 +3799,8 @@ class CoffeeOrderSystem:
                     WHERE category = 'cups'
                       AND (amount IS NULL OR amount > COALESCE(minimum_threshold, 0))
                 """)
-            raw_names = [row[0] for row in cursor.fetchall()]
+            if raw_names is None:
+                raw_names = [row[0] for row in cursor.fetchall()]
         except Exception as e:
             logger.error(f"Error getting available sizes: {e}")
             return ['small', 'medium', 'large']
@@ -3792,13 +3812,35 @@ class CoffeeOrderSystem:
 
         # Normalize: map each operator-defined cup name back to one of
         # the three canonical sizes the NLP understands.
+        # Match on TOKENS, not the whole string. Operators name cups things
+        # like 'Medium (12oz)', 'Takeaway Cup Small', 'Extra Large (20oz)' —
+        # none of which equal a canonical name or appear in the variant lists,
+        # so exact matching returned nothing and the caller fell back to
+        # offering all three sizes. That is why ticking only Medium still
+        # left Small on the menu.
+        #
+        # 'extra large' is checked before the plain sizes so it cannot be
+        # read as 'large' first — they both map to large here, but the order
+        # keeps that true if the mapping ever changes.
         canonical = []
         for raw in raw_names:
-            key = (raw or '').strip().lower()
+            key = re.sub(r'[^a-z0-9 ]+', ' ', (raw or '').strip().lower())
+            key = re.sub(r'\s+', ' ', key).strip()
+            tokens = set(key.split())
             matched = None
             for canon, variants in self._SIZE_NAME_NORMALIZATION.items():
-                if key == canon or key in variants:
-                    matched = canon
+                for v in [canon] + list(variants):
+                    v_norm = re.sub(r'[^a-z0-9 ]+', ' ', v).strip()
+                    if not v_norm:
+                        continue
+                    if ' ' in v_norm:
+                        if v_norm in key:            # multi-word: 'extra large'
+                            matched = canon
+                            break
+                    elif v_norm in tokens:           # single word: whole token only,
+                        matched = canon              # so 'm' cannot match 'medium'
+                        break
+                if matched:
                     break
             if matched and matched not in canonical:
                 canonical.append(matched)
@@ -3811,6 +3853,35 @@ class CoffeeOrderSystem:
         # Only offer sizes at least one ACTIVE station can make — otherwise a
         # customer can pick a size (e.g. large) no barista can start.
         return self._filter_to_station_makeable(canonical, 'sizes')
+
+    def _event_cup_names(self):
+        """ENABLED cup names from the Organiser's event_inventory blob.
+
+        Returns None when there is no blob at all (legacy event — caller
+        falls back to the inventory_items table). Returns [] when the blob
+        exists but nothing is ticked, which is a real answer, not a
+        missing one.
+        """
+        try:
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            cur = self.db.cursor()
+            cur.execute("SELECT value FROM settings WHERE key = 'event_inventory'")
+            row = cur.fetchone()
+            raw = row[0] if row and row[0] else None
+            if not raw:
+                return None
+            data = json.loads(raw) if isinstance(raw, str) else raw
+            cups = (data or {}).get('cups')
+            if not isinstance(cups, list):
+                return None
+            return [str(c.get('name')) for c in cups
+                    if isinstance(c, dict) and c.get('enabled') and c.get('name')]
+        except Exception as e:
+            logger.warning(f"event cup list unavailable, using inventory table: {e}")
+            return None
 
     def _handle_awaiting_coffee_type(self, phone, message, state):
         """Handle coffee type input"""
