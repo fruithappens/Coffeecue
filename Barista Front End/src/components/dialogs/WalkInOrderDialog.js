@@ -960,12 +960,34 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
           setInventoryError('Failed to process cup sizes inventory: ' + error.message);
         }
         
-        // Load and apply station default selections if available
+        // Load and apply station default selections if available.
+        //
+        // From the SERVER first. StationDefaults.js has persisted these to
+        // /api/station-defaults for a while, but this screen only ever read
+        // the localStorage mirror — so defaults set in the Organiser
+        // pre-filled the form on that laptop and nowhere else, least of all
+        // the barista iPad that actually takes walk-ins. localStorage stays
+        // as the offline fallback.
         try {
-          const stationDefaults = localStorage.getItem('stationDefaults');
-          if (stationDefaults) {
-            const defaults = JSON.parse(stationDefaults);
-            const stationDefault = defaults[targetStation.id];
+          let defaults = null;
+          try {
+            const _tok = localStorage.getItem('coffee_system_token');
+            const _r = await fetch('/api/station-defaults',
+              { headers: _tok ? { Authorization: `Bearer ${_tok}` } : {} });
+            if (_r.ok) {
+              const _b = await _r.json();
+              defaults = _b?.data || _b?.defaults || _b || null;
+            }
+          } catch (e) {
+            console.warn('station-defaults unavailable, using local copy:', e);
+          }
+          if (!defaults || !Object.keys(defaults).length) {
+            const cached = localStorage.getItem('stationDefaults');
+            defaults = cached ? JSON.parse(cached) : null;
+          }
+          if (defaults) {
+            const stationDefault = defaults[targetStation.id]
+              || defaults[String(targetStation.id)];
             if (stationDefault) {
               console.log(`Loading and applying defaults for station ${targetStation.id}:`, stationDefault);
               
