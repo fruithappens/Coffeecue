@@ -531,6 +531,11 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
           setInventoryError('No milk inventory found for this station. Please check your station setup.');
         }
         
+        // Per-station item config, fetched ONCE from the server below and
+        // reused by the drink gate and the sweetener list. Declared out here
+        // because the sweetener block sits after this try/catch closes.
+        let stationItemConfig = null;
+
         // Process coffee and drink inventory - including non-coffee drinks
         try {
           console.log('Processing coffee and drink types from inventory and menu...');
@@ -551,7 +556,6 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
           // Organiser has no local copy, and without this the operator's
           // "switch this drink off at this station" would apply on their
           // laptop and nowhere else.
-          let stationItemConfig = null;
           try {
             const _tok = localStorage.getItem('coffee_system_token');
             const _r = await fetch('/api/settings/station-inventory-configs',
@@ -600,29 +604,23 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
             console.warn('Could not load event inventory for enable check:', e);
           }
 
-          // Load the correct menu configuration
-          const coffeeMenu = localStorage.getItem('coffeeMenu');
-          const stationMenuAssignments = localStorage.getItem('stationMenuAssignments');
-          let menuItems = {};
-          let stationAssignments = {};
-          
-          if (coffeeMenu) {
-            try {
-              menuItems = JSON.parse(coffeeMenu);
-              console.log('Loaded coffee menu configuration:', Object.keys(menuItems));
-            } catch (e) {
-              console.error('Error parsing coffee menu:', e);
-            }
-          }
-          
-          if (stationMenuAssignments) {
-            try {
-              stationAssignments = JSON.parse(stationMenuAssignments);
-              console.log('Loaded station menu assignments:', stationAssignments);
-            } catch (e) {
-              console.error('Error parsing station assignments:', e);
-            }
-          }
+          // RETIRED: localStorage 'coffeeMenu' and 'stationMenuAssignments'.
+          //
+          // Both were browser-only — the server never saw them, so they were
+          // populated on whichever laptop happened to open the Organiser and
+          // EMPTY everywhere else. The barista iPad has always run without
+          // them, which is exactly why a drink switched off on the laptop
+          // still appeared on the iPad. Worse than absent: when they were
+          // present they could contradict the server.
+          //
+          // Every gate below now comes from the server — the event inventory
+          // and the per-station config fetched above — so all devices agree.
+          // These stay as empty objects rather than being ripped out, because
+          // the menu-hierarchy loop below is the ONLY consumer and an empty
+          // menu simply contributes nothing; the standard coffees come from
+          // the bean-stock fallback and the extras from the inventory scan.
+          const menuItems = {};
+          const stationAssignments = {};
           
           // A drink the operator has TURNED OFF must never come back.
           //
@@ -940,18 +938,18 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
           console.log('Processing sweetener inventory...');
           const sweetenerTypes = ['None']; // Always include None option
           
-          // Load station inventory configuration to check what's actually enabled
-          const stationInventoryConfig = localStorage.getItem('stationInventoryConfig');
-          let stationConfig = {};
-          if (stationInventoryConfig) {
-            try {
-              const allStationConfigs = JSON.parse(stationInventoryConfig);
-              stationConfig = allStationConfigs[targetStation.id] || {};
-              console.log(`Station ${targetStation.id} inventory config:`, stationConfig);
-            } catch (e) {
-              console.error('Error parsing station inventory config:', e);
-            }
-          }
+          // Which sweeteners this station carries, from the SERVER config
+          // fetched above.
+          //
+          // This used to read localStorage 'stationInventoryConfig' — note the
+          // singular. That is a DIFFERENT store from the server-backed
+          // 'station_inventory_configs' (plural) that the Station Inventory
+          // screen writes; the singular one is browser-only and written by
+          // Quick Setup. So sweetener choices made in the Organiser applied on
+          // the laptop that made them and nowhere else — the barista iPad has
+          // its own empty localStorage. Same class of bug as the drinks gate
+          // right above; same fix.
+          const stationConfig = stationItemConfig || {};
           
           // Check both sweeteners category and other category for backward compatibility
           const sweetenerItems = [];
