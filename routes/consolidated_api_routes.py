@@ -4067,6 +4067,24 @@ def _kiosk_menu_data(coffee_system):
     except Exception as e:
         logger.warning(f"kiosk milk/event intersection failed (menu unchanged): {e}")
 
+    # SAME TREATMENT FOR SIZES. Milks above are intersected with the event's
+    # configured list; sizes were not, so they came purely from station
+    # capabilities and the operator's cup choices were ignored. With only
+    # Medium ticked in Inventory, the kiosk and the attendee app still
+    # offered Small — station capabilities said 'medium','small' and nothing
+    # checked that against the event. Empty or unavailable event list leaves
+    # the capability universe alone.
+    try:
+        event_sizes = [str(s).lower() for s in
+                       (coffee_system._get_available_sizes() or [])]
+        if event_sizes and universe['sizes']:
+            filtered = {k: v for k, v in universe['sizes'].items()
+                        if k in event_sizes}
+            if filtered:
+                universe['sizes'] = filtered
+    except Exception as e:
+        logger.warning(f"kiosk size/event intersection failed (menu unchanged): {e}")
+
     # Fold in event-enabled non-espresso drinks (tea, hot chocolate, chai,
     # matcha…). They aren't espresso-gated, so the capability-only universe
     # (espresso drinks) was hiding them. A station makes an extra unless some
