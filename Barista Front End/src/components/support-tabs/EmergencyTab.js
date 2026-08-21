@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
-// Icon list trimmed after batch F removed the dead buttons (Lock,
-// Unlock, Power, Trash2, Upload, etc) — keep only what's still used
-// in the JSX below so ESLint doesn't flag the leftovers.
+// Icon list trimmed after batch F removed the dead buttons (Power,
+// Trash2, Upload, etc) — keep only what's still used in the JSX below so
+// ESLint doesn't flag the leftovers. Lock/Unlock are back: their backend
+// endpoints now exist, so the button is real again.
 import {
   AlertTriangle,
   AlertCircle,
@@ -17,6 +18,8 @@ import {
   Download,
   StopCircle,
   PlayCircle,
+  Lock,
+  Unlock,
 } from 'lucide-react';
 import ApiServiceClass from '../../services/ApiService';
 
@@ -29,6 +32,27 @@ const EmergencyTab = () => {
   const [confirmations, setConfirmations] = useState({});
   const [actionLog, setActionLog] = useState([]);
   const [backupStatus, setBackupStatus] = useState(null);
+
+  // Read the real state on mount. Both switches live in the settings
+  // table, so a page refresh (or a second support laptop) used to show
+  // "Stop All Operations" while operations were already stopped — the
+  // buttons reflected React's initial state, not the system's.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await ApiService.get('/emergency/status');
+        if (cancelled || !r) return;
+        setEmergencyMode(!!r.emergency_mode);
+        setSystemLocked(!!r.ordering_locked);
+      } catch (e) {
+        // Non-fatal: the buttons still work, they just start from their
+        // default state. Never block the Emergency tab from rendering.
+        console.warn('Could not read emergency status:', e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const requireConfirmation = (action, callback) => {
     const confirmKey = `confirm_${Date.now()}`;
@@ -231,9 +255,27 @@ const EmergencyTab = () => {
               )}
             </Button>
 
-            {/* Lock System button hidden — /api/emergency/lock-system
-                doesn't exist on the backend. See the deferred section
-                below. */}
+            {/* Lock / Unlock — the softer switch. Stop All freezes the
+                queue as well; this only closes the door on NEW orders so
+                the baristas can work through what they already have. */}
+            <Button
+              variant="outline"
+              className="h-20"
+              onClick={systemLocked ? unlockSystem : lockSystem}
+              disabled={Object.keys(confirmations).length > 0}
+            >
+              {systemLocked ? (
+                <>
+                  <Unlock className="h-6 w-6 mr-2" />
+                  Start Taking Orders
+                </>
+              ) : (
+                <>
+                  <Lock className="h-6 w-6 mr-2" />
+                  Stop Taking New Orders
+                </>
+              )}
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -327,29 +369,44 @@ const EmergencyTab = () => {
         </Card>
       ))}
 
-      {/* Deferred controls — visible as informational text so support
-          staff know these features exist conceptually but aren't
-          wired to the backend yet. Re-enable each button as its
-          endpoint is implemented. */}
+      {/* What is NOT here, and where it lives instead.
+
+          The old version of this card listed five "backend pending"
+          controls. Three of them were never missing — Restore, Reset
+          Database and Purge all have working, safer equivalents in
+          Organiser -> Settings -> Event Data, which keeps stations,
+          inventory and users instead of flattening everything. Listing
+          them as pending sent support staff looking for a button that
+          did not need to exist. */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-gray-500">
             <AlertCircle className="h-5 w-5" />
-            Deferred controls (backend pending)
+            Not on this tab
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <ul className="text-sm text-gray-600 space-y-1 list-disc list-inside">
-            <li>Lock / Unlock System — needs /api/emergency/lock-system + unlock-system</li>
-            <li>Reset All Stations — needs /api/emergency/reset-stations</li>
-            <li>Purge Old Data — needs /api/emergency/purge-data</li>
-            <li>Reset Entire Database — needs /api/emergency/reset-database</li>
-            <li>Restore from Backup — needs /api/emergency/restore</li>
-          </ul>
-          <p className="text-xs text-gray-500 mt-2">
-            These were silently 404ing before — buttons removed so support
-            staff don't think they took action in a real emergency.
+          <p className="text-sm text-gray-600 mb-2">
+            These live elsewhere, and the versions there are safer:
           </p>
+          <ul className="text-sm text-gray-600 space-y-1 list-disc list-inside">
+            <li>
+              <strong>Restore from a backup</strong> — Organiser &rarr; Settings
+              &rarr; Event Data &rarr; Import
+            </li>
+            <li>
+              <strong>Reset the event / clear customer data</strong> — Organiser
+              &rarr; Settings &rarr; Event Data &rarr; Wipe. Keeps stations,
+              inventory and users; asks you to type WIPE first.
+            </li>
+          </ul>
+          <p className="text-sm text-gray-600 mt-3 mb-1">Still to build:</p>
+          <ul className="text-sm text-gray-600 space-y-1 list-disc list-inside">
+            <li>
+              <strong>Reset All Stations</strong> — a bulk version of taking
+              stations offline one at a time in Station Settings.
+            </li>
+          </ul>
         </CardContent>
       </Card>
 

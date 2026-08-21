@@ -4191,6 +4191,16 @@ def create_kiosk_order():
         if not coffee_system or not getattr(coffee_system, 'db', None):
             return jsonify({'success': False, 'message': 'System unavailable'}), 503
         db = coffee_system.db
+
+        # Intake gate — the kiosk is a customer-facing order path, so it
+        # closes when Stop All Operations or Lock System is active. Staff
+        # order creation (POST /api/orders, walk-ins) stays open.
+        from utils.order_intake import intake_blocked_reason
+        _blocked = intake_blocked_reason(db)
+        if _blocked:
+            return jsonify({'success': False, 'ordering_closed': True,
+                            'message': _blocked}), 503
+
         data = request.json or {}
 
         name = (data.get('name') or data.get('customer_name') or '').strip()
