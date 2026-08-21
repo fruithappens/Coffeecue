@@ -520,7 +520,28 @@ class SettingsService {
           return response.settings || updatedSettings;
         }
       } catch (apiError) {
+        // Saving locally and carrying on is deliberate — a barista mid
+        // service should not lose a setting because the wifi blinked.
+        // What was NOT deliberate: resolving as though it worked. Every
+        // caller got a fulfilled promise, so nobody could react, and the
+        // local copy updates either way — meaning there was nothing on
+        // screen to contradict "saved". Several of these keys drive the
+        // DISPLAY screen, which is a different device entirely.
+        //
+        // Raised as a window event rather than a thrown error so callers
+        // keep their local-first behaviour, and rather than an imported
+        // toast helper so this service does not depend on a component.
         console.warn('Failed to sync settings with backend, but saved locally:', apiError);
+        try {
+          window.dispatchEvent(new CustomEvent('app:toast', {
+            detail: {
+              message: 'Saved on this device only — other screens did not get '
+                       + 'the change. Check the connection and save again.',
+              type: 'error',
+              duration: 8000,
+            },
+          }));
+        } catch (_) { /* no window (tests/SSR) — the console line stands */ }
       }
       
       return updatedSettings;
