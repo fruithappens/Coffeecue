@@ -350,6 +350,117 @@ def emergency_resume():
             'message': str(e)
         }), 500
 
+@support_api_bp.route('/api/emergency/lock-system', methods=['POST'])
+@support_role_required
+def emergency_lock_system():
+    """Stop taking NEW orders. Everything already in the queue keeps going.
+
+    The softer sibling of Stop All Operations: baristas work through what
+    they have, but SMS, the kiosk and the attendee app all decline new
+    orders with a polite message. This is the everyday "last orders before
+    the keynote" switch, not the something-is-wrong one.
+    """
+    db = None
+    try:
+        from utils.database import get_db_connection
+        db = get_db_connection()
+        cursor = db.cursor()
+        cursor.execute("""
+            INSERT INTO settings (key, value) VALUES ('ordering_locked', 'true')
+            ON CONFLICT (key) DO UPDATE SET value = 'true'
+        """)
+        db.commit()
+        cursor.close()
+
+        logger.warning("Ordering locked — new customer orders are being declined")
+        return jsonify({
+            'status': 'success',
+            'locked': True,
+            'message': 'Ordering locked. New SMS, kiosk and app orders are '
+                       'declined; orders already in the queue continue as '
+                       'normal. Staff can still add walk-ins.'
+        })
+    except Exception as e:
+        # Same rollback discipline as the other emergency handlers: without
+        # it a failure here leaves the connection in an aborted transaction
+        # and the next query fails too.
+        logger.error(f"Lock system failed: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@support_api_bp.route('/api/emergency/unlock-system', methods=['POST'])
+@support_role_required
+def emergency_unlock_system():
+    """Start taking new orders again."""
+    db = None
+    try:
+        from utils.database import get_db_connection
+        db = get_db_connection()
+        cursor = db.cursor()
+        cursor.execute("""
+            INSERT INTO settings (key, value) VALUES ('ordering_locked', 'false')
+            ON CONFLICT (key) DO UPDATE SET value = 'false'
+        """)
+        db.commit()
+        cursor.close()
+
+        logger.info("Ordering unlocked — new customer orders accepted again")
+        return jsonify({
+            'status': 'success',
+            'locked': False,
+            'message': 'Ordering unlocked. New orders are being accepted again.'
+        })
+    except Exception as e:
+        logger.error(f"Unlock system failed: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@support_api_bp.route('/api/emergency/status', methods=['GET'])
+@support_role_required
+def emergency_status():
+    """Current state of both switches, so the UI opens showing the truth.
+
+    Without this the Emergency tab booted with its buttons in whatever
+    state React initialised them to, which after a page refresh mid-event
+    could show "Stop All Operations" while operations were already stopped.
+    """
+    db = None
+    try:
+        from utils.database import get_db_connection
+        db = get_db_connection()
+        cursor = db.cursor()
+        cursor.execute("""
+            SELECT key, value FROM settings
+            WHERE key IN ('emergency_mode', 'ordering_locked')
+        """)
+        flags = {}
+        for row in cursor.fetchall():
+            k = row['key'] if isinstance(row, dict) else row[0]
+            v = row['value'] if isinstance(row, dict) else row[1]
+            flags[k] = str(v).strip().lower() == 'true'
+        cursor.close()
+        return jsonify({
+            'status': 'success',
+            'emergency_mode': flags.get('emergency_mode', False),
+            'ordering_locked': flags.get('ordering_locked', False),
+        })
+    except Exception as e:
+        logger.error(f"Emergency status failed: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
 @support_api_bp.route('/api/emergency/clear-queues', methods=['POST'])
 @support_role_required
 def clear_all_queues():

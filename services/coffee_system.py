@@ -1078,6 +1078,17 @@ class CoffeeOrderSystem:
         """Insert an order with status='scheduled' that
         promote_due_scheduled_orders() flips to pending ETA_PREP_LEAD_MIN
         minutes before arrival. No stock moves until it's made."""
+        # Same gate as _confirm_order — a scheduled order is still a new
+        # order arriving, it just arrives with a delay.
+        from utils.order_intake import intake_blocked_reason
+        _blocked = intake_blocked_reason(self.db)
+        if _blocked:
+            logger.info(
+                "Scheduled SMS order from %s refused: intake gate is closed",
+                phone
+            )
+            return _blocked
+
         try:
             now = datetime.now()
             arrival = now + timedelta(minutes=minutes)
@@ -4848,6 +4859,18 @@ class CoffeeOrderSystem:
 
     def _confirm_order(self, phone, order_details, name, is_friend_order=False):
         """Confirm and process the order"""
+        # Intake gate. Checked HERE rather than at the top of handle_sms so
+        # that STATUS and CANCEL keep working while ordering is stopped —
+        # a customer who already has a drink in the queue still needs to be
+        # able to ask about it or cancel it.
+        from utils.order_intake import intake_blocked_reason
+        _blocked = intake_blocked_reason(self.db)
+        if _blocked:
+            logger.info(
+                "SMS order from %s refused: intake gate is closed", phone
+            )
+            return _blocked
+
         # Stash the computed price on the order_details blob so the
         # barista UI can show "what to charge" without having to
         # re-compute. No-op when pricing is disabled.
