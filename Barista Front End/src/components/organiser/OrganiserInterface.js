@@ -26,7 +26,6 @@ import EventStockManagement from './EventStockManagement';
 import StationSettings from './StationSettings';
 import StationInventoryConfig from './StationInventoryConfig';
 import EnhancedScheduleManagement from './EnhancedScheduleManagement';
-import StationDefaults from './StationDefaults';
 import QuickSetup from './QuickSetup';
 import SetupWizard from './SetupWizard';
 import ReadinessTab from './ReadinessTab';
@@ -480,7 +479,8 @@ const OrganiserInterface = () => {
                     Event Inventory  what this event offers
                     Event Stock      how much of it there is
                     Station Inventory which stations carry what
-                    Station Defaults  what the walk-in form pre-fills
+                  Walk-in defaults now live inside Station Settings, against
+                  the station you are already editing.
               */}
               <div className="mb-6 bg-white p-2 rounded-lg shadow flex">
                 <button
@@ -510,13 +510,6 @@ const OrganiserInterface = () => {
                 >
                   <Coffee size={16} className="inline-block mr-1" />
                   Station Inventory
-                </button>
-                <button
-                  className={`flex-1 py-2 px-4 rounded-md ${stationTab === 'defaults' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                  onClick={() => setStationTab('defaults')}
-                >
-                  <Sliders size={16} className="inline-block mr-1" />
-                  Station Defaults
                 </button>
               </div>
               
@@ -620,9 +613,6 @@ const OrganiserInterface = () => {
                 <StationInventoryConfig stations={stations} />
               )}
               
-              {stationTab === 'defaults' && (
-                <StationDefaults />
-              )}
             </div>
           )}
           

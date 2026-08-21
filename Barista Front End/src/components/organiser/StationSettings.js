@@ -3,6 +3,7 @@ import {
   Settings, Coffee, MapPin, Users, Save, Plus, Trash2, 
   Edit3, X, AlertCircle, CheckCircle
 } from 'lucide-react';
+import StationDefaults from './StationDefaults';
 
 /**
  * Simplified Station Settings Component
@@ -394,6 +395,13 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* Walk-in defaults for THIS station.
+                  Used to be its own tab with its own station picker, which
+                  meant choosing a station twice to configure one station. */}
+              <div className="mt-8 pt-6 border-t border-gray-200">
+                <StationDefaults stationId={selectedStation.id} />
               </div>
             </div>
           ) : (

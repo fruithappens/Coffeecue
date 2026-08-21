@@ -12,10 +12,19 @@ import ApiServiceClass from '../../services/ApiService';
 // settings table.
 const apiService = new ApiServiceClass();
 
-const StationDefaults = () => {
+// `stationId` embeds this inside Station Settings as a section of the
+// station you are already editing: one station selector on the page, not
+// two. Called with no prop it still stands alone with its own picker.
+const StationDefaults = ({ stationId = null }) => {
+  const embedded = stationId !== null && stationId !== undefined;
   const { stations } = useStations();
   const [stationDefaults, setStationDefaults] = useState({});
-  const [selectedStation, setSelectedStation] = useState(null);
+  const [selectedStation, setSelectedStation] = useState(stationId ?? null);
+
+  // Follow the station Station Settings is editing.
+  useEffect(() => {
+    if (embedded) setSelectedStation(stationId);
+  }, [embedded, stationId]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
@@ -269,11 +278,15 @@ const StationDefaults = () => {
   }
   
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className={embedded ? '' : 'p-6 max-w-4xl mx-auto'}>
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center">
           <Settings size={24} className="text-green-600 mr-2" />
-          <h2 className="text-2xl font-bold text-gray-800">Station Default Settings</h2>
+          {embedded ? (
+            <h4 className="text-lg font-medium text-gray-800">Walk-in defaults</h4>
+          ) : (
+            <h2 className="text-2xl font-bold text-gray-800">Station Default Settings</h2>
+          )}
         </div>
         <button
           onClick={saveDefaults}
@@ -295,6 +308,7 @@ const StationDefaults = () => {
         </div>
       )}
       
+      {!embedded && (
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
         <div className="flex items-start">
           <AlertTriangle size={20} className="text-blue-600 mr-2 mt-0.5" />
@@ -308,8 +322,11 @@ const StationDefaults = () => {
           </div>
         </div>
       </div>
-      
-      {/* Station Selection */}
+      )}
+
+      {/* Station Selection — hidden when embedded in Station Settings,
+          which already has a picker */}
+      {!embedded && (
       <div className="mb-6">
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Select Station to Configure
@@ -339,6 +356,8 @@ const StationDefaults = () => {
         </div>
       </div>
       
+      )}
+
       {/* Station Configuration */}
       {selectedStation && (
         <div className="bg-white rounded-lg shadow-md p-6">
