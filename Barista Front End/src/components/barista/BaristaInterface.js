@@ -735,8 +735,15 @@ const BaristaInterface = () => {
         }
       }
       if (Object.keys(changed).length > 0) {
+        // The backend-sync failure is reported by SettingsService itself
+        // (it swallows that error to stay local-first, and raises an
+        // app:toast instead). This catch is for the outer failure it does
+        // rethrow — localStorage full or blocked.
         SettingsService.updateSettings(changed)
-          .catch(err => console.warn('Could not sync display settings to backend:', err));
+          .catch(err => {
+            console.warn('Could not save display settings:', err);
+            showToast('Could not save that setting on this device.', 'error', 6000);
+          });
       }
     } catch (error) {
       console.error('Error saving settings to localStorage:', error);
