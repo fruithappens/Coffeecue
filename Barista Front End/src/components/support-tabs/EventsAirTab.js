@@ -150,6 +150,10 @@ const CredentialsCard = ({ onChanged }) => {
 
 const EventsAirTab = () => {
   const [status, setStatus] = useState(null);
+  // Separate from the EA credentials: creds persist between events, but
+  // whether the mirror holds THIS event's people only the operator knows.
+  const [badgeLookup, setBadgeLookup] = useState(null);
+  const [badgeBusy, setBadgeBusy] = useState(false);
   const [log, setLog] = useState([]);
   const [busy, setBusy] = useState(false);
 
@@ -173,6 +177,26 @@ const EventsAirTab = () => {
     const t = setInterval(refresh, 15000);
     return () => clearInterval(t);
   }, [refresh]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await api.get('/ea/attendee-lookup');
+        setBadgeLookup(!!r?.enabled);
+      } catch (e) { setBadgeLookup(false); }
+    })();
+  }, []);
+
+  const setBadge = async (val) => {
+    setBadgeBusy(true);
+    try {
+      await api.post('/ea/attendee-lookup', { enabled: val });
+      setBadgeLookup(val);
+    } catch (e) {
+      // Leave the switch where it was rather than showing a state the
+      // server did not accept.
+    } finally { setBadgeBusy(false); }
+  };
 
   const enabled = !!status?.channel_enabled;
   const today = status?.today || {};
@@ -216,6 +240,41 @@ const EventsAirTab = () => {
               {status?.mirror_count ?? 0} contacts
               {status?.mirror_synced_at ? ` (synced ${status.mirror_synced_at})` : ''}
             </Row>
+
+            {/* The mirror is ONE table shared across events — it holds
+                whoever was synced last. If this event does not use
+                EventsAir, those contacts belong to a different client, and
+                badge "101" will match one of them: their name on screen,
+                their phone attached to the order, their handset getting
+                the "coffee is ready" text. Hence a switch the operator
+                sets per event, defaulting to off. */}
+            <div className="mt-3 rounded border border-gray-200 p-3">
+              <label className="flex items-start gap-3 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={!!badgeLookup}
+                  disabled={badgeBusy || badgeLookup === null}
+                  onChange={(e) => setBadge(e.target.checked)}
+                />
+                <span>
+                  <span className="font-medium text-gray-800">
+                    Let attendees identify by badge number
+                  </span>
+                  <span className="block text-gray-600 mt-0.5">
+                    Only turn this on when the {status?.mirror_count ?? 0} contacts
+                    above are <strong>this event&apos;s</strong> attendees. While it
+                    is off, the ordering page asks for a mobile number instead and
+                    never mentions badges.
+                  </span>
+                  {badgeLookup && (status?.mirror_count ?? 0) === 0 && (
+                    <span className="block mt-1 text-amber-700">
+                      The mirror is empty — nobody will be found.
+                    </span>
+                  )}
+                </span>
+              </label>
+            </div>
             <Row label="Order write-back to EA">
               {status?.writeback_enabled
                 ? (status?.custom_field_created ? 'on (field created)' : 'on (field pending first order)')

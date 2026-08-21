@@ -56,6 +56,29 @@ def channel_enabled():
     return os.environ.get('EA_SURVEY_CHANNEL_ENABLED', 'false').lower() == 'true'
 
 
+def attendee_lookup_enabled(db):
+    """Is 'find me by badge number' offered to attendees for THIS event?
+
+    Defaults to FALSE, and that default matters. The ea_attendees mirror is
+    one table shared across events: it holds whoever was last synced. When
+    an operator runs an event WITHOUT EventsAir, the mirror still holds the
+    previous client's people, and badge "101" happily matched one of them —
+    a stranger's first name on screen, and that stranger's phone attached
+    server-side at order time, so the "your coffee is ready" SMS went to
+    someone who never ordered a coffee.
+
+    Off unless the operator has explicitly turned it on for the event they
+    are running now. Wrong-but-off costs a lookup nobody needed; wrong-but-
+    on texts a stranger.
+    """
+    try:
+        from routes.consolidated_api_routes import _kv_get
+        return bool((_kv_get(db, 'attendee_lookup_enabled', default=False)))
+    except Exception as e:
+        logger.warning(f"attendee_lookup_enabled read failed, defaulting off: {e}")
+        return False
+
+
 def _db():
     return current_app.config.get('coffee_system').db
 
@@ -761,6 +784,32 @@ def _wants_probe() -> bool:
     return str(request.args.get('probe', '')).lower() in ('1', 'true', 'yes')
 
 
+@bp.route('/attendee-lookup', methods=['GET', 'POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def ea_attendee_lookup_setting():
+    """Read/set whether attendees may identify themselves by badge number.
+
+    Deliberately a separate switch from the EventsAir credentials being
+    configured. Credentials persist between events; the question this
+    answers is "is the mirror currently loaded with THIS event's people",
+    which only the operator knows.
+    """
+    from routes.consolidated_api_routes import _kv_get, _kv_put
+    db = _db()
+    _ensure_tables(db)
+    if request.method == 'POST':
+        body = request.get_json(silent=True) or {}
+        val = bool(body.get('enabled'))
+        _kv_put(db, 'attendee_lookup_enabled', val)
+        logger.warning("Attendee badge lookup %s by operator",
+                       "ENABLED" if val else "disabled")
+        return jsonify({'success': True, 'enabled': val})
+    return jsonify({'success': True,
+                    'enabled': bool(_kv_get(db, 'attendee_lookup_enabled',
+                                            default=False))})
+
+
 @bp.route('/status', methods=['GET'])
 @jwt_required_with_demo()
 def ea_status():
@@ -1024,6 +1073,14 @@ def _find_attendee(db, cid=None, phone=None):
     """
     cur = db.cursor()
     cid = (cid or '').strip()
+    # The cid/badge branch is the one that can match the WRONG PERSON off a
+    # stale mirror, so it is gated here as well as at /hello — every caller
+    # (/me/name, /me/usual, /me/order) resolves identity through this
+    # helper, and a gate only on /hello would leave ?cid= working on all of
+    # them. The phone branch below is unaffected: a phone match is the
+    # person proving their own number, not a guess at someone else's badge.
+    if cid and not attendee_lookup_enabled(db):
+        cid = ''
     if cid:
         cur.execute(f"SELECT {_ATT_COLS} FROM ea_attendees WHERE ea_contact_id = %s",
                     (cid,))
@@ -1516,6 +1573,12 @@ def ea_hello():
     # number printed on their badge ("56"). Both name the same attendee and
     # both must work: ?cid= from the app link, and punch-in at the cart for
     # anyone whose phone is flat or who never opened the app.
+    # Gated on the operator switch, not on whether the mirror happens to
+    # hold a matching row — see attendee_lookup_enabled(). A stale mirror
+    # from a previous client matches plenty of badge numbers.
+    if not attendee_lookup_enabled(db):
+        return jsonify({'success': False, 'disabled': True,
+                        'message': 'attendee lookup is not enabled for this event'}), 404
     cur.execute("SELECT first_name, mobile_e164 FROM ea_attendees "
                 "WHERE ea_contact_id = %s", (cid,))
     row = cur.fetchone()

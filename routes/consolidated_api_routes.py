@@ -4173,7 +4173,20 @@ def get_display_menu():
         coffee_system = current_app.config.get('coffee_system')
         if not coffee_system or not getattr(coffee_system, 'db', None):
             return jsonify({'success': False, 'error': 'unavailable'}), 503
-        return jsonify({'success': True, 'menu': _kiosk_menu_data(coffee_system)})
+        # Feature flags ride along on the menu because /my already fetches
+        # it — the customer page needs to know which identification methods
+        # to OFFER, and a second request on a phone at an event is a cost
+        # for no benefit. Badge lookup defaults off; see
+        # attendee_lookup_enabled() for why that default is the safe one.
+        try:
+            from routes.ea_survey_routes import attendee_lookup_enabled
+            badge_ok = attendee_lookup_enabled(coffee_system.db)
+        except Exception as e:
+            logger.warning(f"display/menu: badge flag read failed: {e}")
+            badge_ok = False
+        return jsonify({'success': True,
+                        'menu': _kiosk_menu_data(coffee_system),
+                        'features': {'attendee_lookup': badge_ok}})
     except Exception as e:
         logger.error(f"display/menu error: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
