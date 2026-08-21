@@ -687,6 +687,18 @@ const BaristaInterface = () => {
 
   // Settings state (moved to a SettingsService in a full implementation)
   const [settings, setSettingsState] = useState(loadSettings());
+  // Mirrors `settings` synchronously. Two things need it:
+  //
+  //  1. Call sites that pass an updater function. setSettingsState would
+  //     handle those on its own, but the persistence below runs on the
+  //     value passed in — and spreading a FUNCTION yields no keys, so
+  //     those calls silently skipped both their localStorage write and
+  //     their backend sync.
+  //  2. Back-to-back calls in one tick. `settings` in a closure is the
+  //     value from the last render, so two quick edits both built on the
+  //     same snapshot and the second erased the first.
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
   
   // Wrapper function to persist settings when they change.
   //
@@ -698,7 +710,14 @@ const BaristaInterface = () => {
   // The legacy `coffee_cue_barista_settings` key is intentionally
   // NOT written to anymore; loadSettings() does a one-shot read of
   // it for migration purposes on first boot.
-  const setSettings = (newSettings) => {
+  const setSettings = (update) => {
+    // Accepts an object or an updater, and resolves the updater HERE so
+    // everything below sees a real object rather than a function.
+    const prev = settingsRef.current;
+    const newSettings = typeof update === 'function' ? update(prev) : update;
+    // Advance the ref immediately so a second call in the same tick
+    // builds on this change instead of on the last render's value.
+    settingsRef.current = newSettings;
     setSettingsState(newSettings);
     try {
       // Merge against any existing stored value so we don't clobber
@@ -756,7 +775,7 @@ const BaristaInterface = () => {
   const notificationHandler = OrderNotificationHandler({
     onSendMessage: (orderId, message) => handleSendMessage(orderId, message),
     onUpdateSettings: (newSettings) => {
-      setSettings({...settings, ...newSettings});
+      setSettings(prev => ({...prev, ...newSettings}));
     }
   });
 
@@ -1963,7 +1982,7 @@ const BaristaInterface = () => {
     
     const saveSettings = () => {
       // Update parent settings (this device's local state + localStorage)
-      setSettings({...settings, ...localSettings});
+      setSettings(prev => ({...prev, ...localSettings}));
 
       // Update MessageService settings
       MessageService.updateSettings(localSettings);
@@ -2124,11 +2143,11 @@ const BaristaInterface = () => {
                     }
                     
                     // Update settings with new station info
-                    setSettings({
-                      ...settings,
+                    setSettings(prev => ({
+                      ...prev,
                       stationName: customStationName, // Use custom name if available
                       baristaName: stationBaristaName
-                    });
+                    }));
                     
                     // Also initialize ChatService with the correct names
                     ChatService.initialize(
@@ -3187,7 +3206,7 @@ const BaristaInterface = () => {
                   <input 
                     type="text" 
                     value={settings.stationName}
-                    onChange={(e) => setSettings({...settings, stationName: e.target.value})}
+                    onChange={(e) => setSettings(prev => ({...prev, stationName: e.target.value}))}
                     className="w-full p-2 border rounded"
                   />
                 </div>
@@ -3199,7 +3218,7 @@ const BaristaInterface = () => {
                   <input 
                     type="text" 
                     value={settings.stationLocation}
-                    onChange={(e) => setSettings({...settings, stationLocation: e.target.value})}
+                    onChange={(e) => setSettings(prev => ({...prev, stationLocation: e.target.value}))}
                     className="w-full p-2 border rounded"
                     placeholder="e.g., Main Hall, Registration Area, etc."
                   />
@@ -3242,7 +3261,7 @@ const BaristaInterface = () => {
                     onChange={(e) => {
                       const newBaristaName = e.target.value;
                       // Update settings state
-                      setSettings({...settings, baristaName: newBaristaName});
+                      setSettings(prev => ({...prev, baristaName: newBaristaName}));
                       // Save to localStorage for persistence with station-specific key
                       try {
                         const numericStationId = typeof selectedStation === 'string' 
@@ -3267,7 +3286,7 @@ const BaristaInterface = () => {
                       checked={settings.soundEnabled}
                       onChange={(e) => {
                         const newSoundEnabled = e.target.checked;
-                        setSettings({...settings, soundEnabled: newSoundEnabled});
+                        setSettings(prev => ({...prev, soundEnabled: newSoundEnabled}));
                         
                         // Update localStorage and trigger event for sound system
                         localStorage.setItem('coffee_sound_enabled', newSoundEnabled ? 'true' : 'false');
@@ -3299,7 +3318,7 @@ const BaristaInterface = () => {
                           min="0"
                           max="100"
                           value={settings.soundVolume}
-                          onChange={(e) => setSettings({...settings, soundVolume: parseInt(e.target.value)})}
+                          onChange={(e) => setSettings(prev => ({...prev, soundVolume: parseInt(e.target.value)}))}
                           className="flex-1"
                         />
                         <span className="text-sm w-10">{settings.soundVolume}%</span>
@@ -3325,7 +3344,7 @@ const BaristaInterface = () => {
                     <input 
                       type="checkbox" 
                       checked={settings.autoPrintLabels}
-                      onChange={(e) => setSettings({...settings, autoPrintLabels: e.target.checked})}
+                      onChange={(e) => setSettings(prev => ({...prev, autoPrintLabels: e.target.checked}))}
                     />
                     <span>Auto-print labels</span>
                   </label>
@@ -3615,7 +3634,7 @@ const BaristaInterface = () => {
                   <input
                     type="text"
                     value={settings.stationName}
-                    onChange={(e) => setSettings({...settings, stationName: e.target.value})}
+                    onChange={(e) => setSettings(prev => ({...prev, stationName: e.target.value}))}
                     className="w-full p-2 border rounded"
                   />
                 </div>
@@ -3634,7 +3653,7 @@ const BaristaInterface = () => {
                     defaultValue={settings.displayCustomMessage || ''}
                     onBlur={(e) => {
                       if ((e.target.value || '') !== (settings.displayCustomMessage || '')) {
-                        setSettings({ ...settings, displayCustomMessage: e.target.value });
+                        setSettings(prev => ({ ...prev, displayCustomMessage: e.target.value }));
                         showToast('Custom message saved — shows in the Display footer', 'success');
                       }
                     }}
@@ -3653,7 +3672,7 @@ const BaristaInterface = () => {
                   </label>
                   <select
                     value={settings.displayMode}
-                    onChange={(e) => setSettings({...settings, displayMode: e.target.value})}
+                    onChange={(e) => setSettings(prev => ({...prev, displayMode: e.target.value}))}
                     className="w-full p-2 border rounded"
                   >
                     <option value="auto">Auto — match screen shape</option>
@@ -3673,7 +3692,7 @@ const BaristaInterface = () => {
                   </label>
                   <select
                     value={settings.displayRotation ?? 0}
-                    onChange={(e) => setSettings({...settings, displayRotation: parseInt(e.target.value, 10)})}
+                    onChange={(e) => setSettings(prev => ({...prev, displayRotation: parseInt(e.target.value, 10)}))}
                     className="w-full p-2 border rounded"
                   >
                     <option value={0}>None (recommended)</option>
@@ -3698,7 +3717,7 @@ const BaristaInterface = () => {
                     </label>
                     <select
                       value={settings.displayOverflowMode || 'flip'}
-                      onChange={(e) => setSettings({...settings, displayOverflowMode: e.target.value})}
+                      onChange={(e) => setSettings(prev => ({...prev, displayOverflowMode: e.target.value}))}
                       className="w-full p-2 border rounded"
                     >
                       <option value="flip">Page flip (with countdown)</option>
@@ -3711,7 +3730,7 @@ const BaristaInterface = () => {
                     </label>
                     <select
                       value={settings.displayFlipSeconds ?? 10}
-                      onChange={(e) => setSettings({...settings, displayFlipSeconds: parseInt(e.target.value, 10)})}
+                      onChange={(e) => setSettings(prev => ({...prev, displayFlipSeconds: parseInt(e.target.value, 10)}))}
                       className="w-full p-2 border rounded"
                       disabled={(settings.displayOverflowMode || 'flip') !== 'flip'}
                     >
@@ -3728,7 +3747,7 @@ const BaristaInterface = () => {
                     </label>
                     <select
                       value={settings.displayCardsPerPage ?? 0}
-                      onChange={(e) => setSettings({...settings, displayCardsPerPage: parseInt(e.target.value, 10)})}
+                      onChange={(e) => setSettings(prev => ({...prev, displayCardsPerPage: parseInt(e.target.value, 10)}))}
                       className="w-full p-2 border rounded"
                     >
                       <option value={0}>Auto — fit to screen</option>
@@ -3748,7 +3767,7 @@ const BaristaInterface = () => {
                     type="checkbox"
                     id="displayTouchOrdering"
                     checked={settings.displayTouchOrdering !== false}
-                    onChange={(e) => setSettings({...settings, displayTouchOrdering: e.target.checked})}
+                    onChange={(e) => setSettings(prev => ({...prev, displayTouchOrdering: e.target.checked}))}
                     className="mr-2 mt-1"
                   />
                   <label htmlFor="displayTouchOrdering" className="text-sm font-medium text-gray-700">
@@ -3770,7 +3789,7 @@ const BaristaInterface = () => {
                     min="1" 
                     max="60"
                     value={settings.displayTimeout}
-                    onChange={(e) => setSettings({...settings, displayTimeout: parseInt(e.target.value)})}
+                    onChange={(e) => setSettings(prev => ({...prev, displayTimeout: parseInt(e.target.value)}))}
                     className="w-full p-2 border rounded"
                   />
                   <p className="text-xs text-gray-500 mt-1">How long to show completed orders before removing them</p>
@@ -3781,7 +3800,7 @@ const BaristaInterface = () => {
                     type="checkbox"
                     id="showNameOnDisplay"
                     checked={settings.showNameOnDisplay}
-                    onChange={(e) => setSettings({...settings, showNameOnDisplay: e.target.checked})}
+                    onChange={(e) => setSettings(prev => ({...prev, showNameOnDisplay: e.target.checked}))}
                     className="mr-2"
                   />
                   <label htmlFor="showNameOnDisplay" className="text-sm font-medium text-gray-700">
@@ -3969,7 +3988,7 @@ const BaristaInterface = () => {
                 currentStationId={selectedStation}
                 currentStationName={stations.find(s => s.id === selectedStation)?.name || 'Unknown Station'}
                 baristaName={settings.baristaName}
-                onBaristaNameChange={(name) => setSettings({ ...settings, baristaName: name })}
+                onBaristaNameChange={(name) => setSettings(prev => ({ ...prev, baristaName: name }))}
               />
             ) : (
               <CustomerQuestionsList
@@ -4187,10 +4206,10 @@ const SoundChoiceRows = ({ settings, setSettings }) => {
   const volume = (settings.soundVolume ?? 70) / 100;
 
   const setChoice = (eventKey, presetKey) => {
-    setSettings({
-      ...settings,
+    setSettings(prev => ({
+      ...prev,
       soundChoices: { ...choices, [eventKey]: presetKey },
-    });
+    }));
   };
 
   const preview = (presetKey) => {
@@ -4210,7 +4229,7 @@ const SoundChoiceRows = ({ settings, setSettings }) => {
             <input
               type="checkbox"
               checked={settings[row.enableField] !== false}
-              onChange={(e) => setSettings({ ...settings, [row.enableField]: e.target.checked })}
+              onChange={(e) => setSettings(prev => ({ ...prev, [row.enableField]: e.target.checked }))}
             />
             <span className="text-sm">{row.label}</span>
           </label>
