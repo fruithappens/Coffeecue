@@ -4067,13 +4067,22 @@ def _kiosk_menu_data(coffee_system):
     except Exception as e:
         logger.warning(f"kiosk milk/event intersection failed (menu unchanged): {e}")
 
-    # ALWAYS fold in event-enabled non-espresso drinks (tea, hot chocolate,
-    # chai, matcha…). They're offered event-wide and aren't espresso-gated, so
-    # the capability-only universe (espresso drinks) was hiding them. A station
-    # makes an extra unless some station has explicitly claimed it.
+    # Fold in event-enabled non-espresso drinks (tea, hot chocolate, chai,
+    # matcha…). They aren't espresso-gated, so the capability-only universe
+    # (espresso drinks) was hiding them. A station makes an extra unless some
+    # station has explicitly claimed it.
+    #
+    # ...MINUS anything every active station has switched off. At most events
+    # the barista makes coffee and the tea/cold drinks are self-serve from
+    # another table, and without this the kiosk and the attendee app invited
+    # delegates to order drinks nobody was going to make. The gate lives on
+    # coffee_system so this path and the SMS path agree; it only removes an
+    # EXPLICIT off and leaves the list alone on any error.
     extras = []
     try:
-        extras = [str(x).lower() for x in (coffee_system._get_available_extra_drinks() or [])]
+        extras = [str(x).lower() for x in
+                  (coffee_system._drop_extras_no_station_makes(
+                      coffee_system._get_available_extra_drinks() or []) or [])]
     except Exception as e:
         logger.warning(f"kiosk extras pull failed: {e}")
     for ex in extras:

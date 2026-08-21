@@ -3340,7 +3340,12 @@ class CoffeeOrderSystem:
                 if named and not any(named):
                     continue        # every station that has an opinion says off
                 kept.append(drink)
-            return kept if kept or not extras else extras
+            # Return `kept` even when it is EMPTY. The usual "never return
+            # nothing" guard is wrong here: espresso drinks come from a
+            # separate branch, so an empty extras list cannot empty the menu
+            # — and at a coffee-only event switching every tea off is the
+            # whole point. Guarding it would hand them all straight back.
+            return kept
         except Exception as e:
             logger.warning(f"extras station filter skipped: {e}")
             return extras
