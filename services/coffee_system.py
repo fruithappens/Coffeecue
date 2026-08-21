@@ -3280,7 +3280,94 @@ class CoffeeOrderSystem:
         # offered. Running them through the espresso coffee_types capability was
         # silently hiding every tea/hot-choc the operator turned on (the menu
         # only ever showed espresso drinks).
-        return self._filter_to_station_makeable(espresso_part, 'coffee_types') + extras
+        return (self._filter_to_station_makeable(espresso_part, 'coffee_types')
+                + self._drop_extras_no_station_makes(extras))
+
+    def _drop_extras_no_station_makes(self, extras):
+        """Remove non-espresso drinks that EVERY active station has switched off.
+
+        Stations only carry a 'coffee_types' capability, which lists espresso
+        drinks — so tea and friends have no capability dimension to be gated
+        by, and used to be offered unconditionally. At a typical event the
+        barista makes coffee and the tea/cold drinks are self-serve from
+        another table, so the app was inviting delegates to order drinks
+        nobody was going to make.
+
+        The per-station switch the operator actually uses lives in the
+        settings KV 'station_inventory_configs', keyed by item id
+        ('qs-add-drinks-Earl-Grey-Tea') while these names are plain
+        ('earl grey tea') — so normalise both sides.
+
+        Deliberately conservative: a drink is dropped ONLY when it is
+        explicitly false at every active station. No entry means "no
+        opinion", not "disabled" — the previous version of this gate hid
+        every tea the operator had turned on, and that must not recur. Any
+        error leaves the list untouched.
+        """
+        if not extras:
+            return extras
+        try:
+            configs = self._kv_station_inventory_configs()
+            if not configs:
+                return extras
+            station_ids = self._active_station_ids()
+            if not station_ids:
+                return extras
+
+            def norm(s):
+                return re.sub(r'[^a-z0-9]+', ' ', str(s or '').lower()).strip()
+
+            kept = []
+            for drink in extras:
+                want = norm(drink)
+                # off at a station only if that station names it AND says false
+                verdicts = []
+                for sid in station_ids:
+                    cfg = configs.get(str(sid)) or configs.get(sid) or {}
+                    said = None
+                    for by_cat in cfg.values():
+                        if not isinstance(by_cat, dict):
+                            continue
+                        for item_id, on in by_cat.items():
+                            if norm(re.sub(r'^qs-add-[a-z]+-', '', str(item_id),
+                                           flags=re.I)) == want:
+                                said = bool(on)
+                                break
+                        if said is not None:
+                            break
+                    verdicts.append(said)
+                named = [v for v in verdicts if v is not None]
+                if named and not any(named):
+                    continue        # every station that has an opinion says off
+                kept.append(drink)
+            return kept if kept or not extras else extras
+        except Exception as e:
+            logger.warning(f"extras station filter skipped: {e}")
+            return extras
+
+    def _kv_station_inventory_configs(self):
+        """Raw 'station_inventory_configs' KV blob, uncached."""
+        try:
+            self.db.rollback()
+        except Exception:
+            pass
+        cur = self.db.cursor()
+        cur.execute("SELECT value FROM settings WHERE key = 'station_inventory_configs'")
+        row = cur.fetchone()
+        raw = row[0] if row and row[0] else None
+        if not raw:
+            return {}
+        return json.loads(raw) if isinstance(raw, str) else raw
+
+    def _active_station_ids(self):
+        """Ids of stations currently active, per station_stats."""
+        try:
+            self.db.rollback()
+        except Exception:
+            pass
+        cur = self.db.cursor()
+        cur.execute("SELECT station_id FROM station_stats WHERE status = 'active'")
+        return [r[0] for r in (cur.fetchall() or [])]
 
     def _get_available_extra_drinks(self):
         """Lowercased names of ENABLED non-espresso drinks (tea, hot chocolate,
