@@ -1079,7 +1079,12 @@ def _find_attendee(db, cid=None, phone=None):
     # helper, and a gate only on /hello would leave ?cid= working on all of
     # them. The phone branch below is unaffected: a phone match is the
     # person proving their own number, not a guess at someone else's badge.
-    if cid and not attendee_lookup_enabled(db):
+    #
+    # EXCEPT 'local:' ids. Those are not mirror rows and carry none of the
+    # risk: /guest mints one for somebody who just gave their own name and
+    # number, for this event, seconds ago. Gating them broke the guest
+    # flow outright — register, then "unknown contact", no way to order.
+    if cid and not cid.startswith('local:') and not attendee_lookup_enabled(db):
         cid = ''
     if cid:
         cur.execute(f"SELECT {_ATT_COLS} FROM ea_attendees WHERE ea_contact_id = %s",
@@ -1576,7 +1581,9 @@ def ea_hello():
     # Gated on the operator switch, not on whether the mirror happens to
     # hold a matching row — see attendee_lookup_enabled(). A stale mirror
     # from a previous client matches plenty of badge numbers.
-    if not attendee_lookup_enabled(db):
+    # Same exemption as _find_attendee: a 'local:' id belongs to a guest
+    # this event registered, not to the shared attendee mirror.
+    if not cid.startswith('local:') and not attendee_lookup_enabled(db):
         return jsonify({'success': False, 'disabled': True,
                         'message': 'attendee lookup is not enabled for this event'}), 404
     cur.execute("SELECT first_name, mobile_e164 FROM ea_attendees "
