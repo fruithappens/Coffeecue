@@ -611,7 +611,27 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
           // must not appear at any station either — Green Tea was disabled
           // event-wide and still showed up, for the same reason the station
           // teas did: nothing downstream consulted the setting.
+          // The event menu decides what may be ordered at all. Station
+          // stock only decides whether a station can make it.
+          //
+          // This block used to fail OPEN: on any error - or any non-OK
+          // response, an expired token being the easy one - eventItemsOff
+          // stayed empty, "nothing is switched off" , and every drink in
+          // the station's cached stock was offered. Switched-off teas
+          // reappeared on the walk-in screen with nothing to say why, and
+          // it looked intermittent because it tracked the token, not the
+          // settings. Reproduced by making this one call return 401:
+          // teas went from 1 to 3.
+          //
+          // Now: cache the answer when it works, use the cache when it
+          // does not, and if there is no cache say so instead of quietly
+          // offering everything.
+          const EVENT_GATE_CACHE = 'walkin_event_gate_cache';
           let eventItemsOff = new Set();
+          let eventItemsKnown = new Set();
+          let eventGateLoaded = false;
+          const _norm = (v) => String(v || '').toLowerCase()
+            .replace(/[^a-z0-9]+/g, ' ').trim();
           try {
             const _tok = localStorage.getItem('coffee_system_token');
             const _r = await fetch('/api/event-inventory',
@@ -623,10 +643,9 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
                 if (!Array.isArray(list)) return;
                 list.forEach(it => {
                   if (!it || !it.name) return;
-                  if (it.enabled === false) {
-                    eventItemsOff.add(String(it.name).toLowerCase()
-                      .replace(/[^a-z0-9]+/g, ' ').trim());
-                  }
+                  const _n = _norm(it.name);
+                  if (_n) eventItemsKnown.add(_n);
+                  if (it.enabled === false && _n) eventItemsOff.add(_n);
                   // Cups drive the size list further down.
                   const cs = canonSize(it.name);
                   if (cs && String(it.category || '').toLowerCase() === 'cups') {
@@ -635,9 +654,39 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
                   }
                 });
               });
+              eventGateLoaded = eventItemsKnown.size > 0;
+              if (eventGateLoaded) {
+                try {
+                  localStorage.setItem(EVENT_GATE_CACHE, JSON.stringify({
+                    off: [...eventItemsOff], known: [...eventItemsKnown],
+                    at: new Date().toISOString(),
+                  }));
+                } catch (_) { /* quota - the gate still works this time */ }
+              }
+            } else {
+              throw new Error(`event-inventory HTTP ${_r.status}`);
             }
           } catch (e) {
             console.warn('Could not load event inventory for enable check:', e);
+            try {
+              const _c = JSON.parse(localStorage.getItem(EVENT_GATE_CACHE) || 'null');
+              if (_c && Array.isArray(_c.known) && _c.known.length) {
+                eventItemsOff = new Set(_c.off || []);
+                eventItemsKnown = new Set(_c.known);
+                eventGateLoaded = true;
+                console.warn('Using cached event menu from', _c.at);
+              }
+            } catch (_) { /* corrupt cache - treated as no cache */ }
+            if (!eventGateLoaded) {
+              // Nothing to filter with. Still show the list, because an
+              // event in progress needs to keep taking orders - but never
+              // silently, or the operator reads switched-off drinks as
+              // switched on.
+              setInventoryError(
+                'Could not check the event menu, so this list may include '
+                + 'drinks you switched off. Check the connection and reopen.'
+              );
+            }
           }
 
           // RETIRED: localStorage 'coffeeMenu' and 'stationMenuAssignments'.
@@ -712,9 +761,20 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
             return false;
           };
           const _eventOff = (drinkName) => {
-            const want = String(drinkName || '').toLowerCase()
-              .replace(/[^a-z0-9]+/g, ' ').trim();
-            return !!want && eventItemsOff.has(want);
+            const want = _norm(drinkName);
+            if (!want) return false;
+            if (eventItemsOff.has(want)) return true;
+            // Not on the event menu at all. Steve's model: "if the item is
+            // not on the event menu, event stock should be irrelevant" -
+            // a station carrying something the event never offered must
+            // not put it on the order screen. Only applied when the menu
+            // actually loaded; with no menu we cannot tell "absent" from
+            // "unknown", and the warning above covers that case.
+            if (eventGateLoaded && !eventItemsKnown.has(want)) {
+              console.debug('walk-in: hiding', drinkName, '- not on the event menu');
+              return true;
+            }
+            return false;
           };
           const _addDrink = (name, item) => {
             if (item && item.enabled === false) return;   // switched off in station stock
