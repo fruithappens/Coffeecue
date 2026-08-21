@@ -632,13 +632,17 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
           let eventGateLoaded = false;
           const _norm = (v) => String(v || '').toLowerCase()
             .replace(/[^a-z0-9]+/g, ' ').trim();
+          let _gateFailReason = '';
           try {
-            const _tok = localStorage.getItem('coffee_system_token');
-            const _r = await fetch('/api/event-inventory',
-              { headers: _tok ? { Authorization: `Bearer ${_tok}` } : {} });
-            if (_r.ok) {
-              const _b = await _r.json();
-              const _inv = _b.data || _b.inventory || _b;
+            // Goes through ApiService, not a bare fetch. The bare fetch
+            // read the token straight out of localStorage, so it had no
+            // refresh, no retry and no shared base URL — any staleness
+            // there produced a 401 that the rest of the app never saw,
+            // because everything else goes through this client.
+            const { default: _ApiSvc } = await import('../../services/ApiService');
+            const _b = await new _ApiSvc().get('/event-inventory');
+            {
+              const _inv = (_b && (_b.data || _b.inventory)) || _b;
               Object.values(_inv || {}).forEach(list => {
                 if (!Array.isArray(list)) return;
                 list.forEach(it => {
@@ -662,11 +666,15 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
                     at: new Date().toISOString(),
                   }));
                 } catch (_) { /* quota - the gate still works this time */ }
+              } else {
+                // A 200 carrying an empty menu. Not an error, but not
+                // usable either, and it used to slip past the catch below
+                // and fail open with nothing said at all.
+                _gateFailReason = 'the event menu is empty';
               }
-            } else {
-              throw new Error(`event-inventory HTTP ${_r.status}`);
             }
           } catch (e) {
+            _gateFailReason = (e && e.message) ? e.message : String(e);
             console.warn('Could not load event inventory for enable check:', e);
             try {
               const _c = JSON.parse(localStorage.getItem(EVENT_GATE_CACHE) || 'null');
@@ -677,16 +685,19 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
                 console.warn('Using cached event menu from', _c.at);
               }
             } catch (_) { /* corrupt cache - treated as no cache */ }
-            if (!eventGateLoaded) {
-              // Nothing to filter with. Still show the list, because an
-              // event in progress needs to keep taking orders - but never
-              // silently, or the operator reads switched-off drinks as
-              // switched on.
-              setInventoryError(
-                'Could not check the event menu, so this list may include '
-                + 'drinks you switched off. Check the connection and reopen.'
-              );
-            }
+          }
+          if (!eventGateLoaded) {
+            // Nothing to filter with. Still show the list, because an
+            // event in progress needs to keep taking orders - but never
+            // silently, or the operator reads switched-off drinks as
+            // switched on. The reason is included: "keeps happening" is
+            // only diagnosable if the message says which failure it is.
+            setInventoryError(
+              'Could not check the event menu, so this list may include '
+              + 'drinks you switched off'
+              + (_gateFailReason ? ` (${_gateFailReason})` : '')
+              + '. Check the connection and reopen.'
+            );
           }
 
           // RETIRED: localStorage 'coffeeMenu' and 'stationMenuAssignments'.
