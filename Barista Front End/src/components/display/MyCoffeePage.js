@@ -77,6 +77,11 @@ const MyCoffeePage = () => {
   // even be printed. Everyone knows their own phone. It is also the number
   // we need for notifications, so matching on it proves we hold a good one.
   const [mode, setMode] = useState('phone');
+  // Is badge lookup offered at this event? Starts false, not true: the
+  // page must never advertise an identification route the event has not
+  // enabled, and on a stale mirror a badge number matches the WRONG
+  // person (see attendee_lookup_enabled on the server).
+  const [badgeLookup, setBadgeLookup] = useState(false);
   const [phone, setPhone] = useState(() => localStorage.getItem(PHONE_KEY) || '');
   const [entry, setEntry] = useState('');
   const [error, setError] = useState('');
@@ -137,7 +142,9 @@ const MyCoffeePage = () => {
         setError('');
       } else if (!quiet) {
         setError(byPhone
-          ? "We can't find that number. Try the number you registered with, or use your badge number."
+          ? (badgeLookup
+              ? "We can't find that number. Try the number you registered with, or use your badge number."
+              : "We can't find that number. Try the number you registered with, or just order without one.")
           : "We don't recognise that badge number.");
         setMe(null);
       }
@@ -191,6 +198,33 @@ const MyCoffeePage = () => {
       sugar: SUGARS.map((o) => o.value).find((v) => u.includes(v)) || '',
     }));
   }, [editing, menu, me?.usual]);
+
+  // Read the event's feature flags once, on load. Rides on the menu
+  // endpoint the page already uses, so this is not an extra round trip
+  // for a phone on event wifi — it just happens earlier than the edit
+  // screen would have asked for it.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch('/api/display/menu');
+        const b = await r.json();
+        if (cancelled) return;
+        setBadgeLookup(!!(b && b.features && b.features.attendee_lookup));
+        setMenu((b && (b.menu || b)) || null);
+      } catch (e) {
+        if (!cancelled) setBadgeLookup(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // If the event has badge lookup off, never sit in badge mode — a stale
+  // ?mode= or a previous visit should not strand someone on an input the
+  // server will refuse.
+  useEffect(() => {
+    if (!badgeLookup && mode === 'badge') setMode('phone');
+  }, [badgeLookup, mode]);
 
   useEffect(() => {
     if (!editing || menu) return;
@@ -391,9 +425,11 @@ const MyCoffeePage = () => {
           <div className="text-5xl mb-3" aria-hidden>☕</div>
           <h1 className="text-2xl font-bold mb-1">Your coffee</h1>
           <p className="text-gray-600 mb-6">
-            {mode === 'phone'
-              ? "Enter your mobile — the one you registered with. We'll remember your order and text you when it's ready."
-              : "Enter the number on your name badge. We'll remember your order and text you when it's ready."}
+            {mode === 'badge'
+              ? "Enter the number on your name badge. We'll remember your order and text you when it's ready."
+              : badgeLookup
+                ? "Enter your mobile — the one you registered with. We'll remember your order and text you when it's ready."
+                : "Enter your mobile. We'll remember your order and text you when it's ready."}
           </p>
           <input
             className="w-full border-2 rounded-xl px-4 py-4 text-2xl text-center"
@@ -416,19 +452,27 @@ const MyCoffeePage = () => {
           >
             {busy ? 'Checking…' : "That's me"}
           </button>
-          <button
-            className="w-full mt-3 py-2 text-blue-700 underline text-sm"
-            onClick={() => { setMode(mode === 'phone' ? 'badge' : 'phone'); setEntry(''); setError(''); }}
-          >
-            {mode === 'phone'
-              ? 'Use my name badge number instead'
-              : 'Use my mobile number instead'}
-          </button>
+          {/* Only offered when the event actually has an attendee list
+              loaded. Without this the page invited people to type a badge
+              number that would be looked up against whichever event was
+              synced last. */}
+          {badgeLookup && (
+            <button
+              className="w-full mt-3 py-2 text-blue-700 underline text-sm"
+              onClick={() => { setMode(mode === 'phone' ? 'badge' : 'phone'); setEntry(''); setError(''); }}
+            >
+              {mode === 'phone'
+                ? 'Use my name badge number instead'
+                : 'Use my mobile number instead'}
+            </button>
+          )}
           <button
             className="w-full mt-3 py-3 text-gray-600 underline"
             onClick={() => setFullOrder(true)}
           >
-            I don't have a badge — just order
+            {badgeLookup
+              ? "I don't have a badge — just order"
+              : 'Just order without giving a number'}
           </button>
         </div>
         {fullOrder && (
