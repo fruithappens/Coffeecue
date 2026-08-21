@@ -173,10 +173,6 @@ const OperationsTab = () => {
 
   return (
     <div className="space-y-6">
-      <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-        <h2 className="text-xl font-bold text-green-800">⚙️ Operations Tab</h2>
-        <p className="text-green-600">Station management and queue control</p>
-      </div>
       {/* Station Management */}
       <Card>
         <CardHeader>

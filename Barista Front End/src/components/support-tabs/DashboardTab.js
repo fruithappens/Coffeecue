@@ -171,11 +171,8 @@ const DashboardTab = () => {
   };
   
   return (
-    <div className="p-6">
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-        <h2 className="text-xl font-bold text-blue-800">📊 Dashboard Tab</h2>
-        <p className="text-blue-600">System overview and real-time metrics</p>
-      </div>
+    // Gutter comes from the Support shell's <main className="p-6">.
+    <div>
       {/* System Status Bar */}
       <div className="bg-white rounded-lg shadow-sm p-4 mb-6 flex items-center justify-between">
         <div className="flex items-center space-x-6">

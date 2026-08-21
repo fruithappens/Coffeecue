@@ -113,7 +113,8 @@ const CommunicationsTab = () => {
   };
   
   return (
-    <div className="p-6">
+    // Gutter comes from the Support shell's <main className="p-6">.
+    <div>
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold">Communications Center</h2>
