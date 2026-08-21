@@ -8,6 +8,50 @@ const api = new ApiServiceClass();
 // for multi-client operation: archive an event, clear customer data so the
 // next client starts clean, and re-import a past event so returning
 // attendees' "usuals" come back (e.g. treenet 2026 → 2027).
+
+// Browser caches survive a wipe unless something clears them, and this
+// screen never did. The server emptied, the operator reloaded, and the
+// old stations came straight back out of localStorage — Steve saw three
+// stations plus "East Wing" reappear after wiping an event.
+//
+// Deliberately a KEEP-list rather than a list of things to clear. An
+// explicit clear-list is the same shape as the placeholder blacklist
+// that had drifted out of date elsewhere in this app: every new cache
+// key someone adds is one more thing to forget. Inverting it means a new
+// event-scoped key is cleared automatically, and only genuinely
+// device-scoped things need naming here.
+//
+// What must survive: the operator's session (clearing it logs them out
+// mid-wipe), and which app mode this device is in.
+const KEEP_AFTER_WIPE = [
+  /token/i,          // coffee_system_token, refreshToken, jwt_token, ...
+  /^auth/i,
+  /auth_token$/i,
+  /^coffee_system_user$/,
+  /^coffee_cue_app_mode$/,
+];
+
+const clearEventCaches = () => {
+  const cleared = [];
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      if (KEEP_AFTER_WIPE.some((re) => re.test(key))) continue;
+      localStorage.removeItem(key);
+      cleared.push(key);
+    }
+  } catch (e) {
+    // Storage disabled or full — the wipe itself already succeeded, so
+    // report rather than fail.
+    console.warn('Could not clear local caches after wipe:', e);
+  }
+  try {
+    sessionStorage.clear();
+  } catch (e) { /* same */ }
+  return cleared;
+};
+
 const EventDataManagement = () => {
   const [busy, setBusy] = useState('');          // 'export' | 'wipe' | 'import'
   const [result, setResult] = useState(null);     // {ok, msg}
@@ -54,8 +98,14 @@ const EventDataManagement = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ confirm: 'WIPE', clear_staff: clearStaff, reset_branding: resetBranding }),
       });
-      say(true, resp?.message || `Wiped ${resp?.total_rows ?? '?'} rows.`);
+      // Clear this device's copies too, then reload so every component
+      // rehydrates from the now-empty server instead of from memory.
+      const cleared = clearEventCaches();
       setWipeText('');
+      say(true, `${resp?.message || `Wiped ${resp?.total_rows ?? '?'} rows.`} `
+                + `Cleared ${cleared.length} cached item(s) on this device. `
+                + `Reloading…`);
+      setTimeout(() => window.location.reload(), 1500);
     } catch (e) {
       say(false, `Wipe failed: ${e?.message || e}`);
     } finally {
