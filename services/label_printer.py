@@ -347,9 +347,18 @@ def render_label(payload: dict, width_dots: int = None,
 
     if lid:
         # Roughly half of each, so the same elements fit 40mm.
-        f_num, f_name = _load_font(64), _load_font(34)
-        f_drink, f_mods, f_foot = _load_font(26), _load_font(22), _load_font(18)
-        A_NUM, A_NAME, A_DRINK, A_DRINK1, A_MODS, A_FOOT = 68, 40, 30, 28, 26, 22
+        # Order number deliberately smaller than half the cup size. On a
+        # lid the sticker is read from above at arm's length at most, not
+        # across a counter, so 64 was bigger than the job needs and it was
+        # crowding out the sponsor lines.
+        f_num, f_name = _load_font(48), _load_font(32)
+        f_drink, f_mods, f_foot = _load_font(24), _load_font(20), _load_font(17)
+        # Advances are tight on purpose. The lid has a hard 40mm ceiling
+        # and the sponsor line is the last thing drawn, so every dot spent
+        # on leading above is a dot the sponsor line might not get. A
+        # large macchiato with three modifiers — routine, not exotic —
+        # was enough to push it off before this was tightened.
+        A_NUM, A_NAME, A_DRINK, A_DRINK1, A_MODS, A_FOOT = 48, 34, 26, 24, 24, 21
     else:
         f_num, f_name = _load_font(120), _load_font(52)
         f_drink, f_mods, f_foot = _load_font(36), _load_font(30), _load_font(24)
@@ -396,7 +405,7 @@ def render_label(payload: dict, width_dots: int = None,
     # 0a. Logo (branding, dithered to 1-bit), always centred.
     if options.get('show_logo') and options.get('logo_data'):
         logo = _decode_logo_to_1bit(options['logo_data'], W - 2 * margin,
-                                    max_height=56 if lid else 120)
+                                    max_height=44 if lid else 120)
         if logo is not None:
             img.paste(logo, ((W - logo.width) // 2, y))
             y += logo.height + (4 if lid else 8)
@@ -457,10 +466,14 @@ def render_label(payload: dict, width_dots: int = None,
     # live render clipped 'or the event app' off the right edge.
     # Optional dividers: one above the whole block, one between the
     # instructions and sponsor/footer lines.
-    # No room for the ordering/branding footer on a 40mm lid, and the height
-    # cap would slice it mid-word — which reads as a printer fault rather
-    # than a design choice. Drop it deliberately instead.
-    footer_lines = [] if lid else [ln for ln in
+    # The lid used to drop this block entirely, on the assumption that a
+    # 40mm sticker had no room for it. It does: the lid label is padded to
+    # a fixed 320 dots (see the floor/ceiling note below), so a short order
+    # was leaving ~12mm of blank stock under the station line. The sponsor
+    # line is most of the reason the sticker exists, so it goes back — at
+    # a smaller size, and guarded by _fits_remaining so it is never sliced
+    # mid-word by the height cap.
+    footer_lines = [ln for ln in
                     (str(options.get('instructions_text') or '').strip(),
                      str(options.get('footer_text') or '').strip()) if ln]
     if footer_lines:
@@ -481,8 +494,17 @@ def render_label(payload: dict, width_dots: int = None,
                           ln, fill=0, font=f_grow)
                 y += 28
             continue
+        # Lid runs a smaller ladder and a tighter advance — the cup sizes
+        # would spill past the 40mm cap with two footer lines.
+        sizes = (18, 17, 16, 15) if lid else (22, 20, 18, 16)
+        advance = 22 if lid else 28
+        # Never start a line the label cannot finish. The canvas is cropped
+        # at canvas_h, so without this an overlong drink name silently
+        # shears the sponsor line in half and it reads as a printer fault.
+        if y + advance > canvas_h:
+            break
         fitted, tw = None, W
-        for size in (22, 20, 18, 16):
+        for size in sizes:
             f_try = _load_font(size)
             try:
                 tw = draw.textlength(line, font=f_try)
@@ -492,7 +514,7 @@ def render_label(payload: dict, width_dots: int = None,
                 fitted = f_try
                 break
         if fitted is None:
-            fitted = _load_font(16)
+            fitted = _load_font(sizes[-1])
             while line and tw > W - 2 * margin:
                 line = line[:-1]
                 try:
@@ -501,7 +523,7 @@ def render_label(payload: dict, width_dots: int = None,
                     tw = len(line) * 9
         draw.text((max(margin, (W - int(tw)) // 2), y),
                   line, fill=0, font=fitted)
-        y += 28
+        y += advance
 
     # Minimum label LENGTH. The cutter cuts at the image end, so this is
     # literally how much media each label consumes — a floor of 380 dots
