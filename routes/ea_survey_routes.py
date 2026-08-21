@@ -1401,24 +1401,44 @@ def ea_me_order():
     coffee_system = current_app.config.get('coffee_system')
     if not coffee_system:
         return jsonify({'success': False, 'message': 'System unavailable'}), 503
+    # A usual can carry a free-text note after a pipe:
+    #   "medium latte with oat | no foam, in a mug"
+    # The left side goes through the SAME parser SMS uses. The right side
+    # is passed straight to the barista, because parse_order DISCARDS
+    # anything it cannot place - "no foam" simply vanished, and "light on
+    # the chocolate" came back as skim milk at weak strength. Free text
+    # therefore has to bypass the parser rather than be fed through it.
+    drink_text, _, note_text = usual.partition('|')
+    drink_text = drink_text.strip()
+    note_text = note_text.strip()
     try:
-        parsed = coffee_system.nlp.parse_order(usual) or {}
+        parsed = coffee_system.nlp.parse_order(drink_text) or {}
     except Exception as e:
         logger.error(f"usual parse failed: {e}")
         parsed = {}
     if not parsed.get('type'):
         return jsonify({'success': False,
-                        'message': f'Could not read "{usual}" as a drink. '
+                        'message': f'Could not read "{drink_text}" as a drink. '
                                    'Try editing your usual.'}), 400
 
     # Reuse the kiosk order endpoint so routing, availability and stock all
     # behave identically — no second ordering path to keep in step.
+    # Everything the parser understood, not just the four fields the picker
+    # can express. Saving "extra hot double shot flat white" as a usual and
+    # getting a plain flat white was the old behaviour: parse_order returned
+    # strength and temp, and this payload dropped them on the floor.
     payload = {
         'name': _their_name(rec),
         'coffee_type': parsed.get('type'),
         'size': parsed.get('size') or '',
         'milk': parsed.get('milk') or '',
         'sugar': parsed.get('sugar') or 'No sugar',
+        'strength': parsed.get('strength') or '',
+        'temp': parsed.get('temp') or '',
+        # Whatever the parser could not place - "no foam", "in a mug",
+        # "light on the chocolate" - travels as a note for the barista
+        # rather than being silently discarded.
+        'notes': note_text,
         # The phone is attached HERE, server-side. The page never sees it.
         'phone': rec.get('mobile_e164') or '',
         'station_id': data.get('station_id'),

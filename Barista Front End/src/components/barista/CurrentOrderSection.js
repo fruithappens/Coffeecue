@@ -61,6 +61,15 @@ const CurrentOrderSection = ({ orders, onCompleteOrder, onEditOrder }) => {
                   {order.milkType}, {order.sugar}
                 </div>
                 {order.extraHot && <div className="text-gray-700">Extra hot</div>}
+                {/* Anything the customer wrote. It existed on the
+                    order and on the API response (specialInstructions) but nothing
+                    on this screen rendered them, so a "double shot, no foam" was
+                    invisible to the person making it. */}
+                {(order.specialInstructions || order.notes) && (
+                  <div className="mt-1 inline-block bg-amber-100 text-amber-900 text-sm px-2 py-1 rounded">
+                    {order.specialInstructions || order.notes}
+                  </div>
+                )}
                 
                 {order.alternativeMilk && (
                   <div className="inline-block bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded mt-2 mr-2">

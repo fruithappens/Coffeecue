@@ -490,6 +490,7 @@ def orders():
                     'size': order_details.get('size', 'Regular'),
                     'extra_hot': order_details.get('temp') == 'extra hot',
                     'extraHot': order_details.get('temp') == 'extra hot',
+                    'strength': order_details.get('strength', ''),
                     # Team mode stage ticks. The guard's first live run
                     # caught this endpoint missing the field: a tick
                     # SAVED but vanished from the next poll — the other
@@ -1022,6 +1023,7 @@ def get_pending_orders():
                               or 'extra hot' in (order_details.get('notes') or '').lower()),
                 'extraHot': (order_details.get('temp') == 'extra hot'
                              or 'extra hot' in (order_details.get('notes') or '').lower()),
+                'strength': order_details.get('strength', ''),
                 # Order channel + no-SMS flag (EA app orders).
                 'orderSource': order_details.get('source') or 'sms',
                 'needsContact': bool(order_details.get('needs_contact')),
@@ -1177,6 +1179,7 @@ def get_in_progress_orders():
                 'coffeeType': coffee_type,
                 'milkType': milk_type,
                 'extraHot': extra_hot,
+                'strength': order_details.get('strength', '') if isinstance(order_details, dict) else '',
                 # Team mode: which stages (shots/milk) are already done.
                 'stages': order_details.get('stages') or {},
                 # Order channel + no-SMS flag (EA app orders).
@@ -4232,6 +4235,13 @@ def create_kiosk_order():
         except Exception:
             pass
         note = (data.get('note') or data.get('notes') or '').strip()
+        # Strength and temperature are first-class on SMS orders (the NLP
+        # service extracts "double shot", "half strength", "extra hot"),
+        # but this endpoint used to drop them, so the same words saved as
+        # someone's usual produced a plain drink. The barista list already
+        # renders extraHot off order_details['temp'].
+        strength = str(data.get('strength') or '').strip().lower()
+        temp = str(data.get('temp') or data.get('temperature') or '').strip().lower()
 
         # EventsAir pre-identification (research Phase 4.8): the EA app
         # links here with ?cid={ContactID}; the kiosk passes it through.
@@ -4409,6 +4419,8 @@ def create_kiosk_order():
             'size': (size or 'medium').lower(),
             'sugar': sugar,
             'notes': note,
+            'strength': strength,
+            'temp': temp,
             'order_type': 'kiosk',
             'created_by': 'kiosk',
             'vip': False,
