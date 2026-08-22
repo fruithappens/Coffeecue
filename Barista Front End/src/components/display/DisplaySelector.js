@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { DISPLAY_POLL_MS } from './DisplayScreen';
 import { useNavigate } from 'react-router-dom';
 import { Coffee, Monitor, ArrowLeft, Loader } from 'lucide-react';
 import StationsService from '../../services/StationsService';
@@ -133,7 +134,11 @@ const DisplaySelector = () => {
           </div>
           
           <div className="text-center text-gray-500 text-sm">
-            <p>Displays will automatically refresh every 20 seconds. You can also manually refresh using the button on the display screen.</p>
+            {/* Quotes the real constant rather than a number typed here.
+                This said "20 seconds" while the board actually polled 8. */}
+            <p>Displays update the moment an order changes, and re-check every{' '}
+            {Math.round(DISPLAY_POLL_MS / 1000)} seconds as a backstop. You can also
+            refresh manually with the button on the display screen.</p>
           </div>
         </div>
       </main>

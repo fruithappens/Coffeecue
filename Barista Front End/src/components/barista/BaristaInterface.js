@@ -3371,16 +3371,18 @@ const BaristaInterface = () => {
                   )}
                 </div>
                 
-                <div>
-                  <label className="flex items-center space-x-2">
-                    <input 
-                      type="checkbox" 
-                      checked={settings.autoPrintLabels}
-                      onChange={(e) => setSettings(prev => ({...prev, autoPrintLabels: e.target.checked}))}
-                    />
-                    <span>Auto-print labels</span>
-                  </label>
-                </div>
+                {/* REMOVED: a second "Auto-print labels" checkbox.
+
+                    It wrote settings.autoPrintLabels, which nothing reads.
+                    The switch that actually prints is `autoPrintLabels`
+                    (see startOrderWithLabel), shown up in the Label
+                    Printing block beside the printer's online status -
+                    which is where it belongs, since it is meaningless
+                    without a printer.
+
+                    Two controls for one idea, and they disagreed on
+                    screen: Steve had the real one ON and this one OFF at
+                    the same time, with no way to tell which governed. */}
               </div>
             </div>
             
