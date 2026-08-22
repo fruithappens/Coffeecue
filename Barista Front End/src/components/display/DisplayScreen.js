@@ -59,6 +59,11 @@ const FONT_SCALE = {
 
 // Pick the layout for the current viewport + setting combination.
 // "auto" looks at window aspect ratio at render time.
+// How often the board re-reads orders when no WebSocket event arrives.
+// Single source of truth: the copy in DisplaySelector quotes this, and it
+// used to claim 20s while the code polled 8s.
+export const DISPLAY_POLL_MS = 5000;
+
 const resolveOrientation = (setting) => {
   const explicit = (setting || '').toLowerCase();
   if (explicit === 'portrait' || explicit === 'landscape') return explicit;
@@ -276,6 +281,8 @@ const DisplayScreen = () => {
   // Track which orders are "new" so we can pulse-highlight ready
   // ones when they appear. Map of order_id → timestamp first seen.
   const newReadyRef = useRef(new Map());
+  // When the board last successfully loaded, for the staleness check.
+  const lastLoadAtRef = useRef(0);
   const prevReadyIdsRef = useRef(new Set());
 
   // --- Voice announcements: "Order number one five nine, for Sarah" ---
@@ -581,6 +588,7 @@ const DisplayScreen = () => {
         prevReadyIdsRef.current = currentReadyIds;
 
         setOrders(next);
+        lastLoadAtRef.current = Date.now();
         setLastUpdated(new Date());
         setConnected(true);
         setLoading(false);
@@ -591,9 +599,37 @@ const DisplayScreen = () => {
       }
     };
     load();
-    // 8s poll as a fallback; WebSocket order events (below) flip the board
-    // instantly when they fire — this just bounds the worst-case lag.
-    timer = setInterval(load, 8000);
+    // The poll IS the update path, not a fallback.
+    //
+    // The comment here used to say WebSocket events "flip the board
+    // instantly ... this just bounds the worst-case lag". They never fire:
+    // ApiService.initializeWebSocket() has no callers anywhere in the app,
+    // so setupCommonEventHandlers never runs and order_created /
+    // order_updated are never dispatched. The worst case was the only
+    // case, and the listeners below are dead wiring kept for when the
+    // socket is actually connected.
+    //
+    // setInterval alone is not enough either: browsers throttle timers in
+    // a tab that is not foreground - measured here at one poll per 35-60s
+    // against a nominal 5s, which is exactly the ">30 seconds" Steve saw.
+    // So the board also refreshes whenever it becomes visible again, and
+    // checks on a short heartbeat whether its data has gone stale.
+    timer = setInterval(load, DISPLAY_POLL_MS);
+
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') load();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    window.addEventListener('pageshow', onVisible);
+
+    // Belt and braces: if a throttled timer has left the board stale, this
+    // catches it the moment the tab is being painted again.
+    const staleCheck = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      const age = Date.now() - (lastLoadAtRef.current || 0);
+      if (age > DISPLAY_POLL_MS * 2) load();
+    }, 2000);
     // Push refresh on WebSocket order events so the customer-facing
     // Display flips "Brewing → Ready" instantly when the barista
     // hits Complete, instead of waiting for the next 15s poll.
@@ -611,6 +647,10 @@ const DisplayScreen = () => {
     window.addEventListener('app:newOrder', wsLoad);
     return () => {
       clearInterval(timer);
+      clearInterval(staleCheck);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+      window.removeEventListener('pageshow', onVisible);
       window.removeEventListener('order_created', wsLoad);
       window.removeEventListener('order_updated', wsLoad);
       window.removeEventListener('app:newOrder', wsLoad);
