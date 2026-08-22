@@ -283,6 +283,9 @@ const DisplayScreen = () => {
   const newReadyRef = useRef(new Map());
   // When the board last successfully loaded, for the staleness check.
   const lastLoadAtRef = useRef(0);
+  // The live loader, published by the polling effect so the Refresh
+  // button can actually call it (see handleRefresh).
+  const loadRef = useRef(null);
   const prevReadyIdsRef = useRef(new Set());
 
   // --- Voice announcements: "Order number one five nine, for Sarah" ---
@@ -534,7 +537,7 @@ const DisplayScreen = () => {
   useEffect(() => {
     if (!currentStation) return;
     let timer;
-    const load = async () => {
+    const load = async (loadOpts) => {
       try {
         const isAll = currentStation.id === 'all';
         const nid = isAll ? null : (typeof currentStation.id === 'string'
@@ -546,9 +549,9 @@ const DisplayScreen = () => {
         // Three columns — pending shown so waiting customers can see
         // their order acknowledged before a barista picks it up.
         const [pendingAll, inProgressAll, completedAll] = await Promise.all([
-          (OrderDataService.getPendingOrders ? OrderDataService.getPendingOrders() : Promise.resolve([])),
-          OrderDataService.getInProgressOrders(),
-          OrderDataService.getCompletedOrders(),
+          (OrderDataService.getPendingOrders ? OrderDataService.getPendingOrders(loadOpts) : Promise.resolve([])),
+          OrderDataService.getInProgressOrders(loadOpts),
+          OrderDataService.getCompletedOrders(loadOpts),
         ]);
         const next = {
           pending:    formatList(filterStation(pendingAll || []),    'pending'),
@@ -598,6 +601,7 @@ const DisplayScreen = () => {
         setLoading(false);
       }
     };
+    loadRef.current = load;
     load();
     // The poll IS the update path, not a fallback.
     //
@@ -658,13 +662,23 @@ const DisplayScreen = () => {
   }, [currentStation]);
 
   // Manual refresh button.
+  //
+  // This used to fetch NOTHING. It set a spinner, waited 300ms and
+  // cleared it - "just bump loading state to give the operator visual
+  // feedback" - so pressing Refresh on a stale board changed nothing but
+  // the spinner. Combined with the 60s order cache, an operator could
+  // press it repeatedly and watch the same stale columns.
   const handleRefresh = () => {
     setLoading(true);
     setLastUpdated(new Date());
-    // useEffect will re-run if we toggle currentStation, but we
-    // already have the timer — just bump loading state to give
-    // the operator visual feedback.
-    setTimeout(() => setLoading(false), 300);
+    const run = loadRef.current;
+    if (run) {
+      // force: skip the client cache. Someone pressing Refresh is saying
+      // the screen is wrong; answering from cache is useless.
+      Promise.resolve(run({ force: true })).finally(() => setLoading(false));
+    } else {
+      setTimeout(() => setLoading(false), 300);
+    }
   };
 
   // Tap anywhere to fullscreen on iPad — the operator drops the
