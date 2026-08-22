@@ -340,6 +340,14 @@ const BaristaInterface = () => {
   // coming back returns to the screen you were using rather than the
   // first one.
   const [groupSubTab, setGroupSubTab] = useState({});
+  // Text the operator is typing into the refresh-interval box. Separate from
+  // autoRefreshInterval so a half-typed number is not fought by the setter.
+  const [refreshDraft, setRefreshDraft] = useState('');
+  // Seed and re-sync the draft whenever the live value changes elsewhere
+  // (the header's quick picker, or a value restored from storage).
+  useEffect(() => {
+    setRefreshDraft(String(autoRefreshInterval ?? ''));
+  }, [autoRefreshInterval]);
 
   // State to track dismissed info panels
   const [dismissedPanels, setDismissedPanels] = useState(() => {
@@ -2213,6 +2221,7 @@ const BaristaInterface = () => {
                   <div className="px-3 py-1.5 text-xs text-gray-500 border-b">Refresh queue every</div>
                   {[
                     { label: 'Off', value: 0 },
+                    { label: '5 seconds', value: 5 },
                     { label: '15 seconds', value: 15 },
                     { label: '30 seconds', value: 30 },
                     { label: '60 seconds', value: 60 },
@@ -2224,7 +2233,7 @@ const BaristaInterface = () => {
                         className={`block w-full text-left px-3 py-2 text-sm hover:bg-gray-100 ${active ? 'bg-amber-100 font-medium text-amber-800' : ''}`}
                         onClick={() => setRefreshInterval(opt.value)}
                       >
-                        {opt.label}{opt.value === 15 ? ' (fast)' : ''}
+                        {opt.label}{opt.value === 5 ? ' (fast)' : ''}
                       </button>
                     );
                   })}
@@ -3157,17 +3166,40 @@ const BaristaInterface = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Refresh interval (seconds)
                     </label>
+                    {/* Draft state, not the live value.
+
+                        This field could not be edited at all. onChange did
+                        parseInt(e.target.value) and the setter rejected NaN
+                        and anything under the minimum - so clearing it gave
+                        NaN (rejected), and typing "3" of "30" was itself
+                        under the minimum (rejected). Either way the
+                        controlled value snapped straight back, on every
+                        keystroke.
+
+                        Now the box holds whatever you type, and the value is
+                        committed only when it is a sensible number. */}
                     <div className="flex items-center">
-                      <input 
-                        type="number" 
-                        min="5" 
+                      <input
+                        type="number"
+                        min="3"
                         max="300"
-                        value={autoRefreshInterval}
-                        onChange={(e) => updateAutoRefreshInterval(parseInt(e.target.value))}
+                        value={refreshDraft}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          setRefreshDraft(raw);           // always let it be typed
+                          const n = parseInt(raw, 10);
+                          if (!isNaN(n) && n >= 3 && n <= 300) updateAutoRefreshInterval(n);
+                        }}
+                        onBlur={() => {
+                          // Leaving the box empty or nonsense returns it to
+                          // the value actually in force.
+                          const n = parseInt(refreshDraft, 10);
+                          if (isNaN(n) || n < 3 || n > 300) setRefreshDraft(String(autoRefreshInterval));
+                        }}
                         className="w-20 p-2 border rounded mr-2"
                       />
                       <span className="text-sm text-gray-500">
-                        {autoRefreshInterval < 15 ? '(Fast refresh may impact performance)' : ''}
+                        {autoRefreshInterval <= 5 ? '(fast — good during service)' : ''}
                       </span>
                     </div>
                   </div>
@@ -3597,7 +3629,7 @@ const BaristaInterface = () => {
                     alt={`QR code for ${screenLinkQr.url}`}
                     width={220}
                     height={220}
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(screenLinkQr.url)}`}
+                    src={`/api/qr?size=8&data=${encodeURIComponent(screenLinkQr.url)}`}
                   />
                   <div className="mt-3 text-sm text-gray-600 break-all max-w-[260px]">{screenLinkQr.url}</div>
                   <button

@@ -328,13 +328,17 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose, onOrderPlaced
     <div className="flex items-center justify-between mb-6">
       <div className="flex items-center gap-3 min-w-0">
         {onBack && (
-          <button onClick={onBack} className="p-2 rounded-full bg-white/90 text-gray-700 hover:bg-white flex-shrink-0">
+          <button onClick={onBack} className="p-2 rounded-full bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 flex-shrink-0">
             <ArrowLeft size={28} />
           </button>
         )}
-        <h2 className="text-3xl font-extrabold text-white drop-shadow truncate">{title}</h2>
+        {/* Dark, not white. This header sits INSIDE the panel, whose
+            background is #f8fafc - so white-on-near-white made "Order here
+            - pick a drink" effectively invisible on the kiosk. It was
+            presumably styled for the dark backdrop behind the panel. */}
+        <h2 className="text-3xl font-extrabold text-gray-900 truncate">{title}</h2>
       </div>
-      <button onClick={onClose} className="p-2 rounded-full bg-white/90 text-gray-700 hover:bg-white flex-shrink-0" title="Cancel">
+      <button onClick={onClose} className="p-2 rounded-full bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 flex-shrink-0" title="Cancel">
         <X size={28} />
       </button>
     </div>

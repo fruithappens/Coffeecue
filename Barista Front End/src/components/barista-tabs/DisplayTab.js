@@ -4,7 +4,9 @@ import { Monitor, Settings, Check, QrCode, Smartphone, Eye, Palette, Layout } fr
 
 // Simple QR Code component (using a QR API service)
 const QRCodeComponent = ({ url, size = 150 }) => {
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(url)}`;
+  // Served from our own origin. The external QR service fails on venue
+  // wifi behind a captive portal, which is exactly where this runs.
+  const qrUrl = `/api/qr?size=8&data=${encodeURIComponent(url)}`;
   
   return (
     <div className="flex flex-col items-center">

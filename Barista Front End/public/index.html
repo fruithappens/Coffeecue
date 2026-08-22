@@ -98,10 +98,27 @@
           } catch (e) { /* nothing further we can do */ }
         }
         window.addEventListener('error', function (e) {
+          // A failed IMAGE, SCRIPT or STYLESHEET also fires this event, and
+          // it is NOT the app failing to start. A QR image that could not
+          // load on venue wifi was enough to replace a perfectly working
+          // display board with "Coffee Cue could not start".
+          if (e && e.target && e.target !== window && e.target.tagName) return;
+          // Opaque cross-origin errors arrive as bare "Script error." with
+          // no file and no line. They carry nothing actionable and are
+          // almost always a third-party resource, not our bundle.
+          if (e && e.message && /^Script error\.?$/i.test(e.message) && !e.filename) return;
+          // Once the app has rendered, it plainly DID start. A later error
+          // must not blank the screen mid-service.
+          var rootEl = document.getElementById('root');
+          if (rootEl && rootEl.children.length > 0) return;
           show('Script error', (e && (e.message || e.type)) + ' @ '
             + ((e && e.filename) || '?') + ':' + ((e && e.lineno) || '?'));
-        });
+        }, true);
         window.addEventListener('unhandledrejection', function (e) {
+          // Same rule: a rejected fetch after the app is up is a network
+          // blip to handle in the UI, not a reason to blank the board.
+          var rootEl = document.getElementById('root');
+          if (rootEl && rootEl.children.length > 0) return;
           show('Unhandled promise rejection',
             String((e && e.reason && (e.reason.message || e.reason)) || e));
         });

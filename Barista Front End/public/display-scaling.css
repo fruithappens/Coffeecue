@@ -8,22 +8,31 @@
   position: relative;
 }
 
+/* These classes land on <BODY>, so their padding insets the WHOLE page.
+   That is why the display board lost its footer on an iPad: the board is
+   a full-viewport flex column (h-screen), and 1rem of body padding pushed
+   it 16px down, so the bottom 16px - the "Order here" button - fell off
+   the screen with nothing to scroll to, because the shell is
+   overflow:hidden.
+
+   Padding removed: every screen that uses these classes already sets its
+   own insets (the board uses px-6 md:px-10), and a full-bleed kiosk board
+   should reach the edges anyway. Font scaling, which is what these
+   classes are actually for, is kept. */
+
 /* iPad Direct Display (default) */
 .display-type-ipad {
   font-size: 1rem;
-  padding: 1rem;
 }
 
 /* External Display (HD/4K via USB-C dock) */
 .display-type-external {
   font-size: 1.2rem;
-  padding: 2rem;
 }
 
 /* Large Display (TV/Projector) */
 .display-type-large {
   font-size: 1.8rem;
-  padding: 3rem;
 }
 
 /* Resolution-specific adjustments */

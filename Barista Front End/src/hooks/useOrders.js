@@ -930,12 +930,15 @@ export default function useOrders(stationId = null) {
     if (autoRefreshEnabled) {
       console.log(`Auto-refresh enabled with interval ${autoRefreshInterval} seconds`);
       
-      // Floor of 15s — the header picker deliberately offers "15 seconds
-      // (fast)". This clamp used to be Math.max(30, …), which silently
-      // snapped a chosen 15 back to 30 (Steve: "can't seem to click auto
-      // refresh to 15 seconds"). Refreshes are silent (no spinner), so 15s
-      // doesn't flicker.
-      const safeInterval = Math.max(15, autoRefreshInterval);
+      // Floor of 3s. This clamp has now been wrong twice: it was
+      // Math.max(30, ...) and snapped a chosen 15 back to 30, then
+      // Math.max(15, ...) and snapped a chosen 5 back to 15 - the same
+      // complaint from Steve both times, because the floor lives in THREE
+      // places (here, updateAutoRefreshInterval, and toggleAutoRefresh) and
+      // only one of them got changed. All three now agree on 3s.
+      // Refreshes are silent (no spinner), so a few seconds does not
+      // flicker; during service the board needs to move in 3-5s.
+      const safeInterval = Math.max(3, autoRefreshInterval);
       if (safeInterval !== autoRefreshInterval) {
         console.warn(`Adjusting auto-refresh interval from ${autoRefreshInterval}s to ${safeInterval}s`);
         // Update in localStorage for persistence
@@ -1135,7 +1138,7 @@ export default function useOrders(stationId = null) {
     localStorage.setItem('coffee_auto_refresh_enabled', newValue);
     
     // When enabling auto-refresh, make sure we have a safe interval
-    if (newValue === true && autoRefreshInterval < 15) {
+    if (newValue === true && autoRefreshInterval < 3) {
       console.log('Auto-refresh enabled with too short interval, increasing to 60s for stability');
       setAutoRefreshInterval(60);
       localStorage.setItem('coffee_auto_refresh_interval', '60');
@@ -1144,7 +1147,10 @@ export default function useOrders(stationId = null) {
 
   // Update auto-refresh interval with minimum threshold to prevent flickering
   const updateAutoRefreshInterval = useCallback((seconds) => {
-    if (seconds && !isNaN(seconds) && seconds >= 15) { // Minimum 15s — a deliberate "fast" choice from the header picker
+    // Floor was 15s. Steve wants the board to move in 3-5s during service,
+    // and 5s of polling is nothing next to the WebSocket traffic already
+    // flowing. Anything below 3s is refused - that is a typo, not a choice.
+    if (seconds && !isNaN(seconds) && seconds >= 3) {
       // Store the previous value for logging
       const prevInterval = autoRefreshInterval;
       setAutoRefreshInterval(seconds);
@@ -1154,8 +1160,8 @@ export default function useOrders(stationId = null) {
       return true;
     }
     // Log a warning if value is too low
-    if (seconds && !isNaN(seconds) && seconds < 15) {
-      console.warn(`Auto-refresh interval of ${seconds}s is too low and might cause UI flickering. Minimum allowed is 15s.`);
+    if (seconds && !isNaN(seconds) && seconds < 3) {
+      console.warn(`Auto-refresh interval of ${seconds}s is below the 3s minimum.`);
     }
     return false;
   }, [autoRefreshInterval]);
