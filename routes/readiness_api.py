@@ -256,8 +256,9 @@ def _check_capabilities_coverage(db):
             SELECT short_name FROM catalog_items
             WHERE category = 'drink' AND is_active = TRUE
         """)
-        drinks = {r[0] if not isinstance(r, dict) else r['short_name']
+        drinks = {str(r[0] if not isinstance(r, dict) else r['short_name']).strip().lower()
                   for r in cur.fetchall()}
+        drinks = {d for d in drinks if d}
     except Exception:
         return {'status': 'skipped',
                 'detail': 'catalog_items not yet populated'}
@@ -274,8 +275,49 @@ def _check_capabilities_coverage(db):
     for r in rows:
         caps = r[0] if not isinstance(r, dict) else r.get('capabilities')
         if isinstance(caps, dict):
-            for d in (caps.get('drinks') or []):
-                covered.add(d)
+            # Read the key stations ACTUALLY use. This looked only at
+            # 'drinks', which no station writes - production stores
+            # coffee_types - so `covered` was always empty and the check
+            # reported every drink on the menu as uncovered, every time.
+            #
+            # A pre-doors check that always warns is worse than no check:
+            # it is the one thing meant to catch a station configured with
+            # no capabilities (which silently receives no orders at all),
+            # and it trained the operator to ignore it.
+            for key in ('coffee_types', 'drinks'):
+                for d in (caps.get(key) or []):
+                    if d:
+                        covered.add(str(d).strip().lower())
+    # Only drinks the EVENT actually offers. The catalog holds everything
+    # the product knows how to make; an operator who switched the teas off
+    # has not created a coverage gap, and warning about them buries the
+    # real case - a drink that IS on the menu with no station able to make
+    # it, so every order for it fails at routing.
+    try:
+        from routes.consolidated_api_routes import _kv_get
+        inv = _kv_get(db, 'event_inventory', default=None) or {}
+        # Stored shape varies: usually the categories sit at the top level,
+        # but a PUT that wrapped them ({"inventory": {...}}) is persisted
+        # verbatim, so unwrap one level before reading.
+        if isinstance(inv, dict) and isinstance(inv.get('inventory'), dict):
+            inv = inv['inventory']
+        on_menu = set()
+        for _cat, items in (inv.items() if isinstance(inv, dict) else []):
+            if not isinstance(items, list):
+                continue
+            for it in items:
+                if isinstance(it, dict) and it.get('name') and it.get('enabled'):
+                    on_menu.add(str(it['name']).strip().lower())
+        if on_menu:
+            drinks = drinks & on_menu
+    except Exception as e:
+        logger.warning(f"readiness: could not read event menu, "
+                       f"checking the whole catalog: {e}")
+
+    if not drinks:
+        return {'status': 'ok',
+                'detail': 'No drinks enabled on the event menu yet'}
+
     missing = drinks - covered
     if not missing:
         return {'status': 'ok',
