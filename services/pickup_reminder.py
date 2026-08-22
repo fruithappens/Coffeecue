@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import json
 import logging
+from utils.station_label import station_label as _station_label
 import threading
 import time
 from datetime import datetime, timedelta
@@ -207,10 +208,14 @@ class PickupReminderService:
             description = ' '.join(parts).strip() or 'order'
             if milk and milk.lower() not in ('none', 'no milk', ''):
                 description = f"{description} with {milk}"
-            station_label = f"Station {station_id}" if station_id else 'the counter'
+            station_text = (_station_label(self.db, station_id) if station_id
+                            else 'the counter')
+            # ASCII only: the wave emoji and the em dash both force UCS-2,
+            # which halves the per-segment budget from 160 to 70 and made
+            # this reminder cost two segments instead of one.
             body = (
-                f"👋 Hi {name}, just a reminder — your {description} "
-                f"(Order #{order_number}) is still waiting at {station_label}. "
+                f"Hi {name}, just a reminder - your {description} "
+                f"(Order #{order_number}) is still waiting at {station_text}. "
                 f"Come grab it before it goes cold!"
             )
             if self.messaging_service:

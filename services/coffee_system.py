@@ -2,6 +2,7 @@
 Enhanced Coffee Ordering System with improved SMS conversation handling
 """
 import logging
+from utils.station_label import station_label
 import json
 import re
 import random
@@ -1338,7 +1339,7 @@ class CoffeeOrderSystem:
                 if making:
                     m_num, m_station = making
                     return (f"Your order #{m_num} is already being made at "
-                            f"Station {m_station} - too late to cancel by text. "
+                            f"{station_label(self.db, m_station)} - too late to cancel by text. "
                             f"Please see the barista if you need to change it.")
                 # Same honesty for a READY order: "you don't have any orders"
                 # to someone whose coffee is on the shelf reads as "we lost
@@ -1353,7 +1354,7 @@ class CoffeeOrderSystem:
                 if ready:
                     r_num, r_station = ready
                     return (f"Good news - your order #{r_num} is already made and "
-                            f"waiting for you at Station {r_station}! No need to "
+                            f"waiting for you at {station_label(self.db, r_station)}! No need to "
                             f"cancel, just come and grab it.")
                 return "You don't have any pending orders to cancel."
 
@@ -4312,7 +4313,7 @@ class CoffeeOrderSystem:
             # User wants to end the conversation
             self._set_conversation_state(phone, 'completed')
             total_orders = 1  # Just this order
-            return f"Thanks, {name}! Your order has been confirmed. It will be ready for pickup at Station {order_details.get('station_id', 1)}."
+            return f"Thanks, {name}! Your order has been confirmed. It will be ready for pickup at {station_label(self.db, order_details.get('station_id', 1))}."
             
         else:
             # Unrecognized response - prompt again
@@ -5568,7 +5569,7 @@ class CoffeeOrderSystem:
                 # Show station immediately if it's the only one with this milk
                 confirmation_message = (
                     f"Order #{order_number} confirmed. "
-                    f"{processed_details.get('milk').title()} is at Station {station_id} only. "
+                    f"{processed_details.get('milk').title()} is at {station_label(self.db, station_id)} only. "
                     f"{position_line}"
                 )
             else:
@@ -5585,13 +5586,13 @@ class CoffeeOrderSystem:
             if station_was_reassigned:
                 if reassign_reason == 'capability':
                     confirmation_message += (
-                        f"\n\nNote: Station {requested_station_id} can't make this order, "
-                        f"so it was routed to Station {station_id}."
+                        f"\n\nNote: {station_label(self.db, requested_station_id)} can't make this order, "
+                        f"so it was routed to {station_label(self.db, station_id)}."
                     )
                 else:
                     confirmation_message += (
-                        f"\n\nNote: Station {requested_station_id} isn't available right now, "
-                        f"so your order was routed to Station {station_id}."
+                        f"\n\nNote: {station_label(self.db, requested_station_id)} isn't available right now, "
+                        f"so your order was routed to {station_label(self.db, station_id)}."
                     )
             
             # Add tracking URL if enabled

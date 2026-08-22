@@ -3,6 +3,8 @@ Messaging service for handling SMS communications
 """
 import logging
 from twilio.rest import Client
+from utils.station_label import station_label
+from utils.database import get_db_connection
 from twilio.twiml.messaging_response import MessagingResponse
 import os
 import time
@@ -19,6 +21,20 @@ os.makedirs(os.path.dirname(__file__), exist_ok=True)
 class MessagingService:
     """Service for sending and receiving SMS messages"""
     
+
+    def _station_label(self, station_id):
+        """Station NAME for customer text, or the old wording if unavailable.
+
+        This class holds no db handle of its own, and a name lookup must
+        never be able to stop a ready-message going out - so it opens one
+        defensively and falls back on any failure.
+        """
+        try:
+            return station_label(get_db_connection(), station_id)
+        except Exception as e:
+            logger.warning(f"station name lookup failed, using id: {e}")
+            return f"Station {station_id}"
+
     def __init__(self, account_sid=None, auth_token=None, phone_number=None, testing_mode=False):
         """
         Initialize the messaging service
@@ -279,11 +295,15 @@ class MessagingService:
         except Exception as ea_err:
             logger.warning(f"EventsAir push (ready) failed, non-fatal: {ea_err}")
 
+        # Plain ASCII on purpose. The bell and cup emoji forced this into
+        # UCS-2, which caps a segment at 70 characters instead of 160 - so
+        # this message cost TWO segments where one would do, on every
+        # ready-notification of every event.
         message = (
-            f"🔔 YOUR COFFEE IS READY! 🔔\n\n"
+            f"YOUR COFFEE IS READY!\n\n"
             f"Your {coffee_type} (order #{order_number}){friend_text} is now ready "
-            f"for collection from Station {station_id}.\n\n"
-            f"Enjoy! ☕"
+            f"for collection from {self._station_label(station_id)}.\n\n"
+            f"Enjoy!"
         )
 
         # Optional branded receipt link. Only appended when PUBLIC_BASE_URL
@@ -374,10 +394,11 @@ class MessagingService:
         except:
             pass
         
+        # Same reasoning as the ready message: ASCII keeps it to one segment.
         message = (
-            f"⏰ REMINDER: Your {coffee_type} (order #{order_number}) has been ready "
+            f"REMINDER: Your {coffee_type} (order #{order_number}) has been ready "
             f"for {wait_time} minutes.\n\n"
-            f"Please collect it from Station {station_id} soon!"
+            f"Please collect it from {self._station_label(station_id)} soon!"
         )
         
         return self.send_message(to, message)
