@@ -13,7 +13,19 @@ class OrderDataService {
     this.debugMode = true;
     
     // Cache configuration
-    this.cacheTimeout = 60000; // 1 minute cache
+    // 2s, was 60000 (one minute).
+    //
+    // This is why order status took "30 seconds at least no matter what
+    // settings I have" and why the manual refresh button did nothing: the
+    // display polls every 5s and the barista screen more often than that,
+    // but every one of those calls was served from this cache, so no
+    // request left the browser until the minute was up. Tuning the poll
+    // interval could never have fixed it.
+    //
+    // 2s keeps the burst protection that makes this cache worth having -
+    // three columns each calling getOrders() still costs ONE request - a
+    // request that takes ~0.55s against production and returns a few KB.
+    this.cacheTimeout = 2000;
     this.cache = new Map();
     
     // WebSocket event subscriptions
@@ -71,13 +83,17 @@ class OrderDataService {
    * @param {number} stationId - Station ID to filter orders
    * @returns {Promise<object>} Orders grouped by status
    */
-  async getOrders(stationId = null) {
+  async getOrders(stationId = null, { force = false } = {}) {
     const cacheKey = `orders_${stationId || 'all'}`;
-    
-    // Check cache first
-    const cached = this.getFromCache(cacheKey);
-    if (cached) {
-      return cached;
+
+    // Check cache first. `force` skips it: a person pressing Refresh is
+    // saying the screen is wrong, and answering that from cache is the
+    // one thing guaranteed to be useless.
+    if (!force) {
+      const cached = this.getFromCache(cacheKey);
+      if (cached) {
+        return cached;
+      }
     }
 
     try {
@@ -511,8 +527,8 @@ class OrderDataService {
    * Get pending orders
    * @returns {Promise<Array>} Pending orders
    */
-  async getPendingOrders() {
-    const orders = await this.getOrders();
+  async getPendingOrders(opts) {
+    const orders = await this.getOrders(null, opts);
     return orders.pendingOrders || [];
   }
 
@@ -520,8 +536,8 @@ class OrderDataService {
    * Get in-progress orders
    * @returns {Promise<Array>} In-progress orders
    */
-  async getInProgressOrders() {
-    const orders = await this.getOrders();
+  async getInProgressOrders(opts) {
+    const orders = await this.getOrders(null, opts);
     return orders.inProgressOrders || [];
   }
 
@@ -529,8 +545,8 @@ class OrderDataService {
    * Get completed orders
    * @returns {Promise<Array>} Completed orders
    */
-  async getCompletedOrders() {
-    const orders = await this.getOrders();
+  async getCompletedOrders(opts) {
+    const orders = await this.getOrders(null, opts);
     return orders.completedOrders || [];
   }
 
