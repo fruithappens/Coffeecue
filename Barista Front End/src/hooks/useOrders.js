@@ -15,6 +15,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import OrderDataService from '../services/OrderDataService';
 import StockService from '../services/StockService';
+import { planDepletion } from '../utils/stockDepletion';
 import { calculateWaitTime, parseServerDate } from '../utils/orderUtils';
 
 // How long a local optimistic transition wins over backend fetches.
@@ -1459,81 +1460,49 @@ export default function useOrders(stationId = null) {
         
         console.log(`Depleting stock for order ${orderId}:`, orderToComplete);
         
-        // Determine which items to deplete and by how much
-        
-        // 1. Deplete milk based on milk type and cup size
-        let milkAmount = 0;
-        const coffeeSize = orderToComplete.coffeeType?.toLowerCase() || '';
-        if (coffeeSize.includes('small')) {
-          milkAmount = 0.15; // 150ml for small
-        } else if (coffeeSize.includes('medium')) {
-          milkAmount = 0.25; // 250ml for medium
-        } else if (coffeeSize.includes('large')) {
-          milkAmount = 0.35; // 350ml for large
-        } else {
-          milkAmount = 0.25; // Default to medium
-        }
-        
-        // Determine milk ID based on milk type
-        let milkId = 'milk_regular';
-        const milkType = orderToComplete.milkType?.toLowerCase() || '';
-        
-        if (milkType.includes('skim')) {
-          milkId = 'milk_skim';
-        } else if (milkType.includes('almond')) {
-          milkId = 'milk_almond';
-        } else if (milkType.includes('soy')) {
-          milkId = 'milk_soy';
-        }
-        
-        // Get current milk level
+        // Work out what this order actually consumed. See
+        // utils/stockDepletion.js -- the size used to be read from the
+        // DRINK name, which never contains a size, so every order
+        // depleted the medium default including the cup.
         const milkItems = StockService.getLocalCategoryStock('milk');
-        const milkItem = milkItems.find(item => item.id === milkId);
-        
-        if (milkItem) {
-          const newAmount = Math.max(0, milkItem.amount - milkAmount);
-          console.log(`Depleting ${milkId} from ${milkItem.amount}L to ${newAmount}L`);
-          StockService.updateLocalStockAmount('milk', milkId, newAmount);
+        const plan = planDepletion(orderToComplete, milkItems);
+
+        // 1. Milk. plan.milk is null for a black coffee, and null when
+        //    the milk cannot be matched to anything this station stocks.
+        //    Both mean deplete nothing: guessing would drain the wrong
+        //    milk AND leave the right one looking full.
+        if (plan.milk) {
+          const milkItem = milkItems.find(item => item.id === plan.milk.id);
+          if (milkItem) {
+            const newAmount = Math.max(0, milkItem.amount - plan.milk.litres);
+            console.log(`Depleting ${plan.milk.id} from ${milkItem.amount}L to ${newAmount}L`);
+            StockService.updateLocalStockAmount('milk', plan.milk.id, newAmount);
+          } else {
+            console.warn(`Stock: no milk item '${plan.milk.id}' at this station; not depleting`);
+          }
+        } else if (orderToComplete.milkType) {
+          console.log(`Stock: '${orderToComplete.milkType}' depletes no milk`);
         }
-        
-        // 2. Deplete coffee beans based on cup size
-        let coffeeAmount = 0;
-        if (coffeeSize.includes('small')) {
-          coffeeAmount = 0.008; // 8g for small
-        } else if (coffeeSize.includes('medium')) {
-          coffeeAmount = 0.015; // 15g for medium
-        } else if (coffeeSize.includes('large')) {
-          coffeeAmount = 0.022; // 22g for large
-        } else {
-          coffeeAmount = 0.015; // Default to medium
-        }
-        
-        // Default to house blend
-        const coffeeId = 'coffee_house';
+
+        // 2. Coffee beans, by the real size.
         const coffeeItems = StockService.getLocalCategoryStock('coffee');
-        const coffeeItem = coffeeItems.find(item => item.id === coffeeId);
-        
+        const coffeeItem = coffeeItems.find(item => item.id === plan.beans.id);
+
         if (coffeeItem) {
-          const newAmount = Math.max(0, coffeeItem.amount - coffeeAmount);
-          console.log(`Depleting ${coffeeId} from ${coffeeItem.amount}kg to ${newAmount}kg`);
-          StockService.updateLocalStockAmount('coffee', coffeeId, newAmount);
+          const newAmount = Math.max(0, coffeeItem.amount - plan.beans.kilos);
+          console.log(`Depleting ${plan.beans.id} from ${coffeeItem.amount}kg to ${newAmount}kg`);
+          StockService.updateLocalStockAmount('coffee', plan.beans.id, newAmount);
         }
-        
-        // 3. Deplete a cup based on size
-        let cupId = 'cups_medium';
-        if (coffeeSize.includes('small')) {
-          cupId = 'cups_small';
-        } else if (coffeeSize.includes('large')) {
-          cupId = 'cups_large';
-        }
-        
+
+        // 3. A cup, of the size actually served. This is the one that
+        //    mattered most: large cups never depleted at all.
         const cupsItems = StockService.getLocalCategoryStock('cups');
-        const cupItem = cupsItems.find(item => item.id === cupId);
-        
+        const cupItem = cupsItems.find(item => item.id === plan.cup.id);
+
         if (cupItem) {
-          const newAmount = Math.max(0, cupItem.amount - 1); // Deplete 1 cup
-          console.log(`Depleting ${cupId} from ${cupItem.amount} to ${newAmount} cups`);
-          StockService.updateLocalStockAmount('cups', cupId, newAmount);
+          const newAmount = Math.max(0, cupItem.amount - plan.cup.count);
+          console.log(`Depleting ${plan.cup.id} from ${cupItem.amount} to ${newAmount} cups`);
+          StockService.updateLocalStockAmount('cups', plan.cup.id, newAmount);
         }
         
         // 4. Deplete sugar if the order includes sugar
