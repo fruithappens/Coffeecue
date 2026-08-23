@@ -445,7 +445,8 @@ def orders():
             # Build the complete query
             base_query = '''
                 SELECT id, order_number, status, station_id, 
-                       created_at, phone, order_details, queue_priority
+                       created_at, phone, order_details, queue_priority,
+                       completed_at, updated_at
                 FROM orders
             '''
             
@@ -461,7 +462,8 @@ def orders():
             orders = []
             for order in cursor.fetchall():
                 # Extract order details
-                order_id, order_number, status, station_id, created_at, phone, order_details_json, priority = order
+                (order_id, order_number, status, station_id, created_at, phone,
+                 order_details_json, priority, completed_at, updated_at) = order
                 
                 # Parse order details
                 if isinstance(order_details_json, str):
@@ -481,9 +483,29 @@ def orders():
                 _bg = None
                 if order_details.get('type') and order_details.get('milk'):
                     _bg = f"{str(order_details['type']).lower()}-{str(order_details['milk']).lower()}"
+                # Completion timestamps. Without these the Barista's
+                # "Ready for Pickup" column could never expire anything:
+                # its filter falls back to "keep it" when an order has no
+                # timestamp, and this listing -- the one the UI actually
+                # polls -- never sent one. Orders sat in that column for
+                # the rest of the event.
+                def _iso(v):
+                    if not v:
+                        return None
+                    return v.isoformat() if hasattr(v, 'isoformat') else str(v)
+
                 orders.append({
                     'id': order_number,  # Use order_number as id for consistency
                     'order_number': order_number,
+                    'completed_at': _iso(completed_at),
+                    'completedAt': _iso(completed_at),
+                    'updated_at': _iso(updated_at),
+                    'updatedAt': _iso(updated_at),
+                    # Whether a "your coffee is ready" text could have been
+                    # sent. A boolean rather than the number itself: the
+                    # UI only needs to know it exists, and the phone is
+                    # already omitted from this listing on purpose.
+                    'hasPhone': bool(str(phone or '').strip()),
                     'orderNumber': order_number,  # camelCase
                     'customer_name': order_details.get('name', 'Customer'),
                     'customerName': order_details.get('name', 'Customer'),  # camelCase

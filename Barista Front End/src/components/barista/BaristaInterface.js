@@ -662,6 +662,16 @@ const BaristaInterface = () => {
           // full Current column pushed everything off the bottom, and on
           // a smaller screen only two or three orders were visible.
           compactOrders: parsed.compactOrders !== undefined ? parsed.compactOrders : false,
+          // Skip the Collected step. With this on, completing an order is
+          // the end of it for the barista -- the Ready for Pickup column
+          // is not shown and nobody taps twice (Steve: "you dont need to
+          // select picked up, just completed"). The order still counts as
+          // ready on the CUSTOMER display, and still ages off there, so
+          // turning this on does not hide anything from the person
+          // waiting for their coffee.
+          skipPickedUp: parsed.skipPickedUp !== undefined ? parsed.skipPickedUp : false,
+          // How long a completed order stays in Ready for Pickup.
+          readyExpiryMinutes: parsed.readyExpiryMinutes || 30,
           waitTimeWarning: parsed.waitTimeWarning || 10, // minutes
           displayTimeout: parsed.displayTimeout || 5, // minutes
           // Notification settings
@@ -694,6 +704,8 @@ const BaristaInterface = () => {
       batchSuggestions: true,
       boardColumnOrder: 'progression',
       compactOrders: false,
+      skipPickedUp: false,
+      readyExpiryMinutes: 30,
       waitTimeWarning: 10, // minutes
       displayTimeout: 5, // minutes
       // Notification settings
@@ -2568,7 +2580,8 @@ const BaristaInterface = () => {
 
               `board-compact` tightens the cards for a station making
               8-10 at once -- see styles/boardDensity.css. */}
-          <div className={`grid grid-cols-1 lg:grid-cols-3 gap-4${
+          <div className={`grid grid-cols-1 ${
+            settings.skipPickedUp ? 'lg:grid-cols-2' : 'lg:grid-cols-3'} gap-4${
             settings.compactOrders ? ' board-compact' : ''}`}>
             {settings.boardColumnOrder !== 'current-first' && (
               /* Pending Orders */
@@ -2628,15 +2641,22 @@ const BaristaInterface = () => {
                 station with a Collected button. Steve wanted this
                 visible on the main Orders tab so the barista doesn't
                 have to switch to the Completed tab to mark orders
-                as collected as customers arrive. Only shows
-                completions from the last 30 minutes — stale orders
-                still live under the full Completed tab. */}
+                as collected as customers arrive. Stale orders still
+                live under the full Completed tab.
+
+                Hidden entirely when "Completing an order finishes it"
+                is on: the grid drops to two columns and the barista
+                never taps Collected. The order still shows as ready on
+                the customer display and still ages off there. */}
+            {!settings.skipPickedUp && (
             <ReadyForPickupColumn
               completedOrders={completedOrders}
               stationId={selectedStation}
+              expiryMinutes={settings.readyExpiryMinutes}
               onMarkPickedUp={markOrderPickedUp}
               onSendMessage={handleOpenMessageDialog}
             />
+            )}
           </div>
           </>
         )}
@@ -3129,6 +3149,57 @@ const BaristaInterface = () => {
                     eye follows one order across the screen.
                   </p>
                 </div>
+                <label className="flex items-start space-x-2">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={!!settings.skipPickedUp}
+                    onChange={(e) => setSettings(prev => ({ ...prev, skipPickedUp: e.target.checked }))}
+                  />
+                  <span>
+                    <span className="font-medium">Completing an order finishes it</span>
+                    <span className="block text-sm text-gray-500">
+                      Hides the Ready for Pickup column so nobody has to tap
+                      Collected. The order still shows as ready on the customer
+                      display. Use this when someone is calling names out rather
+                      than tracking collection.
+                    </span>
+                  </span>
+                </label>
+                {!settings.skipPickedUp && (
+                  <div>
+                    <div className="font-medium mb-1">Ready cards disappear after</div>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="number"
+                        min="5"
+                        max="240"
+                        className="border rounded px-2 py-1.5 w-24"
+                        value={settings.readyExpiryMinutes ?? 30}
+                        onChange={(e) => {
+                          // Empty field must not become NaN while they type.
+                          const v = parseInt(e.target.value, 10);
+                          setSettings(prev => ({
+                            ...prev,
+                            readyExpiryMinutes: Number.isNaN(v) ? '' : v,
+                          }));
+                        }}
+                        onBlur={(e) => {
+                          const v = parseInt(e.target.value, 10);
+                          setSettings(prev => ({
+                            ...prev,
+                            readyExpiryMinutes: Number.isNaN(v) ? 30 : Math.min(240, Math.max(5, v)),
+                          }));
+                        }}
+                      />
+                      <span className="text-gray-600">minutes</span>
+                    </div>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Orders with no phone number stay twice as long &mdash; nobody
+                      texted them, so the card is the only reminder to call the name.
+                    </p>
+                  </div>
+                )}
                 <label className="flex items-start space-x-2">
                   <input
                     type="checkbox"
@@ -4136,10 +4207,19 @@ const BaristaInterface = () => {
 //   2. Some old test rows had future-dated completed_at timestamps
 //      that defeated a client-side filter. Backend recency filter
 //      (recent_minutes=30, station_id=X) is reliable.
-const READY_RECENCY_MS = 30 * 60 * 1000;
 const READY_RECENCY_MIN = 30;
 
-const ReadyForPickupColumn = ({ completedOrders, stationId, onMarkPickedUp, onSendMessage }) => {
+// An order whose customer was TEXTED can age off on the normal timer --
+// they know it is waiting and will come. An order with no phone number
+// never got a message, so the only thing telling anyone it exists is
+// this card and the barista calling the name. Those stay twice as long
+// (Steve: "maybe its more the ones that are not getting a SMS").
+const NO_SMS_EXPIRY_MULTIPLIER = 2;
+
+const ReadyForPickupColumn = ({
+  completedOrders, stationId, onMarkPickedUp, onSendMessage,
+  expiryMinutes = READY_RECENCY_MIN,
+}) => {
   // Switched May 2026: instead of fetching its own list this column
   // now derives from the same `completedOrders` that the Completed
   // tab uses. Steve reported the column showing 0 while the
@@ -4155,8 +4235,11 @@ const ReadyForPickupColumn = ({ completedOrders, stationId, onMarkPickedUp, onSe
 
   const list = React.useMemo(() => {
     if (!Array.isArray(completedOrders)) return [];
-    const cutoff = Date.now() - READY_RECENCY_MS;
+    const baseMin = Number(expiryMinutes) > 0
+      ? Number(expiryMinutes) : READY_RECENCY_MIN;
     const now = Date.now();
+    const cutoff = now - baseMin * 60 * 1000;
+    const cutoffNoSms = now - baseMin * NO_SMS_EXPIRY_MULTIPLIER * 60 * 1000;
     const sidStr = stationId != null ? String(stationId) : null;
 
     return completedOrders
@@ -4185,15 +4268,23 @@ const ReadyForPickupColumn = ({ completedOrders, stationId, onMarkPickedUp, onSe
         if (!ts) return true;
         const t = new Date(ts).getTime();
         if (Number.isNaN(t)) return true;
+        // No phone means no "your coffee is ready" text was ever sent,
+        // so this card is the only trace of it -- give it longer.
+        // hasPhone is a boolean from the API; the number itself is
+        // deliberately not in this listing.
+        const hasPhone = o.hasPhone !== undefined
+          ? !!o.hasPhone
+          : !!String(o.phoneNumber || o.phone_number || o.phone || '').trim();
+        const floor = hasPhone ? cutoff : cutoffNoSms;
         // Tolerate clock skew up to 5 min in either direction.
-        return t >= cutoff && t <= now + 5 * 60 * 1000;
+        return t >= floor && t <= now + 5 * 60 * 1000;
       })
       .sort((a, b) => {
         const ta = new Date(a.completedAt || a.completed_at || a.updatedAt || a.updated_at || 0).getTime();
         const tb = new Date(b.completedAt || b.completed_at || b.updatedAt || b.updated_at || 0).getTime();
         return tb - ta;
       });
-  }, [completedOrders, stationId, hiddenIds]);
+  }, [completedOrders, stationId, hiddenIds, expiryMinutes]);
 
   // Reset the hidden set when the underlying completedOrders changes
   // significantly — prevents stale ids from accumulating.
