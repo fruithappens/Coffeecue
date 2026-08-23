@@ -5,6 +5,7 @@ This module provides a standardized API structure for the entire application,
 consolidating endpoints from various modules into a coherent API design.
 """
 import logging
+import threading
 from flask import Blueprint, jsonify, request, current_app, Response
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from datetime import datetime, timedelta
@@ -2689,9 +2690,46 @@ def _notify_customer_order_ready(phone, order_number, order_details, station_id)
                 logger.warning(f"bench-guard message record skipped: {_bg_err}")
             return
 
-        messaging_service.send_message(phone, body)
+        # OFF THE REQUEST. Everything above - reading settings, rendering the
+        # template, the bench wall - stays inline, because it touches the
+        # database and the app context and is fast. Only the network call to
+        # Twilio moves, because that is the part that can hang.
+        #
+        # Why it matters: this runs inside /complete, so the barista's tap did
+        # not return until Twilio answered. app.py imports eventlet but never
+        # calls monkey_patch(), so a blocking socket read stalls the whole hub
+        # rather than one greenlet - and the server is single-threaded. On
+        # 23 Aug that turned one slow SMS into 25 minutes of downtime, with
+        # CPU at 0.0 vCPU throughout.
+        #
+        # A real OS thread is deliberate: un-patched eventlet means
+        # threading.Thread is a genuine thread, so the blocking call happens
+        # off the hub entirely. daemon=True so it can never hold shutdown.
+        _dispatch_sms_async(messaging_service, phone, body, order_number)
     except Exception as exc:
         logger.error(f"Error sending ready-notification SMS: {exc}")
+
+
+def _dispatch_sms_async(messaging_service, phone, body, order_number):
+    """Send one SMS without holding the request.
+
+    Falls back to sending inline if a thread cannot be started - a missed
+    text is worse than a slow one, and the timeout on the Twilio client
+    bounds how slow that can get.
+    """
+    def _send():
+        try:
+            messaging_service.send_message(phone, body)
+        except Exception as exc:
+            logger.error("Async ready-SMS failed for order %s: %s",
+                         order_number, exc)
+
+    try:
+        threading.Thread(target=_send, name=f"sms-{order_number}",
+                         daemon=True).start()
+    except Exception as exc:
+        logger.warning("Could not start SMS thread (%s); sending inline", exc)
+        _send()
 
 
 def _render_ready_message(order_number, order_details, station_id):

@@ -70,7 +70,11 @@ class DialogflowNLPService:
                 }
             }
             
-            response = requests.post(url, headers=headers, json=data)
+            # Timeout, like every other outbound call here: without one a
+            # stalled socket holds the single worker and the whole service
+            # queues behind it.
+            response = requests.post(url, headers=headers, json=data,
+                                     timeout=15)
             response.raise_for_status()
             
             result = response.json()
