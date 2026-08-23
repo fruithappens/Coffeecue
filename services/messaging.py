@@ -3,6 +3,7 @@ Messaging service for handling SMS communications
 """
 import logging
 from twilio.rest import Client
+from twilio.http.http_client import TwilioHttpClient
 from utils.station_label import station_label
 from utils.database import get_db_connection
 from twilio.twiml.messaging_response import MessagingResponse
@@ -53,8 +54,23 @@ class MessagingService:
         
         if account_sid and auth_token and not testing_mode:
             try:
-                self.client = Client(account_sid, auth_token)
-                logger.info("Twilio client initialized successfully")
+                # A TIMEOUT, explicitly. Twilio's default client has none, and
+                # this call is made INSIDE the request that marks a coffee
+                # complete - so an unanswered socket does not just delay one
+                # text, it holds the worker. Production runs a single-threaded
+                # server, so everything else queues behind it: on 23 Aug that
+                # produced 25 minutes of "Application failed to respond" with
+                # CPU at 0.0 vCPU and memory flat, the signature of a process
+                # waiting rather than working.
+                #
+                # 10s connect / 10s read. A ready-SMS that cannot be sent in
+                # ten seconds should fail and be logged, not stop service.
+                timeout = float(os.environ.get('TWILIO_HTTP_TIMEOUT', '10'))
+                self.client = Client(
+                    account_sid, auth_token,
+                    http_client=TwilioHttpClient(timeout=timeout),
+                )
+                logger.info("Twilio client initialized (timeout=%ss)", timeout)
             except Exception as e:
                 logger.error(f"Failed to initialize Twilio client: {str(e)}")
     
