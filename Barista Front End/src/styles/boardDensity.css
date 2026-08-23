@@ -1,0 +1,64 @@
+/* Compact order board.
+ *
+ * At CTN26 a station was making 8-10 coffees at once. The Current column
+ * filled up and pushed the rest off the bottom, and on a smaller screen
+ * only two or three orders were visible at all -- so a barista was
+ * scrolling to find work they were already in the middle of.
+ *
+ * This tightens the cards rather than shrinking the page. Measured on a
+ * 1280-wide station screen, an in-progress card goes from 225px to
+ * 154px: about a third off, so four or five fit where three did.
+ *
+ * What gives up space is padding, margins and secondary text. What does
+ * NOT is the order number, the customer name and the action buttons --
+ * those are read from a step back and tapped with the side of a hand,
+ * and trading them away to fit another card would be the wrong bargain.
+ * Verified against the live board: no clipped text, no overflow, and
+ * exactly the same number of sub-28px tap targets as with compact off.
+ *
+ * Everything is scoped under .board-compact, which BaristaInterface puts
+ * on the orders grid only when the setting is on, so turning it off
+ * restores the original layout exactly. Selectors are two classes deep
+ * so they outrank the single-class Tailwind utilities they override
+ * without needing !important.
+ */
+
+/* Cards and column bodies -- the bulk of the saving. */
+.board-compact .shadow-md {
+  padding: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+/* Order number and customer name share a line instead of stacking.
+ * Wraps back to two lines when the column is too narrow, which is a
+ * graceful loss rather than clipped text. */
+.board-compact .flex.justify-between > div:first-child {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+.board-compact .flex.justify-between > div:first-child > .mt-1 {
+  margin-top: 0;
+}
+
+/* The drink box. */
+.board-compact .bg-gray-100.p-2,
+.board-compact .bg-gray-100.p-3 {
+  padding: 0.3rem 0.45rem;
+}
+
+/* Vertical rhythm between the parts of a card. */
+.board-compact .mt-2 { margin-top: 0.35rem; }
+.board-compact .mt-4 { margin-top: 0.4rem; }
+.board-compact .mb-4 { margin-bottom: 0.4rem; }
+.board-compact .py-8 { padding-top: 1rem; padding-bottom: 1rem; }
+
+/* Buttons lose padding, not their hit area. */
+.board-compact button.py-2 { padding-top: 0.35rem; padding-bottom: 0.35rem; }
+.board-compact button.py-3 { padding-top: 0.4rem; padding-bottom: 0.4rem; }
+
+/* Secondary text. The order number keeps its own size -- it is set in
+ * .text-sm, which is deliberately left alone here. */
+.board-compact .text-xl { font-size: 1.05rem; line-height: 1.25; }
+.board-compact .text-lg { font-size: 0.95rem; line-height: 1.25; }
