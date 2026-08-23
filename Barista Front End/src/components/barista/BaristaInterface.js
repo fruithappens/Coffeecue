@@ -55,6 +55,7 @@ import ToolsTab from '../barista-tabs/ToolsTab';
 import StationChat from '../support/StationChat';
 import OrderNotificationHandler from '../shared/OrderNotificationHandler';
 import PendingOrdersSection from './PendingOrdersSection';
+import '../../styles/boardDensity.css';
 import GroupBadge from './GroupBadge';
 import SourceBadge from './SourceBadge';
 import RushMixStrip from './RushMixStrip';
@@ -652,6 +653,15 @@ const BaristaInterface = () => {
           stationLocation: parsed.stationLocation || stations.find(s => s.id === selectedStation)?.location || '',
           baristaName: parsed.baristaName || getStationBaristaName(selectedStation),
           batchSuggestions: parsed.batchSuggestions !== undefined ? parsed.batchSuggestions : true,
+          // Order board layout. 'progression' reads left-to-right the way
+          // the work actually flows -- Upcoming, then Current, then Ready
+          // -- which is how a barista scans the screen. 'current-first'
+          // is the older layout, kept for anyone who prefers it.
+          boardColumnOrder: parsed.boardColumnOrder || 'progression',
+          // Tighter cards, for a station making 8-10 at once. At CTN26 a
+          // full Current column pushed everything off the bottom, and on
+          // a smaller screen only two or three orders were visible.
+          compactOrders: parsed.compactOrders !== undefined ? parsed.compactOrders : false,
           waitTimeWarning: parsed.waitTimeWarning || 10, // minutes
           displayTimeout: parsed.displayTimeout || 5, // minutes
           // Notification settings
@@ -682,6 +692,8 @@ const BaristaInterface = () => {
       stationLocation: stations.find(s => s.id === selectedStation)?.location || '',
       baristaName: getStationBaristaName(selectedStation),
       batchSuggestions: true,
+      boardColumnOrder: 'progression',
+      compactOrders: false,
       waitTimeWarning: 10, // minutes
       displayTimeout: 5, // minutes
       // Notification settings
@@ -2548,7 +2560,34 @@ const BaristaInterface = () => {
             onStartBatch={handleStartRushBatch}
             onBatchComplete={handleBatchComplete}
           />
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* Column order follows the work: Upcoming, then Current, then
+              Ready. Steve asked for "columb progression" after CTN26,
+              where the middle-of-the-board Current column filled up and
+              the eye had to jump about to follow one order through. The
+              older Current-first layout is still selectable in Settings.
+
+              `board-compact` tightens the cards for a station making
+              8-10 at once -- see styles/boardDensity.css. */}
+          <div className={`grid grid-cols-1 lg:grid-cols-3 gap-4${
+            settings.compactOrders ? ' board-compact' : ''}`}>
+            {settings.boardColumnOrder !== 'current-first' && (
+              /* Pending Orders */
+              <PendingOrdersSection
+                orders={pendingOrders}
+                teamMode={teamMode}
+                filter={filter}
+                onFilterChange={setFilter}
+                onStartOrder={startOrderWithLabel}
+                onProcessBatch={processBatch}
+                onSendMessage={handleOpenMessageDialog}
+                onDelayOrder={handleDelayOrder}
+                onEditOrder={handleEditOrder}
+                onMoveOrder={handleOpenMoveDialog}
+                groupInfoByOrderId={groupInfoByOrderId}
+                onStartGroup={handleStartGroup}
+              />
+            )}
+
             {/* Current Order (In Progress) */}
             <div>
               <div className="bg-amber-700 text-white p-2 rounded-t-lg">
@@ -2567,7 +2606,8 @@ const BaristaInterface = () => {
               </div>
             </div>
 
-            {/* Pending Orders */}
+            {settings.boardColumnOrder === 'current-first' && (
+            /* Pending Orders */
             <PendingOrdersSection
               orders={pendingOrders}
               teamMode={teamMode}
@@ -2582,6 +2622,7 @@ const BaristaInterface = () => {
               groupInfoByOrderId={groupInfoByOrderId}
               onStartGroup={handleStartGroup}
             />
+            )}
 
             {/* Ready for Pickup — recently-completed orders at this
                 station with a Collected button. Steve wanted this
@@ -3066,6 +3107,45 @@ const BaristaInterface = () => {
                   and COMPLETE lights up when every part is done
                 </span>
               </label>
+            </div>
+            {/* Order board — how the three columns are arranged and how
+                tightly the cards pack. Per device, because it depends on
+                the screen in front of this barista, not on the event. */}
+            <div className="bg-white rounded-lg shadow-md p-4">
+              <h2 className="text-xl font-bold mb-4">Order board</h2>
+              <div className="space-y-4">
+                <div>
+                  <div className="font-medium mb-1">Column order</div>
+                  <select
+                    className="border rounded px-2 py-1.5 w-full max-w-sm"
+                    value={settings.boardColumnOrder || 'progression'}
+                    onChange={(e) => setSettings(prev => ({ ...prev, boardColumnOrder: e.target.value }))}
+                  >
+                    <option value="progression">Upcoming &rarr; Current &rarr; Ready (follows the work)</option>
+                    <option value="current-first">Current &rarr; Upcoming &rarr; Ready (original)</option>
+                  </select>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Left to right in the order a coffee actually moves, so your
+                    eye follows one order across the screen.
+                  </p>
+                </div>
+                <label className="flex items-start space-x-2">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={!!settings.compactOrders}
+                    onChange={(e) => setSettings(prev => ({ ...prev, compactOrders: e.target.checked }))}
+                  />
+                  <span>
+                    <span className="font-medium">Compact cards</span>
+                    <span className="block text-sm text-gray-500">
+                      Fits about a third more orders on screen. Turn this on when
+                      you are making 8&ndash;10 at once or working on a smaller
+                      screen. Order numbers, names and buttons stay full size.
+                    </span>
+                  </span>
+                </label>
+              </div>
             </div>
             {/* Label Printing — per-device auto-print toggle. Deliberately
                 OFF by default: the operator opts each station's tablet in
