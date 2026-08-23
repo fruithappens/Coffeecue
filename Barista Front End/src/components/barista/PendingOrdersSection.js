@@ -105,7 +105,14 @@ const PendingOrdersSection = ({
     const drink = _norm(o.coffeeType);
     Object.entries(_BATCHABLE_BASES).forEach(([base, re]) => {
       if (re.test(drink)) {
-        (baseBuckets[base] = baseBuckets[base] || []).push(o.id);
+        // Bucket on base AND milk. These drinks are made WITH the milk
+        // -- a chai is brewed into it, not poured over a shot -- so two
+        // chais with different milks cannot share a jug and must not be
+        // hinted as batchable (Steve: "chai cant be batched as the milk
+        // is differnt fyi"). Grouping on the base alone told the barista
+        // to batch an oat chai with a full cream one.
+        const key = `${base}|${milk || 'no milk'}`;
+        (baseBuckets[key] = baseBuckets[key] || []).push(o.id);
       }
     });
   });
@@ -123,12 +130,18 @@ const PendingOrdersSection = ({
       });
     });
   });
-  Object.entries(baseBuckets).forEach(([base, ids]) => {
+  Object.entries(baseBuckets).forEach(([bucketKey, ids]) => {
     if (ids.length < 2) return;
+    const [base, milk] = bucketKey.split('|');
+    // Name the milk in the label. The barista needs to know WHICH chais
+    // the hint means, not just that some of them can be batched.
+    const label = milk && milk !== 'no milk'
+      ? `Batch ${base} + ${milk} (${ids.length})`
+      : `Batch ${base} (${ids.length})`;
     ids.forEach((id) => {
       (batchHintsByOrderId[id] = batchHintsByOrderId[id] || []).push({
-        key: `base:${base}`,
-        label: `Batch ${base} (${ids.length})`,
+        key: `base:${bucketKey}`,
+        label,
         kind: 'base',
       });
     });
