@@ -19,6 +19,9 @@ import { useSearchParams } from 'react-router-dom';
 import KioskOrder from './KioskOrder';
 
 const STORAGE_KEY = 'coffee_cue_my_cid';
+// Which QR/sign this visit came from. Session, not local: a delegate who
+// scans the foyer poster today and the cart iPad tomorrow is two visits.
+const SRC_KEY = 'coffee_my_src';
 const PHONE_KEY = 'coffee_cue_my_phone';
 
 const STATUS = {
@@ -78,6 +81,18 @@ const MyCoffeePage = () => {
   // ?cid= wins (a merge field, if the app ever supplies one), then whatever
   // this device remembered from last time.
   const paramCid = params.get('cid');
+  // Which QR they scanned: ?src=foyer-poster, ?src=cart-1-ipad, ?src=lanyard.
+  // Remembered like cid, because the page reloads on its own during
+  // ordering and the parameter would otherwise be lost after the first tap.
+  const paramSrc = params.get('src');
+  const [srcCode] = useState(
+    () => paramSrc || sessionStorage.getItem(SRC_KEY) || ''
+  );
+  useEffect(() => {
+    if (paramSrc) {
+      try { sessionStorage.setItem(SRC_KEY, paramSrc); } catch (e) { /* private mode */ }
+    }
+  }, [paramSrc]);
   const [cid, setCid] = useState(
     () => paramCid || localStorage.getItem(STORAGE_KEY) || ''
   );
@@ -323,7 +338,13 @@ const MyCoffeePage = () => {
       const r = await fetch('/api/ea/me/order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cid }),
+        // channel: an events-app link carries ?cid=, a plain QR does not.
+        // The server falls back to the same rule if this is ever absent.
+        body: JSON.stringify({
+          cid,
+          channel: paramCid ? 'app' : 'web',
+          src: srcCode || undefined,
+        }),
       });
       const b = await r.json();
       if (b?.success) {

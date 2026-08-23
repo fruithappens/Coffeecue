@@ -16,6 +16,7 @@ import sqlite3
 from models.orders import Order, CustomerPreference
 from models.stations import Station
 from services.nlp import NLPService
+from utils.order_provenance import stamp as stamp_provenance
 
 logger = logging.getLogger("expresso.services.coffee_system")
 
@@ -1368,6 +1369,7 @@ class CoffeeOrderSystem:
             if not order_number:
                 order_number = f"S{now.strftime('%H%M%S')}"
             cursor = self.db.cursor()
+            stamp_provenance(od, "sms")
             cursor.execute(
                 "INSERT INTO orders (order_number, phone, order_details, status, "
                 "station_id, created_at, updated_at, queue_priority) "
@@ -5876,6 +5878,11 @@ class CoffeeOrderSystem:
                 "assigned_to_station": station_id,
                 "assignedStation": station_id,
             }
+            # Provenance. This is the SMS path -- the one channel that
+            # never marked itself, which is why every unmarked historical
+            # order reads as SMS. Stamped on processed_details, which is
+            # the dict that actually gets serialised into the row.
+            stamp_provenance(processed_details, "sms")
             if station_was_reassigned:
                 processed_details["requested_station_id"] = requested_station_id
                 processed_details["station_was_reassigned"] = True
@@ -9522,6 +9529,14 @@ class CoffeeOrderSystem:
                 order_data["order_details"] = json.loads(order_data["order_details"])
 
             # Add basic details if not present
+            # Barista-entered walk-in. The frontend already sends
+            # source='walkin'; this records it in the closed vocabulary so
+            # reports do not have to know that spelling.
+            stamp_provenance(
+                order_data["order_details"],
+                "barista",
+                order_data.get("src") or order_data.get("source_code"),
+            )
             if "name" not in order_data["order_details"]:
                 order_data["order_details"]["name"] = order_data.get(
                     "customer_name", "Walk-in Customer"

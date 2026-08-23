@@ -50,8 +50,13 @@ const milkEmoji = (name) => {
   return '🥛';
 };
 
+// `channel` says WHOSE screen this is. The same component is both the
+// cart's own touchscreen (mounted by DisplayScreen) and the page a
+// delegate lands on after scanning a QR (mounted by MobileOrderPage at
+// /order). They are different channels for reporting and only the caller
+// knows which one it is, so it is a prop, not a guess.
 const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose, onOrderPlaced,
-                      eaCid }) => {
+                      eaCid, channel = 'kiosk' }) => {
   const [menu, setMenu] = useState(null);
   const [loadingMenu, setLoadingMenu] = useState(true);
   // Drink FIRST (Steve: "the first thing that should appear is not the
@@ -286,6 +291,11 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose, onOrderPlaced
           preferred_station: chosenStation,
           phone: phone.trim(),
           ea_contact_id: eaIdentity?.cid || undefined,
+          // Provenance. This overlay is the cart's own touchscreen, so the
+          // channel is fixed; ?src= lets one event run several kiosks and
+          // still tell them apart on the report (cart-1-ipad, foyer-ipad).
+          channel,
+          src: new URLSearchParams(window.location.search).get('src') || undefined,
         }),
       });
       const b = await r.json();
