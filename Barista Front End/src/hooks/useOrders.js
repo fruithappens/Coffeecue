@@ -16,6 +16,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import OrderDataService from '../services/OrderDataService';
 import StockService from '../services/StockService';
 import { planDepletion } from '../utils/stockDepletion';
+import { dedupeOrders, upsertOrder } from '../utils/orderListUtils';
 import { calculateWaitTime, parseServerDate } from '../utils/orderUtils';
 
 // How long a local optimistic transition wins over backend fetches.
@@ -209,7 +210,7 @@ export default function useOrders(stationId = null) {
             }
             if (parsedCache.completedOrders) {
               console.log(`Restoring ${parsedCache.completedOrders.length} completed orders for station ${stationId}`);
-              setCompletedOrders(parsedCache.completedOrders);
+              setCompletedOrders(dedupeOrders(parsedCache.completedOrders));
             }
             if (parsedCache.previousOrders) {
               console.log(`Restoring ${parsedCache.previousOrders.length} previous orders for station ${stationId}`);
@@ -340,7 +341,7 @@ export default function useOrders(stationId = null) {
           // Update all state directly with fallback data
           setPendingOrders(fallbackPendingOrders);
           setInProgressOrders(fallbackInProgressOrders);
-          setCompletedOrders(fallbackCompletedOrders);
+          setCompletedOrders(dedupeOrders(fallbackCompletedOrders));
           setPreviousOrders(fallbackPreviousOrders);
           
           // Make sure loading is set to false
@@ -724,7 +725,7 @@ export default function useOrders(stationId = null) {
         }
         
         if (batchedUpdates.completedOrders !== undefined && Array.isArray(batchedUpdates.completedOrders)) {
-          setCompletedOrders(batchedUpdates.completedOrders);
+          setCompletedOrders(dedupeOrders(batchedUpdates.completedOrders));
         }
         
         if (batchedUpdates.previousOrders !== undefined && Array.isArray(batchedUpdates.previousOrders)) {
@@ -843,7 +844,7 @@ export default function useOrders(stationId = null) {
             // Apply cached data immediately
             if (cachedData.pendingOrders) setPendingOrders(cachedData.pendingOrders);
             if (cachedData.inProgressOrders) setInProgressOrders(cachedData.inProgressOrders);
-            if (cachedData.completedOrders) setCompletedOrders(cachedData.completedOrders);
+            if (cachedData.completedOrders) setCompletedOrders(dedupeOrders(cachedData.completedOrders));
             if (cachedData.previousOrders) setPreviousOrders(cachedData.previousOrders);
             
             // Force online status to false
@@ -902,7 +903,7 @@ export default function useOrders(stationId = null) {
               }
               if (cachedData.completedOrders) {
                 console.log(`Applying ${cachedData.completedOrders.length} cached completed orders`);
-                setCompletedOrders(cachedData.completedOrders);
+                setCompletedOrders(dedupeOrders(cachedData.completedOrders));
               }
               if (cachedData.previousOrders) {
                 console.log(`Applying ${cachedData.previousOrders.length} cached previous orders`);
@@ -1558,7 +1559,7 @@ export default function useOrders(stationId = null) {
           // Don't fail the order completion if stock depletion fails
         }
         
-        setCompletedOrders(prev => [completedOrder, ...prev]);
+        setCompletedOrders(prev => upsertOrder(prev, completedOrder));
         
         // Make sure order is persisted in cache
         try {
@@ -1656,7 +1657,7 @@ export default function useOrders(stationId = null) {
         // Don't fail the order completion if stock depletion fails
       }
       
-      setCompletedOrders(prev => [completedOrder, ...prev]);
+      setCompletedOrders(prev => upsertOrder(prev, completedOrder));
       
       // Make sure order is persisted in cache
       try {
