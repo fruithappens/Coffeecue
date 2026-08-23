@@ -12,6 +12,10 @@ from datetime import datetime, timedelta
 import json
 import re
 from auth import jwt_required_with_demo, role_required_with_demo
+from utils.order_provenance import (
+    CHANNELS, SELF_SERVE, channel_label, infer_channel,
+    is_estimated as provenance_estimated, normalize_channel,
+    normalize_source, stamp as stamp_provenance)
 
 # Configure logging
 logger = logging.getLogger("expresso.routes.consolidated_api")
@@ -502,6 +506,12 @@ def orders():
                     # needsContact marks orders that can't get ready-SMS
                     # (barista calls the name instead).
                     'orderSource': order_details.get('source') or 'sms',
+                    # Provenance: how it was ordered and which QR/sign it
+                    # came from. channelEstimated flags orders from before
+                    # stamping, where 'kiosk' may really have been a /my scan.
+                    'channel': infer_channel(order_details),
+                    'sourceCode': order_details.get('source_code') or '',
+                    'channelEstimated': provenance_estimated(order_details),
                     'needsContact': bool(order_details.get('needs_contact')),
                     # Milk metadata for the card colour dot + badges.
                     # Stored by the walk-in endpoint; absent (→ null /
@@ -821,6 +831,15 @@ def orders():
 
             # Insert order into database
             cursor = db.cursor()
+            # Provenance. This is the barista's own walk-in dialog (the
+            # frontend already sends source='walkin'), so the channel is
+            # 'barista' unless the caller names a valid one -- the
+            # Organiser's bulk/group tools post here too.
+            stamp_provenance(
+                order_details,
+                normalize_channel(data.get('channel')) or 'barista',
+                data.get('src') or data.get('source_code'),
+            )
             cursor.execute('''
                 INSERT INTO orders (
                     order_number, phone, order_details, status, 
@@ -4287,6 +4306,12 @@ def create_kiosk_order():
         # browser never sees the number. Unknown/absent cid changes
         # nothing.
         ea_contact_id = str(data.get('ea_contact_id') or '').strip()
+        # Provenance. /my posts through this same endpoint, so the caller
+        # must say which it is -- the server cannot tell them apart. An
+        # absent or bogus channel falls back to 'kiosk', which is what
+        # this endpoint was before /my started borrowing it.
+        req_channel = normalize_channel(data.get('channel')) or 'kiosk'
+        req_source = normalize_source(data.get('src') or data.get('source_code'))
         ea_phone = ''
         if ea_contact_id:
             try:
@@ -4465,6 +4490,7 @@ def create_kiosk_order():
             'station_id': target,
             'stationId': target,
         }
+        stamp_provenance(order_details, req_channel, req_source)
         if ea_contact_id:
             # EA-linked kiosk order: carries the contact id so Phase-2
             # write-back (and future EA notifications) can find them.
@@ -9661,6 +9687,120 @@ def get_today_report():
         except Exception:
             pass
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/reports/channels', methods=['GET'])
+@jwt_required_with_demo()
+def report_channels():
+    """Where orders came from, over any date range.
+
+    The client-facing question this answers: "is anyone still using SMS?"
+    You cannot retire a channel on a hunch, and CTN26 could not answer it
+    because the touchscreen and /my wrote identical rows.
+
+    Orders placed before provenance stamping are still counted, with the
+    channel inferred from the old markers -- but they are reported in
+    `estimated` as well, so nobody reads a reconstruction as a
+    measurement. Once an event runs entirely on stamped orders, estimated
+    is 0 and the numbers are exact.
+
+    GET /api/reports/channels?start_date=2026-08-23&end_date=2026-08-23
+    Both dates optional; default is everything.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+        sql = ("SELECT order_details, status, station_id, created_at "
+               "FROM orders WHERE 1=1")
+        params = []
+        for arg, op in (('start_date', '>='), ('end_date', '<=')):
+            val = request.args.get(arg)
+            if val:
+                try:
+                    datetime.strptime(val, '%Y-%m-%d')
+                except ValueError:
+                    return jsonify({'success': False,
+                                    'message': f'{arg} must be YYYY-MM-DD'}), 400
+                sql += f" AND created_at::date {op} %s"
+                params.append(val)
+        cur = db.cursor()
+        cur.execute(sql, params)
+        rows = cur.fetchall() or []
+
+        by_channel, by_source, by_station = {}, {}, {}
+        total = served = estimated = 0
+        for row in rows:
+            raw = row[0] if not isinstance(row, dict) else row.get('order_details')
+            status = row[1] if not isinstance(row, dict) else row.get('status')
+            station = row[2] if not isinstance(row, dict) else row.get('station_id')
+            if isinstance(raw, str):
+                try:
+                    raw = json.loads(raw)
+                except Exception:
+                    raw = {}
+            details = raw if isinstance(raw, dict) else {}
+
+            total += 1
+            if str(status or '').lower() in ('completed', 'picked_up'):
+                served += 1
+            ch = infer_channel(details)
+            est = provenance_estimated(details)
+            if est:
+                estimated += 1
+            slot = by_channel.setdefault(
+                ch, {'channel': ch, 'label': channel_label(ch),
+                     'orders': 0, 'estimated': 0})
+            slot['orders'] += 1
+            slot['estimated'] += 1 if est else 0
+
+            src = details.get('source_code')
+            if src:
+                sslot = by_source.setdefault(
+                    src, {'source': src, 'orders': 0, 'channels': {}})
+                sslot['orders'] += 1
+                sslot['channels'][ch] = sslot['channels'].get(ch, 0) + 1
+            by_station[str(station)] = by_station.get(str(station), 0) + 1
+
+        def pct(n):
+            return round(100.0 * n / total, 1) if total else 0.0
+
+        channels = sorted(by_channel.values(), key=lambda c: -c['orders'])
+        for c in channels:
+            c['share_pct'] = pct(c['orders'])
+        sources = sorted(by_source.values(), key=lambda x: -x['orders'])
+        for x in sources:
+            x['share_pct'] = pct(x['orders'])
+
+        self_serve = sum(c['orders'] for c in channels
+                         if c['channel'] in SELF_SERVE)
+        sms_orders = by_channel.get('sms', {}).get('orders', 0)
+
+        return jsonify({
+            'success': True,
+            'total_orders': total,
+            'served': served,
+            'by_channel': channels,
+            'by_source': sources,
+            'by_station': by_station,
+            'self_service': {'orders': self_serve, 'share_pct': pct(self_serve)},
+            'sms': {'orders': sms_orders, 'share_pct': pct(sms_orders)},
+            # How much of the above is reconstruction rather than record.
+            # A client-facing chart should footnote this whenever it is
+            # non-zero, and no channel should be retired while it is high.
+            'estimated_orders': estimated,
+            'estimated_pct': pct(estimated),
+            'channel_vocabulary': CHANNELS,
+            'start_date': request.args.get('start_date'),
+            'end_date': request.args.get('end_date'),
+        })
+    except Exception as e:
+        logger.error(f"report_channels error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 
 @bp.route('/reports/today/print', methods=['GET'])

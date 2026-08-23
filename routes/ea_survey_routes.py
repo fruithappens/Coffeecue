@@ -42,6 +42,7 @@ from services.eventsair.survey import (SignatureError, map_answers,
                                        normalize_phone_e164,
                                        verify_webhook_signature)
 from services.eventsair.survey_client import EASurveyClient
+from utils.order_provenance import normalize_channel, normalize_source
 
 logger = logging.getLogger(__name__)
 
@@ -1442,6 +1443,14 @@ def ea_me_order():
         # The phone is attached HERE, server-side. The page never sees it.
         'phone': rec.get('mobile_e164') or '',
         'station_id': data.get('station_id'),
+        # Provenance. /my borrows the kiosk endpoint, so without this the
+        # order is indistinguishable from a tap on the cart's own iPad --
+        # the exact blind spot CTN26 hit. The page sends 'app' when it was
+        # opened from an events-app link (?cid=) and 'web' for a plain QR
+        # scan; ?src= carries WHICH sign or iPad they scanned.
+        'channel': normalize_channel(data.get('channel'))
+                   or ('app' if data.get('cid') else 'web'),
+        'src': normalize_source(data.get('src')),
     }
     with current_app.test_client() as c:
         r = c.post('/api/display/order', json=payload)

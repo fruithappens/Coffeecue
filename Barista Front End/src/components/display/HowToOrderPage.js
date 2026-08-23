@@ -33,7 +33,19 @@ const HowToOrderPage = () => {
   }, []);
 
   const origin = window.location.origin;
-  const orderUrl = `${origin}/order${stationId ? `?station=${stationId}` : ''}`;
+  // ?src= names WHERE this poster is going to hang: /how?station=1&src=cart-1-ipad
+  // prints a QR whose orders come back tagged 'cart-1-ipad'. Print one poster
+  // per placement and the channel report tells you which sign people used.
+  // Sanitised the same way the server will sanitise it, so what you see on
+  // the poster is what appears on the report.
+  const srcCode = (params.get('src') || '')
+    .toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/-+/g, '-')
+    .replace(/^-|-$/g, '').slice(0, 32);
+  const orderQuery = [
+    stationId ? `station=${encodeURIComponent(stationId)}` : '',
+    srcCode ? `src=${encodeURIComponent(srcCode)}` : '',
+  ].filter(Boolean).join('&');
+  const orderUrl = `${origin}/order${orderQuery ? `?${orderQuery}` : ''}`;
   const smsNumber = String(config.sms_number || '').replace(/\s/g, '');
   // sms: URI — Android honours ?body=, iOS opens the message to the
   // right number (it may drop the body on older versions). Either way

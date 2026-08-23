@@ -115,6 +115,11 @@ const MobileOrderPage = () => {
     <div className="min-h-screen bg-white">
       <KioskOrder
         stationId={stationId}
+        // This page is reached by scanning a QR on a phone, not by
+        // tapping the cart's iPad, so it reports as the delegate's own
+        // device. Without this both would land as 'kiosk' -- the exact
+        // blind spot that made CTN26's channel split unanswerable.
+        channel="web"
         onClose={() => { /* nothing to close — this IS the page */ }}
         onOrderPlaced={(orderNumber) => {
           const next = { order: String(orderNumber) };
