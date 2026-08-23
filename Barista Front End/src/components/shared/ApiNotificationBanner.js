@@ -7,6 +7,25 @@ import OrderDataService from '../../services/OrderDataService';
  * authentication issues and connection problems without requiring props
  */
 const ApiNotificationBanner = () => {
+  // Rush mode lives in the barista's settings store. Read it directly and
+  // follow the same 'settings:updated' event setSettings dispatches, so
+  // the banner reacts without this shared component taking a dependency
+  // on the barista interface.
+  const [rushMode, setRushMode] = useState(() => {
+    try {
+      return !!JSON.parse(localStorage.getItem('coffee_cue_settings') || '{}').rushMode;
+    } catch (e) { return false; }
+  });
+  useEffect(() => {
+    const onSettings = () => {
+      try {
+        setRushMode(!!JSON.parse(localStorage.getItem('coffee_cue_settings') || '{}').rushMode);
+      } catch (e) { /* corrupted store: leave as-is */ }
+    };
+    window.addEventListener('settings:updated', onSettings);
+    return () => window.removeEventListener('settings:updated', onSettings);
+  }, []);
+
   const [visible, setVisible] = useState(true);
   const [status, setStatus] = useState({
     useFallbackData: false,
@@ -141,13 +160,26 @@ const ApiNotificationBanner = () => {
     };
   }
   
+  // In rush mode the barista has given the screen over to orders, so this
+  // collapses to a single line: the warning still has to be seen -- stale
+  // data is exactly what you must not serve from -- but it does not need
+  // two lines and a title to say it.
+  const compact = rushMode;
+
   return (
-    <div className={`fixed top-0 left-0 right-0 ${colorScheme.container} p-3 z-50 shadow-md`}>
+    <div className={`fixed top-0 left-0 right-0 ${colorScheme.container} ${
+      compact ? 'px-3 py-1.5' : 'p-3'} z-50 shadow-md`}>
       <div className="max-w-7xl mx-auto flex items-center justify-between">
+        {compact ? (
+          <p className="text-sm font-medium truncate mr-3">
+            <span className="font-semibold">{title}:</span> {message}
+          </p>
+        ) : (
         <div>
           <p className="font-semibold">{title}</p>
           <p className="text-sm opacity-90">{message}</p>
         </div>
+        )}
         
         <div className="flex items-center">
           <button

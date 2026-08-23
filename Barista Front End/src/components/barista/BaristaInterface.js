@@ -8,7 +8,7 @@ import {
   MessageCircle, Printer, Plus, Clock,
   Bell, XCircle, RefreshCw, Edit, ArrowLeft, ChevronDown,
   Send, CheckCircle, Brain, Scale, Users, MoreHorizontal, Wrench, Shuffle,
-  Truck
+  Truck, Maximize2, Minimize2
 } from 'lucide-react';
 
 // Import app mode context
@@ -670,6 +670,13 @@ const BaristaInterface = () => {
           // turning this on does not hide anything from the person
           // waiting for their coffee.
           skipPickedUp: parsed.skipPickedUp !== undefined ? parsed.skipPickedUp : false,
+          // Rush mode: give the screen back to the orders. Measured on the
+          // real board, roughly half the height was header, tab bars, the
+          // "last updated" line and batch suggestions before a single
+          // order appeared (Steve: "nearly 50% of screen shot is errors,
+          // menus, and suggestions"). This hides all of it and packs the
+          // cards, leaving only a slim bar with the way out.
+          rushMode: parsed.rushMode !== undefined ? parsed.rushMode : false,
           // How long a completed order stays in Ready for Pickup.
           readyExpiryMinutes: parsed.readyExpiryMinutes || 30,
           waitTimeWarning: parsed.waitTimeWarning || 10, // minutes
@@ -705,6 +712,7 @@ const BaristaInterface = () => {
       boardColumnOrder: 'progression',
       compactOrders: false,
       skipPickedUp: false,
+      rushMode: false,
       readyExpiryMinutes: 30,
       waitTimeWarning: 10, // minutes
       displayTimeout: 5, // minutes
@@ -2120,7 +2128,7 @@ const BaristaInterface = () => {
       {/* Header. On mobile it wraps (flex-wrap) instead of overflowing, and
           the less-critical pills (Display, auto-refresh) are hidden — the
           barista keeps Station / Online / Queue / Wait / Questions / HELP. */}
-      <header className="bg-amber-800 text-white p-4 flex flex-wrap gap-y-2 justify-between items-center shadow-md">
+      <header className={`bg-amber-800 text-white flex flex-wrap gap-y-2 justify-between items-center shadow-md ${settings.rushMode ? 'px-3 py-1.5' : 'p-4'}`}>
         <div className="flex items-center">
           <button 
             className="mr-2 p-1 rounded hover:bg-amber-700"
@@ -2332,6 +2340,41 @@ const BaristaInterface = () => {
               bubble (bottom-right); the static HELP button was removed to
               declutter the header. */}
 
+          {/* Rush mode. The way in AND the way out -- in rush mode every
+              other menu is gone, so this button must stay visible and
+              obvious, and it says EXIT rather than showing a state. It
+              also asks the browser for real fullscreen, which reclaims
+              the address bar on a tablet; if that is refused (some
+              kiosks block it) the in-page saving still applies. */}
+          <button
+            className={`px-3 py-1 rounded-full flex items-center transition-colors text-sm mr-2 ${
+              settings.rushMode
+                ? 'bg-white text-amber-900 font-bold hover:bg-amber-100'
+                : 'bg-amber-900 hover:bg-amber-950'}`}
+            onClick={async () => {
+              const next = !settings.rushMode;
+              setSettings(prev => ({ ...prev, rushMode: next }));
+              try {
+                if (next && document.documentElement.requestFullscreen) {
+                  await document.documentElement.requestFullscreen();
+                } else if (!next && document.fullscreenElement && document.exitFullscreen) {
+                  await document.exitFullscreen();
+                }
+              } catch (e) {
+                // Fullscreen is a bonus, not the feature. A refusal must
+                // never stop the toggle -- the barista still gets the
+                // hidden menus and the tighter cards.
+              }
+            }}
+            title={settings.rushMode
+              ? 'Show the menus and batch suggestions again'
+              : 'Hide the menus and suggestions, pack the cards, go fullscreen'}
+          >
+            {settings.rushMode
+              ? <><Minimize2 size={14} className="mr-1" /> Exit rush</>
+              : <><Maximize2 size={14} className="mr-1" /> Rush</>}
+          </button>
+
           {/* Admin-only "Switch view" — jump to another interface from the
               header (replaces the floating switcher on this screen, which is
               hidden on /barista). Desktop only. */}
@@ -2379,6 +2422,10 @@ const BaristaInterface = () => {
           manager-only) — and when a group has one visible leaf it is
           drawn as a plain tab under that leaf's own name, rather than a
           heading over a single-item sub-bar. */}
+      {/* Both tab bars go away in rush mode -- the slim header keeps the
+          way out, and everything else is a menu the barista is not using
+          while there are ten coffees on the bench. */}
+      {!settings.rushMode && (
       <div className="hidden md:block bg-white border-b shadow-sm">
         <div className="flex">
           {BARISTA_GROUPS.map((g) => {
@@ -2441,11 +2488,13 @@ const BaristaInterface = () => {
           );
         })()}
       </div>
+      )}
 
       {/* Mobile bottom tab bar — replaces the overflowing top tab row on
           phones. Plain baristas get Orders / Stock / Completed; managers
           also get a "More" sheet with the configuration tabs. Hidden on
           md+ (desktop keeps the top tab row). */}
+      {!settings.rushMode && (
       <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 shadow-lg flex">
         {[
           { id: 'orders', label: 'Orders', Icon: Coffee },
@@ -2472,6 +2521,7 @@ const BaristaInterface = () => {
           </button>
         )}
       </div>
+      )}
 
       {/* Mobile "More" sheet — the manager/config tabs, opened from the bar. */}
       {showMobileMore && isManager && (
@@ -2528,7 +2578,7 @@ const BaristaInterface = () => {
         )}
         
         {/* Last Updated indicator */}
-        {!loading && !error && (
+        {!loading && !error && !settings.rushMode && (
           <div className="text-xs text-gray-500 mb-2 flex items-center">
             <Clock size={12} className="mr-1" />
             Last updated: {new Date(lastUpdated).toLocaleTimeString()}
@@ -2565,6 +2615,9 @@ const BaristaInterface = () => {
         {/* Orders Tab */}
         {!loading && activeTab === 'orders' && (
           <>
+          {/* Batch suggestions are a planning aid, not something you read
+              mid-rush -- and they were costing two rows above the columns. */}
+          {!settings.rushMode && (
           <RushMixStrip
             pendingOrders={pendingOrders}
             inProgressOrders={inProgressOrders}
@@ -2572,6 +2625,7 @@ const BaristaInterface = () => {
             onStartBatch={handleStartRushBatch}
             onBatchComplete={handleBatchComplete}
           />
+          )}
           {/* Column order follows the work: Upcoming, then Current, then
               Ready. Steve asked for "columb progression" after CTN26,
               where the middle-of-the-board Current column filled up and
@@ -2582,7 +2636,7 @@ const BaristaInterface = () => {
               8-10 at once -- see styles/boardDensity.css. */}
           <div className={`grid grid-cols-1 ${
             settings.skipPickedUp ? 'lg:grid-cols-2' : 'lg:grid-cols-3'} gap-4${
-            settings.compactOrders ? ' board-compact' : ''}`}>
+            (settings.compactOrders || settings.rushMode) ? ' board-compact' : ''}`}>
             {settings.boardColumnOrder !== 'current-first' && (
               /* Pending Orders */
               <PendingOrdersSection
