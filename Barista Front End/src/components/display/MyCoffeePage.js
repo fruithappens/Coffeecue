@@ -14,7 +14,7 @@
 //
 // Anyone we don't recognise falls through to the normal ordering flow, so
 // a wrong badge number or a guest who isn't in EventsAir is never stuck.
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import KioskOrder from './KioskOrder';
 
@@ -93,6 +93,54 @@ const MyCoffeePage = () => {
       try { sessionStorage.setItem(SRC_KEY, paramSrc); } catch (e) { /* private mode */ }
     }
   }, [paramSrc]);
+
+  // A sound when it turns ready. This page IS the notification for
+  // someone who gave no phone number, and a silent change on a screen in
+  // a pocket is no notification at all (Steve: "possible to have should
+  // when changes to ready for pickup").
+  //
+  // Web Audio rather than an audio file: no asset to ship, no request to
+  // fail on venue wifi, and it works from a page the customer has
+  // already tapped -- which is what unlocks audio in the first place.
+  // Every browser blocks sound before a gesture, and placing the order
+  // was that gesture.
+  const prevStatusRef = useRef(null);
+  useEffect(() => {
+    const status = me?.active_order?.status;
+    const was = prevStatusRef.current;
+    prevStatusRef.current = status;
+    // Only on the TRANSITION into ready, never on a poll that merely
+    // finds it still ready -- otherwise it chimes every few seconds at
+    // someone who already knows.
+    if (!was || was === status || status !== 'completed') return;
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      const ctx = new Ctx();
+      // Two short rising notes. A single beep reads as an error tone;
+      // rising reads as good news.
+      [[880, 0], [1175, 0.16]].forEach(([hz, at]) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = hz;
+        gain.gain.setValueAtTime(0.0001, ctx.currentTime + at);
+        gain.gain.exponentialRampToValueAtTime(0.35, ctx.currentTime + at + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + at + 0.32);
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.start(ctx.currentTime + at);
+        osc.stop(ctx.currentTime + at + 0.34);
+      });
+      setTimeout(() => { try { ctx.close(); } catch (e) { /* fine */ } }, 1200);
+    } catch (e) {
+      // Sound is a bonus. A browser that refuses it must not break the
+      // page telling someone their coffee is ready.
+    }
+    // A buzz as well where the device offers one -- a phone face-down on
+    // a table cannot be seen and may not be heard.
+    try { navigator.vibrate && navigator.vibrate([120, 60, 120]); } catch (e) { /* fine */ }
+  }, [me?.active_order?.status]);
+
   const [cid, setCid] = useState(
     () => paramCid || localStorage.getItem(STORAGE_KEY) || ''
   );
@@ -612,6 +660,27 @@ const MyCoffeePage = () => {
           <p className="text-center text-gray-500 text-sm mt-6">
             Keep this page open — it updates by itself.
           </p>
+
+          {/* A code someone ELSE can scan to order their own. Steve: "can
+              this page have a qr code on it so others can order off of
+              it?" -- the person holding the phone already has an order,
+              so this points at the ORDERING page rather than at this
+              one. Open by default here, unlike the share-my-order code
+              on the other status page: that one answers "let me show a
+              friend my order", this one is the thing a colleague asks
+              for, and a code they have to be shown how to reveal is a
+              code nobody uses. */}
+          <div className="mt-6 flex flex-col items-center">
+            <img
+              src={`/api/qr?size=7&data=${encodeURIComponent(`${window.location.origin}/order`)}`}
+              alt="Order a coffee"
+              className="w-40 h-40 bg-white rounded-xl p-2 shadow"
+            />
+            <p className="text-xs text-gray-500 mt-2 text-center">
+              Someone else can scan this to order their own.
+            </p>
+          </div>
+
           <button
             className="w-full mt-6 py-3 rounded-xl bg-gray-800 text-white font-semibold"
             onClick={() => setFullOrder(true)}
