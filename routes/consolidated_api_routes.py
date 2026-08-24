@@ -12,6 +12,9 @@ from datetime import datetime, timedelta
 import json
 import re
 from auth import jwt_required_with_demo, role_required_with_demo
+from utils.event_access import (
+    ACCESS_SETTING_KEY, check as event_access_check,
+    read_settings as event_access_settings)
 from utils.notification_hold import (
     HOLD_SETTING_KEY, clear_held, is_held, is_holding, mark_held,
     should_release, summarise as summarise_held)
@@ -3915,6 +3918,19 @@ def cancel_order_barista(order_id):
 # DISPLAY ENDPOINTS (PUBLIC FACING)
 # ============================================================================
 
+def _event_code_for_display(db):
+    """This event's ordering code, or '' if it has none.
+
+    Never raises: the display config is a public, load-bearing endpoint
+    and an unstamped poster is a far smaller problem than a config
+    endpoint that 500s.
+    """
+    try:
+        return event_access_settings(_kv_get(db, ACCESS_SETTING_KEY, default=None))['code']
+    except Exception:
+        return ''
+
+
 @bp.route('/display/config', methods=['GET'])
 def get_display_config():
     """Get display screen configuration including event details, sponsor info, and SMS details.
@@ -4081,6 +4097,11 @@ def get_display_config():
                 "display_overflow_mode": disp['display_overflow_mode'],
                 "display_touch_ordering": disp['display_touch_ordering'],
                 "sms_number": config.get('TWILIO_PHONE_NUMBER', '') or branding.get('smsNumber', ''),
+                # The event's ordering code, so the poster page can stamp
+                # it into the QR it prints. Public because it is printed
+                # on a poster -- it identifies an event, it does not
+                # authorise anything.
+                "event_code": _event_code_for_display(db),
                 "sponsor": sponsor,
                 # Logo for the display screen header. Uploaded via the
                 # Branding panel as a data URI (clientLogo). 'logo' is the
@@ -4377,6 +4398,23 @@ def create_kiosk_order():
         # this endpoint was before /my started borrowing it.
         req_channel = normalize_channel(data.get('channel')) or 'kiosk'
         req_source = normalize_source(data.get('src') or data.get('source_code'))
+
+        # Event gate. A QR from a previous event must not put a coffee on
+        # a barista's screen here -- see utils/event_access.py. Fails
+        # OPEN on any ambiguity: an event that never configured this, or
+        # that requires a code without having set one, keeps taking
+        # orders. A system that quietly stops accepting coffee is a worse
+        # outage than the stray order it was guarding against.
+        try:
+            allowed, gate_msg = event_access_check(
+                _kv_get(db, ACCESS_SETTING_KEY, default=None),
+                data.get('e') or data.get('event_code') or request.args.get('e'))
+            if not allowed:
+                logger.info("Order refused: event code mismatch")
+                return jsonify({'success': False, 'message': gate_msg,
+                                'wrong_event': True}), 403
+        except Exception as gate_err:
+            logger.warning(f"event gate check failed, allowing: {gate_err}")
         ea_phone = ''
         if ea_contact_id:
             try:
@@ -9924,6 +9962,49 @@ def get_today_report():
         except Exception:
             pass
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/event-access', methods=['GET', 'PUT'])
+@jwt_required_with_demo()
+def event_access_config():
+    """The event's ordering code, and whether it is enforced.
+
+    GET  -> {code, require}
+    PUT  -> {"code": "ctn26", "require": true}
+
+    Turning `require` on immediately invalidates every QR printed
+    without this code, which is right before an event and wrong in the
+    middle of one -- so it is opt-in and never defaults on.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        if request.method == 'PUT':
+            body = request.get_json(silent=True) or {}
+            current = event_access_settings(_kv_get(db, ACCESS_SETTING_KEY, default=None))
+            merged = {
+                'code': body.get('code', current['code']),
+                'require': bool(body.get('require', current['require'])),
+            }
+            cfg = event_access_settings(merged)
+            _kv_put(db, ACCESS_SETTING_KEY, cfg)
+            if cfg['require'] and not cfg['code']:
+                logger.warning(
+                    "event_access: require is ON but no code is set - "
+                    "ordering stays OPEN until a code is configured")
+            logger.info(f"event_access: code={cfg['code']!r} require={cfg['require']}")
+            return jsonify({'success': True, **cfg})
+
+        cfg = event_access_settings(_kv_get(db, ACCESS_SETTING_KEY, default=None))
+        return jsonify({'success': True, **cfg,
+                        'enforcing': bool(cfg['require'] and cfg['code'])})
+    except Exception as e:
+        logger.error(f"event_access_config error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 
 @bp.route('/notifications/hold', methods=['GET', 'PUT'])
