@@ -843,6 +843,11 @@ const DisplayScreen = () => {
   };
   const rotationStyle = ROTATION_WRAPPERS[rotation];
 
+  // Column gap. Wide enough for the overhanging QR to sit between the
+  // Brewing and Ready headers rather than on top of them; the ordinary
+  // gap everywhere else.
+  const qrGap = (orderQrUrl && !isPortrait) ? 'gap-6 md:gap-[13rem]' : 'gap-6 md:gap-8';
+
   const zoomStyle = zoom && zoom !== 100
     ? { transform: `scale(${zoom / 100})`, transformOrigin: 'top left' }
     : {};
@@ -1025,10 +1030,22 @@ const DisplayScreen = () => {
             service fails on venue wifi. */}
         {orderQrUrl && !isPortrait && (
           <div
-            className="absolute left-1/2 -translate-x-1/2 top-2 z-30 flex flex-col items-center"
+            className="absolute left-1/2 -translate-x-1/2 top-0 z-30 flex flex-col items-center"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="bg-white rounded-xl p-2 shadow-lg">
+            {/* The header colour carried DOWN around the code, so the band
+                reads as one ribbon that dips and comes back rather than a
+                white square dropped on the join (Steve: "the blue to wrap
+                around the QR code to make it more of a ribbon that sort of
+                changes shape a bit and then comes back").
+
+                Drawn as a backing panel behind the code, same colour as
+                the header, with only the BOTTOM corners rounded -- the top
+                stays square so it melts into the band above it with no
+                seam. */}
+            <div className="px-3 pt-2 pb-3 rounded-b-3xl shadow-lg"
+                 style={{ backgroundColor: headerColor }}>
+              <div className="bg-white rounded-xl p-2 shadow-lg">
               <img
                 // `size` is the endpoint's module size, not pixel width;
                 // the CSS below decides how big it actually draws.
@@ -1039,10 +1056,11 @@ const DisplayScreen = () => {
                 // not a broken-image box on a customer-facing board.
                 onError={(e) => { e.currentTarget.style.display = 'none'; }}
               />
-            </div>
-            <div className="mt-1 px-2 py-0.5 rounded-full text-xs font-bold shadow"
-                 style={{ backgroundColor: headerColor, color: onHeader }}>
-              Order from your phone
+              </div>
+              <div className="text-center text-xs font-bold mt-1.5"
+                   style={{ color: onHeader }}>
+                Order from your phone
+              </div>
             </div>
           </div>
         )}
@@ -1213,8 +1231,13 @@ const DisplayScreen = () => {
         </main>
       ) : (
       <main className={hasBg
-        ? `flex-grow flex gap-6 md:gap-8 px-6 md:px-10 pt-6 pb-6 ${isPortrait ? 'flex-col justify-start' : 'flex-row items-start'}`
-        : `flex-grow grid gap-6 md:gap-8 px-6 md:px-10 pb-6 ${isPortrait
+        // The overhanging QR needs a lane to drop into. With the normal
+        // gap the code sat over the Ready column's tick and its count
+        // (Steve: "not sitting over the top of the tick for the ready for
+        // pickup or the zero"). Widening only the landscape two-column
+        // gap gives it clear air without costing card width anywhere else.
+        ? `flex-grow flex ${qrGap} px-6 md:px-10 pt-6 pb-6 ${isPortrait ? 'flex-col justify-start' : 'flex-row items-start'}`
+        : `flex-grow grid ${qrGap} px-6 md:px-10 pb-6 ${isPortrait
             ? 'grid-cols-1 grid-rows-2'
             : (showCompleted ? 'grid-cols-2' : 'grid-cols-1')}`}>
 
