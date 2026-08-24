@@ -196,7 +196,10 @@ const DisplayScreen = () => {
     event_name: 'Coffee Event',
     sms_number: '',
     sponsor: { enabled: false, name: '', message: '' },
-    header_color: '#1e40af',
+    // CupQ house dark. This initial value matters: a second merge from
+    // the local settings hook runs after the API one, so a blue left
+    // here beat the colour the server actually sent.
+    header_color: '#1F2A37',
     custom_message: '',
     logo: '',
     background_landscape: '',
@@ -846,7 +849,13 @@ const DisplayScreen = () => {
   // Column gap. Wide enough for the overhanging QR to sit between the
   // Brewing and Ready headers rather than on top of them; the ordinary
   // gap everywhere else.
-  const qrGap = (orderQrUrl && !isPortrait) ? 'gap-6 md:gap-[13rem]' : 'gap-6 md:gap-8';
+  // The ribbon overlaps the coloured headers now rather than dropping
+  // into a lane between them (Steve: "the qr code could be bigger and
+  // could go over the top of the orange and green banner"). Overlapping
+  // buys the width back for the order cards -- the old 13rem lane was
+  // dead space on every board -- and the drop shadow is what makes the
+  // overlap read as a layer rather than a collision.
+  const qrGap = (orderQrUrl && !isPortrait) ? 'gap-6 md:gap-16' : 'gap-6 md:gap-8';
 
   const zoomStyle = zoom && zoom !== 100
     ? { transform: `scale(${zoom / 100})`, transformOrigin: 'top left' }
@@ -863,7 +872,13 @@ const DisplayScreen = () => {
   // Brand header band: paint the header in the event's colour and pick a
   // readable text colour (near-black or white) from its luminance, so the
   // title stays legible whatever colour the operator picked.
-  const headerColor = config.header_color || '#1e40af';
+  // CupQ house colours, from the logo: dark navy-charcoal with a tan
+  // accent. The old default was a generic blue that belonged to nothing.
+  // Still overridable per event via branding.headerColor -- a client with
+  // their own brand should win over ours.
+  const CUPQ_DARK = '#1F2A37';
+  const CUPQ_TAN = '#C08552';
+  const headerColor = config.header_color || CUPQ_DARK;
   const _hx = (headerColor || '').replace('#', '');
   const _r = parseInt(_hx.substring(0, 2) || '1e', 16);
   const _g = parseInt(_hx.substring(2, 4) || '40', 16);
@@ -1060,14 +1075,14 @@ const DisplayScreen = () => {
                 // the CSS below decides how big it actually draws.
                 src={`/api/qr?size=10&data=${encodeURIComponent(orderQrUrl)}`}
                 alt="Scan to order"
-                className="w-36 h-36"
+                className="w-44 h-44"
                 // A QR that fails to load should leave a clean header,
                 // not a broken-image box on a customer-facing board.
                 onError={(e) => { e.currentTarget.style.display = 'none'; }}
               />
               </div>
               <div className="text-center text-xs font-bold mt-1.5"
-                   style={{ color: onHeader }}>
+                   style={{ color: onHeaderDim }}>
                 Order from your phone
               </div>
             </div>
@@ -1110,7 +1125,7 @@ const DisplayScreen = () => {
             two sat at 40. Matching them makes justify-evenly's three
             gaps actually equal on screen. */}
         {orderQrUrl && !isPortrait && (
-          <div className="w-[184px] flex-shrink-0" aria-hidden />
+          <div className="w-[216px] flex-shrink-0" aria-hidden />
         )}
 
         {/* Right cell: SMS number, ordering button and operator chrome in
@@ -1132,8 +1147,11 @@ const DisplayScreen = () => {
                onClick={(e) => e.stopPropagation()}>
             {config.sms_number && (
               <div className="text-right leading-tight flex-shrink-0">
+                {/* The one place a brand accent reads without competing
+                    with order information: a small label nobody needs to
+                    read from across the room. */}
                 <div className="text-[11px] font-bold uppercase tracking-wide"
-                     style={{ color: onHeaderDim }}>
+                     style={{ color: config.header_color ? onHeaderDim : CUPQ_TAN }}>
                   Or text
                 </div>
                 {/* Never wrap a phone number. Letting it compress stacked
@@ -1576,7 +1594,13 @@ const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
           {icon}
           <h2 className="text-2xl md:text-3xl font-bold">{title}</h2>
         </div>
-        <div className="absolute right-6 text-lg font-bold opacity-90">{orders.length}</div>
+        {/* Count on the OUTER edge of each column. The ribbon now overlaps
+            the inner edges, and with the title centred the count was the
+            only thing living there -- on the left-hand column it sat
+            directly under the QR. Pushing each count outwards keeps both
+            readable whatever the ribbon covers. */}
+        <div className={`absolute text-lg font-bold opacity-90 ${
+          isReady ? 'right-6' : 'left-6'}`}>{orders.length}</div>
       </header>
       <div ref={bodyRef}
            className={hasBg ? 'px-4 py-3 overflow-hidden' : 'p-4 md:p-6 flex-grow overflow-hidden'}>

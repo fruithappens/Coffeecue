@@ -55,7 +55,7 @@ const milkEmoji = (name) => {
 // delegate lands on after scanning a QR (mounted by MobileOrderPage at
 // /order). They are different channels for reporting and only the caller
 // knows which one it is, so it is a prop, not a guess.
-const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose, onOrderPlaced,
+const KioskOrder = ({ stationId, headerColor = '#1F2A37', onClose, onOrderPlaced,
                       eaCid, channel = 'kiosk' }) => {
   const [menu, setMenu] = useState(null);
   // Event SMS number, for the "or text us" line. Public config, same
