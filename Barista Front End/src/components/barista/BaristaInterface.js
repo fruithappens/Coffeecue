@@ -205,6 +205,7 @@ const BaristaInterface = () => {
   // customer -- they queue up and go out together when released.
   const [holdState, setHoldState] = useState(null);
   const [holdBusy, setHoldBusy] = useState(false);
+  const [printingQueue, setPrintingQueue] = useState(false);
   const refreshHold = useCallback(async () => {
     try {
       const api = new (await import('../../services/ApiService')).default();
@@ -4184,6 +4185,43 @@ const BaristaInterface = () => {
           >
             <Plus size={18} className="mr-1" /> Add Walk-in Order
           </button>
+          {/* Print the whole queue. Only offered when this station has a
+              printer and there is something waiting -- a button that does
+              nothing is worse than no button. Steve, watching his own
+              video: "they were hitting print and pulling sticker out,
+              print and sticker". */}
+          {stationPrinter && pendingOrders.length > 0 && (
+            <button
+              className="px-4 py-2 bg-gray-200 rounded flex items-center hover:bg-gray-300 transition-colors disabled:opacity-60"
+              disabled={printingQueue}
+              onClick={async () => {
+                setPrintingQueue(true);
+                try {
+                  const r = await printService.printQueue(selectedStation);
+                  if (!r?.success) {
+                    showToast(r?.message || 'Could not print the queue', 'error');
+                  } else if (r.queued > 0) {
+                    showToast(
+                      `Printing ${r.queued} label${r.queued === 1 ? '' : 's'}` +
+                      (r.already_printed ? ` (${r.already_printed} already done)` : '') +
+                      (r.truncated ? ' - press again for the rest' : ''),
+                      'success');
+                  } else if (r.already_printed > 0) {
+                    showToast('Every waiting order already has a label', 'info');
+                  } else {
+                    showToast(r.message || 'Nothing to print', 'info');
+                  }
+                } catch (e) {
+                  showToast('Could not print the queue', 'error');
+                } finally { setPrintingQueue(false); }
+              }}
+              title="Print a label for every waiting order, oldest first"
+            >
+              <Printer size={18} className="mr-1" />
+              {printingQueue ? 'Sending...' : `Print queue (${pendingOrders.length})`}
+            </button>
+          )}
+
           {/* Notification hold. Deliberately loud when ON and quiet when
               off: a hold left on by accident means customers are never
               told their coffee is ready, which is a far worse failure

@@ -43,6 +43,19 @@ class PrintService {
   }
 
   /** Re-queue the ORIGINAL label payload for an order (snapshot, not live data). */
+  /**
+   * Print a label for every waiting order at this station, oldest first.
+   *
+   * The barista then plucks and sticks while the next one is already
+   * coming out, instead of pressing print for each cup. Orders whose
+   * label has already gone out are skipped unless `force`.
+   */
+  printQueue(stationId, { force = false, orderIds = null } = {}) {
+    const body = { station_id: stationId, force };
+    if (orderIds) body.order_ids = orderIds;
+    return this._call('/queue', 'POST', body);
+  }
+
   reprintLabel(orderId) {
     return this._call('/reprint', 'POST', { order_id: orderId });
   }

@@ -559,6 +559,157 @@ def print_label():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+# How many labels one press may queue. A roll is finite and a mis-tap
+# should not eat it. Anything beyond this is reported as truncated rather
+# than silently dropped, so the barista knows there is more to print.
+QUEUE_PRINT_CAP = 40
+
+
+@bp.route('/queue', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def print_queue():
+    """Print a label for every waiting order at once.
+
+    Steve, watching his own video of the event: "they were hitting print
+    and pulling sticker out, print and sticker. Maybe a print all in
+    queue and they can just pluck sticker and it will print and then they
+    can stick, while next one is auto printing."
+
+    Body (all optional):
+      station_id  which station's queue; taken from the orders otherwise
+      order_ids   an explicit list instead of the whole pending queue
+      force       reprint orders whose label already went out
+      limit       override the cap, up to QUEUE_PRINT_CAP
+
+    Labels are queued OLDEST FIRST, matching the order the barista will
+    work through them, so the stickers come off the printer in the same
+    sequence as the cups get made. Any other order turns a time-saver
+    into a sorting exercise.
+
+    An order whose label has already printed is skipped unless `force`.
+    _enqueue on its own only de-duplicates jobs still sitting in the
+    queue, so without this check a second press would produce a second
+    full set of stickers.
+    """
+    db = _db()
+    _ensure_tables(db)
+    data = request.get_json(silent=True) or {}
+    station_id = data.get('station_id')
+    order_ids = data.get('order_ids')
+    force = bool(data.get('force'))
+    try:
+        limit = int(data.get('limit') or QUEUE_PRINT_CAP)
+    except (TypeError, ValueError):
+        limit = QUEUE_PRINT_CAP
+    limit = max(1, min(QUEUE_PRINT_CAP, limit))
+
+    try:
+        cur = db.cursor()
+
+        if order_ids:
+            wanted = [str(o) for o in order_ids][:limit]
+            truncated = len(order_ids) > len(wanted)
+        else:
+            if not station_id:
+                return jsonify({'success': False,
+                                'message': 'station_id or order_ids required'}), 400
+            cur.execute(
+                "SELECT order_number FROM orders WHERE status = 'pending' "
+                "AND station_id = %s ORDER BY queue_priority, created_at ASC",
+                (station_id,))
+            rows = cur.fetchall() or []
+            allids = [(r[0] if not isinstance(r, dict) else r.get('order_number'))
+                      for r in rows]
+            wanted = allids[:limit]
+            truncated = len(allids) > len(wanted)
+
+        if not wanted:
+            return jsonify({'success': True, 'queued': 0, 'already_printed': 0,
+                            'already_queued': 0, 'failed': 0, 'truncated': False,
+                            'message': 'Nothing waiting to print'})
+
+        if not station_id:
+            cur.execute("SELECT station_id FROM orders WHERE order_number = %s",
+                        (str(wanted[0]),))
+            row = cur.fetchone()
+            if row:
+                station_id = row[0] if not isinstance(row, dict) else row.get('station_id')
+
+        cur.execute(
+            "SELECT * FROM printers WHERE enabled = TRUE AND station_id = %s "
+            "ORDER BY id LIMIT 1", (station_id,))
+        printer = _row_to_dict(cur, cur.fetchone())
+        if not printer:
+            return jsonify({'success': False,
+                            'message': 'No enabled printer for this station'}), 404
+
+        queued = already_printed = already_queued = failed = 0
+        job_ids = []
+        for order_id in wanted:
+            try:
+                if not force:
+                    # A label job of ANY status means this order's sticker
+                    # has already gone out, or is about to. Skip it --
+                    # _enqueue alone only de-duplicates jobs still sitting
+                    # in the queue, so without this a second press would
+                    # produce a second full set of stickers.
+                    cur.execute(
+                        "SELECT 1 FROM print_jobs WHERE printer_id = %s "
+                        "AND order_id = %s AND type = 'label' LIMIT 1",
+                        (printer['id'], str(order_id)))
+                    if cur.fetchone():
+                        already_printed += 1
+                        continue
+                payload = _snapshot_order(db, order_id, station_id)
+                if not payload:
+                    failed += 1
+                    continue
+                job_id, created = _enqueue(db, printer['id'], payload,
+                                           order_id=order_id)
+                if created:
+                    queued += 1
+                    job_ids.append(job_id)
+                else:
+                    # Still waiting in the queue. Reported separately from
+                    # "already printed" because they mean different things
+                    # to a barista: one sticker is coming, the other
+                    # already came out. Note this also stops `force` from
+                    # duplicating a label that simply has not printed yet.
+                    already_queued += 1
+            except Exception as one_err:
+                # One bad order must not stop the rest of the queue.
+                logger.error(f"print_queue: order {order_id} failed: {one_err}")
+                failed += 1
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+
+        body = {'success': True, 'queued': queued,
+                'already_printed': already_printed,
+                'already_queued': already_queued,
+                'failed': failed, 'truncated': truncated,
+                'job_ids': job_ids, 'printer': printer.get('name')}
+        if truncated:
+            body['message'] = (f'Queued {queued}. More are waiting - press again '
+                               f'once these have printed.')
+        warning = _offline_note(db, printer['id'])
+        if warning:
+            body['warning'] = warning
+        logger.info(f"print_queue station {station_id}: {queued} queued, "
+                    f"{already_printed} already printed, "
+                    f"{already_queued} still waiting, {failed} failed")
+        return jsonify(body)
+    except Exception as e:
+        logger.error(f"print_queue error: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 @bp.route('/ticket', methods=['POST'])
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff', 'barista'])
