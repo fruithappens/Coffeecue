@@ -273,6 +273,10 @@ const DisplayScreen = () => {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // What /display/config actually sent. Needed because `prev` cannot
+  // tell a value the SERVER set from a default that merely looks the
+  // same -- and that difference decides who wins the merge above.
+  const serverConfigRef = useRef({});
   // Health, for the corner dot. Three states because two are not enough:
   // "working now" and "broken now" miss the case that actually matters --
   // a board that dropped out earlier and recovered. Steve wants to remote
@@ -457,6 +461,7 @@ const DisplayScreen = () => {
         const _body = _resp.ok ? await _resp.json() : null;
         const c = _body && (_body.config || _body);
         if (!cancelled && c && (c.event_name || c.sms_number || c.logo || c.system_name)) {
+          serverConfigRef.current = c;
           setSmsPhoneNumber(c.sms_number || '');
           setConfig(prev => ({
             ...prev,
@@ -493,19 +498,34 @@ const DisplayScreen = () => {
 
   // Merge in any display settings (event name, custom message, etc.)
   // from the settings hook.
+  //
+  // THE SERVER WINS on anything branding. This effect runs AFTER the
+  // /display/config fetch, and it used to overwrite whatever the server
+  // sent with the local hook's value -- but that hook carries DEFAULTS,
+  // not just choices. The result: an event configured its own colour,
+  // the API returned it, and the board painted a built-in default over
+  // the top. Steve's branding said #ffdeb8 for weeks while every screen
+  // rendered the default instead, and it looked like the setting simply
+  // did nothing.
+  //
+  // Local settings now only fill a gap the server left. That is the
+  // right precedence for anything a client configures per event; a
+  // device-local preference has no business outranking it.
   useEffect(() => {
     if (settings?.displaySettings) {
       setConfig(prev => ({
         ...prev,
-        event_name: settings.displaySettings.eventName || prev.event_name,
-        sms_number: smsPhoneNumber || settings.displaySettings.smsNumber || prev.sms_number,
+        event_name: prev.event_name || settings.displaySettings.eventName,
+        sms_number: smsPhoneNumber || prev.sms_number || settings.displaySettings.smsNumber,
         sponsor: {
           enabled: settings.displaySettings.showSponsor,
           name: settings.displaySettings.sponsorName,
           message: settings.displaySettings.sponsorMessage,
         },
-        header_color: settings.displaySettings.headerColor || prev.header_color,
-        custom_message: settings.displaySettings.customMessage || prev.custom_message,
+        header_color: serverConfigRef.current.header_color
+          || settings.displaySettings.headerColor
+          || prev.header_color,
+        custom_message: prev.custom_message || settings.displaySettings.customMessage,
       }));
     }
   }, [settings, smsPhoneNumber]);
@@ -908,6 +928,32 @@ const DisplayScreen = () => {
   // photographic background disappears into the picture; this one has
   // to hold the card off the board.
   const BANNER_SHADOW = '0 10px 0 -3px rgba(31,42,55,0.28), 0 16px 28px -6px rgba(31,42,55,0.55)';
+
+  // Controls sitting ON the banner take their colours from the BANNER,
+  // never from the accent.
+  //
+  // This was the bug behind "you cant see the buttons as they are white
+  // on white". onHeader and headerChip are computed from headerColor --
+  // correct while the banner WAS headerColor, wrong the moment the
+  // banner became a white card. With a coffee accent they resolved to
+  // white icons on a 16%-white chip: invisible. With a pale accent the
+  // icons went dark and the accent-filled BUTTON became invisible
+  // instead. Either way something disappeared, because a colour derived
+  // from one surface was being painted onto another.
+  const bannerChip = 'rgba(31,42,55,0.10)';
+  // A fill needs text chosen from the FILL's own brightness. A pale
+  // accent like #ffdeb8 cannot carry white text, and a dark one cannot
+  // carry dark text -- so it is measured rather than assumed.
+  const _ax = (bannerEdge || '').replace('#', '');
+  const _alum = _ax.length >= 6
+    ? (0.299 * parseInt(_ax.slice(0, 2), 16)
+       + 0.587 * parseInt(_ax.slice(2, 4), 16)
+       + 0.114 * parseInt(_ax.slice(4, 6), 16)) / 255
+    : 0.5;
+  const onAccent = _alum > 0.6 ? '#1F2A37' : '#FFFFFF';
+  // A light accent on a white card has no edge of its own, so give it
+  // one. Without this a cream button simply vanishes into the banner.
+  const accentNeedsOutline = _alum > 0.75;
   const headerChip = _lum > 0.6 ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.16)';
 
   // Full-screen Display background — pick the image matching the screen's
@@ -1013,7 +1059,7 @@ const DisplayScreen = () => {
           <button
             onClick={(e) => { e.stopPropagation(); window.location.href = '/'; }}
             className="mr-4 p-2 rounded-full hover:opacity-80 transition flex-shrink-0"
-            style={{ backgroundColor: 'rgba(31,42,55,0.08)', color: bannerInk }}
+            style={{ backgroundColor: bannerChip, color: bannerInk }}
             title="Back to home"
           >
             <ArrowLeft size={24} />
@@ -1229,7 +1275,8 @@ const DisplayScreen = () => {
               <button
                 onClick={(e) => { e.stopPropagation(); setShowKiosk(true); }}
                 className="flex items-center gap-3 rounded-2xl px-5 2xl:px-7 py-3 2xl:py-4 text-2xl 2xl:text-3xl font-extrabold shadow-md hover:opacity-90 active:scale-95 whitespace-nowrap"
-                style={{ backgroundColor: bannerEdge, color: '#FFFFFF' }}
+                style={{ backgroundColor: bannerEdge, color: onAccent,
+                         border: accentNeedsOutline ? `2px solid ${bannerInk}` : 'none' }}
               >
                 <span className="text-3xl" aria-hidden>👆</span> Order here
               </button>
@@ -1269,7 +1316,7 @@ const DisplayScreen = () => {
           <button
             onClick={(e) => { e.stopPropagation(); toggleAnnouncements(); }}
             className="p-2 rounded-full hover:opacity-80"
-            style={{ backgroundColor: announceOn ? '#16a34a' : headerChip,
+            style={{ backgroundColor: announceOn ? '#16a34a' : bannerChip,
                      color: announceOn ? '#ffffff' : onHeader }}
             title={announceOn
               ? 'Voice announcements ON - tap to mute'
@@ -1280,7 +1327,7 @@ const DisplayScreen = () => {
           <button
             onClick={(e) => { e.stopPropagation(); setOrientation(orientation === 'portrait' ? 'landscape' : 'portrait'); }}
             className="p-2 rounded-full hover:opacity-80"
-            style={{ backgroundColor: headerChip, color: onHeader }}
+            style={{ backgroundColor: bannerChip, color: bannerInk }}
             title={orientation === 'portrait' ? 'Switch to landscape' : 'Switch to portrait (vertical)'}
           >
             <RotateCw size={20} />
@@ -1288,7 +1335,7 @@ const DisplayScreen = () => {
           <button
             onClick={(e) => { e.stopPropagation(); handleRefresh(); }}
             className="p-2 rounded-full hover:opacity-80"
-            style={{ backgroundColor: headerChip, color: onHeader }}
+            style={{ backgroundColor: bannerChip, color: bannerInk }}
             title="Refresh"
           >
             <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
@@ -1296,7 +1343,7 @@ const DisplayScreen = () => {
           <button
             onClick={(e) => { e.stopPropagation(); tryFullscreen(); }}
             className="p-2 rounded-full hover:opacity-80"
-            style={{ backgroundColor: headerChip, color: onHeader }}
+            style={{ backgroundColor: bannerChip, color: bannerInk }}
             title="Fullscreen"
           >
             <Maximize2 size={20} />
@@ -1718,12 +1765,14 @@ const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
             only thing living there -- on the left-hand column it sat
             directly under the QR. Pushing each count outwards keeps both
             readable whatever the ribbon covers. */}
-        {/* Count in an inset block on the LEFT of both columns, as in the
-            concept. Symmetry matters more than staying clear of the QR
-            here: the ribbon overlaps the inner edges, and the left of the
-            right-hand column is exactly where it lands -- so the block is
-            given a darker inset so it still reads through the overlap. */}
-        <div className="absolute left-0 top-0 bottom-0 px-5 flex items-center text-xl font-bold"
+        {/* Count on each column's OUTER edge, not both on the left.
+            Symmetry was the wrong call: the QR ribbon overlaps the INNER
+            edges, so a left-hand count on the right-hand column sits
+            directly under the code (Steve: "the ready for pickup should
+            be top right so its not under the qr code"). Outer edges are
+            the one place the ribbon can never reach. */}
+        <div className={`absolute top-0 bottom-0 px-5 flex items-center text-xl font-bold ${
+          isReady ? 'right-0' : 'left-0'}`}
              style={{ backgroundColor: 'rgba(0,0,0,0.16)' }}>
           {orders.length}
         </div>
