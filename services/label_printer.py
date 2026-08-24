@@ -418,7 +418,12 @@ def _decode_logo_to_1bit(
         return None
 
 
-def render_label(payload: dict, width_dots: int = None, options: dict = None) -> bytes:
+def render_label(
+    payload: dict,
+    width_dots: int = None,
+    options: dict = None,
+    _measure_only: bool = False,
+):
     """Render a print-job payload snapshot to a 1-bit PNG.
 
     payload keys (all optional, sensible fallbacks):
@@ -472,6 +477,47 @@ def render_label(payload: dict, width_dots: int = None, options: dict = None) ->
     canvas_h = (
         LABEL_GROW_MAX_HEIGHT if grow else LID_MAX_HEIGHT if lid else LABEL_MAX_HEIGHT
     )
+
+    # LOGO GETS THE LEFTOVER.
+    #
+    # A lid label is always the same length whatever it says: the floor is
+    # clamped to the ceiling, so every sticker is 320 dots of media whether
+    # the text fills it or not. Measured on Steve's own printed label, the
+    # ink stopped at y=245 and the bottom 9.4mm -- 23% of a sticker he had
+    # already paid for -- was blank. Steve: "it could do down the page a
+    # lot and sticker wouldnt even need to be bigger and would leave more
+    # space for the logo".
+    #
+    # So instead of a fixed allowance, lay the TEXT out first with no logo
+    # at all, see where it ends, and give the logo whatever is left. A long
+    # drink name that wraps takes its room back automatically -- which is
+    # the part a fixed bigger number could not do without shearing the
+    # sponsor line off the bottom of the busiest labels.
+    #
+    # The measuring pass runs this same function with the logo suppressed,
+    # so the two can never drift apart the way a hand-computed text height
+    # would.
+    if (
+        not _measure_only
+        and options.get("show_logo")
+        and options.get("logo_data")
+        and not grow
+    ):
+        try:
+            probe_opts = dict(options)
+            probe_opts["show_logo"] = False
+            text_bottom = render_label(payload, W, probe_opts, _measure_only=True)
+            spare = canvas_h - int(text_bottom or 0)
+            # Keep a couple of millimetres of air under the last line, and
+            # never shrink below what the fixed allowance already gave.
+            floor_allow = LOGO_MAX_HEIGHT_LID if lid else LOGO_MAX_HEIGHT_CUP
+            allow = max(floor_allow, spare - 24)
+            options = dict(options)
+            options["logo_max_height_lid" if lid else "logo_max_height"] = allow
+        except Exception as _probe_err:
+            # A failed measurement must never cost a label. Fall through
+            # on the fixed allowance, which is what shipped before.
+            logger.debug(f"logo autosize skipped: {_probe_err}")
 
     # Oversized canvas; crop to content at the end.
     img = Image.new("1", (W, canvas_h), 1)  # 1-bit, white
@@ -742,6 +788,11 @@ def render_label(payload: dict, width_dots: int = None, options: dict = None) ->
     except (TypeError, ValueError):
         floor = _floor_default
     floor = max(120, min(floor, canvas_h))  # never below ~15mm
+
+    # Measuring pass: the caller wants the content bottom, not a label.
+    if _measure_only:
+        return int(y)
+
     height = max(floor, min(canvas_h, y))
     img = img.crop((0, 0, W, height))
 
