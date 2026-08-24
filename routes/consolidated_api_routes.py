@@ -4121,7 +4121,11 @@ def get_display_config():
                 "background_landscape": branding.get('bgLandscape') or branding.get('background_landscape') or '',
                 "background_portrait": branding.get('bgPortrait') or branding.get('background_portrait') or '',
                 "wait_time": branding.get('waitTime', '10-15'),
-                "header_color": branding.get('headerColor') or branding.get('primaryColor') or '#1e40af',
+                # CupQ house dark, from the logo. Was a generic blue that
+                # belonged to nothing. A client's own branding still wins:
+                # this is only the fallback when nothing is configured.
+                "header_color": (branding.get('headerColor')
+                                 or branding.get('primaryColor') or '#1F2A37'),
                 "custom_message": disp.get('custom_message') or branding.get('customMessage') or branding.get('footerText') or '',
                 "stations": stations,
                 "app_version": config.get('APP_VERSION', '1.0.0'),
