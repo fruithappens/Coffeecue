@@ -1,12 +1,24 @@
 """
 Chat API routes for station communication
 This module provides API endpoints for the barista station chat system
+
+Every route here is behind a login. It was not, and the gap was NOT
+uniform, which is why reading the file was not enough to find it:
+/api/chat/messages GET and POST are shadowed by an authenticated handler
+elsewhere and already returned 401, so the module looked fine. But
+/api/chat/messages/<id> DELETE is defined ONLY here, nothing shadowed
+it, and an anonymous DELETE reached the handler -- anyone could delete
+the baristas' messages to each other.
+
+Found by probing each method, not by reading decorators.
 """
 
 import logging
 from flask import Blueprint, jsonify, request, current_app
 from datetime import datetime
 import json
+
+from auth import jwt_required_with_demo, role_required_with_demo
 
 # Create blueprint
 bp = Blueprint('chat_api', __name__, url_prefix='/api/chat')
@@ -15,6 +27,8 @@ bp = Blueprint('chat_api', __name__, url_prefix='/api/chat')
 logger = logging.getLogger("expresso.routes.chat_api")
 
 @bp.route('/messages', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
 def get_chat_messages():
     """Get recent chat messages between stations"""
     try:
@@ -95,6 +109,8 @@ def get_chat_messages():
         })
 
 @bp.route('/messages', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
 def send_chat_message():
     """Send a new chat message"""
     try:
@@ -151,6 +167,8 @@ def send_chat_message():
         })
 
 @bp.route('/messages/<int:message_id>', methods=['DELETE'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
 def delete_chat_message(message_id):
     """Delete a chat message by ID"""
     try:
@@ -184,6 +202,8 @@ def delete_chat_message(message_id):
         })
 
 @bp.route('/stations', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
 def get_stations():
     """Get list of active stations for the chat"""
     try:

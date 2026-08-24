@@ -4,6 +4,8 @@ Routes for handling SMS messages from Twilio with PostgreSQL support
 from flask import Blueprint, request, jsonify, current_app, Response
 from twilio.twiml.messaging_response import MessagingResponse
 from flask_jwt_extended import jwt_required, get_jwt_identity
+
+from auth import jwt_required_with_demo, role_required_with_demo
 from psycopg2.extras import RealDictCursor
 import logging
 import json
@@ -139,6 +141,8 @@ def _remember_inbound_reply(db, phone, body, reply):
 
 
 @bp.route('/sms/debug', methods=['GET', 'POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin'])
 def sms_debug():
     """Debug endpoint to test SMS webhook delivery"""
     logger.info("🔍 SMS DEBUG endpoint called!")
@@ -838,11 +842,24 @@ def send_test_sms():
         })
 
 @bp.route('/sms/send', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
 def send_sms():
-    """
-    Send an SMS message
-    Used for direct SMS sending from frontend
-    This endpoint supports both phone numbers and order IDs
+    """Send an SMS. STAFF ONLY -- this spends real money.
+
+    It took a destination number and a message body from anyone who could
+    reach the URL, with no authentication at all, and sent it. Verified:
+    an anonymous POST returned {"success": true, "message": "Message sent
+    to ..."} and only TESTING_MODE stopped it leaving the building.
+
+    The exposure is not just cost. It is a stranger sending arbitrary
+    text FROM the event's number -- to any phone they choose -- which
+    lands on the delegate's handset looking exactly like the coffee
+    system, and which Twilio would eventually suspend the account over.
+
+    Baristas are included because messaging a waiting customer is part
+    of the job; the barista interface and the support dashboard both
+    already send a Bearer token here, so nothing changes for them.
     """
     try:
         data = request.json
