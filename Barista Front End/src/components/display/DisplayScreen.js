@@ -1163,16 +1163,33 @@ const DisplayScreen = () => {
                 {/* The one place a brand accent reads without competing
                     with order information: a small label nobody needs to
                     read from across the room. */}
-                <div className="text-[11px] font-bold uppercase tracking-wide"
+                {/* "Or SMS" rather than "Or text": on a board where the
+                    other options are a QR and a touchscreen, SMS names
+                    the METHOD, while "text" reads as a verb and gets
+                    skimmed past. */}
+                <div className="text-sm font-bold uppercase tracking-widest"
                      style={{ color: onHeaderDim }}>
-                  Or text
+                  Or SMS
                 </div>
                 {/* Never wrap a phone number. Letting it compress stacked
                     it as "0489 / 263 / 333", which reads as three numbers
                     rather than one. If the bar is genuinely too narrow the
                     right thing is to lose the label, not to fold the
                     digits. */}
-                <div className="text-2xl font-extrabold tracking-wide whitespace-nowrap">
+                {/* Measured against the event name: that sits at 48px and
+                    this was at 24, exactly half, which made the one
+                    number a customer has to READ AND TYPE the smallest
+                    thing on the bar.
+
+                    Sized to the VIEWPORT rather than fixed. At 40px the
+                    number plus the button needed 476px of a 492px cell on
+                    a 1280 board -- no gap left, and "Order here" wrapped
+                    onto two lines. Event screens are usually 1920, where
+                    40px fits comfortably, so the big size is kept for
+                    wide boards and a smaller one used below that.
+                    whitespace-nowrap on the button because a wrapped
+                    call-to-action reads as a mistake at any size. */}
+                <div className="text-[32px] 2xl:text-[40px] leading-none font-extrabold tracking-wide whitespace-nowrap">
                   {formatSmsNumber(config.sms_number)}
                 </div>
               </div>
@@ -1180,10 +1197,10 @@ const DisplayScreen = () => {
             {kioskEnabled && config.display_touch_ordering !== false && (
               <button
                 onClick={(e) => { e.stopPropagation(); setShowKiosk(true); }}
-                className="flex items-center gap-2 rounded-xl px-5 py-3 text-xl font-extrabold shadow-md hover:opacity-90 active:scale-95 bg-white"
+                className="flex items-center gap-3 rounded-2xl px-5 2xl:px-7 py-3 2xl:py-4 text-2xl 2xl:text-3xl font-extrabold shadow-md hover:opacity-90 active:scale-95 bg-white whitespace-nowrap"
                 style={{ color: headerColor }}
               >
-                <span className="text-2xl" aria-hidden>👆</span> Order here
+                <span className="text-3xl" aria-hidden>👆</span> Order here
               </button>
             )}
           </div>
