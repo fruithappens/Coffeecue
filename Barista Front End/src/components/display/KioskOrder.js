@@ -337,6 +337,9 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose, onOrderPlaced
           temp: extraHot ? 'extra hot' : undefined,
           channel,
           src: new URLSearchParams(window.location.search).get('src') || undefined,
+          // The event this link belongs to. Carried through from the QR
+          // so an old poster cannot order into a new event.
+          e: new URLSearchParams(window.location.search).get('e') || undefined,
         }),
       });
       const b = await r.json();

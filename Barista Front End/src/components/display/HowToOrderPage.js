@@ -41,9 +41,28 @@ const HowToOrderPage = () => {
   const srcCode = (params.get('src') || '')
     .toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/-+/g, '-')
     .replace(/^-|-$/g, '').slice(0, 32);
+  // The event code, so a poster from this event cannot order coffee at
+  // the next one. Read from the server rather than typed into the URL:
+  // a poster is printed once and the operator should not have to
+  // remember to add it by hand.
+  const [eventCode, setEventCode] = useState('');
+  useEffect(() => {
+    let dead = false;
+    (async () => {
+      try {
+        const r = await fetch('/api/display/config');
+        const b = r.ok ? await r.json() : null;
+        const c = String((b?.config || b || {}).event_code || '').trim();
+        if (!dead && c) setEventCode(c);
+      } catch (e) { /* an unstamped poster still works unless enforcing */ }
+    })();
+    return () => { dead = true; };
+  }, []);
+
   const orderQuery = [
     stationId ? `station=${encodeURIComponent(stationId)}` : '',
     srcCode ? `src=${encodeURIComponent(srcCode)}` : '',
+    eventCode ? `e=${encodeURIComponent(eventCode)}` : '',
   ].filter(Boolean).join('&');
   const orderUrl = `${origin}/order${orderQuery ? `?${orderQuery}` : ''}`;
   const smsNumber = String(config.sms_number || '').replace(/\s/g, '');
