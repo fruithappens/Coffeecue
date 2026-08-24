@@ -1103,8 +1103,14 @@ const DisplayScreen = () => {
             mockup shows the same clash ("Or... you..." disappearing
             under it). This spacer is what keeps the middle of the bar
             clear so the overhanging code covers nothing. */}
+        {/* Exactly the ribbon's own width (184px), not a rounded-up
+            guess. Any slack between the gutter and the ribbon lands
+            entirely in the first gap -- a 224px gutter around a 184px
+            ribbon pushed the QR-to-number gap to 76px while the other
+            two sat at 40. Matching them makes justify-evenly's three
+            gaps actually equal on screen. */}
         {orderQrUrl && !isPortrait && (
-          <div className="w-56 flex-shrink-0" aria-hidden />
+          <div className="w-[184px] flex-shrink-0" aria-hidden />
         )}
 
         {/* Right cell: SMS number, ordering button and operator chrome in
@@ -1113,9 +1119,16 @@ const DisplayScreen = () => {
             menus and settings this could be onscreen order, and SMS
             number all across the top bar". The footer copies remain for
             portrait and for non-touch screens. */}
-        <div className="flex items-center justify-end gap-3 min-w-0">
+        {/* Evenly spaced, not bunched at the right edge. Steve: "text
+            message number and order here button and qr code should all be
+            equally spaced apart". justify-evenly gives equal space
+            BETWEEN and AROUND its children, so the run from the QR's edge
+            to the right margin divides into three equal gaps: QR to
+            number, number to button, button to edge. justify-end put both
+            hard right with all the air on the QR side. */}
+        <div className="flex items-center justify-evenly min-w-0">
         {!isPortrait && (
-          <div className="flex items-center gap-3 min-w-0"
+          <div className="flex flex-1 items-center justify-evenly min-w-0"
                onClick={(e) => e.stopPropagation()}>
             {config.sms_number && (
               <div className="text-right leading-tight flex-shrink-0">
@@ -1145,8 +1158,14 @@ const DisplayScreen = () => {
           </div>
         )}
 
+        {/* Operator chrome, OUT of the flow. It is setup-only -- a live
+            board runs fullscreen and never shows it -- but while it sat
+            in the row it took a share of the space and pushed the SMS
+            number and the ordering button out of even spacing. Absolute
+            positioning lets those two own the right-hand run, and the
+            chrome overlaps only on a screen nobody is serving from. */}
         {!isFullscreen && (
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-2 flex-shrink-0 absolute right-2 bottom-1 z-40">
           {stations.length > 1 && (
             <select
               value={currentStation?.id || ''}
