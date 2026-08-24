@@ -94,6 +94,23 @@ const MyCoffeePage = () => {
     }
   }, [paramSrc]);
 
+
+  const [cid, setCid] = useState(
+    () => paramCid || localStorage.getItem(STORAGE_KEY) || ''
+  );
+  const [me, setMe] = useState(null);
+
+  // Declared AFTER `me` deliberately. The dependency array below reads
+  // me?.active_order?.status, and a dep array is evaluated DURING RENDER
+  // -- so with this block sitting above `const [me] = useState(...)` it
+  // threw a temporal-dead-zone ReferenceError and took the whole /my
+  // page down in production. The build compiled it without complaint.
+  //
+  // Second time this exact shape has bitten in this codebase (the label
+  // roll hook in BaristaInterface referenced stationPrinter the same
+  // way). If a hook mentions a value in its deps, that value has to be
+  // declared above it.
+  //
   // A sound when it turns ready. This page IS the notification for
   // someone who gave no phone number, and a silent change on a screen in
   // a pocket is no notification at all (Steve: "possible to have should
@@ -141,10 +158,6 @@ const MyCoffeePage = () => {
     try { navigator.vibrate && navigator.vibrate([120, 60, 120]); } catch (e) { /* fine */ }
   }, [me?.active_order?.status]);
 
-  const [cid, setCid] = useState(
-    () => paramCid || localStorage.getItem(STORAGE_KEY) || ''
-  );
-  const [me, setMe] = useState(null);
   // Mobile first: almost nobody knows their badge number, and it may not
   // even be printed. Everyone knows their own phone. It is also the number
   // we need for notifications, so matching on it proves we hold a good one.
