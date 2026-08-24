@@ -401,6 +401,7 @@ def _decode_logo_to_1bit(
     try:
         import base64
         import io as _io
+
         from PIL import Image
 
         raw = logo_data_uri.split(",", 1)[1] if "," in logo_data_uri else logo_data_uri
@@ -456,8 +457,9 @@ def render_label(
       footer_text (str — e.g. 'CoffeeCue - coffeecue.com' or a
       sponsor/reseller line; empty = no footer line).
     """
-    from PIL import Image, ImageDraw
     from datetime import datetime
+
+    from PIL import Image, ImageDraw
 
     W = int(width_dots or PRINT_WIDTH_DOTS)
     payload = payload or {}
@@ -484,6 +486,37 @@ def render_label(
     drink_line = " ".join(drink_line_parts)
     if milk and milk.lower() not in ("no milk", "none", "standard", ""):
         drink_line += f" · {milk.title()}"
+
+    # Optional milk shape, per station, at the START of the drink line.
+    #
+    # It sat next to the milk word first, which was the obvious place and
+    # the wrong one: on a real label the line wrapped between the mark
+    # and "Oat", so the two halves of one idea landed on separate rows.
+    # At the line start it cannot be separated from its line, and — the
+    # actual point — it lands in the SAME position on every label, so a
+    # row of cups on the bench has its marks in a column. That is the
+    # behaviour Steve was describing: "like how there is colour ID in
+    # the batching process". A mark you have to hunt for is not one.
+    #
+    # The words are untouched either way. The symbol is a second way to
+    # read the same thing, never a replacement, so a barista who has not
+    # learned the shapes loses nothing.
+    #
+    # Only the CloudPRNT path (this function) carries them. The AirPrint
+    # renderer above is deliberately left alone: it is handed branding,
+    # not label_settings, and inventing a second place to configure this
+    # for a path Steve's printers do not use would be two switches for
+    # one feature.
+    try:
+        from utils.milk_glyph import enabled_for, label_prefix
+
+        drink_line = (
+            label_prefix(milk, enabled_for(options, payload.get("station_id")))
+            + drink_line
+        )
+    except Exception as _glyph_err:
+        # A symbol is a nicety; the label is not. Never lose a cup over one.
+        logger.debug(f"milk symbol skipped: {_glyph_err}")
 
     # Sizing mode (Steve): 'compact' shrinks text to fit a short label
     # (the original behaviour); 'grow' keeps the text big and lets the
@@ -847,8 +880,9 @@ def render_ticket(payload: dict, width_dots: int = None, options: dict = None) -
     and it says where to collect. Honours event name / instructions /
     footer from the same label_settings the designer edits.
     """
-    from PIL import Image, ImageDraw
     from datetime import datetime
+
+    from PIL import Image, ImageDraw
 
     W = int(width_dots or PRINT_WIDTH_DOTS)
     payload = payload or {}

@@ -74,6 +74,20 @@ class PrintService {
     return this._call('/roll', 'POST', body);
   }
 
+  /** Is this station printing a shape beside each milk, and which shapes?
+      Per station on purpose: the cart pouring one milk gains nothing from
+      a symbol, while the one running six alternatives wants them. */
+  getMilkSymbols(stationId) {
+    return this._call(`/milk-symbols?station_id=${encodeURIComponent(stationId)}`);
+  }
+
+  /** Turn milk shapes on or off for ONE station. The server edits its own
+      list rather than accepting a whole one, so two stations flipping
+      their switch at the same moment cannot erase each other. */
+  setMilkSymbols(stationId, enabled) {
+    return this._call('/milk-symbols', 'PUT', { station_id: stationId, enabled });
+  }
+
   /** Calibration/test label on a specific printer. */
   testPrint(printerId) {
     return this._call('/test', 'POST', { printer_id: printerId });

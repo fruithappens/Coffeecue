@@ -264,6 +264,9 @@ def _snapshot_order(db, order_number, station_id=None):
         'milk': od.get('milk') or '',
         'modifiers': modifiers,
         'station_name': station_name,
+        # The id as well as the name: milk symbols are a per-station
+        # option and the name is free text a barista can rename.
+        'station_id': sid,
         'ts': datetime.now().isoformat(),
     }
 
@@ -1224,6 +1227,9 @@ DEFAULT_LABEL_SETTINGS = {
     'banner_scale_mode': 'grow',
     'footer_text': '',
     'instructions_text': '',
+    # Station ids whose labels carry a milk shape. Empty = off, which is
+    # what every event gets until a barista asks for it.
+    'milk_symbol_stations': [],
 }
 
 
@@ -1315,9 +1321,72 @@ def put_label_settings():
     if 'event_name' in body:
         # Blank = follow the system event name; non-blank = override.
         stored['event_name'] = str(body['event_name'] or '').strip()[:40]
+    if 'milk_symbol_stations' in body:
+        from utils.milk_glyph import stations_from
+        stored['milk_symbol_stations'] = sorted(
+            stations_from(body['milk_symbol_stations']))
     _kv_put(db, 'label_settings', stored)
     return jsonify({'success': True,
                     'settings': {**DEFAULT_LABEL_SETTINGS, **stored}})
+
+
+@bp.route('/milk-symbols', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def get_milk_symbols():
+    """Is this station printing milk shapes, and what are they?
+
+    Barista-reachable on purpose. The label DESIGN belongs to whoever
+    runs the event, but which shorthand helps at the machine is a call
+    for the person standing at it — Steve: "an option baristas could
+    choose in menu". Handing back the shape table too means the barista
+    menu can show the actual marks rather than describing them.
+    """
+    db = _db()
+    from routes.consolidated_api_routes import _kv_get
+    from utils.milk_glyph import MILK_GLYPHS, stations_from
+    stored = _kv_get(db, 'label_settings', default={}) or {}
+    stations = stations_from(stored.get('milk_symbol_stations'))
+    try:
+        sid = int(request.args.get('station_id'))
+    except (TypeError, ValueError):
+        sid = None
+    return jsonify({
+        'success': True,
+        'station_id': sid,
+        'enabled': sid in stations if sid is not None else False,
+        'stations': sorted(stations),
+        'glyphs': MILK_GLYPHS,
+    })
+
+
+@bp.route('/milk-symbols', methods=['PUT', 'POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def put_milk_symbols():
+    """Turn milk shapes on or off for ONE station.
+
+    Reads the list, changes one id, writes it back — so two stations
+    flipping their own switch a second apart cannot erase each other,
+    which a whole-list PUT from each barista would.
+    """
+    db = _db()
+    body = request.get_json(silent=True) or {}
+    try:
+        sid = int(body.get('station_id'))
+    except (TypeError, ValueError):
+        return jsonify({'success': False,
+                        'message': 'station_id required'}), 400
+    enabled = bool(body.get('enabled'))
+    from routes.consolidated_api_routes import _kv_get, _kv_put
+    from utils.milk_glyph import stations_from
+    stored = _kv_get(db, 'label_settings', default={}) or {}
+    stations = stations_from(stored.get('milk_symbol_stations'))
+    stations.add(sid) if enabled else stations.discard(sid)
+    stored['milk_symbol_stations'] = sorted(stations)
+    _kv_put(db, 'label_settings', stored)
+    return jsonify({'success': True, 'station_id': sid,
+                    'enabled': enabled, 'stations': sorted(stations)})
 
 
 @bp.route('/preview', methods=['GET'])
@@ -1341,6 +1410,7 @@ def preview_label():
                 'order_number': '047', 'name': 'Stephanie Routley',
                 'drink': 'flat white', 'size': 'medium', 'milk': 'oat',
                 'modifiers': ['Extra hot', '1 sugar'], 'station_name': 'Coffee Station 1',
+                'station_id': 1,
                 'ts': datetime.now().isoformat(),
             }
             if request.args.get('sample') != '1':
@@ -1354,8 +1424,16 @@ def preview_label():
         else:
             renderer = (render_ticket if request.args.get('ticket') == '1'
                         else render_label)
-        png = renderer(payload, int(width) if width else None,
-                       options=_label_options(db))
+        opts = _label_options(db)
+        # ?milk_symbols=1|0 previews the shapes without committing to
+        # them, so a barista can look at a real label before deciding.
+        # It overrides the stored per-station list for this render only.
+        forced = request.args.get('milk_symbols')
+        if forced in ('0', '1'):
+            opts = dict(opts)
+            sid = payload.get('station_id')
+            opts['milk_symbol_stations'] = [sid] if (forced == '1' and sid is not None) else []
+        png = renderer(payload, int(width) if width else None, options=opts)
         return Response(png, mimetype='image/png')
     except Exception as e:
         logger.error(f"preview_label error: {e}")

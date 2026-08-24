@@ -82,3 +82,52 @@ def label_prefix(milk, enabled):
         return ""
     g = glyph_for(milk)
     return f"{g} " if g else ""
+
+
+# The setting is a LIST OF STATIONS, not a global switch.
+#
+# Steve: "think it would only be a option baristas could choose in menu".
+# A station pouring one milk gains nothing from a symbol and loses the
+# width, while the station running six alternatives wants them badly --
+# and at a real event those two stations are three metres apart, printing
+# from the same server. A single global flag makes one barista's
+# preference everyone else's label.
+SYMBOL_STATIONS_KEY = "milk_symbol_stations"
+
+
+def stations_from(value):
+    """Coerce a stored setting into a set of int station ids.
+
+    Junk in any form yields an EMPTY set, which means symbols OFF. That
+    is the safe direction here: an unexpected mark on a label is a
+    barista pausing to work out what it means, whereas the absence of one
+    is simply the labels they have printed all along.
+    """
+    out = set()
+    if isinstance(value, (list, tuple, set)):
+        for item in value:
+            try:
+                out.add(int(item))
+            except (TypeError, ValueError):
+                continue
+    return out
+
+
+def enabled_for(options, station_id):
+    """Should this label carry milk symbols?
+
+    `options` is the label_settings blob and `station_id` comes from the
+    frozen job payload, so the station is whatever it was when the job
+    was queued while the on/off choice is read fresh at render time --
+    the same split every other label option already uses.
+
+    A payload with no station_id at all (an old queued job, a test
+    label) gets no symbols rather than an arbitrary station's setting.
+    """
+    if station_id is None:
+        return False
+    try:
+        sid = int(station_id)
+    except (TypeError, ValueError):
+        return False
+    return sid in stations_from((options or {}).get(SYMBOL_STATIONS_KEY))
