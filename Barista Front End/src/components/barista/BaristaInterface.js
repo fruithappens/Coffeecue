@@ -201,6 +201,22 @@ const BaristaInterface = () => {
   // tomorrow morning.
   const [currentSort, setCurrentSort] = useState('oldest');
   const [currentMilkFilter, setCurrentMilkFilter] = useState('');
+  // Notification hold: while it is on, completed orders do not text the
+  // customer -- they queue up and go out together when released.
+  const [holdState, setHoldState] = useState(null);
+  const [holdBusy, setHoldBusy] = useState(false);
+  const refreshHold = useCallback(async () => {
+    try {
+      const api = new (await import('../../services/ApiService')).default();
+      const r = await api.get('/notifications/hold');
+      if (r?.success) setHoldState(r);
+    } catch (e) { /* the board matters more than this pill */ }
+  }, []);
+  useEffect(() => {
+    refreshHold();
+    const t = setInterval(refreshHold, 20000);
+    return () => clearInterval(t);
+  }, [refreshHold]);
   useEffect(() => {
     let cancelled = false;
     const loadPrinters = async () => {
@@ -4168,6 +4184,71 @@ const BaristaInterface = () => {
           >
             <Plus size={18} className="mr-1" /> Add Walk-in Order
           </button>
+          {/* Notification hold. Deliberately loud when ON and quiet when
+              off: a hold left on by accident means customers are never
+              told their coffee is ready, which is a far worse failure
+              than a text arriving at an awkward moment. The count is on
+              the button because pressing "release" without knowing it is
+              87 texts is how an event gets a surprise phone bill. */}
+          {holdState?.holding ? (
+            <div className="flex items-center gap-2">
+              <button
+                className="px-4 py-2 bg-amber-600 text-white rounded flex items-center hover:bg-amber-700 transition-colors font-semibold disabled:opacity-60"
+                disabled={holdBusy}
+                onClick={async () => {
+                  const n = holdState?.will_send ?? 0;
+                  if (n > 0 && !window.confirm(
+                    `Send ${n} held "your coffee is ready" ${n === 1 ? 'message' : 'messages'} now?`)) return;
+                  setHoldBusy(true);
+                  try {
+                    const api = new (await import('../../services/ApiService')).default();
+                    const r = await api.post('/notifications/release', {});
+                    if (r?.success) {
+                      showToast(`Sent ${r.sent} notification${r.sent === 1 ? '' : 's'}`, 'success');
+                    }
+                  } catch (e) {
+                    showToast('Could not release notifications', 'error');
+                  } finally { setHoldBusy(false); refreshHold(); }
+                }}
+                title="Send every held notification, and stop holding"
+              >
+                <Send size={16} className="mr-1" />
+                Release {holdState.will_send > 0 ? `${holdState.will_send} ` : ''}
+                {holdState.will_send === 1 ? 'message' : 'messages'}
+              </button>
+              <button
+                className="px-3 py-2 bg-gray-200 rounded text-sm hover:bg-gray-300"
+                disabled={holdBusy}
+                onClick={async () => {
+                  setHoldBusy(true);
+                  try {
+                    const api = new (await import('../../services/ApiService')).default();
+                    await api.put('/notifications/hold', { holding: false });
+                  }
+                  finally { setHoldBusy(false); refreshHold(); }
+                }}
+                title="Go back to texting customers as each order finishes"
+              >
+                Stop holding
+              </button>
+            </div>
+          ) : (
+            <button
+              className="px-4 py-2 bg-gray-200 rounded flex items-center hover:bg-gray-300 transition-colors"
+              disabled={holdBusy}
+              onClick={async () => {
+                setHoldBusy(true);
+                try {
+                  const api = new (await import('../../services/ApiService')).default();
+                  await api.put('/notifications/hold', { holding: true });
+                }
+                finally { setHoldBusy(false); refreshHold(); }
+              }}
+              title="Finish orders without texting anyone yet - for pre-orders made during a session"
+            >
+              <Bell size={18} className="mr-1" /> Hold notifications
+            </button>
+          )}
           {/* "Adjust Wait Time" moved to the Wait pill in the header. */}
           <button
             className="px-4 py-2 bg-gray-200 rounded flex items-center hover:bg-gray-300 transition-colors"

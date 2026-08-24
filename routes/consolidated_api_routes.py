@@ -12,6 +12,9 @@ from datetime import datetime, timedelta
 import json
 import re
 from auth import jwt_required_with_demo, role_required_with_demo
+from utils.notification_hold import (
+    HOLD_SETTING_KEY, clear_held, is_held, is_holding, mark_held,
+    should_release, summarise as summarise_held)
 from utils.order_eta import (
     describe as eta_describe, estimate_minutes as eta_estimate_minutes,
     seconds_per_coffee as eta_seconds_per_coffee)
@@ -2711,6 +2714,43 @@ def _notify_customer_order_ready(phone, order_number, order_details, station_id)
                 order_details = {}
         if not isinstance(order_details, dict):
             order_details = {}
+
+        # HOLD -- checked before anything else, because holding is a
+        # decision about WHEN to tell the customer, not about how to send.
+        # Putting it after the bench wall meant a bench order was never
+        # marked held and the release flow could not be exercised on the
+        # Test Bench at all.
+        #
+        # During pre-orders the coffees are made while a session is
+        # running. Sending each "ready" text as it finishes puts 400
+        # phones on the buzz through a plenary, and charges for every one.
+        # While the hold is on the order still completes, still prints,
+        # still shows ready on the board; only the text waits.
+        try:
+            _db_hold = current_app.config.get('coffee_system').db
+            if is_holding(_kv_get(_db_hold, HOLD_SETTING_KEY, default=None)):
+                _c = _db_hold.cursor()
+                _c.execute("SELECT order_details FROM orders WHERE order_number = %s",
+                           (order_number,))
+                _r = _c.fetchone()
+                if _r:
+                    _raw = _r[0] if not isinstance(_r, dict) else _r.get('order_details')
+                    _od = json.loads(_raw) if isinstance(_raw, str) else (_raw or {})
+                    mark_held(_od)
+                    _c.execute(
+                        "UPDATE orders SET order_details = %s WHERE order_number = %s",
+                        (json.dumps(_od), order_number))
+                    _db_hold.commit()
+                logger.info(f"Order {order_number}: ready-SMS held (hold is on)")
+                return
+        except Exception as _hold_err:
+            # A broken hold must never silence a customer. Fall through and
+            # send, which is exactly the behaviour without this feature.
+            logger.warning(f"notification hold check failed, sending anyway: {_hold_err}")
+            try:
+                current_app.config.get('coffee_system').db.rollback()
+            except Exception:
+                pass
 
         body = _render_ready_message(order_number, order_details, station_id)
 
@@ -9835,6 +9875,162 @@ def get_today_report():
         except Exception:
             pass
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/notifications/hold', methods=['GET', 'PUT'])
+@jwt_required_with_demo()
+def notification_hold():
+    """The switch, and what is waiting behind it.
+
+    GET  -> {holding, held, will_send, no_phone, already_collected}
+    PUT  -> {"holding": true|false}
+
+    The counts matter as much as the switch. A barista about to press
+    release should be able to see it is 87 texts, not 3, before they do
+    it -- that is the difference between a considered action and a
+    surprise on the phone bill.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+        if request.method == 'PUT':
+            body = request.get_json(silent=True) or {}
+            wanted = bool(body.get('holding'))
+            _kv_put(db, HOLD_SETTING_KEY, wanted)
+            logger.info(f"Notification hold {'ON' if wanted else 'OFF'}")
+
+        holding = is_holding(_kv_get(db, HOLD_SETTING_KEY, default=None))
+        rows = _held_rows(db)
+        counts = summarise_held(rows)
+        return jsonify({'success': True, 'holding': holding, **counts})
+    except Exception as e:
+        logger.error(f"notification_hold error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+def _held_rows(db):
+    """(order_details, status, phone) for every order owing a notification."""
+    out = []
+    try:
+        cur = db.cursor()
+        cur.execute(
+            "SELECT order_details, status, phone, order_number, station_id "
+            "FROM orders WHERE order_details::text LIKE %s",
+            ('%"notification_held"%',))
+        for r in (cur.fetchall() or []):
+            raw = r[0] if not isinstance(r, dict) else r.get('order_details')
+            try:
+                details = json.loads(raw) if isinstance(raw, str) else (raw or {})
+            except Exception:
+                details = {}
+            status = r[1] if not isinstance(r, dict) else r.get('status')
+            phone = r[2] if not isinstance(r, dict) else r.get('phone')
+            number = r[3] if not isinstance(r, dict) else r.get('order_number')
+            station = r[4] if not isinstance(r, dict) else r.get('station_id')
+            details['_order_number'] = number
+            details['_station_id'] = station
+            out.append((details, status, phone))
+    except Exception as e:
+        logger.warning(f"held rows query failed: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+    return out
+
+
+@bp.route('/notifications/release', methods=['POST'])
+@jwt_required_with_demo()
+def release_notifications():
+    """Send every held notification, then turn the hold off.
+
+    Turning the hold off is part of releasing on purpose. Releasing but
+    staying held is a state nobody wants and everybody forgets they are
+    in -- the next order finishes, its text is silently held, and the
+    customer waits for a message that is not coming. If someone wants to
+    keep holding, they simply do not press this.
+
+    Orders that no longer need a text -- collected already, or no phone
+    number -- have the flag cleared without a send, so the queue does not
+    accumulate debts that can never be paid.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        messaging_service = current_app.config.get('messaging_service')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+        rows = _held_rows(db)
+
+        # Work out what to send BEFORE touching the database, then clear
+        # every flag in one committed pass, and only then dispatch.
+        #
+        # The order matters. Clearing flags one at a time while starting
+        # send threads meant those threads -- which share this one
+        # database connection, the singleton from services/coffee_system
+        # -- committed in the middle of the loop and a flag update was
+        # lost. Testing caught it: three held, "2 sent, 1 skipped", and
+        # one order still flagged afterwards.
+        #
+        # Clearing before sending also means a Twilio failure cannot
+        # leave a debt that gets re-sent on every future release. A lost
+        # message is recoverable (the barista can resend from the order);
+        # a customer texted the same thing five times is not.
+        to_send, skipped = [], 0
+        for details, status, phone in rows:
+            number = details.get('_order_number')
+            station = details.get('_station_id')
+            clean = {k: v for k, v in details.items() if not k.startswith('_')}
+            clear_held(clean)
+            if should_release(details, status, phone):
+                to_send.append((number, phone, clean, station))
+            else:
+                skipped += 1
+            try:
+                cur = db.cursor()
+                cur.execute(
+                    "UPDATE orders SET order_details = %s WHERE order_number = %s",
+                    (json.dumps(clean), number))
+            except Exception as upd_err:
+                logger.error(f"release: order {number} flag not cleared: {upd_err}")
+        db.commit()
+
+        # Turn the hold OFF before dispatching, not after. The send path
+        # now checks the hold as its first act, so releasing while still
+        # held would quietly re-hold every message and the release would
+        # silently do nothing at all.
+        _kv_put(db, HOLD_SETTING_KEY, False)
+
+        sent = 0
+        for number, phone, clean, station in to_send:
+            try:
+                # Through the SAME guarded path a normal completion uses,
+                # so the bench wall still applies. Dispatching straight to
+                # Twilio here would have sent real messages to the Test
+                # Bench's +6140000 simulator numbers.
+                _notify_customer_order_ready(phone, number, clean, station)
+                sent += 1
+            except Exception as send_err:
+                logger.error(f"release: order {number} failed to send: {send_err}")
+
+        logger.info(f"Released notifications: {sent} sent, {skipped} skipped")
+        return jsonify({'success': True, 'sent': sent, 'skipped': skipped,
+                        'holding': False})
+    except Exception as e:
+        logger.error(f"release_notifications error: {e}")
+        try:
+            current_app.config.get('coffee_system').db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 
 @bp.route('/reports/channels', methods=['GET'])
