@@ -41,11 +41,12 @@ def _load_font(size: int):
     """Best-effort font load. Falls back to PIL's bitmap default if no
     TrueType font is found (still renders, just less pretty)."""
     from PIL import ImageFont
+
     candidates = [
-        '/System/Library/Fonts/Helvetica.ttc',          # macOS
-        '/System/Library/Fonts/Supplemental/Arial.ttf',  # macOS
-        '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',  # Linux
-        '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+        "/System/Library/Fonts/Helvetica.ttc",  # macOS
+        "/System/Library/Fonts/Supplemental/Arial.ttf",  # macOS
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",  # Linux
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
     ]
     for path in candidates:
         try:
@@ -61,9 +62,12 @@ def _load_font(size: int):
         return ImageFont.load_default()
 
 
-def render_label_png(order: dict, branding: Optional[dict] = None,
-                     width_px: int = DEFAULT_WIDTH_PX,
-                     qr_url: Optional[str] = None) -> bytes:
+def render_label_png(
+    order: dict,
+    branding: Optional[dict] = None,
+    width_px: int = DEFAULT_WIDTH_PX,
+    qr_url: Optional[str] = None,
+) -> bytes:
     """Render an order label to PNG bytes.
 
     order: dict with order_number, order_details (or flattened fields),
@@ -74,39 +78,44 @@ def render_label_png(order: dict, branding: Optional[dict] = None,
     from PIL import Image, ImageDraw
 
     branding = branding or {}
-    od = order.get('order_details') or {}
+    od = order.get("order_details") or {}
     if isinstance(od, str):
         import json
+
         try:
             od = json.loads(od)
         except Exception:
             od = {}
 
-    order_number = str(order.get('order_number') or order.get('id') or '?')
-    name = (od.get('name') or order.get('customer_name')
-            or od.get('customer_name') or 'Customer')
-    drink = od.get('type') or od.get('coffee_type') or 'Coffee'
-    size = od.get('size') or ''
-    milk = od.get('milk') or od.get('milk_type') or ''
-    sugar = od.get('sugar') or ''
-    strength = od.get('strength') or ''
-    station_id = order.get('station_id') or od.get('station_id') or ''
-    event_name = (branding.get('event_name') or branding.get('eventName') or '')
+    order_number = str(order.get("order_number") or order.get("id") or "?")
+    name = (
+        od.get("name")
+        or order.get("customer_name")
+        or od.get("customer_name")
+        or "Customer"
+    )
+    drink = od.get("type") or od.get("coffee_type") or "Coffee"
+    size = od.get("size") or ""
+    milk = od.get("milk") or od.get("milk_type") or ""
+    sugar = od.get("sugar") or ""
+    strength = od.get("strength") or ""
+    station_id = order.get("station_id") or od.get("station_id") or ""
+    event_name = branding.get("event_name") or branding.get("eventName") or ""
 
-    drink_line = ' '.join([b for b in [size, drink] if b]).strip() or drink
+    drink_line = " ".join([b for b in [size, drink] if b]).strip() or drink
     extras = []
-    if milk and milk not in ('no milk', 'standard', 'none', 'None'):
+    if milk and milk not in ("no milk", "standard", "none", "None"):
         extras.append(f"{milk} milk")
     if strength:
         extras.append(str(strength))
-    if sugar and sugar not in ('no sugar', 'none', 'None', '0'):
+    if sugar and sugar not in ("no sugar", "none", "None", "0"):
         extras.append(str(sugar))
-    extras_line = ', '.join(extras)
+    extras_line = ", ".join(extras)
 
     # Canvas. Height grows with content; start tall enough and crop.
     W = width_px
     H = 420
-    img = Image.new('RGB', (W, H), 'white')
+    img = Image.new("RGB", (W, H), "white")
     draw = ImageDraw.Draw(img)
 
     f_event = _load_font(26)
@@ -117,38 +126,104 @@ def render_label_png(order: dict, branding: Optional[dict] = None,
     f_foot = _load_font(24)
 
     y = 12
-    if event_name:
-        draw.text((16, y), event_name[:34], fill='black', font=f_event)
+    # Event name and station share the top strip. The station badge used
+    # to sit beside the order number, which is the widest thing on the
+    # label -- so it took the space the name now uses.
+    if event_name or station_id:
+        if event_name:
+            draw.text((16, y), event_name[:34], fill="black", font=f_event)
+        if station_id:
+            badge = f"St {station_id}"
+            try:
+                bw = draw.textlength(badge, font=f_event)
+            except Exception:
+                bw = len(badge) * 14
+            draw.text((W - 16 - bw, y), badge, fill="black", font=f_event)
         y += 34
-    # Big order number — the thing the barista reads across the bench.
-    draw.text((16, y), f"#{order_number}", fill='black', font=f_num)
-    # Station badge top-right.
-    if station_id:
-        draw.text((W - 150, y + 10), f"St {station_id}", fill='black', font=f_drink)
-    y += 104
-    draw.text((16, y), _fit_to_width(draw, name, f_name, W - 32), fill='black', font=f_name)
-    y += 54
-    draw.text((16, y), _fit_to_width(draw, drink_line, f_drink, W - 32), fill='black', font=f_drink)
+
+    # Order number and name on ONE line, which is the whole point of this
+    # layout. The number used to have a line to itself with the entire
+    # right-hand side blank (Steve: "there is lots of white space on the
+    # RHS"), and the name had its own line underneath. Putting them side
+    # by side frees a whole row, which goes to making both bigger.
+    num_text = f"#{order_number}"
+    draw.text((16, y), num_text, fill="black", font=f_num)
+    try:
+        num_w = draw.textlength(num_text, font=f_num)
+    except Exception:
+        num_w = len(num_text) * 52
+
+    # Side by side ONLY when there is room to make it worth doing.
+    #
+    # On a wide label the number leaves plenty of room and the name goes
+    # beside it, freeing a whole row. On a narrow one -- the 406-dot lid
+    # stock -- a 96pt "#142" eats most of the width and the name would be
+    # squeezed to something SMALLER than it was on its own line. That is
+    # the opposite of the point, so below a readable threshold it stays
+    # stacked. Rendering both widths is what caught this.
+    name_x = 16 + num_w + 20
+    avail = W - name_x - 16
+    name_font = _largest_font_fitting(draw, name, avail, 62, min_size=34)
+    try:
+        fits_beside = draw.textlength(name, font=name_font) <= avail
+    except Exception:
+        fits_beside = False
+
+    if fits_beside:
+        # Share a BASELINE, not a top edge. Two sizes hung from the same
+        # top look like a mistake; sitting on one line is what makes
+        # "#142 Alexandra" read as a single thing.
+        try:
+            baseline = y + f_num.getbbox(num_text)[3]
+            draw.text(
+                (name_x, baseline), name, fill="black", font=name_font, anchor="ls"
+            )
+        except Exception:
+            draw.text((name_x, y + 40), name, fill="black", font=name_font)
+        y += 104
+    else:
+        y += 104
+        draw.text(
+            (16, y),
+            _fit_to_width(draw, name, f_name, W - 32),
+            fill="black",
+            font=f_name,
+        )
+        y += 54
+    draw.text(
+        (16, y),
+        _fit_to_width(draw, drink_line, f_drink, W - 32),
+        fill="black",
+        font=f_drink,
+    )
     y += 46
     if extras_line:
-        draw.text((16, y), _fit_to_width(draw, extras_line, f_extras, W - 32), fill='black', font=f_extras)
+        draw.text(
+            (16, y),
+            _fit_to_width(draw, extras_line, f_extras, W - 32),
+            fill="black",
+            font=f_extras,
+        )
         y += 36
 
     # Pickup QR bottom-right, if a URL was supplied.
     if qr_url:
         try:
             import qrcode
+
             qr = qrcode.QRCode(border=1, box_size=4)
             qr.add_data(qr_url)
             qr.make(fit=True)
-            qr_img = qr.make_image(fill_color='black', back_color='white').convert('RGB')
+            qr_img = qr.make_image(fill_color="black", back_color="white").convert(
+                "RGB"
+            )
             qs = min(150, W // 4)
             qr_img = qr_img.resize((qs, qs))
             img.paste(qr_img, (W - qs - 12, H - qs - 12))
         except Exception as e:
             logger.warning(f"label QR render failed: {e}")
 
-    draw.text((16, H - 30), "Coffee Cue", fill='gray', font=f_foot)
+    draw.text((16, H - 30), "Coffee Cue", fill="gray", font=f_foot)
 
     # Crop trailing whitespace below the content (keep QR area).
     content_bottom = max(y + 12, H)
@@ -156,7 +231,7 @@ def render_label_png(order: dict, branding: Optional[dict] = None,
         img = img.crop((0, 0, W, content_bottom))
 
     buf = io.BytesIO()
-    img.save(buf, format='PNG')
+    img.save(buf, format="PNG")
     return buf.getvalue()
 
 
@@ -176,24 +251,24 @@ def render_label_png(order: dict, branding: Optional[dict] = None,
 # ---------------------------------------------------------------------------
 import os
 
-PRINT_WIDTH_DOTS = int(os.environ.get('PRINT_WIDTH_DOTS', '406'))
-LABEL_MIN_HEIGHT = int(os.environ.get('LABEL_MIN_HEIGHT', '380'))
+PRINT_WIDTH_DOTS = int(os.environ.get("PRINT_WIDTH_DOTS", "406"))
+LABEL_MIN_HEIGHT = int(os.environ.get("LABEL_MIN_HEIGHT", "380"))
 # Ceiling for GROW mode (label_scale_mode='grow'): the sticker gets
 # longer instead of the text getting smaller. 4800 dots ≈ 60cm at
 # 203dpi — a full sentence's worth of stock, per Steve.
-LABEL_GROW_MAX_HEIGHT = int(os.environ.get('LABEL_GROW_MAX_HEIGHT', '4800'))
+LABEL_GROW_MAX_HEIGHT = int(os.environ.get("LABEL_GROW_MAX_HEIGHT", "4800"))
 # 640 dots ≈ 80mm of stock — leaves room for the optional logo + event
 # name + footer line without cropping; plain labels still cut short
 # because height is content-driven.
-LABEL_MAX_HEIGHT = int(os.environ.get('LABEL_MAX_HEIGHT', '640'))
+LABEL_MAX_HEIGHT = int(os.environ.get("LABEL_MAX_HEIGHT", "640"))
 
 # LID mode: a half-height sticker for the top of a takeaway lid instead of
 # the side of the cup. 40mm at 203dpi = 320 dots, on the same 58mm stock.
 # It fits because the order number and name come down a long way — on a lid
 # the label is read from directly above, not picked out of a line-up of
 # cups on a bench. 30mm floor so a short order does not pad blank stock.
-LID_MAX_HEIGHT = int(os.environ.get('LID_MAX_HEIGHT', '320'))
-LID_MIN_HEIGHT = int(os.environ.get('LID_MIN_HEIGHT', '240'))
+LID_MAX_HEIGHT = int(os.environ.get("LID_MAX_HEIGHT", "320"))
+LID_MIN_HEIGHT = int(os.environ.get("LID_MIN_HEIGHT", "240"))
 
 
 def _wrap_to_width(draw, text, font, max_px):
@@ -201,12 +276,14 @@ def _wrap_to_width(draw, text, font, max_px):
     GROW mode, where long text takes MORE STOCK instead of shrinking
     (Steve: 'a really long sentence might use 50-60cm of sticker where
     COFFEE only uses 15'). Long single words are hard-split."""
-    words, lines, current = str(text or '').split(), [], ''
+    words, lines, current = str(text or "").split(), [], ""
+
     def width_of(s):
         try:
             return draw.textlength(s, font=font)
         except Exception:
             return len(s) * 10
+
     for word in words:
         candidate = f"{current} {word}".strip()
         if width_of(candidate) <= max_px or not current:
@@ -223,7 +300,27 @@ def _wrap_to_width(draw, text, font, max_px):
             current = word
     if current:
         lines.append(current)
-    return lines or ['']
+    return lines or [""]
+
+
+def _largest_font_fitting(draw, text, max_px, max_size, min_size=22):
+    """The biggest font size at which `text` fits `max_px`.
+
+    Used for the customer NAME, which sits beside the order number and
+    therefore has whatever width the number leaves. Shrinking beats
+    ellipsising here: "Alexand..." on a cup is worse than the same name
+    two points smaller, because the barista is calling it out loud.
+    """
+    size = max_size
+    while size > min_size:
+        f = _load_font(size)
+        try:
+            if draw.textlength(str(text or ""), font=f) <= max_px:
+                return f
+        except Exception:
+            return f
+        size -= 2
+    return _load_font(min_size)
 
 
 def _fit_to_width(draw, text, font, max_px):
@@ -236,7 +333,7 @@ def _fit_to_width(draw, text, font, max_px):
     off the roll. Losing characters from a drink name is worse than an
     ellipsis, because the barista can't tell it happened.
     """
-    text = str(text or '')
+    text = str(text or "")
 
     def width_of(s):
         try:
@@ -249,22 +346,37 @@ def _fit_to_width(draw, text, font, max_px):
     # ASCII '...' rather than a single-glyph ellipsis: the embedded
     # fallback font used on Railway has no guaranteed U+2026.
     cut = len(text)
-    while cut > 1 and width_of(text[:cut] + '...') > max_px:
+    while cut > 1 and width_of(text[:cut] + "...") > max_px:
         cut -= 1
-    return text[:cut].rstrip() + '...'
+    return text[:cut].rstrip() + "..."
 
 
 def label_display_name(full_name: str) -> str:
     """'Stephanie Routley' -> 'Stephanie R.' — cup-label privacy."""
-    parts = [p for p in str(full_name or '').strip().split() if p]
+    parts = [p for p in str(full_name or "").strip().split() if p]
     if not parts:
-        return 'Customer'
+        return "Customer"
     if len(parts) == 1:
         return parts[0][:18]
     return f"{parts[0][:16]} {parts[1][0].upper()}."
 
 
-def _decode_logo_to_1bit(logo_data_uri: str, max_width: int, max_height: int = 120):
+# How far a small logo may be enlarged to fill the label. Past roughly
+# 3x the source there is no detail left to enlarge and a 1-bit thermal
+# head turns it into blocks -- at which point it reads as a mistake
+# rather than as branding.
+MAX_LOGO_UPSCALE = float(os.environ.get("MAX_LOGO_UPSCALE", "3.0"))
+
+# Vertical room the logo may take. Steve: "Logo of sponsor was quite
+# small and could be much larger". A cup label has the stock to spare;
+# a lid does not, so it keeps a tighter box.
+LOGO_MAX_HEIGHT_CUP = int(os.environ.get("LOGO_MAX_HEIGHT_CUP", "170"))
+LOGO_MAX_HEIGHT_LID = int(os.environ.get("LOGO_MAX_HEIGHT_LID", "64"))
+
+
+def _decode_logo_to_1bit(
+    logo_data_uri: str, max_width: int, max_height: int = LOGO_MAX_HEIGHT_CUP
+):
     """Branding logo (base64 data URI) → 1-bit dithered PIL image sized to
     the label, or None on any problem. Never raises — a broken logo must
     never break a label."""
@@ -272,25 +384,41 @@ def _decode_logo_to_1bit(logo_data_uri: str, max_width: int, max_height: int = 1
         import base64
         import io as _io
         from PIL import Image
-        raw = logo_data_uri.split(',', 1)[1] if ',' in logo_data_uri else logo_data_uri
+
+        raw = logo_data_uri.split(",", 1)[1] if "," in logo_data_uri else logo_data_uri
         img = Image.open(_io.BytesIO(base64.b64decode(raw)))
         # Flatten transparency onto white before thresholding.
-        if img.mode in ('RGBA', 'LA', 'P'):
-            bg = Image.new('RGB', img.size, 'white')
-            img = img.convert('RGBA')
+        if img.mode in ("RGBA", "LA", "P"):
+            bg = Image.new("RGB", img.size, "white")
+            img = img.convert("RGBA")
             bg.paste(img, mask=img.split()[-1])
             img = bg
-        img = img.convert('L')
-        ratio = min(max_width / img.width, max_height / img.height, 1.0)
-        img = img.resize((max(1, int(img.width * ratio)),
-                          max(1, int(img.height * ratio))))
-        return img.convert('1')  # Floyd-Steinberg dither — thermal-friendly
+        img = img.convert("L")
+        # Fill the space, do not merely fit inside it.
+        #
+        # The old ratio was capped at 1.0, so a logo SMALLER than the box
+        # was never enlarged -- it printed at whatever pixel size it
+        # happened to be uploaded at, which is why Steve's sponsor came
+        # out "quite small" on a label with room to spare. A sponsor is
+        # paying for that space; leaving it blank is the wrong default.
+        #
+        # Upscaling a small raster onto a 1-bit thermal head does get
+        # blocky, so it is capped: past about 3x the source there is no
+        # detail left to enlarge and it starts to look like a mistake
+        # rather than a logo. LANCZOS keeps the edges as clean as the
+        # source allows before dithering.
+        ratio = min(max_width / img.width, max_height / img.height)
+        ratio = min(ratio, MAX_LOGO_UPSCALE)
+        img = img.resize(
+            (max(1, int(img.width * ratio)), max(1, int(img.height * ratio))),
+            Image.LANCZOS,
+        )
+        return img.convert("1")  # Floyd-Steinberg dither — thermal-friendly
     except Exception:
         return None
 
 
-def render_label(payload: dict, width_dots: int = None,
-                 options: dict = None) -> bytes:
+def render_label(payload: dict, width_dots: int = None, options: dict = None) -> bytes:
     """Render a print-job payload snapshot to a 1-bit PNG.
 
     payload keys (all optional, sensible fallbacks):
@@ -312,37 +440,41 @@ def render_label(payload: dict, width_dots: int = None,
     payload = payload or {}
     options = options or {}
 
-    order_number = str(payload.get('order_number') or '—')
-    name = label_display_name(payload.get('name'))
-    size = str(payload.get('size') or '').strip()
-    drink = str(payload.get('drink') or 'Coffee').strip()
-    milk = str(payload.get('milk') or '').strip()
-    modifiers = [str(m) for m in (payload.get('modifiers') or []) if m]
-    station = str(payload.get('station_name') or '').strip()
-    ts = str(payload.get('ts') or '')[:16]
+    order_number = str(payload.get("order_number") or "—")
+    name = label_display_name(payload.get("name"))
+    size = str(payload.get("size") or "").strip()
+    drink = str(payload.get("drink") or "Coffee").strip()
+    milk = str(payload.get("milk") or "").strip()
+    modifiers = [str(m) for m in (payload.get("modifiers") or []) if m]
+    station = str(payload.get("station_name") or "").strip()
+    ts = str(payload.get("ts") or "")[:16]
     try:
-        hhmm = datetime.fromisoformat(ts).strftime('%H:%M') if ts else datetime.now().strftime('%H:%M')
+        hhmm = (
+            datetime.fromisoformat(ts).strftime("%H:%M")
+            if ts
+            else datetime.now().strftime("%H:%M")
+        )
     except Exception:
-        hhmm = datetime.now().strftime('%H:%M')
+        hhmm = datetime.now().strftime("%H:%M")
 
     drink_line_parts = [p for p in (size.title(), drink.title()) if p]
-    drink_line = ' '.join(drink_line_parts)
-    if milk and milk.lower() not in ('no milk', 'none', 'standard', ''):
+    drink_line = " ".join(drink_line_parts)
+    if milk and milk.lower() not in ("no milk", "none", "standard", ""):
         drink_line += f" · {milk.title()}"
 
     # Sizing mode (Steve): 'compact' shrinks text to fit a short label
     # (the original behaviour); 'grow' keeps the text big and lets the
     # LABEL get longer — a long sentence eats more stock instead of
     # becoming unreadable.
-    _mode = str((options or {}).get('label_scale_mode') or 'compact').lower()
-    grow = _mode == 'grow'
-    lid = _mode == 'lid'
-    canvas_h = (LABEL_GROW_MAX_HEIGHT if grow
-                else LID_MAX_HEIGHT if lid
-                else LABEL_MAX_HEIGHT)
+    _mode = str((options or {}).get("label_scale_mode") or "compact").lower()
+    grow = _mode == "grow"
+    lid = _mode == "lid"
+    canvas_h = (
+        LABEL_GROW_MAX_HEIGHT if grow else LID_MAX_HEIGHT if lid else LABEL_MAX_HEIGHT
+    )
 
     # Oversized canvas; crop to content at the end.
-    img = Image.new('1', (W, canvas_h), 1)  # 1-bit, white
+    img = Image.new("1", (W, canvas_h), 1)  # 1-bit, white
     draw = ImageDraw.Draw(img)
 
     if lid:
@@ -369,7 +501,7 @@ def render_label(payload: dict, width_dots: int = None,
 
     # Design controls: whole-label alignment + divider rules between
     # sections (Steve: "a bit more overall design control").
-    centred = str(options.get('align') or 'left').lower() == 'center'
+    centred = str(options.get("align") or "left").lower() == "center"
 
     def put(text, font, dy):
         """Draw one line honouring the alignment; advance y by dy."""
@@ -392,10 +524,10 @@ def render_label(payload: dict, width_dots: int = None,
             draw.line([(margin, y), (W - margin, y)], fill=0)
             y += 8
 
-    if payload.get('test'):
+    if payload.get("test"):
         # Calibration header + ruler ticks every 50 dots so the operator
         # can verify PRINT_WIDTH_DOTS against the physical stock.
-        draw.text((margin, y), 'TEST LABEL', fill=0, font=f_drink)
+        draw.text((margin, y), "TEST LABEL", fill=0, font=f_drink)
         y += 44
         for x in range(0, W, 50):
             draw.line([(x, y), (x, y + 12)], fill=0)
@@ -403,27 +535,89 @@ def render_label(payload: dict, width_dots: int = None,
         y += 40
 
     # 0a. Logo (branding, dithered to 1-bit), always centred.
-    if options.get('show_logo') and options.get('logo_data'):
-        logo = _decode_logo_to_1bit(options['logo_data'], W - 2 * margin,
-                                    max_height=44 if lid else 120)
+    if options.get("show_logo") and options.get("logo_data"):
+        # Full usable width, not a fraction of it -- the margin is the
+        # only thing held back.
+        logo = _decode_logo_to_1bit(
+            options["logo_data"],
+            W - 2 * margin,
+            max_height=(
+                int(options.get("logo_max_height_lid") or LOGO_MAX_HEIGHT_LID)
+                if lid
+                else int(options.get("logo_max_height") or LOGO_MAX_HEIGHT_CUP)
+            ),
+        )
         if logo is not None:
             img.paste(logo, ((W - logo.width) // 2, y))
             y += logo.height + (4 if lid else 8)
-            rule('rule_below_logo')
+            rule("rule_below_logo")
 
     # 0b. Event name header.
-    if options.get('show_event_name') and (options.get('event_name') or '').strip():
+    if options.get("show_event_name") and (options.get("event_name") or "").strip():
         _f_ev = _load_font(20 if lid else 28)
-        put(_fit_to_width(draw, str(options['event_name']).strip(),
-                          _f_ev, W - 2 * margin), _f_ev, 24 if lid else 36)
+        put(
+            _fit_to_width(
+                draw, str(options["event_name"]).strip(), _f_ev, W - 2 * margin
+            ),
+            _f_ev,
+            24 if lid else 36,
+        )
 
-    # 1. Order number — the arm's-length element.
-    put(f"#{order_number}", f_num, A_NUM)
-    rule('rule_below_number')
+    # 1 + 2. Order number, with the name beside it when there is room.
+    #
+    # The number used to have a whole line to itself with the right-hand
+    # side blank, and the name a second line underneath (Steve: "name
+    # could go to the Right of the order number and as such save a line
+    # and could increase number and name size ... there is lots of white
+    # space on the RHS").
+    #
+    # Only when it FITS, though. On narrow stock a big "#142" eats most
+    # of the width and the name beside it would end up smaller than it
+    # was on its own line -- the opposite of the point. Below a readable
+    # floor it stays stacked. Left-aligned labels only: centred layouts
+    # are a deliberate look and pairing them sideways breaks it.
+    num_text = f"#{order_number}"
+    want_name = options.get("show_name", True) and str(name or "").strip()
+    placed_beside = False
 
-    # 2. Customer name (toggleable — some events run number-only cups).
-    if options.get('show_name', True):
-        put(name, f_name, A_NAME)
+    if want_name and not centred:
+        try:
+            num_w = draw.textlength(num_text, font=f_num)
+        except Exception:
+            num_w = len(num_text) * (A_NUM // 2)
+        name_x = margin + int(num_w) + (10 if lid else 18)
+        avail = W - name_x - margin
+        floor = max(20, int(A_NAME * 0.8))
+        name_font = _largest_font_fitting(
+            draw, name, avail, int(A_NAME * 1.25), min_size=floor
+        )
+        try:
+            placed_beside = draw.textlength(name, font=name_font) <= avail
+        except Exception:
+            placed_beside = False
+
+        if placed_beside:
+            draw.text((margin, y), num_text, fill=0, font=f_num)
+            # Same baseline, not the same top edge: two sizes hung from
+            # the top read as a mistake, one baseline reads as one line.
+            try:
+                draw.text(
+                    (name_x, y + f_num.getbbox(num_text)[3]),
+                    name,
+                    fill=0,
+                    font=name_font,
+                    anchor="ls",
+                )
+            except Exception:
+                draw.text((name_x, y + (A_NUM // 4)), name, fill=0, font=name_font)
+            y += A_NUM
+            rule("rule_below_number")
+
+    if not placed_beside:
+        put(num_text, f_num, A_NUM)
+        rule("rule_below_number")
+        if want_name:
+            put(name, f_name, A_NAME)
 
     # 3. Drink line. GROW mode wraps every word onto as many lines as it
     # needs (label gets longer); compact keeps the original two-line cap.
@@ -436,26 +630,29 @@ def render_label(payload: dict, width_dots: int = None,
         d_lines = _wrap_to_width(draw, drink_line, f_drink, W - 2 * margin)
         put(d_lines[0], f_drink, A_DRINK1 if len(d_lines) > 1 else A_DRINK)
         if len(d_lines) > 1:
-            put(_fit_to_width(draw, ' '.join(d_lines[1:]), f_drink, W - 2 * margin),
-                f_drink, A_DRINK)
+            put(
+                _fit_to_width(draw, " ".join(d_lines[1:]), f_drink, W - 2 * margin),
+                f_drink,
+                A_DRINK,
+            )
 
     # 4. Modifiers.
     if modifiers:
-        mods_text = ', '.join(modifiers)
+        mods_text = ", ".join(modifiers)
         if grow:
             for ln in _wrap_to_width(draw, mods_text, f_mods, W - 2 * margin):
                 put(ln, f_mods, A_MODS)
         else:
             put(_fit_to_width(draw, mods_text, f_mods, W - 2 * margin), f_mods, A_MODS)
-    rule('rule_below_drink')
+    rule("rule_below_drink")
 
     # 5. Station + time. The rule above it used to be hardcoded —
     # Steve's review: every divider should be a choice. Default ON so
     # existing labels look unchanged until the operator says otherwise.
-    if options.get('show_station_time', True):
-        rule('rule_above_station', default=True)
+    if options.get("show_station_time", True):
+        rule("rule_above_station", default=True)
         y += 2
-        foot = ' · '.join([p for p in (station, hhmm) if p]) or hhmm
+        foot = " · ".join([p for p in (station, hhmm) if p]) or hhmm
         put(foot[:40], f_foot, A_FOOT)
 
     # 6. Ordering instructions + branding footer — both optional,
@@ -473,14 +670,19 @@ def render_label(payload: dict, width_dots: int = None,
     # line is most of the reason the sticker exists, so it goes back — at
     # a smaller size, and guarded by _fits_remaining so it is never sliced
     # mid-word by the height cap.
-    footer_lines = [ln for ln in
-                    (str(options.get('instructions_text') or '').strip(),
-                     str(options.get('footer_text') or '').strip()) if ln]
+    footer_lines = [
+        ln
+        for ln in (
+            str(options.get("instructions_text") or "").strip(),
+            str(options.get("footer_text") or "").strip(),
+        )
+        if ln
+    ]
     if footer_lines:
-        rule('rule_above_footer')
+        rule("rule_above_footer")
     for idx, line in enumerate(footer_lines):
         if idx == 1:
-            rule('rule_between_footer_lines')
+            rule("rule_between_footer_lines")
         line = line[:400] if grow else line[:60]
         if grow:
             # GROW: keep the size, wrap onto more lines (more stock).
@@ -490,8 +692,9 @@ def render_label(payload: dict, width_dots: int = None,
                     tw_g = draw.textlength(ln, font=f_grow)
                 except Exception:
                     tw_g = len(ln) * 11
-                draw.text((max(margin, (W - int(tw_g)) // 2), y),
-                          ln, fill=0, font=f_grow)
+                draw.text(
+                    (max(margin, (W - int(tw_g)) // 2), y), ln, fill=0, font=f_grow
+                )
                 y += 28
             continue
         # Lid runs a smaller ladder and a tighter advance — the cup sizes
@@ -521,8 +724,7 @@ def render_label(payload: dict, width_dots: int = None,
                     tw = draw.textlength(line, font=fitted)
                 except Exception:
                     tw = len(line) * 9
-        draw.text((max(margin, (W - int(tw)) // 2), y),
-                  line, fill=0, font=fitted)
+        draw.text((max(margin, (W - int(tw)) // 2), y), line, fill=0, font=fitted)
         y += advance
 
     # Minimum label LENGTH. The cutter cuts at the image end, so this is
@@ -536,20 +738,19 @@ def render_label(payload: dict, width_dots: int = None,
     # lid mode carries its own 30mm floor / 40mm ceiling.
     _floor_default = LID_MIN_HEIGHT if lid else LABEL_MIN_HEIGHT
     try:
-        floor = int(options.get('min_height_dots') or _floor_default)
+        floor = int(options.get("min_height_dots") or _floor_default)
     except (TypeError, ValueError):
         floor = _floor_default
-    floor = max(120, min(floor, canvas_h))   # never below ~15mm
+    floor = max(120, min(floor, canvas_h))  # never below ~15mm
     height = max(floor, min(canvas_h, y))
     img = img.crop((0, 0, W, height))
 
     buf = io.BytesIO()
-    img.save(buf, format='PNG')
+    img.save(buf, format="PNG")
     return buf.getvalue()
 
 
-def render_ticket(payload: dict, width_dots: int = None,
-                  options: dict = None) -> bytes:
+def render_ticket(payload: dict, width_dots: int = None, options: dict = None) -> bytes:
     """Customer ticket stub — the deli-counter number, on sticky stock.
 
     Printed for walk-up/kiosk customers so they leave the counter with
@@ -565,18 +766,19 @@ def render_ticket(payload: dict, width_dots: int = None,
     payload = payload or {}
     options = options or {}
 
-    order_number = str(payload.get('order_number') or '—')
-    drink = str(payload.get('drink') or '').strip()
-    size = str(payload.get('size') or '').strip()
-    station = str(payload.get('station_name') or '').strip()
-    drink_line = ' '.join(p for p in (size.title(), drink.title()) if p)
+    order_number = str(payload.get("order_number") or "—")
+    drink = str(payload.get("drink") or "").strip()
+    size = str(payload.get("size") or "").strip()
+    station = str(payload.get("station_name") or "").strip()
+    drink_line = " ".join(p for p in (size.title(), drink.title()) if p)
     try:
-        hhmm = datetime.fromisoformat(
-            str(payload.get('ts') or '')[:16]).strftime('%H:%M')
+        hhmm = datetime.fromisoformat(str(payload.get("ts") or "")[:16]).strftime(
+            "%H:%M"
+        )
     except Exception:
-        hhmm = datetime.now().strftime('%H:%M')
+        hhmm = datetime.now().strftime("%H:%M")
 
-    img = Image.new('1', (W, LABEL_MAX_HEIGHT), 1)
+    img = Image.new("1", (W, LABEL_MAX_HEIGHT), 1)
     draw = ImageDraw.Draw(img)
     margin = 10
 
@@ -590,10 +792,10 @@ def render_ticket(payload: dict, width_dots: int = None,
         y += dy
 
     y = 10
-    ev = str(options.get('event_name') or '').strip()
-    if options.get('show_event_name') and ev:
+    ev = str(options.get("event_name") or "").strip()
+    if options.get("show_event_name") and ev:
         centred(ev[:26], _load_font(26), 32)
-    centred('YOUR ORDER', _load_font(28), 40)
+    centred("YOUR ORDER", _load_font(28), 40)
     centred(f"#{order_number}", _load_font(150), 158)
     if drink_line:
         centred(drink_line[:24], _load_font(30), 38)
@@ -602,32 +804,35 @@ def render_ticket(payload: dict, width_dots: int = None,
     y += 2
     draw.line([(margin, y), (W - margin, y)], fill=0)
     y += 8
-    instructions = str(options.get('instructions_text') or '').strip()
+    instructions = str(options.get("instructions_text") or "").strip()
     if instructions:
         f_small = _load_font(20)
         try:
             tw = draw.textlength(instructions[:44], font=f_small)
         except Exception:
             tw = len(instructions[:44]) * 9
-        draw.text((max(margin, (W - int(tw)) // 2), y),
-                  instructions[:44], fill=0, font=f_small)
+        draw.text(
+            (max(margin, (W - int(tw)) // 2), y),
+            instructions[:44],
+            fill=0,
+            font=f_small,
+        )
         y += 26
     centred(hhmm, _load_font(20), 26)
 
     height = max(280, min(LABEL_MAX_HEIGHT, y + 6))
     img = img.crop((0, 0, W, height))
     buf = io.BytesIO()
-    img.save(buf, format='PNG')
+    img.save(buf, format="PNG")
     return buf.getvalue()
 
 
 # Longest banner the cutter will be asked for: 2400 dots ≈ 30cm at
 # 203dpi. Env-tunable for shops with longer rolls or nerves.
-BANNER_MAX_DOTS = int(os.environ.get('BANNER_MAX_DOTS', '2400'))
+BANNER_MAX_DOTS = int(os.environ.get("BANNER_MAX_DOTS", "2400"))
 
 
-def render_banner(payload: dict, width_dots: int = None,
-                  options: dict = None) -> bytes:
+def render_banner(payload: dict, width_dots: int = None, options: dict = None) -> bytes:
     """Sideways banner on the label roll (Steve): free text rendered
     SIDEWAYS so the stock width (40-80mm depending on the roll) becomes
     the banner's HEIGHT and the length is whatever the text needs — a
@@ -643,19 +848,28 @@ def render_banner(payload: dict, width_dots: int = None,
     from PIL import Image, ImageDraw
 
     W = int(width_dots or PRINT_WIDTH_DOTS)
-    text = str((payload or {}).get('text') or 'COFFEE').strip()[:60] or 'COFFEE'
+    text = str((payload or {}).get("text") or "COFFEE").strip()[:60] or "COFFEE"
     # GROW (default for banners — the whole point of a banner is big
     # text): keep the glyphs as tall as the roll allows and let the
     # strip run as long as it needs, up to the length cap. COMPACT
     # shrinks the text so a long phrase stays on a short strip.
-    grow = str((options or {}).get('banner_scale_mode')
-               or (options or {}).get('label_scale_mode') or 'grow').lower() != 'compact'
-    max_len = BANNER_MAX_DOTS if not grow else int(
-        os.environ.get('BANNER_GROW_MAX_DOTS', '6000'))  # ~75cm
+    grow = (
+        str(
+            (options or {}).get("banner_scale_mode")
+            or (options or {}).get("label_scale_mode")
+            or "grow"
+        ).lower()
+        != "compact"
+    )
+    max_len = (
+        BANNER_MAX_DOTS
+        if not grow
+        else int(os.environ.get("BANNER_GROW_MAX_DOTS", "6000"))
+    )  # ~75cm
 
     # Find the biggest font whose glyph height fits the roll width and
     # whose length fits the cap. Measured with a scratch canvas.
-    scratch = Image.new('1', (8, 8), 1)
+    scratch = Image.new("1", (8, 8), 1)
     sdraw = ImageDraw.Draw(scratch)
     chosen_font, text_w, text_h = None, 0, 0
     size = int(W * 0.9)
@@ -683,7 +897,7 @@ def render_banner(payload: dict, width_dots: int = None,
             text = text[:-1]
 
     # Draw horizontally, then rotate 90° so the strip prints lengthwise.
-    horiz = Image.new('1', (text_w + 32, W), 1)
+    horiz = Image.new("1", (text_w + 32, W), 1)
     hdraw = ImageDraw.Draw(horiz)
     try:
         l, t, _r, _b = hdraw.textbbox((16, 0), text, font=chosen_font)
@@ -694,12 +908,13 @@ def render_banner(payload: dict, width_dots: int = None,
     banner = horiz.rotate(90, expand=True)  # (W wide x length tall)
 
     buf = io.BytesIO()
-    banner.save(buf, format='PNG')
+    banner.save(buf, format="PNG")
     return buf.getvalue()
 
 
-def send_png_to_printer(ip: str, port: int, png_bytes: bytes,
-                        timeout: float = 5.0) -> tuple[bool, str]:
+def send_png_to_printer(
+    ip: str, port: int, png_bytes: bytes, timeout: float = 5.0
+) -> tuple[bool, str]:
     """Best-effort raw-socket dispatch to a network printer.
 
     ⚠️ HARDWARE-PENDING — see module docstring. Most printers on port
@@ -713,14 +928,14 @@ def send_png_to_printer(ip: str, port: int, png_bytes: bytes,
     block an order.
     """
     if not ip:
-        return False, 'no printer IP configured'
+        return False, "no printer IP configured"
     try:
         with socket.create_connection((ip, int(port)), timeout=timeout) as sock:
             sock.sendall(png_bytes)
-        return True, f'sent {len(png_bytes)} bytes to {ip}:{port}'
+        return True, f"sent {len(png_bytes)} bytes to {ip}:{port}"
     except OSError as e:
         logger.warning(f"label print to {ip}:{port} failed: {e}")
-        return False, f'printer unreachable ({ip}:{port}): {e}'
+        return False, f"printer unreachable ({ip}:{port}): {e}"
     except Exception as e:  # noqa: BLE001
         logger.error(f"label print unexpected error: {e}")
-        return False, f'print error: {e}'
+        return False, f"print error: {e}"
