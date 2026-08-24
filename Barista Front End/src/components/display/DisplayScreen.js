@@ -1043,8 +1043,17 @@ const DisplayScreen = () => {
                 the header, with only the BOTTOM corners rounded -- the top
                 stays square so it melts into the band above it with no
                 seam. */}
-            <div className="px-3 pt-2 pb-3 rounded-b-3xl shadow-lg"
-                 style={{ backgroundColor: headerColor }}>
+            {/* Shadow thrown straight DOWN, not the default all-round
+                one. The ribbon hangs in front of the board, so the light
+                should read as coming from above and the shadow should
+                land on the orange and green headers it overlaps -- that
+                is what sells it as one layer in front of another rather
+                than a shape pasted into a gap. Zero horizontal offset
+                keeps it honest: the ribbon is directly above them, so
+                the shadow has no reason to lean. */}
+            <div className="px-3 pt-2 pb-3 rounded-b-3xl"
+                 style={{ backgroundColor: headerColor,
+                          boxShadow: '0 14px 20px -6px rgba(0,0,0,0.45)' }}>
               <div className="bg-white rounded-xl p-2 shadow-lg">
               <img
                 // `size` is the endpoint's module size, not pixel width;
@@ -1537,12 +1546,18 @@ const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
       className={`rounded-3xl overflow-hidden flex flex-col ${theme.panel} shadow-xl h-full
                         ${hasBg ? (isPortrait ? 'w-full max-h-[42vh]' : 'w-full max-h-[78vh]') : ''}`}
       style={{ backfaceVisibility: 'hidden' }}>
-      <header className={`${headerCls} px-6 py-4 flex items-center justify-between flex-shrink-0`}>
+      {/* Title centred, count pinned right. Centring with justify-between
+          is not possible with two children of different widths -- the
+          title would sit wherever the count's width left it. Absolute
+          positioning for the count takes it out of the flow entirely, so
+          the title centres against the FULL header width and stays put
+          whether the count reads 0 or 18. */}
+      <header className={`${headerCls} px-6 py-4 flex items-center justify-center relative flex-shrink-0`}>
         <div className="flex items-center">
           {icon}
           <h2 className="text-2xl md:text-3xl font-bold">{title}</h2>
         </div>
-        <div className="text-lg font-bold opacity-90">{orders.length}</div>
+        <div className="absolute right-6 text-lg font-bold opacity-90">{orders.length}</div>
       </header>
       <div ref={bodyRef}
            className={hasBg ? 'px-4 py-3 overflow-hidden' : 'p-4 md:p-6 flex-grow overflow-hidden'}>
