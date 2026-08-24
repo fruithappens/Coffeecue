@@ -60,6 +60,20 @@ class PrintService {
     return this._call('/reprint', 'POST', { order_id: orderId });
   }
 
+  /** Roughly how many labels are left on each roll. */
+  getRolls(printerId = null) {
+    return this._call(`/roll${printerId ? `?printer_id=${printerId}` : ''}`);
+  }
+
+  /** Record a new roll, or change its capacity / warning threshold. */
+  updateRoll(printerId, { capacity, warnAt, reset } = {}) {
+    const body = { printer_id: printerId };
+    if (capacity != null) body.capacity = capacity;
+    if (warnAt != null) body.warn_at = warnAt;
+    if (reset) body.reset = true;
+    return this._call('/roll', 'POST', body);
+  }
+
   /** Calibration/test label on a specific printer. */
   testPrint(printerId) {
     return this._call('/test', 'POST', { printer_id: printerId });
