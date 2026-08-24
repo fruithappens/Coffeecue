@@ -4417,6 +4417,32 @@ const BaristaInterface = () => {
             </div>
           )}
 
+          {/* Broadcast to everyone watching their phone. Sits with the
+              other bulk actions because that is what it is -- but it
+              confirms first and names the count, because this reaches
+              real customers and cannot be unsent. */}
+          <button
+            className="px-4 py-2 bg-gray-200 rounded flex items-center hover:bg-gray-300 transition-colors"
+            onClick={async () => {
+              const msg = window.prompt(
+                'Message to everyone still waiting (their order is NOT yet printed):',
+                "Sorry - we've had a problem with our system. Please come to the counter and confirm your order.");
+              if (!msg) return;
+              try {
+                const api = new (await import('../../services/ApiService')).default();
+                const r = await api.post('/broadcast', { message: msg, ttl_minutes: 30 });
+                showToast(r?.success
+                  ? 'Sent to everyone waiting with an unprinted order'
+                  : 'Could not send', r?.success ? 'success' : 'error');
+              } catch (e) {
+                showToast('Could not send', 'error');
+              }
+            }}
+            title="Tell customers watching their phone that something has gone wrong"
+          >
+            <MessageCircle size={18} className="mr-1" /> Tell waiting customers
+          </button>
+
           {/* Notification hold. Deliberately loud when ON and quiet when
               off: a hold left on by accident means customers are never
               told their coffee is ready, which is a far worse failure
