@@ -1334,6 +1334,8 @@ const DisplayScreen = () => {
             showCustomerName={showCustomerName}
             showDetails={showDetails}
             newReadyMap={newReadyRef.current}
+            accent={bannerEdge}
+            ink={bannerInk}
           />
         </main>
       ) : (
@@ -1364,6 +1366,8 @@ const DisplayScreen = () => {
             showCustomerName={showCustomerName}
             showDetails={showDetails}
             newReadyMap={newReadyRef.current}
+            accent={bannerEdge}
+            ink={bannerInk}
           />
         )}
 
@@ -1379,6 +1383,8 @@ const DisplayScreen = () => {
           showCustomerName={showCustomerName}
           showDetails={showDetails}
           newReadyMap={newReadyRef.current}
+          accent={bannerEdge}
+          ink={bannerInk}
         />
 
         {!isPortrait && showCompleted && (
@@ -1394,14 +1400,48 @@ const DisplayScreen = () => {
             showCustomerName={showCustomerName}
             showDetails={showDetails}
             newReadyMap={newReadyRef.current}
+            accent={bannerEdge}
+            ink={bannerInk}
           />
         )}
       </main>
       )}
 
+      {/* --- Brand bar (landscape) ---
+           From Steve's concept: a slim dark strip carrying the tagline,
+           the product name and the time. It exists because the ordering
+           controls MOVED to the top bar -- which left the old footer
+           holding a sponsor line and a lot of nothing. A thin band of the
+           brand's own dark closes the board off; an empty pale strip just
+           looked like the page had stopped early.
+
+           The clock earns its place on a wall screen: it is the fastest
+           way for anyone glancing over to tell whether the board is live
+           or has frozen. */}
+      {!isPickupMode && !isPortrait && (
+      <footer className="px-6 md:px-10 py-2.5 flex items-center justify-between gap-6 flex-shrink-0"
+              style={{ backgroundColor: bannerInk, color: 'rgba(255,255,255,0.92)' }}>
+        <div className="flex items-center gap-3 min-w-0">
+          <Coffee size={18} className="flex-shrink-0 opacity-80" />
+          <span className="text-xs font-bold uppercase tracking-[0.22em] truncate opacity-80">
+            Cue the cups.
+          </span>
+        </div>
+        <div className="text-lg font-extrabold tracking-tight flex-shrink-0">
+          Cup<span style={{ color: bannerEdge }}>Q</span>
+        </div>
+        <div className="text-sm font-semibold tabular-nums flex-shrink-0 opacity-90">
+          {lastUpdated
+            ? new Date(lastUpdated).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+            : ''}
+        </div>
+      </footer>
+      )}
+
       {/* --- Footer: self-service "Order here" + SMS prompt + sponsor ---
-           Hidden on the clean pickup screen. */}
-      {!isPickupMode && (
+           Portrait and pickup screens only now; landscape carries the
+           ordering controls in the top bar. */}
+      {!isPickupMode && isPortrait && (
       <footer className={`px-6 md:px-10 py-4 ${theme.panel} ${theme.border} border-t
                           flex items-center justify-between gap-6 flex-wrap`}>
         <div className="flex items-center gap-4 flex-wrap min-w-0">
@@ -1518,7 +1558,7 @@ const DisplayScreen = () => {
 // --- Subcomponent: a column of orders ---
 const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
                   showCustomerName, showDetails, newReadyMap, hasBg,
-                  boardOpts = {} }) => {
+                  accent, ink, boardOpts = {} }) => {
   const isReady = kind === 'ready';
   // Auto page-flip: a wall display can't be scrolled. The first version
   // used a FIXED guess (6 per page in landscape), so 5 tall cards
@@ -1611,9 +1651,26 @@ const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
   const theme = hasBg
     ? { ...baseTheme, panel: 'bg-white/90 backdrop-blur-md', text: 'text-gray-900', subtext: 'text-gray-500', border: 'border-gray-200' }
     : baseTheme;
-  const headerCls = isReady ? 'bg-green-600 text-white' : 'bg-amber-500 text-white';
+  // Column colours come from the board's palette, not from two hardcoded
+  // status colours.
+  //
+  // The amber/green pair pre-dated the branding and fought it: measured
+  // against the coffee banner, amber sat 0.09 luminance away -- two warm
+  // tones of nearly the same brightness, blending where they met. The
+  // concept solves it by giving Brewing the coffee tone and Ready the
+  // near-black, which is a bigger contrast step between the two columns
+  // than amber/green ever was.
+  //
+  // Ready is the DARK one on purpose. It is the column a customer scans
+  // for, and on a light board the dark block is what the eye lands on
+  // first -- the job green used to do by convention, done here by
+  // contrast instead.
+  const headerBg = isReady ? (ink || '#1F2A37') : (accent || '#C08552');
   const icon = isReady ? <Check size={28} className="mr-2" /> : <Clock size={28} className="mr-2" />;
-  const title = isReady ? 'Ready for Pickup' : 'Brewing';
+  // Upper case, as in the concept: two words in caps read as a LABEL for
+  // the column beneath, where title case reads as a heading you might be
+  // meant to finish reading.
+  const title = isReady ? 'READY FOR PICKUP' : 'BREWING';
 
   return (
     /* Full 360° turn in one direction, but as a pane of GLASS rather
@@ -1650,7 +1707,8 @@ const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
           positioning for the count takes it out of the flow entirely, so
           the title centres against the FULL header width and stays put
           whether the count reads 0 or 18. */}
-      <header className={`${headerCls} px-6 py-4 flex items-center justify-center relative flex-shrink-0`}>
+      <header className="px-6 py-4 flex items-center justify-center relative flex-shrink-0 text-white"
+              style={{ backgroundColor: headerBg }}>
         <div className="flex items-center">
           {icon}
           <h2 className="text-2xl md:text-3xl font-bold">{title}</h2>
@@ -1660,8 +1718,15 @@ const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
             only thing living there -- on the left-hand column it sat
             directly under the QR. Pushing each count outwards keeps both
             readable whatever the ribbon covers. */}
-        <div className={`absolute text-lg font-bold opacity-90 ${
-          isReady ? 'right-6' : 'left-6'}`}>{orders.length}</div>
+        {/* Count in an inset block on the LEFT of both columns, as in the
+            concept. Symmetry matters more than staying clear of the QR
+            here: the ribbon overlaps the inner edges, and the left of the
+            right-hand column is exactly where it lands -- so the block is
+            given a darker inset so it still reads through the overlap. */}
+        <div className="absolute left-0 top-0 bottom-0 px-5 flex items-center text-xl font-bold"
+             style={{ backgroundColor: 'rgba(0,0,0,0.16)' }}>
+          {orders.length}
+        </div>
       </header>
       <div ref={bodyRef}
            className={hasBg ? 'px-4 py-3 overflow-hidden' : 'p-4 md:p-6 flex-grow overflow-hidden'}>
