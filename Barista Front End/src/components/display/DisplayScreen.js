@@ -1000,7 +1000,7 @@ const DisplayScreen = () => {
           part of the palette. */}
       <header className="px-6 md:px-10 pt-5 pb-5 grid items-center gap-4 relative"
               style={{ backgroundColor: BANNER_BG, color: bannerInk,
-                       borderBottom: `3px solid ${bannerEdge}`,
+                       borderBottom: `6px solid ${bannerEdge}`,
                        boxShadow: BANNER_SHADOW,
                        gridTemplateColumns: (orderQrUrl && !isPortrait)
                          ? '1fr auto 1fr' : '1fr auto' }}>
@@ -1152,9 +1152,9 @@ const DisplayScreen = () => {
                           // span, which is what makes one continuous
                           // keyline appear to trace around the dip rather
                           // than cut straight through it.
-                          borderLeft: `3px solid ${bannerEdge}`,
-                          borderRight: `3px solid ${bannerEdge}`,
-                          borderBottom: `3px solid ${bannerEdge}`,
+                          borderLeft: `6px solid ${bannerEdge}`,
+                          borderRight: `6px solid ${bannerEdge}`,
+                          borderBottom: `6px solid ${bannerEdge}`,
                           boxShadow: BANNER_SHADOW }}>
               <div className="bg-white rounded-xl p-2 shadow-lg">
               <img
@@ -1464,10 +1464,17 @@ const DisplayScreen = () => {
 
            The clock earns its place on a wall screen: it is the fastest
            way for anyone glancing over to tell whether the board is live
-           or has frozen. */}
+           or has frozen.
+
+           Grid, not justify-between -- the same trap the top bar had.
+           justify-between distributes slack BETWEEN items, so with a long
+           tagline on the left and a short clock on the right the CupQ
+           mark in the middle sits wherever those two leave it, which is a
+           long way off centre. 1fr/auto/1fr centres it by construction. */}
       {!isPickupMode && !isPortrait && (
-      <footer className="px-6 md:px-10 py-2.5 flex items-center justify-between gap-6 flex-shrink-0"
-              style={{ backgroundColor: bannerInk, color: 'rgba(255,255,255,0.92)' }}>
+      <footer className="px-6 md:px-10 py-2.5 grid items-center gap-6 flex-shrink-0"
+              style={{ backgroundColor: bannerInk, color: 'rgba(255,255,255,0.92)',
+                       gridTemplateColumns: '1fr auto 1fr' }}>
         <div className="flex items-center gap-3 min-w-0">
           <Coffee size={18} className="flex-shrink-0 opacity-80" />
           <span className="text-xs font-bold uppercase tracking-[0.22em] truncate opacity-80">
@@ -1477,7 +1484,7 @@ const DisplayScreen = () => {
         <div className="text-lg font-extrabold tracking-tight flex-shrink-0">
           Cup<span style={{ color: bannerEdge }}>Q</span>
         </div>
-        <div className="text-sm font-semibold tabular-nums flex-shrink-0 opacity-90">
+        <div className="text-sm font-semibold tabular-nums opacity-90 text-right">
           {lastUpdated
             ? new Date(lastUpdated).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
             : ''}
