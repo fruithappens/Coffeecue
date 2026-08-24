@@ -69,6 +69,13 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose, onOrderPlaced
   const [size, setSize] = useState(null);
   const [sugar, setSugar] = useState(0);
   const [drinkCat, setDrinkCat] = useState('All'); // category tab on the drink step
+  // Strength and temperature. The first note the baristas made on the
+  // day was that customers wanted a double shot or a half strength and
+  // the touchscreen had no way to say so -- it could only arrive by SMS
+  // or by a barista typing it in. The ordering API already accepted
+  // both; only the screen never asked.
+  const [strength, setStrength] = useState('');
+  const [extraHot, setExtraHot] = useState(false);
   const [chosenStation, setChosenStation] = useState(null); // collect-from station id
   const [phone, setPhone] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -244,9 +251,25 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose, onOrderPlaced
   const sizeChoices = menu?.sizes || [];
   const needsSizeStep = sizeChoices.length > 1;
 
+  // Strength only makes sense where there are shots to change. Asking a
+  // hot chocolate how strong it should be is a step that wastes a tap
+  // and makes the machine look like it is not paying attention.
+  const drinkIsEspresso = (() => {
+    const cat = String(drink?.category || 'Coffee').toLowerCase();
+    if (cat !== 'coffee') return false;
+    const name = String(drink?.value || drink?.name || '').toLowerCase();
+    // A long black or espresso is already about the shot; the useful
+    // question there is strength, so they stay in.
+    return !/(hot chocolate|chai|matcha|tea)/.test(name);
+  })();
+
   // After sugar: EA-identified visitors skip the name step (we already
   // greeted them by their registration name); everyone else types one.
   const afterSugar = () => {
+    if (drinkIsEspresso) { setStep('strength'); return; }
+    afterStrength();
+  };
+  const afterStrength = () => {
     if (eaIdentity) { afterName(); return; }
     setStep('name');
   };
@@ -294,6 +317,8 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose, onOrderPlaced
           // Provenance. This overlay is the cart's own touchscreen, so the
           // channel is fixed; ?src= lets one event run several kiosks and
           // still tell them apart on the report (cart-1-ipad, foyer-ipad).
+          strength: strength || undefined,
+          temp: extraHot ? 'extra hot' : undefined,
           channel,
           src: new URLSearchParams(window.location.search).get('src') || undefined,
         }),
@@ -530,6 +555,47 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose, onOrderPlaced
           </>
         )}
 
+        {/* ---------- STRENGTH (espresso drinks only) ---------- */}
+        {step === 'strength' && (
+          <>
+            <Header title="How strong?" onBack={() => setStep('sugar')} />
+            <div className="grid grid-cols-2 gap-3 py-4">
+              {[
+                { value: '', label: 'Normal', hint: 'as it comes' },
+                { value: 'strong', label: 'Double shot', hint: 'extra shot' },
+                { value: 'weak', label: 'Half strength', hint: 'lighter' },
+                { value: 'extra strong', label: 'Extra strong', hint: 'stronger still' },
+              ].map(opt => (
+                <button
+                  key={opt.label}
+                  onClick={() => setStrength(opt.value)}
+                  className={`py-5 px-3 rounded-2xl text-xl font-bold shadow active:scale-95 ${
+                    strength === opt.value ? 'text-white' : 'bg-white text-gray-800'}`}
+                  style={strength === opt.value ? { backgroundColor: headerColor } : {}}
+                >
+                  {opt.label}
+                  <span className="block text-sm font-normal opacity-70 mt-0.5">{opt.hint}</span>
+                </button>
+              ))}
+            </div>
+            {/* Extra hot rides along here rather than earning its own
+                step. It is a common ask and a cheap one, and a whole
+                screen for one toggle is a tap nobody thanks you for. */}
+            <button
+              onClick={() => setExtraHot(v => !v)}
+              className={`w-full py-4 rounded-2xl text-xl font-bold shadow mb-3 ${
+                extraHot ? 'text-white' : 'bg-white text-gray-800'}`}
+              style={extraHot ? { backgroundColor: headerColor } : {}}
+            >
+              {extraHot ? '✓ Extra hot' : 'Extra hot?'}
+            </button>
+            <button onClick={afterStrength}
+              className="w-full py-5 rounded-2xl text-2xl font-extrabold text-white" style={{ backgroundColor: headerColor }}>
+              Next →
+            </button>
+          </>
+        )}
+
         {/* ---------- LOCATION (only when >1 station can make it) ---------- */}
         {step === 'location' && (
           <>
@@ -607,6 +673,15 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose, onOrderPlaced
                 <li>{milkEmoji(milk?.value)} {milk?.name}</li>
                 {size && <li>🥤 {size.name}</li>}
                 <li>🍬 {sugar === 0 ? 'No sugar' : `${sugar} sugar${sugar > 1 ? 's' : ''}`}</li>
+                {/* Only listed when chosen. A review screen that solemnly
+                    confirms "Normal strength" on every order trains people
+                    to stop reading it. */}
+                {strength && (
+                  <li>💪 {strength === 'strong' ? 'Double shot'
+                        : strength === 'weak' ? 'Half strength'
+                        : 'Extra strong'}</li>
+                )}
+                {extraHot && <li>🌡️ Extra hot</li>}
               </ul>
               <div className="mt-4 pt-3 border-t flex items-center gap-2 text-lg font-semibold" style={{ color: headerColor }}>
                 <MapPin size={20} /> Collect from {chosenStation != null ? stationName(chosenStation) : 'the next available station'}
