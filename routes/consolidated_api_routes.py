@@ -3925,6 +3925,8 @@ def _event_code_for_display(db):
     and an unstamped poster is a far smaller problem than a config
     endpoint that 500s.
     """
+    if db is None:
+        return ''
     try:
         return event_access_settings(_kv_get(db, ACCESS_SETTING_KEY, default=None))['code']
     except Exception:
@@ -4101,7 +4103,13 @@ def get_display_config():
                 # it into the QR it prints. Public because it is printed
                 # on a poster -- it identifies an event, it does not
                 # authorise anything.
-                "event_code": _event_code_for_display(db),
+                # coffee_system.db, not a bare `db` -- there is no local
+                # `db` in this function and referencing one took the whole
+                # endpoint down with a NameError. Guarded, because this
+                # config drives the Display's branding and must not fail
+                # over a poster code.
+                "event_code": _event_code_for_display(
+                    getattr(coffee_system, 'db', None) if coffee_system else None),
                 "sponsor": sponsor,
                 # Logo for the display screen header. Uploaded via the
                 # Branding panel as a data URI (clientLogo). 'logo' is the
