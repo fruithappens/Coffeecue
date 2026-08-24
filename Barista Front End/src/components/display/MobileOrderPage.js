@@ -28,6 +28,8 @@ const MobileOrderPage = () => {
   const trackNumber = params.get('order');
   const [track, setTrack] = useState(null);
   const [gone, setGone] = useState(false);
+  const [collecting, setCollecting] = useState(false);
+  const [collected, setCollected] = useState(false);
 
   // Poll this order's public status. No auth, no personal data — just
   // status, queue position and where to collect.
@@ -37,7 +39,13 @@ const MobileOrderPage = () => {
       const r = await fetch(`/api/orders/${encodeURIComponent(trackNumber)}/track`);
       if (r.status === 404) { setGone(true); return; }
       const b = await r.json();
-      if (b?.success) { setTrack(b); setGone(false); }
+      if (b?.success) {
+        setTrack(b);
+        setGone(false);
+        // Survives a reload: if the barista marked it collected, or this
+        // phone did before the page was refreshed, show it as done.
+        if (b.status === 'picked_up' || b.status === 'picked-up') setCollected(true);
+      }
     } catch (e) { /* keep the last known state */ }
   }, [trackNumber]);
 
@@ -76,6 +84,14 @@ const MobileOrderPage = () => {
             {track?.status === 'pending' && track?.position > 0 && (
               <div className="mt-2 text-lg">You're #{track.position} in line</div>
             )}
+            {/* The estimate. Deliberately soft wording -- the server
+                rounds up and never counts past zero, and "about" carries
+                that honesty into the sentence a person actually reads. */}
+            {!ready && track?.eta_text && (
+              <div className="mt-1 text-lg opacity-95">
+                Ready in {track.eta_text}
+              </div>
+            )}
             {ready && (
               <div className="mt-3 text-xl font-semibold">
                 {track?.collection_note
@@ -84,6 +100,39 @@ const MobileOrderPage = () => {
               </div>
             )}
           </div>
+          {/* Collected, from the customer's own phone: one less press for
+              the barista on the busiest surface they have. Only offered
+              when the coffee is actually ready -- the server refuses it
+              otherwise, so a mis-tap cannot clear a card still on the
+              bench. */}
+          {ready && !collected && (
+            <button
+              className="w-full mt-4 py-4 rounded-xl bg-green-600 text-white text-xl font-bold shadow disabled:opacity-60"
+              disabled={collecting}
+              onClick={async () => {
+                setCollecting(true);
+                try {
+                  const r = await fetch(
+                    `/api/orders/${encodeURIComponent(trackNumber)}/collected`,
+                    { method: 'POST' });
+                  const b = await r.json().catch(() => ({}));
+                  if (b?.success) { setCollected(true); poll(); }
+                } catch (e) {
+                  // Conference wifi. Leave the button up so they can
+                  // try again; the barista can still mark it either way.
+                } finally {
+                  setCollecting(false);
+                }
+              }}
+            >
+              {collecting ? 'One moment…' : "Got it, thanks"}
+            </button>
+          )}
+          {collected && (
+            <div className="mt-4 text-center text-green-700 font-semibold text-lg">
+              Enjoy your coffee.
+            </div>
+          )}
           {track?.drink && (
             <div className="text-center text-gray-600 mt-3 text-lg">
               {track.first_name ? `${track.first_name} · ` : ''}{track.drink}
