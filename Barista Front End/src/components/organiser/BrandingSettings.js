@@ -291,9 +291,23 @@ const BrandingSettings = () => {
       setError('Please choose an image file (PNG, JPG, SVG).');
       return;
     }
+    // Oversized logos are RESIZED, not refused. Telling an organiser to
+    // go and shrink a file themselves is asking them to leave, find
+    // another tool, and come back -- for something the browser can do in
+    // a moment. The old message even said "resize/compress it", which is
+    // an instruction to do by hand exactly what the code above already
+    // does for backgrounds.
     if (file.size > MAX_LOGO_BYTES) {
-      setError(`Logo is ${(file.size / 1024).toFixed(0)}KB — please use an image under 400KB `
-        + '(resize/compress it). Big images slow the display screen.');
+      (async () => {
+        try {
+          setError('');
+          const small = await compressLogoFile(file);
+          setSettings(prev => ({ ...prev, [field]: small }));
+          setSuccess(doneMsg);
+        } catch (err) {
+          setError('That image could not be read. Please try a PNG or JPG.');
+        }
+      })();
       return;
     }
     const reader = new FileReader();
@@ -336,6 +350,45 @@ const BrandingSettings = () => {
             while (dataUrl.length > targetBytes && q > 0.4) {
               q -= 0.1;
               dataUrl = canvas.toDataURL('image/jpeg', q);
+            }
+            resolve(dataUrl);
+          } catch (err) { reject(err); }
+        };
+        img.onerror = () => reject(new Error('Could not decode image'));
+        img.src = e.target.result;
+      };
+      reader.onerror = () => reject(new Error('Could not read file'));
+      reader.readAsDataURL(file);
+    });
+
+  // Downscale a LOGO, keeping PNG.
+  //
+  // Deliberately not the JPEG path above. A logo is usually a PNG with a
+  // transparent background, and JPEG has no alpha -- flattening it puts
+  // a white box behind the mark, which is invisible on a white settings
+  // page and obvious the moment it lands on a coloured Display header.
+  // A logo is also small in pixels, so PNG stays a sensible size.
+  const compressLogoFile = (file, maxDim = 900, targetBytes = 380 * 1024) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          try {
+            let scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+            let dataUrl = '';
+            // Step the size down until it fits. Resizing beats quality
+            // stepping here: PNG has no quality dial, and a logo that is
+            // physically smaller is still a clean logo.
+            for (let i = 0; i < 6; i += 1) {
+              const w = Math.max(1, Math.round(img.width * scale));
+              const h = Math.max(1, Math.round(img.height * scale));
+              const canvas = document.createElement('canvas');
+              canvas.width = w; canvas.height = h;
+              canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+              dataUrl = canvas.toDataURL('image/png');
+              if (dataUrl.length <= targetBytes) break;
+              scale *= 0.75;
             }
             resolve(dataUrl);
           } catch (err) { reject(err); }
