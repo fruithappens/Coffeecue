@@ -9717,6 +9717,53 @@ def get_today_report():
         """)
         top_drinks = [{'drink': r[0], 'orders': int(r[1])} for r in cur.fetchall()]
 
+        # Milk breakdown. The reason it exists: CTN26 stocked coconut and
+        # not one order used it, while 41% of the event was some other
+        # alternative milk. That is a stocking decision worth thousands
+        # over a season, and nobody could see it without exporting rows.
+        #
+        # Normalised in SQL the same way the reporting code does it --
+        # lower-cased with a trailing " milk" stripped -- because the
+        # database genuinely holds both "Oat Milk" and "oat" for the same
+        # drink and counting them apart understates every alternative.
+        cur.execute("""
+            SELECT COALESCE(NULLIF(regexp_replace(
+                       lower(trim(order_details->>'milk')), '\\s*milk$', ''), ''),
+                   'no milk') AS m,
+                   COUNT(*) AS n
+            FROM orders
+            WHERE created_at::date = CURRENT_DATE
+            GROUP BY m
+            ORDER BY n DESC
+        """)
+        milk_rows = [{'milk': r[0], 'orders': int(r[1])} for r in cur.fetchall()]
+        _ALT = {'skim', 'oat', 'soy', 'almond', 'lactose free', 'coconut',
+                'macadamia', 'rice', 'a2'}
+        milk_breakdown = {
+            'by_milk': milk_rows,
+            'dairy': sum(r['orders'] for r in milk_rows
+                         if r['milk'] in ('full cream', 'whole', 'regular', 'dairy')),
+            'alternative': sum(r['orders'] for r in milk_rows if r['milk'] in _ALT),
+            'none': sum(r['orders'] for r in milk_rows
+                        if r['milk'] in ('no milk', 'none', '')),
+        }
+        # Milks the event is carrying that nobody ordered today. The
+        # actionable half of the breakdown -- what to stop buying.
+        unused_milks = []
+        try:
+            ev = _kv_get(db, 'event_inventory', default={}) or {}
+            stocked = ev.get('milk') if isinstance(ev, dict) else None
+            if isinstance(stocked, list):
+                ordered = {r['milk'] for r in milk_rows}
+                for item in stocked:
+                    nm = item.get('name') if isinstance(item, dict) else item
+                    key = str(nm or '').strip().lower()
+                    key = key[:-5].strip() if key.endswith(' milk') else key
+                    if key and key not in ordered:
+                        unused_milks.append(nm)
+        except Exception as _um_err:
+            logger.debug(f"unused milk calc skipped: {_um_err}")
+
         # Peak hour — which hour of the day had the most orders. The
         # post-event summary leans on this ("you handled 47 orders in
         # the 10am hour"), and it's a one-liner aggregate.
@@ -9862,6 +9909,8 @@ def get_today_report():
             'currency_symbol': currency_symbol,
             'per_station': per_station,
             'top_drinks': top_drinks,
+            'milk': milk_breakdown,
+            'unused_milks': unused_milks,
             'peak_hour': peak_hour,
             'busiest_station_id': busiest_station_id,
             'sms': sms,

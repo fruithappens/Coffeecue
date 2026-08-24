@@ -206,6 +206,31 @@ const BaristaInterface = () => {
   const [holdState, setHoldState] = useState(null);
   const [holdBusy, setHoldBusy] = useState(false);
   const [printingQueue, setPrintingQueue] = useState(false);
+  // Today's numbers for this station. Polled rather than derived from
+  // completedOrders because that list is capped at 50 -- past fifty
+  // coffees the tally would silently stop climbing, which is the exact
+  // moment a barista most needs to trust it.
+  const [sessionStats, setSessionStats] = useState(null);
+  const [showSessionReport, setShowSessionReport] = useState(false);
+  const refreshSession = useCallback(async () => {
+    try {
+      const api = new (await import('../../services/ApiService')).default();
+      const r = await api.get('/reports/today');
+      if (r?.success !== false) setSessionStats(r);
+    } catch (e) { /* the tally is nice to have, the board is not */ }
+  }, []);
+  useEffect(() => {
+    refreshSession();
+    const t = setInterval(refreshSession, 30000);
+    return () => clearInterval(t);
+  }, [refreshSession]);
+  // Coffees finished at THIS station today.
+  const madeToday = React.useMemo(() => {
+    const per = sessionStats?.per_station;
+    if (!Array.isArray(per)) return null;
+    const mine = per.find(p => String(p.station_id) === String(selectedStation));
+    return mine ? (mine.completed ?? mine.orders ?? null) : 0;
+  }, [sessionStats, selectedStation]);
   const refreshHold = useCallback(async () => {
     try {
       const api = new (await import('../../services/ApiService')).default();
@@ -2304,6 +2329,21 @@ const BaristaInterface = () => {
             Queue: {queueCount}
           </div>
 
+          {/* Coffees made today at this station. Two jobs: it is the
+              number the baristas were writing down by hand for invoicing,
+              and it is crash insurance -- if the system stalls they can
+              see it stopped at 78 rather than reconstructing it later.
+              Clicking it opens the full session summary. */}
+          {madeToday !== null && (
+            <button
+              className="px-4 py-1 rounded-full bg-amber-900 hover:bg-amber-950 transition-colors"
+              onClick={() => { setShowSessionReport(true); refreshSession(); }}
+              title="Coffees finished at this station today - click for the full summary"
+            >
+              Made: {madeToday}
+            </button>
+          )}
+
           {/* Wait pill shows the live SMART estimate (backend: per-drink
               make-time × pending+in-progress ÷ station capacity — the same
               number SMS customers get). Falls back to the manual value at
@@ -4220,6 +4260,108 @@ const BaristaInterface = () => {
               <Printer size={18} className="mr-1" />
               {printingQueue ? 'Sending...' : `Print queue (${pendingOrders.length})`}
             </button>
+          )}
+
+          {/* Session summary. What the baristas were keeping on paper --
+              how many, what kind, which milks -- so it can be read off
+              at the end of a session for invoicing, and so a stocking
+              decision has numbers behind it. CTN26 carried coconut and
+              sold none of it; that is worth knowing before buying more. */}
+          {showSessionReport && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                 onClick={() => setShowSessionReport(false)}>
+              <div className="absolute inset-0 bg-black bg-opacity-50"></div>
+              <div className="relative bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto"
+                   onClick={e => e.stopPropagation()}>
+                <div className="bg-amber-800 text-white p-4 rounded-t-xl flex justify-between items-center">
+                  <h2 className="text-xl font-bold">Session so far</h2>
+                  <button className="text-white opacity-80 hover:opacity-100"
+                          onClick={() => setShowSessionReport(false)}>
+                    <XCircle size={22} />
+                  </button>
+                </div>
+                <div className="p-4 space-y-4">
+                  <div className="grid grid-cols-3 gap-3 text-center">
+                    <div className="bg-gray-50 rounded-lg p-3">
+                      <div className="text-3xl font-bold">{madeToday ?? 0}</div>
+                      <div className="text-xs text-gray-500 mt-1">made here</div>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-3">
+                      <div className="text-3xl font-bold">{sessionStats?.total_orders ?? 0}</div>
+                      <div className="text-xs text-gray-500 mt-1">orders, all stations</div>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-3">
+                      <div className="text-3xl font-bold">
+                        {sessionStats?.avg_wait_min != null
+                          ? Math.round(sessionStats.avg_wait_min) : '-'}
+                        <span className="text-base">m</span>
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">average wait</div>
+                    </div>
+                  </div>
+
+                  {sessionStats?.milk?.by_milk?.length > 0 && (
+                    <div>
+                      <h3 className="font-semibold mb-1">Milk</h3>
+                      <div className="text-sm text-gray-600 mb-2">
+                        {sessionStats.milk.dairy} full cream &middot;{' '}
+                        {sessionStats.milk.alternative} alternative &middot;{' '}
+                        {sessionStats.milk.none} no milk
+                      </div>
+                      <table className="w-full text-sm">
+                        <tbody>
+                          {sessionStats.milk.by_milk.map(m => (
+                            <tr key={m.milk} className="border-b last:border-0">
+                              <td className="py-1 capitalize">{m.milk}</td>
+                              <td className="py-1 text-right tabular-nums font-medium">{m.orders}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {sessionStats?.unused_milks?.length > 0 && (
+                    <div className="bg-amber-50 border border-amber-200 rounded p-2 text-sm">
+                      <span className="font-semibold text-amber-900">Not ordered today: </span>
+                      <span className="text-amber-900">{sessionStats.unused_milks.join(', ')}</span>
+                      <div className="text-amber-700 text-xs mt-1">
+                        Stocked but unused &mdash; worth reviewing before the next event.
+                      </div>
+                    </div>
+                  )}
+
+                  {sessionStats?.top_drinks?.length > 0 && (
+                    <div>
+                      <h3 className="font-semibold mb-1">Drinks</h3>
+                      <table className="w-full text-sm">
+                        <tbody>
+                          {sessionStats.top_drinks.slice(0, 8).map(d => (
+                            <tr key={d.drink} className="border-b last:border-0">
+                              <td className="py-1 capitalize">{d.drink}</td>
+                              <td className="py-1 text-right tabular-nums font-medium">{d.orders}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {sessionStats?.peak_hour?.orders > 0 && (
+                    <div className="text-sm text-gray-600">
+                      Busiest hour: {String(sessionStats.peak_hour.hour).padStart(2, '0')}:00
+                      {' '}&mdash; {sessionStats.peak_hour.orders} orders
+                    </div>
+                  )}
+
+                  <p className="text-xs text-gray-400">
+                    Counts today, from the server. If the screen ever stops
+                    updating, the last number you saw here is still what had
+                    been made.
+                  </p>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* Notification hold. Deliberately loud when ON and quiet when
