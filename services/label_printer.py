@@ -352,13 +352,31 @@ def _fit_to_width(draw, text, font, max_px):
 
 
 def label_display_name(full_name: str) -> str:
-    """'Stephanie Routley' -> 'Stephanie R.' — cup-label privacy."""
+    """'Stephanie Routley' -> 'Stephanie R.' — cup-label privacy.
+
+    Long single names are shortened VISIBLY. The cap has always been
+    there, but it cut silently: "Bartholomew-Fitzgerald-Smythe" printed
+    as "Bartholomew-Fitzge", which reads as a printer fault rather than
+    a deliberate shortening — the barista sees a broken label and the
+    customer hears a mangled name called out. The rest of this renderer
+    already ellipsises for exactly this reason (see _fit_to_width); this
+    function was the one place that did not.
+
+    ASCII dots, not a Unicode ellipsis, matching _fit_to_width. Railway
+    has no system fonts and labels render through Pillow's embedded
+    face -- a character that face lacks prints as a box or as nothing,
+    which would be a worse lie than the silent cut it replaced.
+    """
     parts = [p for p in str(full_name or "").strip().split() if p]
     if not parts:
         return "Customer"
     if len(parts) == 1:
-        return parts[0][:18]
-    return f"{parts[0][:16]} {parts[1][0].upper()}."
+        one = parts[0]
+        return one if len(one) <= 18 else one[:15] + "..."
+    first = parts[0]
+    if len(first) > 16:
+        first = first[:13] + "..."
+    return f"{first} {parts[1][0].upper()}."
 
 
 # How far a small logo may be enlarged to fill the label. Past roughly
@@ -626,24 +644,43 @@ def render_label(
     want_name = options.get("show_name", True) and str(name or "").strip()
     placed_beside = False
 
-    if want_name and not centred:
+    # Pairing works CENTRED too -- the pair is centred as one unit rather
+    # than the number being centred and the name pushed off to its right.
+    # It used to be left-only, which meant choosing between a centred
+    # label and the line the pairing saves. There is no reason to choose:
+    # a centred "#1546 Fred" is one object, and measuring the whole group
+    # before placing it is all that was missing.
+    if want_name:
+        gap = 10 if lid else 18
         try:
             num_w = draw.textlength(num_text, font=f_num)
         except Exception:
             num_w = len(num_text) * (A_NUM // 2)
-        name_x = margin + int(num_w) + (10 if lid else 18)
-        avail = W - name_x - margin
+        # Centred labels have the full width to play with, minus margins;
+        # left-aligned ones only have what the number leaves.
+        avail = (
+            (W - 2 * margin - int(num_w) - gap)
+            if centred
+            else (W - (margin + int(num_w) + gap) - margin)
+        )
         floor = max(20, int(A_NAME * 0.8))
         name_font = _largest_font_fitting(
             draw, name, avail, int(A_NAME * 1.25), min_size=floor
         )
         try:
-            placed_beside = draw.textlength(name, font=name_font) <= avail
+            name_w = draw.textlength(name, font=name_font)
+            placed_beside = name_w <= avail
         except Exception:
-            placed_beside = False
+            name_w, placed_beside = 0, False
 
         if placed_beside:
-            draw.text((margin, y), num_text, fill=0, font=f_num)
+            if centred:
+                group_w = int(num_w) + gap + int(name_w)
+                num_x = max(margin, (W - group_w) // 2)
+            else:
+                num_x = margin
+            name_x = num_x + int(num_w) + gap
+            draw.text((num_x, y), num_text, fill=0, font=f_num)
             # Same baseline, not the same top edge: two sizes hung from
             # the top read as a mistake, one baseline reads as one line.
             try:
