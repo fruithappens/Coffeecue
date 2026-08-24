@@ -12,6 +12,9 @@ from datetime import datetime, timedelta
 import json
 import re
 from auth import jwt_required_with_demo, role_required_with_demo
+from utils.broadcast import (
+    BROADCAST_KEY, applies_to as broadcast_applies, build as build_broadcast,
+    is_live as broadcast_is_live)
 from utils.event_access import (
     ACCESS_SETTING_KEY, check as event_access_check,
     read_settings as event_access_settings)
@@ -4975,11 +4978,37 @@ def track_order_public(order_id):
             except Exception:
                 pass
 
+        # Incident notice, if one is live and this order is affected.
+        # Scoped to UNPRINTED orders by default: a printed order is
+        # already on a label in a barista's hand and will be made, so
+        # sending its customer to re-confirm manufactures a duplicate.
+        notice = ''
+        try:
+            raw_notice = _kv_get(db, BROADCAST_KEY, default=None)
+            if broadcast_is_live(raw_notice, datetime.now(),
+                                 lambda v: datetime.fromisoformat(str(v))):
+                c6 = db.cursor()
+                c6.execute(
+                    "SELECT 1 FROM print_jobs WHERE order_id = %s "
+                    "AND type = 'label' LIMIT 1", (str(clean_id),))
+                printed = bool(c6.fetchone())
+                if broadcast_applies(raw_notice, printed):
+                    notice = str(raw_notice.get('message') or '')
+        except Exception as notice_err:
+            # A broken notice must never take down the page a waiting
+            # customer is reading.
+            logger.warning(f"broadcast check failed for {clean_id}: {notice_err}")
+            try:
+                db.rollback()
+            except Exception:
+                pass
+
         return jsonify({
             'success': True,
             'order_number': clean_id,
             'status': status,
             'position': position,
+            'notice': notice,
             'eta_minutes': eta_minutes,
             'eta_text': eta_describe(eta_minutes),
             'first_name': first_name,
@@ -10016,6 +10045,62 @@ def event_access_config():
                         'enforcing': bool(cfg['require'] and cfg['code'])})
     except Exception as e:
         logger.error(f"event_access_config error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@bp.route('/broadcast', methods=['GET', 'POST', 'DELETE'])
+@jwt_required_with_demo()
+def customer_broadcast():
+    """Tell everyone watching their phone that something has gone wrong.
+
+    CTN26 had a 25-minute outage mid-service with no way to say anything
+    to the people waiting. This is that channel.
+
+    GET     -> the live notice, or empty
+    POST    -> {message?, ttl_minutes?, scope?}  scope: unprinted | all
+    DELETE  -> clear it
+
+    Defaults to UNPRINTED orders only. A printed order is already on a
+    label and will be made; telling that customer to re-confirm creates
+    the duplicate this is meant to prevent. `scope: all` exists for a
+    genuine everyone-stop, and has to be asked for.
+
+    The notice expires on its own (30 min default). Whoever sets this is
+    mid-incident and will not remember to clear it.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+        if request.method == 'DELETE':
+            _kv_put(db, BROADCAST_KEY, {})
+            logger.info("Customer broadcast cleared")
+            return jsonify({'success': True, 'live': False})
+
+        if request.method == 'POST':
+            body = request.get_json(silent=True) or {}
+            notice = build_broadcast(
+                message=body.get('message'),
+                ttl_minutes=body.get('ttl_minutes'),
+                scope=body.get('scope'),
+                now_iso=datetime.now().isoformat())
+            _kv_put(db, BROADCAST_KEY, notice)
+            logger.warning(
+                f"CUSTOMER BROADCAST set (scope={notice['scope']}, "
+                f"{notice['ttl_minutes']}m): {notice['message'][:80]}")
+            return jsonify({'success': True, 'live': True, **notice})
+
+        raw = _kv_get(db, BROADCAST_KEY, default=None)
+        live = broadcast_is_live(raw, datetime.now(),
+                                 lambda v: datetime.fromisoformat(str(v)))
+        return jsonify({'success': True, 'live': bool(live),
+                        **(raw if isinstance(raw, dict) and live else {})})
+    except Exception as e:
+        logger.error(f"customer_broadcast error: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 

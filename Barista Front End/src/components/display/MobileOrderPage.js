@@ -76,6 +76,19 @@ const MobileOrderPage = () => {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center p-6">
         <div className="w-full max-w-md">
+          {/* Incident notice. Above the order card on purpose: if the
+              system is in trouble, that outranks the queue position the
+              customer came here to read.
+              The server only sends this to orders that are actually
+              affected -- a printed order is already on a label and will
+              be made, so its watcher is deliberately left alone rather
+              than sent to re-confirm and create a duplicate. */}
+          {track?.notice && (
+            <div className="mb-4 rounded-2xl bg-amber-100 border-2 border-amber-500 p-4 text-amber-950">
+              <div className="font-extrabold text-lg mb-1">Please read</div>
+              <div className="text-base leading-snug">{track.notice}</div>
+            </div>
+          )}
           <div className={`${copy.tone} text-white rounded-2xl p-6 text-center shadow-lg
                            ${ready ? 'animate-pulse' : ''}`}>
             <div className="text-sm uppercase tracking-wide opacity-90">Your order</div>
