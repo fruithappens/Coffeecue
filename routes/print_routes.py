@@ -30,6 +30,7 @@ from datetime import datetime, timedelta
 from flask import Blueprint, current_app, jsonify, request, Response
 
 from auth import jwt_required_with_demo, role_required_with_demo
+from utils.label_roll import ROLL_SETTING_KEY, assess, roll_for, set_roll
 
 logger = logging.getLogger(__name__)
 
@@ -1021,6 +1022,106 @@ def cancel_job(job_id):
         return jsonify({'success': True})
     except Exception as e:
         logger.error(f"cancel_job error: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@bp.route('/roll', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def label_roll_status():
+    """Roughly how many labels are left on each printer's roll.
+
+    Counts labels actually PRINTED since the roll was fitted -- not
+    queued, because a job that never printed consumed no paper and
+    over-counting sends someone to change a roll that is half full.
+
+    Query: printer_id (optional; all enabled printers otherwise).
+    """
+    db = _db()
+    _ensure_tables(db)
+    try:
+        from routes.consolidated_api_routes import _kv_get
+        state = _kv_get(db, ROLL_SETTING_KEY, default={}) or {}
+        cur = db.cursor()
+        printer_id = request.args.get('printer_id')
+        if printer_id:
+            cur.execute("SELECT * FROM printers WHERE id = %s", (printer_id,))
+        else:
+            cur.execute("SELECT * FROM printers WHERE enabled = TRUE ORDER BY id")
+        printers = [_row_to_dict(cur, r) for r in (cur.fetchall() or [])]
+
+        out = []
+        for pr in printers:
+            if not pr:
+                continue
+            cfg = roll_for(state, pr['id'])
+            c2 = db.cursor()
+            if cfg.get('reset_at'):
+                c2.execute(
+                    "SELECT COUNT(*) FROM print_jobs WHERE printer_id = %s "
+                    "AND printed_at IS NOT NULL AND printed_at >= %s",
+                    (pr['id'], cfg['reset_at']))
+            else:
+                # Never recorded a roll change: count everything. That
+                # reads LOW, which prompts a change and a reset -- erring
+                # towards warning rather than towards silence.
+                c2.execute(
+                    "SELECT COUNT(*) FROM print_jobs WHERE printer_id = %s "
+                    "AND printed_at IS NOT NULL", (pr['id'],))
+            row = c2.fetchone()
+            used = (row[0] if not isinstance(row, dict) else list(row.values())[0]) or 0
+            info = assess(cfg['capacity'], used, cfg['warn_at'])
+            info.update({'printer_id': pr['id'], 'printer': pr.get('name'),
+                         'station_id': pr.get('station_id'),
+                         'reset_at': cfg.get('reset_at')})
+            out.append(info)
+        return jsonify({'success': True, 'rolls': out})
+    except Exception as e:
+        logger.error(f"label_roll_status error: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@bp.route('/roll', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def label_roll_update():
+    """Record a new roll, or change a printer's roll settings.
+
+    Body: {printer_id, capacity?, warn_at?, reset?}
+
+    `reset: true` is the "I have just fitted a new roll" button. It
+    stamps now, and everything printed from this moment counts against
+    the new roll.
+    """
+    db = _db()
+    _ensure_tables(db)
+    data = request.get_json(silent=True) or {}
+    printer_id = data.get('printer_id')
+    if not printer_id:
+        return jsonify({'success': False, 'message': 'printer_id is required'}), 400
+    try:
+        from routes.consolidated_api_routes import _kv_get, _kv_put
+        state = _kv_get(db, ROLL_SETTING_KEY, default={}) or {}
+        reset_at = datetime.now().isoformat() if data.get('reset') else None
+        state = set_roll(state, printer_id,
+                         capacity=data.get('capacity'),
+                         warn_at=data.get('warn_at'),
+                         reset_at=reset_at)
+        _kv_put(db, ROLL_SETTING_KEY, state)
+        if reset_at:
+            logger.info(f"Printer {printer_id}: new label roll recorded")
+        cfg = roll_for(state, printer_id)
+        return jsonify({'success': True, 'printer_id': printer_id, **cfg})
+    except Exception as e:
+        logger.error(f"label_roll_update error: {e}")
         try:
             db.rollback()
         except Exception:

@@ -257,6 +257,29 @@ const BaristaInterface = () => {
     setAutoPrintLabelsState(printService.isAutoPrintEnabled(selectedStation));
   }, [selectedStation]);
   const stationPrinter = printService.findStationPrinter(printers, selectedStation);
+
+  // Label roll. Declared AFTER stationPrinter on purpose: the dependency
+  // array is evaluated during render, so referencing stationPrinter from
+  // above its own `const` threw a temporal-dead-zone ReferenceError and
+  // the whole Barista Interface fell into the error boundary. The build
+  // was perfectly happy about it.
+  //
+  // Polled slowly -- a roll takes hours to run down, and the value is a
+  // heads-up in time to change it during a lull, not a live gauge.
+  const [labelRoll, setLabelRoll] = useState(null);
+  const refreshRoll = useCallback(async () => {
+    if (!stationPrinter?.id) { setLabelRoll(null); return; }
+    try {
+      const r = await printService.getRolls(stationPrinter.id);
+      setLabelRoll((r?.rolls || [])[0] || null);
+    } catch (e) { /* non-fatal */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stationPrinter?.id]);
+  useEffect(() => {
+    refreshRoll();
+    const t = setInterval(refreshRoll, 120000);
+    return () => clearInterval(t);
+  }, [refreshRoll]);
   const setAutoPrintLabels = (enabled) => {
     printService.setAutoPrint(selectedStation, enabled);
     setAutoPrintLabelsState(enabled);
@@ -4225,6 +4248,36 @@ const BaristaInterface = () => {
           >
             <Plus size={18} className="mr-1" /> Add Walk-in Order
           </button>
+          {/* Label roll warning. Only shown when it matters -- a gauge
+              sitting at "ok" all day is noise, and noise is what makes a
+              barista stop reading the top of the screen. */}
+          {labelRoll && (labelRoll.level === 'low' || labelRoll.level === 'critical'
+                         || labelRoll.level === 'empty') && (
+            <div className={`w-full mb-2 px-3 py-2 rounded flex items-center justify-between text-sm ${
+              labelRoll.level === 'low'
+                ? 'bg-amber-50 border border-amber-300 text-amber-900'
+                : 'bg-red-50 border border-red-300 text-red-900'}`}>
+              <span className="flex items-center">
+                <Printer size={16} className="mr-2" />
+                {labelRoll.message}
+              </span>
+              <button
+                className="px-3 py-1 rounded bg-white border border-current text-xs font-semibold hover:bg-gray-50"
+                onClick={async () => {
+                  try {
+                    await printService.updateRoll(stationPrinter.id, { reset: true });
+                    showToast('New roll recorded', 'success');
+                  } catch (e) {
+                    showToast('Could not record the new roll', 'error');
+                  } finally { refreshRoll(); }
+                }}
+                title="I have just fitted a new roll - start counting again"
+              >
+                Fitted a new roll
+              </button>
+            </div>
+          )}
+
           {/* Print the whole queue. Only offered when this station has a
               printer and there is something waiting -- a button that does
               nothing is worse than no button. Steve, watching his own
