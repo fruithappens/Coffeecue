@@ -62,3 +62,21 @@
  * .text-sm, which is deliberately left alone here. */
 .board-compact .text-xl { font-size: 1.05rem; line-height: 1.25; }
 .board-compact .text-lg { font-size: 0.95rem; line-height: 1.25; }
+
+/* Right-to-left board.
+ *
+ * Some carts have the queue on the barista's right and the hand-out
+ * hatch on their left, so a left-to-right board runs backwards against
+ * the bench. This mirrors the columns to match.
+ *
+ * Done with the grid's flow direction rather than by reordering the
+ * JSX, so the DOM order -- and therefore the reading order and the tab
+ * order -- stays Upcoming, Current, Ready regardless of which way the
+ * board is pointing.
+ */
+.board-rtl {
+  direction: rtl;
+}
+.board-rtl > * {
+  direction: ltr;
+}

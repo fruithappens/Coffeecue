@@ -56,6 +56,9 @@ import StationChat from '../support/StationChat';
 import OrderNotificationHandler from '../shared/OrderNotificationHandler';
 import PendingOrdersSection from './PendingOrdersSection';
 import '../../styles/boardDensity.css';
+import {
+  filterByMilk, milkOptions, sortCurrentOrders, summariseMilk,
+} from '../../utils/currentOrderView';
 import GroupBadge from './GroupBadge';
 import SourceBadge from './SourceBadge';
 import RushMixStrip from './RushMixStrip';
@@ -192,6 +195,12 @@ const BaristaInterface = () => {
   // (this tablet opts in), stored in localStorage per station.
   const [printers, setPrinters] = useState([]);
   const [autoPrintLabels, setAutoPrintLabelsState] = useState(false);
+  // Current column view controls. Local state, not settings: these are
+  // "what am I looking at right now" rather than a preference, and a
+  // barista who filters to oat should not find it still filtered
+  // tomorrow morning.
+  const [currentSort, setCurrentSort] = useState('oldest');
+  const [currentMilkFilter, setCurrentMilkFilter] = useState('');
   useEffect(() => {
     let cancelled = false;
     const loadPrinters = async () => {
@@ -2634,9 +2643,16 @@ const BaristaInterface = () => {
 
               `board-compact` tightens the cards for a station making
               8-10 at once -- see styles/boardDensity.css. */}
+          {/* `board-rtl` mirrors the column order for a cart where the
+              queue is on the barista's right and the hatch is on their
+              left, so the board matches the bench instead of fighting it
+              (Steve: "orders comes in on 1 side and goes out on the
+              other"). It flips the grid, not the JSX, so the reading
+              order and the keyboard order stay put. */}
           <div className={`grid grid-cols-1 ${
             settings.skipPickedUp ? 'lg:grid-cols-2' : 'lg:grid-cols-3'} gap-4${
-            (settings.compactOrders || settings.rushMode) ? ' board-compact' : ''}`}>
+            (settings.compactOrders || settings.rushMode) ? ' board-compact' : ''}${
+            settings.boardColumnOrder === 'progression-rtl' ? ' board-rtl' : ''}`}>
             {settings.boardColumnOrder !== 'current-first' && (
               /* Pending Orders */
               <PendingOrdersSection
@@ -2657,19 +2673,96 @@ const BaristaInterface = () => {
 
             {/* Current Order (In Progress) */}
             <div>
-              <div className="bg-amber-700 text-white p-2 rounded-t-lg">
-                <h2 className="text-xl font-bold">Current Order</h2>
-              </div>
-              <div className="bg-white p-4 rounded-b-lg shadow-md">
-                {inProgressOrders.length > 0 ? (
-                  inProgressOrders.map(order => renderInProgressOrder(order))
-                ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    <Coffee size={48} className="mx-auto mb-2 text-gray-400" />
-                    <p>No orders in progress</p>
-                    <p className="text-sm text-gray-400">Start an order from the queue</p>
+              <div className="bg-amber-700 text-white p-2 rounded-t-lg flex justify-between items-center flex-wrap gap-y-1">
+                <h2 className="text-xl font-bold">Current Order ({inProgressOrders.length})</h2>
+                {/* Same place and same shape as the Upcoming column's
+                    chips, so the two headers read as one control strip
+                    rather than two different ideas. */}
+                {inProgressOrders.length > 1 && (
+                  <div className="flex flex-wrap gap-1">
+                    <button
+                      className="px-2 py-1 rounded-md text-xs bg-amber-600 hover:bg-amber-800"
+                      onClick={() => setCurrentSort(v => v === 'oldest' ? 'newest' : 'oldest')}
+                      title={currentSort === 'oldest'
+                        ? 'Longest on the bench first — click for newest first'
+                        : 'Newest first — click for longest on the bench first'}
+                    >
+                      {currentSort === 'oldest' ? '↑ Old' : '↓ New'}
+                    </button>
+                    {milkOptions(inProgressOrders, 2).length > 0 && (
+                      <>
+                        <button
+                          className={`px-2 py-1 rounded-md text-xs ${!currentMilkFilter
+                            ? 'bg-white text-amber-700' : 'bg-amber-600 hover:bg-amber-800'}`}
+                          onClick={() => setCurrentMilkFilter('')}
+                        >
+                          All
+                        </button>
+                        {milkOptions(inProgressOrders, 2).map(m => (
+                          <button
+                            key={m.milk}
+                            className={`px-2 py-1 rounded-md text-xs ${currentMilkFilter === m.milk
+                              ? 'bg-white text-amber-700' : 'bg-amber-600 hover:bg-amber-800'}`}
+                            onClick={() => setCurrentMilkFilter(
+                              currentMilkFilter === m.milk ? '' : m.milk)}
+                          >
+                            {/* No count on the chip: the Steam strip
+                                directly below already gives counts and
+                                litres, and the milk names are long enough
+                                that the counts wrapped this header onto a
+                                second row while the other two stayed on
+                                one. */}
+                            {m.milk}
+                          </button>
+                        ))}
+                      </>
+                    )}
                   </div>
                 )}
+              </div>
+              <div className="bg-white p-4 rounded-b-lg shadow-md">
+                {(() => {
+                  const jugs = summariseMilk(inProgressOrders);
+                  const shown = sortCurrentOrders(
+                    filterByMilk(inProgressOrders, currentMilkFilter), currentSort);
+                  return (
+                    <>
+                      {/* What to steam, in litres, for everything on the
+                          bench. One trip to the machine instead of four.
+                          Ignores the milk filter on purpose -- you steam
+                          for the whole bench, not for what you filtered. */}
+                      {jugs.length > 0 && (
+                        <div className="mb-3 text-sm bg-amber-50 border border-amber-200 rounded px-2 py-1.5 flex flex-wrap gap-x-3 gap-y-1">
+                          <span className="font-semibold text-amber-900">Steam:</span>
+                          {jugs.map(j => (
+                            <span key={j.milk} className="text-amber-900 whitespace-nowrap">
+                              {j.litres}L {j.milk}
+                              <span className="text-amber-700"> ({j.count})</span>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {shown.length > 0 ? (
+                        shown.map(order => renderInProgressOrder(order))
+                      ) : inProgressOrders.length > 0 ? (
+                        <div className="text-center py-6 text-gray-500 text-sm">
+                          <p>Nothing on the bench with {currentMilkFilter} milk</p>
+                          <button className="mt-1 text-amber-700 underline"
+                                  onClick={() => setCurrentMilkFilter('')}>
+                            Show all {inProgressOrders.length}
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 text-gray-500">
+                          <Coffee size={48} className="mx-auto mb-2 text-gray-400" />
+                          <p>No orders in progress</p>
+                          <p className="text-sm text-gray-400">Start an order from the queue</p>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             </div>
 
@@ -3196,11 +3289,14 @@ const BaristaInterface = () => {
                     onChange={(e) => setSettings(prev => ({ ...prev, boardColumnOrder: e.target.value }))}
                   >
                     <option value="progression">Upcoming &rarr; Current &rarr; Ready (follows the work)</option>
+                    <option value="progression-rtl">Ready &larr; Current &larr; Upcoming (right to left)</option>
                     <option value="current-first">Current &rarr; Upcoming &rarr; Ready (original)</option>
                   </select>
                   <p className="text-sm text-gray-500 mt-1">
-                    Left to right in the order a coffee actually moves, so your
-                    eye follows one order across the screen.
+                    In the order a coffee actually moves, so your eye follows one
+                    order across the screen. Pick the direction that matches your
+                    bench &mdash; if the queue is on your right and you hand out on
+                    your left, use right to left.
                   </p>
                 </div>
                 <label className="flex items-start space-x-2">
