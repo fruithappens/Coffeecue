@@ -199,7 +199,7 @@ const DisplayScreen = () => {
     // CupQ house dark. This initial value matters: a second merge from
     // the local settings hook runs after the API one, so a blue left
     // here beat the colour the server actually sent.
-    header_color: '#1F2A37',
+    header_color: '#C08552',
     custom_message: '',
     logo: '',
     background_landscape: '',
@@ -876,9 +876,13 @@ const DisplayScreen = () => {
   // accent. The old default was a generic blue that belonged to nothing.
   // Still overridable per event via branding.headerColor -- a client with
   // their own brand should win over ours.
+  // The logo's coffee tan is the banner; the near-black is reserved for
+  // shadow and text. Steve: "think the black backgound should be the
+  // coffee colour". A near-black band reads as chrome; the tan reads as
+  // the brand.
   const CUPQ_DARK = '#1F2A37';
-  const CUPQ_TAN = '#C08552';
-  const headerColor = config.header_color || CUPQ_DARK;
+  const CUPQ_COFFEE = '#C08552';
+  const headerColor = config.header_color || CUPQ_COFFEE;
   const _hx = (headerColor || '').replace('#', '');
   const _r = parseInt(_hx.substring(0, 2) || '1e', 16);
   const _g = parseInt(_hx.substring(2, 4) || '40', 16);
@@ -922,8 +926,17 @@ const DisplayScreen = () => {
           QR sat at 560, putting the SMS number straight under the code.
           A 1fr/auto/1fr grid puts the middle cell in the middle by
           construction, whatever the branding or the controls weigh. */}
-      <header className="px-6 md:px-10 pt-5 pb-5 grid items-center gap-4 shadow-md relative"
+      {/* The shadow belongs to the WHOLE banner, not just the code hanging
+          off it. Steve: "the drop shadow could be dark (blackish) and not
+          just go around the qr code but the full banner outline". One
+          shadow under one shape is what makes the band and its dip read
+          as a single object in front of the board -- a shadow on the
+          ribbon alone made the code look stuck on. Cast in the logo's
+          near-black rather than a neutral grey, so even the shadow is
+          part of the palette. */}
+      <header className="px-6 md:px-10 pt-5 pb-5 grid items-center gap-4 relative"
               style={{ backgroundColor: headerColor, color: onHeader,
+                       boxShadow: '0 10px 24px -4px rgba(31,42,55,0.55)',
                        gridTemplateColumns: (orderQrUrl && !isPortrait)
                          ? '1fr auto 1fr' : '1fr auto' }}>
 
@@ -1068,7 +1081,7 @@ const DisplayScreen = () => {
                 the shadow has no reason to lean. */}
             <div className="px-3 pt-2 pb-3 rounded-b-3xl"
                  style={{ backgroundColor: headerColor,
-                          boxShadow: '0 14px 20px -6px rgba(0,0,0,0.45)' }}>
+                          boxShadow: '0 14px 20px -6px rgba(31,42,55,0.55)' }}>
               <div className="bg-white rounded-xl p-2 shadow-lg">
               <img
                 // `size` is the endpoint's module size, not pixel width;
@@ -1151,7 +1164,7 @@ const DisplayScreen = () => {
                     with order information: a small label nobody needs to
                     read from across the room. */}
                 <div className="text-[11px] font-bold uppercase tracking-wide"
-                     style={{ color: config.header_color ? onHeaderDim : CUPQ_TAN }}>
+                     style={{ color: onHeaderDim }}>
                   Or text
                 </div>
                 {/* Never wrap a phone number. Letting it compress stacked

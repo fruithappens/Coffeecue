@@ -4125,7 +4125,7 @@ def get_display_config():
                 # belonged to nothing. A client's own branding still wins:
                 # this is only the fallback when nothing is configured.
                 "header_color": (branding.get('headerColor')
-                                 or branding.get('primaryColor') or '#1F2A37'),
+                                 or branding.get('primaryColor') or '#C08552'),
                 "custom_message": disp.get('custom_message') or branding.get('customMessage') or branding.get('footerText') or '',
                 "stations": stations,
                 "app_version": config.get('APP_VERSION', '1.0.0'),
