@@ -563,8 +563,12 @@ const DisplayScreen = () => {
     id: o.id,
     order_number: o.orderNumber || o.id,
     customerName: o.customerName || o.customer_name || 'Customer',
-    displayPhone: o.phoneNumber ? o.phoneNumber.slice(-4)
-      : (o.phone_number ? o.phone_number.slice(-4) : ''),
+    // Take the masked field the server sends. This used to slice the
+    // last four off the FULL number, which meant the public display
+    // feed had to keep sending whole customer mobiles for the screen to
+    // work — on an endpoint with no login. The server masks it now, so
+    // the number never leaves the building.
+    displayPhone: o.displayPhone || '',
     coffeeType: o.coffeeType || o.coffee_type || 'Coffee',
     milkType: o.milkType || o.milk_type || '',
     size: o.size || '',

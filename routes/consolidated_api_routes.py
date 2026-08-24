@@ -5224,6 +5224,25 @@ def track_order_public(order_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+def _display_phone(phone):
+    """The last four digits, and ONLY the last four.
+
+    /api/display/orders has no authentication -- it is what the big
+    screen fetches, so it has to be reachable without a login. It was
+    also sending the customer's FULL mobile number in `phoneNumber` and
+    `phone_number`, which meant anyone who could reach the URL could
+    read every waiting customer's number alongside their name. Nothing
+    consumed those fields: the screen shows "Sarah - ..4821" and derives
+    that from the last four either way.
+
+    Also stops "Walk-in" being sliced into "k-in", which is what
+    happens when you take the last four characters of something that
+    was never a phone number.
+    """
+    digits = re.sub(r"\D", "", str(phone or ""))
+    return digits[-4:] if len(digits) >= 4 else ""
+
+
 @bp.route('/display/orders', methods=['GET'])
 def get_display_orders():
     """Get orders for the display screen"""
@@ -5265,10 +5284,7 @@ def get_display_orders():
             # Extract customer name
             customer_name = order_details.get('name', 'Customer')
             
-            # Format display phone (last 4 digits)
-            display_phone = "****"
-            if phone and len(phone) >= 4:
-                display_phone = phone[-4:]
+            display_phone = _display_phone(phone)
             
             # Format order for display
             in_progress_orders.append({
@@ -5278,8 +5294,6 @@ def get_display_orders():
                 'customer_name': customer_name,
                 'customerName': customer_name,
                 'displayPhone': display_phone,
-                'phone_number': phone,
-                'phoneNumber': phone,
                 'coffee_type': _drink_display_name(order_details),
                 'coffeeType': _drink_display_name(order_details),
                 'milk_type': order_details.get('milk', 'Standard'),
@@ -5323,10 +5337,7 @@ def get_display_orders():
             # Extract customer name
             customer_name = order_details.get('name', 'Customer')
             
-            # Format display phone (last 4 digits)
-            display_phone = "****"
-            if phone and len(phone) >= 4:
-                display_phone = phone[-4:]
+            display_phone = _display_phone(phone)
             
             # Format order for display
             ready_orders.append({
@@ -5336,8 +5347,6 @@ def get_display_orders():
                 'customer_name': customer_name,
                 'customerName': customer_name,
                 'displayPhone': display_phone,
-                'phone_number': phone,
-                'phoneNumber': phone,
                 'coffee_type': _drink_display_name(order_details),
                 'coffeeType': _drink_display_name(order_details),
                 'milk_type': order_details.get('milk', 'Standard'),
