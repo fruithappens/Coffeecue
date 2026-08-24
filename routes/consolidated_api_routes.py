@@ -2484,6 +2484,32 @@ def _notify_customer_order_started(phone, order_number, order_details):
             logger.warning("No messaging_service configured; skipping start notification")
             return
 
+        # THE HOLD APPLIES HERE TOO -- and this was missed when the hold
+        # shipped. Its whole purpose is pre-orders: take them beforehand,
+        # make them during a session, tell nobody until the break. With
+        # only the READY path held, starting each coffee still texted the
+        # customer, so a hold that was supposed to keep 400 phones quiet
+        # let the first half of the messages straight through.
+        #
+        # DROPPED, not queued. A "your drink is being made now" released
+        # forty minutes later, next to a "ready" from the same batch, is
+        # worse than never sending it -- it is stale and it is confusing.
+        # The ready message is the one worth keeping; this one only has
+        # value in the moment it would have been sent.
+        try:
+            _db_h = current_app.config.get('coffee_system').db
+            if is_holding(_kv_get(_db_h, HOLD_SETTING_KEY, default=None)):
+                logger.info(f"Order {order_number}: started-SMS skipped (hold is on)")
+                return
+        except Exception as _h_err:
+            # A broken hold must never silence a customer: fall through
+            # and send, which is the behaviour without the feature.
+            logger.warning(f"hold check failed on started-SMS, sending: {_h_err}")
+            try:
+                current_app.config.get('coffee_system').db.rollback()
+            except Exception:
+                pass
+
         # order_details may be a JSON string (depending on cursor type)
         # or a dict. Normalise.
         if isinstance(order_details, str):
