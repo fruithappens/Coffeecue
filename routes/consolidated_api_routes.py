@@ -2323,6 +2323,179 @@ def _should_send_started_sms(db, created_at):
     return age_seconds >= threshold
 
 
+@bp.route('/settings/station-unlock', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def get_station_unlock():
+    """Whether the backup-barista unlock is available, never the code.
+
+    The code is write-only by design. Settings blobs get exported,
+    backed up and pasted into support threads; a secret that can be read
+    back out of one is a secret that travels.
+    """
+    try:
+        from utils.station_unlock import SETTING_KEY, is_enabled
+        cs = current_app.config.get('coffee_system')
+        cfg = _kv_get(cs.db, SETTING_KEY, default={}) or {}
+        return jsonify({'success': True, 'data': {
+            'enabled': is_enabled(cfg),
+            'configured': bool(cfg.get('code_hash')),
+            'updated_at': cfg.get('updated_at'),
+        }})
+    except Exception as e:
+        logger.error(f"get_station_unlock error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@bp.route('/settings/station-unlock', methods=['PUT'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def put_station_unlock():
+    """Set or clear the code that turns an ordering iPad into a barista
+    station.
+
+    Body: {"code": "...", "enabled": bool}. Sending enabled=false leaves
+    the stored code alone so it can be switched back on for the next
+    event without retyping it; sending code="" clears it outright.
+    """
+    try:
+        from utils.station_unlock import (SETTING_KEY, hash_code, is_enabled,
+                                          validate_new_code)
+        data = request.get_json(silent=True) or {}
+        cs = current_app.config.get('coffee_system')
+        cfg = _kv_get(cs.db, SETTING_KEY, default={}) or {}
+        if not isinstance(cfg, dict):
+            cfg = {}
+
+        if 'code' in data:
+            raw = str(data.get('code') or '')
+            if raw.strip() == '':
+                # Explicitly clearing it. Turn the feature off in the
+                # same breath -- an enabled setting with no code would be
+                # an unlock endpoint that accepts nothing, and a switch
+                # that looks on while doing nothing is worse than off.
+                cfg.pop('code_hash', None)
+                cfg['enabled'] = False
+            else:
+                ok, message = validate_new_code(raw)
+                if not ok:
+                    return jsonify({'success': False, 'message': message}), 400
+                cfg['code_hash'] = hash_code(raw)
+        if 'enabled' in data:
+            cfg['enabled'] = bool(data['enabled'])
+        if cfg.get('enabled') and not cfg.get('code_hash'):
+            return jsonify({'success': False,
+                            'message': 'Set a code before turning this on.'}), 400
+        cfg['updated_at'] = datetime.now().isoformat()
+        _kv_put(cs.db, SETTING_KEY, cfg)
+        return jsonify({'success': True, 'data': {
+            'enabled': is_enabled(cfg),
+            'configured': bool(cfg.get('code_hash')),
+            'updated_at': cfg.get('updated_at'),
+        }})
+    except Exception as e:
+        logger.error(f"put_station_unlock error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@bp.route('/auth/station-unlock', methods=['POST'])
+def station_unlock():
+    """Exchange the unlock code for a barista session.
+
+    UNAUTHENTICATED ON PURPOSE -- the whole point is a device that has
+    no session yet. Everything protecting it is below:
+
+      * It 404s when no code is set, so a system that never turned this
+        on does not advertise that the endpoint exists at all.
+      * Failures are throttled per device fingerprint AND overall, so a
+        script cannot walk the keyspace and cannot dodge the throttle by
+        changing its fingerprint either.
+      * A wrong code and a disabled feature produce the same answer
+        wherever they can, so probing tells an attacker nothing.
+
+    The session it mints is an ordinary barista token. There is no
+    special privilege here and nothing else in the system needs to know
+    a session arrived this way -- which is deliberate, because a second
+    class of barista session would be a second thing to get wrong.
+    """
+    try:
+        from utils.station_unlock import (ATTEMPTS_KEY, MAX_ATTEMPTS,
+                                          SETTING_KEY, is_enabled,
+                                          lockout_remaining, record_failure,
+                                          verify_code)
+        cs = current_app.config.get('coffee_system')
+        cfg = _kv_get(cs.db, SETTING_KEY, default={}) or {}
+        if not is_enabled(cfg):
+            return jsonify({'success': False,
+                            'message': 'Not available.'}), 404
+
+        data = request.get_json(silent=True) or {}
+        code = data.get('code')
+
+        log = _kv_get(cs.db, ATTEMPTS_KEY, default={}) or {}
+        if not isinstance(log, dict):
+            log = {}
+        # Throttled PER DEVICE and deliberately not globally.
+        #
+        # A global lock did stop an attacker rotating their device id,
+        # and it also meant five wrong guesses disabled the backup
+        # station for everyone for fifteen minutes -- a switch any
+        # stranger in the room could throw, on the feature that exists
+        # for when things have already gone wrong. The code length
+        # requirement is what makes scripted guessing hopeless; this
+        # throttle only has to stop someone picking up the iPad and
+        # trying the obvious ones.
+        who = str(data.get('device') or request.remote_addr or 'unknown')[:64]
+        for bucket in (who,):
+            wait = lockout_remaining(log.get(bucket))
+            if wait > 0:
+                return jsonify({
+                    'success': False,
+                    'message': (f'Too many tries. Wait about '
+                                f'{max(1, wait // 60)} minute(s) and try again.'),
+                    'retry_after_seconds': wait,
+                }), 429
+
+        if not verify_code(code, cfg.get('code_hash')):
+            log[who] = record_failure(log.get(who))
+            # The global tally is kept but never blocks -- it is there so
+            # a burst of failures across many device ids shows up in the
+            # log as the scripted attack it would be.
+            log['*'] = record_failure(log.get('*'))
+            if len(log.get('*') or []) >= MAX_ATTEMPTS:
+                logger.warning(
+                    "Repeated backup-barista unlock failures across devices "
+                    "(latest from %s) - possible guessing attempt", who)
+            _kv_put(cs.db, ATTEMPTS_KEY, log)
+            return jsonify({'success': False,
+                            'message': 'That code is not right.'}), 401
+
+        # Success clears the failures for this device, so a barista who
+        # fumbled it twice before getting it right is not four tries from
+        # a lockout the next time something goes wrong.
+        if who in log:
+            log.pop(who, None)
+            _kv_put(cs.db, ATTEMPTS_KEY, log)
+
+        from flask_jwt_extended import create_access_token, create_refresh_token
+        identity = 'backup-barista'
+        claims = {'role': 'barista', 'source': 'station-unlock',
+                  'username': identity, 'full_name': 'Backup barista'}
+        token = create_access_token(identity=identity, additional_claims=claims)
+        refresh = create_refresh_token(identity=identity, additional_claims=claims)
+        logger.warning("Backup barista station unlocked from %s", who)
+        return jsonify({
+            'success': True,
+            'token': token,
+            'refreshToken': refresh,
+            'user': {'username': identity, 'role': 'barista',
+                     'full_name': 'Backup barista'},
+        })
+    except Exception as e:
+        logger.error(f"station_unlock error: {e}")
+        return jsonify({'success': False, 'message': 'Not available.'}), 404
+
+
 @bp.route('/settings/sms-policy', methods=['GET'])
 @jwt_required_with_demo()
 def get_sms_policy():
