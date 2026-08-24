@@ -84,7 +84,30 @@ def _db():
     return current_app.config.get('coffee_system').db
 
 
+# Run the schema block ONCE per process, not once per request.
+#
+# _ensure_tables() is called at the top of 17 routes -- including
+# /api/ea/me, which is the page a delegate leaves open on their phone
+# and which polls every 8 seconds. At 400 delegates that is ~50 calls a
+# second, and the block contains NINE `ALTER TABLE ... ADD COLUMN`
+# statements, two of them on `orders`.
+#
+# ADD COLUMN takes ACCESS EXCLUSIVE before it checks whether the column
+# exists, so every one of those polls was asking for the strongest lock
+# on the busiest table. Uncontended it is fast, which is why load tests
+# on an otherwise-idle box never showed it. Under real contention -- a
+# barista starting a drink, the board refreshing -- a waiting exclusive
+# lock queues every reader behind it.
+#
+# Set only on SUCCESS, so a failure retries on the next request rather
+# than latching a half-built schema for the life of the process.
+_TABLES_READY = False
+
+
 def _ensure_tables(db):
+    global _TABLES_READY
+    if _TABLES_READY:
+        return
     try:
         cur = db.cursor()
         cur.execute("""
@@ -180,6 +203,7 @@ def _ensure_tables(db):
         cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_ea_response "
                     "ON orders(ea_response_id) WHERE ea_response_id IS NOT NULL")
         db.commit()
+        _TABLES_READY = True
     except Exception as e:
         logger.error(f"ea _ensure_tables: {e}")
         try:

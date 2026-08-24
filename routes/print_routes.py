@@ -53,7 +53,21 @@ def _db():
     return current_app.config.get('coffee_system').db
 
 
+# Once per process, not once per print route.
+#
+# Called from 19 places, including the CloudPRNT poll that every printer
+# makes every 5 seconds. The block contains an ADD COLUMN on `printers`,
+# and ADD COLUMN takes ACCESS EXCLUSIVE before it checks whether the
+# column is there -- so an idle cart with two printers was asking for
+# the strongest lock on that table 24 times a minute, forever, to do
+# nothing. Set only on success so a failure retries.
+_PRINT_TABLES_READY = False
+
+
 def _ensure_tables(db):
+    global _PRINT_TABLES_READY
+    if _PRINT_TABLES_READY:
+        return
     try:
         cur = db.cursor()
         cur.execute("""
@@ -100,6 +114,7 @@ def _ensure_tables(db):
         cur.execute("ALTER TABLE printers ADD COLUMN IF NOT EXISTS "
                     "offset_dots INTEGER NOT NULL DEFAULT 0")
         db.commit()
+        _PRINT_TABLES_READY = True
     except Exception as e:
         logger.warning(f"print tables ensure failed: {e}")
         try:
