@@ -27,6 +27,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { Coffee, Check, Clock, ArrowLeft, RefreshCw, MapPin,
          Maximize2, MessageCircle, RotateCw, Volume2, VolumeX } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
+import { CupMark, CupQWordmark } from './CupQMarks';
 import OrderDataService from '../../services/OrderDataService';
 import StationsService from '../../services/StationsService';
 import ApiService from '../../services/ApiService';
@@ -1475,14 +1476,19 @@ const DisplayScreen = () => {
       <footer className="px-6 md:px-10 py-2.5 grid items-center gap-6 flex-shrink-0"
               style={{ backgroundColor: bannerInk, color: 'rgba(255,255,255,0.92)',
                        gridTemplateColumns: '1fr auto 1fr' }}>
+        {/* The cup mark bottom-left, the wordmark centre -- Steve's
+            layout. The cup is drawn WHITE here rather than the artwork's
+            near-black: on the dark brand bar the original would simply
+            disappear, which is why both marks take their colours as
+            props instead of baking the palette in. */}
         <div className="flex items-center gap-3 min-w-0">
-          <Coffee size={18} className="flex-shrink-0 opacity-80" />
+          <CupMark size={30} cup="#FFFFFF" accent={bannerEdge} />
           <span className="text-xs font-bold uppercase tracking-[0.22em] truncate opacity-80">
             Cue the cups.
           </span>
         </div>
-        <div className="text-lg font-extrabold tracking-tight flex-shrink-0">
-          Cup<span style={{ color: bannerEdge }}>Q</span>
+        <div className="flex-shrink-0">
+          <CupQWordmark height={26} word="#FFFFFF" accent={bannerEdge} />
         </div>
         <div className="text-sm font-semibold tabular-nums opacity-90 text-right">
           {lastUpdated
