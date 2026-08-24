@@ -1,5 +1,7 @@
 # routes/api_routes.py
 from flask import Blueprint, jsonify, request, current_app
+
+from auth import jwt_required_with_demo, role_required_with_demo
 from datetime import datetime, timedelta
 import json
 import logging
@@ -1033,6 +1035,8 @@ def update_wait_time():
         return jsonify({"success": False, "message": f"Error processing request: {str(e)}"})
 
 @bp.route('/debug/database-info', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin'])
 def database_info():
     """Get information about the database and its tables"""
     try:
@@ -1078,6 +1082,8 @@ def database_info():
         })
 
 @bp.route('/debug/create-test-order', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin'])
 def create_test_order():
     """Create a test order in the database"""
     try:
@@ -1139,6 +1145,13 @@ def create_test_order():
         logger.error(f"Error creating test order: {str(e)}")
         return jsonify({"success": False, "error": str(e)})
 
+# LEFT PUBLIC ON PURPOSE, unlike its two siblings above.
+#
+# It reports database connectivity and a map of route names -- no data,
+# no configuration, nothing an attacker does not get from the bundle
+# anyway -- and something may be monitoring it. Gating a health check
+# because it sits next to two real problems would be tidiness at the
+# cost of a monitor that stops working without saying so.
 @bp.route('/debug/api-health', methods=['GET'])
 def api_health():
     """Check API health and connection status"""
