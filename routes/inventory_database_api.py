@@ -1,12 +1,31 @@
 """
 Inventory Database API Routes for Expresso Coffee System
 Provides database-backed inventory management endpoints
+
+EVERY ROUTE HERE IS BEHIND A LOGIN. It was not: this module never
+imported an auth decorator at all, so the five POST endpoints below --
+which rewrite event inventory, stock levels and station configuration --
+accepted writes from anyone who could reach the URL. That is not a
+confidentiality problem, it is an integrity one: zeroing the stock
+mid-service does not look like an attack, it looks like the system being
+wrong about what is in the cupboard, and a barista would spend the
+morning fighting it.
+
+The frontend was already sending a token (DatabaseInventoryService goes
+through ApiService, which attaches the Bearer header), so nothing had to
+change on the client. The server simply never looked.
+
+Writes are staff-and-above because they are event-wide. A barista
+adjusting their own station's stock uses inventory_routes.py, which has
+always had its own gate.
 """
 
 from flask import Blueprint, request, jsonify
 import logging
 import json
 from datetime import datetime
+
+from auth import jwt_required_with_demo, role_required_with_demo
 from utils.database import get_db_connection, close_connection, execute_query
 
 # Create inventory database API blueprint
@@ -14,6 +33,8 @@ inventory_database_api = Blueprint('inventory_database_api', __name__)
 logger = logging.getLogger(__name__)
 
 @inventory_database_api.route('/api/inventory/event-inventory/update', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
 def update_event_inventory():
     """Update event inventory item"""
     try:
@@ -50,6 +71,8 @@ def update_event_inventory():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @inventory_database_api.route('/api/inventory/event-stock/update', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
 def update_event_stock():
     """Update event stock level"""
     try:
@@ -94,6 +117,8 @@ def update_event_stock():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @inventory_database_api.route('/api/inventory/station-config/update', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
 def update_station_config():
     """Update station inventory configuration"""
     try:
@@ -129,6 +154,8 @@ def update_station_config():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @inventory_database_api.route('/api/inventory/station-quantity/update', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
 def update_station_quantity():
     """Update station inventory quantity"""
     try:
@@ -166,6 +193,8 @@ def update_station_quantity():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @inventory_database_api.route('/api/inventory/batch-update', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
 def batch_update():
     """Perform batch updates to inventory"""
     try:
@@ -261,6 +290,8 @@ def batch_update():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @inventory_database_api.route('/api/inventory/get-all', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
 def get_all_inventory():
     """Get all inventory data"""
     try:
@@ -331,6 +362,8 @@ def get_all_inventory():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @inventory_database_api.route('/api/inventory/stats', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
 def get_inventory_stats():
     """Get inventory statistics"""
     try:
