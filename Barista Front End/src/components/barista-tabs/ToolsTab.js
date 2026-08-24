@@ -8,6 +8,7 @@ import {
   Plus, Minus, RotateCcw,
 } from 'lucide-react';
 import ApiService from '../../services/ApiService';
+import printService from '../../services/PrintService';
 
 // ── Shot timer ──────────────────────────────────────────────────────────
 const ShotTimer = () => {
@@ -295,8 +296,79 @@ const MILK = [
   { drink: 'Babyccino', foam: 'Mostly froth', temp: 'Warm only (~40°C)' },
 ];
 
-const MilkGuide = () => (
+const MilkGuide = ({ stationId = null }) => {
+  // The one thing in this file that talks to the server.
+  //
+  // Everything else here is deliberately offline (see the header), and
+  // this stays usable offline too -- the guide below always renders. But
+  // the label is drawn SERVER-side, so a symbols preference kept only in
+  // this browser could never reach the printer. Off, and silent, if the
+  // call fails.
+  //
+  // It lives here rather than in Settings because Settings is a
+  // manager-only tab: a barista cannot open it, and Steve was explicit
+  // that this is theirs -- "an option baristas could choose in menu".
+  const [symbols, setSymbols] = useState(false);
+  const [glyphs, setGlyphs] = useState({});
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!stationId) return undefined;
+    let live = true;
+    (async () => {
+      try {
+        const r = await printService.getMilkSymbols(stationId);
+        if (!live) return;
+        setSymbols(!!r?.enabled);
+        setGlyphs(r?.glyphs || {});
+      } catch (_) { /* offline: the guide still works */ }
+    })();
+    return () => { live = false; };
+  }, [stationId]);
+
+  const toggle = async (next) => {
+    setSymbols(next);
+    setBusy(true);
+    try {
+      await printService.setMilkSymbols(stationId, next);
+    } catch (_) {
+      setSymbols(!next);   // put the switch back; nothing was saved
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
   <div className="py-4 max-w-xl mx-auto">
+    {stationId && (
+      <div className="mb-5 border rounded-lg p-3 bg-amber-50 border-amber-200">
+        <label className="flex items-start gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            className="mt-1"
+            checked={symbols}
+            disabled={busy}
+            onChange={(e) => toggle(e.target.checked)}
+          />
+          <span>
+            <span className="font-medium">Print a shape beside the milk</span>
+            <span className="block text-sm text-gray-600">
+              A mark at the start of the drink line, in the same place on
+              every label, so a row of cups can be read without reading it.
+              The words stay exactly as they are. This station only.
+            </span>
+          </span>
+        </label>
+        {Object.keys(glyphs).length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-700">
+            {Object.entries(glyphs).map(([milk, mark]) => (
+              <span key={milk} className="whitespace-nowrap">
+                <span className="font-mono font-bold">{mark}</span> {milk}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    )}
     <table className="w-full text-sm">
       <thead>
         <tr className="border-b text-gray-500 text-left">
@@ -318,7 +390,8 @@ const MilkGuide = () => (
       then submerge the wand tip to roll and polish the texture.
     </p>
   </div>
-);
+  );
+};
 
 // ── Tally counter ───────────────────────────────────────────────────────
 const Tally = () => {
@@ -391,7 +464,7 @@ const TOOLS = [
   { id: 'timer',  label: 'Shot timer', Icon: Timer,    render: () => <ShotTimer /> },
   { id: 'recipes', label: 'Recipes',   Icon: BookOpen, render: () => <Recipes /> },
   { id: 'dialin', label: 'Dial-in',    Icon: Sliders,  render: (p) => <DialIn {...p} /> },
-  { id: 'milk',   label: 'Milk',       Icon: Milk,     render: () => <MilkGuide /> },
+  { id: 'milk',   label: 'Milk',       Icon: Milk,     render: (p) => <MilkGuide {...p} /> },
   { id: 'tally',  label: 'Tally',      Icon: Hash,     render: () => <Tally /> },
   { id: 'convert', label: 'Convert',   Icon: Ruler,    render: () => <Convert /> },
 ];
