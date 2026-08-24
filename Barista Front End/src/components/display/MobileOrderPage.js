@@ -143,6 +143,33 @@ const MobileOrderPage = () => {
               We can't find that order number.
             </div>
           )}
+          {/* Share it. Steve: "a friend could use their phone to scan it so
+              they don't have to type a link or get close to a display
+              counter". Someone standing next to you scans this off your
+              screen and watches the same order -- no typing, no queueing
+              at the kiosk to find out how long.
+              Collapsed by default: the person holding the phone already
+              has the order, so this is for the occasion when a friend
+              asks, not something to put in front of them every time. */}
+          {!collected && (
+            <details className="mt-6">
+              <summary className="text-center text-gray-500 text-sm cursor-pointer select-none">
+                Show a code for a friend to scan
+              </summary>
+              <div className="flex flex-col items-center mt-3">
+                <img
+                  src={`/api/qr?size=7&data=${encodeURIComponent(
+                    `${window.location.origin}/order?order=${trackNumber}`)}`}
+                  alt={`Order ${trackNumber}`}
+                  className="w-44 h-44 bg-white rounded-lg p-2 shadow"
+                />
+                <p className="text-xs text-gray-500 mt-2">
+                  They will see this order's progress too.
+                </p>
+              </div>
+            </details>
+          )}
+
           <p className="text-center text-gray-500 text-sm mt-6">
             Keep this page open — it updates by itself. No text message needed.
           </p>

@@ -58,6 +58,22 @@ const milkEmoji = (name) => {
 const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose, onOrderPlaced,
                       eaCid, channel = 'kiosk' }) => {
   const [menu, setMenu] = useState(null);
+  // Event SMS number, for the "or text us" line. Public config, same
+  // source the poster page uses. Absent is fine -- the line just drops
+  // the text option rather than showing a blank.
+  const [smsNumber, setSmsNumber] = useState('');
+  useEffect(() => {
+    let dead = false;
+    (async () => {
+      try {
+        const r = await fetch('/api/display/config');
+        const b = r.ok ? await r.json() : null;
+        const n = String((b?.config || b || {}).sms_number || '').trim();
+        if (!dead && n) setSmsNumber(n);
+      } catch (e) { /* the strip works without it */ }
+    })();
+    return () => { dead = true; };
+  }, []);
   const [loadingMenu, setLoadingMenu] = useState(true);
   // Drink FIRST (Steve: "the first thing that should appear is not the
   // person's name, but the coffee type") — the order is the point; the
@@ -717,6 +733,34 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose, onOrderPlaced
         )}
 
         {/* ---------- DONE ---------- */}
+        {/* Order-from-your-own-phone strip, on screen for the WHOLE flow.
+            Steve: "even while people are going through the touchscreen
+            entry think the QR code should be available so someone can
+            learn over and scan even while placing a order also the SMS
+            number could be there also".
+            One kiosk becomes several ordering points without buying any
+            hardware -- the person waiting behind does not have to wait
+            for the screen. Deliberately small and low-contrast: it must
+            never compete with the step the current customer is on. */}
+        {step !== 'done' && (
+          <div className="mt-6 pt-4 border-t border-gray-200 flex items-center justify-center gap-4 opacity-80">
+            <img
+              src={`/api/qr?size=5&data=${encodeURIComponent(
+                `${window.location.origin}/order${myStation ? `?station=${myStation}` : ''}`)}`}
+              alt="Order from your own phone"
+              className="w-20 h-20 rounded bg-white p-1"
+            />
+            <div className="text-left">
+              <div className="text-base font-semibold text-gray-700">
+                Waiting behind? Order from your own phone
+              </div>
+              <div className="text-sm text-gray-500">
+                Scan this code{smsNumber ? ` or text ${smsNumber}` : ''}
+              </div>
+            </div>
+          </div>
+        )}
+
         {step === 'done' && result && (
           <div className="text-center py-8">
             <div className="text-7xl mb-4">✅</div>
@@ -729,6 +773,31 @@ const KioskOrder = ({ stationId, headerColor = '#1e40af', onClose, onOrderPlaced
             {phone.trim() && (
               <p className="text-lg text-gray-500 mt-2">We'll text you when it's ready.</p>
             )}
+
+            {/* Track-it QR. Two jobs at once.
+                For someone who gave no number, this is the ONLY way they
+                can watch their order -- otherwise they are stuck reading
+                the board or asking. And because it is on screen rather
+                than on their phone, a friend can scan it off this display
+                and watch it too, which is Steve's "share a QR code with a
+                friend" without anyone typing a link or crowding the
+                counter. */}
+            {result?.order_number && (
+              <div className="mt-6 flex flex-col items-center">
+                <img
+                  src={`/api/qr?size=8&data=${encodeURIComponent(
+                    `${window.location.origin}/order?order=${result.order_number}`)}`}
+                  alt={`Track order ${result.order_number}`}
+                  className="w-40 h-40 rounded-lg bg-white p-2 shadow"
+                />
+                <p className="text-base text-gray-600 mt-2 max-w-xs">
+                  {phone.trim()
+                    ? 'Scan to watch it on your phone - or let a friend scan it for you.'
+                    : "Scan to watch it on your phone. No number needed."}
+                </p>
+              </div>
+            )}
+
             <button onClick={onClose}
               className="mt-8 px-10 py-4 rounded-2xl text-xl font-bold text-white" style={{ backgroundColor: headerColor }}>
               Done
