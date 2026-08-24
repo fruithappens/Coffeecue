@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useSettings } from '../../hooks/useSettings';
 import BrandingSettings from './BrandingSettings';
+import BackupBaristaSettings from './BackupBaristaSettings';
 
 /**
  * System Settings Component
@@ -319,7 +320,11 @@ const SystemSettings = () => {
           <h3 className="text-lg font-semibold mb-6">Security Settings</h3>
           
           <div className="space-y-6">
-            <div>
+            {/* Saved straight to the server, unlike the toggles below it
+                which live in the settings hook. */}
+            <BackupBaristaSettings />
+
+            <div className="border-t pt-6">
               <h4 className="font-medium mb-3">Authentication</h4>
               <div className="space-y-2">
                 <label className="flex items-center">

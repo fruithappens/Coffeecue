@@ -13,6 +13,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import KioskOrder from './KioskOrder';
+import BackupBaristaUnlock from './BackupBaristaUnlock';
 
 const STATUS_COPY = {
   pending: { title: 'In the queue', tone: 'bg-blue-600' },
@@ -202,6 +203,11 @@ const MobileOrderPage = () => {
   // we switch this page into tracking mode via the URL.
   return (
     <div className="min-h-screen bg-white">
+      {/* Long-press the bottom-left corner to turn this device into a
+          barista station. Only on the ORDERING view, not the status
+          card: the status card is what a delegate keeps open on their
+          own phone, and this belongs to the cart's iPad. */}
+      <BackupBaristaUnlock />
       <KioskOrder
         stationId={stationId}
         // This page is reached by scanning a QR on a phone, not by
