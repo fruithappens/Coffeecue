@@ -890,6 +890,24 @@ const DisplayScreen = () => {
   const _lum = (0.299 * _r + 0.587 * _g + 0.114 * _b) / 255;
   const onHeader = _lum > 0.6 ? '#111827' : '#ffffff';
   const onHeaderDim = _lum > 0.6 ? 'rgba(17,24,39,0.72)' : 'rgba(255,255,255,0.82)';
+
+  // The banner is a WHITE CARD with a coffee keyline, not a coloured
+  // band (Steve: "black text, white background brown edge that traces
+  // the border and a more solid dark drop shadow").
+  //
+  // headerColor stays the brand ACCENT rather than becoming the
+  // background, because several things read it as a colour to paint
+  // WITH -- the ordering button uses it as its text colour on a white
+  // pill, so turning it white would have made that button invisible.
+  // Splitting surface from accent keeps every one of those correct.
+  const BANNER_BG = '#FFFFFF';
+  const bannerInk = CUPQ_DARK;
+  const bannerInkDim = 'rgba(31,42,55,0.62)';
+  const bannerEdge = headerColor;
+  // Solid rather than soft. A diffuse shadow under a white card on a
+  // photographic background disappears into the picture; this one has
+  // to hold the card off the board.
+  const BANNER_SHADOW = '0 10px 0 -3px rgba(31,42,55,0.28), 0 16px 28px -6px rgba(31,42,55,0.55)';
   const headerChip = _lum > 0.6 ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.16)';
 
   // Full-screen Display background — pick the image matching the screen's
@@ -935,8 +953,9 @@ const DisplayScreen = () => {
           near-black rather than a neutral grey, so even the shadow is
           part of the palette. */}
       <header className="px-6 md:px-10 pt-5 pb-5 grid items-center gap-4 relative"
-              style={{ backgroundColor: headerColor, color: onHeader,
-                       boxShadow: '0 10px 24px -4px rgba(31,42,55,0.55)',
+              style={{ backgroundColor: BANNER_BG, color: bannerInk,
+                       borderBottom: `3px solid ${bannerEdge}`,
+                       boxShadow: BANNER_SHADOW,
                        gridTemplateColumns: (orderQrUrl && !isPortrait)
                          ? '1fr auto 1fr' : '1fr auto' }}>
 
@@ -994,7 +1013,7 @@ const DisplayScreen = () => {
           <button
             onClick={(e) => { e.stopPropagation(); window.location.href = '/'; }}
             className="mr-4 p-2 rounded-full hover:opacity-80 transition flex-shrink-0"
-            style={{ backgroundColor: headerChip, color: onHeader }}
+            style={{ backgroundColor: 'rgba(31,42,55,0.08)', color: bannerInk }}
             title="Back to home"
           >
             <ArrowLeft size={24} />
@@ -1030,7 +1049,7 @@ const DisplayScreen = () => {
                 Custom Message lives here instead — guaranteed visible
                 even when the sponsor line owns the footer. */}
             {config.custom_message && (
-              <div className="text-sm md:text-base mt-1 truncate" style={{ color: onHeaderDim }}>
+              <div className="text-sm md:text-base mt-1 truncate" style={{ color: bannerInkDim }}>
                 {config.custom_message}
               </div>
             )}
@@ -1080,8 +1099,17 @@ const DisplayScreen = () => {
                 keeps it honest: the ribbon is directly above them, so
                 the shadow has no reason to lean. */}
             <div className="px-3 pt-2 pb-3 rounded-b-3xl"
-                 style={{ backgroundColor: headerColor,
-                          boxShadow: '0 14px 20px -6px rgba(31,42,55,0.55)' }}>
+                 style={{ backgroundColor: BANNER_BG,
+                          // No TOP border: the ribbon is the same card as
+                          // the band above it. Its opaque white also hides
+                          // the header's own bottom border across this
+                          // span, which is what makes one continuous
+                          // keyline appear to trace around the dip rather
+                          // than cut straight through it.
+                          borderLeft: `3px solid ${bannerEdge}`,
+                          borderRight: `3px solid ${bannerEdge}`,
+                          borderBottom: `3px solid ${bannerEdge}`,
+                          boxShadow: BANNER_SHADOW }}>
               <div className="bg-white rounded-xl p-2 shadow-lg">
               <img
                 // `size` is the endpoint's module size, not pixel width;
@@ -1095,7 +1123,7 @@ const DisplayScreen = () => {
               />
               </div>
               <div className="text-center text-xs font-bold mt-1.5"
-                   style={{ color: onHeaderDim }}>
+                   style={{ color: bannerInkDim }}>
                 Order from your phone
               </div>
             </div>
@@ -1111,7 +1139,7 @@ const DisplayScreen = () => {
             <div className="text-right leading-tight hidden md:block">
               <div className="text-lg font-bold">Order from</div>
               <div className="text-lg font-bold">your phone</div>
-              <div className="text-xs" style={{ color: onHeaderDim }}>scan me</div>
+              <div className="text-xs" style={{ color: bannerInkDim }}>scan me</div>
             </div>
             <div className="bg-white rounded-xl p-1.5 shadow-sm">
               <img
@@ -1168,7 +1196,7 @@ const DisplayScreen = () => {
                     the METHOD, while "text" reads as a verb and gets
                     skimmed past. */}
                 <div className="text-sm font-bold uppercase tracking-widest"
-                     style={{ color: onHeaderDim }}>
+                     style={{ color: bannerInkDim }}>
                   Or SMS
                 </div>
                 {/* Never wrap a phone number. Letting it compress stacked
@@ -1195,10 +1223,13 @@ const DisplayScreen = () => {
               </div>
             )}
             {kioskEnabled && config.display_touch_ordering !== false && (
+              /* Filled with the accent, not a white pill: on a white card
+                 a white button has nothing to stand against and stops
+                 looking pressable. */
               <button
                 onClick={(e) => { e.stopPropagation(); setShowKiosk(true); }}
-                className="flex items-center gap-3 rounded-2xl px-5 2xl:px-7 py-3 2xl:py-4 text-2xl 2xl:text-3xl font-extrabold shadow-md hover:opacity-90 active:scale-95 bg-white whitespace-nowrap"
-                style={{ color: headerColor }}
+                className="flex items-center gap-3 rounded-2xl px-5 2xl:px-7 py-3 2xl:py-4 text-2xl 2xl:text-3xl font-extrabold shadow-md hover:opacity-90 active:scale-95 whitespace-nowrap"
+                style={{ backgroundColor: bannerEdge, color: '#FFFFFF' }}
               >
                 <span className="text-3xl" aria-hidden>👆</span> Order here
               </button>
