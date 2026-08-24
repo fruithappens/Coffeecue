@@ -23,7 +23,7 @@
 //     transitions from in-progress
 //   - Theme support (light / dark / coffee)
 //   - Tap-anywhere to toggle fullscreen on iPad
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Coffee, Check, Clock, ArrowLeft, RefreshCw, MapPin,
          Maximize2, MessageCircle, RotateCw, Volume2, VolumeX } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
@@ -270,6 +270,57 @@ const DisplayScreen = () => {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // Health, for the corner dot. Three states because two are not enough:
+  // "working now" and "broken now" miss the case that actually matters --
+  // a board that dropped out earlier and recovered. Steve wants to remote
+  // in, read the dot and leave, without exiting the display and
+  // interrupting a live queue to find out whether it has been solid.
+  //   green  never missed a poll
+  //   orange recovered, but it HAS dropped out since this screen loaded
+  //   red    failing right now
+  const [health, setHealth] = useState({ level: 'green', misses: 0, everFailed: false });
+  const noteFetch = useCallback((ok) => {
+    setHealth(prev => {
+      if (ok) {
+        return { level: prev.everFailed ? 'orange' : 'green', misses: 0,
+                 everFailed: prev.everFailed };
+      }
+      const misses = prev.misses + 1;
+      // One missed poll is a blip on conference wifi, not a fault. Two
+      // in a row is worth a red dot -- a dot that cries wolf gets
+      // ignored, which defeats the point of glancing at it.
+      return { level: misses >= 2 ? 'red' : (prev.everFailed ? 'orange' : 'green'),
+               misses, everFailed: true };
+    });
+  }, []);
+
+  // Measured with its own tiny request, deliberately.
+  //
+  // The obvious hook -- the orders poll -- cannot answer this. It goes
+  // through OrderDataService, which falls back to cached data when the
+  // server is unreachable. That is right for the board (a frozen list
+  // beats an empty one) but it means the poll RESOLVES during an
+  // outage, so a dot driven by it stays green while the screen shows
+  // stale orders. Tested exactly that: server killed, dot stayed green.
+  //
+  // /api/health is a few bytes and touches nothing, so asking it
+  // directly is both honest and cheap.
+  useEffect(() => {
+    let dead = false;
+    const probe = async () => {
+      let ok = false;
+      try {
+        const r = await fetch('/api/health', { cache: 'no-store' });
+        ok = r.ok;
+      } catch (e) { ok = false; }
+      if (!dead) noteFetch(ok);
+    };
+    probe();
+    const t = setInterval(probe, DISPLAY_POLL_MS * 2);
+    return () => { dead = true; clearInterval(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const [stations, setStations] = useState([]);
   const [currentStation, setCurrentStation] = useState(null);
   const [connected, setConnected] = useState(false);
@@ -690,6 +741,44 @@ const DisplayScreen = () => {
       el.requestFullscreen().catch(() => { /* user-gesture issue, ignore */ });
     }
   };
+  // Locked mode. Hides every operator control on a public screen, so a
+  // passer-by cannot wander into settings or close the board. Getting
+  // out is a deliberate act: press and hold the top-left corner. Steve:
+  // "needs a clean tamperproof version that say a click and hold in a
+  // certain area allows a pinched to exit full screen and also access
+  // other menus".
+  //
+  // Held in the URL (?locked=1) rather than in storage on purpose. A
+  // display that boots into a state you cannot remember setting, on a
+  // screen with no keyboard, is a bad afternoon. Reloading the plain URL
+  // always gives you the controls back.
+  const lockedByUrl = searchParams.get('locked') === '1'
+                   || searchParams.get('lock') === '1';
+  const [unlocked, setUnlocked] = useState(false);
+  const locked = lockedByUrl && !unlocked;
+  const holdRef = useRef(null);
+  const [holdProgress, setHoldProgress] = useState(0);
+  const startHold = () => {
+    if (!locked) return;
+    setHoldProgress(0);
+    const started = Date.now();
+    holdRef.current = setInterval(() => {
+      const pct = Math.min(100, ((Date.now() - started) / 2000) * 100);
+      setHoldProgress(pct);
+      if (pct >= 100) {
+        clearInterval(holdRef.current);
+        holdRef.current = null;
+        setHoldProgress(0);
+        setUnlocked(true);
+      }
+    }, 60);
+  };
+  const cancelHold = () => {
+    if (holdRef.current) { clearInterval(holdRef.current); holdRef.current = null; }
+    setHoldProgress(0);
+  };
+  useEffect(() => () => { if (holdRef.current) clearInterval(holdRef.current); }, []);
+
   // Track fullscreen so the operator chrome (back arrow, station picker,
   // control buttons) can hide for a clean customer-facing board.
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -806,8 +895,48 @@ const DisplayScreen = () => {
            : containerStyle}>
 
       {/* --- Header (brand band) --- */}
-      <header className="px-6 md:px-10 pt-5 pb-5 flex items-center justify-between gap-4 shadow-md"
+      <header className="px-6 md:px-10 pt-5 pb-5 flex items-center justify-between gap-4 shadow-md relative"
               style={{ backgroundColor: headerColor, color: onHeader }}>
+
+        {/* Health dot, top-left. Small and quiet enough that a customer
+            never notices it, readable from a remote-desktop session at a
+            glance -- which is the whole point. Steve: "if you remote in
+            you can see the dot colour without having to exit the display
+            and interrupt use".
+              green   never missed a poll
+              orange  recovered, but it HAS dropped out since load
+              red     failing right now
+            It doubles as the unlock target when the board is locked:
+            press and hold it for two seconds to get the controls back.
+            One corner, two jobs, and nothing extra on a public screen. */}
+        <div
+          className="absolute top-1.5 left-1.5 flex items-center gap-1 select-none"
+          onMouseDown={startHold} onMouseUp={cancelHold} onMouseLeave={cancelHold}
+          onTouchStart={startHold} onTouchEnd={cancelHold} onTouchCancel={cancelHold}
+          onClick={(e) => { if (locked) e.stopPropagation(); }}
+          title={locked
+            ? 'Press and hold to unlock the controls'
+            : (health.level === 'green' ? 'Connected'
+               : health.level === 'orange' ? 'Connected - but it dropped out earlier'
+               : 'Not reaching the server')}
+        >
+          <span
+            className="block rounded-full"
+            style={{
+              width: 9, height: 9,
+              backgroundColor: health.level === 'green' ? '#22c55e'
+                             : health.level === 'orange' ? '#f59e0b' : '#ef4444',
+              opacity: health.level === 'green' ? 0.55 : 0.95,
+              boxShadow: health.level === 'red' ? '0 0 6px #ef4444' : 'none',
+            }}
+          />
+          {holdProgress > 0 && (
+            <span className="text-[10px] font-mono opacity-70">
+              {Math.round(holdProgress)}%
+            </span>
+          )}
+        </div>
+
         <div className="flex items-center min-w-0">
           {/* Operator chrome hides in fullscreen — a customer-facing wall
               board should show branding and orders, not navigation. Exit
@@ -819,7 +948,7 @@ const DisplayScreen = () => {
               a screen the public taps, one press from the landing page.
               Now it appears only when the URL carries ?nav=1, which the
               operator can add when setting the tablet up. */}
-          {!isFullscreen && showNav && (
+          {!isFullscreen && showNav && !locked && (
           <button
             onClick={(e) => { e.stopPropagation(); window.location.href = '/'; }}
             className="mr-4 p-2 rounded-full hover:opacity-80 transition flex-shrink-0"
