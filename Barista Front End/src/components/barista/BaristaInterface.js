@@ -3519,6 +3519,64 @@ const BaristaInterface = () => {
                       Print banner
                     </button>
                   </div>
+                  {/* Pre-stickered cups: a batch of branded stickers for
+                      plain house cups, for an event too small to justify
+                      a custom cup run. Done the night before, not during
+                      service — which is why it asks for a count rather
+                      than printing one at a time. */}
+                  <div className="pt-2 border-t mt-2">
+                    <div className="text-sm text-gray-600 mb-1.5">
+                      Pre-stickered cups &mdash; branded stickers for plain cups
+                    </div>
+                    <div className="flex gap-2 items-center">
+                      <input
+                        id="stickerCountInput"
+                        type="number"
+                        min="1"
+                        max="200"
+                        defaultValue="50"
+                        className="w-24 border rounded px-2 py-1.5 text-sm"
+                      />
+                      <a
+                        className="text-sm text-blue-700 underline"
+                        href="/api/print/preview?sticker=1"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        See one first
+                      </a>
+                      <button
+                        className="bg-gray-700 text-white px-3 py-1.5 rounded text-sm hover:bg-gray-800 ml-auto"
+                        onClick={async () => {
+                          const el = document.getElementById('stickerCountInput');
+                          const count = parseInt(el?.value, 10);
+                          if (!count || count < 1) {
+                            showToast('How many stickers?', 'warning');
+                            return;
+                          }
+                          // A batch is paper you cannot get back, so it
+                          // asks — unlike every other button on this card,
+                          // which costs one label at most.
+                          if (!window.confirm(`Print ${count} branded stickers now?`)) return;
+                          try {
+                            const r = await printService.printStickers(count, stationPrinter.id);
+                            if (r?.success) {
+                              showToast(r.warning
+                                ? `${r.queued} stickers queued. ${r.warning}`
+                                : `${r.queued} stickers queued`,
+                              r.warning ? 'warning' : 'success');
+                            } else {
+                              showToast(r?.message || 'Could not queue the stickers', 'error');
+                            }
+                          } catch (e) {
+                            showToast(`Stickers failed: ${e?.message || 'network'}`, 'error');
+                          }
+                        }}
+                      >
+                        Print batch
+                      </button>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <p className="text-sm text-gray-500">

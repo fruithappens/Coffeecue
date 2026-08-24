@@ -99,6 +99,13 @@ class PrintService {
     return this._call('/banner', 'POST', { text, printer_id: printerId });
   }
 
+  /** Batch-print branded stickers for plain house cups — for a small
+      event with no custom cup run. One job per sticker, because each is
+      its own cut label. */
+  printStickers(count, printerId, headline = '') {
+    return this._call('/stickers', 'POST', { count, printer_id: printerId, headline });
+  }
+
   /** All registered printers with online/offline derived from last poll. */
   async getPrinters() {
     const r = await this._call('/printers');

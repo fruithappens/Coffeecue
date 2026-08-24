@@ -447,9 +447,10 @@ def cloudprnt_fetch():
         except Exception:
             pass
         from services.label_printer import (render_label, render_ticket,
-                                            render_banner)
+                                            render_banner, render_sticker)
         renderer = {'ticket': render_ticket,
-                    'banner': render_banner}.get(job.get('type'), render_label)
+                    'banner': render_banner,
+                    'sticker': render_sticker}.get(job.get('type'), render_label)
         png = renderer(payload, job.get('width_dots'),
                        options=_label_options(db))
         png = _shift_right(png, job.get('offset_dots'))
@@ -1330,6 +1331,124 @@ def put_label_settings():
                     'settings': {**DEFAULT_LABEL_SETTINGS, **stored}})
 
 
+# A typo is the real risk here, not a malicious request: "300" meant as
+# "30" is most of a roll fed onto the floor before anyone looks up. The
+# cap is low enough that the mistake is cheap and high enough that a
+# realistic batch still goes in one go.
+STICKER_MAX_BATCH = 200
+
+
+@bp.route('/stickers', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def print_stickers():
+    """Batch-print branded stickers for plain house cups.
+
+    Steve: "for smaller events with no custom cup run". A custom cup run
+    has a minimum order and a lead time a fifty-person morning cannot
+    justify, so the cups stay plain and the branding goes on the night
+    before, in a batch, when there is time to do it.
+
+    Each sticker is its own job because each is its own cut label. They
+    queue like any other job, so an offline printer holds them rather
+    than losing them, and the roll counter sees them as the paper they
+    genuinely are.
+    """
+    db = _db()
+    _ensure_tables(db)
+    data = request.get_json(silent=True) or {}
+    try:
+        count = int(data.get('count') or 0)
+    except (TypeError, ValueError):
+        count = 0
+    if count < 1:
+        return jsonify({'success': False,
+                        'message': 'How many stickers? Give a count of 1 or more.'}), 400
+    if count > STICKER_MAX_BATCH:
+        return jsonify({
+            'success': False,
+            'message': (f'{count} is more than one batch — the most at a time is '
+                        f'{STICKER_MAX_BATCH}. Run it again for the rest.')}), 400
+
+    headline = str(data.get('headline') or '').strip()[:40]
+    printer_id = data.get('printer_id')
+    station_id = data.get('station_id')
+    try:
+        cur = db.cursor()
+        if printer_id:
+            cur.execute("SELECT * FROM printers WHERE id = %s AND enabled = TRUE",
+                        (int(printer_id),))
+        else:
+            cur.execute("SELECT * FROM printers WHERE enabled = TRUE AND station_id = %s "
+                        "ORDER BY id LIMIT 1", (station_id,))
+        printer = _row_to_dict(cur, cur.fetchone())
+        if not printer:
+            return jsonify({'success': False,
+                            'message': 'No enabled printer found'}), 404
+
+        job_ids = []
+        for _ in range(count):
+            job_id, _created = _enqueue(
+                db, printer['id'],
+                {'headline': headline, 'ts': datetime.now().isoformat()},
+                job_type='sticker')
+            job_ids.append(job_id)
+
+        body = {'success': True, 'queued': len(job_ids), 'job_ids': job_ids}
+        notes = []
+        offline = _offline_note(db, printer['id'])
+        if offline:
+            notes.append(offline)
+        # WARN ABOUT THE ROLL, DO NOT REFUSE ON IT.
+        #
+        # The remaining count is an estimate from jobs printed since the
+        # roll was recorded, and it is deliberately built to read low.
+        # Blocking a batch on an approximation would stop real work over
+        # a guess; saying "this is more than I think is left" lets the
+        # operator put a fresh roll on first, which is all they need.
+        try:
+            left = _roll_remaining(db, printer['id'])
+            if left is not None and count > left:
+                notes.append(
+                    f'That is more than the roll is likely to hold — about '
+                    f'{left} labels left. Fit a fresh roll before it runs out '
+                    f'mid-batch, or the last cups go unstickered.')
+        except Exception as roll_err:
+            logger.debug(f"sticker roll check skipped: {roll_err}")
+        if notes:
+            body['warning'] = ' '.join(notes)
+        return jsonify(body)
+    except Exception as e:
+        logger.error(f"print_stickers error: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+def _roll_remaining(db, printer_id):
+    """Roughly how many labels this printer's roll still holds, or None.
+
+    Same arithmetic as the /roll endpoint, kept to one helper so the
+    batch warning and the status dot can never disagree about a roll.
+    """
+    from routes.consolidated_api_routes import _kv_get
+    state = _kv_get(db, ROLL_SETTING_KEY, default={}) or {}
+    cfg = roll_for(state, printer_id)
+    cur = db.cursor()
+    if cfg.get('reset_at'):
+        cur.execute("SELECT COUNT(*) FROM print_jobs WHERE printer_id = %s "
+                    "AND printed_at IS NOT NULL AND printed_at >= %s",
+                    (printer_id, cfg['reset_at']))
+    else:
+        cur.execute("SELECT COUNT(*) FROM print_jobs WHERE printer_id = %s "
+                    "AND printed_at IS NOT NULL", (printer_id,))
+    row = cur.fetchone()
+    used = (row[0] if not isinstance(row, dict) else list(row.values())[0]) or 0
+    return assess(cfg['capacity'], used, cfg['warn_at']).get('remaining')
+
+
 @bp.route('/milk-symbols', methods=['GET'])
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff', 'barista'])
@@ -1416,11 +1535,16 @@ def preview_label():
             if request.args.get('sample') != '1':
                 payload['test'] = True
         from services.label_printer import (render_label, render_ticket,
-                                            render_banner)
+                                            render_banner, render_sticker)
         banner_text = request.args.get('banner')
         if banner_text:
             renderer = render_banner
             payload = {'text': banner_text}
+        elif request.args.get('sticker') == '1':
+            # Nobody should commit three hundred stickers to a roll
+            # without having seen one.
+            renderer = render_sticker
+            payload = {'headline': request.args.get('headline') or ''}
         else:
             renderer = (render_ticket if request.args.get('ticket') == '1'
                         else render_label)

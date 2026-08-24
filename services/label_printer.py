@@ -271,6 +271,20 @@ LID_MAX_HEIGHT = int(os.environ.get("LID_MAX_HEIGHT", "320"))
 LID_MIN_HEIGHT = int(os.environ.get("LID_MIN_HEIGHT", "240"))
 
 
+def _int_or(value, fallback):
+    """int(value), or the fallback for anything that is not a number.
+
+    Settings arrive from a JSON blob an operator can edit, so a width of
+    "wide" is a thing that happens. Falling back beats raising: a sticker
+    at the default length is a sticker, and an exception is a batch that
+    never prints.
+    """
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return fallback
+
+
 def _wrap_to_width(draw, text, font, max_px):
     """Word-wrap `text` so no line exceeds max_px at `font`. Used by
     GROW mode, where long text takes MORE STOCK instead of shrinking
@@ -952,6 +966,129 @@ def render_ticket(payload: dict, width_dots: int = None, options: dict = None) -
 # Longest banner the cutter will be asked for: 2400 dots ≈ 30cm at
 # 203dpi. Env-tunable for shops with longer rolls or nerves.
 BANNER_MAX_DOTS = int(os.environ.get("BANNER_MAX_DOTS", "2400"))
+
+
+def render_sticker(
+    payload: dict, width_dots: int = None, options: dict = None
+) -> bytes:
+    """A branded sticker with no order on it, for plain house cups.
+
+    Steve: "Batch-print branded stickers for plain house cups, for
+    smaller events with no custom cup run." A custom cup run has a
+    minimum order and a lead time that a fifty-person morning cannot
+    justify, so the cups stay plain and the branding is applied on the
+    day -- or the night before, which is the actual point: these are
+    printed in a batch and stuck on ahead of service, when there is time.
+
+    It is the ordinary label with the order stripped out, drawn by the
+    same code, so the sticker and the labels that follow it are the same
+    design and the same size. Nothing here is unique to stickers except
+    what is ABSENT.
+
+    payload: {'headline': str} -- optional line under the logo. Falls
+    back to the event name, and prints nothing at all if neither exists,
+    because a sticker with a stray heading is worse than a plain one.
+    """
+    from PIL import Image, ImageDraw
+
+    W = int(width_dots or PRINT_WIDTH_DOTS)
+    options = options or {}
+    payload = payload or {}
+
+    headline = str(payload.get("headline") or "").strip()
+    if not headline and options.get("show_event_name"):
+        headline = str(options.get("event_name") or "").strip()
+    headline = headline[:40]
+
+    footer_text = str(options.get("footer_text") or "").strip()
+    instructions = str(options.get("instructions_text") or "").strip()
+
+    canvas_h = LABEL_MAX_HEIGHT
+    img = Image.new("1", (W, canvas_h), 1)
+    draw = ImageDraw.Draw(img)
+    margin = 10
+    y = 12
+
+    f_head = _load_font(44)
+    f_body = _load_font(28)
+
+    drew = False
+
+    def centred(text, font, dy):
+        """Blank text draws nothing AND costs no height.
+
+        _wrap_to_width returns a single empty line for empty input, and
+        letting that through advanced y invisibly: it padded the sticker
+        with phantom lines and convinced the blank-sticker guard below
+        that something had been printed.
+        """
+        nonlocal y, drew
+        if not str(text or "").strip():
+            return
+        try:
+            tw = draw.textlength(text, font=font)
+        except Exception:
+            tw = len(text) * 10
+        draw.text((max(margin, (W - int(tw)) // 2), y), text, fill=0, font=font)
+        y += dy
+        drew = True
+
+    # THE LOGO IS THE POINT, so it gets the room the order data would
+    # have used rather than the small allowance a cup label gives it.
+    # On a label the logo is a courtesy under the drink; here it is the
+    # entire reason the sticker exists.
+    if options.get("show_logo") and options.get("logo_data"):
+        logo = _decode_logo_to_1bit(
+            options["logo_data"],
+            W - 2 * margin,
+            max_height=_int_or(options.get("logo_max_height_sticker"), 300),
+        )
+        if logo is not None:
+            img.paste(logo, ((W - logo.width) // 2, y))
+            y += logo.height + 16
+            drew = True
+
+    if headline:
+        centred(headline, f_head, 54)
+
+    for line in _wrap_to_width(draw, instructions, f_body, W - 2 * margin)[:3]:
+        centred(line, f_body, 34)
+
+    if footer_text:
+        y += 6
+        draw.line([(margin, y), (W - margin, y)], fill=0)
+        y += 12
+        drew = True
+        for line in _wrap_to_width(draw, footer_text, f_body, W - 2 * margin)[:3]:
+            centred(line, f_body, 34)
+
+    # An entirely blank sticker would waste stock silently, so give a
+    # branding-less event something to hold instead of feeding out paper.
+    if not drew:
+        centred("Enjoy your coffee", f_head, 54)
+
+    # CENTRE THE CONTENT IN WHATEVER LENGTH THE STICKER ENDS UP.
+    #
+    # The cutter needs a minimum length, so a short sticker gets padded
+    # up to it either way -- the only question is where the blank goes.
+    # Top-aligned put all of it underneath, and a batch of three hundred
+    # cups each wearing a sticker with an empty bottom third looks like a
+    # printing fault rather than a design. Centred, the same stock reads
+    # as deliberate. This is the same waste Steve spotted on the lid
+    # label ("it could go down the page a lot"), seen from the other end:
+    # there the fix was to give the space to the logo, and here, when
+    # there is no logo to give it to, the fix is to split it evenly.
+    content_h = min(canvas_h, y + 14)
+    content = img.crop((0, 0, W, content_h))
+    final_h = max(content_h, _int_or(options.get("min_height_dots"), 380))
+    if final_h > content_h:
+        out = Image.new("1", (W, final_h), 1)
+        out.paste(content, (0, (final_h - content_h) // 2))
+    else:
+        out = content
+    buf = io.BytesIO()
+    out.save(buf, format="PNG")
+    return buf.getvalue()
 
 
 def render_banner(payload: dict, width_dots: int = None, options: dict = None) -> bytes:
