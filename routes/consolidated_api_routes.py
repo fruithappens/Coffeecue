@@ -12,6 +12,9 @@ from datetime import datetime, timedelta
 import json
 import re
 from auth import jwt_required_with_demo, role_required_with_demo
+from utils.order_eta import (
+    describe as eta_describe, estimate_minutes as eta_estimate_minutes,
+    seconds_per_coffee as eta_seconds_per_coffee)
 from utils.order_provenance import (
     CHANNELS, SELF_SERVE, channel_label, infer_channel,
     is_estimated as provenance_estimated, normalize_channel,
@@ -4710,6 +4713,70 @@ def generate_qr():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+@bp.route('/orders/<order_id>/collected', methods=['POST'])
+def mark_collected_public(order_id):
+    """The customer says they have their coffee, from their own phone.
+
+    One less press for the barista, on the busiest surface they have.
+
+    Two guards, because this endpoint is public and an order number is
+    guessable:
+
+      1. Only an order that is actually READY can be collected. A
+         pending or in-progress coffee cannot be marked collected --
+         a mis-tap (or a stranger guessing a number) must not be able
+         to clear a card the barista still needs on the bench.
+      2. Already-collected is a success, not an error. The page may
+         retry on a flaky conference wifi, and a second tap should read
+         as "yes, done" rather than an alarming failure.
+
+    It returns nothing about the order beyond the outcome, so it cannot
+    be used to enumerate other people's coffees.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        clean_id = clean_order_id(order_id)
+        cur = db.cursor()
+        cur.execute("SELECT status FROM orders WHERE order_number = %s", (clean_id,))
+        row = cur.fetchone()
+        if not row:
+            return jsonify({'success': False, 'message': 'not found'}), 404
+        status = str((row[0] if not isinstance(row, dict) else row.get('status'))
+                     or '').lower()
+
+        if status in ('picked_up', 'picked-up'):
+            return jsonify({'success': True, 'status': 'picked_up',
+                            'message': 'Already collected'})
+
+        if status != 'completed':
+            # Not ready yet -- nothing to collect.
+            return jsonify({
+                'success': False, 'status': status,
+                'message': "That order isn't ready yet."}), 409
+
+        now = datetime.now()
+        cur.execute(
+            "UPDATE orders SET status = 'picked_up', updated_at = %s, "
+            "picked_up_at = %s WHERE order_number = %s AND status = 'completed'",
+            (now, now, clean_id))
+        db.commit()
+        logger.info(f"Order {clean_id} marked collected by the customer")
+        return jsonify({'success': True, 'status': 'picked_up',
+                        'message': 'Thanks - enjoy your coffee!'})
+    except Exception as e:
+        logger.error(f"mark_collected_public error: {e}")
+        try:
+            current_app.config.get('coffee_system').db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 @bp.route('/orders/<order_id>/track', methods=['GET'])
 def track_order_public(order_id):
     """Public status of ONE order, for the phone that placed it.
@@ -4761,11 +4828,70 @@ def track_order_public(order_id):
         except Exception:
             db.rollback()
         first_name = str(od.get('name') or '').split(' ')[0]
+
+        # How long until it is ready. Measured from this station's own
+        # recent pace rather than assumed, and discounted for batching --
+        # see utils/order_eta.py for why it always rounds up and never
+        # counts past zero.
+        eta_minutes = None
+        try:
+            ahead_details, bench = [], 0
+            if status == 'pending':
+                c3 = db.cursor()
+                c3.execute(
+                    "SELECT order_details FROM orders WHERE status = 'pending' "
+                    "AND station_id = %s AND created_at < %s",
+                    (station_id, created_at))
+                for r in (c3.fetchall() or []):
+                    raw = r[0] if not isinstance(r, dict) else r.get('order_details')
+                    try:
+                        ahead_details.append(
+                            json.loads(raw) if isinstance(raw, str) else (raw or {}))
+                    except Exception:
+                        ahead_details.append({})
+            if status in ('pending', 'in-progress', 'in_progress'):
+                c4 = db.cursor()
+                c4.execute(
+                    "SELECT COUNT(*) FROM orders WHERE status IN "
+                    "('in-progress','in_progress') AND station_id = %s", (station_id,))
+                r4 = c4.fetchone()
+                bench = (r4[0] if not isinstance(r4, dict) else list(r4.values())[0]) or 0
+                # Pace: the gaps BETWEEN this station's recent completions,
+                # not a count divided by a window. A quiet cart is not a
+                # slow one, and the window method cannot tell them apart --
+                # see utils/order_eta.seconds_per_coffee.
+                c5 = db.cursor()
+                c5.execute(
+                    "SELECT EXTRACT(EPOCH FROM COALESCE(completed_at, updated_at)) "
+                    "FROM orders WHERE station_id = %s "
+                    "AND status IN ('completed','picked_up') "
+                    "AND COALESCE(completed_at, updated_at) > NOW() - INTERVAL '2 hours' "
+                    "ORDER BY COALESCE(completed_at, updated_at) DESC LIMIT 40",
+                    (station_id,))
+                epochs = []
+                for r in (c5.fetchall() or []):
+                    v = r[0] if not isinstance(r, dict) else list(r.values())[0]
+                    if v is not None:
+                        epochs.append(float(v))
+                pace = eta_seconds_per_coffee(epochs)
+                eta_minutes = eta_estimate_minutes(
+                    status, ahead_details, bench, pace)
+        except Exception as eta_err:
+            # An estimate is a nicety. Never let it take down the status
+            # page a waiting customer is actually reading.
+            logger.warning(f"ETA calc failed for order {clean_id}: {eta_err}")
+            try:
+                db.rollback()
+            except Exception:
+                pass
+
         return jsonify({
             'success': True,
             'order_number': clean_id,
             'status': status,
             'position': position,
+            'eta_minutes': eta_minutes,
+            'eta_text': eta_describe(eta_minutes),
             'first_name': first_name,
             'drink': _drink_display_name(od, default='Coffee'),
             'station_name': station_name,
