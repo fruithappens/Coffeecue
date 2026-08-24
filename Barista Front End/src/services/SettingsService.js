@@ -69,7 +69,7 @@ class SettingsService {
         systemName: 'CoffeeCue',
         customBranding: false,
         clientName: '',
-        primaryColor: '#1F2A37',  // CupQ dark
+        primaryColor: '#C08552',  // CupQ coffee
         secondaryColor: '#f59e0b',
         textColor: '#1f2937',
         backgroundColor: '#f9fafb',
@@ -235,7 +235,7 @@ class SettingsService {
         // operators into thinking the system was misconfigured.
         eventName: '',
         organizationName: '',
-        headerColor: '#1F2A37',  // CupQ dark
+        headerColor: '#C08552',  // CupQ coffee
         customMessage: '',
         smsNumber: '',
         showSponsor: false,
