@@ -1031,12 +1031,68 @@ def sms_history():
             "message": f"Error getting SMS history: {str(e)}"
         })
 
+
+def _twilio_signature_ok():
+    """Is this request really from Twilio?
+
+    Same rules the inbound /sms webhook already applies, in a helper so a
+    second endpoint cannot drift from the first: validation is MANDATORY
+    unless TESTING_MODE is on with no real auth token, and a missing
+    token in production fails CLOSED rather than waving requests through.
+
+    Returns (ok, reason). Never raises -- a validator that throws must
+    not become an outage on a webhook path.
+    """
+    try:
+        auth_token = os.getenv('TWILIO_AUTH_TOKEN')
+        testing_mode = os.getenv('TESTING_MODE', 'False').lower() == 'true'
+        if testing_mode and (not auth_token or auth_token == 'test_token'):
+            return True, 'testing-mode'
+        if not auth_token:
+            return False, 'no-auth-token'
+
+        # Railway terminates TLS in front of us, so request.url can say
+        # http:// for a request Twilio signed as https://. Signing the
+        # wrong scheme fails every time and looks like an attack.
+        forwarded_proto = request.headers.get('X-Forwarded-Proto', '')
+        forwarded_host = request.headers.get('X-Forwarded-Host', request.host)
+        if forwarded_proto == 'https':
+            url = f"https://{forwarded_host}{request.path}"
+            if request.query_string:
+                url += f"?{request.query_string.decode()}"
+        else:
+            url = request.url
+            if 'railway.app' in url and url.startswith('http://'):
+                url = url.replace('http://', 'https://', 1)
+
+        validator = RequestValidator(auth_token)
+        signature = request.headers.get('X-Twilio-Signature', '')
+        if validator.validate(url, request.form.to_dict(), signature):
+            return True, 'valid'
+        return False, 'bad-signature'
+    except Exception as e:
+        logger.error(f"Twilio signature check errored, refusing: {e}")
+        return False, 'validator-error'
+
+
 @bp.route('/sms/status-callback', methods=['POST'])
 def sms_status_callback():
+    """Delivery status callbacks from Twilio.
+
+    Now signature-checked. It was not, and every call INSERTs a row into
+    sms_status_logs, so anyone who knew the URL could write unbounded
+    rows into the database -- a slow disk fill, and delivery logs you
+    cannot trust afterwards, which matters precisely when you are trying
+    to work out why a customer never got their text.
+
+    The inbound /sms webhook has validated properly for a while; this
+    endpoint simply never got the same treatment.
     """
-    Handle SMS delivery status callbacks from Twilio
-    This is called by Twilio when the status of a message changes
-    """
+    ok, reason = _twilio_signature_ok()
+    if not ok:
+        logger.warning(
+            "Rejecting SMS status callback (%s) from %s", reason, request.remote_addr)
+        return '', 403
     try:
         message_sid = request.values.get('MessageSid', '')
         message_status = request.values.get('MessageStatus', '')
