@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Hourly production backup.
+
+  Hourly sounds like a lot and is not: backup_production.py only WRITES
+  when the data has actually changed, so a quiet week produces about one
+  file a day, and an event morning produces one an hour — which is the
+  granularity that matters. Losing an hour of orders is something you can
+  reconstruct from the cups on the bench. Losing a day is not.
+
+  Install:
+      cp testbench/scheduling/com.coffeecue.backup.plist ~/Library/LaunchAgents/
+      launchctl load ~/Library/LaunchAgents/com.coffeecue.backup.plist
+
+  Check it is alive:
+      launchctl list | grep coffeecue
+      tail ~/Library/Logs/coffeecue-backup.log
+
+  Stop:
+      launchctl unload ~/Library/LaunchAgents/com.coffeecue.backup.plist
+
+  RunAtLoad means it also runs the moment the Mac wakes up, so a laptop
+  that was shut overnight still takes one as soon as it is opened rather
+  than waiting for the next whole hour.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.coffeecue.backup</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/stevewf/expresso/.claude/worktrees/practical-liskov-8416e1/venv/bin/python</string>
+        <string>/Users/stevewf/expresso/.claude/worktrees/practical-liskov-8416e1/testbench/backup_production.py</string>
+        <string>--quiet</string>
+    </array>
+
+    <key>StartInterval</key>
+    <integer>3600</integer>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/stevewf/Library/Logs/coffeecue-backup.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/stevewf/Library/Logs/coffeecue-backup.log</string>
+</dict>
+</plist>
