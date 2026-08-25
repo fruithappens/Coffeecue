@@ -327,7 +327,7 @@ const OrganiserInterface = () => {
             >
               <Menu size={24} />
             </button>
-            <h1 className="text-xl font-bold text-gray-800 truncate">
+            <h1 className="text-base sm:text-xl font-bold text-gray-800 truncate">
             {activeSection === 'quickSetup' && '⚡ Quick Setup'}
             {activeSection === 'operations' && (opsTab === 'readiness' ? '✅ Event Readiness' : '🚀 Live Operations Command Center')}
             {activeSection === 'stations' && 'Station Management'}
@@ -386,13 +386,13 @@ const OrganiserInterface = () => {
                   build the event" path for operators who don't know the
                   menus yet. Writes through the same endpoints as the
                   one-page Quick Setup below. */}
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4 flex items-center justify-between">
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
                   <div className="font-bold text-blue-900">New here? Try the guided setup</div>
                   <div className="text-sm text-blue-800">Answer about 12 quick questions (3 minutes) and the event builds itself — stations, milks, sizes, drinks, hours. Everything stays editable afterwards.</div>
                 </div>
                 <button
-                  className="ml-4 flex-shrink-0 bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700"
+                  className="w-full sm:w-auto sm:ml-4 flex-shrink-0 bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700"
                   onClick={() => setShowSetupWizard(true)}
                 >
                   Start questionnaire
@@ -447,30 +447,34 @@ const OrganiserInterface = () => {
                   Walk-in defaults now live inside Station Settings, against
                   the station you are already editing.
               */}
-              <div className="mb-6 bg-white p-2 rounded-lg shadow flex">
+              {/* Four tabs across 375px gives each one about 90px, so every label
+                  wrapped and "Station Inventory" was clipped off the right
+                  edge with nothing to say it was there. Two-up on a phone,
+                  one row from small screens up. */}
+              <div className="mb-6 bg-white p-2 rounded-lg shadow grid grid-cols-2 gap-2 sm:flex sm:gap-0">
                 <button
-                  className={`flex-1 py-2 px-4 rounded-md ${stationTab === 'settings' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                  className={`flex-1 py-2 px-2 sm:px-4 text-sm sm:text-base rounded-md ${stationTab === 'settings' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                   onClick={() => setStationTab('settings')}
                 >
                   <Settings size={16} className="inline-block mr-1" />
                   Station Settings
                 </button>
                 <button
-                  className={`flex-1 py-2 px-4 rounded-md ${stationTab === 'inventory' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                  className={`flex-1 py-2 px-2 sm:px-4 text-sm sm:text-base rounded-md ${stationTab === 'inventory' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                   onClick={() => setStationTab('inventory')}
                 >
                   <Package size={16} className="inline-block mr-1" />
                   Event Inventory
                 </button>
                 <button
-                  className={`flex-1 py-2 px-4 rounded-md ${stationTab === 'stock' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                  className={`flex-1 py-2 px-2 sm:px-4 text-sm sm:text-base rounded-md ${stationTab === 'stock' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                   onClick={() => setStationTab('stock')}
                 >
                   <Package size={16} className="inline-block mr-1" />
                   Event Stock
                 </button>
                 <button
-                  className={`flex-1 py-2 px-4 rounded-md ${stationTab === 'config' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                  className={`flex-1 py-2 px-2 sm:px-4 text-sm sm:text-base rounded-md ${stationTab === 'config' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                   onClick={() => setStationTab('config')}
                 >
                   <Coffee size={16} className="inline-block mr-1" />

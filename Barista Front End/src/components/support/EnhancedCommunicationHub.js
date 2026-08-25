@@ -413,7 +413,7 @@ const EnhancedCommunicationHub = () => {
         </div>
         
         {/* Channel Tabs */}
-        <div className="flex space-x-1 border-b">
+        <div className="flex space-x-1 border-b overflow-x-auto">
           <button
             onClick={() => setActiveChannel('all')}
             className={`px-4 py-2 font-medium border-b-2 transition-colors ${

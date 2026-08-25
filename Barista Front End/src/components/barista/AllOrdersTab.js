@@ -192,10 +192,10 @@ const AllOrdersTab = () => {
       >
         <div className="flex justify-between items-start">
           <div className="flex-1">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               {statusIcons[status]}
-              <span className="font-bold">Order #{order.id}</span>
-              <span className="text-sm text-gray-500">Station {order.assignedStation || '?'}</span>
+              <span className="font-bold whitespace-nowrap">Order #{order.id}</span>
+              <span className="text-sm text-gray-500 whitespace-nowrap">Station {order.assignedStation || '?'}</span>
               {order.priority && (
                 <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-xs font-medium">
                   PRIORITY

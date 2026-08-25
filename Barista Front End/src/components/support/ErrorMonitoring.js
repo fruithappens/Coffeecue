@@ -168,7 +168,7 @@ const ErrorMonitoring = () => {
       </div>
 
       {/* Error Statistics */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <div className="bg-gray-50 p-3 rounded text-center">
           <div className="text-2xl font-bold text-gray-800">{errors.length}</div>
           <div className="text-sm text-gray-600">Total Errors</div>

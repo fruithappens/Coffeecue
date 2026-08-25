@@ -445,28 +445,28 @@ const EnhancedScheduleManagement = () => {
         </div>
         
         {/* Tabs */}
-        <div className="mt-6 flex space-x-4 border-b border-gray-200">
+        <div className="mt-6 flex space-x-4 border-b border-gray-200 overflow-x-auto">
           <button
             onClick={() => setActiveTab('timeline')}
-            className={`pb-2 px-4 ${activeTab === 'timeline' ? 'border-b-2 border-amber-500 text-amber-600' : 'text-gray-600'}`}
+            className={`pb-2 px-4 whitespace-nowrap shrink-0 ${activeTab === 'timeline' ? 'border-b-2 border-amber-500 text-amber-600' : 'text-gray-600'}`}
           >
             Timeline View
           </button>
           <button
             onClick={() => setActiveTab('stations')}
-            className={`pb-2 px-4 ${activeTab === 'stations' ? 'border-b-2 border-amber-500 text-amber-600' : 'text-gray-600'}`}
+            className={`pb-2 px-4 whitespace-nowrap shrink-0 ${activeTab === 'stations' ? 'border-b-2 border-amber-500 text-amber-600' : 'text-gray-600'}`}
           >
             Station Control
           </button>
           <button
             onClick={() => setActiveTab('sessions')}
-            className={`pb-2 px-4 ${activeTab === 'sessions' ? 'border-b-2 border-amber-500 text-amber-600' : 'text-gray-600'}`}
+            className={`pb-2 px-4 whitespace-nowrap shrink-0 ${activeTab === 'sessions' ? 'border-b-2 border-amber-500 text-amber-600' : 'text-gray-600'}`}
           >
             Session Management
           </button>
           <button
             onClick={() => setActiveTab('assignments')}
-            className={`pb-2 px-4 ${activeTab === 'assignments' ? 'border-b-2 border-amber-500 text-amber-600' : 'text-gray-600'}`}
+            className={`pb-2 px-4 whitespace-nowrap shrink-0 ${activeTab === 'assignments' ? 'border-b-2 border-amber-500 text-amber-600' : 'text-gray-600'}`}
           >
             Barista Assignments
           </button>

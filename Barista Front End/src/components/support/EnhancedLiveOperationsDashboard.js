@@ -326,9 +326,9 @@ const EnhancedLiveOperationsDashboard = () => {
     <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
       {/* Header with Live Status */}
       <div className="bg-white rounded-lg shadow-sm p-4">
-        <div className="flex justify-between items-center">
-          <div className="flex items-center space-x-6">
-            <h1 className="text-2xl font-bold text-gray-900">Live Operations Command Center</h1>
+        <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
+            <h1 className="text-lg sm:text-2xl font-bold text-gray-900">Live Operations Command Center</h1>
             <div className="flex items-center space-x-2">
               {ordersOnline ? (
                 <>
@@ -485,9 +485,9 @@ const EnhancedLiveOperationsDashboard = () => {
 
       {/* Station Status Grid with Enhanced Information */}
       <div className="bg-white rounded-lg shadow-md">
-        <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-          <h2 className="text-xl font-semibold">Station Status Grid</h2>
-          <div className="flex items-center space-x-4">
+        <div className="px-4 sm:px-6 py-4 border-b border-gray-200 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+          <h2 className="text-lg sm:text-xl font-semibold">Station Status Grid</h2>
+          <div className="flex items-center justify-between sm:justify-end gap-4">
             <span className="text-sm text-gray-500">
               {systemMetrics.activeStations} active, {queueCount} orders in queue
             </span>

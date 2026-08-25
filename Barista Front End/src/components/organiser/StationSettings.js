@@ -164,9 +164,9 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
         </div>
       )}
 
-      <div className="grid grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6">
         {/* Station List */}
-        <div className="col-span-4">
+        <div className="lg:col-span-4">
           <h3 className="text-lg font-semibold mb-4 text-gray-700">Stations</h3>
           <div className="space-y-2">
             {stations.map(station => (
@@ -255,7 +255,7 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
         </div>
 
         {/* Station Details */}
-        <div className="col-span-8">
+        <div className="lg:col-span-8">
           {selectedStation ? (
             <div>
               <div className="flex justify-between items-center mb-4">

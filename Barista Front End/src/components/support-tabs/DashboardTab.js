@@ -192,7 +192,7 @@ const DashboardTab = () => {
       </div>
       
       {/* Metrics Grid */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {/* Trend props removed — they were hardcoded ("+12%", "-2 min",
             "0%", "+8%") with no prev-period comparison behind them. */}
         <MetricCard
@@ -352,7 +352,7 @@ const DashboardTab = () => {
       {/* Station Status */}
       <div className="mt-6 bg-white rounded-lg shadow-sm p-4">
         <h3 className="font-semibold text-lg mb-4">Station Status</h3>
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {stations?.map(station => (
             <div key={station.id} className="border rounded-lg p-3">
               <div className="flex items-center justify-between mb-2">
