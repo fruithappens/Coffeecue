@@ -103,6 +103,17 @@ const MyCoffeePage = () => {
     () => paramCid || localStorage.getItem(STORAGE_KEY) || ''
   );
   const [me, setMe] = useState(null);
+  // Liveness, tracked from REAL fetches rather than a decorative spinner.
+  // Steve, watching his own order sit on "In the queue" while the barista
+  // made it: "there should be a bit of a something that has motion or
+  // proof that its connected and checking status live as you dont know if
+  // its frozen etc". A spinner that turns regardless would be exactly the
+  // placebo he is asking to be protected from, so `lastOkAt` only moves
+  // when the server actually answered.
+  const [lastOkAt, setLastOkAt] = useState(null);
+  const [connected, setConnected] = useState(true);
+  // Re-render once a second so "checked 12s ago" counts up on its own.
+  const [, setTick] = useState(0);
 
   // Declared AFTER `me` deliberately. The dependency array below reads
   // me?.active_order?.status, and a dep array is evaluated DURING RENDER
@@ -251,6 +262,8 @@ const MyCoffeePage = () => {
       if (b?.success) {
         setChoices(null);
         setMe(b);
+        setLastOkAt(Date.now());
+        setConnected(true);
         // Adopt the CONTACT ID the server resolved, whichever way they got
         // in. Without this, someone who identified by phone left `cid`
         // empty and every later call — order, save usual — would 404.
@@ -297,6 +310,9 @@ const MyCoffeePage = () => {
         setMe(null);
       }
     } catch (e) {
+      // A failed poll is the case the indicator exists for: say so rather
+      // than leaving a stale card looking current.
+      setConnected(false);
       if (!quiet) setError('Network problem — try again.');
     } finally {
       if (!quiet) setBusy(false);
@@ -313,11 +329,53 @@ const MyCoffeePage = () => {
   // While an order is live, keep the status fresh without the person
   // having to do anything — this page IS the notification for anyone
   // without a usable phone number (overseas guests on venue wifi).
+  //
+  // THE BUG THIS FIXES. Steve watched his own order: "im in the que but
+  // when started it did not change and completed did not change". The
+  // polling was working -- verified, 8s on the dot -- but a phone screen
+  // does not stay awake. iOS suspends timers in a hidden tab, and his
+  // phone was on 11% battery, where Low Power Mode throttles them harder
+  // still. So the interval stopped, and NOTHING restarted it or refetched
+  // when he looked again. The card sat on the last thing it had heard.
+  //
+  // A wake lock was already requested below, but it is unsupported on
+  // iOS Safari and released the moment the page hides anyway. It cannot
+  // be the answer.
+  //
+  // So: refresh the moment the page becomes visible again, and again on
+  // pageshow (iOS restoring from the back/forward cache fires that and
+  // not visibilitychange).
+  //
+  // Depends on the order NUMBER, not the active_order OBJECT: the object
+  // is newly parsed on every poll, so the old dep tore the interval down
+  // and rebuilt it eight seconds at a time, resetting its own clock.
+  const activeNumber = me?.active_order?.order_number;
   useEffect(() => {
-    if (!cid || !me?.active_order) return undefined;
-    const t = setInterval(() => load(cid, { quiet: true }), 8000);
+    if (!cid || !activeNumber) return undefined;
+    const refresh = () => load(cid, { quiet: true });
+    const t = setInterval(refresh, 8000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('pageshow', onVisible);
+    window.addEventListener('online', refresh);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('pageshow', onVisible);
+      window.removeEventListener('online', refresh);
+    };
+  }, [cid, activeNumber, load]);
+
+  // Drives the "checked 12s ago" counter. Only while an order is live --
+  // a once-a-second render on an idle page would be a battery cost for
+  // nothing, and this page is open on phones that are already low.
+  useEffect(() => {
+    if (!activeNumber) return undefined;
+    const t = setInterval(() => setTick((n) => n + 1), 1000);
     return () => clearInterval(t);
-  }, [cid, me?.active_order, load]);
+  }, [activeNumber]);
 
   // Keep the screen awake while they're watching for READY.
   useEffect(() => {
@@ -444,6 +502,80 @@ const MyCoffeePage = () => {
       } else {
         setError(b?.message || 'Could not place that order.');
       }
+    } catch (e) {
+      setError('Network problem — try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Same picture-led chooser the QR flow uses, handing its answer back
+  // here instead of ordering. Its vocabulary is not quite ours -- sugar
+  // comes back as a NUMBER, strength and extra-hot as separate fields --
+  // so translate into the shape composed() speaks. The chips are plain
+  // words on purpose: the SMS parser already turns "double shot" into
+  // strength and "extra hot" into temp.
+  const usualFromKiosk = (p) => {
+    const n = Number(p.sugar) || 0;
+    const chips = [];
+    if (p.extraHot) chips.push('extra hot');
+    const st = String(p.strength || '').toLowerCase();
+    if (QUICK_NOTES.includes(st)) chips.push(st);
+    return {
+      drink: p.drink || '',
+      milk: p.milk || '',
+      size: p.size || '',
+      sugar: n === 0 ? 'no sugar' : `${n} sugar${n > 1 ? 's' : ''}`,
+      other: '',
+      chips,
+      // Keep whatever free text they had already written -- the picker
+      // has no field for it and losing it silently would be worse than
+      // not offering it.
+      notes: (pick.notes || '').trim(),
+    };
+  };
+
+  // "I've got it" -- the customer clears their own order off the Ready
+  // column. Optimistic: the card should go the instant they tap, because
+  // they are already walking away from the cart.
+  const markCollected = async () => {
+    const num = me?.active_order?.order_number;
+    if (!num) return;
+    setMe((prev) => (prev ? { ...prev, active_order: null } : prev));
+    try {
+      await fetch('/api/ea/me/collected', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cid, order_number: num }),
+      });
+    } catch (e) {
+      // The next poll re-reads the truth either way, so a failed call
+      // costs a few seconds of a card being gone early, not a lost order.
+    }
+    load(cid, { quiet: true });
+  };
+
+  const saveUsualFromPick = async (p) => {
+    const next = usualFromKiosk(p);
+    setPick(next);
+    setBusy(true);
+    try {
+      const bits = [];
+      if (next.size) bits.push(next.size);
+      if (next.drink) bits.push(next.drink);
+      let out = bits.join(' ');
+      if (next.milk) out += ` with ${next.milk}`;
+      if (next.sugar) out += `, ${next.sugar}`;
+      if (next.chips.length) out += `, ${next.chips.join(', ')}`;
+      const usual = next.notes ? `${out.trim()} | ${next.notes}` : out.trim();
+      const r = await fetch('/api/ea/me/usual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cid, usual }),
+      });
+      const b = await r.json();
+      if (b?.success) { setEditing(false); await load(cid); }
+      else setError(b?.message || 'Could not save that.');
     } catch (e) {
       setError('Network problem — try again.');
     } finally {
@@ -691,6 +823,17 @@ const MyCoffeePage = () => {
   // ---- order in flight: this page becomes the notification ---------------
   const active = me.active_order;
   if (active) {
+    // Seconds since the server last answered. Recomputed every render,
+    // and a render is forced once a second by the tick effect above.
+    const staleSeconds = lastOkAt
+      ? Math.max(0, Math.round((Date.now() - lastOkAt) / 1000))
+      : 99;
+    // How long it has been in its current status, per the server. Not
+    // counted on the client: the phone may have been asleep for ten
+    // minutes of it.
+    const waitingMinutes = typeof active.seconds_in_status === 'number'
+      ? Math.floor(active.seconds_in_status / 60)
+      : null;
     const copy = STATUS[active.status] || { title: 'One moment…', tone: 'bg-gray-400' };
     const ready = active.status === 'completed';
     return (
@@ -705,8 +848,60 @@ const MyCoffeePage = () => {
             </div>
             <div className="text-6xl font-extrabold my-2">#{active.order_number}</div>
             <div className="text-2xl font-bold">{copy.title}</div>
+            {/* WHERE. A card that says a coffee is ready without saying
+                which cart is only half an answer at a two-cart event
+                (Steve: "#78 order does not say which station to colelct
+                from"). */}
+            {active.station_name && (
+              <div className="mt-2 text-lg font-semibold opacity-95">
+                {ready ? 'at ' : 'being made at '}{active.station_name}
+              </div>
+            )}
+            {/* HOW LONG it has been sitting there. Only once ready --
+                before that it is the wait, which the page does not
+                promise, and a clock on a queue position just makes
+                people anxious. */}
+            {ready && waitingMinutes != null && (
+              <div className="mt-1 text-sm opacity-90">
+                {waitingMinutes < 1
+                  ? 'just now'
+                  : `waiting ${waitingMinutes} min${waitingMinutes === 1 ? '' : 's'}`}
+              </div>
+            )}
           </div>
-          <p className="text-center text-gray-500 text-sm mt-6">
+
+          {ready && (
+            <button
+              type="button"
+              onClick={markCollected}
+              className="mt-4 w-full py-4 rounded-xl bg-gray-900 text-white text-lg font-semibold"
+            >
+              I've got it
+            </button>
+          )}
+          {/* Proof it is alive, and honest about it when it is not.
+              The dot only pulses because a fetch actually succeeded, and
+              the counter only resets when the server answered -- so a
+              frozen page shows a number climbing past 30s and then says
+              so outright, instead of looking exactly like a working one.
+              That distinction is the whole request. */}
+          <div className="mt-6 flex items-center justify-center gap-2 text-sm">
+            <span className={`inline-block w-2 h-2 rounded-full
+                              ${!connected || staleSeconds > 30
+                                ? 'bg-amber-500'
+                                : 'bg-green-500 motion-safe:animate-pulse'}`} />
+            <span className={!connected || staleSeconds > 30
+                              ? 'text-amber-700' : 'text-gray-500'}>
+              {!connected
+                ? 'Not connected — trying again'
+                : staleSeconds > 30
+                  ? `Last checked ${staleSeconds}s ago — reconnecting`
+                  : staleSeconds <= 1
+                    ? 'Checking now'
+                    : `Checked ${staleSeconds}s ago`}
+            </span>
+          </div>
+          <p className="text-center text-gray-500 text-sm mt-2">
             Keep this page open — it updates by itself.
           </p>
 
@@ -832,90 +1027,26 @@ const MyCoffeePage = () => {
         {error && <p className="text-red-600 mt-4">{error}</p>}
 
         {editing ? (
-          <div className="mt-6 text-left">
-            {!menu ? (
-              <p className="text-gray-500 py-6 text-center">Loading the menu…</p>
-            ) : (
-              <>
-                <Choice label="Drink"
-                        options={[...(menu.coffee_types || []), { name: 'Something else', value: OTHER }]}
-                        value={pick.drink}
-                        onPick={(v) => setPick({ ...pick, drink: v })} />
-                {pick.drink === OTHER && (
-                  <input
-                    className="w-full border-2 rounded-xl px-4 py-3 text-lg mb-2"
-                    placeholder="e.g. ristretto, piccolo, long macchiato"
-                    value={pick.other || ''}
-                    onChange={(e) => setPick({ ...pick, other: e.target.value })}
-                  />
-                )}
-                {/* Milk is irrelevant to a long black or a tea, so only ask
-                    once a drink that takes it has been chosen. */}
-                {needsMilk(pick.drink) && (
-                  <Choice label="Milk" options={(menu.milks || [])}
-                          value={pick.milk}
-                          onPick={(v) => setPick({ ...pick, milk: v })} />
-                )}
-                <Choice label="Size" options={(menu.sizes || [])}
-                        value={pick.size}
-                        onPick={(v) => setPick({ ...pick, size: v })} />
-                {/* Hidden entirely where the venue puts sugar on the counter. */}
-                {!menu.sugar_self_serve && (
-                  <Choice label="Sugar" options={SUGARS} value={pick.sugar}
-                          onPick={(v) => setPick({ ...pick, sugar: v })} />
-                )}
-                {/* Anything else the barista should know. Chips for the
-                    common ones, free text for the rest. */}
-                <div className="mt-4">
-                  <p className="text-sm text-gray-600 mb-1">Anything else?</p>
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {QUICK_NOTES.map((q) => {
-                      const cur = (pick.chips || []);
-                      const on = cur.includes(q);
-                      return (
-                        <button
-                          key={q}
-                          type="button"
-                          className={`px-3 py-1.5 rounded-full text-sm border ${on ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300'}`}
-                          onClick={() => setPick({
-                            ...pick,
-                            chips: on ? cur.filter(x => x !== q) : [...cur, q],
-                          })}
-                        >
-                          {q}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <input
-                    className="w-full border-2 rounded-xl px-4 py-3 text-base"
-                    placeholder="Anything else for the barista"
-                    value={pick.notes || ''}
-                    onChange={(e) => setPick({ ...pick, notes: e.target.value })}
-                  />
-                </div>
-                <p className="mt-4 mb-1 text-sm text-gray-600">Your usual will be</p>
-                <p className="text-lg font-semibold min-h-[1.75rem]">
-                  {composedLabel() || <span className="text-gray-400">pick a drink…</span>}
-                </p>
-              </>
-            )}
-            <div className="flex gap-2 mt-4">
-              <button className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-semibold disabled:opacity-40"
-                      disabled={busy || !pick.drink || (pick.drink === OTHER && !(pick.other || '').trim())}
-                      onClick={saveUsual}>Save</button>
-              <button className="flex-1 py-3 rounded-xl bg-gray-200 font-semibold"
-                      onClick={() => setEditing(false)}>Cancel</button>
-            </div>
+          /* The SAME chooser the QR flow uses, in pick mode. There used to
+             be a second, text-only one here; Steve found it by watching
+             someone beside him get the nicer screen for the same job. */
+          <div className="mt-6">
+            <KioskOrder
+              onPick={saveUsualFromPick}
+              onClose={() => setEditing(false)}
+              eaCid={cid}
+              channel="web"
+            />
           </div>
-        ) : (
+        ) : null}
+        {!editing ? (
           <button
             className="w-full mt-3 py-3 rounded-xl bg-white border-2 border-blue-600 text-blue-600 font-semibold"
             onClick={startEditing}
           >
             {me.usual ? 'Change my usual' : 'Save my usual'}
           </button>
-        )}
+        ) : null}
 
         <button
           className="w-full mt-3 py-3 text-gray-700 underline"

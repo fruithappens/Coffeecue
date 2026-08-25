@@ -56,7 +56,17 @@ const milkEmoji = (name) => {
 // /order). They are different channels for reporting and only the caller
 // knows which one it is, so it is a prop, not a guess.
 const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced,
-                      eaCid, channel = 'kiosk' }) => {
+                      eaCid, channel = 'kiosk', onPick }) => {
+  // PICK MODE. With `onPick` supplied this screen chooses a drink and
+  // hands it back instead of ordering one -- same tiles, same pictures,
+  // same steps, no name/phone/station and no POST.
+  //
+  // It exists because /my had a SECOND, text-only drink chooser for
+  // "change my usual", and Steve found out the way you would least want
+  // to: "I went to change my usual and it was all text while someone who
+  // scanned my qr code got the more pictorial menu." Two chooser UIs for
+  // the same decision, and he was looking at the worse one.
+  const picking = typeof onPick === 'function';
   const [menu, setMenu] = useState(null);
   // Event SMS number, for the "or text us" line. Public config, same
   // source the poster page uses. Absent is fine -- the line just drops
@@ -286,6 +296,19 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
     afterStrength();
   };
   const afterStrength = () => {
+    // In pick mode the drink IS the whole answer -- there is nobody to
+    // name, nowhere to route and nothing to send.
+    if (picking) {
+      onPick({
+        drink: drink?.value || drink?.name || '',
+        milk: milk?.value || '',
+        size: size?.value || (sizeChoices[0]?.value) || '',
+        sugar,
+        strength: strength || '',
+        extraHot: !!extraHot,
+      });
+      return;
+    }
     if (eaIdentity) { afterName(); return; }
     setStep('name');
   };
