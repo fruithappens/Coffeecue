@@ -196,9 +196,24 @@ const DisplayScreen = () => {
   // public ordering/status one, and a tidy pickup one.
   const screenMode = (searchParams.get('mode') || 'orders').toLowerCase();
   const isPickupMode = screenMode === 'pickup';
-  // Self-service kiosk shows on the orders screen unless explicitly turned off
-  // with ?kiosk=0. Never on the clean pickup screen.
-  const kioskEnabled = !isPickupMode && searchParams.get('kiosk') !== '0';
+  // Whether THIS screen offers tap-to-order.
+  //
+  // There are two controls and they are not rivals:
+  //   * `displayTouchOrdering` in barista Settings is the DEFAULT, and it
+  //     is one switch for every screen in the event.
+  //   * ?kiosk=1 / ?kiosk=0 on the URL is this screen's own answer, and it
+  //     wins either way.
+  //
+  // The per-screen one has to exist because Steve's case is two screens on
+  // ONE station at the same time: "sometimes touchscreen not avaliable or
+  // there might be a touchscreen and a static display". A single global
+  // switch cannot describe that, and before ?kiosk=1 existed the URL could
+  // only ever turn the button OFF -- so picking "Touchscreen" while the
+  // global default was off did nothing at all.
+  //
+  // Never on the clean pickup screen, whatever the URL says.
+  const kioskParam = searchParams.get('kiosk');
+  const kioskEnabled = !isPickupMode && kioskParam !== '0';
 
   const { settings } = useSettings();
 
@@ -252,6 +267,14 @@ const DisplayScreen = () => {
   const showDetails = config.show_order_details !== false;
   const showCompleted = config.show_completed !== false;
   const showWaitTimes = config.show_wait_times !== false;
+  // Resolve the two controls above into the single question every render
+  // site actually asks: does this screen show the Order here button?
+  const showOrderButton = !isPickupMode && (
+    kioskParam === '1' ? true
+      : kioskParam === '0' ? false
+      : config.display_touch_ordering !== false
+  );
+
   // Board overflow controls, operator-set in the barista Display tab.
   // cardsPerPage 0 = auto-measure; 3..8 = force N and scale cards to fit.
   const boardOpts = {
@@ -1308,7 +1331,7 @@ const DisplayScreen = () => {
                 </div>
               </div>
             )}
-            {kioskEnabled && config.display_touch_ordering !== false && (
+            {showOrderButton && (
               /* Filled with the accent, not a white pill: on a white card
                  a white button has nothing to stand against and stops
                  looking pressable. */
@@ -1553,7 +1576,7 @@ const DisplayScreen = () => {
               customer-facing board is the wrong place to make someone
               choose between identical buttons. Portrait keeps it here,
               because a single tall column has no room in the header. */}
-          {kioskEnabled && config.display_touch_ordering !== false && isPortrait && (
+          {showOrderButton && isPortrait && (
             <button
               onClick={(e) => { e.stopPropagation(); setShowKiosk(true); }}
               className="flex items-center gap-3 rounded-2xl px-7 py-4 text-2xl font-extrabold shadow-md hover:opacity-90 active:scale-95"
@@ -1563,8 +1586,8 @@ const DisplayScreen = () => {
             </button>
           )}
           {/* Only advertise SMS ordering when a number is actually configured. */}
-          {config.sms_number && !(isPortrait === false && kioskEnabled) && (
-            (kioskEnabled && config.display_touch_ordering !== false) ? (
+          {config.sms_number && !(isPortrait === false && showOrderButton) && (
+            (showOrderButton) ? (
               <div className="flex items-center min-w-0 rounded-2xl px-5 py-3 shadow-sm bg-white/90 text-gray-800">
                 <MessageCircle size={26} className="mr-3 flex-shrink-0" />
                 <div className="min-w-0">

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { DISPLAY_POLL_MS } from './DisplayScreen';
 import { useNavigate } from 'react-router-dom';
-import { Coffee, Monitor, ArrowLeft, Loader } from 'lucide-react';
+import { Coffee, Monitor, ArrowLeft, Loader, Hand, Eye, Copy, Check } from 'lucide-react';
 import StationsService from '../../services/StationsService';
 
 const DisplaySelector = () => {
@@ -34,10 +34,76 @@ const DisplaySelector = () => {
     loadStations();
   }, []);
 
-  // Go to display screen for a specific station
-  const goToDisplayForStation = (stationId) => {
-    navigate(`/display?station=${stationId}`);
+  // A station can need TWO screens at once, and they are not the same
+  // screen. Steve: "sometimes touchscreen not avaliable or there might be
+  // a touchscreen and a static display".
+  //
+  //   touch  -> the board plus the big "Order here" button. Needs someone
+  //             able to reach the screen.
+  //   viewer -> the same board with no order button. The SMS line is
+  //             promoted to the main call to action instead, because a
+  //             screen nobody can touch still has to tell people how to
+  //             order.
+  //
+  // Both are stated explicitly on the URL rather than left to the global
+  // "This display is a touchscreen" default, so the choice made here is
+  // the choice that screen gets -- whatever that default happens to be.
+  const displayUrl = (stationId, kind) =>
+    `/display?station=${stationId}&kiosk=${kind === 'viewer' ? '0' : '1'}`;
+
+  const goToDisplayForStation = (stationId, kind = 'touch') => {
+    navigate(displayUrl(stationId, kind));
   };
+
+  // Setting up the second screen usually means getting this address onto a
+  // DIFFERENT device, so the full URL is more use than the click.
+  const [copied, setCopied] = useState('');
+  const copyUrl = async (stationId, kind) => {
+    const url = `${window.location.origin}${displayUrl(stationId, kind)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch (e) {
+      // Clipboard is blocked without https or a user gesture on some
+      // devices. Falling back to a prompt still lets them copy by hand.
+      window.prompt('Copy this address for the other screen:', url);
+    }
+    setCopied(`${stationId}:${kind}`);
+    setTimeout(() => setCopied(''), 2000);
+  };
+
+  // One card, two ways in. Shared by the stations and the All Stations row
+  // so they can never drift apart.
+  const OpenButtons = ({ id }) => (
+    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+      {[
+        { kind: 'touch',  Icon: Hand, label: 'Touchscreen',
+          hint: 'With the Order here button' },
+        { kind: 'viewer', Icon: Eye,  label: 'Viewer only',
+          hint: 'No order button \u2014 SMS instead' },
+      ].map(({ kind, Icon, label, hint }) => (
+        <div key={kind} className="border rounded-lg p-2 hover:border-blue-400 transition-colors">
+          <button
+            type="button"
+            onClick={() => goToDisplayForStation(id, kind)}
+            className="w-full flex items-center gap-2 font-semibold text-gray-800 text-left"
+          >
+            <Icon size={18} className="shrink-0 text-blue-600" />
+            {label}
+          </button>
+          <div className="text-xs text-gray-500 mt-0.5">{hint}</div>
+          <button
+            type="button"
+            onClick={() => copyUrl(id, kind)}
+            className="mt-2 text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+          >
+            {copied === `${id}:${kind}`
+              ? <><Check size={12} /> Address copied</>
+              : <><Copy size={12} /> Copy address</>}
+          </button>
+        </div>
+      ))}
+    </div>
+  );
 
   // Go back to landing page
   const goBack = () => {
@@ -68,7 +134,14 @@ const DisplaySelector = () => {
           <div className="bg-white rounded-lg shadow-md p-6 mb-6">
             <h2 className="text-xl font-bold text-gray-800 mb-4">Select a Station Display</h2>
             <p className="text-gray-600 mb-6">
-              Choose a barista station to view its display screen. Each display shows the orders in progress and ready for pickup at that station.
+              Choose a station, then how that screen is used. A station can run
+              both at once &mdash; a touchscreen customers order from, and a
+              second screen on the wall that only shows the queue.
+            </p>
+            <p className="text-sm text-gray-500 mb-6">
+              A <strong>viewer only</strong> screen shows the same orders but has
+              no Order here button, so nobody can order by walking up to it. It
+              shows the SMS number as the main way to order instead.
             </p>
             
             {/* Error Message */}
@@ -87,10 +160,9 @@ const DisplaySelector = () => {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {stations.map(station => (
-                  <div 
+                  <div
                     key={station.id}
-                    className="border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
-                    onClick={() => goToDisplayForStation(station.id)}
+                    className="border rounded-lg p-4 hover:shadow-md transition-shadow"
                   >
                     <div className="flex items-start">
                       <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mr-3">
@@ -106,14 +178,12 @@ const DisplaySelector = () => {
                         </p>
                       </div>
                     </div>
+                    <OpenButtons id={station.id} />
                   </div>
                 ))}
-                
+
                 {/* All Stations Option */}
-                <div 
-                  className="border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
-                  onClick={() => goToDisplayForStation('all')}
-                >
+                <div className="border rounded-lg p-4 hover:shadow-md transition-shadow">
                   <div className="flex items-start">
                     <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center mr-3">
                       <Monitor size={20} className="text-purple-600" />
@@ -128,6 +198,7 @@ const DisplaySelector = () => {
                       </p>
                     </div>
                   </div>
+                  <OpenButtons id="all" />
                 </div>
               </div>
             )}
