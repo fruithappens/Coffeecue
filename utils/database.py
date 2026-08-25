@@ -104,6 +104,55 @@ def init_db_pool(db_url=None):
         # particularly large or small.
         pool_min = int(os.environ.get('DB_POOL_MIN_CONNECTIONS', 2))
         pool_max = int(os.environ.get('DB_POOL_MAX_CONNECTIONS', 30))
+
+        # NOTHING WAITS FOREVER ANY MORE.
+        #
+        # Until now the database had no timeouts at all, which is why a
+        # single blocked statement could take the whole site down rather
+        # than failing: on 25 Aug an ALTER TABLE waited on a lock
+        # indefinitely, and because it was holding the shared connection
+        # every other request queued behind it. Production returned 502
+        # on everything until it was restarted by hand.
+        #
+        # These three turn that class of failure from "hangs and stays
+        # hung" into "errors, logs, and carries on" -- which is the only
+        # difference that matters at an event, because an error you can
+        # see and retry, and a hang you cannot.
+        #
+        #   lock_timeout        give up waiting for a LOCK. Nothing in
+        #                       this system legitimately waits ten
+        #                       seconds for a lock; if it is waiting
+        #                       that long, something is wrong and
+        #                       failing fast is the kinder answer.
+        #
+        #   statement_timeout   give up on a QUERY. Deliberately
+        #                       generous -- the browser has given up
+        #                       long before this -- so it only catches
+        #                       genuine runaways, never slow-but-working.
+        #
+        #   idle_in_transaction give up on a LEAKED TRANSACTION. This is
+        #                       the other half of the same outage: a
+        #                       read that opened a transaction and never
+        #                       closed it, held for HOURS, blocking the
+        #                       schema change behind it. Postgres will
+        #                       now clean those up by itself.
+        #
+        # All three are per-connection settings applied via options, so
+        # every query in the system inherits them without a single call
+        # site changing. Tunable by env; set any to 0 to disable.
+        lock_ms = int(os.environ.get('DB_LOCK_TIMEOUT_MS', 10000))
+        stmt_ms = int(os.environ.get('DB_STATEMENT_TIMEOUT_MS', 60000))
+        idle_ms = int(os.environ.get('DB_IDLE_TX_TIMEOUT_MS', 120000))
+        options = " ".join(
+            f"-c {name}={value}"
+            for name, value in (("lock_timeout", lock_ms),
+                                ("statement_timeout", stmt_ms),
+                                ("idle_in_transaction_session_timeout", idle_ms))
+            if value and value > 0
+        )
+        logger.info("DB timeouts: lock=%dms statement=%dms idle_in_transaction=%dms",
+                    lock_ms, stmt_ms, idle_ms)
+
         connection_pool = pool.SimpleConnectionPool(
             minconn=pool_min,
             maxconn=pool_max,
@@ -111,7 +160,8 @@ def init_db_pool(db_url=None):
             password=password,
             host=host,
             port=port,
-            dbname=dbname
+            dbname=dbname,
+            options=options,
         )
         
         logger.info(f"PostgreSQL connection pool initialized, connected to {host}:{port}/{dbname}")
