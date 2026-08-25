@@ -390,7 +390,14 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
             background is #f8fafc - so white-on-near-white made "Order here
             - pick a drink" effectively invisible on the kiosk. It was
             presumably styled for the dark backdrop behind the panel. */}
-        <h2 className="text-3xl font-extrabold text-gray-900 truncate">{title}</h2>
+        {/* Sized down and allowed to WRAP on a phone.
+            text-3xl with `truncate` meant a 375px screen showed
+            "Order here ☕ —…" with the actual instruction cut off --
+            on the one screen whose whole job is telling somebody what
+            to do. The close button is flex-shrink-0 beside it, so on a
+            narrow screen the heading was fighting for what was left. */}
+        <h2 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-gray-900
+                       leading-tight break-words">{title}</h2>
       </div>
       <button onClick={onClose} className="p-2 rounded-full bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 flex-shrink-0" title="Cancel">
         <X size={28} />
