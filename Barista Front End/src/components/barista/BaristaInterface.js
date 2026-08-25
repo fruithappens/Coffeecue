@@ -2711,6 +2711,21 @@ const BaristaInterface = () => {
             threshold, on every tab. With ignore-stock mode on, orders
             keep flowing, so this is the barista's ONLY warning that the
             real-world supplies need topping up. */}
+        {/* The printer's own complaint, where the barista is looking.
+            A stuck queue with no explanation sends someone to debug the
+            server; "Out of paper" sends them to the roll. */}
+        {stationPrinter?.fault && (
+          <div className="mb-3 rounded-lg border-l-4 border-red-600 bg-red-50 px-4 py-3 text-red-800">
+            <div className="font-bold flex items-center">
+              <Printer size={18} className="mr-2" />
+              Printer: {stationPrinter.fault}
+            </div>
+            <div className="text-sm mt-0.5">
+              Labels are queuing up and will print as soon as this is sorted —
+              nothing needs re-sending.
+            </div>
+          </div>
+        )}
         {lowStockItems.length > 0 && (
           <div className="mb-3 rounded-lg border-l-4 border-red-600 bg-red-50 px-4 py-3 text-red-800">
             <div className="font-bold flex items-center">

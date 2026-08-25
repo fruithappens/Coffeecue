@@ -10,10 +10,11 @@
 // — "You're #3" -> "Being made" -> "READY - collect from Station 1".
 // They keep the tab open (or re-scan later; the number is in the URL).
 // A phone number remains OPTIONAL for anyone who does want the text.
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import KioskOrder from './KioskOrder';
 import BackupBaristaUnlock from './BackupBaristaUnlock';
+import useReadyChime, { SoundToggleButton } from './useReadyChime';
 
 const STATUS_COPY = {
   pending: { title: 'In the queue', tone: 'bg-blue-600' },
@@ -31,6 +32,32 @@ const MobileOrderPage = () => {
   const [gone, setGone] = useState(false);
   const [collecting, setCollecting] = useState(false);
   const [collected, setCollected] = useState(false);
+  // Same chime and same button as /my. A customer who scanned the kiosk
+  // QR is watching exactly the same wait and deserves the same warning.
+  const { soundOn, toggleSound, playChime } = useReadyChime();
+  const prevTrackStatus = useRef(null);
+
+  useEffect(() => {
+    const status = track?.status;
+    const num = track?.order_number;
+    const memKey = num ? `coffee_my_last_status_${num}` : null;
+    let was = prevTrackStatus.current;
+    if (!was && memKey) {
+      try { was = sessionStorage.getItem(memKey) || null; } catch (e) { /* private mode */ }
+    }
+    prevTrackStatus.current = status;
+    if (memKey && status) {
+      try { sessionStorage.setItem(memKey, status); } catch (e) { /* private mode */ }
+    }
+    // Only on the change INTO ready, never on a poll that finds it still
+    // ready. `was` falls back to sessionStorage so a phone that slept
+    // through the moment still gets told.
+    if (!was || was === status || status !== 'completed') return;
+    if (soundOn) playChime();
+    // Vibration is NOT gated on the toggle: it is private, does not
+    // carry across a room, and reaches a phone lying face-down.
+    try { navigator.vibrate && navigator.vibrate([120, 60, 120]); } catch (e) { /* fine */ }
+  }, [track?.status, track?.order_number, soundOn, playChime]);
 
   // Poll this order's public status. No auth, no personal data — just
   // status, queue position and where to collect.
@@ -147,10 +174,21 @@ const MobileOrderPage = () => {
               Enjoy your coffee.
             </div>
           )}
-          {track?.drink && (
-            <div className="text-center text-gray-600 mt-3 text-lg">
-              {track.first_name ? `${track.first_name} · ` : ''}{track.drink}
+          {/* The WHOLE order, so someone can see their almond milk and
+              their size arrived -- not just the word "hot chocolate".
+              Falls back to the short name on an older server that does
+              not send the long one. */}
+          {(track?.drink_full || track?.drink) && (
+            <div className="text-center text-gray-700 mt-3 text-lg">
+              {track.first_name && (
+                <span className="font-semibold">{track.first_name} · </span>
+              )}
+              {track.drink_full || track.drink}
             </div>
+          )}
+          {/* The sound button, which this page did not have. */}
+          {!gone && !ready && (
+            <SoundToggleButton soundOn={soundOn} onToggle={toggleSound} className="mt-4" />
           )}
           {gone && (
             <div className="mt-3 text-center text-gray-500">

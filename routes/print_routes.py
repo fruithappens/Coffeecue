@@ -31,6 +31,7 @@ from flask import Blueprint, current_app, jsonify, request, Response
 
 from auth import jwt_required_with_demo, role_required_with_demo
 from utils.label_roll import ROLL_SETTING_KEY, assess, roll_for, set_roll
+import urllib.parse
 
 logger = logging.getLogger(__name__)
 
@@ -509,6 +510,45 @@ def _enqueue(db, printer_id, payload, order_id=None, job_type="label"):
 # ---------------------------------------------------------------------------
 # CloudPRNT (Star CloudPRNT Version 1, simple HTTP polling)
 # ---------------------------------------------------------------------------
+
+
+# What the printer is TELLING US, in words.
+#
+# The mC-Label3 and TSP100IV report a CloudPRNT statusCode on every poll,
+# URL-encoded: "410%20Out%20of%20paper". It was stored and never shown.
+#
+# Steve, with two jobs stuck: "printer issue again ... #10 didnt print".
+# The queue said queued / 0 attempts / no error, because from the
+# server's side nothing had gone wrong -- it offered the job every second
+# and the printer never came for it. The printer was out of paper and had
+# been saying so, in plain English, on every poll for an hour.
+#
+# A queue that cannot say "out of paper" makes the operator debug the
+# server. Decoding costs nothing and is the whole difference between a
+# five-second fix and a lost hour.
+def printer_fault(last_status):
+    """Human-readable fault from a stored CloudPRNT status, or None if OK."""
+    if not last_status:
+        return None
+    try:
+        blob = last_status
+        if isinstance(blob, str):
+            blob = json.loads(blob)
+        if not isinstance(blob, dict):
+            return None
+        code = urllib.parse.unquote(str(blob.get("statusCode") or "")).strip()
+        if not code:
+            return None
+        # "200 OK" and anything else 2xx is a working printer.
+        if code.split(" ")[0].startswith("2"):
+            return None
+        # The rest already read as English once decoded ("410 Out of
+        # paper", "802 Printer error"); strip the number so the operator
+        # reads the sentence, not the protocol.
+        words = code.split(" ", 1)
+        return words[1].strip() if len(words) > 1 and words[1].strip() else code
+    except Exception:
+        return None
 
 
 def _cloudprnt_auth_ok():
@@ -1587,6 +1627,9 @@ def printers_list():
             online = bool(lp and (now - lp).total_seconds() <= CLOUDPRNT_POLL_TIMEOUT_S)
             d["online"] = online
             d["seconds_since_poll"] = int((now - lp).total_seconds()) if lp else None
+            # What the printer says is wrong with it, in words. Stored on
+            # every poll and, until now, never shown to anybody.
+            d["fault"] = printer_fault(d.get("last_status"))
             for k in ("last_poll_at", "created_at"):
                 if hasattr(d.get(k), "isoformat"):
                     d[k] = d[k].isoformat()

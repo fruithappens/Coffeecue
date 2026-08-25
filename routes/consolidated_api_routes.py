@@ -5130,6 +5130,43 @@ def mark_collected_public(order_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+def _track_full_drink(od):
+    """Size, drink, milk, sugar and extras, the way the label reads.
+
+    Built here rather than reusing _drink_display_name because that one
+    is deliberately terse -- the board and the WS payload want a short
+    name. A customer checking their order got through wants the details.
+    """
+    od = od or {}
+
+    def val(*keys):
+        for k in keys:
+            v = od.get(k)
+            if v not in (None, '', 'None'):
+                return str(v).strip()
+        return ''
+
+    head = ' '.join(x for x in (val('size'), val('type', 'coffee_type', 'drink')) if x)
+    bits = [head] if head else []
+    milk = val('milk', 'milk_type', 'milkType')
+    if milk and milk.lower() not in ('no milk', 'none', 'no_milk'):
+        bits.append(milk if milk.lower().endswith('milk') else f'{milk} milk')
+    elif milk:
+        bits.append('no milk')
+    sugar = val('sugar', 'sweetener')
+    if sugar:
+        bits.append(sugar)
+    strength = val('strength')
+    if strength:
+        bits.append(strength)
+    if str(od.get('temp') or '').lower() == 'extra hot' or od.get('extraHot'):
+        bits.append('extra hot')
+    notes = val('notes')
+    if notes:
+        bits.append(notes)
+    return ', '.join(b for b in bits if b) or 'Coffee'
+
+
 @bp.route('/orders/<order_id>/track', methods=['GET'])
 def track_order_public(order_id):
     """Public status of ONE order, for the phone that placed it.
@@ -5273,6 +5310,18 @@ def track_order_public(order_id):
             'eta_text': eta_describe(eta_minutes),
             'first_name': first_name,
             'drink': _drink_display_name(od, default='Coffee'),
+            # THE WHOLE ORDER, not just the drink name.
+            #
+            # Steve, tracking his own from the kiosk QR: "the qr code on
+            # screen only showed hot chockolate so your not confident
+            # that the whole order was recieved". He had asked for a
+            # medium with almond milk; the page said "hot chocolate" and
+            # nothing else, so there was no way to tell whether the rest
+            # of it had landed.
+            #
+            # This is what the printed label already says, in the same
+            # order, so the screen and the sticker agree.
+            'drink_full': _track_full_drink(od),
             'station_name': station_name,
             'collection_note': od.get('collection_note') or '',
         })

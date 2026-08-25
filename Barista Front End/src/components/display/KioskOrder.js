@@ -109,6 +109,19 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
   // half full". Every one of those is a real order somebody placed, and
   // none of them is a tile.
   const [notes, setNotes] = useState('');
+  // How long the confirmation screen stays up, counted down out loud.
+  //
+  // Steve: "feel like the qr code diapears to fast if someone wanted to
+  // get phone out and scan maybe should have a contdown and say i need
+  // more time to scan 5,4,3,2,1 and more time to scan can be a 10 second
+  // extension".
+  //
+  // It was a silent 12-second setTimeout, so the screen vanished with no
+  // warning while someone was still getting their phone out of a pocket.
+  // Now the seconds are on screen and there is a button to buy more.
+  const DONE_SECONDS = 15;
+  const DONE_EXTENSION = 10;
+  const [doneLeft, setDoneLeft] = useState(null);
 
   const [history, setHistory] = useState([]);
   const goTo = (next) => {
@@ -246,6 +259,19 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
       window.removeEventListener('keydown', bump, opts);
     };
   }, [resetIdle]);
+
+  // Counts the confirmation screen down and closes at zero. Separate
+  // from the idle timer: this one is a deliberate "you are finished",
+  // not "are you still there".
+  useEffect(() => {
+    if (doneLeft == null) return undefined;
+    if (doneLeft <= 0) {
+      if (onClose) onClose();
+      return undefined;
+    }
+    const t = setTimeout(() => setDoneLeft((n) => (n == null ? null : n - 1)), 1000);
+    return () => clearTimeout(t);
+  }, [doneLeft, onClose]);
 
   useEffect(() => {
     let cancelled = false;
@@ -438,7 +464,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
           // auto-close — the customer watches for READY here.
           onOrderPlaced(b.order_number);
         } else {
-          setTimeout(() => { if (onClose) onClose(); }, 12000);
+          setDoneLeft(DONE_SECONDS);
         }
       } else {
         setErrorMsg(b.message || 'Could not place your order. Please see a barista.');
@@ -915,8 +941,45 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
               </div>
             )}
 
+            {/* What you actually ordered, so you can see it all arrived
+                -- not just the drink name. Steve, tracking his own:
+                "your not confident that the whole order was recieved". */}
+            <div className="mt-6 mx-auto max-w-md rounded-2xl bg-gray-50 border-2 border-gray-200 px-5 py-4">
+              <div className="text-sm uppercase tracking-wide text-gray-500 mb-1">
+                Your order
+              </div>
+              <div className="text-2xl font-bold text-gray-800 capitalize">
+                {[size?.name, drink?.name].filter(Boolean).join(' ')}
+              </div>
+              <div className="text-lg text-gray-600 mt-0.5">
+                {[
+                  milk?.name,
+                  sugar === 0 ? 'no sugar' : `${sugar} sugar${sugar > 1 ? 's' : ''}`,
+                  strength || null,
+                  extraHot ? 'extra hot' : null,
+                  notes.trim() || null,
+                ].filter(Boolean).join(' · ')}
+              </div>
+            </div>
+
+            {/* The countdown, out loud, with a way to buy more time. */}
+            {doneLeft != null && (
+              <div className="mt-6 flex flex-col items-center gap-3">
+                <div className="text-lg text-gray-500">
+                  This screen clears in <b className="text-gray-800">{doneLeft}</b>
+                  {doneLeft === 1 ? ' second' : ' seconds'}
+                </div>
+                <button
+                  onClick={() => setDoneLeft((n) => (n || 0) + DONE_EXTENSION)}
+                  className="px-8 py-4 rounded-2xl text-lg font-bold border-2 border-gray-300 bg-white text-gray-800"
+                >
+                  I need more time to scan
+                </button>
+              </div>
+            )}
+
             <button onClick={onClose}
-              className="mt-8 px-10 py-4 rounded-2xl text-xl font-bold text-white" style={{ backgroundColor: headerColor }}>
+              className="mt-6 px-10 py-4 rounded-2xl text-xl font-bold text-white" style={{ backgroundColor: headerColor }}>
               Done
             </button>
           </div>
