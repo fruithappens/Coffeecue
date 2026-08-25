@@ -134,6 +134,47 @@ class CoffeeOrderSystem:
         self._event_name_cache = (name, datetime.now())
         return name
 
+    @property
+    def system_name(self):
+        """Live product name -- what the system calls ITSELF in SMS.
+
+        Separate from `event_name`: the event is "Treenet 2026", the
+        system is "CupQ". Both appear in messages to customers and the
+        operator can rename either from the Branding panel, so neither
+        may be hardcoded in a string a customer reads.
+
+        Same short cache and same rollback discipline as `event_name` --
+        see `_end_read_transaction` for why an un-ended read matters on
+        the singleton connection.
+        """
+        cached = getattr(self, "_system_name_cache", None)
+        if cached and (datetime.now() - cached[1]).total_seconds() < 30:
+            return cached[0]
+        name = "CupQ"
+        try:
+            cursor = self.db.cursor()
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            cursor.execute("SELECT value FROM settings WHERE key = 'branding_settings'")
+            row = cursor.fetchone()
+            if row and row[0]:
+                blob = row[0]
+                if isinstance(blob, str):
+                    blob = json.loads(blob)
+                if isinstance(blob, dict):
+                    candidate = blob.get("systemName") or blob.get("system_name")
+                    if candidate:
+                        name = candidate
+        except Exception:
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+        self._system_name_cache = (name, datetime.now())
+        return name
+
     @event_name.setter
     def event_name(self, value):
         """Allow tests / config to set event_name explicitly."""
@@ -10216,7 +10257,7 @@ class CoffeeOrderSystem:
                 except:
                     pass
 
-            response = f"""Your Coffee Cue Profile:
+            response = f"""Your {self.system_name} Profile:
 Name: {name}
 Favorite: {drink} with {milk} milk ({size})
 Sugar: {sugar}
@@ -10346,9 +10387,7 @@ Text RESET to clear preferences or DELETE to remove all data."""
                 self._set_conversation_state(phone, "completed")
 
                 if deleted_count > 0:
-                    return (
-                        "✅ Your data has been deleted. Thank you for using Coffee Cue!"
-                    )
+                    return f"Your data has been deleted. Thanks for using {self.system_name}."
                 else:
                     return "No data found to delete."
 

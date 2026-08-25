@@ -11140,8 +11140,14 @@ def _fetch_order_for_label(db, order_number):
 def _branding_for_label(db):
     try:
         b = _kv_get(db, 'branding_settings', default={}) or {}
-        return {'event_name': (b.get('event_name') or b.get('eventName')
-                               or _kv_get(db, 'event_name', default='') or '')}
+        return {
+            'event_name': (b.get('event_name') or b.get('eventName')
+                           or _kv_get(db, 'event_name', default='') or ''),
+            # The renderer prints this as the label footer. Without it the
+            # footer falls back to the product name baked into the code,
+            # which is wrong the moment an operator renames the system.
+            'systemName': (b.get('systemName') or b.get('system_name') or ''),
+        }
     except Exception:
         return {}
 

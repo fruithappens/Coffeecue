@@ -223,7 +223,15 @@ def render_label_png(
         except Exception as e:
             logger.warning(f"label QR render failed: {e}")
 
-    draw.text((16, H - 30), "Coffee Cue", fill="gray", font=f_foot)
+    # Footer: whatever the operator calls the system, not a name baked
+    # into the renderer. The newer render_label() already takes this from
+    # label_settings.footer_text; this path only gets `branding`, so read
+    # the same systemName out of that and fall back to the product name.
+    footer = (
+        str(branding.get("systemName") or branding.get("system_name") or "").strip()
+        or "CupQ"
+    )
+    draw.text((16, H - 30), footer, fill="gray", font=f_foot)
 
     # Crop trailing whitespace below the content (keep QR area).
     content_bottom = max(y + 12, H)

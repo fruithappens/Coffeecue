@@ -17,17 +17,17 @@ const getStoredBranding = () => {
 // Default branding configuration
 const defaultBranding = {
   // Company/Product Names
-  companyName: 'Coffee Cue',
-  systemName: 'Coffee Cue System',
-  shortName: 'Coffee Cue',
+  companyName: 'CupQ',
+  systemName: 'CupQ',
+  shortName: 'CupQ',
   tagline: 'Skip the Queue, Get Your Cue',
   
   // UI Text
-  landingTitle: 'Coffee Cue Ordering System',
+  landingTitle: 'CupQ',
   landingSubtitle: 'Select your role to continue',
-  adminPanelTitle: 'Coffee Cue Admin',
-  baristaPanelTitle: 'Coffee Cue Barista',
-  footerText: '© 2025 Coffee Cue',
+  adminPanelTitle: 'CupQ Admin',
+  baristaPanelTitle: 'CupQ Barista',
+  footerText: '© 2026 CupQ',
   
   // Colors (can be extended)
   primaryColor: '#D97706', // Amber-600
