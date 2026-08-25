@@ -16,6 +16,11 @@ from io import BytesIO
 
 logger = logging.getLogger("expresso.services.messaging")
 
+# Test Bench simulator phones. Not an allocatable Australian mobile range,
+# so a number with this prefix is never a real person. Kept here rather
+# than in a route module because the wall belongs in the sender.
+BENCH_PHONE_PREFIX = '+6140000'
+
 # Ensure directory exists
 os.makedirs(os.path.dirname(__file__), exist_ok=True)
 
@@ -109,6 +114,26 @@ class MessagingService:
         Returns:
             Message SID if successful, None otherwise
         """
+        # BENCH WALL, in the one place every send has to pass through.
+        #
+        # There was already a wall like this, but it sat at ONE call site
+        # (the ready-SMS in consolidated_api_routes). Its own comment says
+        # the point is that "the zero-real-SMS rule holds structurally,
+        # whatever the caller forgot" -- which it cannot do from a call
+        # site, because the next caller forgets again. Every other path
+        # (pickup reminders, batch complete, broadcast, the SMS
+        # conversation itself) reached Twilio unguarded.
+        #
+        # That matters because production runs in LIVE SMS mode. A load
+        # test against production would otherwise attempt a real send per
+        # simulated customer.
+        #
+        # +6140000xxxx is not an allocatable Australian mobile range, so
+        # nothing here can ever be a real person.
+        if str(to or '').startswith(BENCH_PHONE_PREFIX):
+            logger.info("BENCH NUMBER %s - not sent: %s", to, body)
+            return "bench_blocked"
+
         # Opt-in to the provider factory. Default off — preserves the
         # exact behaviour every production deploy has today.
         if os.getenv('SMS_USE_PROVIDER_FACTORY', 'false').lower() == 'true':

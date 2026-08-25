@@ -1166,9 +1166,34 @@ const BaristaInterface = () => {
     }
   };
 
+  // What this event wants on Start: 'off' | 'arrival' | 'start'. Resolved
+  // by the server, which also carries the migration -- while nobody has
+  // chosen, it answers with this DEVICE's old autoPrintLabels flag, so a
+  // tablet that was auto-printing carries on doing exactly that.
+  const [autoPrintMode, setAutoPrintMode] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(
+          `/api/print/auto-print-mode?device_auto_print=${autoPrintLabels ? 'true' : 'false'}`,
+          { headers: { 'Authorization': `Bearer ${localStorage.getItem('coffee_system_token') || ''}` } });
+        const b = await r.json();
+        if (!cancelled && b?.mode) setAutoPrintMode(b.mode);
+      } catch (e) {
+        // Unreachable server must not change printing behaviour -- fall
+        // back to whatever this device was already doing.
+        if (!cancelled) setAutoPrintMode(autoPrintLabels ? 'start' : 'off');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [autoPrintLabels, selectedStation]);
+
   const startOrderWithLabel = async (order) => {
     const result = await startOrder(order);
-    if (autoPrintLabels && stationPrinter) {
+    // 'arrival' already printed it when the order came in; printing again
+    // on Start would put two labels on one cup.
+    if (autoPrintMode === 'start' && stationPrinter) {
       handlePrintLabel(order);
     }
     return result;
@@ -4336,6 +4361,48 @@ const BaristaInterface = () => {
                 Fitted a new roll
               </button>
             </div>
+          )}
+
+          {/* Make ahead: hold the texts, then print the batch -- in that
+              order, because printing first leaves a window where a fast
+              barista completes one and the customer is pulled out of a
+              session for a coffee that is sitting on a table.
+
+              Both halves existed already (Hold notifications, Print
+              queue) but nothing said they went together, so using them
+              meant remembering two buttons AND the order. Steve asked for
+              "print without notification (for orders being bulk made
+              before a break)" -- this is that, as one tap. */}
+          {stationPrinter && pendingOrders.length > 0 && !holdState?.holding && (
+            <button
+              className="px-4 py-2 bg-amber-100 text-amber-900 rounded flex items-center hover:bg-amber-200 transition-colors disabled:opacity-50"
+              disabled={printingQueue || holdBusy}
+              onClick={async () => {
+                setPrintingQueue(true);
+                setHoldBusy(true);
+                try {
+                  const api = new (await import('../../services/ApiService')).default();
+                  await api.put('/notifications/hold', { holding: true });
+                  const r = await printService.printQueue(selectedStation);
+                  const n = r?.queued || 0;
+                  showToast(
+                    n > 0
+                      ? `Texts held, ${n} label${n === 1 ? '' : 's'} printing. Release when the break starts.`
+                      : 'Texts held. Nothing new to print.',
+                    n > 0 ? 'success' : 'info');
+                } catch (e) {
+                  showToast('Could not start make-ahead', 'error');
+                } finally {
+                  setPrintingQueue(false);
+                  setHoldBusy(false);
+                  refreshHold();
+                }
+              }}
+              title="Hold the ready texts, then print every waiting label — for making a batch before a break"
+            >
+              <Printer size={18} className="mr-1" />
+              Make ahead ({pendingOrders.length})
+            </button>
           )}
 
           {/* Print the whole queue. Only offered when this station has a
