@@ -228,6 +228,13 @@ def main():
         help="SMS conversations run through the real pipeline "
         "(no Twilio, TESTING_MODE, blocked bench numbers)",
     )
+    ap.add_argument(
+        "--baristas",
+        type=int,
+        default=3,
+        help="baristas working the queue DURING the storm -- the path a "
+        "poll-only run never touches",
+    )
     args = ap.parse_args()
 
     if args.base and "railway.app" in args.base:
@@ -304,6 +311,8 @@ def main():
         m_menu = Metric("menu (first load)")
         m_order = Metric("kiosk order")
         m_sms = Metric("SMS conversation")
+        m_start = Metric("barista Start")
+        m_done = Metric("barista Complete")
         stop = threading.Event()
         placed = []
         placed_lock = threading.Lock()
@@ -313,7 +322,12 @@ def main():
         # so is better than a run that silently drops a third of the load
         # it claims to apply.
         admin_token = None
-        if args.sms:
+        # Needed by BOTH the SMS phase and the barista phase. Gating it
+        # on --sms alone meant `--sms 0 --baristas 3` silently ran no
+        # baristas at all and still printed a PASS -- a load test that
+        # quietly drops a third of the load it claims to apply is worse
+        # than one that fails.
+        if args.sms or args.baristas:
             _, err = call(base, "/api/health")
             try:
                 req = urllib.request.Request(
@@ -386,10 +400,83 @@ def main():
             )
             m_sms.record(ms, err)
 
+        def barista(i):
+            """A barista working the queue while the phones poll.
+
+            THE POINT OF THIS PHASE. A poll-only run leaves the orders
+            table completely uncontended, and the failures worth hunting
+            only appear under contention. POST /orders/<id>/start used to
+            run ALTER TABLE on every call -- fast alone, and it stalls
+            the whole table the moment anything else holds a read lock.
+            A green 400-delegate run without this phase says nothing
+            about the busiest path in the system.
+            """
+            if not admin_token:
+                return
+            while not stop.is_set():
+                try:
+                    req = urllib.request.Request(
+                        f"{base}/api/orders/pending",
+                        headers={"Authorization": "Bearer " + admin_token},
+                    )
+                    with urllib.request.urlopen(req, timeout=20) as r:
+                        pending = json.loads(r.read()) or {}
+                except Exception:
+                    if stop.wait(2):
+                        break
+                    continue
+                items = (
+                    pending
+                    if isinstance(pending, list)
+                    else (pending.get("orders") or pending.get("data") or [])
+                )
+                if not items:
+                    if stop.wait(2):
+                        break
+                    continue
+                # Work from opposite ends so N baristas collide over the
+                # same order about as rarely as two real people would.
+                target = items[0] if i % 2 == 0 else items[-1]
+                num = (
+                    target.get("order_number")
+                    or target.get("orderNumber")
+                    or target.get("id")
+                )
+                if not num:
+                    if stop.wait(1):
+                        break
+                    continue
+                ms, err = call(
+                    base,
+                    f"/api/orders/{num}/start",
+                    "POST",
+                    {},
+                    timeout=30,
+                    token=admin_token,
+                )
+                m_start.record(ms, err)
+                if not err:
+                    ms, err = call(
+                        base,
+                        f"/api/orders/{num}/complete",
+                        "POST",
+                        {"test_no_send": True},
+                        timeout=30,
+                        token=admin_token,
+                    )
+                    m_done.record(ms, err)
+                if stop.wait(0.5):
+                    break
+
         threads = [
             threading.Thread(target=delegate, args=(c, i), daemon=True)
             for i, c in enumerate(cids)
         ]
+        if admin_token and args.baristas:
+            threads += [
+                threading.Thread(target=barista, args=(i,), daemon=True)
+                for i in range(args.baristas)
+            ]
         threads += [
             threading.Thread(target=orderer, args=(i,), daemon=True)
             for i in range(args.orders)
@@ -423,11 +510,17 @@ def main():
             print(m_order.line())
         if m_sms.ms:
             print(m_sms.line())
+        if m_start.ms:
+            print(m_start.line())
+        if m_done.ms:
+            print(m_done.line())
         for name, metric in (
             ("poll", m_me),
             ("menu", m_menu),
             ("order", m_order),
             ("sms", m_sms),
+            ("start", m_start),
+            ("complete", m_done),
         ):
             if metric.errors:
                 print(f"    {name} errors: {metric.errors}")
@@ -463,6 +556,15 @@ def main():
         if problems:
             print("FAIL: " + "; ".join(problems))
             return 1
+        # A slow Start is the signal this phase exists for. Latency here
+        # means the orders table is contended -- something a poll-only run
+        # cannot show -- so it is called out by name rather than averaged
+        # away into an overall pass.
+        if m_start.ms and m_start.pct(95) > 1000:
+            problems.append(
+                f"barista Start p95 was {m_start.pct(95):.0f}ms -- the orders "
+                f"table is contended under load"
+            )
         err_rate = (sum(m_me.errors.values()) / max(1, len(m_me.ms))) * 100
         if err_rate > 1.0:
             print(f"FAIL: {err_rate:.1f}% of polls failed")
