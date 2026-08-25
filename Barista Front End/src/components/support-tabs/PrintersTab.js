@@ -127,6 +127,34 @@ const LabelDesignCard = ({ printers = [], onPrinted }) => {
             settings?.logo_available ? '(from Branding)' : '(no logo uploaded in Branding yet)')}
           {toggle('show_name', 'Customer name', '(off = number-only cups)')}
           {toggle('show_station_time', 'Station + time line')}
+          {/* WHEN the coffee label prints. One control, three answers.
+              This used to be a per-device checkbox on a different screen
+              (barista > Display), which meant swapping the tablet silently
+              stopped auto-printing and the organiser could not set it at
+              all. Now it is per event and lives with the rest of the
+              label settings. */}
+          <div className="text-sm text-gray-600 mt-1 mb-1">Printing the coffee label</div>
+          <label className="flex items-center space-x-2 text-sm py-1">
+            <span>Print automatically</span>
+            <select
+              className="border rounded px-2 py-1"
+              disabled={busy || !settings}
+              value={settings?.auto_print_mode || 'off'}
+              onChange={(e) => save({ auto_print_mode: e.target.value })}
+            >
+              <option value="off">Never — I'll press print</option>
+              <option value="arrival">When the order arrives</option>
+              <option value="start">When a barista starts it</option>
+            </select>
+          </label>
+          <p className="text-xs text-gray-500 mb-2 ml-1">
+            {settings?.auto_print_mode === 'arrival'
+              ? 'Every order prints as it comes in, so the labels queue up ready to make — good for working ahead of a break. Nobody is texted until the drink is completed.'
+              : settings?.auto_print_mode === 'start'
+                ? 'One label at a time, as each barista picks the order up.'
+                : 'Use the Print queue button on the barista screen when you want a batch.'}
+          </p>
+
           <label className="flex items-center space-x-2 text-sm py-1">
             <span>Text alignment</span>
             <select
@@ -173,8 +201,8 @@ const LabelDesignCard = ({ printers = [], onPrinted }) => {
           {toggle('rule_above_footer', 'Above instructions/footer')}
           {toggle('rule_between_footer_lines', 'Between instructions and footer')}
           <div className="text-sm text-gray-600 mt-2 mb-1">Customer ticket stubs</div>
-          {toggle('ticket_on_walkup', 'Print a number ticket for walk-up & kiosk orders',
-            '(the deli-counter slip, right preview)')}
+          {toggle('ticket_on_walkup', 'Also print a number stub the CUSTOMER takes away',
+            '(the deli-counter slip, right preview — not the coffee label)')}
           <label className="block text-sm mt-2">
             <span className="text-gray-600">Ordering instructions line</span>
             <input
