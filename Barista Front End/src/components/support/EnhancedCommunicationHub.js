@@ -17,6 +17,18 @@ const api = new ApiServiceClass();
  * Enhanced Communication Hub Integration
  * Multi-channel communication management system with advanced features
  */
+// The GSM-7 alphabet. A message made only of these fits 160 characters a
+// segment; one character outside it (an emoji, a curly quote, an em dash)
+// switches the whole message to UCS-2 at 70 characters a segment, so it
+// costs twice as much to send. Worth flagging before a few hundred go out.
+const GSM7 = new Set(
+  ('@\u00A3$\u00A5\u00E8\u00E9\u00F9\u00EC\u00F2\u00C7\n\u00D8\u00F8\r\u00C5\u00E5\u0394_\u03A6\u0393\u039B\u03A9\u03A0\u03A8\u03A3\u0398\u039E\u00C6\u00E6\u00DF\u00C9'
+   + ' !"#\u00A4%&\'()*+,-./0123456789:;<=>?'
+   + '\u00A1ABCDEFGHIJKLMNOPQRSTUVWXYZ\u00C4\u00D6\u00D1\u00DC\u00A7'
+   + '\u00BFabcdefghijklmnopqrstuvwxyz\u00E4\u00F6\u00F1\u00FC\u00E0'
+   + '\f^{}\\[~]|\u20AC').split('')
+);
+
 const EnhancedCommunicationHub = () => {
   const { orders, loading: ordersLoading, error: ordersError } = useOrders();
   const { settings } = useSettings();
@@ -155,107 +167,65 @@ const EnhancedCommunicationHub = () => {
     }
   };
   
-  // Load message templates
+  // Load message templates.
+  //
+  // This used to fetch the real templates and then THROW THE RESULT AWAY,
+  // rendering six hardcoded ones instead -- with invented usage counts
+  // ("1247 uses" was a number somebody typed). Anyone reading this screen
+  // was being shown wording the system does not send and statistics that
+  // were never measured.
   const loadTemplates = async () => {
     try {
-      const smsTemplates = await MessageService.getSMSTemplates();
-      
-      // Enhanced templates with multiple channels
-      const enhancedTemplates = [
-        {
-          id: 1,
-          name: 'Order Ready',
-          channel: 'sms',
-          template: 'Hi {name}, your {coffee} is ready for pickup at {station}! ☕',
-          variables: ['name', 'coffee', 'station'],
-          usage: 1247
-        },
-        {
-          id: 2,
-          name: 'Queue Update',
-          channel: 'sms',
-          template: 'Your order is #{position} in queue. Est. wait: {wait} mins ⏱️',
-          variables: ['position', 'wait'],
-          usage: 892
-        },
-        {
-          id: 3,
-          name: 'Welcome Email',
-          channel: 'email',
-          template: 'Welcome to Coffee Cue! Your first order gets 10% off. 🎉',
-          variables: [],
-          usage: 234
-        },
-        {
-          id: 4,
-          name: 'Order Delayed',
-          channel: 'push',
-          template: 'Sorry for the delay! Your order will be ready in {time} mins',
-          variables: ['time'],
-          usage: 45
-        },
-        {
-          id: 5,
-          name: 'VIP Fast Track',
-          channel: 'sms',
-          template: 'VIP Fast Track: Skip to Station {station} for immediate service! 🌟',
-          variables: ['station'],
-          usage: 89
-        },
-        {
-          id: 6,
-          name: 'Loyalty Reward',
-          channel: 'email',
-          template: 'Congrats {name}! You\'ve earned a free {reward}. Use code: {code}',
-          variables: ['name', 'reward', 'code'],
-          usage: 156
-        }
-      ];
-      
-      setTemplates(enhancedTemplates);
+      const resp = await MessageService.getSMSTemplates();
+      const raw = (resp && resp.templates) || {};
+      // Readable names for the keys the backend actually stores. Anything
+      // new the backend grows shows up under its own key rather than
+      // being dropped, which is how the previous version hid things.
+      const NAMES = {
+        sms_welcome_message: 'First reply to a new customer',
+        sms_ready_message: 'Order ready',
+        sms_started_message: 'Order started',
+        order_confirmation_message: 'Order confirmed',
+        delay_message: 'Order delayed',
+        sponsor_message: 'Sponsor line',
+      };
+      const prettify = (key) => NAMES[key]
+        || key.replace(/_/g, ' ').replace(/^sms /, '').replace(/^./, c => c.toUpperCase());
+
+      setTemplates(Object.entries(raw).map(([key, text], i) => ({
+        id: key,
+        key,
+        name: prettify(key),
+        channel: 'sms',
+        template: String(text || ''),
+        // A template nobody has set is not empty behaviour -- the system
+        // falls back to wording built into the code. Say so, because
+        // "blank" reads as "no message is sent".
+        unset: !String(text || '').trim(),
+        // Any character outside the GSM-7 set turns the whole message
+        // into UCS-2, which halves the characters per segment and so
+        // doubles what it costs to send. Worth seeing before you send a
+        // few hundred of them.
+        costly: !String(text || '').split('').every(ch => GSM7.has(ch)),
+        variables: [...String(text || '').matchAll(/\{(\w+)\}/g)].map(m => m[1]),
+      })));
     } catch (error) {
       console.error('Error loading templates:', error);
+      setTemplates([]);
     }
   };
   
-  // Load scheduled broadcasts
+  // Scheduled broadcasts.
+  //
+  // This used to render three invented ones, including a "Station 2
+  // Closure" marked SENT to 234 recipients. On a support screen that is
+  // the worst kind of fake: someone reading it would believe messages had
+  // gone out. There is no scheduled-broadcast store behind this yet, so
+  // it now says so rather than making one up. The live broadcast notice
+  // (the one baristas actually send) has its own dialog and its own
+  // storage.
   const loadBroadcasts = () => {
-    // Mock broadcasts - in production, load from API
-    setBroadcasts([
-      {
-        id: 1,
-        name: 'Morning Rush Alert',
-        channels: ['sms', 'push'],
-        audience: 'All waiting customers',
-        message: '☕ High demand this morning! Your patience is appreciated. Est. +5min wait.',
-        scheduled: new Date(Date.now() + 60 * 60000),
-        status: 'scheduled',
-        recipients: 45,
-        filters: { waitTime: '>10' }
-      },
-      {
-        id: 2,
-        name: 'Happy Hour Promo',
-        channels: ['email', 'push'],
-        audience: 'Loyalty members',
-        message: '🎉 Happy Hour: 50% off all drinks 3-5 PM today!',
-        scheduled: new Date(Date.now() + 3 * 60 * 60000),
-        status: 'scheduled',
-        recipients: 234,
-        filters: { customerType: 'loyalty' }
-      },
-      {
-        id: 3,
-        name: 'Station 2 Closure',
-        channels: ['sms'],
-        audience: 'Station 2 queue',
-        message: 'Station 2 temporarily closed. You\'ve been moved to Station 1.',
-        scheduled: null,
-        status: 'sent',
-        recipients: 12,
-        sentAt: new Date(Date.now() - 30 * 60000)
-      }
-    ]);
+    setBroadcasts([]);
   };
   
   // Auto-scroll to latest message
@@ -605,9 +575,18 @@ const EnhancedCommunicationHub = () => {
                   >
                     <div className="flex justify-between items-start mb-1">
                       <h4 className="font-medium text-sm">{template.name}</h4>
-                      <span className="text-xs text-gray-500">{template.usage} uses</span>
+                      {template.costly && (
+                        <span className="text-xs text-amber-700 bg-amber-50 rounded px-1.5 py-0.5 whitespace-nowrap"
+                              title="Contains a character outside the plain SMS set (usually an emoji or a dash). That doubles the cost of every send.">
+                          costs double
+                        </span>
+                      )}
                     </div>
-                    <p className="text-xs text-gray-600 mb-2">{template.template}</p>
+                    <p className="text-xs text-gray-600 mb-2">
+                      {template.unset
+                        ? <em className="text-gray-400">Not set — the built-in wording is used</em>
+                        : template.template}
+                    </p>
                     <div className="flex items-center justify-between">
                       <span className={`inline-flex items-center px-2 py-1 rounded text-xs bg-${getChannelColor(template.channel)}-100 text-${getChannelColor(template.channel)}-700`}>
                         {template.channel}
@@ -623,6 +602,12 @@ const EnhancedCommunicationHub = () => {
           <div className="bg-white rounded-lg shadow-sm p-6">
             <h3 className="text-lg font-semibold mb-4">Broadcasts</h3>
             
+            {broadcasts.length === 0 && (
+              <p className="text-sm text-gray-500">
+                Nothing scheduled. To tell everyone waiting something now, use
+                <strong> Tell waiting customers</strong> on the barista screen.
+              </p>
+            )}
             <div className="space-y-3">
               {broadcasts.slice(0, 3).map(broadcast => (
                 <div key={broadcast.id} className="border rounded-lg p-3">
@@ -667,10 +652,17 @@ const EnhancedCommunicationHub = () => {
           
           <div className="text-center p-4 bg-green-50 rounded-lg">
             <p className="text-3xl font-bold text-green-600">
-              {((messages.filter(m => m.status === 'delivered').length / messages.length) * 100).toFixed(1)}%
+              {messages.length === 0
+                ? '\u2014'
+                : `${((messages.filter(m => m.status === 'delivered').length / messages.length) * 100).toFixed(1)}%`}
             </p>
             <p className="text-sm text-gray-600">Delivery Rate</p>
-            <p className="text-xs text-green-600 mt-1">Above target</p>
+            {/* "Above target" was printed unconditionally, under a NaN%
+                whenever no messages had been sent yet. A number that can
+                be NaN must not carry a verdict that is always good. */}
+            <p className="text-xs text-gray-400 mt-1">
+              {messages.length === 0 ? 'nothing sent yet' : `of ${messages.length} sent`}
+            </p>
           </div>
           
           <div className="text-center p-4 bg-amber-50 rounded-lg">
