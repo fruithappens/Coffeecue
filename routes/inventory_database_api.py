@@ -32,6 +32,48 @@ from utils.database import get_db_connection, close_connection, execute_query
 inventory_database_api = Blueprint('inventory_database_api', __name__)
 logger = logging.getLogger(__name__)
 
+def _rows_or_empty(db, sql):
+    """Run a SELECT; treat a table that does not exist as no rows.
+
+    These four tables are created by the migration system, which has
+    never been run on production -- so `SELECT * FROM event_inventory`
+    raises there and the whole endpoint 500s. An optional feature that
+    was never set up should read as empty, not as a broken API.
+
+    The rollback matters as much as the try. On Postgres a failed
+    statement ABORTS the transaction, and every later query on that
+    connection then fails with "current transaction is aborted" -- so
+    without this, one missing table poisons the other three queries and
+    the failure looks far worse than it is.
+    """
+    try:
+        return execute_query(db, sql, fetch_all=True) or []
+    except Exception as e:
+        logger.warning("inventory query skipped (%s): %s", sql.split()[3], e)
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return []
+
+
+def _count_or_zero(db, table):
+    """COUNT(*) for a table that may not exist yet. Same rollback rule as
+    _rows_or_empty: a failed statement aborts the transaction, so without
+    the rollback the FIRST missing table makes every later count fail too
+    and the endpoint 500s over what should be a zero."""
+    try:
+        row = execute_query(db, f"SELECT COUNT(*) as count FROM {table}", fetch_one=True)
+        return (row or {}).get('count', 0) or 0
+    except Exception as e:
+        logger.warning("inventory count skipped (%s): %s", table, e)
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return 0
+
+
 @inventory_database_api.route('/api/inventory/event-inventory/update', methods=['POST'])
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff'])
@@ -303,9 +345,8 @@ def get_all_inventory():
             result = {}
             
             # Get event inventory
-            event_inventory = execute_query(db, 
-                "SELECT * FROM event_inventory ORDER BY category, item_name", 
-                fetch_all=True)
+            event_inventory = _rows_or_empty(db,
+                "SELECT * FROM event_inventory ORDER BY category, item_name")
             if event_inventory:
                 result['event_inventory'] = {}
                 for item in event_inventory:
@@ -317,9 +358,8 @@ def get_all_inventory():
                     }
             
             # Get event stock levels
-            stock_levels = execute_query(db,
-                "SELECT * FROM event_stock_levels ORDER BY item_name",
-                fetch_all=True)
+            stock_levels = _rows_or_empty(db,
+                "SELECT * FROM event_stock_levels ORDER BY item_name")
             if stock_levels:
                 result['event_stock_levels'] = {}
                 for stock in stock_levels:
@@ -332,18 +372,16 @@ def get_all_inventory():
                     }
             
             # Get station configs
-            station_configs = execute_query(db,
-                "SELECT * FROM station_inventory_configs ORDER BY station_id",
-                fetch_all=True)
+            station_configs = _rows_or_empty(db,
+                "SELECT * FROM station_inventory_configs ORDER BY station_id")
             if station_configs:
                 result['station_inventory_configs'] = {}
                 for config in station_configs:
                     result['station_inventory_configs'][str(config['station_id'])] = config['config_data']
             
             # Get station quantities
-            station_quantities = execute_query(db,
-                "SELECT * FROM station_inventory_quantities ORDER BY station_id, item_name",
-                fetch_all=True)
+            station_quantities = _rows_or_empty(db,
+                "SELECT * FROM station_inventory_quantities ORDER BY station_id, item_name")
             if station_quantities:
                 result['station_inventory_quantities'] = {}
                 for qty in station_quantities:
@@ -375,42 +413,39 @@ def get_inventory_stats():
             stats = {}
             
             # Event inventory stats
-            event_inventory_count = execute_query(db,
-                "SELECT COUNT(*) as count FROM event_inventory",
-                fetch_one=True)
-            stats['event_inventory_items'] = event_inventory_count['count'] if event_inventory_count else 0
+            stats['event_inventory_items'] = _count_or_zero(db, 'event_inventory')
             
             # Stock levels stats
-            stock_count = execute_query(db,
-                "SELECT COUNT(*) as count FROM event_stock_levels",
-                fetch_one=True)
-            stats['stock_items'] = stock_count['count'] if stock_count else 0
+            stats['stock_items'] = _count_or_zero(db, 'event_stock_levels')
             
             # Station configs stats
-            config_count = execute_query(db,
-                "SELECT COUNT(*) as count FROM station_inventory_configs",
-                fetch_one=True)
-            stats['station_configs'] = config_count['count'] if config_count else 0
+            stats['station_configs'] = _count_or_zero(db, 'station_inventory_configs')
             
             # Station quantities stats
-            quantity_count = execute_query(db,
-                "SELECT COUNT(*) as count FROM station_inventory_quantities",
-                fetch_one=True)
-            stats['station_quantities'] = quantity_count['count'] if quantity_count else 0
+            stats['station_quantities'] = _count_or_zero(db, 'station_inventory_quantities')
             
-            # Last update
-            last_update = execute_query(db,
-                """SELECT MAX(updated_at) as last_update FROM (
-                    SELECT updated_at FROM event_inventory
-                    UNION ALL
-                    SELECT updated_at FROM event_stock_levels
-                    UNION ALL
-                    SELECT updated_at FROM station_inventory_configs
-                    UNION ALL
-                    SELECT updated_at FROM station_inventory_quantities
-                ) as all_updates""",
-                fetch_one=True)
-            stats['last_update'] = last_update['last_update'].isoformat() if last_update and last_update['last_update'] else None
+            # Last update. One UNION across all four, so a single missing
+            # table takes the whole query down -- which is exactly what
+            # 500'd production even after the counts above were made safe.
+            # Asked per table instead, so three present tables still give
+            # an answer when the fourth is absent.
+            latest = None
+            for tbl in ('event_inventory', 'event_stock_levels',
+                        'station_inventory_configs', 'station_inventory_quantities'):
+                try:
+                    row = execute_query(
+                        db, f"SELECT MAX(updated_at) as last_update FROM {tbl}",
+                        fetch_one=True)
+                    value = (row or {}).get('last_update')
+                    if value and (latest is None or value > latest):
+                        latest = value
+                except Exception as e:
+                    logger.warning("inventory last_update skipped (%s): %s", tbl, e)
+                    try:
+                        db.rollback()
+                    except Exception:
+                        pass
+            stats['last_update'] = latest.isoformat() if latest else None
             
             return jsonify({'success': True, 'data': stats})
             
