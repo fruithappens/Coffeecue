@@ -134,7 +134,9 @@ def take_backup(base, token):
     """The app's own backup, through its own endpoint. Returns True on
     a backup we can see afterwards -- not merely a 200."""
     before = count_backups(base, token)
-    ms, body, err = call(base, "/api/event-data/backup", "POST", {}, token, timeout=120)
+    ms, body, err = call(
+        base, "/api/event-data/backups/run", "POST", {}, token, timeout=120
+    )
     if err:
         print(f"  backup call failed: {err}")
         return False
