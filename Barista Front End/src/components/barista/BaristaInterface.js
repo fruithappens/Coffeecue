@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { ToastManager, showToast } from '../shared/Toast';
 import AuthService from '../../services/AuthService';
 import printService from '../../services/PrintService';
+import BroadcastDialog from '../dialogs/BroadcastDialog';
 import { 
   Coffee, Package, Calendar, Check, Monitor, Settings,
   MessageCircle, Printer, Plus, Clock,
@@ -194,6 +195,7 @@ const BaristaInterface = () => {
   // header chip tracks online/offline; auto-print is a per-DEVICE choice
   // (this tablet opts in), stored in localStorage per station.
   const [printers, setPrinters] = useState([]);
+  const [broadcastOpen, setBroadcastOpen] = useState(false);
   const [autoPrintLabels, setAutoPrintLabelsState] = useState(false);
   // Current column view controls. Local state, not settings: these are
   // "what am I looking at right now" rather than a preference, and a
@@ -4481,21 +4483,7 @@ const BaristaInterface = () => {
               real customers and cannot be unsent. */}
           <button
             className="px-4 py-2 bg-gray-200 rounded flex items-center hover:bg-gray-300 transition-colors"
-            onClick={async () => {
-              const msg = window.prompt(
-                'Message to everyone still waiting (their order is NOT yet printed):',
-                "Sorry - we've had a problem with our system. Please come to the counter and confirm your order.");
-              if (!msg) return;
-              try {
-                const api = new (await import('../../services/ApiService')).default();
-                const r = await api.post('/broadcast', { message: msg, ttl_minutes: 30 });
-                showToast(r?.success
-                  ? 'Sent to everyone waiting with an unprinted order'
-                  : 'Could not send', r?.success ? 'success' : 'error');
-              } catch (e) {
-                showToast('Could not send', 'error');
-              }
-            }}
+            onClick={() => setBroadcastOpen(true)}
             title="Tell customers watching their phone that something has gone wrong"
           >
             <MessageCircle size={18} className="mr-1" /> Tell waiting customers
@@ -4737,6 +4725,28 @@ const BaristaInterface = () => {
           </div>
         </div>
       )}
+
+      {/* Replaces window.prompt. This is the one control that sends words
+          to real customers' phones, so it shows who it reaches and what
+          they will read before it goes. */}
+      <BroadcastDialog
+        open={broadcastOpen}
+        onClose={() => setBroadcastOpen(false)}
+        waitingCount={(pendingOrders || []).length}
+        onSend={async (message) => {
+          try {
+            const api = new (await import('../../services/ApiService')).default();
+            const r = await api.post('/broadcast', { message, ttl_minutes: 30 });
+            showToast(r?.success
+              ? 'Sent to everyone waiting with an unprinted order'
+              : `Could not send: ${r?.message || 'unknown'}`,
+            r?.success ? 'success' : 'error');
+            if (r?.success) setBroadcastOpen(false);
+          } catch (e) {
+            showToast(`Could not send: ${e?.message || 'network'}`, 'error');
+          }
+        }}
+      />
     </div>
   );
 };

@@ -618,7 +618,12 @@ const MyCoffeePage = () => {
               if (mode === 'phone') load(entry, { byPhone: true }); else setCid(entry);
             }}
           >
-            {busy ? 'Checking…' : "That's me"}
+            {/* Not "Checking…": that implies we are verifying them
+                against a list, and at most events there is no list --
+                we are looking up a previous order, and if there is
+                none they simply carry on. Steve: it "implies its
+                looking for a EA database". */}
+            {busy ? 'One moment…' : 'Continue'}
           </button>
           {/* Only offered when the event actually has an attendee list
               loaded. Without this the page invited people to type a badge
@@ -655,7 +660,7 @@ const MyCoffeePage = () => {
   // ---- order in flight: this page becomes the notification ---------------
   const active = me.active_order;
   if (active) {
-    const copy = STATUS[active.status] || { title: 'Checking…', tone: 'bg-gray-400' };
+    const copy = STATUS[active.status] || { title: 'One moment…', tone: 'bg-gray-400' };
     const ready = active.status === 'completed';
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center p-6"
