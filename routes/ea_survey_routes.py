@@ -1320,17 +1320,41 @@ def ea_me():
         # and the person could never get back to the order button. Found
         # exactly that on the first live check: a completed order from
         # hours earlier presented as current.
+        # Also fetch WHICH STATION and HOW LONG it has been ready. Steve,
+        # holding a phone that said only "READY - come and get it":
+        # "#78 order does not say which station to colelct from, maybe how
+        # long since its been ready". At a two-cart event that card tells
+        # you your coffee is done and not where it is.
         cur.execute(
-            "SELECT order_number, status FROM orders "
-            "WHERE phone = %s AND status IN ('pending','in-progress','completed') "
-            "AND created_at > NOW() - INTERVAL '3 hours' "
-            "ORDER BY created_at DESC LIMIT 1",
+            "SELECT o.order_number, o.status, o.station_id, "
+            "       EXTRACT(EPOCH FROM (NOW() - o.updated_at))::int AS since_update, "
+            "       s.name AS station_name "
+            "FROM orders o "
+            "LEFT JOIN station_stats s ON s.station_id = o.station_id "
+            "WHERE o.phone = %s AND o.status IN ('pending','in-progress','completed') "
+            "AND o.created_at > NOW() - INTERVAL '3 hours' "
+            "ORDER BY o.created_at DESC LIMIT 1",
             (rec.get('mobile_e164') or '',))
         arow = cur.fetchone()
         if arow:
-            num, st = (arow['order_number'], arow['status']) \
-                if isinstance(arow, dict) else (arow[0], arow[1])
-            active = {'order_number': num, 'status': st}
+            if isinstance(arow, dict):
+                num, st = arow['order_number'], arow['status']
+                sid, since, sname = (arow.get('station_id'),
+                                     arow.get('since_update'),
+                                     arow.get('station_name'))
+            else:
+                num, st, sid, since, sname = arow[0], arow[1], arow[2], arow[3], arow[4]
+            active = {
+                'order_number': num,
+                'status': st,
+                'station_id': sid,
+                # Named if the operator named it, numbered if not -- never
+                # blank, because "collect from" with nothing after it is
+                # worse than no line at all.
+                'station_name': (str(sname).strip() if sname else None)
+                                or (f"Station {sid}" if sid else None),
+                'seconds_in_status': int(since) if since is not None else None,
+            }
     except Exception as e:
         logger.warning(f"ea_me active-order lookup failed: {e}")
 
@@ -1373,6 +1397,60 @@ def ea_me_set_usual():
             pass
         return jsonify({'success': False, 'message': str(e)}), 500
     return jsonify({'success': True, 'usual': text or None})
+
+
+@bp.route('/me/collected', methods=['POST'])
+def ea_me_collected():
+    """The customer says they have their coffee.
+
+    Steve: "maybe can they click ive collected it." Worth having for a
+    reason beyond tidiness -- 'completed' orders sit on the Ready column
+    until a barista clears them, and at a busy cart nobody does, so the
+    board fills with coffees that left ten minutes ago.
+
+    NO TOKEN, and it does not need one: the only order this can touch is
+    one whose phone matches the attendee record the caller identified as.
+    Knowing someone else's contact id would let you mark THEIR coffee
+    collected, which is a prank, not a breach -- and the same id already
+    reveals their order status through /me. Nothing is deleted and the
+    barista's own Ready column still shows it until they clear it.
+    """
+    data = request.get_json(silent=True) or {}
+    number = str(data.get('order_number') or '').strip()
+    if not number:
+        return jsonify({'success': False, 'message': 'order_number required'}), 400
+    db = _db()
+    _ensure_tables(db)
+    rec = _find_attendee(db, data.get('cid'), data.get('phone'))
+    if not rec:
+        return jsonify({'success': False, 'message': 'unknown contact'}), 404
+    phone = rec.get('mobile_e164') or ''
+    if not phone:
+        return jsonify({'success': False, 'message': 'no number on file'}), 400
+    try:
+        cur = db.cursor()
+        # Ownership and state in the WHERE clause, so there is no window
+        # between checking and writing, and an order that is not theirs
+        # simply matches nothing.
+        cur.execute(
+            "UPDATE orders SET status = 'picked_up', picked_up_at = NOW(), "
+            "updated_at = NOW() "
+            "WHERE order_number = %s AND phone = %s AND status = 'completed'",
+            (number, phone))
+        changed = cur.rowcount
+        db.commit()
+    except Exception as e:
+        logger.error(f"me/collected failed: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': str(e)}), 500
+    if not changed:
+        # Already collected, or not ready, or not theirs. All three are
+        # the same answer to the person holding the phone.
+        return jsonify({'success': True, 'already': True})
+    return jsonify({'success': True, 'already': False})
 
 
 @bp.route('/me/name', methods=['POST'])

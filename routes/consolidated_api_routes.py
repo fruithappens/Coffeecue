@@ -4432,6 +4432,40 @@ def _kiosk_menu_data(coffee_system):
     except Exception as e:
         logger.warning(f"kiosk milk/event intersection failed (menu unchanged): {e}")
 
+    # COLLAPSE "skim" and "skim milk" INTO ONE CHOICE.
+    #
+    # Steve, from a phone, looking at the milk step: "skim and skim milk oat
+    # and oat milk etc". Nine tiles where there are five milks, because
+    # stations spell the same milk two ways and the universe is keyed on the
+    # raw string. Every customer sees this on every order.
+    #
+    # Fold on the same rule the event intersection above already uses --
+    # strip a trailing " milk" -- and keep BOTH spellings as aliases, so a
+    # station that only ever declared "skim milk" is still matched as making
+    # the folded "Skim". Dropping the aliases here would quietly remove
+    # milks from stations, which is far worse than a duplicate tile.
+    milk_aliases = {}
+    try:
+        def _milk_fold(m):
+            n = str(m).strip().lower()
+            base = n[:-5].strip() if n.endswith(' milk') else n
+            return base or n
+
+        folded = {}
+        for raw_key, raw_label in universe['milk_types'].items():
+            canon = _milk_fold(raw_key)
+            milk_aliases.setdefault(canon, set()).add(raw_key)
+            # Prefer the bare spelling as the label source: "Skim" reads
+            # better on a tile than "Skim Milk", and mixing the two is what
+            # made the list look duplicated in the first place.
+            if canon not in folded or len(str(raw_key)) < len(str(folded[canon][0])):
+                folded[canon] = (raw_key, raw_label)
+        if folded:
+            universe['milk_types'] = {c: _milk_fold(v[1]) for c, v in folded.items()}
+    except Exception as e:
+        logger.warning(f"milk fold skipped (menu unchanged): {e}")
+        milk_aliases = {}
+
     # SAME TREATMENT FOR SIZES. Milks above are intersected with the event's
     # configured list; sizes were not, so they came purely from station
     # capabilities and the operator's cup choices were ignored. With only
@@ -4477,10 +4511,14 @@ def _kiosk_menu_data(coffee_system):
             claimed_coffee.add(c)
 
     def stations_for(dim, item_lower):
+        # A folded milk is made by a station that declared ANY of its
+        # spellings.
+        names = ({item_lower} | milk_aliases.get(item_lower, set())
+                 if dim == 'milk_types' else {item_lower})
         out = []
         for sid, caps in caps_by_station.items():
             lst = caps[dim]
-            if (not lst) or (item_lower in lst):
+            if (not lst) or (names & set(lst)):
                 out.append(sid)
             elif dim == 'coffee_types' and item_lower in extra_set and item_lower not in claimed_coffee:
                 out.append(sid)  # enabled extra nobody claims → made everywhere
