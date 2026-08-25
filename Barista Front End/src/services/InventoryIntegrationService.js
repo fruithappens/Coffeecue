@@ -1,3 +1,4 @@
+import { normaliseInventory } from './EventInventoryService';
 /**
  * Inventory Integration Service
  * Bridges between the Organizer's inventory management and the Barista's stock system
@@ -184,7 +185,10 @@ class InventoryIntegrationService {
   getEventInventory() {
     try {
       const inventory = localStorage.getItem('event_inventory');
-      return inventory ? JSON.parse(inventory) : null;
+      // Same envelope/shape normalisation as the service. Without it the
+      // per-station sync threw "o.forEach is not a function" on every
+      // station, silently leaving every station with no inventory.
+      return inventory ? normaliseInventory(JSON.parse(inventory)) : null;
     } catch (error) {
       console.error('Error loading event inventory:', error);
       return null;
@@ -309,9 +313,10 @@ class InventoryIntegrationService {
       return r.json();
     };
     try {
-      // The endpoint returns the raw category dict (not a wrapper).
+      // The endpoint answers {"inventory": {...}} -- an envelope, despite
+      // what an earlier comment here claimed. normaliseInventory unwraps it.
       const inv = await grab('/api/event-inventory');
-      const items = (inv && (inv.inventory || inv.data)) || inv;
+      const items = normaliseInventory(inv);
       if (items && typeof items === 'object' && Object.keys(items).length > 0) {
         localStorage.setItem('event_inventory', JSON.stringify(items));
       }

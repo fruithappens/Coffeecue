@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { normaliseInventory } from '../../services/EventInventoryService';
 import {
   Coffee, Settings, Check, X, Search, Filter,
   CheckCircle, Circle, Package, Trash2, Plus, Minus
@@ -116,7 +117,7 @@ const StationInventoryConfig = ({ stations }) => {
     const savedInventory = localStorage.getItem('event_inventory');
     if (savedInventory) {
       try {
-        const inventoryData = JSON.parse(savedInventory);
+        const inventoryData = normaliseInventory(JSON.parse(savedInventory));
         setInventory(inventoryData);
       } catch (e) {
         console.error('Error loading inventory:', e);

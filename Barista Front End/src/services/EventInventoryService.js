@@ -30,10 +30,37 @@ const api = new ApiServiceClass();
 let memoryCache = null;
 let inFlight = null;
 
+// A category map is {category: [items]}. Anything else that reaches us
+// gets straightened out here rather than at each of the six call sites.
+export const normaliseInventory = (raw) => {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  // Unwrap the API envelope. Only when `inventory` is the ONLY key --
+  // a real category map could legitimately contain a category called
+  // "inventory" alongside others, and that must not be unwrapped.
+  let blob = raw;
+  const keys = Object.keys(raw);
+  if (keys.length === 1 && ['inventory', 'data'].includes(keys[0])
+      && raw[keys[0]] && typeof raw[keys[0]] === 'object'
+      && !Array.isArray(raw[keys[0]])) {
+    blob = raw[keys[0]];
+  }
+  const out = {};
+  for (const [category, items] of Object.entries(blob)) {
+    if (Array.isArray(items)) out[category] = items;
+    // A dict keyed by id is the other shape that has turned up; its
+    // values are the items, so take those rather than dropping the lot.
+    else if (items && typeof items === 'object') out[category] = Object.values(items);
+    else out[category] = [];
+  }
+  return out;
+};
+
 const readLocal = () => {
   try {
     const raw = localStorage.getItem(LS_KEY);
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) return null;
+    // Heal a copy written by the pre-fix code, which stored the envelope.
+    return normaliseInventory(JSON.parse(raw));
   } catch (e) {
     console.warn('[EventInventoryService] localStorage parse failed:', e);
     return null;
@@ -65,7 +92,11 @@ const EventInventoryService = {
     inFlight = (async () => {
       try {
         const resp = await api.request('/event-inventory', { method: 'GET' });
-        const blob = (resp && typeof resp === 'object' && !('error' in resp)) ? resp : {};
+        // normaliseInventory unwraps the {"inventory": {...}} envelope the
+        // endpoint actually returns. Storing it un-unwrapped is what broke
+        // Event Stock.
+        const blob = (resp && typeof resp === 'object' && !('error' in resp))
+          ? normaliseInventory(resp) : {};
         if (Object.keys(blob).length > 0) {
           memoryCache = blob;
           writeLocal(blob);  // keep localStorage in sync

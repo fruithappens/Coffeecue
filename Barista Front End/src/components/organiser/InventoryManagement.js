@@ -4,7 +4,7 @@ import {
   Beaker, Square, Candy, Search
 } from 'lucide-react';
 import InventoryIntegrationService from '../../services/InventoryIntegrationService';
-import EventInventoryService from '../../services/EventInventoryService';
+import EventInventoryService, { normaliseInventory } from '../../services/EventInventoryService';
 import QuickSetupStatusBanner from './QuickSetupStatusBanner';
 import useCatalog from '../../hooks/useCatalog';
 
@@ -206,7 +206,7 @@ const InventoryManagement = () => {
       try {
         const savedInventory = localStorage.getItem('event_inventory');
         if (savedInventory) {
-          setInventory(JSON.parse(savedInventory));
+          setInventory(normaliseInventory(JSON.parse(savedInventory)));
           return;
         }
       } catch (_) { /* ignore */ }
