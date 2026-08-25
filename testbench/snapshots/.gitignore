@@ -1,0 +1,11 @@
+# NEVER commit a database snapshot.
+#
+# These are dumps of the live system. They carry real customer names and
+# real mobile numbers, and this repository is public — a snapshot pushed
+# by accident is a data breach that cannot be taken back, because the
+# object stays reachable in git history after the file is deleted.
+#
+# Keep the directory (so the tools have somewhere to write) and ignore
+# everything in it.
+*
+!.gitignore
