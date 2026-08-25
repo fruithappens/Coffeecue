@@ -12,8 +12,71 @@ import SettingsService from '../../services/SettingsService';
 import StockService from '../../services/StockService';
 import useStations from '../../hooks/useStations';
 import { event as logEvent } from '../../services/logging';
+// The same pictures the customer kiosk uses, so a drink looks the same
+// wherever it is chosen.
+import { drinkEmoji, milkEmoji } from '../display/KioskOrder';
+
+const QUICK_KEY = 'coffee_walkin_quick_mode';
+
+// One labelled row of tiles that wraps. Module scope, not inside the
+// dialog: a component defined during render is a NEW type every render,
+// so React unmounts and remounts the whole row on every keystroke -- which
+// on this screen would drop focus out of the name field as you type it.
+const QuickGroup = ({ label, children }) => (
+  <div>
+    <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">
+      {label}
+    </div>
+    <div className="flex flex-wrap gap-2">{children}</div>
+  </div>
+);
+
+// Big enough to hit without looking, which is the point of the whole
+// mode -- a barista is holding a cup in the other hand.
+const QuickTile = ({ active, onClick, emoji, label, badge }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`relative min-w-[6.5rem] px-3 py-2.5 rounded-xl border-2 text-center
+                transition-colors ${active
+                  ? 'bg-amber-600 text-white border-amber-600'
+                  : 'bg-white text-gray-800 border-gray-300 hover:border-amber-400'}`}
+  >
+    {badge && (
+      <span className={`absolute top-1 left-1.5 text-[10px] font-bold leading-none
+                        ${active ? 'text-white/70' : 'text-gray-400'}`}>
+        {badge}
+      </span>
+    )}
+    <span className="block text-2xl leading-none mb-1" aria-hidden>{emoji}</span>
+    <span className="block text-sm font-semibold capitalize leading-tight">{label}</span>
+  </button>
+);
 
 const WalkInOrderDialog = ({ onSubmit, onClose }) => {
+  // TWO WAYS IN, and the barista picks. Steve: "the data entry for the
+  // barista is bit clinical and not much of screen used and lots of
+  // clicking and scrolling, some may like this format but i think most
+  // would prefer the screen like the /my where its more icon driven, but
+  // obviously needs more features bean, vip, and other things".
+  //
+  // Quick is NOT the kiosk wizard. A customer meets that screen once and
+  // steps are kindness; a barista meets it two hundred times and a step
+  // is a tap they did not need. So Quick is ONE dense screen, wide, with
+  // everything visible and nothing to scroll past -- which is the actual
+  // complaint. Detailed keeps every field for the odd order.
+  //
+  // Both write the SAME orderDetails, so switching mid-order keeps what
+  // has been chosen, and there is one submit path rather than two.
+  const [quickMode, setQuickMode] = useState(() => {
+    try { return localStorage.getItem(QUICK_KEY) !== 'false'; } catch (e) { return true; }
+  });
+  const chooseMode = (q) => {
+    setQuickMode(q);
+    try { localStorage.setItem(QUICK_KEY, String(q)); } catch (e) { /* private mode */ }
+    logEvent('WALKIN_MODE', { mode: q ? 'quick' : 'detailed' });
+  };
+
   const { getCurrentStation, stations } = useStations();
   const currentStation = getCurrentStation();
   
@@ -513,7 +576,27 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
               console.log('EXCLUDED MILK TYPES:', excludedMilkTypes.map(m => m.name));
             }
             
-            setAvailableMilks(filteredMilkTypes);
+            // DEDUPE BEFORE IT REACHES THE SCREEN.
+            //
+            // The station list and the catalogue both carry the same milk
+            // under different ids ("full_cream" and "milk_full_cream"),
+            // so the list arrived with each milk twice. In the dropdown
+            // that was merely untidy; as tiles it is unmissable -- and
+            // BOTH copies rendered highlighted at once, because each
+            // matched the selected id by a different rule. Caught by
+            // opening the new screen and counting the tiles.
+            //
+            // Keep the first of each name; a later duplicate carries no
+            // information the first one lacks.
+            const _seenMilk = new Set();
+            const _dedupedMilks = filteredMilkTypes.filter(m => {
+              const key = String(m.name || m.id || '')
+                .toLowerCase().replace(/\s*milk\s*$/, '').trim();
+              if (!key || _seenMilk.has(key)) return false;
+              _seenMilk.add(key);
+              return true;
+            });
+            setAvailableMilks(_dedupedMilks);
             
             // Warn if no milk options are available
             if (filteredMilkTypes.length === 0) {
@@ -975,7 +1058,17 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
             return a.localeCompare(b);
           });
           
-          setAvailableBeanTypes(beanTypes);
+          // Same duplicate problem as the milks, from the same cause:
+          // the station list and the catalogue name the same bean
+          // differently ("House Blend" / "house blend"). Two identical
+          // tiles is obvious nonsense on screen.
+          const _seenBean = new Set();
+          setAvailableBeanTypes(beanTypes.filter(b => {
+            const key = String(b || '').toLowerCase().trim();
+            if (!key || _seenBean.has(key)) return false;
+            _seenBean.add(key);
+            return true;
+          }));
           console.log(`Station ${targetStation.id} has ${beanTypes.length} bean types available:`, beanTypes);
         } catch (error) {
           console.error('Error processing coffee/drink inventory:', error);
@@ -1669,10 +1762,25 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
           bar stays visible at the bottom no matter how tall the form
           grows. Form scrolls in the middle. Steve's report: 'I have
           to scroll to hit Add or Cancel' — this stops that. */}
-      <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] flex flex-col">
+      <div className={`bg-white rounded-lg shadow-lg w-full max-h-[90vh] flex flex-col ${quickMode ? "max-w-5xl" : "max-w-2xl"}`}>
         {/* === STICKY HEADER === */}
         <div className="px-6 pt-5 pb-3 border-b flex justify-between items-center flex-shrink-0">
-          <h3 className="text-lg font-bold">Add Walk-in Order</h3>
+          <div className="flex items-center gap-4">
+            <h3 className="text-lg font-bold">Add Walk-in Order</h3>
+            <div className="flex rounded-lg overflow-hidden border border-gray-300 text-sm">
+              {[['Quick', true], ['Detailed', false]].map(([label, q]) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => chooseMode(q)}
+                  className={`px-3 py-1 font-semibold ${
+                    quickMode === q ? 'bg-amber-600 text-white' : 'bg-white text-gray-600'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
           <button
             className="text-gray-500 hover:text-gray-700"
             onClick={handleClose}
@@ -1683,6 +1791,181 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
 
         {/* === SCROLLABLE BODY === */}
         <div className="overflow-y-auto px-6 py-4 flex-1">
+        {quickMode ? (
+          /* ---------- QUICK: one wide screen, nothing hidden ----------
+             Wrapped in the SAME form id the sticky footer's Add Order
+             button targets. Without this the button submits nothing:
+             it carries form="walkInForm", that form only exists in the
+             Detailed branch, and in Quick mode the click silently did
+             nothing at all. Only one branch renders at a time, so the id
+             is never duplicated. */
+          <form id="walkInForm" onSubmit={handleSubmit} className="space-y-4">
+            {/* Name first and large -- it is the only thing a barista MUST
+                type, and it is what gets called out. Phone sits beside it
+                rather than under, so neither costs a row. */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="sm:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Customer name *
+                </label>
+                <input
+                  autoFocus
+                  type="text"
+                  value={orderDetails.customerName}
+                  onChange={(e) => setOrderDetails(prev => ({ ...prev, customerName: e.target.value }))}
+                  placeholder="e.g. Steve"
+                  className="w-full px-4 py-3 text-lg border-2 border-gray-300 rounded-lg
+                             focus:border-amber-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Phone (optional)
+                </label>
+                <input
+                  type="tel"
+                  value={orderDetails.phoneNumber}
+                  onChange={(e) => setOrderDetails(prev => ({ ...prev, phoneNumber: e.target.value }))}
+                  placeholder="for a ready text"
+                  className="w-full px-4 py-3 text-lg border-2 border-gray-300 rounded-lg
+                             focus:border-amber-500 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            {/* DRINK. The number badges are not decoration -- the 1-9
+                keyboard shortcuts already exist, and showing them is how
+                anyone finds out. */}
+            <QuickGroup label="Drink">
+              {availableCoffeeTypes.map((d, i) => (
+                <QuickTile
+                  key={d}
+                  active={orderDetails.coffeeType === d}
+                  onClick={() => setOrderDetails(prev => ({ ...prev, coffeeType: d }))}
+                  emoji={drinkEmoji(d)}
+                  label={d}
+                  badge={i < 9 ? String(i + 1) : null}
+                />
+              ))}
+            </QuickGroup>
+
+            {/* Milk is meaningless on a tea or a hot chocolate, so it goes
+                away rather than sitting there inviting a wrong answer. */}
+            {!isTeaDrink && availableMilks.length > 0 && (
+              <QuickGroup label="Milk">
+                {availableMilks.map(m => (
+                  <QuickTile
+                    key={m.id}
+                    active={orderDetails.milkType === m.id}
+                    onClick={() => setOrderDetails(prev => ({ ...prev, milkType: m.id }))}
+                    emoji={milkEmoji(m.name)}
+                    label={m.name}
+                  />
+                ))}
+                <QuickTile
+                  active={orderDetails.milkType === 'no_milk'}
+                  onClick={() => setOrderDetails(prev => ({ ...prev, milkType: 'no_milk' }))}
+                  emoji="🚫"
+                  label="No milk"
+                />
+              </QuickGroup>
+            )}
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <QuickGroup label="Size">
+                {availableSizes.map(sz => (
+                  <QuickTile
+                    key={sz}
+                    active={orderDetails.size === sz}
+                    onClick={() => setOrderDetails(prev => ({ ...prev, size: sz }))}
+                    emoji="🥤"
+                    label={sz}
+                  />
+                ))}
+              </QuickGroup>
+              <QuickGroup label="Sugar">
+                {['0', '1', '2', '3'].map(n => (
+                  <QuickTile
+                    key={n}
+                    active={String(orderDetails.sweetenerQuantity) === n}
+                    onClick={() => setOrderDetails(prev => ({
+                      ...prev,
+                      sweetenerQuantity: n,
+                      // Picking a number implies sugar; picking none must
+                      // not leave a sweetener type behind on the ticket.
+                      sweetenerType: n === '0' ? 'None' : (prev.sweetenerType && prev.sweetenerType !== 'None'
+                        ? prev.sweetenerType : (availableSweeteners[0] || 'sugar')),
+                    }))}
+                    emoji={n === '0' ? '🚫' : '🍬'}
+                    label={n === '0' ? 'None' : n}
+                  />
+                ))}
+              </QuickGroup>
+            </div>
+
+            {/* The barista-only extras Steve asked to keep: shots, bean,
+                extra hot, VIP. One row, because none of them is a
+                decision worth a heading. */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <QuickGroup label="Shots">
+                {['1', '2'].map(n => (
+                  <QuickTile
+                    key={n}
+                    active={String(orderDetails.shots) === n}
+                    onClick={() => setOrderDetails(prev => ({ ...prev, shots: n }))}
+                    emoji="☕"
+                    label={n === '1' ? 'Single' : 'Double'}
+                  />
+                ))}
+              </QuickGroup>
+              {availableBeanTypes.length > 1 && (
+                <QuickGroup label="Beans">
+                  {availableBeanTypes.map(b => (
+                    <QuickTile
+                      key={b}
+                      active={orderDetails.beanType === b}
+                      onClick={() => setOrderDetails(prev => ({ ...prev, beanType: b }))}
+                      emoji={b.toLowerCase().includes('decaf') ? '🌙' : '🫘'}
+                      label={b}
+                    />
+                  ))}
+                </QuickGroup>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => setOrderDetails(prev => ({ ...prev, extraHot: !prev.extraHot }))}
+                className={`px-5 py-3 rounded-xl font-semibold border-2 ${
+                  orderDetails.extraHot
+                    ? 'bg-orange-500 text-white border-orange-500'
+                    : 'bg-white text-gray-700 border-gray-300'}`}
+              >
+                🔥 Extra hot
+              </button>
+              <button
+                type="button"
+                onClick={() => setOrderDetails(prev => ({ ...prev, priority: !prev.priority }))}
+                className={`px-5 py-3 rounded-xl font-semibold border-2 ${
+                  orderDetails.priority
+                    ? 'bg-red-600 text-white border-red-600'
+                    : 'bg-white text-gray-700 border-gray-300'}`}
+              >
+                ⭐ VIP / staff priority
+              </button>
+              <input
+                type="text"
+                value={orderDetails.notes}
+                onChange={(e) => setOrderDetails(prev => ({ ...prev, notes: e.target.value }))}
+                placeholder="Notes — e.g. no lid, 1/4 strength, half full"
+                className="flex-1 min-w-[14rem] px-4 py-3 border-2 border-gray-300 rounded-xl
+                           focus:border-amber-500 focus:outline-none"
+              />
+            </div>
+          </form>
+        ) : (
+        <>
         {/* Station inventory status message */}
         {targetStation && !loadingInventory && (
           <div className="bg-blue-50 border border-blue-200 rounded p-2 mb-4 text-sm">
@@ -2372,6 +2655,8 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
             </div>
           )}
         </div>
+        </>
+        )}
 
         </div>{/* === end SCROLLABLE BODY === */}
 
