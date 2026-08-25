@@ -252,6 +252,48 @@ def wipe_event_data():
             "code": "CONFIRM_REQUIRED",
         }), 400
 
+    # BACK UP FIRST, ALWAYS.
+    #
+    # The wipe used to run straight into the DELETEs. On 25 Aug it
+    # removed 1,114 rows immediately after the scheduled backup had said
+    # "no change since the last backup - skipped" -- so there was no
+    # copy of the moment before. Nothing was lost that time because the
+    # data was disposable, which is exactly the kind of luck you cannot
+    # plan around.
+    #
+    # forced, because the change-detection that keeps the hourly
+    # schedule tidy is precisely wrong here: the point is a copy of THIS
+    # moment, whether or not it differs from an hour ago.
+    #
+    # And it REFUSES if the backup fails. Deleting a client's event
+    # without a copy is not a thing to do on a best-effort basis. Pass
+    # allow_without_backup:true to override, for the case where backups
+    # are genuinely unavailable and the operator has decided anyway.
+    backup_note = "no backup taken"
+    if not data.get("allow_without_backup"):
+        try:
+            from flask import current_app
+            from services.backup_scheduler import take_backup
+            written = take_backup(current_app, force=True)
+            if not written:
+                return jsonify({
+                    "status": "error",
+                    "message": ("Could not take a backup before wiping, so nothing "
+                                "was deleted. Fix the backup, or send "
+                                '"allow_without_backup": true to wipe anyway.'),
+                    "code": "BACKUP_FAILED",
+                }), 503
+            backup_note = written
+        except Exception as be:
+            logger.error(f"wipe: pre-wipe backup failed: {be}")
+            return jsonify({
+                "status": "error",
+                "message": (f"Could not take a backup before wiping ({str(be)[:80]}), "
+                            "so nothing was deleted. Send "
+                            '"allow_without_backup": true to wipe anyway.'),
+                "code": "BACKUP_FAILED",
+            }), 503
+
     try:
         db = get_db_connection()
         cursor = db.cursor()
@@ -388,10 +430,11 @@ def wipe_event_data():
             "status": "success",
             "message": f"Wiped {total} rows of customer/transactional data. "
                        f"Inventory config kept; {staff_msg}; {identity_msg}; "
-                       f"{numbering}.",
+                       f"{numbering}. Backed up first: {backup_note}.",
             "deleted": deleted,
             "total_rows": total,
             "numbering": numbering,
+            "backup": backup_note,
         })
     except Exception as e:
         logger.error(f"wipe_event_data error: {e}")

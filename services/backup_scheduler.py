@@ -137,8 +137,14 @@ def prune(path=None):
     return removed
 
 
-def take_backup(app):
-    """One backup. Returns a short human sentence, or None when skipped."""
+def take_backup(app, force=False):
+    """One backup. Returns a short human sentence, or None when skipped.
+
+    force=True writes even when nothing has changed. Used before a WIPE:
+    the change-detection that keeps the hourly schedule tidy is exactly
+    wrong before a destructive operation, where the whole point is to
+    have a copy of THIS moment.
+    """
     from routes.event_data_routes import build_snapshot
 
     # Its OWN connection. Never the shared singleton -- see the module
@@ -164,7 +170,7 @@ def take_backup(app):
             pass
 
     fp = _fingerprint(snapshot)
-    if fp == _read_fingerprint():
+    if not force and fp == _read_fingerprint():
         return None
 
     path = backup_dir()
