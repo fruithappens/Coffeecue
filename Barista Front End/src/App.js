@@ -342,7 +342,7 @@ function App() {
   }, [handleFallbackEnabled, handleFallbackDisabled, handleOnline, handleOffline]);
 
   // Page title sync. Operators commonly run 2-3 events in parallel
-  // browser windows; the default "React App" / static "Coffee Cue"
+  // browser windows; the default "React App" / static "CupQ"
   // title made it impossible to tell which window is which. Fetch
   // the live event_name from the public /display/config endpoint
   // (no auth required) and set the tab title accordingly. Re-fetched
@@ -358,7 +358,7 @@ function App() {
         if (!resp.ok || cancelled) return;
         const data = await resp.json();
         const evt = (data?.config?.event_name || '').trim();
-        const sys = (data?.config?.system_name || 'Coffee Cue').trim();
+        const sys = (data?.config?.system_name || 'CupQ').trim();
         document.title = evt && evt !== sys ? `${evt} — ${sys}` : sys;
       } catch (_) {
         // Endpoint unreachable / aborted — leave the title as-is.
