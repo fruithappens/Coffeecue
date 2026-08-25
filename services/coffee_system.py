@@ -2364,6 +2364,80 @@ class CoffeeOrderSystem:
             logger.error(f"Error checking VIP code: {str(e)}")
             return False
 
+    def extract_vip_from_text(self, text):
+        """Find a VIP code hidden in free text and take it out.
+
+        Steve: "in the sms field its meant to detect the vipcode ie
+        treenetvip in current example but there is no where to put in qr
+        scan app but possibly in the notes filed could detect the keyword
+        and put in vip catogory but not give it away to others that there
+        is even such a hack".
+
+        So the notes box on the kiosk doubles as the code box, with no
+        label saying so. Returns (cleaned_text, matched) -- the code is
+        REMOVED, because it must not reach the label, the barista card or
+        the board where the next person in the queue can read it.
+
+        Two deliberate differences from `_is_vip_code`, which matches a
+        whole SMS:
+
+        1. The generic literal "VIP" is NOT accepted here. It is a common
+           English word; someone writing "vip table please" or "for the
+           VIP room" would be silently promoted, and the word could be
+           guessed by anyone in a second. Only codes the operator
+           configured count.
+        2. Matching is on WORD BOUNDARIES, so a code cannot fire from the
+           middle of an unrelated word.
+
+        Returns (text, False) unchanged on any error: failing to spot a
+        code costs someone their queue jump, while a crash costs them
+        their coffee.
+        """
+        import re
+
+        raw = str(text or "")
+        if not raw.strip():
+            return raw, False
+        try:
+            codes = []
+            cursor = self.db.cursor()
+            cursor.execute("SELECT value FROM settings WHERE key = 'vip_code'")
+            row = cursor.fetchone()
+            if row and row[0] and str(row[0]).strip():
+                codes.append(str(row[0]).strip())
+            cursor.execute("SELECT value FROM settings WHERE key = 'vip_codes'")
+            row = cursor.fetchone()
+            if row and row[0]:
+                try:
+                    for entry in json.loads(row[0]) or []:
+                        if (
+                            isinstance(entry, dict)
+                            and entry.get("enabled", True)
+                            and str(entry.get("code") or "").strip()
+                        ):
+                            codes.append(str(entry["code"]).strip())
+                except (json.JSONDecodeError, TypeError, KeyError) as e:
+                    logger.error(f"Error parsing VIP codes: {e}")
+
+            cleaned, matched = raw, False
+            # Longest first, so a code that contains another is not left
+            # half-stripped.
+            for code in sorted(set(codes), key=len, reverse=True):
+                pattern = re.compile(rf"\b{re.escape(code)}\b", re.IGNORECASE)
+                if pattern.search(cleaned):
+                    cleaned = pattern.sub("", cleaned)
+                    matched = True
+            if not matched:
+                return raw, False
+            # Tidy what the removal left behind: doubled spaces, and a
+            # stray leading/trailing comma from "treenetvip, no lid".
+            cleaned = re.sub(r"\s+", " ", cleaned).strip(" ,;.-").strip()
+            logger.info("VIP code redeemed via notes (code not logged)")
+            return cleaned, True
+        except Exception as e:
+            logger.error(f"extract_vip_from_text failed: {e}")
+            return raw, False
+
     def _handle_vip_code(self, phone, code):
         """Handle VIP code entry.
 
