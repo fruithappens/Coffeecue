@@ -84,6 +84,54 @@ roadmap for closing the gaps. When you wonder "is X tested?" — look there.
   if you tick them. Everything else is read-only or create+cancel.
 - The UI binds to `127.0.0.1` only.
 
+## Standalone checks: the startup deadlock
+
+Two checks for the 2026-08-24 startup deadlock — the one where a second server
+against the same database hung and stayed hung. They are separate from the
+suites above because they need their own database.
+
+```bash
+createdb expresso_locktest
+pg_dump -d expresso --no-owner --no-privileges | psql -q -d expresso_locktest
+python3 testbench/check_startup_transaction_leak.py   # ~2s, the cause
+python3 testbench/check_boot_lock_convoy.py           # ~30s, the symptom
+```
+
+### `check_startup_transaction_leak.py` — the cause
+
+Asks the connection directly, the instant `create_app()` returns, whether a
+transaction is still open.
+
+**Do not be tempted to rewrite this as "boot a server and grep
+`pg_stat_activity`".** That was tried and it passed on known-broken code, for
+two reasons worth remembering:
+
+- **Too late.** Anything that waits for `/api/health` to answer has caused a
+  request, and the `before_request` hook rolls the connection back at the start
+  of every request. The leak is real at *boot* — exactly the window the startup
+  DDL runs in — and gone by the time a health check succeeds. The evidence
+  clears itself.
+- **Too specific.** Grepping for one known query recognises one spelling of the
+  bug and passes for every other one.
+
+### `check_boot_lock_convoy.py` — the symptom
+
+Reproduces the failure end to end.
+
+It holds a read lock on `users`, boots a server alongside it, and then checks
+that a **login** still answers. Health alone is not enough: `/api/health` never
+touches `users`, so it returns 200 while the system is dead for real people.
+
+`--repo <path>` boots a different checkout, so one copy can compare two
+branches. Exit 0 = usable, 1 = convoy.
+
+**Why both insist on a throwaway database:** on unfixed code they run schema
+changes, and the convoy check deliberately wedges the `users` table. Pointed
+at a database a live server is using, they would take that server down too. Both refuse databases named
+`expresso`/`railway`/`postgres`, and refuse *any* database another connection
+is already on. Both also disable the pickup-reminder loop: the throwaway copy
+is a dump of live data, so its orders carry real phone numbers.
+
 ## Feeding results back into development
 
 `feedback.md` is written for exactly that: each failure includes what was

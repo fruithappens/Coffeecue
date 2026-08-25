@@ -70,6 +70,28 @@ class CoffeeOrderSystem:
 
         logger.info("Coffee Order System initialized")
 
+    def _end_read_transaction(self):
+        """Finish the implicit transaction a read-only check opened.
+
+        psycopg2 is not autocommit, so even a bare SELECT starts a
+        transaction that holds ACCESS SHARE on every table it touched
+        until someone ends it. `self.db` is the process-lifetime
+        singleton connection, so a boot-time check that reads and
+        returns pins those locks for as long as the server runs.
+
+        The cost only shows up later: ALTER TABLE needs ACCESS
+        EXCLUSIVE and queues behind the idle transaction, and a queued
+        ACCESS EXCLUSIVE blocks every reader that arrives after it. One
+        forgotten rollback in a startup check is enough to hang login
+        across the whole system, with no crash to restart.
+
+        Call this in a `finally` from any init path that only reads.
+        """
+        try:
+            self.db.rollback()
+        except Exception as e:  # pragma: no cover - cleanup only
+            logger.debug(f"Could not end read transaction: {e}")
+
     @property
     def event_name(self):
         """Live event name — reads branding_settings on each access.
@@ -159,6 +181,10 @@ class CoffeeOrderSystem:
         except Exception as e:
             logger.error(f"Error loading sponsor info: {str(e)}")
             self.sponsor_info = {"enabled": False}
+        finally:
+            # Read-only check — must not leave the singleton connection
+            # idle in transaction. See _end_read_transaction.
+            self._end_read_transaction()
 
     def _initialize_stations(self):
         """Check if any stations exist, log warning if none found"""
@@ -178,6 +204,10 @@ class CoffeeOrderSystem:
 
         except Exception as e:
             logger.error(f"Error checking stations: {str(e)}")
+        finally:
+            # Read-only check — must not leave the singleton connection
+            # idle in transaction. See _end_read_transaction.
+            self._end_read_transaction()
 
     def _init_settings(self):
         """Initialize default system settings"""
@@ -281,6 +311,9 @@ class CoffeeOrderSystem:
 
         except Exception as e:
             logger.error(f"Error initializing settings: {str(e)}")
+            # Swallowed so boot continues — roll back so the connection
+            # is not handed on in an aborted transaction.
+            self._end_read_transaction()
 
     def _init_stations(self):
         """Initialize coffee stations and event scheduling"""
@@ -296,6 +329,9 @@ class CoffeeOrderSystem:
             logger.info(f"Initialized {num_stations} coffee stations with scheduling")
         except Exception as e:
             logger.error(f"Error initializing stations: {str(e)}")
+            # Swallowed so boot continues — roll back so the connection
+            # is not handed on in an aborted transaction.
+            self._end_read_transaction()
 
     def _init_event_scheduling(self):
         """Initialize event scheduling tables and data"""
@@ -394,48 +430,30 @@ class CoffeeOrderSystem:
                 self.db.commit()
                 logger.info("Created default event breaks schedule")
 
-            # Ensure the station_stats schema has all the columns the
-            # rest of the app expects. Historically the rename UI
-            # appeared broken because `station_stats.notes` (where the
-            # station "name" lives, for legacy reasons) simply didn't
-            # exist on freshly-initialised databases — the UPDATE
-            # silently failed and the new name was discarded. Same for
-            # `equipment_notes` (which holds the location). IF NOT
-            # EXISTS makes these safe to run on every boot.
-            cursor.execute(
-                """
-                ALTER TABLE station_stats
-                ADD COLUMN IF NOT EXISTS capabilities JSONB DEFAULT '{}'::jsonb,
-                ADD COLUMN IF NOT EXISTS capacity INTEGER DEFAULT 10,
-                ADD COLUMN IF NOT EXISTS notes TEXT,
-                ADD COLUMN IF NOT EXISTS equipment_notes TEXT,
-                ADD COLUMN IF NOT EXISTS name TEXT,
-                ADD COLUMN IF NOT EXISTS location TEXT
-            """
-            )
-            # customer_preferences was missing the is_vip column on
-            # most installs — _handle_vip_code crashed with "column
-            # does not exist" and customers got "Sorry, we couldn't
-            # process your VIP code". Same pattern as the station
-            # rename bug. Adding the column for existing DBs here.
-            cursor.execute(
-                """
-                ALTER TABLE customer_preferences
-                ADD COLUMN IF NOT EXISTS is_vip BOOLEAN DEFAULT FALSE
-            """
-            )
-            # users.is_active is referenced by support_api_routes.py
-            # (UserManagement panel and the /api/users CRUD) but was
-            # never in the schema — GET /api/users 500'd with
-            # "column is_active does not exist" on every Support →
-            # Users visit.
-            cursor.execute(
-                """
-                ALTER TABLE users
-                ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE
-            """
-            )
-            self.db.commit()
+            # The schema-patching ALTER TABLEs that used to live here
+            # have MOVED to services/migrations.py (migrations #1
+            # station_stats_extras, #2 customer_preferences_is_vip,
+            # #3 users_is_active). They are gone from this function on
+            # purpose — do not add ALTER TABLE back to a boot path.
+            #
+            # They were written as "ADD COLUMN IF NOT EXISTS", which
+            # reads like a harmless no-op once the column exists. It is
+            # not. Postgres takes ACCESS EXCLUSIVE on the table BEFORE
+            # it checks whether the column is already there, so every
+            # boot took the strongest possible lock on `users`,
+            # `station_stats` and `customer_preferences` — for nothing.
+            #
+            # With one instance that is invisible. With two on the same
+            # database — an overlapping Railway deploy, or a second
+            # local server — the booting instance's ALTER queues behind
+            # whatever the running instance holds, and a queued ACCESS
+            # EXCLUSIVE blocks every reader that arrives afterwards.
+            # Login hangs everywhere, nothing crashes, nothing restarts.
+            # Reproduced five times out of five on 2026-08-24.
+            #
+            # Under the migrations runner these run ONCE per database,
+            # recorded in schema_migrations, under a lock_timeout. A
+            # steady-state boot now issues no DDL at all.
 
             # Seed default capabilities for stations that don't have
             # them yet — preserves user-customised JSONB across boots.
@@ -455,6 +473,12 @@ class CoffeeOrderSystem:
 
         except Exception as e:
             logger.error(f"Error initializing event scheduling: {str(e)}")
+            # This except swallows the error so boot continues, which
+            # means without an explicit rollback the connection is left
+            # in an ABORTED transaction — every later query on it fails
+            # with "current transaction is aborted" until something ends
+            # it. Roll back so a non-fatal init failure stays non-fatal.
+            self._end_read_transaction()
 
     def get_sponsor_info(self):
         """Get sponsor information for public display"""

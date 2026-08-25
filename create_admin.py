@@ -69,6 +69,11 @@ def create_admin(db_url, username, email, password, force=False):
                 print(f"Deleted existing user.")
             else:
                 print("Operation cancelled.")
+                # Roll back before returning: the SELECT above already
+                # opened a transaction holding ACCESS SHARE on `users`,
+                # and the finally below only returns the connection to
+                # the pool — it does not end the transaction.
+                conn.rollback()
                 return False
         
         # Create admin user
@@ -136,6 +141,15 @@ def create_admin(db_url, username, email, password, force=False):
     finally:
         cursor.close()
         connection_pool.putconn(conn)
+        # Close the pool, don't just return the connection to it.
+        #
+        # This function is called at every boot via ensure_admin_user
+        # (run_server.py / wsgi.py), and it builds its own private
+        # SimpleConnectionPool rather than using utils.database. Without
+        # closeall() that pool's connection stays open for the life of
+        # the process — an extra idle backend per boot that belongs to
+        # nothing and that nobody will ever commit or roll back.
+        connection_pool.closeall()
 
 def main():
     parser = argparse.ArgumentParser(description='Create admin user for Expresso Coffee Ordering System')

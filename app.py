@@ -193,6 +193,61 @@ logging.basicConfig(
 )
 logger = logging.getLogger("expresso")
 
+
+def _end_startup_transaction(db):
+    """Make sure boot does not leave `db` idle in transaction.
+
+    psycopg2 connections are not autocommit: a bare SELECT opens a
+    transaction that lives until someone commits or rolls back. `db`
+    here is the long-lived singleton connection, so a startup check
+    that reads and returns pins an ACCESS SHARE lock on whatever it
+    touched for as long as the process runs.
+
+    Nothing looks wrong until a schema change arrives. ALTER TABLE
+    needs ACCESS EXCLUSIVE, so it queues behind the idle transaction —
+    and a *queued* ACCESS EXCLUSIVE blocks every subsequent reader of
+    that table too. Login hangs, the process stays alive, and no
+    restart policy fires. The only cure is killing the backend by hand.
+
+    Individual init paths are fixed at the source; this is the net
+    under them. It logs loudly, because reaching here with work
+    outstanding means one of those paths regressed.
+    """
+    try:
+        import psycopg2.extensions as _ext
+    except ImportError:
+        return  # SQLite fallback: no transaction status to inspect
+
+    try:
+        status = db.get_transaction_status()
+    except Exception as e:  # pragma: no cover - diagnostic only
+        logger.debug(f"Could not read transaction status at startup: {e}")
+        return
+
+    if status == _ext.TRANSACTION_STATUS_IDLE:
+        return  # the healthy case
+
+    if status == _ext.TRANSACTION_STATUS_INERROR:
+        logger.error(
+            "Startup left the database connection in an ABORTED "
+            "transaction — a startup query failed and was never rolled "
+            "back. Rolling back so the connection is usable."
+        )
+    else:
+        logger.error(
+            "Startup left the database connection IDLE IN TRANSACTION "
+            "(status=%s). Some init path read without committing. "
+            "Rolling back: left open, this blocks every future ALTER "
+            "TABLE and, through it, every reader of that table.",
+            status,
+        )
+
+    try:
+        db.rollback()
+    except Exception as e:  # pragma: no cover
+        logger.error(f"Rollback of the startup transaction failed: {e}")
+
+
 def create_app():
     """Application factory function"""
     app = Flask(__name__, static_folder='static', static_url_path='/static')
@@ -723,7 +778,29 @@ def create_app():
         db.commit()
         logger.info("Settings table created or already exists")
         
-        # Check if we need to create a default admin user
+        # Check if we need to create a default admin user.
+        #
+        # THIS BLOCK MUST END ITS TRANSACTION. It used to run the
+        # SELECT below and simply fall out of the `with` block. psycopg2
+        # is not autocommit, so that SELECT opened a transaction that
+        # was never committed or rolled back, and `db` is the long-lived
+        # singleton connection (coffee_system.db) — so the process sat
+        # `idle in transaction`, holding ACCESS SHARE on `users`, for
+        # its entire life.
+        #
+        # That is a landmine, not just untidiness. Any ALTER TABLE users
+        # elsewhere needs ACCESS EXCLUSIVE and queues behind it, and a
+        # *pending* ACCESS EXCLUSIVE blocks every later reader of the
+        # table — so login hangs system-wide. It never resolves, because
+        # the holder is idle rather than busy, and the process stays
+        # alive so nothing restarts it (the same "hangs and stays hung"
+        # class as the eventlet fault in wsgi.py).
+        #
+        # It bit hardest with two instances on one database: a booting
+        # instance runs the ALTER while an already-running one holds the
+        # idle transaction. That is exactly what a Railway deploy does —
+        # the new container starts while the old one is still serving.
+        # Reproduced locally on 2026-08-24, five times out of five.
         cursor = db.cursor()
         
         cursor.execute("SELECT COUNT(*) FROM users WHERE role = 'admin'")
@@ -748,7 +825,20 @@ def create_app():
                 # Add a warning if using the default password
                 if default_password == 'adminpassword':
                     logger.warning("Using default admin password - please change this immediately!")
-    
+
+        # Close the startup transaction. See the long comment above the
+        # admin check: leaving this open is what wedged the whole system.
+        # commit() rather than rollback() because User.create() above may
+        # have written; on the (overwhelmingly common) read-only path a
+        # commit of a read-only transaction is free.
+        db.commit()
+
+    # Belt and braces: whatever ran during startup, do not enter the
+    # serving loop holding a transaction. Anything still open here is a
+    # bug in one of the init paths, so say so loudly rather than leaving
+    # a silent lock for a future ALTER TABLE to trip over.
+    _end_startup_transaction(db)
+
     # Make context available to templates
     @app.context_processor
     def inject_context():
@@ -844,6 +934,38 @@ def create_app():
             # Never block a request just because the defensive cleanup failed.
             pass
     
+
+    # ...and the matching hook at the END of a request.
+    #
+    # before_request alone leaves a real gap. A handler that only READS
+    # (or the inject_context context processor above, which SELECTs from
+    # `settings` on every rendered page) still opens a transaction, and
+    # nothing ends it until the NEXT request arrives. Between the two the
+    # connection sits `idle in transaction`, holding ACCESS SHARE on
+    # every table it touched — for however long the server happens to be
+    # quiet. A local instance was observed holding `orders` this way for
+    # SEVEN AND A HALF HOURS.
+    #
+    # That idle window is precisely when a deploy runs its migrations, so
+    # this is the runtime half of the startup deadlock fixed elsewhere in
+    # this file: the ALTER TABLE queues behind the sleeping reader, and
+    # the queued ACCESS EXCLUSIVE then blocks every reader behind IT.
+    #
+    # Rolling back here costs nothing on a clean connection and closes
+    # the window: locks are released when the request finishes rather
+    # than whenever the next one turns up. teardown_request runs even if
+    # the handler raised, so it covers the poisoned case too.
+    @app.teardown_request
+    def _release_db_locks(exc=None):
+        try:
+            from utils.database import ensure_clean_connection
+            cs = app.config.get('coffee_system')
+            if cs is not None and getattr(cs, 'db', None) is not None:
+                ensure_clean_connection(cs.db)
+        except Exception:
+            # Never turn a cleanup failure into a request failure.
+            pass
+
     # Authentication API endpoints
     @app.route('/api/auth/login', methods=['POST'])
     def api_auth_login():

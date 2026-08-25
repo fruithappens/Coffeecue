@@ -27,9 +27,15 @@ or Alembic. It's plain psycopg2 — minimal surface area.
 """
 from __future__ import annotations
 import logging
+import os
 from typing import Callable, NamedTuple
 
 logger = logging.getLogger(__name__)
+
+# How long a migration may wait for its table lock before giving up.
+# Long enough to ride out a normal in-flight query, far too short to
+# leave the table wedged. Overridable for slow/loaded databases.
+LOCK_TIMEOUT_MS = int(os.getenv("MIGRATION_LOCK_TIMEOUT_MS", "5000"))
 
 
 class Migration(NamedTuple):
@@ -491,6 +497,29 @@ def apply_pending_migrations(conn) -> list[str]:
     applied: list[str] = []
     try:
         cur = conn.cursor()
+
+        # Fail fast instead of wedging the database.
+        #
+        # Every migration below is DDL, and ALTER TABLE takes ACCESS
+        # EXCLUSIVE. If anything else holds even a read lock on the
+        # table — most commonly another instance of this app sitting
+        # `idle in transaction`, which is exactly what an overlapping
+        # Railway deploy produces — the ALTER waits forever. Worse, a
+        # *queued* ACCESS EXCLUSIVE also blocks every reader that
+        # arrives after it, so one stuck migration takes down login and
+        # order lookups across the whole system, with no crash to
+        # trigger a restart.
+        #
+        # With a lock_timeout the blocked migration gives up in seconds,
+        # logs, and lets everyone else through. An unapplied migration
+        # is a visible, recoverable problem (health and readiness both
+        # report pending migrations); a wedged `users` table is not.
+        try:
+            cur.execute(f"SET lock_timeout = '{LOCK_TIMEOUT_MS}ms'")
+        except Exception as e:
+            # SQLite fallback and other non-Postgres backends.
+            logger.debug(f"[migrations] could not set lock_timeout: {e}")
+
         _ensure_migrations_table(cur)
         conn.commit()
         already = _applied_versions(cur)
@@ -508,7 +537,24 @@ def apply_pending_migrations(conn) -> list[str]:
                 conn.commit()
                 applied.append(f"#{m.version} {m.name}")
             except Exception as e:
-                logger.error(f"[migrations] #{m.version} {m.name} FAILED: {e}")
+                if 'lock timeout' in str(e).lower():
+                    # Not a broken migration — something else is holding
+                    # the table. Name that explicitly, because the fix is
+                    # completely different from a bad ALTER: find the
+                    # blocker, don't touch the migration.
+                    logger.error(
+                        "[migrations] #%s %s COULD NOT GET ITS TABLE LOCK "
+                        "within %sms and was skipped. Another connection "
+                        "is holding the table — most likely a second app "
+                        "instance sitting 'idle in transaction' against "
+                        "this same database. Find it with:  SELECT pid, "
+                        "state, query FROM pg_stat_activity WHERE state = "
+                        "'idle in transaction';  The migration stays "
+                        "pending and will retry on the next boot.",
+                        m.version, m.name, LOCK_TIMEOUT_MS,
+                    )
+                else:
+                    logger.error(f"[migrations] #{m.version} {m.name} FAILED: {e}")
                 try:
                     conn.rollback()
                 except Exception:
@@ -519,6 +565,20 @@ def apply_pending_migrations(conn) -> list[str]:
             logger.info("[migrations] no pending migrations")
     except Exception as e:
         logger.exception(f"[migrations] runner failed: {e}")
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+    finally:
+        # Always leave the connection with no transaction open.
+        #
+        # _applied_versions() runs a SELECT, which opens a transaction.
+        # On the ordinary boot — every migration already applied, so the
+        # loop body never runs and never commits — that transaction was
+        # still open when this function returned, and `conn` is the
+        # long-lived singleton connection. The result was a process
+        # sitting `idle in transaction` from boot onwards, holding locks
+        # for a future ALTER TABLE to deadlock against.
         try:
             conn.rollback()
         except Exception:
