@@ -676,6 +676,27 @@ const PrintersTab = () => {
       {/* Job queue */}
       <div className="bg-white rounded-lg shadow-md p-4">
         <h2 className="text-xl font-bold mb-3">Print Queue (last 20)</h2>
+
+        {/* WHY NOTHING IS PRINTING, at the top of the thing you are
+            staring at. Steve had two jobs sitting at "queued / 0
+            attempts / no error" while the printer reported "Out of
+            paper" on every poll for an hour. From the server's side
+            nothing HAD gone wrong -- it offered the job every second and
+            the printer never came for it -- so the queue had nothing to
+            report. The answer was in the printer's own status all
+            along. */}
+        {printers.filter(p => p.enabled && p.fault).map(p => (
+          <div key={p.id}
+               className="mb-3 rounded-md border-l-4 border-red-500 bg-red-50 px-3 py-2">
+            <div className="font-semibold text-red-800">
+              {p.name || `Printer ${p.id}`}: {p.fault}
+            </div>
+            <div className="text-sm text-red-700">
+              It is still asking for work every few seconds, so jobs will print
+              as soon as this is cleared — nothing needs re-sending.
+            </div>
+          </div>
+        ))}
         {jobs.length === 0 ? (
           <p className="text-gray-500 text-sm">No print jobs yet.</p>
         ) : (
