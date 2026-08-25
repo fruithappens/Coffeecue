@@ -643,6 +643,16 @@ def create_app():
     except Exception as ea_err:
         logger.error(f"EA survey routes failed to register: {ea_err}")
         
+    # Hourly server-side backups. Started here so it runs wherever the
+    # app runs -- Steve cannot rely on his laptop being online during an
+    # event, which is exactly when a backup matters.
+    try:
+        from services.backup_scheduler import start as _start_backups
+        _start_backups(app)
+    except Exception as backup_err:
+        # Never let this stop the app from serving coffee.
+        logger.error(f"Backup scheduler failed to start: {backup_err}")
+
     if has_support_api:
         app.register_blueprint(support_api_bp)
         logger.info("Support API routes registered")
