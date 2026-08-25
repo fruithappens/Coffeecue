@@ -114,9 +114,15 @@ const OrderCard = ({ order, variant, fonts, theme, showCustomerName, showDetails
   // columns from across a room, and the state colour moves to the card
   // edge where it belongs to ONE order. Brewing was a 1px amber hairline
   // that read as grey at four metres; both are now 3-4px.
+  // Second pass on the thickness. Steve asked for the frames "a little
+  // bigger"; 3px/4px was too timid -- on the board at four metres they
+  // still read as a hairline, which is the complaint they were meant to
+  // answer. 6px, and the amber goes solid: at 80% it greyed out against
+  // a white card, which is how a colour meant to be seen across a room
+  // ends up invisible.
   const ringClass = variant === 'ready'
-    ? 'ring-4 ring-green-500 shadow-green-200/60 ready-breathe'
-    : 'ring-[3px] ring-amber-400/80';
+    ? 'ring-[6px] ring-green-500 shadow-green-200/60 ready-breathe'
+    : 'ring-[6px] ring-amber-500';
   const badgeClass = variant === 'ready'
     ? 'bg-green-500 text-white'
     : 'bg-amber-400 text-amber-950';
@@ -1700,8 +1706,8 @@ const DisplayScreen = () => {
            pulseOnce, which fires hard and briefly the moment an order
            BECOMES ready; this is the resting state after it. */
         @keyframes readyBreathe {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.45); }
-          50%      { box-shadow: 0 0 0 6px rgba(34,197,94,0); }
+          0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.5); }
+          50%      { box-shadow: 0 0 0 10px rgba(34,197,94,0); }
         }
         .ready-breathe {
           animation: readyBreathe 2.6s ease-in-out infinite;
