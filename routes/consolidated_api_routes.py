@@ -2010,14 +2010,19 @@ def start_order(order_id):
         # The old average measured created→completed — the whole lifetime
         # including queue-sitting time — so three test orders that sat 30
         # minutes made an EMPTY station claim a 10-minute walk-up wait.
-        try:
-            cursor.execute(
-                "ALTER TABLE orders ADD COLUMN IF NOT EXISTS started_at TIMESTAMP")
-        except Exception:
-            try:
-                db.rollback()
-            except Exception:
-                pass
+        #
+        # This used to run the ALTER unconditionally, on EVERY start —
+        # once per drink, 400+ times at an event. ADD COLUMN takes
+        # ACCESS EXCLUSIVE on `orders` BEFORE it checks whether the
+        # column exists, so a "no-op" still queued behind any reader,
+        # and a waiting exclusive lock stalls every reader behind IT.
+        # Same mechanism as the boot-time convoy, on the hottest path we
+        # have. ensure_column asks the catalogue first and only reaches
+        # for DDL on a database that genuinely lacks the column.
+        from utils.schema_guard import ensure_column
+        ensure_column(
+            db, "orders", "started_at",
+            "ALTER TABLE orders ADD COLUMN IF NOT EXISTS started_at TIMESTAMP")
         _now_s = datetime.now().isoformat()
         cursor.execute(
             '''
