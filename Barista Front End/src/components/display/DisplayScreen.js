@@ -104,9 +104,19 @@ const formatSmsNumber = (raw) => {
 
 // Visual variant of a single order card. Used by both columns.
 const OrderCard = ({ order, variant, fonts, theme, showCustomerName, showDetails, isNew }) => {
+  // The CARDS carry the colour, not the column banners. Steve: "the
+  // banners can still be brewing and ready in the tan and black but the
+  // orders had a outline with the green or orange colour border (which
+  // could be a bit thicker) and a green pulsing border which could be a
+  // little bigger not much".
+  //
+  // So the banners keep the tan/near-black pairing that separates the two
+  // columns from across a room, and the state colour moves to the card
+  // edge where it belongs to ONE order. Brewing was a 1px amber hairline
+  // that read as grey at four metres; both are now 3-4px.
   const ringClass = variant === 'ready'
-    ? 'ring-2 ring-green-400 shadow-green-200/60'
-    : 'ring-1 ring-amber-300/70';
+    ? 'ring-4 ring-green-500 shadow-green-200/60 ready-breathe'
+    : 'ring-[3px] ring-amber-400/80';
   const badgeClass = variant === 'ready'
     ? 'bg-green-500 text-white'
     : 'bg-amber-400 text-amber-950';
@@ -683,13 +693,50 @@ const DisplayScreen = () => {
           const s = o.stationId || o.station_id;
           return s === nid || (s != null && s.toString() === nid?.toString());
         });
-        // Three columns — pending shown so waiting customers can see
-        // their order acknowledged before a barista picks it up.
-        const [pendingAll, inProgressAll, completedAll] = await Promise.all([
-          (OrderDataService.getPendingOrders ? OrderDataService.getPendingOrders(loadOpts) : Promise.resolve([])),
-          OrderDataService.getInProgressOrders(loadOpts),
-          OrderDataService.getCompletedOrders(loadOpts),
-        ]);
+        // THE PUBLIC FEED FIRST, AND THIS MATTERS MORE THAN IT LOOKS.
+        //
+        // OrderDataService talks to /api/orders, which requires a JWT.
+        // This board is the PUBLIC customer display -- a wall TV, a
+        // borrowed laptop, a screen someone sets up on the morning. None
+        // of those has ever logged in, so every fetch 401s and the board
+        // renders "All caught up" with a full queue behind it.
+        //
+        // It looked fine in testing for the worst possible reason: the
+        // cart iPads HAVE logged in as barista, so they carry a token and
+        // the board works on exactly the devices we check it on.
+        //
+        // Confirmed against production with no token: order #4
+        // in-progress, present in /api/display/orders, and the board
+        // showing BREWING 0.
+        //
+        // /api/display/orders is unauthenticated by design and already
+        // returns the same two columns with the same field names.
+        // OrderDataService stays as the fallback, so a signed-in device
+        // keeps its offline cache and its pending column.
+        let pendingAll = [];
+        let inProgressAll = null;
+        let completedAll = null;
+        try {
+          const pub = await fetch('/api/display/orders');
+          if (pub.ok) {
+            const body = await pub.json();
+            const box = (body && body.orders) || {};
+            if (Array.isArray(box.inProgress) || Array.isArray(box.ready)) {
+              inProgressAll = box.inProgress || [];
+              completedAll = box.ready || [];
+              pendingAll = box.pending || [];
+            }
+          }
+        } catch (e) {
+          // Fall through to the authenticated path below.
+        }
+        if (inProgressAll === null) {
+          [pendingAll, inProgressAll, completedAll] = await Promise.all([
+            (OrderDataService.getPendingOrders ? OrderDataService.getPendingOrders(loadOpts) : Promise.resolve([])),
+            OrderDataService.getInProgressOrders(loadOpts),
+            OrderDataService.getCompletedOrders(loadOpts),
+          ]);
+        }
         const next = {
           pending:    formatList(filterStation(pendingAll || []),    'pending'),
           inProgress: formatList(filterStation(inProgressAll || []), 'in-progress'),
@@ -1645,6 +1692,24 @@ const DisplayScreen = () => {
         }
         .animate-pulse-once {
           animation: pulseOnce 1.4s ease-out 0s 6;
+        }
+        /* A slow breath on the green edge for as long as the order is
+           waiting -- "a little bigger not much". 6px at the top of the
+           swell: enough to catch an eye crossing the room, small enough
+           that a row of them is not a light show. Distinct from
+           pulseOnce, which fires hard and briefly the moment an order
+           BECOMES ready; this is the resting state after it. */
+        @keyframes readyBreathe {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.45); }
+          50%      { box-shadow: 0 0 0 6px rgba(34,197,94,0); }
+        }
+        .ready-breathe {
+          animation: readyBreathe 2.6s ease-in-out infinite;
+        }
+        /* A board is a screen people sit near for hours. Anyone who has
+           asked for less motion gets a solid ring and no breathing. */
+        @media (prefers-reduced-motion: reduce) {
+          .ready-breathe, .animate-pulse-once { animation: none; }
         }
       `}</style>
     </div>
