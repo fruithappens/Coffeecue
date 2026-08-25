@@ -325,6 +325,44 @@ def wipe_event_data():
         # Pass keep_order_numbers:true to carry on where you left off,
         # for a wipe done mid-event to clear a mess rather than to hand
         # over to the next client.
+        # CLEAR THE PREVIOUS EVENT'S VIP CODE.
+        #
+        # Steve, after handing CTN26 over to Treenet: "looks liek on wipe
+        # and recrate the vip did not get wied or remade". It did not --
+        # the wipe clears transactional tables and never touches
+        # `settings`, so CTNVIP was still the live code at Treenet's event
+        # while the code Treenet had been told did nothing.
+        #
+        # That is not just untidy. A code learned at the LAST client's
+        # event still skips the queue at this one, and the operator has no
+        # reason to suspect it: the Quick Setup box shows the new code
+        # they typed. A code is as client-specific as the schedule, which
+        # this wipe already clears.
+        #
+        # Removed rather than replaced, so the failure mode is "no VIP
+        # code works until you set one" rather than "an old one still
+        # does". Quick Setup writes the new one. keep_vip_code:true
+        # overrides, for a mid-event wipe clearing a mess rather than
+        # handing over.
+        vip_note = "VIP code kept"
+        if not data.get("keep_vip_code"):
+            try:
+                vip_cur = db.cursor()
+                vip_cur.execute(
+                    "DELETE FROM settings WHERE key IN ('vip_code', 'vip_codes')")
+                removed = vip_cur.rowcount or 0
+                db.commit()
+                vip_note = (
+                    f"VIP code cleared - set a new one in Quick Setup"
+                    if removed else "no VIP code was set")
+            except Exception as vip_err:
+                logger.warning(f"wipe: could not clear vip_code: {vip_err}")
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+                vip_note = f"VIP code unchanged ({str(vip_err)[:60]})"
+
         numbering = "order numbers kept"
         if not data.get("keep_order_numbers"):
             try:
@@ -430,10 +468,11 @@ def wipe_event_data():
             "status": "success",
             "message": f"Wiped {total} rows of customer/transactional data. "
                        f"Inventory config kept; {staff_msg}; {identity_msg}; "
-                       f"{numbering}. Backed up first: {backup_note}.",
+                       f"{numbering}; {vip_note}. Backed up first: {backup_note}.",
             "deleted": deleted,
             "total_rows": total,
             "numbering": numbering,
+            "vip_code": vip_note,
             "backup": backup_note,
         })
     except Exception as e:

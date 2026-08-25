@@ -4635,6 +4635,17 @@ def create_kiosk_order():
         except Exception:
             pass
         note = (data.get('note') or data.get('notes') or '').strip()
+        # The notes box doubles as the VIP code box, with nothing saying
+        # so. There is no field for a code on the kiosk or the QR app, and
+        # Steve does not want one -- "not give it away to others that
+        # there is even such a hack". Typing the event's code among your
+        # notes promotes the order; the code is stripped before storage so
+        # it never reaches the label, the barista card or the board.
+        kiosk_vip = False
+        try:
+            note, kiosk_vip = coffee_system.extract_vip_from_text(note)
+        except Exception as _vip_err:
+            logger.warning(f"vip-in-notes check skipped: {_vip_err}")
         # Strength and temperature are first-class on SMS orders (the NLP
         # service extracts "double shot", "half strength", "extra hot"),
         # but this endpoint used to drop them, so the same words saved as
@@ -4846,7 +4857,11 @@ def create_kiosk_order():
             'temp': temp,
             'order_type': 'kiosk',
             'created_by': 'kiosk',
-            'vip': False,
+            # Set from the notes-box VIP code. Was hardcoded False, which
+            # is what a kiosk order used to be before a code could redeem
+            # one -- and which, as a SECOND 'vip' key in this same dict,
+            # would silently beat any value added above it.
+            'vip': kiosk_vip,
             'station_id': target,
             'stationId': target,
         }
@@ -4859,7 +4874,8 @@ def create_kiosk_order():
             if hasattr(coffee_system, '_compute_order_price'):
                 pv, pf = coffee_system._compute_order_price({
                     'type': order_details['type'], 'milk': order_details['milk'],
-                    'size': order_details['size'], 'sugar': order_details['sugar'], 'vip': False,
+                    'size': order_details['size'], 'sugar': order_details['sugar'],
+                    'vip': kiosk_vip,
                 })
                 if pv is not None:
                     order_details['price'] = pv
@@ -4871,7 +4887,8 @@ def create_kiosk_order():
         ins.execute('''
             INSERT INTO orders (order_number, phone, order_details, status, station_id, created_at, updated_at, queue_priority)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id, order_number
-        ''', (order_number, phone, json.dumps(order_details), 'pending', target, now, now, 5))
+        ''', (order_number, phone, json.dumps(order_details), 'pending', target, now, now,
+              1 if kiosk_vip else 5))
         res = ins.fetchone()
         db.commit()
         order_id = res[0] if res else None
@@ -4887,7 +4904,8 @@ def create_kiosk_order():
                 'customer_name': name, 'customerName': name,
                 'coffee_type': _drink_display_name(order_details), 'coffeeType': _drink_display_name(order_details),
                 'milk_type': order_details['milk'], 'milkType': order_details['milk'],
-                'sugar': order_details['sugar'], 'size': order_details['size'], 'vip': False,
+                'sugar': order_details['sugar'], 'size': order_details['size'],
+                'vip': kiosk_vip,
             })
         except Exception as e:
             logger.debug(f"kiosk WS emit skipped: {e}")
