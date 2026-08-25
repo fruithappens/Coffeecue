@@ -644,12 +644,18 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
         {step === 'strength' && (
           <>
             <Header title="How strong?" onBack={goBack} />
-            <div className="grid grid-cols-2 gap-3 py-4">
+            <div className="grid grid-cols-3 gap-2 py-4">
+              {/* Three, not four. Steve: "think should be normal, double,
+                  half, notes 1/4, 1/8, 3x etc". "Extra strong" sat beside
+                  "Double shot" meaning almost the same thing, which is a
+                  choice to make rather than an option to take -- and the
+                  genuinely unusual ones (1/8 strength, 3x) are not tiles
+                  anyone would guess. They go in the notes box below,
+                  which now exists. */}
               {[
                 { value: '', label: 'Normal', hint: 'as it comes' },
                 { value: 'strong', label: 'Double shot', hint: 'extra shot' },
                 { value: 'weak', label: 'Half strength', hint: 'lighter' },
-                { value: 'extra strong', label: 'Extra strong', hint: 'stronger still' },
               ].map(opt => (
                 <button
                   key={opt.label}
@@ -682,7 +688,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                 type="text"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value.slice(0, 80))}
-                placeholder="e.g. no lid, half full, 1/8 strength"
+                placeholder="e.g. 1/4 strength, 3 shots, no lid, half full"
                 className="w-full px-4 py-4 rounded-2xl text-lg border-2 border-gray-200
                            focus:outline-none"
                 style={notes ? { borderColor: headerColor } : {}}
