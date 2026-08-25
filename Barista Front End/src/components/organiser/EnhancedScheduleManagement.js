@@ -382,14 +382,14 @@ const EnhancedScheduleManagement = () => {
         <QuickSetupStatusBanner section="schedule" />
       </div>
       {/* Header */}
-      <div className="p-6 border-b border-gray-200">
-        <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold text-gray-800 flex items-center">
-            <Calendar size={28} className="mr-3 text-amber-600" />
+      <div className="p-4 sm:p-6 border-b border-gray-200">
+        <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-3">
+          <h2 className="text-lg sm:text-2xl font-bold text-gray-800 flex items-center">
+            <Calendar size={28} className="mr-3 shrink-0 text-amber-600" />
             Enhanced Schedule Management
           </h2>
           
-          <div className="flex items-center space-x-4">
+          <div className="flex flex-wrap items-center gap-3">
             {/* Date selector */}
             <div className="flex items-center space-x-2">
               <button
@@ -445,28 +445,28 @@ const EnhancedScheduleManagement = () => {
         </div>
         
         {/* Tabs */}
-        <div className="mt-6 flex space-x-4 border-b border-gray-200">
+        <div className="mt-6 flex space-x-4 border-b border-gray-200 overflow-x-auto">
           <button
             onClick={() => setActiveTab('timeline')}
-            className={`pb-2 px-4 ${activeTab === 'timeline' ? 'border-b-2 border-amber-500 text-amber-600' : 'text-gray-600'}`}
+            className={`pb-2 px-4 whitespace-nowrap shrink-0 ${activeTab === 'timeline' ? 'border-b-2 border-amber-500 text-amber-600' : 'text-gray-600'}`}
           >
             Timeline View
           </button>
           <button
             onClick={() => setActiveTab('stations')}
-            className={`pb-2 px-4 ${activeTab === 'stations' ? 'border-b-2 border-amber-500 text-amber-600' : 'text-gray-600'}`}
+            className={`pb-2 px-4 whitespace-nowrap shrink-0 ${activeTab === 'stations' ? 'border-b-2 border-amber-500 text-amber-600' : 'text-gray-600'}`}
           >
             Station Control
           </button>
           <button
             onClick={() => setActiveTab('sessions')}
-            className={`pb-2 px-4 ${activeTab === 'sessions' ? 'border-b-2 border-amber-500 text-amber-600' : 'text-gray-600'}`}
+            className={`pb-2 px-4 whitespace-nowrap shrink-0 ${activeTab === 'sessions' ? 'border-b-2 border-amber-500 text-amber-600' : 'text-gray-600'}`}
           >
             Session Management
           </button>
           <button
             onClick={() => setActiveTab('assignments')}
-            className={`pb-2 px-4 ${activeTab === 'assignments' ? 'border-b-2 border-amber-500 text-amber-600' : 'text-gray-600'}`}
+            className={`pb-2 px-4 whitespace-nowrap shrink-0 ${activeTab === 'assignments' ? 'border-b-2 border-amber-500 text-amber-600' : 'text-gray-600'}`}
           >
             Barista Assignments
           </button>
@@ -474,7 +474,7 @@ const EnhancedScheduleManagement = () => {
       </div>
       
       {/* Content */}
-      <div className="p-6">
+      <div className="p-3 sm:p-6">
         {/* Timeline View */}
         {activeTab === 'timeline' && (
           <div>
@@ -571,9 +571,9 @@ const EnhancedScheduleManagement = () => {
             </div>
             
             {/* Legend */}
-            <div className="mt-4 flex items-center space-x-6 text-sm">
-              <div className="flex items-center">
-                <div className="w-4 h-4 bg-blue-100 border border-blue-300 rounded mr-2" />
+            <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+              <div className="flex items-center whitespace-nowrap">
+                <div className="w-4 h-4 bg-blue-100 border border-blue-300 rounded mr-2 shrink-0" />
                 <span>Scheduled Session</span>
               </div>
               <div className="flex items-center">

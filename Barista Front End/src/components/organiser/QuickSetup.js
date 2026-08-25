@@ -1019,7 +1019,7 @@ const QuickSetup = () => {
   );
 
   return (
-    <div className="p-6 max-w-4xl">
+    <div className="p-0 sm:p-6 max-w-4xl">
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6 flex items-start">
         <Zap className="w-6 h-6 text-amber-600 mr-3 mt-0.5 flex-shrink-0" />
         <div>
@@ -1438,7 +1438,7 @@ const QuickSetupPreviewModal = ({ loading, preview, error, onConfirm, onCancel }
                   </span>
                 )}
               </h4>
-              <div className="grid grid-cols-3 gap-3 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                 <div>
                   <div className="font-medium text-green-700 mb-1">
                     Adding ({inv.added.length})
@@ -1887,7 +1887,7 @@ const PricingSection = () => {
           </div>
 
           <h4 className="font-semibold mt-2 mb-2">Size surcharge</h4>
-          <div className="grid grid-cols-3 gap-2 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4">
             {Object.entries(pricing.size_surcharge || {}).map(([size, price]) => (
               <div key={size} className="flex items-center gap-2 justify-between">
                 <span className="text-sm capitalize">{size}</span>

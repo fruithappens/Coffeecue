@@ -4,7 +4,7 @@ import {
   Beaker, Square, Candy, Search
 } from 'lucide-react';
 import InventoryIntegrationService from '../../services/InventoryIntegrationService';
-import EventInventoryService from '../../services/EventInventoryService';
+import EventInventoryService, { normaliseInventory } from '../../services/EventInventoryService';
 import QuickSetupStatusBanner from './QuickSetupStatusBanner';
 import useCatalog from '../../hooks/useCatalog';
 
@@ -206,7 +206,7 @@ const InventoryManagement = () => {
       try {
         const savedInventory = localStorage.getItem('event_inventory');
         if (savedInventory) {
-          setInventory(JSON.parse(savedInventory));
+          setInventory(normaliseInventory(JSON.parse(savedInventory)));
           return;
         }
       } catch (_) { /* ignore */ }
@@ -398,15 +398,15 @@ const InventoryManagement = () => {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-6">
+    <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6">
       <QuickSetupStatusBanner section="event_inventory" />
       {saveError && (
         <div className="mb-4 p-3 rounded-md bg-red-50 border border-red-300 text-red-800 text-sm">
           {saveError}
         </div>
       )}
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">Inventory Management</h2>
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Inventory Management</h2>
         <button
           onClick={initializeDefaultInventory}
           className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
@@ -415,9 +415,9 @@ const InventoryManagement = () => {
         </button>
       </div>
 
-      <div className="grid grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6">
         {/* Category Sidebar */}
-        <div className="col-span-3">
+        <div className="lg:col-span-3">
           <h3 className="text-lg font-semibold mb-4 text-gray-700">Categories</h3>
           <div className="space-y-2">
             {Object.entries(categories).map(([categoryKey, category]) => {
@@ -450,7 +450,7 @@ const InventoryManagement = () => {
         </div>
 
         {/* Main Content */}
-        <div className="col-span-9">
+        <div className="lg:col-span-9">
           {/* Header */}
           <div className="flex justify-between items-center mb-4">
             <div className="flex items-center">
@@ -487,7 +487,7 @@ const InventoryManagement = () => {
             <div className="bg-gray-50 rounded-md p-4 mb-4">
               <h4 className="text-lg font-medium mb-3">Add New Item</h4>
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Item Name
@@ -520,7 +520,7 @@ const InventoryManagement = () => {
                 
                 {/* Additional fields for cups */}
                 {categories[activeCategory]?.additionalFields && (
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {categories[activeCategory].additionalFields.map(field => (
                       <div key={field.key}>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -675,7 +675,7 @@ const EditItemForm = ({ item, onSave, onCancel, category, categories }) => {
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Item Name
@@ -702,7 +702,7 @@ const EditItemForm = ({ item, onSave, onCancel, category, categories }) => {
       
       {/* Additional fields for cups */}
       {categories[category]?.additionalFields && (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {categories[category].additionalFields.map(field => (
             <div key={field.key}>
               <label className="block text-sm font-medium text-gray-700 mb-1">

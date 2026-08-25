@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { normaliseInventory } from '../../services/EventInventoryService';
 import {
   Coffee, Settings, Check, X, Search, Filter,
   CheckCircle, Circle, Package, Trash2, Plus, Minus
@@ -116,7 +117,7 @@ const StationInventoryConfig = ({ stations }) => {
     const savedInventory = localStorage.getItem('event_inventory');
     if (savedInventory) {
       try {
-        const inventoryData = JSON.parse(savedInventory);
+        const inventoryData = normaliseInventory(JSON.parse(savedInventory));
         setInventory(inventoryData);
       } catch (e) {
         console.error('Error loading inventory:', e);
@@ -487,15 +488,15 @@ const StationInventoryConfig = ({ stations }) => {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-6">
+    <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6">
       <QuickSetupStatusBanner section="station_inventory" />
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">Station Inventory Configuration</h2>
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Station Inventory Configuration</h2>
       </div>
       
-      <div className="grid grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6">
         {/* Station Selector */}
-        <div className="col-span-3">
+        <div className="lg:col-span-3">
           <h3 className="text-lg font-semibold mb-4 text-gray-700">Select Station</h3>
           <div className="space-y-2">
             {stations.map(station => {
@@ -554,18 +555,18 @@ const StationInventoryConfig = ({ stations }) => {
         </div>
 
         {/* Main Content */}
-        <div className="col-span-9">
+        <div className="lg:col-span-9">
           {selectedStation ? (
             <>
               {/* Header */}
-              <div className="flex justify-between items-center mb-4">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
                 <div className="flex items-center">
-                  <Coffee className="mr-2 text-blue-600" />
-                  <h3 className="text-xl font-semibold">
+                  <Coffee className="mr-2 shrink-0 text-blue-600" />
+                  <h3 className="text-lg sm:text-xl font-semibold">
                     Configure {selectedStation.name}
                   </h3>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center justify-between sm:justify-end gap-4">
                   <div className="text-sm text-gray-500">
                     {(() => {
                       const stats = getStationStats(selectedStation.id);
@@ -615,7 +616,7 @@ const StationInventoryConfig = ({ stations }) => {
               </div>
 
               {/* Filters */}
-              <div className="grid grid-cols-3 gap-4 mb-6">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-6">
                 <div className="relative">
                   <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                   <input
@@ -650,7 +651,7 @@ const StationInventoryConfig = ({ stations }) => {
               {/* Category Quick Actions */}
               <div className="bg-gray-50 rounded-md p-4 mb-4">
                 <h4 className="text-sm font-medium text-gray-700 mb-3">Category Quick Actions</h4>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
                   {Object.entries(categories).map(([categoryKey, category]) => {
                     const categoryItems = inventory[categoryKey]?.filter(item => item.enabled) || [];
                     const config = getStationConfig(selectedStation.id);

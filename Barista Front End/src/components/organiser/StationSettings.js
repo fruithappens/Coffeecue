@@ -130,18 +130,18 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-800 flex items-center">
-          <Settings className="mr-2" />
+    <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-800 flex flex-wrap items-center gap-x-2 gap-y-1">
+          <Settings className="shrink-0" />
           Station Settings
-          <span className="ml-3 px-2 py-1 bg-green-100 text-green-800 text-sm rounded-md">
+          <span className="px-2 py-1 bg-green-100 text-green-800 text-sm rounded-md whitespace-nowrap">
             ✨ New Interface
           </span>
         </h2>
         <button
           onClick={() => setShowAddForm(true)}
-          className="flex items-center px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600"
+          className="flex items-center justify-center w-full sm:w-auto shrink-0 px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600"
         >
           <Plus size={16} className="mr-2" />
           Add Station
@@ -164,9 +164,9 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
         </div>
       )}
 
-      <div className="grid grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6">
         {/* Station List */}
-        <div className="col-span-4">
+        <div className="lg:col-span-4">
           <h3 className="text-lg font-semibold mb-4 text-gray-700">Stations</h3>
           <div className="space-y-2">
             {stations.map(station => (
@@ -255,7 +255,7 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
         </div>
 
         {/* Station Details */}
-        <div className="col-span-8">
+        <div className="lg:col-span-8">
           {selectedStation ? (
             <div>
               <div className="flex justify-between items-center mb-4">

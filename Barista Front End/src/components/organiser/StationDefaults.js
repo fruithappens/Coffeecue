@@ -268,7 +268,7 @@ const StationDefaults = ({ stationId = null }) => {
   
   if (loading) {
     return (
-      <div className="p-6">
+      <div className="p-3 sm:p-6">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-500 mx-auto"></div>
           <p className="mt-2 text-gray-600">Loading station defaults...</p>

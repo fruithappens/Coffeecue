@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { normaliseInventory } from '../../services/EventInventoryService';
 import {
   Package, Plus, Minus, Save, AlertCircle, Check,
   Coffee, Droplet, Square, Candy, Beaker, Package2
@@ -63,7 +64,10 @@ const BeanDoseCard = () => {
 
   return (
     <div className="bg-white rounded-lg shadow-md p-4 mb-6">
-      <div className="flex items-center justify-between gap-4">
+      {/* Four sentences of explanation and a number box in one row gave the
+          prose a 100px column on a phone -- 15 lines of two-word fragments.
+          The control belongs under the text it explains. */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
           <h3 className="text-lg font-bold">Coffee dose per drink</h3>
           <p className="text-sm text-gray-500">
@@ -159,7 +163,7 @@ const EventStockManagement = () => {
     const savedInventory = localStorage.getItem('event_inventory');
     if (savedInventory) {
       try {
-        setInventory(JSON.parse(savedInventory));
+        setInventory(normaliseInventory(JSON.parse(savedInventory)));
       } catch (e) {
         console.error('Error loading inventory:', e);
       }
@@ -424,7 +428,7 @@ const EventStockManagement = () => {
   };
 
   return (
-    <div className="p-6">
+    <div className="p-3 sm:p-6">
       <BeanDoseCard />
       <div className="mb-6">
         <div className="flex justify-between items-center">
@@ -501,7 +505,9 @@ const EventStockManagement = () => {
       {/* Detailed Stock Management */}
       <div className="space-y-6">
         {Object.entries(inventory).map(([category, items]) => {
-          const enabledItems = items?.filter(item => item.enabled) || [];
+          // `?.` guards null but not a non-array, which is exactly what
+          // the envelope bug delivered here.
+          const enabledItems = (Array.isArray(items) ? items : []).filter(i => i.enabled);
           if (enabledItems.length === 0) return null;
           
           const color = getCategoryColor(category);

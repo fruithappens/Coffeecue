@@ -157,7 +157,7 @@ const GroupOrdersTab = ({ onSubmitGroupOrders }) => {
       
       {!showSavedGroups ? (
         <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Group Name*
@@ -216,7 +216,7 @@ const GroupOrdersTab = ({ onSubmitGroupOrders }) => {
           <h3 className="text-lg font-semibold mb-3">Individual Orders</h3>
           
           <div className="bg-gray-50 p-3 rounded-lg mb-4">
-            <div className="grid grid-cols-2 gap-4 mb-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Name*
@@ -245,7 +245,7 @@ const GroupOrdersTab = ({ onSubmitGroupOrders }) => {
               </div>
             </div>
             
-            <div className="grid grid-cols-2 gap-4 mb-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Coffee Type*
@@ -303,7 +303,7 @@ const GroupOrdersTab = ({ onSubmitGroupOrders }) => {
               </div>
             </div>
             
-            <div className="grid grid-cols-2 gap-4 mb-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Sugar

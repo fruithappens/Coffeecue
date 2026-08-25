@@ -326,7 +326,7 @@ const SystemHealthTab = () => {
           statuses / measured calls below. Previously these were hardcoded
           (98%, "1 incident", 42%, 12ms) which made the panel claim health
           it never checked. "—" means not yet measured. */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {(() => {
           const known = components.filter(c => c.status !== 'unknown');
           const healthy = known.filter(c => c.status === 'healthy').length;

@@ -392,11 +392,11 @@ const EnhancedCommunicationHub = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <div className="flex justify-between items-center mb-6">
+      <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
           <h2 className="text-xl font-semibold">Communication Hub</h2>
-          
-          <div className="flex items-center space-x-3">
+
+          <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center space-x-2 text-sm">
               <Wifi className="w-4 h-4 text-green-500" />
               <span className="text-gray-600">All channels online</span>
@@ -413,7 +413,7 @@ const EnhancedCommunicationHub = () => {
         </div>
         
         {/* Channel Tabs */}
-        <div className="flex space-x-1 border-b">
+        <div className="flex space-x-1 border-b overflow-x-auto">
           <button
             onClick={() => setActiveChannel('all')}
             className={`px-4 py-2 font-medium border-b-2 transition-colors ${
@@ -481,9 +481,9 @@ const EnhancedCommunicationHub = () => {
             </div>
           </div>
           
-          <div className="flex h-96">
+          <div className="flex flex-col sm:flex-row sm:h-96">
             {/* Conversation List */}
-            <div className="w-1/3 border-r overflow-y-auto">
+            <div className="w-full max-h-56 sm:max-h-none sm:w-1/3 border-b sm:border-b-0 sm:border-r overflow-y-auto">
               {conversations.map(conv => (
                 <div
                   key={conv.id}

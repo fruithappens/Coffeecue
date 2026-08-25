@@ -838,7 +838,7 @@ const SMSTestSimulator = () => {
       {testResults.stages.length > 0 && !testResults.isRunning && (
         <div className="mt-6 p-4 bg-blue-50 rounded-lg">
           <h4 className="font-semibold text-blue-800 mb-2">Test Summary</h4>
-          <div className="grid grid-cols-4 gap-4 text-sm">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
             <div>
               <span className="text-gray-600">Total Stages:</span>
               <span className="ml-2 font-medium">{testResults.stages.length}</span>
