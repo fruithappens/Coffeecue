@@ -123,6 +123,26 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
   const DONE_EXTENSION = 10;
   const [doneLeft, setDoneLeft] = useState(null);
 
+  // WHOSE SCREEN IS THIS.
+  //
+  // Steve: "the device that has not been logged in assumes its someones
+  // personal device ... the only distringuishing differnce is the
+  // touchscreen should be logged in and should have user name and pass
+  // where people phones dont need to be logged in".
+  //
+  // That is the honest test, and better than what was here. The code
+  // inferred it from which component mounted the kiosk -- which happens
+  // to work, but indirect is how the idle timer ended up interrupting
+  // someone who was plainly typing.
+  //
+  // A customer never logs in. A cart touchscreen always has, because a
+  // barista signed it in to work the station. So a token in storage means
+  // this is the cart's shared screen; no token means a phone in someone's
+  // hand.
+  const isOwnDevice = (() => {
+    try { return !localStorage.getItem('coffee_system_token'); } catch (e) { return true; }
+  })();
+
   const [history, setHistory] = useState([]);
   const goTo = (next) => {
     setHistory((h) => [...h, step]);
@@ -208,7 +228,15 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
     if (countdownRef.current) clearInterval(countdownRef.current);
     setIdleCountdown(null);
     if (step === 'done') return; // success screen has its own timer
-    if (onOrderPlaced) return;   // personal phone: never auto-close
+    // Never time out somebody's own phone. The timeout exists because a
+    // SHARED screen cannot be left holding a stranger's half-finished
+    // order -- that reasoning does not apply to a phone in a pocket, and
+    // an abandoned order on it costs nobody anything.
+    //
+    // Keyed off being logged in, which is Steve's rule and the honest
+    // one, with the old prop kept as a second guard: a page that hands
+    // back an order number is a personal flow whatever storage says.
+    if (isOwnDevice || onOrderPlaced) return;
     idleRef.current = setTimeout(() => {
       setIdleCountdown(IDLE_COUNTDOWN_SECONDS);
       countdownRef.current = setInterval(() => {
@@ -223,7 +251,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
         });
       }, 1000);
     }, IDLE_WARN_MS);
-  }, [step, onClose, onOrderPlaced]);
+  }, [step, onClose, onOrderPlaced, isOwnDevice]);
   useEffect(() => {
     resetIdle();
     return () => {
@@ -463,7 +491,9 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
           // Phone flow: the page becomes a live status card. No
           // auto-close — the customer watches for READY here.
           onOrderPlaced(b.order_number);
-        } else {
+        } else if (!isOwnDevice) {
+          // Shared screen: clear it for the next person, counted down out
+          // loud. On a personal phone it stays until they close it.
           setDoneLeft(DONE_SECONDS);
         }
       } else {
@@ -789,10 +819,19 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
         {/* ---------- PHONE (always optional — offer a ready-text) ---------- */}
         {step === 'phone' && (
           <>
-            <Header title="Want a text when it’s ready?"
+            <Header title={isOwnDevice ? 'How should we tell you?' : 'Want a text when it’s ready?'}
                     onBack={goBack} />
             <p className="text-xl text-gray-600 mb-3 font-medium">
-              {collectingHere
+              {/* On someone's OWN phone, THIS PAGE is a way of being told,
+                  and the best one -- no number, nothing to pay for, and it
+                  updates itself. Say that first and offer the text as an
+                  extra. On the cart's own screen it is not an option at
+                  all, because they are about to walk away from it. */}
+              {isOwnDevice
+                ? (<>Keep this page open and it will tell you right here — no number
+                     needed. Add your mobile if you’d rather get a text as well, or
+                     just watch the board.</>)
+                : collectingHere
                 ? "Pop in your mobile and we’ll text you when it’s ready — or just wait nearby and watch the board for your name. No phone needed."
                 : <>Your order will be ready at <b>{stationName(chosenStation)}</b>. Add your mobile for a text when it’s done, or skip and watch the board there for your name. No phone needed.</>}
             </p>
@@ -810,7 +849,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
               <button onClick={() => { setPhone(''); goTo('review'); }}
                 className="flex-1 py-5 rounded-2xl text-xl font-extrabold text-white shadow active:scale-95"
                 style={{ backgroundColor: headerColor }}>
-                📺 I'll watch the board
+                {isOwnDevice ? '📱 Watch it on this phone' : "📺 I'll watch the board"}
               </button>
               <button disabled={!phoneValid} onClick={() => goTo('review')}
                 className="flex-1 py-5 rounded-2xl text-xl font-extrabold text-white shadow active:scale-95 disabled:opacity-40"
