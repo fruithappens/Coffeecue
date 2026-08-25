@@ -217,6 +217,52 @@ def _sweep_stuck_jobs(db):
             (PRINT_RETRY_MAX, cutoff))
         if cur.rowcount:
             logger.warning(f"print sweep: {cur.rowcount} stuck job(s) handled")
+
+        # Jobs nobody ever FETCHED, aimed at a printer that is not
+        # answering. The sweep above only rescues jobs a printer took and
+        # then died holding; a job queued to a printer that never polls
+        # just waits, indefinitely, and prints whenever that machine is
+        # next plugged in. Steve had station 1 enabled with a printer
+        # that had not checked in for two days.
+        #
+        # A cup label's usefulness expires with the drink, so past the
+        # window these are cancelled rather than kept.
+        #
+        # The AGES are computed in SQL. created_at is `timestamp WITHOUT
+        # time zone` holding the database server's local clock, so doing
+        # this arithmetic in Python against UTC worked on a UTC host and
+        # silently did nothing anywhere else. Here NOW() and created_at
+        # share one clock and the timezone question cannot arise.
+        try:
+            from utils.print_queue import DEFAULT_STALE_SECONDS, is_stale
+            c3 = db.cursor()
+            c3.execute(
+                "SELECT j.id, "
+                "  EXTRACT(EPOCH FROM (NOW() - j.created_at)), "
+                "  CASE WHEN p.last_poll_at IS NULL THEN NULL "
+                "       ELSE EXTRACT(EPOCH FROM (NOW() - p.last_poll_at)) END "
+                "FROM print_jobs j LEFT JOIN printers p ON p.id = j.printer_id "
+                "WHERE j.status = 'queued'")
+            giving_up = []
+            for row in (c3.fetchall() or []):
+                if isinstance(row, dict):
+                    vals = list(row.values())
+                    jid, job_age, silent = vals[0], vals[1], vals[2]
+                else:
+                    jid, job_age, silent = row[0], row[1], row[2]
+                if is_stale(job_age, silent, DEFAULT_STALE_SECONDS):
+                    giving_up.append(jid)
+            for jid in giving_up:
+                c3.execute(
+                    "UPDATE print_jobs SET status = 'cancelled', "
+                    "error = COALESCE(error,'') || ' [printer never collected it]' "
+                    "WHERE id = %s", (jid,))
+            if giving_up:
+                logger.warning("print sweep: gave up on %d label(s) queued to a "
+                               "printer that is not answering", len(giving_up))
+        except Exception as stale_err:
+            logger.warning(f"stale queued-job sweep failed: {stale_err}")
+
         db.commit()
     except Exception as e:
         logger.warning(f"print job sweep failed: {e}")
@@ -331,6 +377,50 @@ def _offline_note(db, printer_id):
             f"it reconnects.")
 
 
+def _supersede_older_labels(db, order_id, new_printer_id):
+    """Retire a label still waiting on a printer this station no longer uses.
+
+    A label queued to printer A, printer A dies, a spare goes on that
+    station, the barista presses print again -- the new job goes to the
+    new printer and the OLD one sits in A's queue. Plug A back in next
+    week and it prints a label for a coffee drunk days ago.
+
+    Only when the printer DIFFERS. Re-printing to the same printer is the
+    operator asking for a second copy, which is a real thing to want.
+
+    Called from BOTH paths on purpose. _enqueue alone was not enough:
+    /reprint passes order_id=None (so its idempotency check cannot block
+    a deliberate second copy), which meant the one path that exists to
+    recover from a swapped-out printer was the one path that never
+    cleaned up after it.
+    """
+    if not order_id:
+        return
+    try:
+        from utils.print_queue import supersedes
+        cur = db.cursor()
+        cur.execute(
+            "SELECT id, printer_id FROM print_jobs WHERE order_id = %s "
+            "AND status = 'queued' AND type = 'label'", (str(order_id),))
+        for row in (cur.fetchall() or []):
+            old_id = row[0] if not isinstance(row, dict) else row.get('id')
+            old_printer = row[1] if not isinstance(row, dict) else row.get('printer_id')
+            if supersedes(new_printer_id, old_printer):
+                cur.execute(
+                    "UPDATE print_jobs SET status = 'cancelled', "
+                    "error = COALESCE(error,'') || ' [superseded: station now "
+                    "prints on another printer]' WHERE id = %s", (old_id,))
+                logger.info("print: job %s on printer %s superseded by printer %s",
+                            old_id, old_printer, new_printer_id)
+        db.commit()
+    except Exception as e:
+        logger.warning(f"could not supersede older print jobs: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+
 def _enqueue(db, printer_id, payload, order_id=None, job_type='label'):
     """Insert a queued job. Idempotent for label AND ticket jobs: an
     identical queued job for the same order+printer+type is returned,
@@ -344,6 +434,9 @@ def _enqueue(db, printer_id, payload, order_id=None, job_type='label'):
         row = cur.fetchone()
         if row:
             return (row[0] if not isinstance(row, dict) else row.get('id')), False
+    if order_id and job_type == 'label':
+        _supersede_older_labels(db, order_id, printer_id)
+
     job_id = str(uuid.uuid4())
     cur.execute(
         "INSERT INTO print_jobs (id, printer_id, order_id, type, status, payload) "
@@ -938,6 +1031,13 @@ def reprint():
                     db.rollback()
                 except Exception:
                     pass
+
+        # The order id lives on the ORIGINAL job -- the new job is
+        # deliberately queued with order_id=None so the idempotency check
+        # cannot refuse a wanted second copy. Supersede explicitly here,
+        # because this is exactly the path a barista uses after swapping
+        # a broken printer out.
+        _supersede_older_labels(db, job.get('order_id'), target_printer)
 
         new_id, _ = _enqueue(db, target_printer, payload,
                              order_id=None, job_type=job.get('type') or 'label')
