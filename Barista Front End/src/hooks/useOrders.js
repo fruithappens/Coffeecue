@@ -16,7 +16,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import OrderDataService from '../services/OrderDataService';
 import StockService from '../services/StockService';
 import { planDepletion } from '../utils/stockDepletion';
-import { dedupeOrders, upsertOrder } from '../utils/orderListUtils';
+import { appendOrder, dedupeOrders, upsertOrder } from '../utils/orderListUtils';
 import { calculateWaitTime, parseServerDate } from '../utils/orderUtils';
 
 // How long a local optimistic transition wins over backend fetches.
@@ -202,11 +202,11 @@ export default function useOrders(stationId = null) {
           setTimeout(() => {
             if (parsedCache.pendingOrders) {
               console.log(`Restoring ${parsedCache.pendingOrders.length} pending orders for station ${stationId}`);
-              setPendingOrders(parsedCache.pendingOrders);
+              setPendingOrders(dedupeOrders(parsedCache.pendingOrders));
             }
             if (parsedCache.inProgressOrders) {
               console.log(`Restoring ${parsedCache.inProgressOrders.length} in-progress orders for station ${stationId}`);
-              setInProgressOrders(parsedCache.inProgressOrders);
+              setInProgressOrders(dedupeOrders(parsedCache.inProgressOrders));
             }
             if (parsedCache.completedOrders) {
               console.log(`Restoring ${parsedCache.completedOrders.length} completed orders for station ${stationId}`);
@@ -339,8 +339,8 @@ export default function useOrders(stationId = null) {
         // Set fallback data directly to avoid loading spinner
         setTimeout(() => {
           // Update all state directly with fallback data
-          setPendingOrders(fallbackPendingOrders);
-          setInProgressOrders(fallbackInProgressOrders);
+          setPendingOrders(dedupeOrders(fallbackPendingOrders));
+          setInProgressOrders(dedupeOrders(fallbackInProgressOrders));
           setCompletedOrders(dedupeOrders(fallbackCompletedOrders));
           setPreviousOrders(fallbackPreviousOrders);
           
@@ -717,11 +717,11 @@ export default function useOrders(stationId = null) {
         
         // Update order lists - CRITICAL: Check for undefined before updating
         if (batchedUpdates.pendingOrders !== undefined && Array.isArray(batchedUpdates.pendingOrders)) {
-          setPendingOrders(batchedUpdates.pendingOrders);
+          setPendingOrders(dedupeOrders(batchedUpdates.pendingOrders));
         }
         
         if (batchedUpdates.inProgressOrders !== undefined && Array.isArray(batchedUpdates.inProgressOrders)) {
-          setInProgressOrders(batchedUpdates.inProgressOrders);
+          setInProgressOrders(dedupeOrders(batchedUpdates.inProgressOrders));
         }
         
         if (batchedUpdates.completedOrders !== undefined && Array.isArray(batchedUpdates.completedOrders)) {
@@ -842,8 +842,8 @@ export default function useOrders(stationId = null) {
             });
             
             // Apply cached data immediately
-            if (cachedData.pendingOrders) setPendingOrders(cachedData.pendingOrders);
-            if (cachedData.inProgressOrders) setInProgressOrders(cachedData.inProgressOrders);
+            if (cachedData.pendingOrders) setPendingOrders(dedupeOrders(cachedData.pendingOrders));
+            if (cachedData.inProgressOrders) setInProgressOrders(dedupeOrders(cachedData.inProgressOrders));
             if (cachedData.completedOrders) setCompletedOrders(dedupeOrders(cachedData.completedOrders));
             if (cachedData.previousOrders) setPreviousOrders(cachedData.previousOrders);
             
@@ -895,11 +895,11 @@ export default function useOrders(stationId = null) {
               // Update all state in a single batch
               if (cachedData.pendingOrders) {
                 console.log(`Applying ${cachedData.pendingOrders.length} cached pending orders`);
-                setPendingOrders(cachedData.pendingOrders);
+                setPendingOrders(dedupeOrders(cachedData.pendingOrders));
               }
               if (cachedData.inProgressOrders) {
                 console.log(`Applying ${cachedData.inProgressOrders.length} cached in-progress orders`);
-                setInProgressOrders(cachedData.inProgressOrders);
+                setInProgressOrders(dedupeOrders(cachedData.inProgressOrders));
               }
               if (cachedData.completedOrders) {
                 console.log(`Applying ${cachedData.completedOrders.length} cached completed orders`);
@@ -1282,7 +1282,11 @@ export default function useOrders(stationId = null) {
           assignedStation: currentStationId
         };
         
-        setInProgressOrders(prev => [...prev, updatedOrder]);
+        // appendOrder, not [...prev, x]: starting the same order twice --
+        // a double-tap on a busy screen, or this path running after the
+        // API path -- appended a SECOND identical card. Steve hit it
+        // adding walk-ins in quick succession: one order #1550, two cards.
+        setInProgressOrders(prev => appendOrder(prev, updatedOrder));
         setQueueCount(prev => Math.max(0, prev - 1));
         
         // Update order in main cache storage for persistence
@@ -1348,7 +1352,7 @@ export default function useOrders(stationId = null) {
         assignedStation: currentStationId
       };
 
-      setInProgressOrders(prev => [...prev, updatedOrder]);
+      setInProgressOrders(prev => appendOrder(prev, updatedOrder));
       setQueueCount(prev => Math.max(0, prev - 1));
       
       // Update order in main cache storage for persistence

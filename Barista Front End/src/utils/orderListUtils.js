@@ -49,6 +49,31 @@ export const upsertOrder = (list, order) => {
 };
 
 /**
+ * Add `order` to the END of `list`, replacing any existing entry for the
+ * same order IN PLACE.
+ *
+ * The in-progress column is the barista's working queue and its order is
+ * the order they are making things in, so a re-added card must not jump
+ * to the front the way upsertOrder would. If the order is already there
+ * the newer object replaces it where it stands; if it is new it goes on
+ * the end, which is where a freshly started drink belongs.
+ */
+export const appendOrder = (list, order) => {
+  const existing = Array.isArray(list) ? list : [];
+  const key = orderKey(order);
+  if (!key) return [...existing, order];
+  let replaced = false;
+  const next = existing.map((o) => {
+    if (orderKey(o) === key) {
+      replaced = true;
+      return order;
+    }
+    return o;
+  });
+  return replaced ? next : [...next, order];
+};
+
+/**
  * Remove duplicates from a list, keeping the first occurrence.
  *
  * Applied to lists that arrive wholesale from the API or the cache: a
