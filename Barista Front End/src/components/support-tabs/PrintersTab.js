@@ -442,6 +442,7 @@ const PrintersTab = () => {
                   <th className="py-2 pr-3">MAC</th>
                   <th className="py-2 pr-3">Station</th>
                   <th className="py-2 pr-3">Width</th>
+                  <th className="py-2 pr-3">Offset</th>
                   <th className="py-2 pr-3">Driver</th>
                   <th className="py-2 pr-3">Enabled</th>
                   <th className="py-2 pr-3">Last poll</th>
@@ -506,6 +507,65 @@ const PrintersTab = () => {
                         <option value="576">72mm (576)</option>
                         <option value="640">80mm (640)</option>
                       </select>
+                    </td>
+                    <td className="py-2 pr-3">
+                      {/* LEFT OFFSET, per printer.
+                          Every printer needs its own. An 80mm head
+                          printing onto 58mm stock held right-aligned by
+                          the guide rail misses the leftmost dots
+                          entirely: the TSP100IV needs 142, the mC-Label3
+                          needed 58, and a third machine will need
+                          something else again. It is a property of that
+                          printer with that stock in that rail, not a
+                          setting anyone can guess.
+                          Applied at DELIVERY by padding blank on the
+                          left, so the label design stays one canvas and
+                          the on-screen preview keeps matching. */}
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min="0"
+                          max="640"
+                          step="2"
+                          className="border rounded px-1 py-1 text-xs w-16"
+                          defaultValue={p.offset_dots ?? 0}
+                          title="Blank dots padded on the left so the print lands on the label"
+                          onBlur={(e) => {
+                            const next = Math.max(0, Math.min(640,
+                              parseInt(e.target.value, 10) || 0));
+                            if (next !== (p.offset_dots ?? 0)) {
+                              patchPrinter(p, { offset_dots: next },
+                                next === 0 ? 'Offset cleared' : `Offset set to ${next} dots`);
+                            }
+                          }}
+                        />
+                        {(p.offset_dots ?? 0) !== 0 && (
+                          <button
+                            className="text-[10px] text-blue-700 underline"
+                            title="Back to no offset — use this after setting the paper width on the printer itself"
+                            onClick={() => patchPrinter(p, { offset_dots: 0 }, 'Offset cleared')}
+                          >
+                            zero
+                          </button>
+                        )}
+                      </div>
+                      <button
+                        className="text-[10px] text-blue-700 underline mt-0.5"
+                        disabled={!p.enabled}
+                        title="Prints a ruler. Read the number sitting at the left edge of the label — that is your offset."
+                        onClick={async () => {
+                          const r = await printService.testPrint(p.id);
+                          showToast(r?.success
+                            ? 'Ruler sent — read the number at the LEFT EDGE of the label and type it in'
+                            : `Test failed: ${r?.message || 'unknown'}`,
+                          r?.success ? 'success' : 'error', 9000);
+                        }}
+                      >
+                        calibrate
+                      </button>
+                      <div className="text-[10px] text-gray-400 mt-0.5">
+                        left offset (dots)
+                      </div>
                     </td>
                     <td className="py-2 pr-3">
                       {/* Per-printer driver. The distinction that actually
