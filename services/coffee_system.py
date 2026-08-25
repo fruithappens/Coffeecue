@@ -7601,6 +7601,42 @@ class CoffeeOrderSystem:
         if getattr(self, "_inv_qty_cols_ok", False):
             return
 
+        # ASK THE CATALOGUE BEFORE REACHING FOR DDL.
+        #
+        # The done-flag above is only set by a COMMITTING caller, and the
+        # decrement path deliberately does not commit here -- so on a
+        # healthy database this function was still issuing two ALTER
+        # TABLEs on inventory_items for EVERY order completion, to
+        # discover each time that both columns already exist.
+        #
+        # ADD COLUMN takes ACCESS EXCLUSIVE before it checks whether the
+        # column is there, so those no-ops were asking for the strongest
+        # lock on the busiest path in the system. information_schema is
+        # an ordinary catalogue read: no lock, no DDL, and if both
+        # columns are present there is nothing to heal and we can say so
+        # permanently.
+        #
+        # This does not weaken the heal. A database that genuinely lacks
+        # the columns falls straight through to the savepoint logic
+        # below, unchanged.
+        try:
+            cursor.execute(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_name = 'inventory_items' "
+                "AND column_name IN ('amount', 'current_quantity')"
+            )
+            present = {
+                (r[0] if not isinstance(r, dict) else list(r.values())[0])
+                for r in (cursor.fetchall() or [])
+            }
+            if {"amount", "current_quantity"}.issubset(present):
+                self._inv_qty_cols_ok = True
+                return
+        except Exception:
+            # Cannot tell (SQLite, or a catalogue hiccup) -- fall through
+            # to the heal, which is what happened before this check.
+            pass
+
         def sp(sql):
             try:
                 cursor.execute("SAVEPOINT inv_heal")
