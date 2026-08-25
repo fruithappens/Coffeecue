@@ -16,6 +16,7 @@
 // a wrong badge number or a guest who isn't in EventsAir is never stuck.
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { Volume2, VolumeX } from 'lucide-react';
 import KioskOrder from './KioskOrder';
 
 const STORAGE_KEY = 'coffee_cue_my_cid';
@@ -23,6 +24,9 @@ const STORAGE_KEY = 'coffee_cue_my_cid';
 // scans the foyer poster today and the cart iPad tomorrow is two visits.
 const SRC_KEY = 'coffee_my_src';
 const PHONE_KEY = 'coffee_cue_my_phone';
+// Whether this device wants the ready-chime. Off unless the person
+// asked for it.
+const SOUND_KEY = 'coffee_my_sound_on';
 
 const STATUS = {
   pending: { title: 'In the queue', tone: 'bg-blue-600' },
@@ -121,15 +125,30 @@ const MyCoffeePage = () => {
   // already tapped -- which is what unlocks audio in the first place.
   // Every browser blocks sound before a gesture, and placing the order
   // was that gesture.
-  const prevStatusRef = useRef(null);
-  useEffect(() => {
-    const status = me?.active_order?.status;
-    const was = prevStatusRef.current;
-    prevStatusRef.current = status;
-    // Only on the TRANSITION into ready, never on a poll that merely
-    // finds it still ready -- otherwise it chimes every few seconds at
-    // someone who already knows.
-    if (!was || was === status || status !== 'completed') return;
+  // OFF BY DEFAULT, and the customer decides.
+  //
+  // The chime shipped always-on with no way to silence it. In a room of
+  // 400 delegates that is 400 phones that might chime unprompted, which
+  // is worse than no sound at all and is the kind of thing a venue
+  // remembers. Steve asked for a speaker icon, default off.
+  //
+  // Remembered per device, so someone who turns it on for a long wait
+  // does not have to think about it again at the next event.
+  const [soundOn, setSoundOn] = useState(() => {
+    try { return localStorage.getItem(SOUND_KEY) === 'true'; } catch (e) { return false; }
+  });
+  const toggleSound = () => {
+    const next = !soundOn;
+    setSoundOn(next);
+    try { localStorage.setItem(SOUND_KEY, String(next)); } catch (e) { /* private mode */ }
+    // Play it once on the way ON. Two reasons: the customer hears what
+    // they have signed up for, and the tap itself is the gesture every
+    // browser requires before it will allow audio at all -- so enabling
+    // it here is also what makes it work later.
+    if (next) playReadyChime();
+  };
+
+  const playReadyChime = () => {
     try {
       const Ctx = window.AudioContext || window.webkitAudioContext;
       if (!Ctx) return;
@@ -149,12 +168,24 @@ const MyCoffeePage = () => {
         osc.stop(ctx.currentTime + at + 0.34);
       });
       setTimeout(() => { try { ctx.close(); } catch (e) { /* fine */ } }, 1200);
-    } catch (e) {
-      // Sound is a bonus. A browser that refuses it must not break the
-      // page telling someone their coffee is ready.
-    }
-    // A buzz as well where the device offers one -- a phone face-down on
-    // a table cannot be seen and may not be heard.
+    } catch (e) { /* a missing chime never blocks the status page */ }
+  };
+
+  const prevStatusRef = useRef(null);
+  useEffect(() => {
+    const status = me?.active_order?.status;
+    const was = prevStatusRef.current;
+    prevStatusRef.current = status;
+    // Only on the TRANSITION into ready, never on a poll that merely
+    // finds it still ready -- otherwise it chimes every few seconds at
+    // someone who already knows.
+    if (!was || was === status || status !== 'completed') return;
+    // Only if the customer asked for it. Silence is the default.
+    if (soundOn) playReadyChime();
+    // The buzz is NOT gated on the sound toggle: a vibration is private,
+    // does not carry across a room, and is the one signal that still
+    // works for a phone face-down on a table with the ringer off. The
+    // toggle is about noise in a shared room, which this is not.
     try { navigator.vibrate && navigator.vibrate([120, 60, 120]); } catch (e) { /* fine */ }
   }, [me?.active_order?.status]);
 
@@ -673,6 +704,29 @@ const MyCoffeePage = () => {
           <p className="text-center text-gray-500 text-sm mt-6">
             Keep this page open — it updates by itself.
           </p>
+
+          {/* Sound, off by default, the customer's choice.
+              Sits right under "keep this page open", because that is the
+              moment they are deciding how much attention this page needs
+              from them. Red with a line through it when muted, green
+              when on -- readable at a glance without reading the words
+              (Steve: "maybe red speaker with cross though it and then
+              green speaker icon"). */}
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-pressed={soundOn}
+            className={`mt-4 w-full flex items-center justify-center gap-2 py-3 rounded-xl
+                        border-2 text-sm font-semibold transition-colors
+                        ${soundOn
+                          ? 'border-green-600 text-green-700 bg-green-50'
+                          : 'border-red-500 text-red-600 bg-red-50'}`}
+          >
+            {soundOn
+              ? <Volume2 size={18} className="shrink-0" />
+              : <VolumeX size={18} className="shrink-0" />}
+            {soundOn ? 'Sound on when ready' : 'Tap for a sound when ready'}
+          </button>
 
           {/* A code someone ELSE can scan to order their own. Steve: "can
               this page have a qr code on it so others can order off of
