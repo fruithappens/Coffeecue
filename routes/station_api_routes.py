@@ -1151,15 +1151,18 @@ def add_shift():
         # the today-response came from a JOIN to the STATION's current
         # assignee), so a name sent on create was silently dropped — the
         # roster couldn't say who works which shift (Test Bench sched_crud).
-        try:
-            cursor.execute(
-                "ALTER TABLE station_schedule ADD COLUMN IF NOT EXISTS barista_name VARCHAR(100)")
-            db.commit()
-        except Exception:
-            try:
-                db.rollback()
-            except Exception:
-                pass
+        # ADD COLUMN takes ACCESS EXCLUSIVE on station_schedule BEFORE it
+        # checks whether the column is there, so even this no-op queues
+        # every later reader of the table behind it. Rare and admin-only,
+        # which is why it outlived the #356 sweep -- but it is the same
+        # mechanism that took the site down, and "rare" is not a promise
+        # about WHEN. ensure_column reads the catalogue first and only
+        # reaches for DDL on a database that genuinely lacks the column.
+        from utils.schema_guard import ensure_column
+        ensure_column(
+            db, "station_schedule", "barista_name",
+            "ALTER TABLE station_schedule ADD COLUMN IF NOT EXISTS "
+            "barista_name VARCHAR(100)")
 
         # Prepare schedule data
         schedule_data = {
