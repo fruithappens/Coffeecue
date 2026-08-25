@@ -141,8 +141,22 @@ const OrderCard = ({ order, variant, fonts, theme, showCustomerName, showDetails
             </div>
           )}
         </div>
-        <div className={`px-4 py-2 rounded-full ${fonts.label} font-bold ${badgeClass} whitespace-nowrap`}>
-          {variant === 'ready' ? 'Ready' : 'Brewing'}
+        <div className="flex flex-col items-end gap-2 flex-shrink-0">
+          <div className={`px-4 py-2 rounded-full ${fonts.label} font-bold ${badgeClass} whitespace-nowrap`}>
+            {variant === 'ready' ? 'Ready' : 'Brewing'}
+          </div>
+          {/* The collection point. Only present on an All Stations
+              board. Loud on a READY card because there it is an
+              instruction -- go to this counter -- and quiet on a
+              brewing one, where it is merely information. */}
+          {order.stationLabel && (
+            <div className={`px-4 py-1.5 rounded-full ${fonts.label} whitespace-nowrap
+                             ${variant === 'ready'
+                               ? 'bg-gray-900 text-white font-extrabold'
+                               : 'bg-black/10 font-semibold ' + theme.subtext}`}>
+              {order.stationLabel}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -559,10 +573,31 @@ const DisplayScreen = () => {
   }, [stationId]);
 
   // --- Load orders for the current station + auto-refresh ---
+  // WHICH CART DO I WALK TO?
+  //
+  // On "All Stations" the board mixes every cart's orders together, and
+  // the cards said nothing about where any of them were. Two orders,
+  // two different carts, and a customer looking at "READY" with no way
+  // to know which counter to stand at (Steve, from a live board).
+  //
+  // Only added when viewing All Stations: on a single-station screen
+  // every order is from that station by definition, and stamping it on
+  // each card is noise competing with the order number.
+  const stationLabelFor = (o) => {
+    if (String(stationId) !== 'all') return '';
+    const sid = o.stationId || o.station_id;
+    if (!sid) return '';
+    const match = stations.find(st => String(st.id) === String(sid));
+    // Prefer the operator's own name for the cart -- they rename these,
+    // and "Express Bar" beside a drink is worth more than "Station 3".
+    return (match && (match.name || match.station_name)) || `Station ${sid}`;
+  };
+
   const formatList = (list, status) => list.map(o => ({
     id: o.id,
     order_number: o.orderNumber || o.id,
     customerName: o.customerName || o.customer_name || 'Customer',
+    stationLabel: stationLabelFor(o),
     // Take the masked field the server sends. This used to slice the
     // last four off the FULL number, which meant the public display
     // feed had to keep sending whole customer mobiles for the screen to
