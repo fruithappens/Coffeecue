@@ -56,8 +56,15 @@ class PrintService {
     return this._call('/queue', 'POST', body);
   }
 
-  reprintLabel(orderId) {
-    return this._call('/reprint', 'POST', { order_id: orderId });
+  /** Re-queue an order's label. Pass the station so it goes to the
+      printer that station uses NOW -- without it the server falls back
+      to the order's own station, and failing that to whichever printer
+      the original job went to, which is how a printer swap could keep
+      sending labels to the old machine. */
+  reprintLabel(orderId, stationId = null) {
+    const body = { order_id: orderId };
+    if (stationId) body.station_id = stationId;
+    return this._call('/reprint', 'POST', body);
   }
 
   /** Roughly how many labels are left on each roll. */

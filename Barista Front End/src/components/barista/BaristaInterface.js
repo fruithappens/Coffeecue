@@ -1155,7 +1155,7 @@ const BaristaInterface = () => {
   const handlePrintLabel = async (order, { reprint = false } = {}) => {
     const id = order?.id || order;
     const r = reprint
-      ? await printService.reprintLabel(id)
+      ? await printService.reprintLabel(id, selectedStation)
       : await printService.printLabel(id, selectedStation);
     if (r?.success) {
       showToast(`Label queued for order #${id}`, 'success');

@@ -872,9 +872,65 @@ def reprint():
             payload = json.loads(job.get('payload') or '{}')
         except Exception:
             pass
-        new_id, _ = _enqueue(db, job['printer_id'], payload,
+
+        # SEND IT TO THE PRINTER THIS STATION USES NOW, not the one the
+        # original job happened to go to.
+        #
+        # Reprint cloned job['printer_id'] verbatim. That is defensible
+        # for "print that exact job again", and it is not what the button
+        # means: a barista pressing print on a card wants the label at
+        # THEIR station. So after swapping the printers over, every
+        # already-in-the-system order kept printing on the old machine,
+        # faithfully, forever (Steve).
+        #
+        # The station comes from the caller if it sent one, otherwise
+        # from the order itself. The original job's printer is the last
+        # resort -- if no station printer can be found, reprinting
+        # somewhere is better than refusing.
+        target_printer = job.get('printer_id')
+        station_id = data.get('station_id')
+        if not station_id and job.get('order_id'):
+            try:
+                c2 = db.cursor()
+                c2.execute("SELECT station_id FROM orders WHERE order_number = %s",
+                           (str(job.get('order_id')),))
+                row = c2.fetchone()
+                if row:
+                    station_id = row[0] if not isinstance(row, dict) else row.get('station_id')
+            except Exception:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+        if station_id:
+            try:
+                c3 = db.cursor()
+                c3.execute(
+                    "SELECT id FROM printers WHERE enabled = TRUE AND station_id = %s "
+                    "ORDER BY id LIMIT 1", (station_id,))
+                row = c3.fetchone()
+                if row:
+                    current = row[0] if not isinstance(row, dict) else row.get('id')
+                    if current:
+                        if current != target_printer:
+                            logger.info(
+                                "reprint: station %s now uses printer %s (was %s)",
+                                station_id, current, target_printer)
+                        target_printer = current
+            except Exception as pe:
+                logger.warning(f"reprint: could not resolve station printer: {pe}")
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+
+        new_id, _ = _enqueue(db, target_printer, payload,
                              order_id=None, job_type=job.get('type') or 'label')
-        return jsonify({'success': True, 'job_id': new_id})
+        body = {'success': True, 'job_id': new_id, 'printer_id': target_printer}
+        warning = _offline_note(db, target_printer)
+        if warning:
+            body['warning'] = warning
+        return jsonify(body)
     except Exception as e:
         logger.error(f"reprint error: {e}")
         try:
