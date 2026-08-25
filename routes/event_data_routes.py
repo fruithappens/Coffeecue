@@ -270,6 +270,37 @@ def wipe_event_data():
         db.commit()
         total = sum(v for v in deleted.values() if isinstance(v, int))
 
+        # START THE NEW EVENT AT #1.
+        #
+        # Order numbers come from a Postgres sequence, and the wipe never
+        # touched it -- so Treenet opened on #1556, carrying on from
+        # where CTN26 stopped (Steve). A new client's first coffee being
+        # order one thousand five hundred and fifty six is a small thing
+        # that makes the whole system look like someone else's.
+        #
+        # Safe precisely because this runs AFTER the orders are deleted:
+        # there is nothing left for a restarted sequence to collide with.
+        # Pass keep_order_numbers:true to carry on where you left off,
+        # for a wipe done mid-event to clear a mess rather than to hand
+        # over to the next client.
+        numbering = "order numbers kept"
+        if not data.get("keep_order_numbers"):
+            try:
+                seq_cur = db.cursor()
+                seq_cur.execute("ALTER SEQUENCE order_number_seq RESTART WITH 1")
+                db.commit()
+                numbering = "order numbers restart at 1"
+            except Exception as seq_err:
+                # A missing sequence means this install uses the legacy
+                # order-number format, which has nothing to reset. Not a
+                # failed wipe.
+                logger.warning(f"wipe: could not reset order_number_seq: {seq_err}")
+                numbering = f"order numbers unchanged ({str(seq_err)[:60]})"
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+
         # Optionally clear event staff logins, keeping the master admin(s)
         # so the operator is never locked out. The "reset for next client"
         # case: the previous client's barista accounts (treenet1, hbl1, …)
@@ -356,12 +387,65 @@ def wipe_event_data():
         return jsonify({
             "status": "success",
             "message": f"Wiped {total} rows of customer/transactional data. "
-                       f"Inventory config kept; {staff_msg}; {identity_msg}.",
+                       f"Inventory config kept; {staff_msg}; {identity_msg}; "
+                       f"{numbering}.",
             "deleted": deleted,
             "total_rows": total,
+            "numbering": numbering,
         })
     except Exception as e:
         logger.error(f"wipe_event_data error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@bp.route("/api/event-data/reset-order-numbers", methods=["POST"])
+@jwt_required_with_demo()
+@role_required_with_demo(["admin"])
+def reset_order_numbers():
+    """Restart order numbering without wiping anything.
+
+    For an event already under way on the wrong numbers -- Treenet opened
+    on #1556 because the wipe that handed it over never reset the
+    sequence. Wiping again to fix the numbering would be a heavy way to
+    solve a cosmetic problem, and would throw away real orders.
+
+    Refuses while orders numbered at or above the new start still exist:
+    two coffees carrying the same number on a busy morning is a genuinely
+    bad afternoon. Clear those first, or pick a higher start.
+    """
+    data = request.get_json(silent=True) or {}
+    try:
+        start = int(data.get("start") or 1)
+    except (TypeError, ValueError):
+        start = 1
+    if start < 1:
+        return jsonify({"status": "error", "message": "start must be 1 or more"}), 400
+
+    try:
+        db = get_db_connection()
+        cursor = db.cursor()
+        cursor.execute(
+            "SELECT COUNT(*) FROM orders WHERE order_number ~ '^[0-9]+$' "
+            "AND CAST(order_number AS BIGINT) >= %s", (start,))
+        row = cursor.fetchone()
+        clash = (row[0] if not isinstance(row, dict) else list(row.values())[0]) or 0
+        if clash:
+            return jsonify({
+                "status": "error",
+                "message": (f"{clash} existing order(s) are already numbered {start} "
+                            f"or above. Clear them first, or choose a higher start."),
+                "conflicts": clash,
+            }), 409
+        cursor.execute("ALTER SEQUENCE order_number_seq RESTART WITH %s" % int(start))
+        db.commit()
+        return jsonify({"status": "success",
+                        "message": f"The next order will be #{start}."})
+    except Exception as e:
+        logger.error(f"reset_order_numbers error: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
