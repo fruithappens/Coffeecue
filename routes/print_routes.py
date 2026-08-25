@@ -705,11 +705,16 @@ def cloudprnt_confirm():
     code = str(request.args.get("code") or "")
     try:
         cur = db.cursor()
-        cur.execute("SELECT attempts FROM print_jobs WHERE id = %s", (token,))
+        cur.execute(
+            "SELECT attempts, printer_id FROM print_jobs WHERE id = %s", (token,)
+        )
         row = cur.fetchone()
         if not row:
             return jsonify({"success": True})
-        attempts = (row[0] if not isinstance(row, dict) else row.get("attempts")) or 0
+        if isinstance(row, dict):
+            attempts, printer_id = row.get("attempts") or 0, row.get("printer_id")
+        else:
+            attempts, printer_id = (row[0] or 0), row[1]
         ok = _cloudprnt_success(code)
         # Method and status are not in the app log (only Railway's HTTP log),
         # so this single line is what makes a protocol argument diagnosable.
@@ -740,6 +745,58 @@ def cloudprnt_confirm():
             )
             logger.error(f"print job {token} failed permanently (code {code})")
         db.commit()
+
+        # HAND THE NEXT LABEL OVER NOW, rather than making the printer
+        # wait for its next poll.
+        #
+        # Steve, on a real bench: "about 10 seconds ... between prints ...
+        # not sure if this can be a bit faster in the fast paced cafe
+        # space". Measured, the server is not the slow part -- a poll
+        # answers in 0.65s and a label renders in 0.9s. The printer polls
+        # every 5.0s exactly, so a second label waits for the next tick,
+        # and lands anywhere up to two ticks after the first.
+        #
+        # CloudPRNT lets the job-completion response carry the same
+        # jobReady/jobToken as a poll, which tells the printer to come
+        # back for the next one immediately instead of sleeping. That
+        # turns a queue of labels into a run rather than a series of
+        # five-second pauses.
+        #
+        # Costs nothing if the firmware ignores it: the next ordinary poll
+        # still collects the job exactly as before.
+        try:
+            if printer_id is not None:
+                nxt = db.cursor()
+                nxt.execute(
+                    "SELECT id FROM print_jobs WHERE printer_id = %s "
+                    "AND status = 'queued' ORDER BY created_at ASC LIMIT 1",
+                    (printer_id,),
+                )
+                more = nxt.fetchone()
+                if more:
+                    next_token = (
+                        more[0] if not isinstance(more, dict) else more.get("id")
+                    )
+                    logger.info(
+                        "cloudprnt: chaining next job %s immediately", next_token
+                    )
+                    return jsonify(
+                        {
+                            "success": True,
+                            "jobReady": True,
+                            "mediaTypes": ["image/png"],
+                            "jobToken": next_token,
+                            "deleteMethod": "DELETE",
+                        }
+                    )
+        except Exception as chain_err:
+            # A failed look-ahead must never fail the confirmation -- the
+            # job just printed, and the next poll will find the rest.
+            logger.warning(f"cloudprnt chain lookahead skipped: {chain_err}")
+            try:
+                db.rollback()
+            except Exception:
+                pass
         return jsonify({"success": True})
     except Exception as e:
         logger.error(f"cloudprnt confirm error: {e}")
