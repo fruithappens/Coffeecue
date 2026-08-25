@@ -378,7 +378,7 @@ const OrganiserInterface = () => {
           </div>
         </header>
         
-        <main className="p-6">
+        <main className="p-3 sm:p-6">
           {/* Quick Setup */}
           {activeSection === 'quickSetup' && (
             <>

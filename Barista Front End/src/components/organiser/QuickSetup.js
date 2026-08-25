@@ -1019,7 +1019,7 @@ const QuickSetup = () => {
   );
 
   return (
-    <div className="p-6 max-w-4xl">
+    <div className="p-0 sm:p-6 max-w-4xl">
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6 flex items-start">
         <Zap className="w-6 h-6 text-amber-600 mr-3 mt-0.5 flex-shrink-0" />
         <div>

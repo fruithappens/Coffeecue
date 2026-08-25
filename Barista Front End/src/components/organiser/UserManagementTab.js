@@ -419,9 +419,9 @@ const UserManagementTab = () => {
       )}
 
       {/* Header and Actions */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
         <div>
-          <h2 className="text-2xl font-bold">User Management</h2>
+          <h2 className="text-xl sm:text-2xl font-bold">User Management</h2>
           <p className="text-gray-600">
             Manage barista profiles, skills, and schedules.
             <span className="text-xs text-gray-500 ml-2">
@@ -437,7 +437,7 @@ const UserManagementTab = () => {
             setShowAddUser(true);
             setEditingUser(null);
           }}
-          className="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 flex items-center gap-2"
+          className="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 flex items-center justify-center gap-2 w-full sm:w-auto shrink-0 whitespace-nowrap"
         >
           <UserPlus size={18} />
           Add New User
@@ -446,8 +446,8 @@ const UserManagementTab = () => {
 
       {/* Filters */}
       <div className="bg-white rounded-lg shadow-sm p-4">
-        <div className="flex gap-4 items-center">
-          <div className="flex-1 flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 sm:items-center">
+          <div className="flex-1 flex items-center gap-2 min-w-0">
             <Search size={18} className="text-gray-500" />
             <input
               type="text"
@@ -481,7 +481,7 @@ const UserManagementTab = () => {
             {editingUser ? 'Edit User' : 'Add New User'}
           </h3>
           
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Basic Info */}
             <div className="space-y-4">
               <div>
@@ -685,8 +685,8 @@ const UserManagementTab = () => {
           <div className="divide-y">
             {filteredUsers.map(user => (
               <div key={user.id} className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-3 sm:gap-4 min-w-0">
                     <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center">
                       <User size={20} className="text-amber-700" />
                     </div>
@@ -765,7 +765,7 @@ const UserManagementTab = () => {
                 {/* Expanded Details */}
                 {expandedUser === user.id && (
                   <div className="mt-4 pt-4 border-t">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <h5 className="font-medium mb-2">Skills</h5>
                         <div className="flex flex-wrap gap-2">

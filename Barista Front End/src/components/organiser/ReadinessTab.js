@@ -204,9 +204,9 @@ const ReadinessTab = () => {
   const OverallIcon = overallStyle.Icon;
 
   return (
-    <div className="p-6 max-w-4xl">
+    <div className="p-0 sm:p-6 max-w-4xl">
       {/* Headline */}
-      <div className={`rounded-lg border-2 ${overallStyle.border} ${overallStyle.bg} p-5 mb-6 flex items-center justify-between`}>
+      <div className={`rounded-lg border-2 ${overallStyle.border} ${overallStyle.bg} p-4 sm:p-5 mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3`}>
         <div className="flex items-center gap-3">
           <OverallIcon className={overallStyle.iconClass} size={32} />
           <div>
