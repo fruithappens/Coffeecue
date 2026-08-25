@@ -30,7 +30,7 @@ import { X, ArrowLeft, Plus, Minus, Check, Loader, MapPin, Zap } from 'lucide-re
 const IDLE_WARN_MS = 20000;
 const IDLE_COUNTDOWN_SECONDS = 10;
 
-const drinkEmoji = (name) => {
+export const drinkEmoji = (name) => {
   const n = (name || '').toLowerCase();
   if (n.includes('hot choc')) return '🍫';
   if (n.includes('chai')) return '🫖';
@@ -39,7 +39,7 @@ const drinkEmoji = (name) => {
   if (n.includes('mocha')) return '🍫';
   return '☕';
 };
-const milkEmoji = (name) => {
+export const milkEmoji = (name) => {
   const n = (name || '').toLowerCase();
   if (n.includes('no milk') || n.includes('none')) return '🚫';
   if (n.includes('oat')) return '🌾';
@@ -89,6 +89,40 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
   // person's name, but the coffee type") — the order is the point; the
   // name and phone/collection come at the end.
   const [step, setStep] = useState('drink'); // drink → milk → size → sugar → name → location → phone → review → done
+
+  // WHERE BACK GOES. Steve, on the strength step: "back doesnt go back to
+  // where it was before, i was on the double shot page and clicked back
+  // and it went to name and back went to size it was all a bit mixed up".
+  //
+  // Every Back button used to hand-derive its destination -- EIGHT
+  // separate guesses at "where did they come from", each re-implementing
+  // a slice of the forward branching, and each wrong for some route
+  // through it. Strength went back to 'sugar' even when self-serve sugar
+  // had skipped that step; Collect-from went back to 'name' even though
+  // an EA-identified attendee never sees a name step. So Back landed on
+  // screens the person had never been on.
+  //
+  // A stack cannot get this wrong: goTo remembers where you were, goBack
+  // returns you there. Any new branch is handled for free.
+  // Free text for the ask no menu anticipates. Steve: "could be a custom
+  // field or notes (someone on weekend did 1/8th strength) or No lid etc
+  // half full". Every one of those is a real order somebody placed, and
+  // none of them is a tile.
+  const [notes, setNotes] = useState('');
+
+  const [history, setHistory] = useState([]);
+  const goTo = (next) => {
+    setHistory((h) => [...h, step]);
+    setStep(next);
+  };
+  const goBack = () => {
+    setHistory((h) => {
+      if (!h.length) return h;
+      const rest = h.slice(0, -1);
+      setStep(h[h.length - 1]);
+      return rest;
+    });
+  };
   const [name, setName] = useState('');
   const [drink, setDrink] = useState(null);
   const [milk, setMilk] = useState(null);
@@ -292,7 +326,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
   // After sugar: EA-identified visitors skip the name step (we already
   // greeted them by their registration name); everyone else types one.
   const afterSugar = () => {
-    if (drinkIsEspresso) { setStep('strength'); return; }
+    if (drinkIsEspresso) { goTo('strength'); return; }
     afterStrength();
   };
   const afterStrength = () => {
@@ -306,15 +340,16 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
         sugar,
         strength: strength || '',
         extraHot: !!extraHot,
+        notes: notes.trim(),
       });
       return;
     }
     if (eaIdentity) { afterName(); return; }
-    setStep('name');
+    goTo('name');
   };
   // After the name: choose a station if there's a choice, else auto-route.
   const afterName = () => {
-    if (capable.length > 1) { setStep('location'); return; }
+    if (capable.length > 1) { goTo('location'); return; }
     const only = capable.length === 1 ? capable[0] : null;
     setChosenStation(only);
     routeFromStation();
@@ -327,8 +362,8 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
   // mobile skip the step entirely — the server attaches it for the
   // ready-SMS without the number ever reaching this screen.
   const routeFromStation = () => {
-    if (eaIdentity && eaIdentity.hasPhone) { setStep('review'); return; }
-    setStep('phone');
+    if (eaIdentity && eaIdentity.hasPhone) { goTo('review'); return; }
+    goTo('phone');
   };
   const chooseStation = (sid) => { setChosenStation(sid); routeFromStation(); };
 
@@ -357,6 +392,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
           // channel is fixed; ?src= lets one event run several kiosks and
           // still tell them apart on the report (cart-1-ipad, foyer-ipad).
           strength: strength || undefined,
+          notes: notes.trim() || undefined,
           temp: extraHot ? 'extra hot' : undefined,
           channel,
           src: new URLSearchParams(window.location.search).get('src') || undefined,
@@ -460,7 +496,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
         {step === 'name' && (
           <>
             <Header title="Almost done — who's it for?"
-                    onBack={() => setStep(menu?.sugar_self_serve ? 'size' : 'sugar')} />
+                    onBack={goBack} />
             <p className="text-xl text-gray-600 mb-3 font-medium">First name for the order</p>
             <input
               autoFocus value={name} onChange={(e) => setName(e.target.value)}
@@ -528,9 +564,9 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                         if (MILKLESS.test(d.value || '')) {
                           // Juice & friends: no milk question.
                           setMilk(noMilkOption());
-                          setStep(needsSizeStep ? 'size' : 'sugar');
+                          goTo(needsSizeStep ? 'size' : 'sugar');
                         } else {
-                          setStep('milk');
+                          goTo('milk');
                         }
                       }} />
                   ))}
@@ -543,7 +579,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
         {/* ---------- MILK ---------- */}
         {step === 'milk' && (
           <>
-            <Header title="Milk?" onBack={() => setStep('drink')} />
+            <Header title="Milk?" onBack={goBack} />
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {milkOptions.map(m => {
                 const ok = compatible(drink, m);
@@ -553,7 +589,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                     disabled={!ok}
                     sub={!ok ? `Not available with ${drink?.name || 'that drink'}`
                       : (madeHere(m) ? null : `Station ${stationLabel(m)} only`)}
-                    onClick={() => { if (ok) { setMilk(m); setStep(needsSizeStep ? 'size' : 'sugar'); } }} />
+                    onClick={() => { if (ok) { setMilk(m); goTo(needsSizeStep ? 'size' : 'sugar'); } }} />
                 );
               })}
             </div>
@@ -563,7 +599,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
         {/* ---------- SIZE ---------- */}
         {step === 'size' && (
           <>
-            <Header title="What size?" onBack={() => setStep('milk')} />
+            <Header title="What size?" onBack={goBack} />
             <div className="grid grid-cols-3 gap-4">
               {sizeChoices.map(s => {
                 const ok = compatible(drink, milk, s);
@@ -572,7 +608,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                     active={size?.value === s.value}
                     disabled={!ok}
                     sub={!ok ? 'Not available with your choices' : null}
-                    onClick={() => { if (ok) { setSize(s); if (menu?.sugar_self_serve) { setSugar(0); afterSugar(); } else { setStep('sugar'); } } }} />
+                    onClick={() => { if (ok) { setSize(s); if (menu?.sugar_self_serve) { setSugar(0); afterSugar(); } else { goTo('sugar'); } } }} />
                 );
               })}
             </div>
@@ -582,7 +618,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
         {/* ---------- SUGAR ---------- */}
         {step === 'sugar' && (
           <>
-            <Header title="How much sugar?" onBack={() => setStep(needsSizeStep ? 'size' : 'milk')} />
+            <Header title="How much sugar?" onBack={goBack} />
             <div className="flex items-center justify-center gap-8 py-8">
               <button onClick={() => setSugar(s => Math.max(0, s - 1))}
                 className="p-6 rounded-full bg-white shadow text-gray-700 active:scale-95 disabled:opacity-40" disabled={sugar === 0}>
@@ -607,7 +643,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
         {/* ---------- STRENGTH (espresso drinks only) ---------- */}
         {step === 'strength' && (
           <>
-            <Header title="How strong?" onBack={() => setStep('sugar')} />
+            <Header title="How strong?" onBack={goBack} />
             <div className="grid grid-cols-2 gap-3 py-4">
               {[
                 { value: '', label: 'Normal', hint: 'as it comes' },
@@ -638,6 +674,20 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
             >
               {extraHot ? '✓ Extra hot' : 'Extra hot?'}
             </button>
+            <label className="block mb-3">
+              <span className="block text-base text-gray-600 mb-1">
+                Anything else? (optional)
+              </span>
+              <input
+                type="text"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value.slice(0, 80))}
+                placeholder="e.g. no lid, half full, 1/8 strength"
+                className="w-full px-4 py-4 rounded-2xl text-lg border-2 border-gray-200
+                           focus:outline-none"
+                style={notes ? { borderColor: headerColor } : {}}
+              />
+            </label>
             <button onClick={afterStrength}
               className="w-full py-5 rounded-2xl text-2xl font-extrabold text-white" style={{ backgroundColor: headerColor }}>
               Next →
@@ -648,7 +698,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
         {/* ---------- LOCATION (only when >1 station can make it) ---------- */}
         {step === 'location' && (
           <>
-            <Header title="Collect from?" onBack={() => setStep('name')} />
+            <Header title="Collect from?" onBack={goBack} />
             <div className="grid grid-cols-1 gap-3">
               {myStation != null && capable.includes(myStation) && (
                 <button onClick={() => chooseStation(myStation)}
@@ -680,7 +730,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
         {step === 'phone' && (
           <>
             <Header title="Want a text when it’s ready?"
-                    onBack={() => setStep(capable.length > 1 ? 'location' : 'name')} />
+                    onBack={goBack} />
             <p className="text-xl text-gray-600 mb-3 font-medium">
               {collectingHere
                 ? "Pop in your mobile and we’ll text you when it’s ready — or just wait nearby and watch the board for your name. No phone needed."
@@ -697,12 +747,12 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                   same weight. The old white "No thanks" next to a filled
                   "Text me →" read as cancel-vs-proceed (Steve), when
                   skipping the phone is a perfectly normal choice. */}
-              <button onClick={() => { setPhone(''); setStep('review'); }}
+              <button onClick={() => { setPhone(''); goTo('review'); }}
                 className="flex-1 py-5 rounded-2xl text-xl font-extrabold text-white shadow active:scale-95"
                 style={{ backgroundColor: headerColor }}>
                 📺 I'll watch the board
               </button>
-              <button disabled={!phoneValid} onClick={() => setStep('review')}
+              <button disabled={!phoneValid} onClick={() => goTo('review')}
                 className="flex-1 py-5 rounded-2xl text-xl font-extrabold text-white shadow active:scale-95 disabled:opacity-40"
                 style={{ backgroundColor: headerColor }}>
                 💬 Text me when ready
@@ -714,7 +764,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
         {/* ---------- REVIEW ---------- */}
         {step === 'review' && (
           <>
-            <Header title="All good?" onBack={() => setStep('phone')} />
+            <Header title="All good?" onBack={goBack} />
             <div className="bg-white rounded-2xl p-6 shadow mb-4">
               <div className="text-2xl font-extrabold text-gray-800 mb-3">{name.trim()}</div>
               <ul className="text-xl text-gray-700 space-y-1">
