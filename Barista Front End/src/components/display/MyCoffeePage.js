@@ -156,37 +156,105 @@ const MyCoffeePage = () => {
     // they have signed up for, and the tap itself is the gesture every
     // browser requires before it will allow audio at all -- so enabling
     // it here is also what makes it work later.
-    if (next) playReadyChime();
+    if (next) {
+      wakeAudio();
+      playReadyChime();
+    }
+  };
+
+  // ONE AudioContext, reused, and resumed before every play.
+  //
+  // Steve: "no sound played on my phone despite having sould turned on".
+  // Two reasons, both iOS:
+  //
+  //  * The old code did `new AudioContext()` EVERY chime. Safari caps how
+  //    many a page may create (historically about four); past that the
+  //    constructor throws, and the catch below swallowed it silently.
+  //  * A context is SUSPENDED whenever the page has been backgrounded,
+  //    and iOS backgrounds a page the moment the screen locks -- which is
+  //    exactly what a phone in a pocket does while it waits for a coffee.
+  //    Nothing resumed it, so oscillators played into a stopped context.
+  //
+  // So: keep one context, resume it before use, and resume it again on
+  // the tap that turns sound on (that gesture is what grants permission
+  // in the first place) and whenever the page comes back into view.
+  const audioRef = useRef(null);
+  const getAudio = () => {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return null;
+      if (!audioRef.current) audioRef.current = new Ctx();
+      return audioRef.current;
+    } catch (e) {
+      return null;
+    }
+  };
+  const wakeAudio = () => {
+    const ctx = getAudio();
+    if (ctx && ctx.state === 'suspended') {
+      try { ctx.resume(); } catch (e) { /* nothing to do */ }
+    }
+    return ctx;
   };
 
   const playReadyChime = () => {
     try {
-      const Ctx = window.AudioContext || window.webkitAudioContext;
-      if (!Ctx) return;
-      const ctx = new Ctx();
-      // Two short rising notes. A single beep reads as an error tone;
-      // rising reads as good news.
-      [[880, 0], [1175, 0.16]].forEach(([hz, at]) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.value = hz;
-        gain.gain.setValueAtTime(0.0001, ctx.currentTime + at);
-        gain.gain.exponentialRampToValueAtTime(0.35, ctx.currentTime + at + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + at + 0.32);
-        osc.connect(gain); gain.connect(ctx.destination);
-        osc.start(ctx.currentTime + at);
-        osc.stop(ctx.currentTime + at + 0.34);
-      });
-      setTimeout(() => { try { ctx.close(); } catch (e) { /* fine */ } }, 1200);
+      const ctx = wakeAudio();
+      if (!ctx) return;
+      // resume() is async. Waiting for it means the chime still lands
+      // when the context was suspended a millisecond ago -- which is the
+      // ordinary case on a phone that just woke up.
+      const fire = () => {
+        const t0 = ctx.currentTime;
+        // Two short rising notes. A single beep reads as an error tone;
+        // rising reads as good news.
+        [[880, 0], [1175, 0.16]].forEach(([hz, at]) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.value = hz;
+          gain.gain.setValueAtTime(0.0001, t0 + at);
+          gain.gain.exponentialRampToValueAtTime(0.35, t0 + at + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0001, t0 + at + 0.32);
+          osc.connect(gain); gain.connect(ctx.destination);
+          osc.start(t0 + at);
+          osc.stop(t0 + at + 0.34);
+        });
+      };
+      if (ctx.state === 'suspended' && ctx.resume) {
+        Promise.resolve(ctx.resume()).then(fire).catch(() => {
+          /* audio stayed blocked -- the page still works silently */
+        });
+      } else {
+        fire();
+      }
+      // NOT closed afterwards. Closing is what forced a new context every
+      // time, which is what hit Safari's limit.
     } catch (e) { /* a missing chime never blocks the status page */ }
   };
 
   const prevStatusRef = useRef(null);
   useEffect(() => {
     const status = me?.active_order?.status;
-    const was = prevStatusRef.current;
+    const num = me?.active_order?.order_number;
+    // The last status THIS ORDER was seen in, remembered across a
+    // reload.
+    //
+    // In memory alone, `was` is null on a fresh mount, and the guard
+    // below then suppresses the chime -- correct for someone opening the
+    // page to an already-ready coffee, wrong for the case that actually
+    // matters: a phone that slept, dropped the tab, restored it, and
+    // finds the order finished in the meantime. That person never had a
+    // "previous" status in memory and so was never told.
+    const memKey = num ? `coffee_my_last_status_${num}` : null;
+    let was = prevStatusRef.current;
+    if (!was && memKey) {
+      try { was = sessionStorage.getItem(memKey) || null; } catch (e) { /* private mode */ }
+    }
     prevStatusRef.current = status;
+    if (memKey && status) {
+      try { sessionStorage.setItem(memKey, status); } catch (e) { /* private mode */ }
+    }
     // Only on the TRANSITION into ready, never on a poll that merely
     // finds it still ready -- otherwise it chimes every few seconds at
     // someone who already knows.
@@ -355,7 +423,12 @@ const MyCoffeePage = () => {
     const refresh = () => load(cid, { quiet: true });
     const t = setInterval(refresh, 8000);
     const onVisible = () => {
-      if (document.visibilityState === 'visible') refresh();
+      if (document.visibilityState !== 'visible') return;
+      refresh();
+      // iOS suspends the audio context while the page is hidden. Resume
+      // it as we come back, so a chime a second later is not the first
+      // thing that discovers it was asleep.
+      if (soundOn) wakeAudio();
     };
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('pageshow', onVisible);

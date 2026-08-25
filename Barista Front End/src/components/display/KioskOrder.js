@@ -217,7 +217,35 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
       if (idleRef.current) clearTimeout(idleRef.current);
       if (countdownRef.current) clearInterval(countdownRef.current);
     };
-  }, [step, name, drink, milk, size, sugar, chosenStation, phone, resetIdle]);
+    // notes/strength/extraHot were missing here, which is how Steve got
+    // "when tyoping in notes field it gave the 10 second warning for
+    // time out despite typing in this field" -- twenty seconds of
+    // typing counted as twenty seconds of nobody being there.
+  }, [step, name, drink, milk, size, sugar, chosenStation, phone,
+      notes, strength, extraHot, resetIdle]);
+
+  // AND a real activity listener, because the list above is the bug.
+  //
+  // Every field added to this screen has to be remembered here or the
+  // countdown starts interrupting someone who is plainly still using it.
+  // That is a footgun with a fresh victim per feature -- the notes box
+  // was the first. Actual touches and keystrokes cannot go stale, so a
+  // field added next year is covered without anyone noticing they had to
+  // do anything.
+  //
+  // Kept ALONGSIDE the dependency list rather than replacing it: the
+  // list also catches programmatic changes (a remembered usual filling
+  // itself in), which no input event would.
+  useEffect(() => {
+    const bump = () => resetIdle();
+    const opts = { passive: true };
+    window.addEventListener('pointerdown', bump, opts);
+    window.addEventListener('keydown', bump, opts);
+    return () => {
+      window.removeEventListener('pointerdown', bump, opts);
+      window.removeEventListener('keydown', bump, opts);
+    };
+  }, [resetIdle]);
 
   useEffect(() => {
     let cancelled = false;
