@@ -98,6 +98,45 @@ def _event_name(cursor):
         return None
 
 
+def build_snapshot(db, include_messages=True):
+    """The snapshot itself, with no request and no Flask around it.
+
+    Pulled out of the endpoint so the scheduled server-side backup builds
+    the SAME thing an operator gets from Export. Two implementations of
+    "what is a backup" would drift, and the day you find out is the day
+    you are restoring one.
+    """
+    cursor = db.cursor()
+    snapshot = {
+        "format": "coffeecue.event-data.v1",
+        "exported_at": datetime.now().isoformat(),
+        "event_name": _event_name(cursor),
+        "tables": {},
+        "counts": {},
+    }
+    export_tables = list(_TRANSACTIONAL_TABLES) + list(_CONFIG_EXPORT_TABLES)
+    message_tables = {"order_messages", "sms_messages", "sms_log", "chat_messages"}
+    for table in export_tables:
+        if not include_messages and table in message_tables:
+            continue
+        try:
+            cursor.execute(f"SELECT * FROM {table}")  # noqa: S608 (fixed allowlist)
+            rows = _rows_as_dicts(cursor)
+            snapshot["tables"][table] = rows
+            snapshot["counts"][table] = len(rows)
+        except Exception as te:
+            # A table that does not exist is not a failed backup -- it is
+            # a feature this install never set up. Roll back so the failed
+            # statement cannot poison the rest of the export.
+            logger.warning(f"export: skipping {table}: {te}")
+            try:
+                db.rollback()
+            except Exception:
+                pass
+    cursor.close()
+    return snapshot
+
+
 @bp.route("/api/event-data/export", methods=["GET"])
 @jwt_required_with_demo()
 @role_required_with_demo(["admin"])
@@ -110,43 +149,89 @@ def export_event_data():
     include_messages = request.args.get("include_messages", "true").lower() != "false"
     try:
         db = get_db_connection()
-        cursor = db.cursor()
-
-        snapshot = {
-            "format": "coffeecue.event-data.v1",
-            "exported_at": datetime.now().isoformat(),
-            "event_name": _event_name(cursor),
-            "tables": {},
-            "counts": {},
-        }
-
-        export_tables = list(_TRANSACTIONAL_TABLES) + list(_CONFIG_EXPORT_TABLES)
-        message_tables = {"order_messages", "sms_messages", "sms_log", "chat_messages"}
-
-        for table in export_tables:
-            if not include_messages and table in message_tables:
-                continue
-            try:
-                cursor.execute(f"SELECT * FROM {table}")  # noqa: S608 (fixed allowlist)
-                rows = _rows_as_dicts(cursor)
-                snapshot["tables"][table] = rows
-                snapshot["counts"][table] = len(rows)
-            except Exception as te:
-                logger.warning(f"export: skipping {table}: {te}")
-                try:
-                    db.rollback()
-                except Exception:
-                    pass
-
-        cursor.close()
-        # datetime/Decimal values are JSON-serialised by Flask's encoder via
-        # default=str — set it on the response to avoid 500s on those types.
+        snapshot = build_snapshot(db, include_messages)
         from flask import Response
         body = _json.dumps({"status": "success", "snapshot": snapshot}, default=str)
         return Response(body, mimetype="application/json")
     except Exception as e:
         logger.error(f"export_event_data error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@bp.route("/api/event-data/backups", methods=["GET"])
+@jwt_required_with_demo()
+@role_required_with_demo(["admin"])
+def list_backups():
+    """What the server has backed up on its own.
+
+    `on_volume` is the field that matters: false means these are on
+    ephemeral container storage and the next deploy takes them with it.
+    Reported rather than hidden, so "we have backups" can be checked
+    instead of assumed.
+    """
+    import os
+    from services.backup_scheduler import backup_dir, on_volume
+    path = backup_dir()
+    out = []
+    try:
+        for name in sorted(os.listdir(path), reverse=True):
+            if not (name.startswith("auto-") and name.endswith(".json.gz")):
+                continue
+            full = os.path.join(path, name)
+            try:
+                out.append({"name": name, "bytes": os.path.getsize(full),
+                            "taken_at": datetime.fromtimestamp(
+                                os.path.getmtime(full)).isoformat()})
+            except OSError:
+                continue
+    except Exception as e:
+        logger.warning(f"list_backups: {e}")
+    return jsonify({"status": "success", "on_volume": on_volume(),
+                    "directory": path, "count": len(out), "backups": out})
+
+
+@bp.route("/api/event-data/backups/<path:name>", methods=["GET"])
+@jwt_required_with_demo()
+@role_required_with_demo(["admin"])
+def download_backup(name):
+    """Hand one back, so the laptop can pull down what it missed.
+
+    The name is matched against the directory listing rather than joined
+    onto a path -- a downloadable filename from a URL is the classic way
+    to read /etc/passwd, and an allowlist cannot be talked into it.
+    """
+    import os
+    from flask import Response
+    from services.backup_scheduler import backup_dir
+    path = backup_dir()
+    try:
+        allowed = {n for n in os.listdir(path)
+                   if n.startswith("auto-") and n.endswith(".json.gz")}
+    except Exception:
+        allowed = set()
+    if name not in allowed:
+        return jsonify({"status": "error", "message": "no such backup"}), 404
+    try:
+        with open(os.path.join(path, name), "rb") as fh:
+            body = fh.read()
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+    return Response(body, mimetype="application/gzip", headers={
+        "Content-Disposition": f'attachment; filename="{name}"'})
+
+
+@bp.route("/api/event-data/backups/run", methods=["POST"])
+@jwt_required_with_demo()
+@role_required_with_demo(["admin"])
+def run_backup_now():
+    """Take one immediately. For 'is this actually working?', which is a
+    question worth being able to answer without waiting an hour."""
+    from flask import current_app
+    from services.backup_scheduler import take_backup
+    msg = take_backup(current_app)
+    return jsonify({"status": "success",
+                    "message": msg or "no change since the last backup - skipped",
+                    "wrote": bool(msg)})
 
 
 @bp.route("/api/event-data/wipe", methods=["POST"])
