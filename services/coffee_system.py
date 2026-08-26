@@ -1186,6 +1186,14 @@ class CoffeeOrderSystem:
             return self._handle_status_command(phone)
 
         # Check for cancel command (both versions, regular and the special one to avoid Twilio collision)
+        # "I got it wrong" is a different need from "forget it". Before
+        # this, EDIT and CHANGE matched nothing and fell through to the
+        # welcome message -- so a customer trying to fix their order was
+        # asked for their first name by a system that had just greeted
+        # them by it.
+        elif message_upper in ("CHANGE", "EDIT", "CHANGE ORDER", "AMEND"):
+            return self._handle_change_command(phone)
+
         elif message_upper in (
             "OOPS", "SCRAP", "NEVERMIND", "NEVER MIND",
             "CANCELORDER", "CANCEL ORDER",
@@ -1456,7 +1464,7 @@ class CoffeeOrderSystem:
                 f"Great {name}! Your {summary} is scheduled — we'll start "
                 f"making it just before you arrive, ready about "
                 f"{arrival.strftime('%H:%M')}. Order #{order_number}. "
-                f"Reply OOPS to cancel."
+                f"Reply CHANGE to fix it or OOPS to cancel."
             )
         except Exception as e:
             logger.error(f"_create_scheduled_order failed: {e}")
@@ -1665,6 +1673,66 @@ class CoffeeOrderSystem:
             return (
                 "Sorry, we couldn't retrieve your order status. Please try again later."
             )
+
+    def _handle_change_command(self, phone):
+        """CHANGE / EDIT -- swap a pending order for a different one.
+
+        There is no way to edit an order in place: the barista board, the
+        label and the queue position are all derived from the row, so the
+        honest implementation is cancel-and-replace. The customer should
+        not have to know that, though -- they say CHANGE, we do the two
+        steps, and we ask what they want instead.
+
+        Delegates the actual cancellation so the station load and stock
+        bookkeeping stay in one place; a second copy of that would drift
+        the same way the menu lookups did.
+        """
+        try:
+            cursor = self.db.cursor()
+            cursor.execute(
+                """
+                SELECT order_number FROM orders
+                WHERE phone = %s AND status = 'pending'
+                ORDER BY created_at DESC LIMIT 1
+                """,
+                (phone,),
+            )
+            pending = cursor.fetchone()
+        except Exception as e:
+            logger.warning(f"_handle_change_command lookup failed: {e}")
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            pending = None
+
+        # Nothing pending: the cancel handler already says the RIGHT thing
+        # for an order that is being made, is ready on the shelf, or does
+        # not exist. Reuse those rather than inventing a fourth answer.
+        if not pending:
+            return self._handle_cancel_command(phone)
+
+        order_number = pending[0] if not isinstance(pending, dict) else \
+            list(pending.values())[0]
+        result = self._handle_cancel_command(phone)
+        if "cancelled" not in str(result).lower():
+            # Cancellation did not take -- do NOT tell them to order again,
+            # or they end up with two coffees.
+            return result
+
+        # Clear the conversation so their next message is read as a fresh
+        # order. They are a known customer by now, so they get greeted by
+        # name rather than asked who they are.
+        try:
+            if isinstance(self.conversation_states, dict):
+                self.conversation_states.pop(phone, None)
+        except Exception:
+            pass
+
+        return (
+            f"No problem - order #{order_number} is cancelled. "
+            f"What would you like instead?"
+        )
 
     def _handle_cancel_command(self, phone):
         """Handle CANCEL command - cancel the most recent order"""
@@ -2038,6 +2106,7 @@ class CoffeeOrderSystem:
             "- Text your coffee order (e.g., 'large latte with oat milk')\n"
             "- STATUS: Check your order status\n"
             "- FRIEND: Add a coffee for a friend\n"
+            "- CHANGE: Swap your order for a different one\n"
             "- OOPS: Cancel your pending order\n"
             "- MENU: See available coffee options\n"
             "- USUAL: Order your usual coffee\n"
@@ -2052,6 +2121,7 @@ class CoffeeOrderSystem:
             "Ordering:\n"
             "- STATUS: Check order status\n"
             "- FRIEND: Add coffee for a friend\n"
+            "- CHANGE: Swap your order\n"
             "- OOPS: Cancel pending order\n"
             "- MENU: See coffee options\n"
             "- USUAL: Order your usual\n"
@@ -2874,7 +2944,7 @@ class CoffeeOrderSystem:
             f"{prefix}{order_response}\n"
             f"That's: {summary}.{self.SUGAR_SELF_SERVE_NOTE if sugar_redirect else ''}"
             f"{self._format_price_tail(od)} "
-            f"Wrong? Reply OOPS. Add a coffee with FRIEND."
+            f"Wrong? CHANGE or OOPS. Add another with FRIEND."
         )
 
     def _default_milk(self):
@@ -3127,7 +3197,7 @@ class CoffeeOrderSystem:
             + "\n".join(lines)
             + (self.SUGAR_SELF_SERVE_NOTE + "\n" if multi_sugar_redirect else "")
             + f"{total_line}\n"
-            "Same station, ready together. Wrong? Reply OOPS."
+            "Same station, ready together. Wrong? CHANGE or OOPS."
         )
 
     def _handle_awaiting_name(self, phone, message, state):
