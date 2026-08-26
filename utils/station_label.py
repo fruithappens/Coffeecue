@@ -4,7 +4,8 @@ import logging
 logger = logging.getLogger("expresso.station_label")
 
 
-def station_label(db, station_id, default_prefix='Station'):
+def station_label(db, station_id, default_prefix='Station',
+                  with_location=True):
     """What to call a station in customer-facing text.
 
     SMS said "Station 3" while the operator had named it "Coffee Cart 2" or
@@ -12,8 +13,14 @@ def station_label(db, station_id, default_prefix='Station'):
     on the sign. Uses the configured name, falling back to the old wording
     only when a station has none.
 
+    Appends the station's LOCATION when it has one, because at a venue
+    with two rooms "ready at Coffee Station 2" does not tell someone
+    standing in the concourse to walk into the Ferguson Room. Pass
+    with_location=False where only the bare name is wanted.
+
     Kept short deliberately: this lands inside SMS bodies, where a long
     name can push a message over 160 characters and double its cost.
+    Name is capped at 28 characters and the location at 24.
 
     Never raises. A name lookup must not be able to stop a ready-message
     going out; if the read fails, the caller gets the old wording.
@@ -22,15 +29,46 @@ def station_label(db, station_id, default_prefix='Station'):
         return ''
     try:
         cur = db.cursor()
-        cur.execute("SELECT name FROM station_stats WHERE station_id = %s",
-                    (station_id,))
+        cur.execute(
+            "SELECT name, location, equipment_notes FROM station_stats "
+            "WHERE station_id = %s", (station_id,))
         row = cur.fetchone()
-        name = None
+        name = location = notes = None
         if row:
-            name = row['name'] if isinstance(row, dict) else row[0]
+            if isinstance(row, dict):
+                name = row.get('name')
+                location = row.get('location')
+                notes = row.get('equipment_notes')
+            else:
+                name, location, notes = row[0], row[1], row[2]
         name = (name or '').strip()
+
+        # WHERE the location actually lives.
+        #
+        # station_stats has a real `location` column, AND the Organiser UI
+        # writes its "Location" field into `equipment_notes` -- the
+        # stations API even overwrites location with equipment_notes on
+        # the way out (station_api_routes.py:89). Two places for one
+        # fact, so read both and prefer the real column.
+        #
+        # An old save bug dumped capabilities JSON into equipment_notes;
+        # those rows look like '{"coffee_types": ...'. Never put that in
+        # front of a customer.
+        place = (location or '').strip()
+        if not place:
+            candidate = (notes or '').strip()
+            if candidate and not candidate.startswith('{'):
+                place = candidate
+
+        if name and place and with_location:
+            # Don't repeat yourself: a station already called "Ferguson
+            # Room" should not become "Ferguson Room - Ferguson Room".
+            if place.lower() not in name.lower():
+                return f"{name[:28]} - {place[:24]}"
         if name:
             return name[:28]
+        if place and with_location:
+            return f"{default_prefix} {station_id} - {place[:24]}"
     except Exception:
         try:
             db.rollback()
