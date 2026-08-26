@@ -5261,6 +5261,90 @@ def list_recipes():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@bp.route('/recipes/check', methods=['GET'])
+@jwt_required_with_demo()
+def recipes_check():
+    """Diagnostic: what would gate 2 say for this drink, and WHY.
+
+    ?drink=mocha&size=medium&milk=skim&bean=decaf&shots=2
+
+    Built while chasing a gate that failed open in production with no
+    trace: the resolver, the ingredient match and the verdict all live
+    server-side, and Railway's logs are not to hand at a cart. This
+    answers "why was that allowed/refused" from the system itself --
+    the same lesson as /api/sms/health, applied to stock.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        from services.recipes import check_ingredients, resolve_order
+        od = {
+            'type': request.args.get('drink') or '',
+            'size': request.args.get('size') or 'medium',
+            'milk': request.args.get('milk') or '',
+            'bean_type': request.args.get('bean') or '',
+        }
+        if request.args.get('shots'):
+            od['shots'] = request.args.get('shots')
+        out = {'order': od}
+        try:
+            out['sold_out_mode'] = str(
+                coffee_system._get_setting('sold_out_mode', 'strict'))
+        except Exception as e:
+            out['sold_out_mode_error'] = str(e)
+        try:
+            lines, meta = resolve_order(
+                coffee_system.db, od, coffee_system._get_setting,
+                requested_bean=coffee_system._requested_bean(od))
+            out['resolved'] = lines
+            out['meta'] = meta
+        except Exception as e:
+            out['resolve_error'] = str(e)
+            lines = None
+        if lines:
+            # Per-line: what inventory row matched, with its numbers.
+            rows = []
+            try:
+                cur = coffee_system.db.cursor()
+                for ln in lines:
+                    nm = str(ln.get('name') or '').strip().lower()
+                    cur.execute(
+                        """
+                        SELECT name, COALESCE(amount, current_quantity),
+                               COALESCE(minimum_threshold, 0)
+                        FROM inventory_items
+                        WHERE category = %s
+                          AND (LOWER(name) = %s OR LOWER(name) LIKE %s
+                               OR %s LIKE '%%' || LOWER(name) || '%%')
+                        ORDER BY (LOWER(name) = %s) DESC LIMIT 1
+                        """,
+                        (ln['category'], nm, f"%{nm}%", nm, nm))
+                    r = cur.fetchone()
+                    rows.append({'line': ln,
+                                 'matched': (list(r) if r and not isinstance(r, dict)
+                                             else (r if r else None))})
+            except Exception as e:
+                out['match_error'] = str(e)
+                try:
+                    coffee_system.db.rollback()
+                except Exception:
+                    pass
+            out['matches'] = rows
+            try:
+                ok, missing = check_ingredients(coffee_system.db, lines)
+                out['gate'] = {'ok': ok, 'missing': missing}
+            except Exception as e:
+                out['gate_error'] = str(e)
+            try:
+                ok2, msg2 = coffee_system.check_order_makeable(od)
+                out['check_order_makeable'] = {'ok': ok2, 'message': msg2}
+            except Exception as e:
+                out['makeable_error'] = str(e)
+        return jsonify({'success': True, **out})
+    except Exception as e:
+        logger.error(f"recipes_check error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 200
+
+
 @bp.route('/qr', methods=['GET'])
 def generate_qr():
     """Public QR PNG generator: /api/qr?data=<urlencoded>&size=10
