@@ -5,6 +5,7 @@ This module provides a standardized API structure for the entire application,
 consolidating endpoints from various modules into a coherent API design.
 """
 import logging
+import os
 import threading
 from flask import Blueprint, jsonify, request, current_app, Response
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
@@ -5130,6 +5131,42 @@ def sms_health():
             'success': False,
             'health': {'status': 'unknown', 'problems': [f'Health check failed: {e}']},
         }), 200
+
+
+@bp.route('/app-version', methods=['GET'])
+def app_version():
+    """Which build is currently being served.
+
+    Steve: "hope dont need to always tell baristas to force refresh,
+    clear cache, etc."
+
+    He is right that this should not be a human procedure. A tablet that
+    has had the app open since setup keeps running the bundle it loaded
+    then, and no amount of deploying changes that -- so a fix ships,
+    everyone is told it is live, and the one screen that matters is
+    still running yesterday's code. That is how he ended up looking at
+    oat milk hours after it was removed.
+
+    The bundle FILENAME is the build identity: CRA fingerprints it
+    (main.b0471b61.js), so a new deploy always has a different one. The
+    page compares the name it loaded against this and offers a reload.
+
+    Public and unauthenticated on purpose: the customer-facing display
+    boards go stale too, and they never log in.
+    """
+    try:
+        idx = os.path.join(current_app.static_folder or 'static', 'index.html')
+        with open(idx, 'r', encoding='utf8') as fh:
+            # Only the head matters and these files are small, but cap the
+            # read anyway -- this is on a polled path.
+            head = fh.read(20000)
+        m = re.search(r'/static/js/(main\.[A-Za-z0-9]+\.js)', head)
+        return jsonify({'success': True, 'bundle': m.group(1) if m else None})
+    except Exception as e:
+        # Never 500 a version check. A page that cannot tell whether it is
+        # stale should carry on quietly, not show an error to a barista.
+        logger.warning(f"app_version read failed: {e}")
+        return jsonify({'success': False, 'bundle': None})
 
 
 @bp.route('/qr', methods=['GET'])
