@@ -51,6 +51,58 @@ One store, with inheritance — NOT an event menu AND a station menu
 - Decaf-style options are recipe VARIANTS (swap the bean ingredient),
   not bolt-on flags.
 
+## The two gates (Steve, 2026-08-26, second pass)
+
+> "they might not want to make a recipe but have the ingredients ie dont
+> make hot chocolate but might do mocha but still have the chocolate
+> powder, but might not have decaf so all variation of that recipe cant
+> be made, but might have lactose free"
+
+Orderability is TWO independent questions, and conflating them is the
+current system's core defect:
+
+    Orderable(drink, options) =
+        OnMenu(drink)                            <- gate 1: a CHOICE
+        AND every ingredient in
+            Recipe(drink, options) is Available  <- gate 2: a FACT
+
+Gate 1 is the operator's decision and implies nothing about
+ingredients. Gate 2 is derived from inventory and implies nothing about
+the menu. Steve's own truth table:
+
+| scenario | hot chocolate | mocha | why |
+|---|---|---|---|
+| choc powder stocked, hot choc OFF menu, mocha ON | refused | orderable | gate 1 differs; gate 2 passes both |
+| decaf beans out | decaf VARIANT of everything refused | base drinks fine | gate 2 fails only the resolved variant |
+| lactose-free stocked + on menu | latte w/ lactose-free orderable | — | both gates pass for that variant |
+
+Variants (decaf, milk choice) are ingredient SUBSTITUTIONS inside the
+recipe, so gate 2 is evaluated on the RESOLVED ingredient list, never on
+the drink name.
+
+## One resolver, three consumers
+
+    resolve(drink, options) -> ingredient list | refusal(reason)
+
+is the single enforcement point. Its three consumers:
+
+1. **Menus** (SMS MENU, kiosk, walk-in tiles): grey/hide what resolve
+   would refuse. Same function, so display can never disagree with
+   acceptance.
+2. **Acceptance** (every channel): SMS parse, kiosk POST, walk-in POST
+   all call it. One gate, not three hand-kept copies -- the day this
+   was written, decaf enforcement existed on two channels and not the
+   third, in three different data shapes.
+3. **Decrement**: the resolved ingredient list is STAMPED ON THE ORDER
+   at acceptance, and completion replays the stamp. What was checked is
+   exactly what is decremented, and a config change mid-queue cannot
+   make the two disagree.
+
+Interim rule already applied (PR pending): any fact arriving in
+multiple shapes gets ONE interpreter function (`_requested_bean`), and
+every reader calls it. Three shapes of decaf, interpreted three ways,
+is how an SMS decaf order burned house blend after #409 "fixed" it.
+
 ## Migration cautions (Steve: "this will need caution")
 
 - Build alongside, not in place: new tables (ingredients, recipes,

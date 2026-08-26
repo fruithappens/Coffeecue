@@ -4355,6 +4355,34 @@ class CoffeeOrderSystem:
         r"(bean|blend|roast|single\s*origin|decaf|colombian?|ethiopian?"
         r"|brazilian?|kenyan?|guatemalan?)", re.I)
 
+    def _requested_bean(self, od):
+        """Which bean this order asks for, whatever shape the channel used.
+
+        Decaf arrives in THREE shapes, one per era of the codebase:
+          * bean_type='decaf'          (kiosk, walk-in, order editor)
+          * decaf=True                 (the SMS NLP's flag)
+          * type='decaf latte'         (older SMS parses fold it into
+                                        the drink name)
+        Every reader that interpreted only one of them was wrong for the
+        other two -- the stock decrement read only bean_type, so an SMS
+        decaf order burned house blend. Interpret once, here, and nowhere
+        else.
+
+        Returns '' for "no preference" (house/default).
+        """
+        try:
+            b = str(od.get("bean_type") or "").strip().lower()
+            if b and b not in ("house", "house blend", "default"):
+                return b
+            if od.get("decaf") is True:
+                return "decaf"
+            t = str(od.get("type") or "").strip().lower()
+            if t.startswith("decaf"):
+                return "decaf"
+        except Exception:
+            pass
+        return ""
+
     def _get_available_bean_types(self):
         """Bean choices actually in stock, prettied for a menu.
 
@@ -5014,6 +5042,29 @@ class CoffeeOrderSystem:
                 return (
                     f"Sorry, we don't have {milk_type} milk. Available milks: "
                     f"{', '.join(available_milk_types)}.\n"
+                    f"Reply MENU for the full list."
+                )
+
+        # Validate the bean choice. The kiosk hides its Decaf toggle when
+        # no decaf row is stocked and the walk-in builds its tiles from
+        # stock -- SMS was the one channel with no gate at all, so it
+        # would accept "decaf latte" with zero decaf beans and the
+        # barista would discover it at the machine. Steve: "might not
+        # have decaf so all variation of that recipe cant be made ...
+        # prevent people from ordering via either sms, qr, walk in".
+        #
+        # An empty beans list means this event has no bean rows (legacy)
+        # -- no gate to apply, same rule as the menu side.
+        requested_bean = self._requested_bean(order_details)
+        if requested_bean:
+            available_beans = self._get_available_bean_types()
+            if available_beans and not any(
+                requested_bean in b or b in requested_bean
+                for b in available_beans
+            ):
+                return (
+                    f"Sorry, we don't have {requested_bean} today. "
+                    f"We can make it with: {', '.join(available_beans)}.\n"
                     f"Reply MENU for the full list."
                 )
 
@@ -7907,10 +7958,7 @@ class CoffeeOrderSystem:
             # Orders with no bean choice keep the old name + category
             # fallback, so legacy events keep decrementing SOMETHING
             # rather than nothing.
-            bean_name = (
-                str(processed_details.get("bean_type") or "").strip().lower()
-                or coffee_type
-            )
+            bean_name = self._requested_bean(processed_details) or coffee_type
             if bean_kg > 0 and coffee_type:
                 if self._decrement_inventory_item(
                     cursor,
