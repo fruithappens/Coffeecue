@@ -3595,14 +3595,34 @@ const BaristaInterface = () => {
                         defaultValue="50"
                         className="w-24 border rounded px-2 py-1.5 text-sm"
                       />
-                      <a
+                      {/* A bare href cannot carry the JWT, so this
+                          opened a JSON auth error in a new tab (Steve
+                          hit it this morning). Fetch with the token,
+                          hand the browser a blob URL -- same pattern
+                          the Support printer tab already uses. */}
+                      <button
+                        type="button"
                         className="text-sm text-blue-700 underline"
-                        href="/api/print/preview?sticker=1"
-                        target="_blank"
-                        rel="noreferrer"
+                        onClick={async () => {
+                          try {
+                            const resp = await fetch('/api/print/preview?sticker=1', {
+                              headers: {
+                                Authorization: `Bearer ${localStorage.getItem('coffee_system_token') || ''}`,
+                              },
+                            });
+                            if (!resp.ok) {
+                              showToast('Preview failed - is the label service up?', 'warning');
+                              return;
+                            }
+                            const url = URL.createObjectURL(await resp.blob());
+                            window.open(url, '_blank', 'noreferrer');
+                          } catch (e) {
+                            showToast('Preview failed: ' + e.message, 'warning');
+                          }
+                        }}
                       >
                         See one first
-                      </a>
+                      </button>
                       <button
                         className="bg-gray-700 text-white px-3 py-1.5 rounded text-sm hover:bg-gray-800 ml-auto"
                         onClick={async () => {
