@@ -34,6 +34,7 @@ ALLOWED = {
     "_get_available_sweeteners",
     "_get_available_extra_drinks",
     "_get_available_bean_types",
+    "_all_tracked_milk_names",
     "_get_event_inventory",
     "_event_enabled",
     "_event_cup_names",

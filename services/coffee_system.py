@@ -4056,8 +4056,20 @@ class CoffeeOrderSystem:
         enabled = self._get_event_enabled_coffees()
         if enabled is not None:
             filtered = [d for d in espresso if d.lower() in enabled]
-            if filtered:
-                espresso = filtered
+            # The event menu can ADD drinks, not just subtract. This was
+            # a pure intersection with the hardcoded standard menu, so
+            # enabling Macchiato in the Organiser put it on every display
+            # surface while SMS refused it -- on the menu, unorderable
+            # (scenario matrix S6). Enabled names beyond the standard six
+            # join the list here; station capabilities still gate them
+            # below, so a drink no station carries stays unorderable
+            # WITH a consistent story on every surface.
+            extras_enabled = [
+                e for e in enabled
+                if e not in {d.lower() for d in espresso}
+            ]
+            if filtered or extras_enabled:
+                espresso = filtered + extras_enabled
 
         if self._is_unlimited_stock_mode():
             espresso_part = espresso
@@ -4464,6 +4476,25 @@ class CoffeeOrderSystem:
                 pass
             return []
 
+    def _all_tracked_milk_names(self):
+        """Every milk name with an inventory row at ANY level -- the
+        'tracked' set for the untracked-passes rule. A menu milk with a
+        row is judged by that row; one with no row constrains nothing."""
+        try:
+            cursor = self.db.cursor()
+            cursor.execute(
+                "SELECT LOWER(name) FROM inventory_items WHERE category = 'milk'")
+            return [
+                (r[0] if not isinstance(r, dict) else list(r.values())[0])
+                for r in cursor.fetchall()
+            ]
+        except Exception:
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            return []
+
     def _get_available_milk_types(self):
         """Get list of available milk types from inventory management.
 
@@ -4528,12 +4559,26 @@ class CoffeeOrderSystem:
             # Steve an oat latte after he had switched oat off.
             event_milks = self._event_enabled("milk")
             if event_milks:
-                dropped = [m for m in milk_types if m not in event_milks]
-                milk_types = event_milks
+                # INTERSECT with stock, don't replace it. The first
+                # version substituted the event list wholesale, which
+                # un-did the stock filter above: the scenario matrix
+                # drained almond to 0.05L and the kiosk menu went on
+                # advertising it (S4) while the order gate refused it --
+                # menu and acceptance disagreeing, the exact disease.
+                # Two gates: on the menu (choice) AND stocked (fact).
+                # A menu milk with NO inventory row at all is untracked
+                # and passes -- same rule as everywhere else.
+                stocked = set(milk_types)
+                tracked = set(self._all_tracked_milk_names() or [])
+                merged = [
+                    m for m in event_milks
+                    if m in stocked or m not in tracked
+                ]
+                dropped = [m for m in event_milks if m not in merged]
+                milk_types = merged
                 if dropped:
                     logger.info(
-                        "Event menu excludes milk(s) %s that inventory_items "
-                        "still stocks", dropped)
+                        "Event menu milk(s) %s hidden: stocked out", dropped)
             elif event_milks == []:
                 # Every milk switched off. Almost certainly a misconfig
                 # rather than an intention -- a latte needs milk -- so we

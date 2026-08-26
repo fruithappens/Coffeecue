@@ -5277,15 +5277,33 @@ def recipes_check():
     try:
         coffee_system = current_app.config.get('coffee_system')
         from services.recipes import check_ingredients, resolve_order
-        od = {
-            'type': request.args.get('drink') or '',
-            'size': request.args.get('size') or 'medium',
-            'milk': request.args.get('milk') or '',
-            'bean_type': request.args.get('bean') or '',
-        }
-        if request.args.get('shots'):
-            od['shots'] = request.args.get('shots')
-        out = {'order': od}
+        if request.args.get('order'):
+            # Resolve from a STORED order's actual details -- the shape
+            # that reaches the decrement is the shape saved at
+            # acceptance, and S7 of the scenario matrix proved those
+            # two can differ from what the parser knew.
+            cur0 = coffee_system.db.cursor()
+            cur0.execute(
+                'SELECT order_details FROM orders WHERE order_number = %s',
+                (str(request.args.get('order')),))
+            row0 = cur0.fetchone()
+            raw = (row0[0] if row0 and not isinstance(row0, dict)
+                   else (row0 or {}).get('order_details'))
+            if isinstance(raw, str):
+                raw = json.loads(raw)
+            od = raw or {}
+            od.pop('name', None)  # not needed for resolution
+        else:
+            od = {
+                'type': request.args.get('drink') or '',
+                'size': request.args.get('size') or 'medium',
+                'milk': request.args.get('milk') or '',
+                'bean_type': request.args.get('bean') or '',
+            }
+            if request.args.get('shots'):
+                od['shots'] = request.args.get('shots')
+        out = {'order': od,
+               'requested_bean': coffee_system._requested_bean(od)}
         try:
             out['sold_out_mode'] = str(
                 coffee_system._get_setting('sold_out_mode', 'strict'))
