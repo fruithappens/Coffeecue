@@ -763,8 +763,8 @@ class CoffeeOrderSystem:
         """One-line footer on the welcome so new customers know the commands
         available — see the menu, order for friends, or cancel."""
         return (
-            "\n\n(Tips: reply MENU to see the menu • FRIEND to add a "
-            "friend's coffee • CANCEL to scrap an order)"
+            "\n\n(Tips: reply MENU to see the menu / FRIEND to add a "
+            "friend's coffee / CANCEL to scrap an order)"
         )
 
     def _handle_greeting(self, phone, message, state):
@@ -1456,7 +1456,7 @@ class CoffeeOrderSystem:
             except Exception:
                 pass
             return (
-                "Sorry, we couldn't schedule that just now — text your "
+                "Sorry, we couldn't schedule that just now - text your "
                 "order when you arrive and we'll make it straight away."
             )
 
@@ -1774,7 +1774,7 @@ class CoffeeOrderSystem:
                 {**(state.get("temp_data") or {})},
             )
             return (
-                "👋 Sure — type your question and I'll send it straight to the "
+                "Sure - type your question and I'll send it straight to the "
                 "team. They'll text back within a minute."
             )
 
@@ -1867,7 +1867,7 @@ class CoffeeOrderSystem:
             except Exception:
                 pass
             return (
-                "Sorry, our system hiccuped sending your question — "
+                "Sorry, our system hiccuped sending your question - "
                 "try again in a moment, or ask at the counter."
             )
 
@@ -1903,7 +1903,7 @@ class CoffeeOrderSystem:
         # mid-order). The barista's reply lands as a separate SMS, no
         # state churn needed.
         return (
-            "✅ Sent your question to the team. They'll text back within "
+            "Sent your question to the team. They'll text back within "
             "60 seconds. (If they're slammed, I'll let you know.)"
         )
 
@@ -2006,7 +2006,7 @@ class CoffeeOrderSystem:
             )
 
             return (
-                "🧹 Forgotten! Your saved name, preferences, and "
+                "Forgotten! Your saved name, preferences, and "
                 f"{order_count} past order(s) have been wiped. "
                 "Text us again to start fresh as a new customer."
             )
@@ -2018,7 +2018,7 @@ class CoffeeOrderSystem:
             except Exception:
                 pass
             return (
-                "Sorry — couldn't fully reset your record right now. "
+                "Sorry - couldn't fully reset your record right now. "
                 "Try again in a moment."
             )
 
@@ -2040,13 +2040,13 @@ class CoffeeOrderSystem:
         """Handle OPTIONS command - list all available commands"""
         return (
             "Available Commands:\n"
-            "☕ Ordering:\n"
+            "Ordering:\n"
             "- STATUS: Check order status\n"
             "- FRIEND: Add coffee for a friend\n"
             "- CANCEL: Cancel pending order\n"
             "- MENU: See coffee options\n"
             "- USUAL: Order your usual\n"
-            "\n🔐 Privacy:\n"
+            "\nPrivacy:\n"
             "- MYDATA: View your info\n"
             "- CHANGENAME [name]: Update name\n"
             "- RESET: Clear preferences\n"
@@ -2159,13 +2159,13 @@ class CoffeeOrderSystem:
                 coffee_line_tail = f" (+{extra_count - 1} more — just text the name)"
 
             # Build the message
-            lines = ["☕ Menu:"]
+            lines = ["Menu:"]
             if shown:
                 lines.append(f"Coffee: {', '.join(shown)}{coffee_line_tail}")
             elif available_coffees:
                 lines.append(f"Coffee: {', '.join(sorted(available_coffees)[:6])}")
             else:
-                lines.append("Coffee: (none in stock — check back soon)")
+                lines.append("Coffee: (none in stock - check back soon)")
 
             # Split out teas as their own line.
             teas = [d for d in extra_drinks if "tea" in d.lower()]
@@ -2185,14 +2185,14 @@ class CoffeeOrderSystem:
                 if len(milks_sorted) > 6:
                     milk_tail = f" (+{len(milks_sorted) - 6} more)"
                     milks_sorted = milks_sorted[:6]
-                lines.append(f"🥛 Milk: {', '.join(milks_sorted)}{milk_tail}")
+                lines.append(f"Milk: {', '.join(milks_sorted)}{milk_tail}")
             else:
-                lines.append("🥛 Milk: (none in stock)")
+                lines.append("Milk: (none in stock)")
 
             if available_sweeteners:
                 lines.append(f"🍯 {self._summarise_sweeteners(available_sweeteners)}")
 
-            lines.append(f"📏 Size: {', '.join(sizes)}")
+            lines.append(f"Size: {', '.join(sizes)}")
 
             if single_station_milks:
                 lines.append("")
@@ -2221,10 +2221,10 @@ class CoffeeOrderSystem:
             logger.error(f"Error building dynamic menu: {str(e)}")
             # Static fallback — only used if the helpers themselves crash.
             return (
-                "☕ Coffee: Latte, Cappuccino, Flat White, Long Black, Espresso, Mocha\n"
-                "🥛 Milk: Full Cream, Skim, Soy, Almond, Oat\n"
-                "🍯 Sugar: None, 1, 2, 3\n"
-                "📏 Size: Small, Medium, Large\n\n"
+                "Coffee: Latte, Cappuccino, Flat White, Long Black, Espresso, Mocha\n"
+                "Milk: Full Cream, Skim, Soy, Almond, Oat\n"
+                "Sugar: None, 1, 2, 3\n"
+                "Size: Small, Medium, Large\n\n"
                 "Reply with your choice (e.g., 'large oat latte 1 sugar')"
             )
 
@@ -2748,7 +2748,7 @@ class CoffeeOrderSystem:
         except Exception as e:
             logger.error(f"pre-event preference save failed: {e}")
             return (
-                "Sorry, we couldn't save your pre-order just now — "
+                "Sorry, we couldn't save your pre-order just now - "
                 "please try again in a minute."
             )
         self._set_conversation_state(phone, "completed")
@@ -2998,7 +2998,7 @@ class CoffeeOrderSystem:
             self._set_conversation_state(
                 phone, "awaiting_name", {"pending_multi": message}
             )
-            return "Sounds like a few coffees! First — what's your name?"
+            return "Sounds like a few coffees! First - what's your name?"
         if len(name) > 50:
             name = name[:50]
 
@@ -3057,7 +3057,7 @@ class CoffeeOrderSystem:
             msg = self._pre_event_response(phone, name, resolved[0])
             if len(resolved) > 1:
                 msg += (
-                    "\n(Pre-orders save ONE coffee per phone — we kept the "
+                    "\n(Pre-orders save ONE coffee per phone - we kept the "
                     "first; order the rest on the day.)"
                 )
             return msg
@@ -3608,7 +3608,7 @@ class CoffeeOrderSystem:
             # Used at paid events where the host comps drinks for
             # sponsors / staff / press — they get tagged VIP (via SMS
             # VIP code, or marked on a walk-in) and the price compute
-            # returns 0 with a "VIP — no charge" label rather than a
+            # returns 0 with a "VIP - no charge" label rather than a
             # dollar amount, so neither the SMS confirmation nor the
             # barista card mistakenly asks them to pay.
             "vip_free": False,
@@ -3850,7 +3850,7 @@ class CoffeeOrderSystem:
         confirmation. No payment processing.
 
         VIP-free: when pricing_settings.vip_free is True AND the order
-        is flagged vip, returns (0.0, "VIP — no charge"). The string
+        is flagged vip, returns (0.0, "VIP - no charge"). The string
         is the badge the barista card / SMS will show instead of a
         dollar amount — so neither the customer nor the barista
         mistakenly thinks a sponsor / staff member owes money.
@@ -3863,7 +3863,7 @@ class CoffeeOrderSystem:
         # avoids the "0.50 + -0.50 = $0.00" coincidence looking like
         # a free drink for non-VIPs.
         if pricing.get("vip_free") and order_details.get("vip"):
-            return 0.0, "VIP — no charge"
+            return 0.0, "VIP - no charge"
 
         # Flat-fee mode: a fixed price regardless of drink and milk
         # (alt milk is free). Two shapes, checked in order:
@@ -4674,7 +4674,7 @@ class CoffeeOrderSystem:
                 parts.append(f"Coffee: {', '.join(sorted(non_teas))}")
             if teas:
                 parts.append(f"Tea: {', '.join(sorted(teas))}")
-            available_line = " · ".join(parts) if parts else "see MENU"
+            available_line = " / ".join(parts) if parts else "see MENU"
             return (
                 f"Sorry, we don't have {coffee_type} today. Available: "
                 f"{available_line}.\n"
@@ -10437,7 +10437,7 @@ Text RESET to clear preferences or DELETE to remove all data."""
         # Set state to await confirmation
         self._set_conversation_state(phone, "awaiting_deletion_confirmation")
 
-        return "⚠️ This will delete all your data including order history.\nReply YES to confirm deletion or NO to cancel."
+        return "This will delete all your data including order history.\nReply YES to confirm deletion or NO to cancel."
 
     def _handle_awaiting_deletion_confirmation(self, phone, message, state):
         """Handle deletion confirmation"""
