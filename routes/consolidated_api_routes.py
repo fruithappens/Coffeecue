@@ -4006,6 +4006,15 @@ def edit_order(order_id):
             'size': 'size',
             'sugar': 'sugar',
             'notes': 'notes', 'special_instructions': 'notes', 'specialInstructions': 'notes',
+            # The rest of what the walk-in form can set. Editing an order
+            # could only ever change drink/milk/size/sugar, so a barista
+            # who took "double shot decaf, extra hot" down wrong had to
+            # cancel the order and re-enter it. All of these already live
+            # in order_details; nothing new is being invented here.
+            'shots': 'shots',
+            'bean_type': 'bean_type', 'beanType': 'bean_type',
+            'extra_hot': 'extra_hot', 'extraHot': 'extra_hot',
+            'vip': 'vip', 'priority': 'vip',
         }
         changed = {}
         for k, v in payload.items():
@@ -4026,9 +4035,28 @@ def edit_order(order_id):
             changed['phone'] = phone_val
         if not changed:
             return jsonify({"success": False, "message": "No editable fields provided"}), 400
-        if phone_val is not None:
+        # VIP is TWO facts: the flag on order_details (what the label and
+        # the SMS read) and queue_priority (what the queue actually sorts
+        # by). Writing only the flag would show the badge while the order
+        # stayed exactly where it was -- the badge would be a lie, and the
+        # barista would believe it.
+        vip_priority = None
+        if 'vip' in changed:
+            vip_priority = 1 if changed['vip'] else 5
+
+        if phone_val is not None and vip_priority is not None:
+            cursor.execute(
+                'UPDATE orders SET order_details = %s, phone = %s, '
+                'queue_priority = %s, updated_at = %s WHERE id = %s',
+                (json.dumps(details), phone_val, vip_priority, datetime.now(), o_id))
+        elif phone_val is not None:
             cursor.execute('UPDATE orders SET order_details = %s, phone = %s, updated_at = %s WHERE id = %s',
                            (json.dumps(details), phone_val, datetime.now(), o_id))
+        elif vip_priority is not None:
+            cursor.execute(
+                'UPDATE orders SET order_details = %s, queue_priority = %s, '
+                'updated_at = %s WHERE id = %s',
+                (json.dumps(details), vip_priority, datetime.now(), o_id))
         else:
             cursor.execute('UPDATE orders SET order_details = %s, updated_at = %s WHERE id = %s',
                            (json.dumps(details), datetime.now(), o_id))
