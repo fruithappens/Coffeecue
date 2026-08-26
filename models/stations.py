@@ -114,19 +114,35 @@ class Station:
             # Get current stations to avoid duplicates
             cursor.execute("SELECT station_id FROM station_stats")
             existing_stations = [row[0] for row in cursor.fetchall()]
-            
-            # Initialize missing stations
+
+            # SEED AN EMPTY TABLE ONLY. This used to top the table back
+            # up to NUM_STATIONS on every boot, re-inserting any missing
+            # id as an ACTIVE station -- so an operator who deleted
+            # station 3 got it back, unnamed and taking orders, at the
+            # next deploy. Steve: "I had originally deleted station 3
+            # and 4 and they somehow keep getting re-built."
+            #
+            # A non-empty table is the operator's configuration; their
+            # deletions are part of it. Defaults exist for a fresh
+            # install and nothing else.
+            if existing_stations:
+                logger.info(
+                    "station_stats already has %d station(s); not seeding "
+                    "defaults over the operator's configuration",
+                    len(existing_stations),
+                )
+                return True
+
             now = datetime.now()
             for station_id in range(1, num_stations + 1):
-                if station_id not in existing_stations:
-                    cursor.execute('''
-                        INSERT INTO station_stats 
-                        (station_id, status, last_updated)
-                        VALUES (%s, %s, %s)
-                    ''', (station_id, 'active', now))
+                cursor.execute('''
+                    INSERT INTO station_stats 
+                    (station_id, status, last_updated)
+                    VALUES (%s, %s, %s)
+                ''', (station_id, 'active', now))
             
             conn.commit()
-            logger.info(f"Initialized {num_stations} stations")
+            logger.info(f"Seeded {num_stations} default stations into an empty table")
             return True
         
         except Exception as e:

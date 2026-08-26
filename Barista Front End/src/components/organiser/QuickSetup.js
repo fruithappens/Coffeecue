@@ -165,9 +165,15 @@ const _readDraft = () => {
   }
 };
 
-const _writeDraft = (cfg) => {
+const _writeDraft = (cfg, forEvent) => {
   try {
-    localStorage.setItem(DRAFT_KEY, JSON.stringify(cfg));
+    // Stamp the draft with the event it was typed FOR. A draft is
+    // per-event working state, not a preference: after a wipe the old
+    // event's half-finished form must not repopulate the new event's
+    // Quick Setup (Steve: "Quicksetup has ctn details in the field
+    // when a wipe occurs").
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(
+      forEvent ? { ...cfg, _for_event: forEvent } : cfg));
   } catch (_) { /* localStorage full / disabled — non-fatal */ }
 };
 
@@ -185,6 +191,35 @@ const QuickSetup = () => {
       teas:   { ...DEFAULT_STATE.teas,   ...(draft.teas   || {}) },
     } : DEFAULT_STATE;
   });
+  // Which event does the SERVER currently think this is? Used to
+  // decide whether the saved draft belongs to this event or to a
+  // previous one that has since been wiped.
+  const [serverEventName, setServerEventName] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch('/api/display/config');
+        const b = r.ok ? await r.json() : {};
+        const c = b.config || b.data || b || {};
+        const name = c.event_name || '';
+        if (cancelled) return;
+        setServerEventName(name);
+        const draft = _readDraft();
+        if (!draft) return;
+        // A draft stamped for a DIFFERENT event is a leftover from
+        // before a wipe: discard it and show clean defaults. Legacy
+        // unstamped drafts are judged by the event name typed in them.
+        const draftEvent = draft._for_event ?? draft.event_name ?? null;
+        if (draftEvent && name && draftEvent !== name) {
+          localStorage.removeItem(DRAFT_KEY);
+          setConfig({ ...DEFAULT_STATE });
+        }
+      } catch (_) { /* offline: keep the draft, it may still be right */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   const [applying, setApplying] = useState(false);
   const [result, setResult] = useState(null);
   // Drift-preview modal state. opened by the Apply button; the real
@@ -213,7 +248,7 @@ const QuickSetup = () => {
   // writes a small JSON blob. The draft is cleared after a
   // successful Apply (see apply() below).
   useEffect(() => {
-    _writeDraft(config);
+    _writeDraft(config, serverEventName);
   }, [config]);
 
   const toggleArrayItem = (key, value) => {
