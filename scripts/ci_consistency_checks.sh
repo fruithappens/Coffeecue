@@ -145,6 +145,29 @@ else
   bad "a function reads a menu table directly instead of using an accessor"
 fi
 
+# ---------------------------------------------------------------------------
+# Check 7: customer-facing text says WHERE, not just which station number.
+#
+# The venue runs two stations fifteen metres apart in different rooms, so
+# "ready at Station 2" is a fact the customer cannot act on. station_label()
+# adds the configured location; hand-built "Station {id}" strings do not.
+#
+# The conversion to station_label was done once and missed the STATUS
+# replies, which is the message a customer asks for BECAUSE they are trying
+# to find their coffee. Greps for f-strings that build the wording by hand.
+# ---------------------------------------------------------------------------
+note "Check 7: customer SMS uses station_label, not hand-built 'Station N'"
+hits=$(grep -rnE 'f"[^"]*(at|from) Station \{' services/ --include='*.py' 2>/dev/null \
+  | grep -vE "^[^:]*:[0-9]+:[[:space:]]*#" \
+  | grep -viE "logger|logging|warning|debug" \
+  || true)
+if [ -n "$hits" ]; then
+  bad "Customer-facing text builds 'Station N' by hand (use station_label so the location shows):"
+  printf '%s\n' "$hits" | sed 's/^/      /'
+else
+  ok "none"
+fi
+
 printf '\n'
 if [ "$FAIL" -ne 0 ]; then
   echo "Consistency checks FAILED — see above. These guard against the 'two views of the same fact disagree' bug class."
