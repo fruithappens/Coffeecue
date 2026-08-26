@@ -108,8 +108,12 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
   // display names, ids, subcategories, and milk synonyms. Falls back
   // to DEFAULT_MILK_TYPES / name-based heuristics if the catalog
   // endpoint is unreachable (offline / demo mode).
-  const { items: catalogMilks } = useCatalog('milk');
-  const { items: catalogDrinks } = useCatalog('drink');
+  // eventOnly: the walk-in screen is an ORDER form, so it must offer only
+  // what this event serves. Without it the barista saw the whole canonical
+  // catalogue -- Oat and Lactose-Free at a venue that stocks neither, and
+  // "Smoke Test Milk" -- while SMS and the kiosk had already been narrowed.
+  const { items: catalogMilks } = useCatalog('milk', { eventOnly: true });
+  const { items: catalogDrinks } = useCatalog('drink', { eventOnly: true });
 
   // Walk-in defaults loaded from /api/walkin-defaults. Operator
   // configures these once per event in Quick Setup → Walk-in defaults.

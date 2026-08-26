@@ -4371,6 +4371,25 @@ class CoffeeOrderSystem:
                 pass
             return ["full cream", "skim"]
 
+    # Drinks the catering team pours, not us. Used to redirect rather
+    # than refuse -- see the coffee-only reply in _validate_order.
+    # Kept deliberately tight: exactly the drinks the reply PROMISES are
+    # over there. Sending someone to catering for a smoothie, in a message
+    # that only mentions tea, juice and water, is a worse answer than a
+    # plain "we don't have that" -- named teas are included because
+    # "english breakfast" contains no giveaway word.
+    _CATERING_DRINKS = (
+        "tea", "juice", "water",
+        "earl grey", "english breakfast", "breakfast blend",
+        "peppermint", "chamomile", "camomile", "green blend",
+    )
+
+    def _is_catering_drink(self, name):
+        n = str(name or "").strip().lower()
+        if not n:
+            return False
+        return any(term in n for term in self._CATERING_DRINKS)
+
     def _is_valid_milk_type(self, requested_milk, available_milks):
         """Check if the requested milk type is valid and in stock"""
         if not requested_milk:
@@ -4835,6 +4854,21 @@ class CoffeeOrderSystem:
             if teas:
                 parts.append(f"Tea: {', '.join(sorted(teas))}")
             available_line = " / ".join(parts) if parts else "see MENU"
+
+            # If they asked for something the CATERERS serve and we do not,
+            # send them somewhere rather than just saying no. At a venue
+            # running coffee stations alongside a morning-tea spread, "we
+            # don't have earl grey" is a dead end; "it's over there" is an
+            # answer. Only fires when we genuinely serve no such drink --
+            # at an event that does stock tea, the normal menu reply is
+            # the more useful one.
+            if not teas and self._is_catering_drink(coffee_type):
+                return (
+                    f"We're coffee only - tea, juice and water are "
+                    f"available in the catering area.\n"
+                    f"From us: {available_line}.\n"
+                    f"Reply MENU for the full list."
+                )
             return (
                 f"Sorry, we don't have {coffee_type} today. Available: "
                 f"{available_line}.\n"
