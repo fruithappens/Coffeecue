@@ -539,8 +539,30 @@ def printer_fault(last_status):
         code = urllib.parse.unquote(str(blob.get("statusCode") or "")).strip()
         if not code:
             return None
-        # "200 OK" and anything else 2xx is a working printer.
-        if code.split(" ")[0].startswith("2"):
+        num = code.split(" ")[0]
+
+        # NOT every 2xx is a working printer.
+        #
+        # CloudPRNT uses the 2xx range for "reachable", including states
+        # where the printer is deliberately refusing to print until a
+        # human does something. 221 is the one that bit us: a printed
+        # label left in the output slot, and the TSP100IV will not print
+        # the next job until it is taken.
+        #
+        # Treating the whole range as healthy meant the printer was
+        # saying "I am blocked, come and take the label" on every poll,
+        # twice a second, and we filed it as fine. Steve saw four jobs
+        # queued, cancelled and retried them, and nothing happened --
+        # because nothing was wrong with any of them.
+        ATTENTION = {
+            "221": "A printed label is waiting in the output - take it "
+                   "and the queue will start again.",
+            "222": "Paper is in the presenter - take it and the queue "
+                   "will start again.",
+        }
+        if num in ATTENTION:
+            return ATTENTION[num]
+        if num.startswith("2"):
             return None
         # The rest already read as English once decoded ("410 Out of
         # paper", "802 Printer error"); strip the number so the operator
