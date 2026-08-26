@@ -516,3 +516,70 @@ def check_ingredients(db, lines):
         except Exception:
             pass
         return True, []
+
+def get_overrides(db, station_id=None):
+    """The 86 board: {(category, name): '86'|'on'}.
+
+    A station-scoped override beats the event-wide one for that station.
+    Errors return {} -- an unreadable 86 board must not take ordering
+    down with it; the ledger gate still stands behind it.
+    """
+    out = {}
+    try:
+        cur = db.cursor()
+        cur.execute(
+            "SELECT category, item_name, station_id, state FROM stock_overrides"
+        )
+        event_rows, station_rows = {}, {}
+        for r in cur.fetchall():
+            cat, name, sid, state = (
+                (r["category"], r["item_name"], r["station_id"], r["state"])
+                if isinstance(r, dict) else r)
+            key = (str(cat).lower(), str(name).lower())
+            if sid is None:
+                event_rows[key] = state
+            elif station_id is not None and int(sid) == int(station_id):
+                station_rows[key] = state
+        out.update(event_rows)
+        out.update(station_rows)
+    except Exception as e:
+        logger.warning("get_overrides failed (no overrides applied): %s", e)
+        try:
+            db.rollback()
+        except Exception:
+            pass
+    return out
+
+
+def apply_overrides(lines, drink, overrides):
+    """The human's answer, applied over the arithmetic's.
+
+    Returns (verdict, names) where verdict is:
+      '86'   -- barista says out: refuse, whatever the ledger thinks
+      'on'   -- barista says makeable: skip the ledger gate entirely
+      None   -- no opinion: let check_ingredients decide
+
+    An 86 on the DRINK name kills that drink; an 86 on any resolved
+    ingredient kills everything that needs it (86 the chocolate powder,
+    lose mocha AND hot chocolate -- Steve's own example, human edition).
+    """
+    if not overrides:
+        return None, []
+    d = str(drink or "").strip().lower()
+    hit86 = []
+    forced_on = False
+    for (cat, name), state in overrides.items():
+        if cat == "drink" and name == d:
+            if state == "86":
+                return "86", [d]
+            forced_on = True
+    for ln in lines or []:
+        key = (str(ln.get("category")).lower(), str(ln.get("name") or "").lower())
+        state = overrides.get(key)
+        if state == "86":
+            hit86.append(key[1])
+    if hit86:
+        return "86", hit86
+    if forced_on:
+        return "on", []
+    return None, []
