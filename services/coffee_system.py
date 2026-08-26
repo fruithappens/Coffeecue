@@ -3619,8 +3619,18 @@ class CoffeeOrderSystem:
         rejections. Cached at first call to avoid hitting the DB on
         every conversation turn.
         """
-        if hasattr(self, "_unlimited_stock_cache"):
+        # TTL cache, not forever. This was cached for the life of the
+        # process, so flipping "unlimited stock" at the venue (turning
+        # real tracking on for the event day) silently did nothing until
+        # the next deploy restarted the container. Ten seconds keeps the
+        # per-message cost near zero and makes the switch actually a
+        # switch.
+        import time as _time
+        _now = _time.time()
+        if (hasattr(self, "_unlimited_stock_cache")
+                and _now - getattr(self, "_unlimited_stock_cache_at", 0) < 10):
             return self._unlimited_stock_cache
+        self._unlimited_stock_cache_at = _now
         try:
             cursor = self.db.cursor()
             try:
@@ -4380,6 +4390,15 @@ class CoffeeOrderSystem:
         yesterday.
         """
         try:
+            # Unlimited-stock mode means "this event does not refuse for
+            # stock" -- the legacy menu already honours it (everything
+            # stays listed), and a gate that refuses what the menu shows
+            # is the menu lying (matrix S4: dry almond refused by SMS,
+            # advertised by the kiosk). The ledger still DECREMENTS in
+            # unlimited mode, so the post-event report stays honest; the
+            # only thing switched off is refusal.
+            if self._is_unlimited_stock_mode():
+                return True, ""
             if str(self._get_setting("sold_out_mode", "strict")).lower() == "warn":
                 return True, ""
             from services.recipes import check_ingredients, resolve_order
