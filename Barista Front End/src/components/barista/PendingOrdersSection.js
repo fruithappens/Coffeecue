@@ -41,7 +41,19 @@ const PendingOrdersSection = ({
   // with 2+ identical drinks get the group header + Process Batch button;
   // singles render as regular cards (the similarity hints below still
   // point out shared-milk opportunities).
+  // VIP orders are ALREADY shown, on their own, at the top. Including
+  // them here rendered the same order twice -- once under VIP ORDERS and
+  // again inside its batch -- each with its own Start button. Steve's
+  // screenshot caught #34 in both.
+  //
+  // Two cards for one coffee is two coffees, or a Process Batch that
+  // quietly re-makes one a barista has already started.
+  //
+  // They stay in the VIP list rather than the batch: the whole point of
+  // priority is not waiting for four other drinks to be ready first.
+  // regularOrders already excluded them; the grouping simply never did.
   const allGroups = orderedOrders.reduce((groups, order) => {
+    if (order.vip || order.priority) return groups;
     if (order.batchGroup) {
       if (!groups[order.batchGroup]) {
         groups[order.batchGroup] = [];
