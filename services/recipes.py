@@ -494,7 +494,7 @@ def check_ingredients(db, lines):
                 WHERE category = %s
                   AND (LOWER(name) = %s
                        OR LOWER(name) LIKE %s OR %s LIKE '%%' || LOWER(name) || '%%')
-                ORDER BY (LOWER(name) = %s) DESC
+                ORDER BY (LOWER(name) = %s) DESC, id ASC
                 LIMIT 1
                 """,
                 (ln["category"], name, f"%{name}%", name, name),
