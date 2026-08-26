@@ -477,6 +477,33 @@ def _m015_recipes(cur):
     """)
 
 
+def _m016_recipes_null_safe_unique(cur):
+    """Fix the NULL hole in the recipes uniqueness rule.
+
+    UNIQUE (drink, size, category, name) does not stop duplicates when
+    name is NULL -- Postgres treats NULLs as distinct -- so the seed's
+    ON CONFLICT DO NOTHING never fired for NULL-name rows and EVERY BOOT
+    re-inserted them. Two boots in, production flat whites resolved
+    their coffee line twice, which would have decremented double.
+    Caught by the /api/recipes/check probe showing the same line twice.
+
+    Dedupe (keep the lowest id), then enforce uniqueness through an
+    expression index that folds NULL to '', which the seed's ON CONFLICT
+    can infer."""
+    cur.execute("""
+        DELETE FROM recipes a USING recipes b
+        WHERE a.id > b.id
+          AND a.drink = b.drink AND a.size = b.size
+          AND a.ingredient_category = b.ingredient_category
+          AND COALESCE(a.ingredient_name,'') = COALESCE(b.ingredient_name,'')
+    """)
+    cur.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_recipes_line
+        ON recipes (drink, size, ingredient_category,
+                    COALESCE(ingredient_name, ''))
+    """)
+
+
 # Master list. Append new migrations at the bottom — DO NOT renumber
 # existing ones, and DO NOT change `version`. The runner trusts the
 # version number to determine which migrations to skip.
@@ -498,6 +525,7 @@ MIGRATIONS: list[Migration] = [
     Migration(13, 'client_events',             _m013_client_events),
     Migration(14, 'chat_messages_station_id',  _m014_chat_messages_station_id),
     Migration(15, 'recipes',                   _m015_recipes),
+    Migration(16, 'recipes_null_safe_unique',  _m016_recipes_null_safe_unique),
 ]
 
 
