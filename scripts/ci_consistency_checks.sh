@@ -91,6 +91,42 @@ else
   ok "none"
 fi
 
+# ---------------------------------------------------------------------------
+# Check 5: never tell a customer to send a carrier-reserved keyword.
+#
+# CANCEL, STOP, END, QUIT and UNSUBSCRIBE are consumed by the CARRIER as
+# opt-out commands. They never reach our webhook. So the bot happily
+# advertised "Wrong? Reply CANCEL" and the customer who obeyed was
+# silently unsubscribed from the event number -- order still live, and no
+# "your coffee is ready" message ever again. We cannot resubscribe them;
+# only they can, by texting START.
+#
+# The codebase already KNEW: CANCELORDER exists with the comment "to avoid
+# Twilio collision", and HELP has a comment saying it is reserved. The
+# knowledge just never reached the copy. That is what this check fixes --
+# it turns a fact someone once knew into one the build enforces.
+#
+# Safe words to advertise instead: OOPS, SCRAP, NEVERMIND, CANCELORDER.
+#
+# EXEMPT: "Reply STOP to opt out" is allowed -- there STOP means exactly
+# what the carrier will do with it. That is the one honest use of a
+# reserved word, and it is a compliance requirement on broadcasts.
+# ---------------------------------------------------------------------------
+note "Check 5: outbound SMS copy does not advertise carrier opt-out keywords"
+RESERVED='CANCEL|STOP|STOPALL|UNSUBSCRIBE|QUIT|END'
+hits=$(grep -rnE "(Reply|reply|Text|text|Send|send) (${RESERVED})\\b" \
+  services/ routes/ --include='*.py' 2>/dev/null \
+  | grep -vE "CANCELORDER|CANCEL ORDER" \
+  | grep -viE "(STOP|QUIT|END|UNSUBSCRIBE) to (opt.?out|unsubscribe|stop)" \
+  | grep -vE "^[^:]*:[0-9]+:[[:space:]]*#" \
+  || true)
+if [ -n "$hits" ]; then
+  bad "Outbound copy tells the customer to send a carrier opt-out keyword (it will unsubscribe them, not do what we said):"
+  printf '%s\n' "$hits" | sed 's/^/      /'
+else
+  ok "none"
+fi
+
 printf '\n'
 if [ "$FAIL" -ne 0 ]; then
   echo "Consistency checks FAILED — see above. These guard against the 'two views of the same fact disagree' bug class."

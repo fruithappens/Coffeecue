@@ -764,7 +764,7 @@ class CoffeeOrderSystem:
         available — see the menu, order for friends, or cancel."""
         return (
             "\n\n(Tips: reply MENU to see the menu / FRIEND to add a "
-            "friend's coffee / CANCEL to scrap an order)"
+            "friend's coffee / OOPS to scrap an order)"
         )
 
     def _handle_greeting(self, phone, message, state):
@@ -1186,7 +1186,16 @@ class CoffeeOrderSystem:
             return self._handle_status_command(phone)
 
         # Check for cancel command (both versions, regular and the special one to avoid Twilio collision)
-        elif message_upper == "CANCEL" or message_upper == "CANCELORDER":
+        elif message_upper in (
+            "OOPS", "SCRAP", "NEVERMIND", "NEVER MIND",
+            "CANCELORDER", "CANCEL ORDER",
+            # CANCEL is a carrier-reserved OPT-OUT keyword: the
+            # network answers it with "you have been unsubscribed"
+            # and it never reaches us. Kept here only for the case
+            # where a carrier does pass it through -- it must never
+            # be the word we tell a customer to send.
+            "CANCEL",
+        ):
             return self._handle_cancel_command(phone)
 
         # Check for help/info command (avoiding HELP due to Twilio opt-out)
@@ -1447,7 +1456,7 @@ class CoffeeOrderSystem:
                 f"Great {name}! Your {summary} is scheduled — we'll start "
                 f"making it just before you arrive, ready about "
                 f"{arrival.strftime('%H:%M')}. Order #{order_number}. "
-                f"Reply CANCEL to cancel."
+                f"Reply OOPS to cancel."
             )
         except Exception as e:
             logger.error(f"_create_scheduled_order failed: {e}")
@@ -2029,7 +2038,7 @@ class CoffeeOrderSystem:
             "- Text your coffee order (e.g., 'large latte with oat milk')\n"
             "- STATUS: Check your order status\n"
             "- FRIEND: Add a coffee for a friend\n"
-            "- CANCEL: Cancel your pending order\n"
+            "- OOPS: Cancel your pending order\n"
             "- MENU: See available coffee options\n"
             "- USUAL: Order your usual coffee\n"
             "- OPTIONS: See all available commands\n"
@@ -2043,7 +2052,7 @@ class CoffeeOrderSystem:
             "Ordering:\n"
             "- STATUS: Check order status\n"
             "- FRIEND: Add coffee for a friend\n"
-            "- CANCEL: Cancel pending order\n"
+            "- OOPS: Cancel pending order\n"
             "- MENU: See coffee options\n"
             "- USUAL: Order your usual\n"
             "\nPrivacy:\n"
@@ -2212,9 +2221,19 @@ class CoffeeOrderSystem:
                 ),
                 "full cream",
             )
-            lines.append(
-                f"Reply with your order, e.g. '{example_size} {example_milk} latte 1 sugar'"
-            )
+            # Don't teach people to order something the baristas will
+            # not make. When sugar is help-yourself, the example must
+            # not contain it, or the menu itself creates the request
+            # we then have to strip back out.
+            if self._sugar_self_serve():
+                lines.append(self.SUGAR_SELF_SERVE_NOTE.strip())
+                lines.append(
+                    f"Reply with your order, e.g. '{example_size} {example_milk} latte'"
+                )
+            else:
+                lines.append(
+                    f"Reply with your order, e.g. '{example_size} {example_milk} latte 1 sugar'"
+                )
             return "\n".join(lines)
 
         except Exception as e:
@@ -2222,10 +2241,9 @@ class CoffeeOrderSystem:
             # Static fallback — only used if the helpers themselves crash.
             return (
                 "Coffee: Latte, Cappuccino, Flat White, Long Black, Espresso, Mocha\n"
-                "Milk: Full Cream, Skim, Soy, Almond, Oat\n"
-                "Sugar: None, 1, 2, 3\n"
-                "Size: Small, Medium, Large\n\n"
-                "Reply with your choice (e.g., 'large oat latte 1 sugar')"
+                "Milk: Full Cream, Skim, Soy, Almond\n"
+                "Size: Medium\n\n"
+                "Reply with your choice (e.g., 'flat white with skim')"
             )
 
     def _milk_to_stations_map(self):
@@ -2855,7 +2873,7 @@ class CoffeeOrderSystem:
             f"{prefix}{order_response}\n"
             f"That's: {summary}.{self.SUGAR_SELF_SERVE_NOTE if sugar_redirect else ''}"
             f"{self._format_price_tail(od)} "
-            f"Wrong? Reply CANCEL. Add a coffee with FRIEND."
+            f"Wrong? Reply OOPS. Add a coffee with FRIEND."
         )
 
     def _default_milk(self):
@@ -3108,7 +3126,7 @@ class CoffeeOrderSystem:
             + "\n".join(lines)
             + (self.SUGAR_SELF_SERVE_NOTE + "\n" if multi_sugar_redirect else "")
             + f"{total_line}\n"
-            "Same station, ready together. Wrong? Reply CANCEL."
+            "Same station, ready together. Wrong? Reply OOPS."
         )
 
     def _handle_awaiting_name(self, phone, message, state):
