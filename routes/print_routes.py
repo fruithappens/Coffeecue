@@ -647,6 +647,22 @@ def cloudprnt_fetch():
     _ensure_tables(db)
     token = request.args.get("token") or ""
     mac = _norm_mac(request.args.get("mac"))
+
+    # Recover the shared connection before touching it.
+    #
+    # This is the ONE request in the print path with a hard deadline on
+    # it: the printer is holding an HTTP GET open and will report
+    # "520 Download failed" if we do not answer. Everything else can
+    # retry quietly; this cannot.
+    #
+    # The connection is a process-wide singleton, so an unrelated failed
+    # query elsewhere leaves it in "current transaction is aborted" and
+    # every statement here raises until someone rolls back. The rest of
+    # this codebase does this defensively; the fetch path never did.
+    try:
+        db.rollback()
+    except Exception:
+        pass
     try:
         cur = db.cursor()
         cur.execute(
@@ -677,7 +693,20 @@ def cloudprnt_fetch():
             "banner": render_banner,
             "sticker": render_sticker,
         }.get(job.get("type"), render_label)
-        png = renderer(payload, job.get("width_dots"), options=_label_options(db))
+        # A settings read must not be able to stop a label printing.
+        # Options control appearance; failing to read them is a reason to
+        # print a plainer label, not to fail the download and leave the
+        # barista waiting on a coffee with no ticket.
+        try:
+            opts = _label_options(db)
+        except Exception as opt_err:
+            logger.warning(f"cloudprnt fetch: label options unreadable ({opt_err}); using defaults")
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            opts = {}
+        png = renderer(payload, job.get("width_dots"), options=opts)
         png = _shift_right(png, job.get("offset_dots"))
         cur.execute(
             "UPDATE print_jobs SET status = 'fetched', fetched_at = NOW() WHERE id = %s",
@@ -686,11 +715,29 @@ def cloudprnt_fetch():
         db.commit()
         return Response(png, mimetype="image/png")
     except Exception as e:
-        logger.error(f"cloudprnt fetch error: {e}")
+        # Record WHY on the job itself. The printer only ever reports
+        # "520 Download failed", which says a download failed and nothing
+        # about the cause -- and Railway's logs are not to hand at a cart
+        # in a function room. Steve had a job sit queued for nine minutes
+        # against a printer polling every second, with no way to see why.
+        logger.error(f"cloudprnt fetch error for job {token}: {e}", exc_info=True)
         try:
             db.rollback()
         except Exception:
             pass
+        try:
+            cur2 = db.cursor()
+            cur2.execute(
+                "UPDATE print_jobs SET error = COALESCE(error,'') || %s "
+                "WHERE id = %s",
+                (f" [fetch failed: {str(e)[:120]}]", token),
+            )
+            db.commit()
+        except Exception:
+            try:
+                db.rollback()
+            except Exception:
+                pass
         return Response(status=500)
 
 
