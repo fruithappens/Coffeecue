@@ -80,6 +80,52 @@ Variants (decaf, milk choice) are ingredient SUBSTITUTIONS inside the
 recipe, so gate 2 is evaluated on the RESOLVED ingredient list, never on
 the drink name.
 
+## Sizes scale the recipe; specials ARE recipes (Steve, third pass)
+
+> "likewise for size it varies how many ingredient go into it ...
+> sometimes there are custom recipes like double shot, or possibly a
+> magic coffee which is double ristretto so u use more beans less
+> water, water might be important for those using jerry cans"
+
+**A recipe is a small table, not a list.** Quantities are stated PER
+SIZE, not scaled by a multiplier -- because drink scaling is not
+linear (a large flat white is 2 shots, not 1.4):
+
+| flat white | shots | beans | milk | water | cup |
+|---|---|---|---|---|---|
+| small | 1 | 22g | 150mL | -- | small |
+| medium | 2 | 44g | 200mL | -- | medium |
+| large | 2 | 44g | 280mL | -- | large |
+
+Consequences that fall out for free:
+
+- **Sizes are gate-1 choices too.** "Baristas might only offer medium"
+  is just the menu enabling one size row. (Already live at Treenet.)
+- **Availability derives PER SIZE.** When milk runs low, a large can
+  grey out while a small stays orderable -- because gate 2 evaluates
+  the size row's quantities, not the drink.
+- **Named specials are first-class recipes, not options.** A magic is
+  a double ristretto in a 3/4 cup: same beans as two shots, LESS
+  water, less milk. That cannot be expressed as a delta on flat white
+  without lying about something, so it gets its own rows and its own
+  menu toggle, like any drink.
+- **Options are deltas or substitutions on the resolved row.**
+  Extra shot = +1 shot (+22g beans, +water). Decaf = substitute the
+  bean ingredient. Oat = substitute the milk. Half strength = fewer
+  grams, same water. Each is arithmetic on the size row, so the
+  decrement stays recipe-driven.
+
+**Water is an ingredient.** A cart running on jerry cans has a finite
+water budget: long blacks and teas consume it directly, every shot
+consumes some, a magic deliberately consumes less. A plumbed venue
+simply does not stock the water row.
+
+Which needs one general rule: **gate 2 checks only ingredients the
+event actually TRACKS** (a row exists in inventory). No water row = no
+water constraint. This is "absence means no opinion", the same
+three-state rule the menu bridge uses -- NOT fail-open on error, which
+stays loud.
+
 ## One resolver, three consumers
 
     resolve(drink, options) -> ingredient list | refusal(reason)
