@@ -299,6 +299,147 @@ const RecipeCard = ({ drink, sizes, onSaved }) => {
 };
 
 
+
+// ---------------------------------------------------------------------
+// Station allocation — per-station ledgers, restocks as transfers.
+// ---------------------------------------------------------------------
+const StationAllocation = ({ inventory, onChanged }) => {
+  const [stations, setStations] = useState([]);
+  const [move, setMove] = useState({ key: null, amount: '', from: 'event', to: '' });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch('/api/display/menu');
+        const b = r.ok ? await r.json() : {};
+        setStations(((b.menu || {}).stations || []).map((st) => ({ id: st.id, name: st.name })));
+      } catch (e) { /* stations list is decoration here */ }
+    })();
+  }, []);
+
+  // ingredient -> { event: row, byStation: {id: row} }
+  const grouped = {};
+  inventory.forEach((it) => {
+    const key = `${String(it.category).toLowerCase()}:${String(it.name).toLowerCase()}`;
+    grouped[key] = grouped[key] || { category: it.category, name: it.name, event: null, byStation: {} };
+    if (it.station_id == null) grouped[key].event = it;
+    else grouped[key].byStation[it.station_id] = it;
+  });
+
+  const doMove = async (g) => {
+    const amt = parseFloat(move.amount);
+    if (!Number.isFinite(amt) || amt <= 0 || move.to === '') { setErr('Pick an amount and a destination'); return; }
+    setBusy(true);
+    setErr('');
+    try {
+      const r = await fetch('/api/inventory/transfer', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({
+          category: String(g.category).toLowerCase(),
+          name: String(g.name).toLowerCase(),
+          amount: amt,
+          from_station: move.from === 'event' ? null : parseInt(move.from, 10),
+          to_station: move.to === 'event' ? null : parseInt(move.to, 10),
+        }),
+      });
+      const b = await r.json().catch(() => ({}));
+      if (!r.ok || b.success === false) { setErr(b.error || b.message || 'Transfer failed'); return; }
+      setMove({ key: null, amount: '', from: 'event', to: '' });
+      onChanged();
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const amountOf = (row) => (row ? parseFloat(row.amount) || 0 : 0);
+
+  return (
+    <div className="bg-white rounded-lg shadow p-4 mt-8">
+      <h2 className="text-xl font-bold text-gray-800">Station allocation</h2>
+      <p className="text-sm text-gray-600 mb-3">
+        Each cart's own supply. A restock is a transfer — "move 6L skim
+        from the event reserve to Station 2" — so the ledger records where
+        things physically went. Orders deplete the station's own row first,
+        falling back to the event pool. The event total is the sum; it is
+        never typed.
+      </p>
+      <div className="overflow-x-auto">
+        <table className="text-sm w-full">
+          <thead>
+            <tr className="text-left text-gray-500">
+              <th className="py-1 pr-4">Ingredient</th>
+              <th className="py-1 pr-4">Event reserve</th>
+              {stations.map((st) => (
+                <th key={st.id} className="py-1 pr-4">{st.name || `Station ${st.id}`}</th>
+              ))}
+              <th className="py-1">Move</th>
+            </tr>
+          </thead>
+          <tbody>
+            {Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b)).map(([key, g]) => (
+              <tr key={key} className="border-t border-gray-100 align-top">
+                <td className="py-2 pr-4 font-medium capitalize">{g.name}
+                  <span className="text-xs text-gray-400 block">{g.category}</span>
+                </td>
+                <td className="py-2 pr-4 font-mono">{amountOf(g.event)}</td>
+                {stations.map((st) => (
+                  <td key={st.id} className="py-2 pr-4 font-mono">
+                    {g.byStation[st.id] ? amountOf(g.byStation[st.id]) : '—'}
+                  </td>
+                ))}
+                <td className="py-2">
+                  {move.key === key ? (
+                    <span className="flex items-center gap-1 flex-wrap">
+                      <input type="number" min="0" step="any" value={move.amount}
+                        onChange={(e) => setMove((m) => ({ ...m, amount: e.target.value }))}
+                        className="w-20 border border-gray-300 rounded px-2 py-1 text-right" autoFocus />
+                      <select value={move.from}
+                        onChange={(e) => setMove((m) => ({ ...m, from: e.target.value }))}
+                        className="border border-gray-300 rounded px-1 py-1">
+                        <option value="event">Event</option>
+                        {stations.map((st) => (
+                          <option key={st.id} value={st.id}>{st.name || `S${st.id}`}</option>
+                        ))}
+                      </select>
+                      <span className="text-gray-400">→</span>
+                      <select value={move.to}
+                        onChange={(e) => setMove((m) => ({ ...m, to: e.target.value }))}
+                        className="border border-gray-300 rounded px-1 py-1">
+                        <option value="">to…</option>
+                        <option value="event">Event</option>
+                        {stations.map((st) => (
+                          <option key={st.id} value={st.id}>{st.name || `S${st.id}`}</option>
+                        ))}
+                      </select>
+                      <button onClick={() => doMove(g)} disabled={busy}
+                        className="bg-amber-600 text-white rounded px-2 py-1 font-semibold">
+                        Move
+                      </button>
+                      <button onClick={() => setMove({ key: null, amount: '', from: 'event', to: '' })}
+                        className="text-gray-400 px-1">✕</button>
+                    </span>
+                  ) : (
+                    <button onClick={() => { setErr(''); setMove({ key, amount: '', from: 'event', to: '' }); }}
+                      className="text-amber-700 underline text-sm">
+                      transfer
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {err && <div className="mt-2 text-sm text-red-600">{err}</div>}
+    </div>
+  );
+};
+
 // ---------------------------------------------------------------------
 // Cup reconciliation — where the venue's tally meets ours.
 // ---------------------------------------------------------------------
@@ -436,11 +577,17 @@ const EventStockManagement = () => {
 
   useEffect(() => { load(); }, [load]);
 
+  // Event-pool rows only here. Station-scoped rows (created by
+  // transfers) belong to the allocation card below -- mixing the two
+  // scopes in one list is how the old screen's numbers stopped meaning
+  // anything.
   const byCategory = {};
-  inventory.forEach((it) => {
-    const cat = String(it.category || '').toLowerCase();
-    (byCategory[cat] = byCategory[cat] || []).push(it);
-  });
+  inventory
+    .filter((it) => it.station_id == null)
+    .forEach((it) => {
+      const cat = String(it.category || '').toLowerCase();
+      (byCategory[cat] = byCategory[cat] || []).push(it);
+    });
 
   return (
     <div className="p-6 max-w-5xl">
@@ -502,6 +649,8 @@ const EventStockManagement = () => {
             <RecipeCard key={drink} drink={drink} sizes={sizes} onSaved={load} />
           ))}
       </div>
+
+      <StationAllocation inventory={inventory} onChanged={load} />
 
       <CupReconciliation />
     </div>
