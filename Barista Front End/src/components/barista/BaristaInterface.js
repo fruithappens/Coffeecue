@@ -9,7 +9,7 @@ import {
   MessageCircle, Printer, Plus, Clock,
   Bell, XCircle, RefreshCw, Edit, ArrowLeft, ChevronDown,
   Send, CheckCircle, Brain, Scale, Users, MoreHorizontal, Wrench, Shuffle,
-  Truck, Maximize2, Minimize2
+  Truck, Maximize2, Minimize2, ArrowRightLeft,
 } from 'lucide-react';
 
 // Import app mode context
@@ -1581,13 +1581,29 @@ const BaristaInterface = () => {
                 PRIORITY
               </div>
             )}
-            <button
-              className="mt-2 text-gray-500 hover:text-gray-700"
-              onClick={() => handleEditOrder(order)}
-              title="Edit order"
-            >
-              <Edit size={16} />
-            </button>
+            <div className="mt-2 flex space-x-2">
+              {/* Move mid-make. The backend has allowed reassigning an
+                  in-progress order all along -- its own comment names
+                  this exact case ("barista realises mid-pour they're
+                  out of milk") -- but only the PENDING card ever grew
+                  the button. Steve, mid-service: "cant transfer station
+                  once started ... worked out ran out of that milk or a
+                  error fault". */}
+              <button
+                className="text-gray-500 hover:text-amber-600"
+                onClick={() => handleOpenMoveDialog(order)}
+                title="Move to another station"
+              >
+                <ArrowRightLeft size={16} />
+              </button>
+              <button
+                className="text-gray-500 hover:text-gray-700"
+                onClick={() => handleEditOrder(order)}
+                title="Edit order"
+              >
+                <Edit size={16} />
+              </button>
+            </div>
           </div>
         </div>
         
