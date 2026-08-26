@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { X, Save, Trash2 } from 'lucide-react';
 import useCatalog from '../../hooks/useCatalog';
+import { QuickGroup, QuickTile } from '../shared/QuickTiles';
 
 /**
  * EditOrderDialog — barista override for an order taken down wrong.
@@ -97,6 +98,23 @@ const EditOrderDialog = ({ order, onClose, onSave, onCancelOrder, saving = false
   const _rawPhone = String(o.phoneNumber || o.phone_number || o.phone || '').trim();
   const [phone, setPhone] = useState(/^walk-?in$/i.test(_rawPhone) ? '' : _rawPhone);
 
+  // Steve: "can you make the edit menu look more like the walk in quick
+  // look or have the quick and detailed on the edit?"
+  //
+  // Both, and it defaults to Quick. Fixing an order happens at the
+  // counter with someone waiting, which is the same situation the Quick
+  // tiles were built for -- and a barista who has just taken the order
+  // on tiles should not have to re-read it as a column of text boxes to
+  // change one thing.
+  //
+  // Detailed keeps free text, which matters: the tiles can only offer
+  // what the event has configured, and an edit is exactly where an
+  // exception gets made.
+  const [mode, setMode] = useState('quick');
+
+  const eq = (a, b) => String(a || '').trim().toLowerCase()
+                    === String(b || '').trim().toLowerCase();
+
   const handleSave = () => {
     const fields = {
       type: (drink || '').trim(),
@@ -145,7 +163,10 @@ const EditOrderDialog = ({ order, onClose, onSave, onCancelOrder, saving = false
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+      {/* Quick mode lays out tiles, which need width; Detailed is a
+          column of fields and reads better narrow. */}
+      <div className={`bg-white rounded-xl shadow-xl w-full max-h-[90vh] overflow-y-auto ${
+        mode === 'quick' ? 'max-w-3xl' : 'max-w-lg'}`}
            onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 sticky top-0 bg-white">
           <h3 className="text-lg font-bold text-gray-800">
@@ -156,6 +177,98 @@ const EditOrderDialog = ({ order, onClose, onSave, onCancelOrder, saving = false
           </button>
         </div>
 
+        <div className="px-5 pt-4">
+          <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden text-sm">
+            {['quick', 'detailed'].map(m => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setMode(m)}
+                className={`px-4 py-1.5 font-semibold capitalize ${
+                  mode === m ? 'bg-amber-600 text-white' : 'bg-white text-gray-600'}`}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {mode === 'quick' && (
+          <div className="p-5 space-y-4">
+            <QuickGroup label="Drink">
+              {drinkList.map(x => (
+                <QuickTile key={x} label={x} emoji="☕"
+                  active={eq(drink, x)} onClick={() => setDrink(x)} />
+              ))}
+            </QuickGroup>
+
+            <QuickGroup label="Milk">
+              {milkList.map(x => (
+                <QuickTile key={x} label={x} emoji={/no milk/i.test(x) ? '🚫' : '🥛'}
+                  active={eq(milk, x)} onClick={() => setMilk(x)} />
+              ))}
+            </QuickGroup>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <QuickGroup label="Size">
+                {sizeChoices.map(sz => (
+                  <QuickTile key={sz} label={sz} emoji="🥤"
+                    active={eq(size, sz)} onClick={() => setSize(sz)} />
+                ))}
+              </QuickGroup>
+              <QuickGroup label="Sugar">
+                {sugarSelfServe ? (
+                  <div className="text-sm text-gray-500 border-2 border-dashed
+                                  border-gray-200 rounded-xl px-3 py-2.5">
+                    Help-yourself at the counter
+                  </div>
+                ) : (
+                  ['no sugar', '1 sugar', '2 sugar', '3 sugar'].map(sg => (
+                    <QuickTile key={sg} label={sg.replace(' sugar', '')} emoji={sg === 'no sugar' ? '🚫' : '🍬'}
+                      active={eq(sugar, sg)} onClick={() => setSugar(sg)} />
+                  ))
+                )}
+              </QuickGroup>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <QuickGroup label="Shots">
+                {[['0.5', 'Half'], ['1', 'Single'], ['2', 'Double'], ['3', 'Triple']].map(([v, l]) => (
+                  <QuickTile key={v} label={l} emoji="☕"
+                    active={String(shots) === v} onClick={() => setShots(v)} />
+                ))}
+              </QuickGroup>
+              <QuickGroup label="Beans">
+                <QuickTile label="House blend" emoji="🫘"
+                  active={!beanType} onClick={() => setBeanType('')} />
+                <QuickTile label="Decaf" emoji="🌙"
+                  active={eq(beanType, 'decaf')} onClick={() => setBeanType('decaf')} />
+              </QuickGroup>
+            </div>
+
+            <QuickGroup label="Extras">
+              <QuickTile label="Extra hot" emoji="🔥"
+                active={extraHot} onClick={() => setExtraHot(v => !v)} />
+              <QuickTile label="VIP / staff priority" emoji="⭐"
+                active={vip} onClick={() => setVip(v => !v)} />
+            </QuickGroup>
+
+            <div>
+              <label className={labelCls}>Notes</label>
+              <input value={notes} onChange={(e) => setNotes(e.target.value)} className={inputCls}
+                     placeholder="e.g. no lid, 1/4 strength, half full" />
+            </div>
+            <div>
+              <label className={labelCls}>
+                Mobile number <span className="text-gray-400 font-normal">(optional — enables SMS updates)</span>
+              </label>
+              <input value={phone} onChange={(e) => setPhone(e.target.value)} className={inputCls}
+                     placeholder="e.g. 0412 345 678" type="tel" autoComplete="off" />
+            </div>
+          </div>
+        )}
+
+        {mode === 'detailed' && (
         <div className="p-5 space-y-4">
           <div>
             <label className={labelCls}>Drink</label>
@@ -237,6 +350,7 @@ const EditOrderDialog = ({ order, onClose, onSave, onCancelOrder, saving = false
                    placeholder="e.g. 0412 345 678" type="tel" autoComplete="off" />
           </div>
         </div>
+        )}
 
         <div className="flex items-center justify-between px-5 py-4 border-t border-gray-200 sticky bottom-0 bg-white">
           <button
