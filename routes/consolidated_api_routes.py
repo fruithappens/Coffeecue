@@ -7682,6 +7682,15 @@ def create_inventory_item():
         # Get coffee system from app context
         coffee_system = current_app.config.get('coffee_system')
         db = coffee_system.db
+        # Recover the shared connection first -- the matrix hit this
+        # right after another write and got a generic 400 where the
+        # duplicate check should have answered 409: the transaction was
+        # poisoned and the SELECT below raised. Same defensive rollback
+        # every other endpoint on this connection carries.
+        try:
+            db.rollback()
+        except Exception:
+            pass
 
         # ONE ROW PER INGREDIENT (per station scope). The scenario matrix
         # created 'chocolate powder' twice and the availability gate's

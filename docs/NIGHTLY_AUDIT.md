@@ -83,3 +83,16 @@ findings, PRs.
   1 real finding (pending card dropped notes/shots/bean, PR #410),
   2 open items (station 3 unnamed+active; "QR to wrong place" needs a
   concrete example from Steve).
+- 2026-08-26/27 overnight (rebuild night 1): recipe layer built (R1,
+  #421) and hammered by a 25-scenario live matrix, three rounds. Found
+  and fixed: NULL-name recipe rows duplicating per boot (#423);
+  threshold-as-floor gate semantics (#423); "double shot decaf latte"
+  losing the decaf at parse AND strength never reaching the bean math
+  (#425, #426); event-menu bridge REPLACING the stock filter (#424);
+  espresso base list unable to ADD menu drinks (#424); gate ignoring
+  unlimited_stock_mode while the menu honoured it (#428) plus the
+  mode's forever-cache (now 10s TTL); duplicate ingredient rows
+  blinding the gate (#429). Probes added: /api/recipes/check (incl.
+  ?order=NN stored-shape mode) and /api/recipes/milks-debug. Final
+  matrix: 24/25, last fail a poisoned-txn 400 (fixed after). Railway
+  missed one deploy (re-push nudge worked, as memory predicted).
