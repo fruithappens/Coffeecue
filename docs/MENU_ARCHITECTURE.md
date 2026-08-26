@@ -115,6 +115,15 @@ Consequences that fall out for free:
   grams, same water. Each is arithmetic on the size row, so the
   decrement stays recipe-driven.
 
+**Ingredients are one flat pool, not category property.** Steve:
+"milk can be used in tea and coffee like hot chocolate and chai also so
+some ingredients go across categories." Milk appears in lattes, chai,
+hot chocolate and as the splash in tea; chocolate powder in mocha AND
+hot chocolate. So recipes reference ingredients by id from a single
+pool -- an ingredient is never "inside" a drink category, and the
+current schema's category-scoped rows (the mixed 'coffee' category) do
+not survive the migration.
+
 **Water is an ingredient.** A cart running on jerry cans has a finite
 water budget: long blacks and teas consume it directly, every shot
 consumes some, a magic deliberately consumes less. A plumbed venue
