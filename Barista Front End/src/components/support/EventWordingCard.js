@@ -48,6 +48,7 @@ const segments = (msg) => {
 const EventWordingCard = () => {
   const [sponsor, setSponsor] = useState('');
   const [cafe, setCafe] = useState('');
+  const [pin, setPin] = useState('');
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
@@ -60,6 +61,7 @@ const EventWordingCard = () => {
         const st = b.settings || b.data || b || {};
         setSponsor(String(st.sponsor_line || ''));
         setCafe(String(st.venue_cafe_name || ''));
+        setPin(String(st.kiosk_pin || ''));
       } catch (e) { /* fields start blank; save still works */ }
       setLoaded(true);
     })();
@@ -74,6 +76,7 @@ const EventWordingCard = () => {
         body: JSON.stringify({
           sponsor_line: sponsor.trim(),
           venue_cafe_name: cafe.trim(),
+          kiosk_pin: pin.trim(),
         }),
       });
       if (r.ok) setSavedAt(new Date());
@@ -149,6 +152,29 @@ const EventWordingCard = () => {
             {cafe.trim()
               ? `"Sorry, we don't have oat milk… Or grab it yourself from the ${cafe.trim()}."`
               : 'Empty — refusals just list what we do have'}
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Device admin PIN
+            <span className="text-gray-400 font-normal"> — press-and-hold the display's top-left corner</span>
+          </label>
+          <input
+            value={pin}
+            onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            placeholder="1234 until you change it"
+            inputMode="numeric"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 font-mono tracking-widest"
+            disabled={!loaded}
+          />
+          <div className="mt-1 text-xs text-gray-500">
+            Unlocks the hidden panel on any display: switch it to a barista
+            terminal, change station, clear the device, test sound. 4–6 digits.
+            {!pin.trim() && (
+              <span className="text-amber-700 block">
+                Empty = the default (1234). Set your own before the event.
+              </span>
+            )}
           </div>
         </div>
       </div>
