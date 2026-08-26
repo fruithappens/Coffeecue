@@ -10598,6 +10598,112 @@ def upsert_event_inventory():
 # revenue?", "which station is busiest?" — there was no answer surface, so
 # the data sat unused in `orders`. /api/reports/today rolls it all up so
 # the Support tab Reports panel can render today's metrics live.
+@bp.route('/reports/cup-reconciliation', methods=['GET', 'PUT'])
+@jwt_required_with_demo()
+def cup_reconciliation():
+    """The venue counts cups; we count orders. This is where the two
+    tallies meet (venue config doc section 4).
+
+    The Wine Centre counts physical cups at start and end of day, per
+    station -- they do NOT tally orders. Our order count is an
+    independent number that WILL differ (staff coffees, remakes,
+    spills), and reporting credibility means showing the variance and
+    owning it, not hiding it.
+
+    PUT  {"station_id": 1, "start": 500, "end": 213}  (either count
+         may arrive alone -- start gets typed in the morning, end at
+         pack-down)
+    GET  -> per-station: the venue's start/end/used, our completed-
+         order count for today, and the variance, plus event totals.
+
+    One source, every surface: the Organiser card and the post-event
+    report both read THIS.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+        if request.method == 'PUT':
+            data = request.get_json() or {}
+            try:
+                sid = str(int(data.get('station_id')))
+            except (TypeError, ValueError):
+                return jsonify({'success': False,
+                                'message': 'station_id required'}), 400
+            counts = _kv_get(db, 'cup_counts', default={}) or {}
+            row = counts.get(sid, {})
+            for field in ('start', 'end'):
+                if data.get(field) is not None:
+                    try:
+                        row[field] = int(data[field])
+                    except (TypeError, ValueError):
+                        return jsonify({'success': False,
+                                        'message': f'{field} must be a whole number'}), 400
+            try:
+                row['updated_by'] = str(get_jwt_identity() or '')
+            except Exception:
+                pass
+            row['updated_at'] = datetime.now().isoformat()
+            counts[sid] = row
+            _kv_put(db, 'cup_counts', counts)
+
+        from utils.station_label import station_label
+        counts = _kv_get(db, 'cup_counts', default={}) or {}
+        cur = db.cursor()
+        # Our tally: today's completed/picked-up orders per station.
+        # Walk-ins and kiosk orders are orders like any other, so the
+        # main drift sources the venue doc names are already inside.
+        cur.execute(
+            """
+            SELECT station_id, COUNT(*) FROM orders
+            WHERE status IN ('completed', 'picked_up')
+              AND created_at >= CURRENT_DATE
+            GROUP BY station_id
+            """
+        )
+        system_by_station = {}
+        for r in cur.fetchall():
+            sid, n = (r[0], r[1]) if not isinstance(r, dict) else (r['station_id'], r['count'])
+            system_by_station[str(sid if sid is not None else 'unassigned')] = int(n)
+
+        stations = sorted(set(list(counts.keys()) + list(system_by_station.keys())))
+        rows, totals = [], {'venue_used': 0, 'system_orders': 0}
+        for sid in stations:
+            c = counts.get(sid, {})
+            start, end = c.get('start'), c.get('end')
+            venue_used = (start - end) if (
+                isinstance(start, int) and isinstance(end, int)) else None
+            system = system_by_station.get(sid, 0)
+            variance = (venue_used - system) if venue_used is not None else None
+            if venue_used:
+                totals['venue_used'] += venue_used
+            totals['system_orders'] += system
+            rows.append({
+                'station_id': sid,
+                'start': start, 'end': end,
+                'venue_used': venue_used,
+                'system_orders': system,
+                'variance': variance,
+                'station_name': station_label(db, sid) if str(sid).isdigit() else sid,
+                'updated_by': c.get('updated_by'),
+                'updated_at': c.get('updated_at'),
+            })
+        totals['variance'] = (totals['venue_used'] - totals['system_orders']
+                              if totals['venue_used'] else None)
+        return jsonify({'success': True, 'stations': rows, 'totals': totals})
+    except Exception as e:
+        logger.error(f"cup_reconciliation error: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @bp.route('/reports/today', methods=['GET'])
 @jwt_required_with_demo()
 def get_today_report():
