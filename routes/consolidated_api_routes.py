@@ -5387,6 +5387,67 @@ def stock_overrides():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@bp.route('/recipes', methods=['PUT'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def upsert_recipe_line():
+    """Edit one recipe quantity (the Organiser's recipe editor).
+
+    Body: {drink, size, category, name (null = customer's choice),
+           quantity, unit}. Upserts through the same COALESCE-keyed
+    index the seed uses; the row becomes source='custom', which the
+    boot re-seed never touches again -- an operator's dose survives
+    every deploy (Steve's decision 4: shipped defaults, editable).
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        data = request.get_json() or {}
+        drink = str(data.get('drink') or '').strip().lower()
+        size = str(data.get('size') or '').strip().lower()
+        category = str(data.get('category') or '').strip().lower()
+        name = data.get('name')
+        name = str(name).strip().lower() if name not in (None, '') else None
+        unit = str(data.get('unit') or '').strip()
+        try:
+            quantity = float(data.get('quantity'))
+        except (TypeError, ValueError):
+            return jsonify({'success': False,
+                            'message': 'quantity must be a number'}), 400
+        if not drink or not size or not category or not unit or quantity < 0:
+            return jsonify({'success': False,
+                            'message': 'drink, size, category, unit and a '
+                                       'non-negative quantity are required'}), 400
+        cur = db.cursor()
+        cur.execute(
+            """
+            INSERT INTO recipes (drink, size, ingredient_category,
+                                 ingredient_name, quantity, unit, source)
+            VALUES (%s, %s, %s, %s, %s, %s, 'custom')
+            ON CONFLICT (drink, size, ingredient_category,
+                         COALESCE(ingredient_name, ''))
+            DO UPDATE SET quantity = EXCLUDED.quantity,
+                          unit = EXCLUDED.unit,
+                          source = 'custom'
+            """,
+            (drink, size, category, name, quantity, unit))
+        db.commit()
+        return jsonify({'success': True, 'drink': drink, 'size': size,
+                        'category': category, 'name': name,
+                        'quantity': quantity, 'unit': unit})
+    except Exception as e:
+        logger.error(f"upsert_recipe_line error: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @bp.route('/recipes/check', methods=['GET'])
 @jwt_required_with_demo()
 def recipes_check():
