@@ -149,6 +149,29 @@ multiple shapes gets ONE interpreter function (`_requested_bean`), and
 every reader calls it. Three shapes of decaf, interpreted three ways,
 is how an SMS decaf order burned house blend after #409 "fixed" it.
 
+## Decisions (Steve, 2026-08-26 — these are settled, do not re-litigate)
+
+1. **Ledger shape: per-station, event = sum.** Each cart owns its milk
+   crates and jerry cans; the event total is derived, never stored. A
+   restock is a TRANSFER ("6L from van to station 2"), recorded as such.
+   This kills the current ambiguity outright: today `inventory_items`
+   half-supports station rows with event-wide fallback, while the Event
+   Stock screen's "Allocated" numbers live in a separate
+   `event_stock_levels` blob that NOTHING reads — allocation theatre.
+   The rebuild collapses both into per-station ledgers.
+2. **Sold-out behaviour: per-event choice.** A single event-level
+   setting: `strict` (all channels refuse/grey the moment gate 2 fails)
+   or `warn` (orders keep flowing, barista screens show low/out).
+   Default for new events: strict.
+3. **Barista override, both directions.** One tap to 86 an item
+   regardless of the ledger (spill, carton off), one tap to force it
+   back on. Reality beats arithmetic; overrides are logged with who and
+   when, and show as overrides, not as computed state.
+4. **Recipes ship as editable defaults.** Standard quantities prefilled
+   (22g/shot, 150/200/280mL milk, 1 cup) so an event works out of the
+   box; operators tune per event or per station when they care. A magic
+   or house special is added as a new recipe, not a hack.
+
 ## Migration cautions (Steve: "this will need caution")
 
 - Build alongside, not in place: new tables (ingredients, recipes,
