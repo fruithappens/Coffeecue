@@ -251,11 +251,22 @@ export default function useOrders(stationId = null) {
     // Get saved interval from localStorage or use default
     const savedInterval = parseInt(localStorage.getItem('coffee_auto_refresh_interval'));
 
-    // Enforce minimum interval of 30 seconds to prevent UI flickering
-    if (!savedInterval || isNaN(savedInterval) || savedInterval < 30) {
-      // 30s default fallback — snappy enough to catch new orders without the
-      // flicker that very-short intervals caused.
-      const defaultInterval = 30;
+    // Default 5s. Steve: "auto refresh should be 4-5 seconds as default
+    // not 30 takes way to long to print" -- in 'start' print mode the
+    // label fires when the barista taps Start, and the barista cannot
+    // tap Start until the order APPEARS. WebSocket shows it instantly
+    // when it works; on event WiFi this poll is what actually delivers,
+    // and 30s of invisibility became 30s of print latency.
+    //
+    // A stored 30 is migrated to 5, not respected: the old code both
+    // defaulted to 30 AND clamped every lower value up to 30, and no
+    // rendered UI ever let anyone choose -- so every stored 30 is the
+    // old code's own write, not a person's preference. (If an interval
+    // picker is ever added, bump the storage key so real choices stick.)
+    // Minimum 3s, same floor the polling effect already enforces.
+    const defaultInterval = 5;
+    if (!savedInterval || isNaN(savedInterval) || savedInterval < 3
+        || savedInterval === 30) {
       localStorage.setItem('coffee_auto_refresh_interval', defaultInterval.toString());
       return defaultInterval;
     }
