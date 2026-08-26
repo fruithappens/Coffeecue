@@ -2947,11 +2947,18 @@ class CoffeeOrderSystem:
         # most SMS orders confirm, and it was the ONLY confirmation path
         # not showing the total when pricing was enabled (Test Bench
         # pricing round-trip).
+        # Sponsor acknowledgement: a UI field (Comms Hub), never code.
+        # Empty field = no line = no cost. When set it usually tips the
+        # confirmation to a second SMS segment -- the field's helper in
+        # the UI shows that cost while the operator types.
+        _sponsor = str(self._get_setting_fresh("sponsor_line", "") or "").strip()
+        _sponsor_tail = f"\n{_sponsor}" if _sponsor else ""
         return (
             f"{prefix}{order_response}\n"
             f"That's: {summary}.{self.SUGAR_SELF_SERVE_NOTE if sugar_redirect else ''}"
             f"{self._format_price_tail(od)} "
             f"Wrong? CHANGE or OOPS. Add another with FRIEND."
+            f"{_sponsor_tail}"
         )
 
     def _default_milk(self):
@@ -4689,6 +4696,17 @@ class CoffeeOrderSystem:
             return False
         return any(term in n for term in self._CATERING_DRINKS)
 
+    def _offmenu_note(self):
+        """' Or grab it yourself from the Wined Bar.' -- when the venue
+        has named an outlet. A UI field (venue_cafe_name); empty means
+        no note. The venue doc's rule: never ship this copy with a
+        guessed name."""
+        try:
+            name = str(self._get_setting_fresh("venue_cafe_name", "") or "").strip()
+        except Exception:
+            name = ""
+        return f" Or grab it yourself from the {name}." if name else ""
+
     def _is_valid_milk_type(self, requested_milk, available_milks):
         """Check if the requested milk type is valid and in stock"""
         if not requested_milk:
@@ -5181,7 +5199,8 @@ class CoffeeOrderSystem:
             if not self._is_valid_milk_type(milk_type, available_milk_types):
                 return (
                     f"Sorry, we don't have {milk_type} milk. Available milks: "
-                    f"{', '.join(available_milk_types)}.\n"
+                    f"{', '.join(available_milk_types)}."
+                    f"{self._offmenu_note()}\n"
                     f"Reply MENU for the full list."
                 )
 
@@ -9283,7 +9302,7 @@ class CoffeeOrderSystem:
             if milk_type:
                 available_milk_types = self._get_available_milk_types()
                 if not self._is_valid_milk_type(milk_type, available_milk_types):
-                    return f"Sorry, we don't have {milk_type} milk. Available options are: {', '.join(available_milk_types)}. Please text MENU for full options."
+                    return f"Sorry, we don't have {milk_type} milk. Available options are: {', '.join(available_milk_types)}.{self._offmenu_note()} Please text MENU for full options."
 
             # Validate sweetener
             sweetener = order_details.get("sugar", "")
@@ -9361,6 +9380,35 @@ class CoffeeOrderSystem:
             welcome_message.replace("{event_name}", self.event_name)
             + self._sms_first_message_hint()
         )
+
+    def _get_setting_fresh(self, key, default_value=None):
+        """Read a setting PAST the forever-cache.
+
+        _get_setting caches on first read for the life of the process,
+        which is right for boot constants and wrong for wording an
+        operator edits during an event (sponsor line, cafe name --
+        Steve: "make sure its only written in a ui field not hardcoded
+        somewhere", which also has to mean editable-and-it-applies).
+        Costs one small SELECT per use; use it only for copy.
+        """
+        try:
+            cursor = self.db.cursor()
+            cursor.execute("SELECT value FROM settings WHERE key = %s", (key,))
+            row = cursor.fetchone()
+            if row and row[0] is not None:
+                val = row[0] if not isinstance(row, dict) else row.get("value")
+                try:
+                    import json as _json
+                    parsed = _json.loads(val)
+                    return parsed if parsed is not None else default_value
+                except (TypeError, ValueError):
+                    return val
+        except Exception:
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+        return default_value
 
     def _get_setting(self, key, default_value=None):
         """Get a setting from the database

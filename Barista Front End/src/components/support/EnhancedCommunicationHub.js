@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import EventWordingCard from './EventWordingCard';
 import { 
   MessageSquare, Phone, Mail, Bell, Smartphone,
   Send, User, Clock, CheckCircle, AlertCircle,
@@ -361,6 +362,11 @@ const EnhancedCommunicationHub = () => {
   
   return (
     <div className="space-y-6">
+      {/* Sponsor line + venue cafe name -- the editable SMS wording.
+          Lives here because this is where the operator thinks about
+          messages; the backend reads these fresh per send. */}
+      <EventWordingCard />
+
       {/* Header */}
       <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
