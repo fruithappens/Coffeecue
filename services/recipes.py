@@ -232,7 +232,8 @@ def seed_shipped_recipes(db):
                              ingredient_name, quantity, unit, source)
                         VALUES (%s, %s, %s, %s, %s, %s, 'shipped')
                         ON CONFLICT (drink, size, ingredient_category,
-                                     ingredient_name) DO NOTHING
+                                     COALESCE(ingredient_name, ''))
+                        DO NOTHING
                         """,
                         (drink, size, category, name, qty, unit),
                     )
@@ -377,17 +378,24 @@ def resolve_order(db, order_details, get_setting, requested_bean=""):
 
 
 def check_ingredients(db, lines):
-    """Gate 2: are the resolved ingredients available?
+    """Gate 2: can THIS order's quantities actually be poured?
 
-    Returns (ok, missing) where missing is a list of ingredient names
-    that are TRACKED and DRY. An ingredient with no matching inventory
-    row is untracked and constrains nothing (a plumbed venue never
-    stocks 'water'). Errors return ok -- an availability check that can
-    refuse coffee because a query failed is worse than one that lets a
-    rare mistake through; the failure is logged loudly instead.
+    Refuses only when a TRACKED ingredient's remaining amount is less
+    than what the resolved line needs (units converted: recipes speak
+    mL/g, the ledger speaks L/kg). minimum_threshold is deliberately
+    NOT a refusal floor: production has cups at threshold 50 as a
+    "warn me" level, and refusing coffee while 50 cups sit on the
+    shelf would be the gate lying in the other direction. Thresholds
+    stay what they were: low-stock warnings for the humans.
+
+    An ingredient with no matching inventory row is untracked and
+    constrains nothing. Errors allow, loudly -- a gate that refuses
+    coffee because a query failed is worse than one that lets a rare
+    mistake through.
     """
     if not lines:
         return True, []
+    DIVISOR = {"mL": 1000.0, "g": 1000.0}  # -> L / kg (ledger units)
     missing = []
     try:
         cur = db.cursor()
@@ -397,8 +405,7 @@ def check_ingredients(db, lines):
                 continue
             cur.execute(
                 """
-                SELECT COALESCE(amount, current_quantity),
-                       COALESCE(minimum_threshold, 0)
+                SELECT COALESCE(amount, current_quantity)
                 FROM inventory_items
                 WHERE category = %s
                   AND (LOWER(name) = %s
@@ -412,8 +419,10 @@ def check_ingredients(db, lines):
             if row is None:
                 continue  # untracked: no opinion
             qty = row[0] if not isinstance(row, dict) else list(row.values())[0]
-            thr = row[1] if not isinstance(row, dict) else list(row.values())[1]
-            if qty is not None and float(qty) <= float(thr or 0):
+            if qty is None:
+                continue  # unlimited-style row: no opinion
+            needed = float(ln["qty"]) / DIVISOR.get(ln["unit"], 1.0)
+            if float(qty) < needed:
                 missing.append(name)
         return (len(missing) == 0), missing
     except Exception as e:
