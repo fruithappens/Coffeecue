@@ -4080,6 +4080,16 @@ class CoffeeOrderSystem:
             ]
             if filtered or extras_enabled:
                 espresso = filtered + extras_enabled
+        # An 86'd drink leaves the menu everywhere at once.
+        try:
+            from services.recipes import get_overrides
+            _ov = get_overrides(self.db)
+            _dead = {n for (c, n), st in _ov.items()
+                     if c == "drink" and st == "86"}
+            if _dead:
+                espresso = [d for d in espresso if d.lower() not in _dead]
+        except Exception:
+            pass
 
         if self._is_unlimited_stock_mode():
             espresso_part = espresso
@@ -4390,6 +4400,29 @@ class CoffeeOrderSystem:
         yesterday.
         """
         try:
+            from services.recipes import (apply_overrides, check_ingredients,
+                                          get_overrides, resolve_order)
+            # THE 86 BOARD FIRST -- a barista's statement about reality
+            # outranks every mode and every ledger number, in both
+            # directions. It works even in unlimited mode: "the crate
+            # spilled" is not stock arithmetic, it is testimony.
+            _lines, _meta = resolve_order(
+                self.db, od, self._get_setting,
+                requested_bean=self._requested_bean(od),
+            )
+            _ov = get_overrides(self.db, station_id=od.get("station_id"))
+            if _ov:
+                _verdict, _names = apply_overrides(
+                    _lines, _meta.get("drink"), _ov)
+                if _verdict == "86":
+                    drink = str(od.get("type") or "that")
+                    return False, (
+                        f"Sorry, we can't make {drink} right now - "
+                        f"the barista has marked {', '.join(_names)} "
+                        f"unavailable."
+                    )
+                if _verdict == "on":
+                    return True, ""
             # Unlimited-stock mode means "this event does not refuse for
             # stock" -- the legacy menu already honours it (everything
             # stays listed), and a gate that refuses what the menu shows
@@ -4401,11 +4434,7 @@ class CoffeeOrderSystem:
                 return True, ""
             if str(self._get_setting("sold_out_mode", "strict")).lower() == "warn":
                 return True, ""
-            from services.recipes import check_ingredients, resolve_order
-            lines, meta = resolve_order(
-                self.db, od, self._get_setting,
-                requested_bean=self._requested_bean(od),
-            )
+            lines = _lines
             if not lines:
                 return True, ""
             ok, missing = check_ingredients(self.db, lines)
@@ -4605,6 +4634,19 @@ class CoffeeOrderSystem:
                 logger.warning(
                     "Event menu has NO milk enabled; falling back to "
                     "inventory_items. Check the Organiser inventory screen.")
+
+            # The 86 board: a milk the barista marked out disappears from
+            # every menu, whatever the ledger or the mode says. Testimony
+            # outranks arithmetic in both modes.
+            try:
+                from services.recipes import get_overrides
+                _ov = get_overrides(self.db)
+                _dead = {n for (c, n), st in _ov.items()
+                         if c == "milk" and st == "86"}
+                if _dead:
+                    milk_types = [m for m in milk_types if m not in _dead]
+            except Exception:
+                pass
 
             # Only offer milks at least one station can make (drops e.g. soy /
             # lactose-free / coconut that are stocked but no station carries).

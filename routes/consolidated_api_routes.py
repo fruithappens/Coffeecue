@@ -5298,6 +5298,95 @@ def milks_debug():
     return jsonify({'success': True, **out})
 
 
+@bp.route('/stock-overrides', methods=['GET', 'POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def stock_overrides():
+    """The 86 board (Steve's decision 3: both directions, logged).
+
+    GET  -> every current override, newest first.
+    POST -> {"category": "milk"|"coffee"|"extras"|"drink"|...,
+             "name": "oat", "state": "86"|"on"|"clear",
+             "station_id": optional}
+    '86' refuses the item everywhere it appears in a resolved recipe
+    (86 the chocolate powder, lose mocha AND hot chocolate). 'on'
+    forces a drink makeable past the ledger gate. 'clear' removes the
+    override and the arithmetic speaks again. Every write records who
+    and when, and reads back as an OVERRIDE, never as computed state.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        cur = db.cursor()
+        if request.method == 'GET':
+            cur.execute(
+                "SELECT id, category, item_name, station_id, state, "
+                "set_by, set_at FROM stock_overrides ORDER BY set_at DESC")
+            rows = []
+            for r in cur.fetchall():
+                vals = list(r.values()) if isinstance(r, dict) else list(r)
+                rows.append({
+                    'id': vals[0], 'category': vals[1], 'name': vals[2],
+                    'station_id': vals[3], 'state': vals[4],
+                    'set_by': vals[5],
+                    'set_at': vals[6].isoformat() if hasattr(vals[6], 'isoformat') else vals[6],
+                })
+            return jsonify({'success': True, 'overrides': rows})
+
+        data = request.get_json() or {}
+        category = str(data.get('category') or '').strip().lower()
+        name = str(data.get('name') or '').strip().lower()
+        state = str(data.get('state') or '').strip().lower()
+        station_id = data.get('station_id')
+        if not category or not name or state not in ('86', 'on', 'clear'):
+            return jsonify({'success': False,
+                            'message': "category, name and state "
+                                       "('86'|'on'|'clear') required"}), 400
+        try:
+            who = get_jwt_identity()
+        except Exception:
+            who = None
+        if state == 'clear':
+            if station_id is None:
+                cur.execute(
+                    "DELETE FROM stock_overrides WHERE category = %s "
+                    "AND item_name = %s AND station_id IS NULL",
+                    (category, name))
+            else:
+                cur.execute(
+                    "DELETE FROM stock_overrides WHERE category = %s "
+                    "AND item_name = %s AND station_id = %s",
+                    (category, name, int(station_id)))
+        else:
+            cur.execute(
+                """
+                INSERT INTO stock_overrides
+                    (category, item_name, station_id, state, set_by, set_at)
+                VALUES (%s, %s, %s, %s, %s, NOW())
+                ON CONFLICT (category, item_name, COALESCE(station_id, 0))
+                DO UPDATE SET state = EXCLUDED.state,
+                              set_by = EXCLUDED.set_by,
+                              set_at = NOW()
+                """,
+                (category, name,
+                 int(station_id) if station_id is not None else None,
+                 state, str(who) if who else None))
+        db.commit()
+        return jsonify({'success': True, 'category': category,
+                        'name': name, 'state': state})
+    except Exception as e:
+        logger.error(f"stock_overrides error: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @bp.route('/recipes/check', methods=['GET'])
 @jwt_required_with_demo()
 def recipes_check():

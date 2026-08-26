@@ -504,6 +504,35 @@ def _m016_recipes_null_safe_unique(cur):
     """)
 
 
+def _m017_stock_overrides(cur):
+    """The 86 board (docs/MENU_ARCHITECTURE.md, Steve's decision 3).
+
+    A barista's statement about reality: '86' = we are out of this,
+    whatever the ledger says (the crate spilled); 'on' = we can make
+    this, whatever the ledger says (found another box). Reality beats
+    arithmetic, and the override is LOGGED -- who, when -- and shows as
+    an override, never as computed state.
+
+    One row per (category, item, station scope); NULL station = whole
+    event. COALESCE expression index because migration 16 taught us
+    what UNIQUE does with NULLs."""
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS stock_overrides (
+            id SERIAL PRIMARY KEY,
+            category TEXT NOT NULL,
+            item_name TEXT NOT NULL,
+            station_id INTEGER,
+            state TEXT NOT NULL CHECK (state IN ('86', 'on')),
+            set_by TEXT,
+            set_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cur.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_stock_override
+        ON stock_overrides (category, item_name, COALESCE(station_id, 0))
+    """)
+
+
 # Master list. Append new migrations at the bottom — DO NOT renumber
 # existing ones, and DO NOT change `version`. The runner trusts the
 # version number to determine which migrations to skip.
@@ -526,6 +555,7 @@ MIGRATIONS: list[Migration] = [
     Migration(14, 'chat_messages_station_id',  _m014_chat_messages_station_id),
     Migration(15, 'recipes',                   _m015_recipes),
     Migration(16, 'recipes_null_safe_unique',  _m016_recipes_null_safe_unique),
+    Migration(17, 'stock_overrides',           _m017_stock_overrides),
 ]
 
 
