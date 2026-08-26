@@ -5261,6 +5261,43 @@ def list_recipes():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@bp.route('/recipes/milks-debug', methods=['GET'])
+@jwt_required_with_demo()
+def milks_debug():
+    """Every stage of the milk-menu pipeline, separately. Built when a
+    dry almond survived on the menu and the merged result alone could
+    not say which stage lied."""
+    coffee_system = current_app.config.get('coffee_system')
+    out = {}
+    try:
+        cur = coffee_system.db.cursor()
+        cur.execute(
+            """SELECT LOWER(name), COALESCE(amount, current_quantity),
+                      COALESCE(minimum_threshold, 0)
+               FROM inventory_items WHERE category = 'milk' ORDER BY name""")
+        out['ledger'] = [
+            [r[0], float(r[1] or 0), float(r[2] or 0)] for r in cur.fetchall()]
+    except Exception as e:
+        out['ledger_error'] = str(e)
+    try:
+        out['tracked'] = coffee_system._all_tracked_milk_names()
+    except Exception as e:
+        out['tracked_error'] = str(e)
+    try:
+        out['event_enabled'] = coffee_system._event_enabled('milk')
+    except Exception as e:
+        out['event_error'] = str(e)
+    try:
+        out['unlimited_mode'] = coffee_system._is_unlimited_stock_mode()
+    except Exception as e:
+        out['unlimited_error'] = str(e)
+    try:
+        out['final'] = coffee_system._get_available_milk_types()
+    except Exception as e:
+        out['final_error'] = str(e)
+    return jsonify({'success': True, **out})
+
+
 @bp.route('/recipes/check', methods=['GET'])
 @jwt_required_with_demo()
 def recipes_check():
