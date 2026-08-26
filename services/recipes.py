@@ -209,6 +209,77 @@ SHIPPED_RECIPES = {
             ("cups", None, 1, "unit"),
         ],
     },
+    # The rest of the espresso family, so a venue that enables them gets
+    # honest depletion from day one. Milk dashes are deliberately small:
+    # a macchiato is a stain, a piccolo a splash, a cortado equal parts.
+    "macchiato": {
+        "small": [
+            ("coffee", None, 1, "shot"),
+            ("milk", None, 20, "mL"),
+            ("cups", None, 1, "unit"),
+        ],
+        "medium": [
+            ("coffee", None, 2, "shot"),
+            ("milk", None, 30, "mL"),
+            ("cups", None, 1, "unit"),
+        ],
+        "large": [
+            ("coffee", None, 2, "shot"),
+            ("milk", None, 40, "mL"),
+            ("cups", None, 1, "unit"),
+        ],
+    },
+    "piccolo": {
+        "small": [
+            ("coffee", None, 1, "shot"),
+            ("milk", None, 60, "mL"),
+            ("cups", None, 1, "unit"),
+        ],
+        "medium": [
+            ("coffee", None, 1, "shot"),
+            ("milk", None, 60, "mL"),
+            ("cups", None, 1, "unit"),
+        ],
+        "large": [
+            ("coffee", None, 1, "shot"),
+            ("milk", None, 80, "mL"),
+            ("cups", None, 1, "unit"),
+        ],
+    },
+    "cortado": {
+        "small": [
+            ("coffee", None, 1, "shot"),
+            ("milk", None, 60, "mL"),
+            ("cups", None, 1, "unit"),
+        ],
+        "medium": [
+            ("coffee", None, 2, "shot"),
+            ("milk", None, 90, "mL"),
+            ("cups", None, 1, "unit"),
+        ],
+        "large": [
+            ("coffee", None, 2, "shot"),
+            ("milk", None, 120, "mL"),
+            ("cups", None, 1, "unit"),
+        ],
+    },
+    "americano": {
+        "small": [
+            ("coffee", None, 1, "shot"),
+            ("water", "water", 150, "mL"),
+            ("cups", None, 1, "unit"),
+        ],
+        "medium": [
+            ("coffee", None, 2, "shot"),
+            ("water", "water", 200, "mL"),
+            ("cups", None, 1, "unit"),
+        ],
+        "large": [
+            ("coffee", None, 2, "shot"),
+            ("water", "water", 280, "mL"),
+            ("cups", None, 1, "unit"),
+        ],
+    },
 }
 
 
