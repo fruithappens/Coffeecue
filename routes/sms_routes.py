@@ -6,6 +6,7 @@ from twilio.twiml.messaging_response import MessagingResponse
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from auth import jwt_required_with_demo, role_required_with_demo
+from services.sms_health import note_webhook_hit
 from psycopg2.extras import RealDictCursor
 import logging
 import json
@@ -187,6 +188,12 @@ def _sms_webhook_inner():
     Handle incoming SMS messages from Twilio
     This is the main webhook that Twilio will POST to when a new SMS is received
     """
+    # Count the arrival BEFORE validation. Past this point the
+    # request can be rejected as unsigned and vanish without a
+    # row, a reply or a trace — which is exactly why nobody could
+    # tell whether Twilio had reached us at the venue demo.
+    note_webhook_hit(accepted=True)
+
     # FIRST: Log that we received ANY request to this endpoint
     logger.info("🚨 SMS WEBHOOK CALLED! 🚨")
     logger.info(f"Request method: {request.method}")
@@ -267,6 +274,7 @@ def _sms_webhook_inner():
                     )
                 except Exception:
                     pass
+                note_webhook_hit(accepted=False)
                 return "Unauthorized", 403
             else:
                 logger.info("✅ Twilio webhook signature validation successful")

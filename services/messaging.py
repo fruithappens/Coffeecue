@@ -19,6 +19,8 @@ logger = logging.getLogger("expresso.services.messaging")
 # Test Bench simulator phones. Not an allocatable Australian mobile range,
 # so a number with this prefix is never a real person. Kept here rather
 # than in a route module because the wall belongs in the sender.
+from services.sms_health import note_outbound
+
 BENCH_PHONE_PREFIX = '+6140000'
 
 # Ensure directory exists
@@ -168,9 +170,11 @@ class MessagingService:
                 to=to
             )
             logger.info(f"Sent SMS to {to}")
+            note_outbound(ok=True)
             return message.sid
         except Exception as e:
             logger.error(f"Error sending SMS to {to}: {str(e)}")
+            note_outbound(ok=False)
             return None
     
     def send_order_confirmation(self, to, order_number, station_id, order_details, wait_time=15, 
