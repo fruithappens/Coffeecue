@@ -72,12 +72,12 @@ const resolveOrientation = (setting) => {
   return window.innerHeight > window.innerWidth ? 'portrait' : 'landscape';
 };
 
-// Small helper — short customer name + last 4 of phone number.
-const formatCustomerLine = (o) => {
-  const name = o.customerName || 'Customer';
-  const tail = o.displayPhone || (o.phoneNumber ? o.phoneNumber.slice(-4) : '');
-  return tail ? `${name} · ··${tail}` : name;
-};
+// Name only. This used to append the last four digits of the mobile
+// (masked, to tell two Sams apart) -- but the board is a PUBLIC screen
+// and Steve's call is the right one: no fragment of a phone number on
+// it, ever. The order number is the disambiguator, and it is already
+// the biggest thing on the card.
+const formatCustomerLine = (o) => o.customerName || 'Customer';
 
 // Show the SMS number the way locals actually dial it. The Twilio number is
 // stored international ("+61 408 263 333"), but to an Australian audience the
