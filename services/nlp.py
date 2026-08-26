@@ -748,8 +748,13 @@ class NLPService:
         temp = order_details.get('temp', '')
         notes = order_details.get('notes', '')
         
-        # Start with size and coffee type
-        order_text = f"{size} {coffee_type}"
+        # Start with size and coffee type. Decaf leads the drink name:
+        # the recap is the customer's chance to catch a wrong order, and
+        # for someone avoiding caffeine "medium latte" vs "medium decaf
+        # latte" is the whole difference. The flag was stored correctly
+        # and rendered nowhere (matrix S7 follow-through).
+        _decaf_prefix = "decaf " if order_details.get("decaf") else ""
+        order_text = f"{size} {_decaf_prefix}{coffee_type}"
         
         # Add milk unless it's an espresso/black coffee or 'no milk' is specified
         if milk != 'no milk' and not self.is_black_coffee(coffee_type):
