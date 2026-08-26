@@ -11720,15 +11720,39 @@ VALID_CATALOG_CATEGORIES = {'milk', 'drink', 'size', 'sweetener'}
 
 
 # The catalogue and the event menu name their categories differently
-# ('milk' vs 'milk', but 'drink' vs 'drinks', 'size' vs 'cups').
+# ('milk' vs 'milk', but 'size' vs 'cups') -- and catalogue 'drink' SPANS
+# TWO event categories: espresso drinks live under the event's 'coffee'
+# list while teas/chai/hot chocolate live under 'drinks'. Checking only
+# one of them marked every espresso drink as off-menu (or, with the
+# all-greyed guard, flipped everything back on -- which is how the order
+# editor offered Rooibos Tea at a coffee-only event).
 _CATALOG_TO_EVENT_CATEGORY = {
-    'milk': 'milk',
-    'drink': 'drinks',
-    'coffee': 'coffee',
-    'size': 'cups',
-    'sweetener': 'sweeteners',
-    'syrup': 'syrups',
+    'milk': ['milk'],
+    'drink': ['drinks', 'coffee'],
+    'coffee': ['coffee'],
+    'size': ['cups'],
+    'sweetener': ['sweeteners'],
+    'syrup': ['syrups'],
 }
+
+
+def _event_enabled_for_catalog(coffee_system, category):
+    """Enabled names for a catalogue category, unioned across every event
+    category it spans. Three states, kept distinct on purpose:
+      None -> NO spanned category is configured (no opinion; fall back)
+      []   -> configured, and everything is switched off (an instruction)
+      [..] -> exactly these
+    Collapsing [] into None is the bug this replaces: 'all drinks off'
+    was read as 'never configured' and the whole tea list came back."""
+    cats = _CATALOG_TO_EVENT_CATEGORY.get(category, [category])
+    union, saw_any = [], False
+    for c in cats:
+        got = coffee_system._event_enabled(c)
+        if got is None:
+            continue
+        saw_any = True
+        union.extend(got)
+    return union if saw_any else None
 
 
 @bp.route('/catalog/<category>', methods=['GET'])
@@ -11822,9 +11846,8 @@ def get_catalog(category):
         # the response, so the flag goes on every item and the client
         # decides whether to dim it or drop it.
         try:
-            enabled_names = coffee_system._event_enabled(
-                _CATALOG_TO_EVENT_CATEGORY.get(category, category))
-            if enabled_names:
+            enabled_names = _event_enabled_for_catalog(coffee_system, category)
+            if enabled_names is not None:
                 keep_set = set(enabled_names)
                 for it in items:
                     it['event_enabled'] = coffee_system._normalise_menu_name(
@@ -11835,7 +11858,8 @@ def get_catalog(category):
                 # unable to take an order at all, which is far worse than
                 # showing one milk too many. Same fallback the event_only
                 # filter already makes; it was missing here.
-                if items and not any(it.get('event_enabled') for it in items):
+                if (enabled_names and items
+                        and not any(it.get('event_enabled') for it in items)):
                     logger.warning(
                         "catalog %s: no item matched the event menu %s -- "
                         "marking all available rather than greying the whole "
@@ -11843,8 +11867,11 @@ def get_catalog(category):
                     for it in items:
                         it['event_enabled'] = True
             else:
-                # No opinion configured, or everything switched off: do not
-                # grey the whole menu out on the strength of a blank config.
+                # None = genuinely never configured. Everything-switched-off
+                # arrives as [] and takes the branch ABOVE, so an all-off
+                # category greys/hides properly instead of being mistaken
+                # for a blank config (the bug that put Rooibos Tea on the
+                # order editor at a coffee-only event).
                 for it in items:
                     it['event_enabled'] = True
         except Exception as e:
@@ -11854,8 +11881,7 @@ def get_catalog(category):
 
         if request.args.get('event_only') == '1':
             try:
-                enabled = coffee_system._event_enabled(
-                    _CATALOG_TO_EVENT_CATEGORY.get(category, category))
+                enabled = _event_enabled_for_catalog(coffee_system, category)
                 if enabled:
                     keep = set(enabled)
                     filtered = [
