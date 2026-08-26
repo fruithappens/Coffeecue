@@ -4454,6 +4454,22 @@ def _kiosk_menu_data(coffee_system):
         }
         # wait/load let the kiosk show "~5 min" per station and pick the
         # fastest collection point.
+        #
+        # LIVE estimate, not the static wait_time column. This sent the
+        # configured default (a constant -- 15 on one of Steve's
+        # stations) while SMS and the stations panel computed the real
+        # queue-based number, so the kiosk's "fastest station" badge
+        # said 15 min next to stations everything else called 2 min.
+        # _get_station_wait_time is the shared calc whose own comment
+        # says it exists "so the barista header and what customers are
+        # told finally agree" -- this was the surface that never joined.
+        # Static column stays as the fallback if the calc errors.
+        try:
+            live_wait = coffee_system._get_station_wait_time(sid)
+            if live_wait is not None:
+                wait = live_wait
+        except Exception:
+            pass
         stations.append({'id': sid, 'name': name, 'wait': int(wait or 0), 'load': int(load or 0)})
 
     universe = {'coffee_types': {}, 'milk_types': {}, 'sizes': {}}
