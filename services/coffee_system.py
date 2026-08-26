@@ -2806,7 +2806,16 @@ class CoffeeOrderSystem:
         add it). SMS then strips requested sugar from the order and tells
         the customer where to find it; kiosk/walk-in skip the question."""
         try:
-            return str(self._get_setting("sugar_self_serve", "false")).lower() == "true"
+            if str(self._get_setting("sugar_self_serve", "false")).lower() == "true":
+                return True
+        except Exception:
+            pass
+        # Derived from the menu itself: if the operator switched every
+        # sweetener off, they have already said the baristas don't add
+        # sugar. Making them find a SECOND switch to express the same
+        # intention is how the two halves drift apart again.
+        try:
+            return self._event_enabled("sweeteners") == []
         except Exception:
             return False
 
@@ -4179,6 +4188,84 @@ class CoffeeOrderSystem:
 
     _STANDARD_MILK_MENU = ["full cream", "skim", "oat", "almond", "lactose free", "soy"]
 
+    # ---------------------------------------------------------------
+    # THE EVENT MENU: what the operator actually switched on.
+    #
+    # This is the bridge that was missing. The Organiser's Inventory
+    # Management screen saves the event menu to the `event_inventory`
+    # KV blob, and the docstring on that endpoint said:
+    #
+    #   "The SMS bot reads via _get_event_inventory() which falls back
+    #    to inventory_items for legacy DBs."
+    #
+    # _get_event_inventory() had never been written. It existed in that
+    # one sentence and nowhere else. So every order path -- SMS, kiosk,
+    # walk-in -- read the `inventory_items` TABLE instead, which nothing
+    # in the Organiser UI writes to.
+    #
+    # The result: Steve switched Oat Milk off, switched every sweetener
+    # off, left only Medium cups, and disabled tea -- all correctly
+    # saved -- and the system went on selling oat lattes with sugar in
+    # three sizes, because the two halves had never been connected.
+    #
+    # PRECEDENCE: the event blob wins whenever it actually says
+    # something. If it is missing, empty, or names a category we have no
+    # opinion on, we fall back to the legacy table rather than serving a
+    # blank menu -- an event mid-service must never lose its whole menu
+    # because a config read failed.
+    # ---------------------------------------------------------------
+    def _get_event_inventory(self):
+        """The operator's saved menu, or {} if there isn't one."""
+        try:
+            blob = self._get_setting("event_inventory", None)
+            if isinstance(blob, str):
+                blob = json.loads(blob)
+            return blob if isinstance(blob, dict) else {}
+        except Exception as e:
+            logger.warning("_get_event_inventory: read failed: %s", e)
+            return {}
+
+    # The Organiser writes display names ("Whole Milk", "Oat Milk"); the
+    # rest of the system speaks in bare names ("full cream", "oat").
+    # Normalise once, here, so the two vocabularies can be compared.
+    _EVENT_NAME_ALIASES = {
+        "whole": "full cream",
+        "whole milk": "full cream",
+        "regular": "full cream",
+        "dairy": "full cream",
+    }
+
+    @classmethod
+    def _normalise_menu_name(cls, name):
+        n = str(name or "").strip().lower()
+        # NOT " sugar": stripping it collapses "Coconut Sugar" and
+        # "Coconut Milk" to the same token, and turns "White Sugar" into
+        # "white", which is not a sweetener anybody would recognise.
+        for suffix in (" milk", " syrup"):
+            if n.endswith(suffix) and n != suffix.strip():
+                n = n[: -len(suffix)].strip()
+                break
+        return cls._EVENT_NAME_ALIASES.get(n, n)
+
+    def _event_enabled(self, category):
+        """Enabled item names in one event-inventory category.
+
+        Returns None when the operator has expressed no opinion (no
+        blob, or no such category) so callers can tell "switched
+        everything off" apart from "never configured" -- those must not
+        behave the same way.
+        """
+        inv = self._get_event_inventory()
+        items = inv.get(category)
+        if not isinstance(items, list):
+            return None
+        names = [
+            self._normalise_menu_name(it.get("name"))
+            for it in items
+            if isinstance(it, dict) and it.get("enabled")
+        ]
+        return [n for n in names if n]
+
     def _get_available_milk_types(self):
         """Get list of available milk types from inventory management.
 
@@ -4237,12 +4324,40 @@ class CoffeeOrderSystem:
                 )
                 return ["full cream", "skim"]
 
-            logger.info(f"Available milk types: {milk_types}")
+            logger.info(f"Available milk types (from inventory_items): {milk_types}")
+
+            # THE EVENT MENU WINS. This is the line whose absence sold
+            # Steve an oat latte after he had switched oat off.
+            event_milks = self._event_enabled("milk")
+            if event_milks:
+                dropped = [m for m in milk_types if m not in event_milks]
+                milk_types = event_milks
+                if dropped:
+                    logger.info(
+                        "Event menu excludes milk(s) %s that inventory_items "
+                        "still stocks", dropped)
+            elif event_milks == []:
+                # Every milk switched off. Almost certainly a misconfig
+                # rather than an intention -- a latte needs milk -- so we
+                # keep serving, but say so rather than failing silently.
+                logger.warning(
+                    "Event menu has NO milk enabled; falling back to "
+                    "inventory_items. Check the Organiser inventory screen.")
+
             # Only offer milks at least one station can make (drops e.g. soy /
             # lactose-free / coconut that are stocked but no station carries).
-            # Safe fallback keeps the list non-empty on a misconfig.
             makeable = [m for m in milk_types if self._milk_is_makeable(m)]
-            return makeable if makeable else milk_types
+            if not makeable:
+                # Fail-open, but loudly. Returning the unfiltered list when
+                # NO station can make anything silently discards the whole
+                # station-capability check -- which is how a misconfigured
+                # event ends up accepting drinks nobody can produce.
+                logger.warning(
+                    "No station can make any of %s -- serving the unfiltered "
+                    "list. Station capabilities are probably not configured.",
+                    milk_types)
+                return milk_types
+            return makeable
         except Exception as e:
             logger.error(f"Error getting available milk types: {str(e)}")
             try:
@@ -4380,6 +4495,28 @@ class CoffeeOrderSystem:
                 """
                 )
             sweeteners = [(row[0].lower(), row[1]) for row in cursor.fetchall()]
+
+            # THE EVENT MENU WINS -- same bridge as milk. This category was
+            # missed when drinks, coffee and cups were each wired up, so an
+            # operator who switched every sweetener off still got asked
+            # about sugar.
+            event_sweeteners = self._event_enabled("sweeteners")
+            if event_sweeteners is not None:
+                if event_sweeteners:
+                    keep = set(event_sweeteners)
+                    sweeteners = [
+                        (n, c) for (n, c) in sweeteners
+                        if self._normalise_menu_name(n) in keep
+                    ] or [(n, "sugar") for n in event_sweeteners]
+                else:
+                    # Deliberately none. Unlike milk, that is a coherent
+                    # instruction: this venue does not add sweeteners, so
+                    # the flow stops asking and tells people where to find
+                    # them instead. See _sugar_self_serve.
+                    logger.info(
+                        "Event menu enables no sweeteners -- sugar is "
+                        "help-yourself for this event.")
+                    return []
 
             # If no sweeteners defined, return basic defaults
             if not sweeteners:
