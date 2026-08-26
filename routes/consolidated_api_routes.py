@@ -7682,9 +7682,38 @@ def create_inventory_item():
         # Get coffee system from app context
         coffee_system = current_app.config.get('coffee_system')
         db = coffee_system.db
-        
-        # Insert new item
+
+        # ONE ROW PER INGREDIENT (per station scope). The scenario matrix
+        # created 'chocolate powder' twice and the availability gate's
+        # LIMIT 1 read the FULL row while the dry one sat beside it --
+        # the gate went blind to its own ingredient. Nothing stopped an
+        # operator doing the same by hand. A duplicate name in the same
+        # category and scope now returns the existing row instead of
+        # forking the ledger.
         cursor = db.cursor()
+        if station_id is None:
+            cursor.execute(
+                "SELECT id FROM inventory_items WHERE category = %s "
+                "AND LOWER(name) = LOWER(%s) AND station_id IS NULL LIMIT 1",
+                (category, name))
+        else:
+            cursor.execute(
+                "SELECT id FROM inventory_items WHERE category = %s "
+                "AND LOWER(name) = LOWER(%s) AND station_id = %s LIMIT 1",
+                (category, name, station_id))
+        dup = cursor.fetchone()
+        if dup:
+            dup_id = dup[0] if not isinstance(dup, dict) else dup.get('id')
+            return jsonify({
+                'success': False,
+                'message': (f"'{name}' already exists in {category} "
+                            f"(id {dup_id}). Adjust its quantity instead "
+                            "of creating a second row -- two rows for one "
+                            "ingredient makes stock counting meaningless."),
+                'existing_id': dup_id,
+            }), 409
+
+        # Insert new item
         status = 'low_stock' if current_quantity <= minimum_threshold else 'in_stock'
         cursor.execute("""
             INSERT INTO inventory_items
