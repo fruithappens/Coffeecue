@@ -4013,7 +4013,15 @@ def edit_order(order_id):
             # in order_details; nothing new is being invented here.
             'shots': 'shots',
             'bean_type': 'bean_type', 'beanType': 'bean_type',
-            'extra_hot': 'extra_hot', 'extraHot': 'extra_hot',
+            # NOT 'extra_hot' -> 'extra_hot'. Every reader in the system
+            # derives extra hot from order_details['temp'] == 'extra hot'
+            # (see the serializers around lines 530 and 1076, and the
+            # label renderer). Writing an 'extra_hot' key would save
+            # cleanly, report itself as changed, and then read back False
+            # everywhere -- which is exactly what it did until this was
+            # caught by editing a real order and looking at the result.
+            # Handled explicitly below so both shapes stay in step.
+            'extra_hot': '_extra_hot', 'extraHot': '_extra_hot',
             'vip': 'vip', 'priority': 'vip',
         }
         changed = {}
@@ -4040,6 +4048,20 @@ def edit_order(order_id):
         # by). Writing only the flag would show the badge while the order
         # stayed exactly where it was -- the badge would be a lie, and the
         # barista would believe it.
+        # Translate the edit-form shape onto the canonical one. 'temp' is
+        # what every reader looks at; 'extra_hot' is kept alongside it so
+        # anything reading that key directly agrees rather than
+        # contradicting.
+        if '_extra_hot' in changed:
+            wants_hot = bool(changed.pop('_extra_hot'))
+            details.pop('_extra_hot', None)
+            if wants_hot:
+                details['temp'] = 'extra hot'
+            elif details.get('temp') == 'extra hot':
+                details['temp'] = ''
+            details['extra_hot'] = wants_hot
+            changed['extra_hot'] = wants_hot
+
         vip_priority = None
         if 'vip' in changed:
             vip_priority = 1 if changed['vip'] else 5
