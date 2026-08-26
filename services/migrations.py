@@ -442,6 +442,41 @@ def _m014_chat_messages_station_id(cur):
     """)
 
 
+def _m015_recipes(cur):
+    """The recipe layer (docs/MENU_ARCHITECTURE.md — the September model,
+    started early on Steve's go).
+
+    A recipe is a small TABLE, not a list: quantities per drink per size.
+    Rows reference the flat ingredient pool by category + name, where a
+    NULL name means "the customer's choice within that category" (which
+    milk, which bean). '5kg of flat white' can no longer be expressed:
+    drinks live here, quantities live on ingredients, and the two meet
+    only through these rows.
+
+    Additive-only: nothing else reads or writes this table until the
+    resolver ships, so stable-treenet-v1 keeps running against a DB that
+    has it. That is what keeps the restore point a full restore point."""
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS recipes (
+            id SERIAL PRIMARY KEY,
+            drink TEXT NOT NULL,
+            size  TEXT NOT NULL DEFAULT 'medium',
+            ingredient_category TEXT NOT NULL,
+            ingredient_name TEXT,
+            quantity NUMERIC NOT NULL,
+            unit TEXT NOT NULL,
+            -- 'shipped' rows are the editable defaults; operator edits
+            -- flip this to 'custom' so a re-seed never overwrites them.
+            source TEXT NOT NULL DEFAULT 'shipped',
+            UNIQUE (drink, size, ingredient_category, ingredient_name)
+        )
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_recipes_drink_size
+        ON recipes (drink, size)
+    """)
+
+
 # Master list. Append new migrations at the bottom — DO NOT renumber
 # existing ones, and DO NOT change `version`. The runner trusts the
 # version number to determine which migrations to skip.
@@ -462,6 +497,7 @@ MIGRATIONS: list[Migration] = [
     Migration(12, 'event_templates',           _m012_event_templates),
     Migration(13, 'client_events',             _m013_client_events),
     Migration(14, 'chat_messages_station_id',  _m014_chat_messages_station_id),
+    Migration(15, 'recipes',                   _m015_recipes),
 ]
 
 
