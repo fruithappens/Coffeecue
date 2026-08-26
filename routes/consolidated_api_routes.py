@@ -4959,6 +4959,20 @@ def create_kiosk_order():
             'station_id': target,
             'station_name': station_name,
             'reassigned': reassigned,
+            # The notes AS STORED -- with any VIP code already removed.
+            #
+            # The kiosk confirmation screen shows a summary of the order so
+            # the customer can see it all arrived. It was showing what they
+            # TYPED, which still contains the code, in large text, on the
+            # cart's shared screen, for fifteen seconds, with the next
+            # person in the queue standing behind them. Steve caught it on
+            # an iPad: "Full Cream - no sugar - strong - Treenetvip".
+            #
+            # The client cannot strip it itself -- it does not know the
+            # codes, and it must not, or they would ship in the bundle. So
+            # the server hands back the cleaned text and the screen shows
+            # that instead.
+            'notes': note,
         }
         # Test/diagnostic aid: when the caller asks (debug_stock: true), echo
         # what the stock decrement actually did — decremented rows, skipped
