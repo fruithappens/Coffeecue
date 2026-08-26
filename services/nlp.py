@@ -382,6 +382,24 @@ class NLPService:
         # The SMS conversation flow (see services/coffee_system.py) opts out
         # so it can detect missing fields and prompt the customer, instead of
         # silently sending an order with assumed milk/size.
+        # Decaf is a BEAN CHOICE, not a strength -- but the strength
+        # extractor files it under 'strength', where one slot holds one
+        # value. "double shot decaf latte" kept the double and LOST the
+        # decaf: the stored order was a caffeinated single, the recap
+        # never said decaf, and the ledger burned house blend (scenario
+        # matrix S7, read back off the stored order by the probe). Set
+        # the flag from the raw text here, independent of whatever won
+        # the strength slot, so no combination can drop it.
+        import re as _re
+        if _re.search(
+            r"\bdecaf\w*\b|\bno ?caff?\b|\bnocaf\b|without caffeine|no caffeine",
+            normalized_message,
+        ):
+            order_details["decaf"] = True
+            if str(order_details.get("strength", "")).lower() == "decaf":
+                # free the slot for an actual strength if one was also said
+                order_details.pop("strength")
+
         if apply_defaults:
             if "size" not in order_details:
                 order_details["size"] = "medium"

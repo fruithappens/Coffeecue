@@ -418,6 +418,19 @@ def resolve_order(db, order_details, get_setting, requested_bean=""):
             try:
                 if od.get("shots"):
                     shots = float(od["shots"])
+                elif shots is not None:
+                    # SMS stores strength words, not a shot count -- and
+                    # "double shot" never reached the bean math (matrix
+                    # S7: a double decremented one shot). Words that mean
+                    # a shot count become one here; anything else keeps
+                    # the recipe's default.
+                    st = str(od.get("strength") or "").lower()
+                    if any(w in st for w in ("triple", "3x", "3 shot")):
+                        shots = 3.0
+                    elif any(w in st for w in ("double", "2 shot", "strong")):
+                        shots = max(shots, 2.0)
+                    elif any(w in st for w in ("half", "weak")):
+                        shots = shots * 0.5
             except (TypeError, ValueError):
                 pass
             if shots is not None:
