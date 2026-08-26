@@ -1377,6 +1377,41 @@ const DisplayScreen = () => {
         {!isPortrait && (
           <div className="flex flex-1 items-center justify-evenly min-w-0"
                onClick={(e) => e.stopPropagation()}>
+            {/* THE QR, SMALL, WHEN THERE IS NO ROOM FOR THE BIG ONE.
+                I gated the centred code on width and it simply vanished
+                from a 10" iPad -- Steve: "the ipad screen has lost the QR
+                code?". He is right and my reasoning was wrong: I told
+                myself the code is also on the poster and the slide, which
+                is true and beside the point. A customer standing at the
+                cart looking at THIS screen needs a code on THIS screen;
+                the poster is behind them.
+                So it shrinks instead of leaving. Small, inline, next to
+                the number -- both ways to order survive at every size,
+                which is the whole job of this bar. */}
+            {orderQrUrl && !roomForCentreQr && (
+              <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
+                {/* BIG ENOUGH TO ACTUALLY SCAN, which is the only size
+                    that counts. The first attempt at this rendered 59 CSS
+                    px -- about 12mm on a 10" iPad, which scans from maybe
+                    12cm and is therefore useless to somebody standing at
+                    a cart. A code that is present but unreadable is worse
+                    than an honest gap: it looks like it works.
+                    ~108px is about 23mm here, and the label goes
+                    underneath rather than beside so the width goes into
+                    the code instead of the words. */}
+                <img
+                  src={`/api/qr?size=8&data=${encodeURIComponent(orderQrUrl)}`}
+                  alt="Scan to order from your phone"
+                  className="rounded bg-white p-1"
+                  style={{ width: 'clamp(92px, 9.2vw, 128px)',
+                           height: 'clamp(92px, 9.2vw, 128px)' }}
+                />
+                <div className="text-[10px] font-bold uppercase tracking-widest"
+                     style={{ color: bannerInkDim }}>
+                  Scan to order
+                </div>
+              </div>
+            )}
             {config.sms_number && (
               <div className="text-right leading-tight flex-shrink-0">
                 {/* The one place a brand accent reads without competing
