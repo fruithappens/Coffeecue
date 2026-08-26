@@ -298,6 +298,111 @@ const RecipeCard = ({ drink, sizes, onSaved }) => {
   );
 };
 
+
+// ---------------------------------------------------------------------
+// Cup reconciliation — where the venue's tally meets ours.
+// ---------------------------------------------------------------------
+const CupReconciliation = () => {
+  const [rows, setRows] = useState([]);
+  const [totals, setTotals] = useState(null);
+  const [edit, setEdit] = useState({});   // "sid:field" -> value
+
+  const load = useCallback(async () => {
+    try {
+      const r = await fetch('/api/reports/cup-reconciliation', { headers: authHeaders() });
+      const b = r.ok ? await r.json() : {};
+      setRows(b.stations || []);
+      setTotals(b.totals || null);
+    } catch (e) { /* refresh next time */ }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const save = async (sid, field) => {
+    const v = parseInt(edit[`${sid}:${field}`], 10);
+    if (!Number.isFinite(v) || v < 0) return;
+    await fetch('/api/reports/cup-reconciliation', {
+      method: 'PUT',
+      headers: authHeaders(),
+      body: JSON.stringify({ station_id: sid, [field]: v }),
+    });
+    setEdit((e) => { const n = { ...e }; delete n[`${sid}:${field}`]; return n; });
+    load();
+  };
+
+  const CountCell = ({ sid, field, value }) => {
+    const key = `${sid}:${field}`;
+    const editing = edit[key] !== undefined;
+    return (
+      <div className="flex items-center gap-1">
+        <input
+          type="number" min="0"
+          value={editing ? edit[key] : (value ?? '')}
+          placeholder="—"
+          onChange={(e) => setEdit((s2) => ({ ...s2, [key]: e.target.value }))}
+          className="w-20 border border-gray-300 rounded px-2 py-1 text-right"
+        />
+        {editing && (
+          <button onClick={() => save(sid, field)}
+            className="p-1 bg-amber-600 text-white rounded" title="Save count">
+            <Save size={13} />
+          </button>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="bg-white rounded-lg shadow p-4 mt-8">
+      <h2 className="text-xl font-bold text-gray-800">Cup reconciliation</h2>
+      <p className="text-sm text-gray-600 mb-3">
+        The venue counts physical cups (start minus end of day); we count
+        completed orders. The two will differ — staff coffees, remakes,
+        spills — and the variance belongs in the report, explained, not
+        hidden. Enter start counts in the morning, end counts at pack-down.
+      </p>
+      <div className="overflow-x-auto">
+        <table className="text-sm w-full">
+          <thead>
+            <tr className="text-left text-gray-500">
+              <th className="py-1 pr-4">Station</th>
+              <th className="py-1 pr-4">Cups at start</th>
+              <th className="py-1 pr-4">Cups at end</th>
+              <th className="py-1 pr-4">Venue used</th>
+              <th className="py-1 pr-4">Our orders</th>
+              <th className="py-1">Variance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.station_id} className="border-t border-gray-100">
+                <td className="py-2 pr-4 font-medium">{r.station_name}</td>
+                <td className="py-2 pr-4"><CountCell sid={r.station_id} field="start" value={r.start} /></td>
+                <td className="py-2 pr-4"><CountCell sid={r.station_id} field="end" value={r.end} /></td>
+                <td className="py-2 pr-4 font-mono">{r.venue_used ?? '—'}</td>
+                <td className="py-2 pr-4 font-mono">{r.system_orders}</td>
+                <td className={`py-2 font-mono font-bold ${
+                  r.variance == null ? 'text-gray-400'
+                    : Math.abs(r.variance) <= 5 ? 'text-green-700' : 'text-amber-700'}`}>
+                  {r.variance == null ? '—' : (r.variance > 0 ? `+${r.variance}` : r.variance)}
+                </td>
+              </tr>
+            ))}
+            {totals && (
+              <tr className="border-t-2 border-gray-300 font-bold">
+                <td className="py-2 pr-4">Event total</td>
+                <td /><td />
+                <td className="py-2 pr-4 font-mono">{totals.venue_used || '—'}</td>
+                <td className="py-2 pr-4 font-mono">{totals.system_orders}</td>
+                <td className="py-2 font-mono">{totals.variance ?? '—'}</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
 // ---------------------------------------------------------------------
 // The screen.
 // ---------------------------------------------------------------------
@@ -397,6 +502,8 @@ const EventStockManagement = () => {
             <RecipeCard key={drink} drink={drink} sizes={sizes} onSaved={load} />
           ))}
       </div>
+
+      <CupReconciliation />
     </div>
   );
 };
