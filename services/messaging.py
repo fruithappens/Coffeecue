@@ -393,7 +393,11 @@ class MessagingService:
             client.push_notification(
                 str(contact_id),
                 title='Your coffee is ready ☕',
-                body=f"Order #{order_number} ({coffee_type}) is ready at Station {station_id}.",
+                # Same rule as the SMS: name the PLACE. A push saying
+                # "Station 2" to someone standing in the concourse is a
+                # station number, not a direction.
+                body=(f"Order #{order_number} ({coffee_type}) is ready at "
+                      f"{station_label(coffee_system.db, station_id)}."),
             )
         except Exception as e:
             logger.warning(f"EventsAir push_notification error (non-fatal): {e}")

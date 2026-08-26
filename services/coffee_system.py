@@ -1621,16 +1621,23 @@ class CoffeeOrderSystem:
                 except Exception:
                     pass
 
+            # Say WHERE, not which number. The venue runs two stations
+            # fifteen metres apart in different rooms, so "at Station 2"
+            # is a fact the customer cannot act on. station_label adds the
+            # location when one is configured and falls back to the old
+            # wording when it is not.
+            _where = station_label(self.db, station_id) or f"Station {station_id}"
+
             # Build the status response
             status_messages = {
-                "pending": f"Your order #{order_number} ({order_summary}) is pending at Station {station_id}. You've been waiting {wait_time_minutes} minutes.",
-                "in-progress": f"Your order #{order_number} ({order_summary}) is being made at Station {station_id}. You've been waiting {wait_time_minutes} minutes.",
-                "completed": f"Your order #{order_number} ({order_summary}) is ready for pickup at Station {station_id}!",
+                "pending": f"Your order #{order_number} ({order_summary}) is pending at {_where}. You've been waiting {wait_time_minutes} minutes.",
+                "in-progress": f"Your order #{order_number} ({order_summary}) is being made at {_where}. You've been waiting {wait_time_minutes} minutes.",
+                "completed": f"Your order #{order_number} ({order_summary}) is ready for pickup at {_where}!",
             }
 
             response = status_messages.get(
                 status,
-                f"Your order #{order_number} ({order_summary}) is {status} at Station {station_id}.",
+                f"Your order #{order_number} ({order_summary}) is {status} at {_where}.",
             )
 
             # Add estimated time for pending orders
