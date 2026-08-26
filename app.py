@@ -523,6 +523,14 @@ def create_app():
                 logger.info(f"Applied schema migrations: {', '.join(applied)}")
         except Exception as mig_err:
             logger.error(f"Schema migrations failed (non-fatal): {mig_err}")
+        try:
+            # Shipped recipe defaults (docs/MENU_ARCHITECTURE.md).
+            # ON CONFLICT DO NOTHING, so operator-edited rows survive
+            # every boot untouched.
+            from services.recipes import seed_shipped_recipes
+            seed_shipped_recipes(db)
+        except Exception as seed_err:
+            logger.error(f"Recipe seed failed (non-fatal): {seed_err}")
     except Exception as e:
         logger.error(f"Error initializing database with PostgreSQL: {str(e)}")
         raise # Re-raise to fail fast - PostgreSQL is required

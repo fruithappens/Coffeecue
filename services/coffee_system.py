@@ -4355,6 +4355,40 @@ class CoffeeOrderSystem:
         r"(bean|blend|roast|single\s*origin|decaf|colombian?|ethiopian?"
         r"|brazilian?|kenyan?|guatemalan?)", re.I)
 
+    def check_order_makeable(self, od):
+        """Gate 2 for a COMPLETE order: can the resolved recipe be made?
+
+        Returns (ok, message). Steve's decision: sold-out behaviour is a
+        per-event setting -- 'strict' (default) refuses with the reason,
+        'warn' lets orders flow and leaves it to the barista screens.
+
+        Drinks with no recipe always pass: the legacy path has no
+        ingredient knowledge to enforce, and inventing constraints for
+        it would refuse orders the system would happily have made
+        yesterday.
+        """
+        try:
+            if str(self._get_setting("sold_out_mode", "strict")).lower() == "warn":
+                return True, ""
+            from services.recipes import check_ingredients, resolve_order
+            lines, meta = resolve_order(
+                self.db, od, self._get_setting,
+                requested_bean=self._requested_bean(od),
+            )
+            if not lines:
+                return True, ""
+            ok, missing = check_ingredients(self.db, lines)
+            if ok:
+                return True, ""
+            drink = str(od.get("type") or "that")
+            return False, (
+                f"Sorry, we can't make {drink} right now - "
+                f"we've run out of {', '.join(missing)}."
+            )
+        except Exception as e:
+            logger.error(f"check_order_makeable failed (allowing order): {e}")
+            return True, ""
+
     def _requested_bean(self, od):
         """Which bean this order asks for, whatever shape the channel used.
 
@@ -5067,6 +5101,17 @@ class CoffeeOrderSystem:
                     f"We can make it with: {', '.join(available_beans)}.\n"
                     f"Reply MENU for the full list."
                 )
+
+        # Gate 2: the resolved recipe's ingredients (chocolate powder for
+        # a mocha, water on a jerry-can cart, the cup itself). Milk and
+        # beans were already validated above; this catches the FIXED
+        # ingredients no earlier check knows about. Steve's example: "dont
+        # make hot chocolate but might do mocha but still have the
+        # chocolate powder" -- and when the powder runs dry, BOTH stop
+        # being makeable, on every channel, from this one check.
+        _mk_ok, _mk_msg = self.check_order_makeable(order_details)
+        if not _mk_ok:
+            return _mk_msg + "\nReply MENU for what's available."
 
         # Validate sweetener if specified
         sweetener = order_details.get("sugar", "")
@@ -7868,6 +7913,62 @@ class CoffeeOrderSystem:
         # explicit is_tea flag set by the walk-in dialog.
         is_tea = bool(processed_details.get("is_tea")) or ("tea" in coffee_type)
         tea_double_cup = bool(processed_details.get("tea_double_cup"))
+
+        # --- RECIPE PATH (docs/MENU_ARCHITECTURE.md) ----------------
+        # When the drink has a recipe, the resolved lines ARE the
+        # ledger movement: each ingredient by exactly the recipe's
+        # quantity, substitutions (which milk, which bean) already
+        # applied by resolve_order. Drinks WITHOUT a recipe fall
+        # through to the legacy hardcoded path below, unchanged --
+        # that fallback is what makes this deployable mid-week without
+        # touching how yesterday's drinks deplete.
+        #
+        # Units: recipes speak mL and g; the ledger rows speak L and
+        # kg (matching the live inventory: milk 18.55 L, beans 27 kg).
+        try:
+            from services.recipes import resolve_order as _resolve
+            _lines, _meta = _resolve(
+                self.db, processed_details, self._get_setting,
+                requested_bean=self._requested_bean(processed_details),
+            )
+        except Exception as _re:
+            logger.warning(f"recipe resolve failed; using legacy path: {_re}")
+            _lines = None
+        if _lines:
+            _DIVISOR = {"mL": 1000.0, "g": 1000.0}  # -> L / kg
+            for _ln in _lines:
+                _qty = float(_ln["qty"]) / _DIVISOR.get(_ln["unit"], 1.0)
+                if tea_double_cup and _ln["category"] == "cups":
+                    _qty *= 2
+                if self._decrement_inventory_item(
+                    cursor,
+                    db_type,
+                    category=_ln["category"],
+                    name=_ln["name"],
+                    amount=_qty,
+                    station_id=station_id,
+                    restock=restock,
+                ):
+                    result["decremented"].append(
+                        f"{_ln['category']}:{_ln['name']}")
+                else:
+                    result["skipped"].append(
+                        {"item": f"{_ln['category']}:{_ln['name']}",
+                         "reason": "no inventory row matched"})
+            result["recipe"] = True
+            # Same tail bookkeeping as the legacy path -- the restock
+            # flag is what stops a cancelled order being refunded to
+            # the ledger twice, and errors surface for the same reason
+            # they do below: a decrement that silently moved nothing is
+            # the lie this whole layer exists to end.
+            errs = getattr(self, "_stock_errors", None)
+            if errs:
+                result["errors"] = errs[:5]
+            if restock:
+                processed_details["_stock_restocked"] = True
+            conn.commit()
+            return result
+        # --- LEGACY PATH (no recipe for this drink) -----------------
 
         # --- milk ---------------------------------------------------
         if milk and milk != "no milk":

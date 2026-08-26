@@ -4964,6 +4964,18 @@ def create_kiosk_order():
             'station_id': target,
             'stationId': target,
         }
+        # Gate 2, same check SMS runs: the resolved recipe's tracked
+        # ingredients must be available (strict mode). A customer at the
+        # touchscreen must not be able to order a mocha the SMS channel
+        # is already refusing for lack of chocolate powder -- one gate,
+        # every door.
+        try:
+            _mk_ok, _mk_msg = coffee_system.check_order_makeable(order_details)
+        except Exception:
+            _mk_ok, _mk_msg = True, ''
+        if not _mk_ok:
+            return jsonify({'success': False, 'message': _mk_msg}), 409
+
         stamp_provenance(order_details, req_channel, req_source)
         if ea_contact_id:
             # EA-linked kiosk order: carries the contact id so Phase-2
@@ -5215,6 +5227,38 @@ def app_version():
         # stale should carry on quietly, not show an error to a barista.
         logger.warning(f"app_version read failed: {e}")
         return jsonify({'success': False, 'bundle': None})
+
+
+@bp.route('/recipes', methods=['GET'])
+@jwt_required_with_demo()
+def list_recipes():
+    """Every recipe row, grouped drink -> size -> lines. The data the
+    coming recipe editor reads; until then, the way to SEE what the
+    ledger will do (docs/MENU_ARCHITECTURE.md)."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        cur = coffee_system.db.cursor()
+        cur.execute(
+            "SELECT drink, size, ingredient_category, ingredient_name, "
+            "quantity, unit, source FROM recipes ORDER BY drink, size, id")
+        out = {}
+        for r in cur.fetchall():
+            d, sz, cat, name, qty, unit, src = (
+                (r['drink'], r['size'], r['ingredient_category'],
+                 r['ingredient_name'], r['quantity'], r['unit'], r['source'])
+                if isinstance(r, dict) else r)
+            out.setdefault(d, {}).setdefault(sz, []).append({
+                'category': cat, 'name': name,
+                'quantity': float(qty), 'unit': unit, 'source': src,
+            })
+        return jsonify({'success': True, 'recipes': out})
+    except Exception as e:
+        logger.error(f"list_recipes error: {e}")
+        try:
+            coffee_system.db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @bp.route('/qr', methods=['GET'])
