@@ -11710,6 +11710,19 @@ def get_catalog(category):
                 for it in items:
                     it['event_enabled'] = coffee_system._normalise_menu_name(
                         it.get('short_name') or it.get('name')) in keep_set
+                # If NOTHING matched, the two vocabularies failed to line
+                # up -- an event that serves literally nothing is not a
+                # real state. Greying every tile would leave a barista
+                # unable to take an order at all, which is far worse than
+                # showing one milk too many. Same fallback the event_only
+                # filter already makes; it was missing here.
+                if items and not any(it.get('event_enabled') for it in items):
+                    logger.warning(
+                        "catalog %s: no item matched the event menu %s -- "
+                        "marking all available rather than greying the whole "
+                        "screen out", category, enabled_names)
+                    for it in items:
+                        it['event_enabled'] = True
             else:
                 # No opinion configured, or everything switched off: do not
                 # grey the whole menu out on the strength of a blank config.
