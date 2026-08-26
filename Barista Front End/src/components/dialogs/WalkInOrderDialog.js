@@ -22,6 +22,32 @@ const QUICK_KEY = 'coffee_walkin_quick_mode';
 // dialog: a component defined during render is a NEW type every render,
 // so React unmounts and remounts the whole row on every keystroke -- which
 // on this screen would drop focus out of the name field as you type it.
+// GREY OR GONE.
+//
+// Steve, on oat still showing at a venue that does not stock it: "think
+// oat should be greyed out or not there or a option to choose if its
+// grey or hidden (grey not available) probably my preference but maybe
+// a hidden would be less cluttered."
+//
+// Both are defensible, so it is a setting rather than an argument.
+// Default is grey: a dimmed tile says "we know about oat, it is not on
+// today", which is a different message from a tile that simply is not
+// there -- and a barista asked for oat can answer the customer instead
+// of wondering whether the system is broken.
+//
+// 'hidden' is the low-clutter option for events with a short menu and a
+// long catalogue.
+const UNAVAILABLE_DISPLAY_KEY = 'cupq_unavailable_display';
+
+const unavailableDisplay = () => {
+  try {
+    const v = localStorage.getItem(UNAVAILABLE_DISPLAY_KEY);
+    return v === 'hidden' ? 'hidden' : 'grey';
+  } catch (e) {
+    return 'grey';   // private mode, or storage blocked
+  }
+};
+
 const QuickGroup = ({ label, children }) => (
   <div>
     <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">
@@ -33,12 +59,17 @@ const QuickGroup = ({ label, children }) => (
 
 // Big enough to hit without looking, which is the point of the whole
 // mode -- a barista is holding a cup in the other hand.
-const QuickTile = ({ active, onClick, emoji, label, badge }) => (
+const QuickTile = ({ active, onClick, emoji, label, badge, disabled }) => (
   <button
     type="button"
-    onClick={onClick}
+    onClick={disabled ? undefined : onClick}
+    disabled={disabled}
+    aria-disabled={disabled || undefined}
+    title={disabled ? `${label} is not on the menu for this event` : undefined}
     className={`relative min-w-[6.5rem] px-3 py-2.5 rounded-xl border-2 text-center
-                transition-colors ${active
+                transition-colors ${disabled
+                  ? 'bg-gray-100 text-gray-400 border-gray-200 border-dashed cursor-not-allowed'
+                  : active
                   ? 'bg-amber-600 text-white border-amber-600'
                   : 'bg-white text-gray-800 border-gray-300 hover:border-amber-400'}`}
   >
@@ -48,8 +79,14 @@ const QuickTile = ({ active, onClick, emoji, label, badge }) => (
         {badge}
       </span>
     )}
-    <span className="block text-2xl leading-none mb-1" aria-hidden>{emoji}</span>
+    <span className={`block text-2xl leading-none mb-1 ${disabled ? 'opacity-40 grayscale' : ''}`}
+          aria-hidden>{emoji}</span>
     <span className="block text-sm font-semibold capitalize leading-tight">{label}</span>
+    {disabled && (
+      <span className="block text-[10px] font-normal normal-case leading-tight text-gray-400">
+        not available
+      </span>
+    )}
   </button>
 );
 
@@ -108,12 +145,14 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
   // display names, ids, subcategories, and milk synonyms. Falls back
   // to DEFAULT_MILK_TYPES / name-based heuristics if the catalog
   // endpoint is unreachable (offline / demo mode).
-  // eventOnly: the walk-in screen is an ORDER form, so it must offer only
-  // what this event serves. Without it the barista saw the whole canonical
-  // catalogue -- Oat and Lactose-Free at a venue that stocks neither, and
-  // "Smoke Test Milk" -- while SMS and the kiosk had already been narrowed.
-  const { items: catalogMilks } = useCatalog('milk', { eventOnly: true });
-  const { items: catalogDrinks } = useCatalog('drink', { eventOnly: true });
+  // The FULL catalogue, with each item carrying event_enabled. Steve
+  // prefers unavailable milks greyed out rather than gone: "grey = not
+  // available" reads as a decision, where a missing tile just looks like
+  // the system has never heard of oat milk. Greying needs the item to
+  // still be here, so we do not ask the server to filter -- see
+  // UNAVAILABLE_DISPLAY below for the hide option.
+  const { items: catalogMilks } = useCatalog('milk');
+  const { items: catalogDrinks } = useCatalog('drink');
 
   // Walk-in defaults loaded from /api/walkin-defaults. Operator
   // configures these once per event in Quick Setup → Walk-in defaults.
@@ -600,7 +639,28 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
               _seenMilk.add(key);
               return true;
             });
-            setAvailableMilks(_dedupedMilks);
+            // Which of these does the EVENT actually serve? The catalogue
+            // now annotates every item with event_enabled, so a milk that
+            // is stocked-but-switched-off can be shown dimmed rather than
+            // dropped. Absent flag means "no opinion" -> treat as available,
+            // so an unconfigured event never greys its entire menu out.
+            const _eventSays = new Map(
+              (Array.isArray(catalogMilks) ? catalogMilks : []).map(c => [
+                String(c.name || '').toLowerCase().replace(/\s*milk\s*$/, '').trim(),
+                c.event_enabled !== false,
+              ])
+            );
+            const _marked = _dedupedMilks.map(m => {
+              const key = String(m.name || m.id || '')
+                .toLowerCase().replace(/\s*milk\s*$/, '').trim();
+              const ok = _eventSays.has(key) ? _eventSays.get(key) : true;
+              return { ...m, unavailable: !ok };
+            });
+            setAvailableMilks(
+              unavailableDisplay() === 'hidden'
+                ? _marked.filter(m => !m.unavailable)
+                : _marked
+            );
             
             // Warn if no milk options are available
             if (filteredMilkTypes.length === 0) {
@@ -1861,6 +1921,7 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
                   <QuickTile
                     key={m.id}
                     active={orderDetails.milkType === m.id}
+                    disabled={m.unavailable}
                     onClick={() => setOrderDetails(prev => ({ ...prev, milkType: m.id }))}
                     emoji={milkEmoji(m.name)}
                     label={m.name}
@@ -1887,6 +1948,14 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
                   />
                 ))}
               </QuickGroup>
+              {sugarSelfServe ? (
+                <QuickGroup label="Sugar">
+                  <div className="text-sm text-gray-500 border-2 border-dashed
+                                  border-gray-200 rounded-xl px-3 py-2.5">
+                    Help-yourself at the counter
+                  </div>
+                </QuickGroup>
+              ) : (
               <QuickGroup label="Sugar">
                 {['0', '1', '2', '3'].map(n => (
                   <QuickTile
@@ -1905,6 +1974,7 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
                   />
                 ))}
               </QuickGroup>
+              )}
             </div>
 
             {/* The barista-only extras Steve asked to keep: shots, bean,
