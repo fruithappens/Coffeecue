@@ -5852,23 +5852,13 @@ def track_order_public(order_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-def _display_phone(phone):
-    """The last four digits, and ONLY the last four.
+# _display_phone used to live here: last-4 masking for the public
+# board. Steve's later call: a public screen shows NO digits of a
+# phone number at all -- the order number disambiguates, and it is
+# already the biggest thing on the card. The masked field and its
+# helper are gone rather than unused, so nothing can quietly start
+# sending it again.
 
-    /api/display/orders has no authentication -- it is what the big
-    screen fetches, so it has to be reachable without a login. It was
-    also sending the customer's FULL mobile number in `phoneNumber` and
-    `phone_number`, which meant anyone who could reach the URL could
-    read every waiting customer's number alongside their name. Nothing
-    consumed those fields: the screen shows "Sarah - ..4821" and derives
-    that from the last four either way.
-
-    Also stops "Walk-in" being sliced into "k-in", which is what
-    happens when you take the last four characters of something that
-    was never a phone number.
-    """
-    digits = re.sub(r"\D", "", str(phone or ""))
-    return digits[-4:] if len(digits) >= 4 else ""
 
 
 @bp.route('/display/orders', methods=['GET'])
@@ -5912,8 +5902,6 @@ def get_display_orders():
             # Extract customer name
             customer_name = order_details.get('name', 'Customer')
             
-            display_phone = _display_phone(phone)
-            
             # Format order for display
             in_progress_orders.append({
                 'id': order_number,
@@ -5921,7 +5909,6 @@ def get_display_orders():
                 'orderNumber': order_number,            # camelCase
                 'customer_name': customer_name,
                 'customerName': customer_name,
-                'displayPhone': display_phone,
                 'coffee_type': _drink_display_name(order_details),
                 'coffeeType': _drink_display_name(order_details),
                 'milk_type': order_details.get('milk', 'Standard'),
@@ -5965,7 +5952,6 @@ def get_display_orders():
             # Extract customer name
             customer_name = order_details.get('name', 'Customer')
             
-            display_phone = _display_phone(phone)
             
             # Format order for display
             ready_orders.append({
@@ -5974,7 +5960,6 @@ def get_display_orders():
                 'orderNumber': order_number,            # camelCase
                 'customer_name': customer_name,
                 'customerName': customer_name,
-                'displayPhone': display_phone,
                 'coffee_type': _drink_display_name(order_details),
                 'coffeeType': _drink_display_name(order_details),
                 'milk_type': order_details.get('milk', 'Standard'),
