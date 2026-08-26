@@ -20,8 +20,22 @@ import AdminViewSwitcher from './components/shared/AdminViewSwitcher';
 import UnauthorizedPage from './components/auth/UnauthorizedPage';
 import OfflineDataHelper from './utils/offlineDataHelper';
 import ApiNotificationBanner from './components/shared/ApiNotificationBanner';
+
 import ErrorBoundary from './components/shared/ErrorBoundary';
 import BasicBaristaInterface from './components/fallbacks/BasicBaristaInterface';
+
+// Renders its children EXCEPT on the screens a customer sees. Those pages
+// are deliberately unauthenticated, so anything that reports "you are not
+// connected" because an authenticated call failed is telling them about a
+// call their screen was never going to make.
+const PUBLIC_SCREEN_PATHS = ['/display', '/displays', '/order', '/my', '/track'];
+const PublicScreenGate = ({ children }) => {
+  const path = (typeof window !== 'undefined' ? window.location.pathname : '') || '';
+  const isPublic = PUBLIC_SCREEN_PATHS.some(
+    (p) => path === p || path.startsWith(p + '/') || path.startsWith(p + '?')
+  );
+  return isPublic ? null : children;
+};
 
 // Simple API Test Component
 const ApiTestComponent = ({ apiStatus, onFallbackToggle }) => {
@@ -645,8 +659,19 @@ function App() {
     >
       <AppProvider>
         <Router>
-          {/* API Status Notification Banner - Now self-detecting authentication and connection issues */}
-          <ApiNotificationBanner />
+          {/* API Status Notification Banner - Now self-detecting authentication and connection issues.
+              NOT on the customer-facing screens. It reports a failure of the
+              AUTHENTICATED /api/orders call, which those pages never make --
+              the board reads the public feed and works perfectly without a
+              login. So on a display it was a red "Connection to server lost"
+              banner, permanently, over the top of the event name, on a screen
+              customers are looking at, while the board beneath it updated
+              normally. Steve's iPad photos show it covering "Treenet 2026".
+              An operator screen still gets the warning, where it is true and
+              useful. */}
+          <PublicScreenGate>
+            <ApiNotificationBanner />
+          </PublicScreenGate>
 
           <Routes>
             {/* Public routes */}
