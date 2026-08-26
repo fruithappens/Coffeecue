@@ -613,8 +613,22 @@ def cloudprnt_poll():
         if not printer.get("enabled"):
             return jsonify({"jobReady": False})
         cur.execute(
+            # HEAD-OF-LINE BLOCKING.
+            #
+            # This was strictly oldest-first, so a job the printer cannot
+            # collect is offered again on every poll -- twice a second --
+            # and every label queued behind it waits for a drink that has
+            # already been made. Steve's queue showed exactly that: #12
+            # stuck at 09:26 with a fetch timeout, and #30 sitting behind
+            # it at 09:40 with zero attempts, never once offered.
+            #
+            # Ordering by attempts first lets a failing job stand aside for
+            # fresh work while still being retried whenever nothing newer
+            # is waiting. It is not dropped, just no longer allowed to hold
+            # the queue shut -- and a label is worthless once its coffee is
+            # on the counter, so newer work is the more valuable work.
             "SELECT id FROM print_jobs WHERE printer_id = %s AND status = 'queued' "
-            "ORDER BY created_at ASC LIMIT 1",
+            "ORDER BY attempts ASC, created_at ASC LIMIT 1",
             (printer["id"],),
         )
         job = cur.fetchone()
