@@ -1,600 +1,401 @@
-import React, { useState, useEffect } from 'react';
-import { normaliseInventory } from '../../services/EventInventoryService';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Package, Plus, Minus, Save, AlertCircle, Check,
-  Coffee, Droplet, Square, Candy, Beaker, Package2
+  Coffee, Droplet, Package, Beaker, ChevronDown, ChevronRight,
+  Save, AlertTriangle, RefreshCw,
 } from 'lucide-react';
-import ApiServiceClass from '../../services/ApiService';
-
-// Backend-backed event stock — previously localStorage-only, so
-// changes vanished when an operator opened the page on a different
-// device. /api/event-stock GET/PUT persists to the settings table.
-const apiService = new ApiServiceClass();
 
 /**
- * Coffee bean dose per shot — drives how many grams of beans each drink
- * deducts from stock. Default 22g: the top of the Australian standard
- * (cafes here dose 20-22g in a double basket, and the double IS the
- * standard drink), deliberately a touch high because dial-in shots,
- * spills and staff coffees never get entered — stock maths should err
- * toward "you still have beans" (Steve). A strong/double burns two
- * doses (another full extraction, not a bigger basket).
+ * Event Stock — the real ledger and the real recipes.
+ *
+ * This screen used to render drinks carrying kilograms ("Latte — 5 kg,
+ * Allocated 2 kg") out of an `event_stock_levels` blob that NOTHING
+ * else read: the Allocated numbers influenced no order, no gate, no
+ * report. Steve, looking at it the morning after the recipe layer
+ * shipped: "the event stock still shows kg of latte and caps etc" —
+ * and the rule that whole rebuild enforces is that a drink never
+ * carries a quantity.
+ *
+ * Now it shows the two things that are actually true:
+ *
+ *   INGREDIENTS — the live inventory rows the resolver checks and the
+ *   completion decrement moves. Edit a quantity here and the gate,
+ *   the menus and the report all see it, because there is one ledger.
+ *
+ *   RECIPES — what each drink burns, per size. Edit a dose and it
+ *   saves as source='custom', which the boot re-seed never touches.
+ *
+ * Everything reads/writes the backend. No localStorage mirrors — that
+ * pattern is what made this screen decorative in the first place.
  */
+
+const authHeaders = () => ({
+  Authorization: `Bearer ${localStorage.getItem('coffee_system_token') || ''}`,
+  'Content-Type': 'application/json',
+});
+
+const CATEGORY_META = {
+  coffee: { label: 'Beans', unit: 'kg', icon: Coffee },
+  milk: { label: 'Milk', unit: 'L', icon: Droplet },
+  cups: { label: 'Cups', unit: 'units', icon: Package },
+  extras: { label: 'Extras', unit: 'kg', icon: Beaker },
+  water: { label: 'Water', unit: 'L', icon: Droplet },
+  sweeteners: { label: 'Sweeteners', unit: 'units', icon: Beaker },
+  syrups: { label: 'Syrups', unit: 'bottles', icon: Beaker },
+};
+
+// ---------------------------------------------------------------------
+// Bean dose (grams per shot) — kept from the old screen; it is real.
+// ---------------------------------------------------------------------
 const BeanDoseCard = () => {
-  const [grams, setGrams] = useState('22');
-  const [status, setStatus] = useState(null);
+  const [grams, setGrams] = useState('');
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     (async () => {
       try {
-        const r = await apiService.request('/settings');
-        const v = r?.settings?.beans_grams_per_shot ?? r?.data?.beans_grams_per_shot;
-        if (v != null && String(v) !== '') setGrams(String(v));
-      } catch (e) { /* default 22 */ }
+        const r = await fetch('/api/settings', { headers: authHeaders() });
+        const b = r.ok ? await r.json() : {};
+        const st = b.settings || b.data || b || {};
+        const v = parseFloat(st.beans_grams_per_shot);
+        setGrams(Number.isFinite(v) ? String(v) : '22');
+      } catch (e) {
+        setGrams('22');
+      }
     })();
   }, []);
 
   const save = async () => {
-    const n = parseFloat(grams);
-    if (!Number.isFinite(n) || n < 1 || n > 60) {
-      setStatus({ type: 'error', text: 'Enter a dose between 1 and 60 grams.' });
-      return;
-    }
+    const v = parseFloat(grams);
+    if (!Number.isFinite(v) || v < 1 || v > 60) return;
     setSaving(true);
-    setStatus(null);
     try {
-      const r = await apiService.request('/settings', {
+      const r = await fetch('/api/settings', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ beans_grams_per_shot: n }),
+        headers: authHeaders(),
+        body: JSON.stringify({ beans_grams_per_shot: v }),
       });
-      if (r && (r.success || r.status === 'success')) {
-        setStatus({ type: 'success',
-          text: `Saved - every espresso drink now deducts ${n}g of beans (double/strong: ${n * 2}g).` });
-      } else {
-        setStatus({ type: 'error', text: (r && (r.error || r.message)) || 'Server did not confirm the save' });
+      if (r.ok) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
       }
-    } catch (e) {
-      setStatus({ type: 'error', text: `Save failed: ${e?.message || 'network error'}` });
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-4 mb-6">
-      {/* Four sentences of explanation and a number box in one row gave the
-          prose a 100px column on a phone -- 15 lines of two-word fragments.
-          The control belongs under the text it explains. */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-        <div>
-          <h3 className="text-lg font-bold">Coffee dose per drink</h3>
-          <p className="text-sm text-gray-500">
-            Grams of beans each espresso drink deducts from stock. Australian
-            standard is 20-22g (double-basket); keep it on the high side so
-            dial-in shots, spills and staff coffees don't quietly eat your
-            margin. Strong/double burns two doses; triple and quad scale up.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <input
-            type="number" min="1" max="60" step="0.5"
-            className="w-20 p-2 border rounded text-lg text-center"
-            value={grams}
-            onChange={(e) => setGrams(e.target.value)}
-          />
-          <span className="text-gray-600">g</span>
-          <button
-            className="px-4 py-2 bg-amber-600 text-white rounded-md font-semibold hover:bg-amber-700 disabled:opacity-50"
-            disabled={saving}
-            onClick={save}
-          >
-            Save
-          </button>
-        </div>
+    <div className="bg-white rounded-lg shadow p-4 mb-6 flex flex-wrap items-center gap-4">
+      <div className="flex-1 min-w-[16rem]">
+        <h3 className="text-lg font-bold">Coffee dose per shot</h3>
+        <p className="text-sm text-gray-600">
+          Grams of beans one espresso shot deducts from stock. Every recipe
+          counts shots; this converts them to grams. Australian standard is
+          20–22g — keep it on the high side so dial-in shots and spills
+          don't quietly eat your margin.
+        </p>
       </div>
-      {status && (
-        <div className={`mt-2 text-sm ${status.type === 'error' ? 'text-red-600' : 'text-green-700'}`}>
-          {status.text}
+      <div className="flex items-center gap-2">
+        <input
+          type="number"
+          min="1"
+          max="60"
+          value={grams}
+          onChange={(e) => setGrams(e.target.value)}
+          className="w-24 border rounded px-2 py-1.5 text-right"
+        />
+        <span className="text-gray-500 text-sm">g</span>
+        <button
+          onClick={save}
+          disabled={saving}
+          className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-1.5 rounded font-semibold"
+        >
+          {saved ? 'Saved' : 'Save'}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------
+// One ingredient row: live amount, threshold badge, set-and-save.
+// ---------------------------------------------------------------------
+const IngredientRow = ({ item, onSaved }) => {
+  const [value, setValue] = useState(String(item.amount ?? ''));
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+
+  const amount = parseFloat(item.amount) || 0;
+  const threshold = parseFloat(item.minimum_threshold) || 0;
+  const low = threshold > 0 && amount <= threshold;
+  const dirty = value !== '' && parseFloat(value) !== amount;
+
+  const save = async () => {
+    const v = parseFloat(value);
+    if (!Number.isFinite(v) || v < 0) { setErr('Enter a number'); return; }
+    setSaving(true);
+    setErr('');
+    try {
+      const r = await fetch(`/api/inventory/${item.id}/adjust`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ new_amount: v, change_reason: 'organiser stock screen' }),
+      });
+      const b = await r.json().catch(() => ({}));
+      if (!r.ok || b.success === false) {
+        setErr(b.message || `Save failed (${r.status})`);
+        return;
+      }
+      onSaved();
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-3 py-2 border-b border-gray-100 last:border-0">
+      <div className="flex-1 min-w-0">
+        <span className="font-medium text-gray-800 capitalize">{item.name}</span>
+        {low && (
+          <span className="ml-2 inline-flex items-center gap-1 text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
+            <AlertTriangle size={12} /> low (warn at {threshold})
+          </span>
+        )}
+      </div>
+      <input
+        type="number"
+        min="0"
+        step="any"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        className={`w-28 border rounded px-2 py-1 text-right ${dirty ? 'border-amber-500' : 'border-gray-300'}`}
+      />
+      <span className="text-sm text-gray-500 w-12">{item.unit || ''}</span>
+      <button
+        onClick={save}
+        disabled={saving || !dirty}
+        title={dirty ? 'Save this quantity' : 'Unchanged'}
+        className={`p-1.5 rounded ${dirty
+          ? 'bg-amber-600 text-white hover:bg-amber-700'
+          : 'bg-gray-100 text-gray-300 cursor-default'}`}
+      >
+        <Save size={16} />
+      </button>
+      {err && <span className="text-xs text-red-600">{err}</span>}
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------
+// Recipe editor: per drink, sizes × ingredient lines, doses editable.
+// ---------------------------------------------------------------------
+const lineName = (ln) =>
+  ln.name
+    ? ln.name
+    : ln.category === 'milk'
+      ? "customer's milk"
+      : ln.category === 'coffee'
+        ? "chosen bean"
+        : ln.category === 'cups'
+          ? 'cup (matches size)'
+          : ln.category;
+
+const RecipeLine = ({ drink, size, line, onSaved }) => {
+  const [qty, setQty] = useState(String(line.quantity));
+  const [saving, setSaving] = useState(false);
+  const dirty = parseFloat(qty) !== line.quantity;
+
+  const save = async () => {
+    const v = parseFloat(qty);
+    if (!Number.isFinite(v) || v < 0) return;
+    setSaving(true);
+    try {
+      const r = await fetch('/api/recipes', {
+        method: 'PUT',
+        headers: authHeaders(),
+        body: JSON.stringify({
+          drink, size,
+          category: line.category,
+          name: line.name,
+          quantity: v,
+          unit: line.unit,
+        }),
+      });
+      if (r.ok) onSaved();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2 text-sm py-1">
+      <span className="flex-1 text-gray-700 capitalize">{lineName(line)}</span>
+      <input
+        type="number"
+        min="0"
+        step="any"
+        value={qty}
+        onChange={(e) => setQty(e.target.value)}
+        className={`w-20 border rounded px-2 py-0.5 text-right ${dirty ? 'border-amber-500' : 'border-gray-200'}`}
+      />
+      <span className="text-gray-500 w-10">{line.unit}</span>
+      <button
+        onClick={save}
+        disabled={saving || !dirty}
+        className={`p-1 rounded ${dirty
+          ? 'bg-amber-600 text-white hover:bg-amber-700'
+          : 'text-gray-300 cursor-default'}`}
+      >
+        <Save size={14} />
+      </button>
+      {line.source === 'custom' && (
+        <span className="text-[10px] uppercase tracking-wide bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
+          custom
+        </span>
+      )}
+    </div>
+  );
+};
+
+const RecipeCard = ({ drink, sizes, onSaved }) => {
+  const [open, setOpen] = useState(false);
+  const sizeOrder = ['small', 'medium', 'large'];
+  const ordered = Object.keys(sizes).sort(
+    (a, b) => sizeOrder.indexOf(a) - sizeOrder.indexOf(b)
+  );
+  return (
+    <div className="bg-white rounded-lg shadow">
+      <button
+        className="w-full flex items-center justify-between px-4 py-3"
+        onClick={() => setOpen(v => !v)}
+      >
+        <span className="font-bold text-gray-800 capitalize">{drink}</span>
+        {open ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+      </button>
+      {open && (
+        <div className="px-4 pb-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+          {ordered.map(size => (
+            <div key={size} className="border border-gray-100 rounded p-3">
+              <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
+                {size}
+              </div>
+              {sizes[size].map((line, i) => (
+                <RecipeLine
+                  key={`${line.category}-${line.name || 'choice'}-${i}`}
+                  drink={drink}
+                  size={size}
+                  line={line}
+                  onSaved={onSaved}
+                />
+              ))}
+            </div>
+          ))}
         </div>
       )}
     </div>
   );
 };
 
-/**
- * Event Stock Management Component
- * Manages total stock levels for the entire event
- */
+// ---------------------------------------------------------------------
+// The screen.
+// ---------------------------------------------------------------------
 const EventStockManagement = () => {
-  const [eventStock, setEventStock] = useState({});
-  const [inventory, setInventory] = useState({});
-  const [hasChanges, setHasChanges] = useState(false);
-  const [saveMessage, setSaveMessage] = useState('');
+  const [inventory, setInventory] = useState([]);
+  const [recipes, setRecipes] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  // Category definitions with units
-  const categoryUnits = {
-    milk: { unit: 'L', defaultQuantity: 10, step: 1 },
-    coffee: { unit: 'kg', defaultQuantity: 5, step: 0.5 },
-    cups: { unit: 'units', defaultQuantity: 100, step: 50 },
-    syrups: { unit: 'bottles', defaultQuantity: 5, step: 1 },
-    sweeteners: { unit: 'units', defaultQuantity: 100, step: 10 },
-    extras: { unit: 'units', defaultQuantity: 50, step: 10 }
-  };
-
-  // Load data on mount
-  useEffect(() => {
-    loadInventory();
-    loadEventStock();
+  const load = useCallback(async () => {
+    setError('');
+    try {
+      const [ri, rr] = await Promise.all([
+        fetch('/api/inventory', { headers: authHeaders() }),
+        fetch('/api/recipes', { headers: authHeaders() }),
+      ]);
+      const bi = ri.ok ? await ri.json() : {};
+      let items = bi.items || bi.data || bi;
+      if (items && !Array.isArray(items)) {
+        items = items.inventory || items.items || items.data || [];
+      }
+      setInventory(Array.isArray(items) ? items : []);
+      const br = rr.ok ? await rr.json() : {};
+      setRecipes(br.recipes || {});
+    } catch (e) {
+      setError(`Couldn't load stock: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  // Auto-initialize event stock when inventory loads but no event stock exists
-  useEffect(() => {
-    if (inventory && Object.keys(inventory).length > 0) {
-      const savedStock = localStorage.getItem('event_stock_levels');
-      if (!savedStock) {
-        console.log('EventStockManagement: Auto-initializing event stock with current station allocations');
-        initializeDefaultStock();
-      }
-    }
-  }, [inventory]);
+  useEffect(() => { load(); }, [load]);
 
-  // Calculate allocated amounts when both eventStock and inventory are loaded
-  useEffect(() => {
-    if (eventStock && Object.keys(eventStock).length > 0 && inventory && Object.keys(inventory).length > 0) {
-      console.log('EventStockManagement: Both eventStock and inventory loaded, calculating allocated amounts');
-      updateAllocatedAmounts();
-    }
-  }, [eventStock, inventory]); // Trigger when either loads
-
-  // Listen for station inventory updates
-  useEffect(() => {
-    const handleStationInventoryUpdate = () => {
-      updateAllocatedAmounts();
-    };
-
-    window.addEventListener('stationInventory:updated', handleStationInventoryUpdate);
-    return () => window.removeEventListener('stationInventory:updated', handleStationInventoryUpdate);
-  }, [eventStock]);
-
-  // Load inventory from localStorage
-  const loadInventory = () => {
-    const savedInventory = localStorage.getItem('event_inventory');
-    if (savedInventory) {
-      try {
-        setInventory(normaliseInventory(JSON.parse(savedInventory)));
-      } catch (e) {
-        console.error('Error loading inventory:', e);
-      }
-    }
-  };
-
-  // Load event stock levels — backend first, fall back to localStorage.
-  const loadEventStock = async () => {
-    let parsedStock = null;
-    try {
-      const resp = await apiService.request('/event-stock', { method: 'GET' });
-      if (resp && typeof resp === 'object' && Object.keys(resp).length > 0) {
-        parsedStock = resp;
-      }
-    } catch (apiErr) {
-      console.warn('event-stock API unavailable, using localStorage:', apiErr.message);
-    }
-    if (!parsedStock) {
-      const savedStock = localStorage.getItem('event_stock_levels');
-      if (savedStock) {
-        try {
-          parsedStock = JSON.parse(savedStock);
-        } catch (e) {
-          console.error('Error parsing localStorage event stock:', e);
-        }
-      }
-    }
-    if (parsedStock) {
-      setEventStock(parsedStock);
-      localStorage.setItem('event_stock_levels', JSON.stringify(parsedStock));
-      console.log('EventStockManagement: Loaded event stock');
-      return;
-    } else {
-      console.log('EventStockManagement: No saved event stock found - will auto-initialize when inventory loads');
-      // Don't initialize here - wait for inventory to load first
-    }
-  };
-
-  // Initialize with default stock levels for enabled items (preserve existing values)
-  const initializeDefaultStock = () => {
-    const defaultStock = {};
-    
-    // Get existing event stock to preserve quantities and allocated amounts
-    const existingStock = eventStock || {};
-    
-    // Load current station quantities to calculate initial allocated amounts
-    const stationQuantities = getStationQuantities();
-    
-    Object.entries(inventory).forEach(([category, items]) => {
-      defaultStock[category] = {};
-      items?.forEach(item => {
-        if (item.enabled) {
-          // Check if we already have data for this item - if so, preserve it
-          const existingItem = existingStock[category]?.[item.id];
-          
-          if (existingItem) {
-            // Preserve existing quantities and allocated amounts
-            defaultStock[category][item.id] = {
-              ...existingItem,
-              unit: categoryUnits[category]?.unit || existingItem.unit || 'units'
-            };
-          } else {
-            // Calculate allocated amount from current station quantities
-            let allocatedAmount = 0;
-            Object.keys(stationQuantities).forEach(stationId => {
-              const stationData = stationQuantities[stationId];
-              if (stationData[category] && stationData[category][item.id]) {
-                allocatedAmount += stationData[category][item.id].quantity || 0;
-              }
-            });
-            
-            // Set quantity to be at least enough to cover allocated amount + buffer
-            const defaultQuantity = categoryUnits[category]?.defaultQuantity || 10;
-            const totalQuantity = Math.max(defaultQuantity, allocatedAmount * 2);
-            
-            defaultStock[category][item.id] = {
-              quantity: totalQuantity,
-              unit: categoryUnits[category]?.unit || 'units',
-              allocated: allocatedAmount, // Set initial allocated from station quantities
-              available: totalQuantity - allocatedAmount
-            };
-            
-            if (allocatedAmount > 0) {
-              console.log(`EventStockManagement: Auto-calculated ${item.name} allocated: ${allocatedAmount}`);
-            }
-          }
-        }
-      });
-    });
-    
-    setEventStock(defaultStock);
-    console.log('EventStockManagement: Initialized stock with auto-calculated allocations:', defaultStock);
-  };
-
-  // Helper function to get station quantities
-  const getStationQuantities = () => {
-    try {
-      const quantities = localStorage.getItem('station_inventory_quantities');
-      return quantities ? JSON.parse(quantities) : {};
-    } catch (error) {
-      console.error('Error loading station quantities:', error);
-      return {};
-    }
-  };
-
-  // Update stock quantity
-  const updateStockQuantity = (category, itemId, newQuantity) => {
-    const updatedStock = {
-      ...eventStock,
-      [category]: {
-        ...eventStock[category],
-        [itemId]: {
-          ...eventStock[category]?.[itemId],
-          quantity: Math.max(0, newQuantity),
-          available: Math.max(0, newQuantity - (eventStock[category]?.[itemId]?.allocated || 0))
-        }
-      }
-    };
-    
-    setEventStock(updatedStock);
-    setHasChanges(true);
-  };
-
-  // Save event stock levels — localStorage first for fast UI, then
-  // POST to backend so other devices / operators get the same data.
-  const saveEventStock = async () => {
-    try {
-      localStorage.setItem('event_stock_levels', JSON.stringify(eventStock));
-      let serverSaved = false;
-      try {
-        const resp = await apiService.request('/event-stock', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(eventStock),
-        });
-        serverSaved = !!(resp && resp.success);
-      } catch (apiErr) {
-        console.warn('event-stock PUT failed:', apiErr.message);
-      }
-      setSaveMessage(
-        serverSaved
-          ? 'Event stock levels saved (synced to server).'
-          : 'Saved locally — server save did not confirm.'
-      );
-      setHasChanges(false);
-
-      // Notify other components
-      window.dispatchEvent(new CustomEvent('eventStock:updated', {
-        detail: { eventStock }
-      }));
-
-      setTimeout(() => setSaveMessage(''), 4000);
-    } catch (e) {
-      console.error('Error saving event stock:', e);
-      setSaveMessage('Error saving stock levels');
-    }
-  };
-
-  // Calculate total allocated to stations for a specific item
-  const calculateAllocated = (category, itemId) => {
-    try {
-      const stationQuantities = localStorage.getItem('station_inventory_quantities');
-      if (!stationQuantities) {
-        return 0;
-      }
-
-      const quantities = JSON.parse(stationQuantities);
-      let totalAllocated = 0;
-
-      // Sum up quantities from all stations for this item
-      Object.keys(quantities).forEach(stationId => {
-        const stationData = quantities[stationId];
-        if (stationData[category] && stationData[category][itemId]) {
-          const quantity = stationData[category][itemId].quantity || 0;
-          totalAllocated += quantity;
-        }
-      });
-
-      return totalAllocated;
-    } catch (error) {
-      console.error('Error calculating allocated amount:', error);
-      return 0;
-    }
-  };
-
-  // Update allocated amounts for all items in event stock
-  const updateAllocatedAmounts = () => {
-    if (!eventStock || Object.keys(eventStock).length === 0) {
-      return;
-    }
-
-    const updatedStock = { ...eventStock };
-    let hasUpdates = false;
-
-    Object.keys(updatedStock).forEach(category => {
-      Object.keys(updatedStock[category]).forEach(itemId => {
-        const newAllocated = calculateAllocated(category, itemId);
-        const currentStock = updatedStock[category][itemId];
-        
-        if (currentStock.allocated !== newAllocated) {
-          updatedStock[category][itemId] = {
-            ...currentStock,
-            allocated: newAllocated,
-            available: Math.max(0, currentStock.quantity - newAllocated)
-          };
-          hasUpdates = true;
-        }
-      });
-    });
-
-    if (hasUpdates) {
-      setEventStock(updatedStock);
-      console.log('Updated allocated amounts:', updatedStock);
-    }
-  };
-
-  // Get stock summary for a category
-  const getCategorySummary = (category) => {
-    const items = eventStock[category] || {};
-    let totalQuantity = 0;
-    let totalAllocated = 0;
-    let itemCount = 0;
-
-    Object.values(items).forEach(item => {
-      totalQuantity += item.quantity || 0;
-      totalAllocated += item.allocated || 0;
-      itemCount++;
-    });
-
-    return {
-      itemCount,
-      totalQuantity,
-      totalAllocated,
-      totalAvailable: totalQuantity - totalAllocated
-    };
-  };
-
-  // Get category icon
-  const getCategoryIcon = (category) => {
-    switch (category) {
-      case 'milk': return <Droplet size={20} />;
-      case 'coffee': return <Coffee size={20} />;
-      case 'cups': return <Square size={20} />;
-      case 'syrups': return <Beaker size={20} />;
-      case 'sweeteners': return <Candy size={20} />;
-      case 'extras': return <Package size={20} />;
-      default: return <Package2 size={20} />;
-    }
-  };
-
-  // Get category color
-  const getCategoryColor = (category) => {
-    const colors = {
-      milk: 'blue',
-      coffee: 'amber',
-      cups: 'green',
-      syrups: 'purple',
-      sweeteners: 'pink',
-      extras: 'indigo'
-    };
-    return colors[category] || 'gray';
-  };
+  const byCategory = {};
+  inventory.forEach((it) => {
+    const cat = String(it.category || '').toLowerCase();
+    (byCategory[cat] = byCategory[cat] || []).push(it);
+  });
 
   return (
-    <div className="p-3 sm:p-6">
+    <div className="p-6 max-w-5xl">
       <BeanDoseCard />
-      <div className="mb-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">Event Stock Management</h2>
-            <p className="text-gray-600 mt-1">
-              Manage total stock quantities for the entire event
-            </p>
-          </div>
-          {hasChanges && (
-            <button
-              onClick={saveEventStock}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-            >
-              <Save size={20} />
-              Save Changes
-            </button>
-          )}
+
+      <div className="flex items-center justify-between mb-1">
+        <h2 className="text-2xl font-bold text-gray-800">Ingredients</h2>
+        <button
+          onClick={load}
+          className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
+        >
+          <RefreshCw size={14} /> Refresh
+        </button>
+      </div>
+      <p className="text-gray-600 mb-4">
+        The live ledger — what orders check against and completions deduct
+        from. Drinks don't carry quantities; these do.
+      </p>
+
+      {loading && <div className="text-gray-500 py-8">Loading stock…</div>}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 mb-4">
+          {error}
         </div>
-        
-        {saveMessage && (
-          <div className={`mt-4 p-3 rounded-md flex items-center gap-2 ${
-            saveMessage.includes('Error') 
-              ? 'bg-red-100 text-red-700' 
-              : 'bg-green-100 text-green-700'
-          }`}>
-            {saveMessage.includes('Error') ? <AlertCircle size={20} /> : <Check size={20} />}
-            {saveMessage}
-          </div>
-        )}
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
+        {Object.entries(byCategory)
+          .filter(([cat, items]) => items.length > 0 && CATEGORY_META[cat])
+          .map(([cat, items]) => {
+            const meta = CATEGORY_META[cat];
+            const Icon = meta.icon;
+            return (
+              <div key={cat} className="bg-white rounded-lg shadow p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Icon size={18} className="text-amber-700" />
+                  <h3 className="font-bold text-gray-800">{meta.label}</h3>
+                  <span className="text-xs text-gray-400">({meta.unit})</span>
+                </div>
+                {items
+                  .sort((a, b) => String(a.name).localeCompare(String(b.name)))
+                  .map(item => (
+                    <IngredientRow key={item.id} item={item} onSaved={load} />
+                  ))}
+              </div>
+            );
+          })}
       </div>
 
-      {/* Stock Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-        {Object.entries(inventory).map(([category, items]) => {
-          const summary = getCategorySummary(category);
-          const color = getCategoryColor(category);
-          const unit = categoryUnits[category]?.unit || 'units';
-          
-          return (
-            <div key={category} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className={`p-2 bg-${color}-100 rounded-lg`}>
-                    {getCategoryIcon(category)}
-                  </div>
-                  <h3 className="font-semibold capitalize">{category}</h3>
-                </div>
-                <span className="text-sm text-gray-500">
-                  {summary.itemCount} items
-                </span>
-              </div>
-              <div className="space-y-1 text-sm">
-                <div className="flex justify-between">
-                  <span>Total Stock:</span>
-                  <span className="font-medium">{summary.totalQuantity} {unit}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Allocated:</span>
-                  <span className="text-orange-600">{summary.totalAllocated} {unit}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Available:</span>
-                  <span className="text-green-600 font-medium">
-                    {summary.totalAvailable} {unit}
-                  </span>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Detailed Stock Management */}
-      <div className="space-y-6">
-        {Object.entries(inventory).map(([category, items]) => {
-          // `?.` guards null but not a non-array, which is exactly what
-          // the envelope bug delivered here.
-          const enabledItems = (Array.isArray(items) ? items : []).filter(i => i.enabled);
-          if (enabledItems.length === 0) return null;
-          
-          const color = getCategoryColor(category);
-          const unit = categoryUnits[category]?.unit || 'units';
-          const step = categoryUnits[category]?.step || 1;
-          
-          return (
-            <div key={category} className="bg-white rounded-lg shadow-sm border border-gray-200">
-              <div className={`px-6 py-4 bg-${color}-50 border-b border-${color}-200`}>
-                <div className="flex items-center gap-2">
-                  {getCategoryIcon(category)}
-                  <h3 className="text-lg font-semibold capitalize">{category}</h3>
-                  <span className="text-sm text-gray-600">({unit})</span>
-                </div>
-              </div>
-              
-              <div className="p-6">
-                <div className="space-y-4">
-                  {enabledItems.map(item => {
-                    const stock = eventStock[category]?.[item.id] || {
-                      quantity: 0,
-                      allocated: 0,
-                      available: 0
-                    };
-                    
-                    return (
-                      <div key={item.id} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
-                        <div className="flex-1">
-                          <h4 className="font-medium">{item.name}</h4>
-                          <p className="text-sm text-gray-600">{item.description}</p>
-                          <div className="flex gap-4 mt-1 text-sm">
-                            <span className="text-orange-600">
-                              Allocated: {stock.allocated} {unit}
-                            </span>
-                            <span className="text-green-600">
-                              Available: {stock.available} {unit}
-                            </span>
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center gap-3">
-                          <button
-                            onClick={() => updateStockQuantity(
-                              category, 
-                              item.id, 
-                              stock.quantity - step
-                            )}
-                            className="w-8 h-8 flex items-center justify-center bg-gray-200 rounded hover:bg-gray-300 transition-colors"
-                          >
-                            <Minus size={16} />
-                          </button>
-                          
-                          <div className="text-center">
-                            <input
-                              type="number"
-                              min="0"
-                              step={step}
-                              value={stock.quantity}
-                              onChange={(e) => updateStockQuantity(
-                                category,
-                                item.id,
-                                parseFloat(e.target.value) || 0
-                              )}
-                              className="w-20 px-2 py-1 text-center border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            />
-                            <div className="text-xs text-gray-500 mt-1">{unit}</div>
-                          </div>
-                          
-                          <button
-                            onClick={() => updateStockQuantity(
-                              category, 
-                              item.id, 
-                              stock.quantity + step
-                            )}
-                            className="w-8 h-8 flex items-center justify-center bg-gray-200 rounded hover:bg-gray-300 transition-colors"
-                          >
-                            <Plus size={16} />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          );
-        })}
+      <h2 className="text-2xl font-bold text-gray-800 mb-1">Recipes</h2>
+      <p className="text-gray-600 mb-4">
+        What each drink burns, per size. Edit a dose and it sticks — your
+        numbers survive updates; "custom" marks the ones you've changed.
+      </p>
+      <div className="space-y-3">
+        {Object.entries(recipes)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([drink, sizes]) => (
+            <RecipeCard key={drink} drink={drink} sizes={sizes} onSaved={load} />
+          ))}
       </div>
     </div>
   );
