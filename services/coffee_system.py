@@ -4417,6 +4417,14 @@ class CoffeeOrderSystem:
                 self.db, od, self._get_setting,
                 requested_bean=self._requested_bean(od),
             )
+            # STAMP AT ACCEPTANCE (docs/MENU_ARCHITECTURE.md): the resolved
+            # ingredient lines are saved ON the order, and completion
+            # replays the stamp. What was checked is exactly what is
+            # decremented -- an operator editing a recipe mid-queue
+            # changes future orders, never the ledger meaning of orders
+            # already accepted.
+            if _lines:
+                od["_resolved_lines"] = _lines
             _ov = get_overrides(self.db, station_id=od.get("station_id"))
             if _ov:
                 _verdict, _names = apply_overrides(
@@ -8050,15 +8058,22 @@ class CoffeeOrderSystem:
         #
         # Units: recipes speak mL and g; the ledger rows speak L and
         # kg (matching the live inventory: milk 18.55 L, beans 27 kg).
-        try:
-            from services.recipes import resolve_order as _resolve
-            _lines, _meta = _resolve(
-                self.db, processed_details, self._get_setting,
-                requested_bean=self._requested_bean(processed_details),
-            )
-        except Exception as _re:
-            logger.warning(f"recipe resolve failed; using legacy path: {_re}")
-            _lines = None
+        _lines = None
+        _stamped = processed_details.get("_resolved_lines")
+        if isinstance(_stamped, list) and _stamped:
+            # The acceptance-time stamp wins: this is the exact list the
+            # gate approved, whatever the recipes table says NOW.
+            _lines = _stamped
+        else:
+            try:
+                from services.recipes import resolve_order as _resolve
+                _lines, _meta = _resolve(
+                    self.db, processed_details, self._get_setting,
+                    requested_bean=self._requested_bean(processed_details),
+                )
+            except Exception as _re:
+                logger.warning(f"recipe resolve failed; using legacy path: {_re}")
+                _lines = None
         if _lines:
             _DIVISOR = {"mL": 1000.0, "g": 1000.0}  # -> L / kg
             for _ln in _lines:
