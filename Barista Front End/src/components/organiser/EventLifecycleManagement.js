@@ -11,7 +11,13 @@ import useSettings from '../../hooks/useSettings';
 const EventLifecycleManagement = () => {
   const { pendingOrders, inProgressOrders, completedOrders } = useOrders();
   const { stations, updateStation } = useStations();
-  const { settings, updateSettings } = useSettings();
+  // updateSetting is SINGULAR -- the hook has never exported an
+  // updateSettings. This component destructured the plural, got
+  // undefined, and called it on every phase transition: the minified
+  // "h is not a function" that crashed the whole Organiser whenever
+  // Event Phases was opened outside 8:00-10:30 (any hour whose
+  // detected phase differs from the morning-peak default).
+  const { settings, updateSetting } = useSettings();
   
   // Create ordersData object for backward compatibility
   const ordersData = {
@@ -299,7 +305,14 @@ const EventLifecycleManagement = () => {
       }
       
       if (detectedPhase !== currentPhase) {
-        handlePhaseTransition(detectedPhase);
+        // Timer transitions OBSERVE only. The crash at the old
+        // updateSettings call had been accidentally protecting the
+        // event from this screen's other habit: silently flipping
+        // real station statuses because a hardcoded generic timetable
+        // said the morning peak was over. Clock-driven transitions now
+        // update the display and the history; configuration is applied
+        // only when a person clicks a phase.
+        handlePhaseTransition(detectedPhase, { apply: false });
       }
     };
     
@@ -310,20 +323,22 @@ const EventLifecycleManagement = () => {
   }, [automatedPhaseTransition, currentPhase, phaseOverrides]);
   
   // Handle phase transition
-  const handlePhaseTransition = (newPhase) => {
+  const handlePhaseTransition = (newPhase, { apply = true } = {}) => {
     console.log(`Transitioning from ${currentPhase} to ${newPhase}`);
-    
+
     // Log transition
     setPhaseHistory(prev => [...prev, {
       from: currentPhase,
       to: newPhase,
       timestamp: new Date(),
-      automatic: automatedPhaseTransition
+      automatic: !apply
     }]);
-    
-    // Apply phase-specific configurations
-    applyPhaseConfigurations(newPhase);
-    
+
+    // Configuration changes only on an explicit human choice.
+    if (apply) {
+      applyPhaseConfigurations(newPhase);
+    }
+
     setCurrentPhase(newPhase);
   };
   
@@ -344,7 +359,8 @@ const EventLifecycleManagement = () => {
     }
     
     if (Object.keys(updates).length > 0) {
-      updateSettings(updates);
+      // One key at a time -- that is the API the hook actually has.
+      Object.entries(updates).forEach(([k, v]) => updateSetting(k, v));
     }
     
     // Update station configurations
