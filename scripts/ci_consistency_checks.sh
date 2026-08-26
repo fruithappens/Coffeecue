@@ -127,6 +127,24 @@ else
   ok "none"
 fi
 
+# ---------------------------------------------------------------------------
+# Check 6: only the designated accessors may read the menu tables.
+#
+# The event menu lives in two stores (the Organiser's event_inventory blob
+# and the legacy inventory_items table). The accessors know about both. Any
+# other function that queries the table directly sees only half the truth --
+# which is how the MENU came to advertise teas that ordering then refused.
+#
+# That bug shipped FOUR times before anyone spotted the shape of it, and a
+# fifth copy was sitting in _handle_menu_command when this check was written.
+# ---------------------------------------------------------------------------
+note "Check 6: only menu accessors read inventory_items directly"
+if python3 scripts/check_menu_sources.py; then
+  ok "none"
+else
+  bad "a function reads a menu table directly instead of using an accessor"
+fi
+
 printf '\n'
 if [ "$FAIL" -ne 0 ]; then
   echo "Consistency checks FAILED — see above. These guard against the 'two views of the same fact disagree' bug class."

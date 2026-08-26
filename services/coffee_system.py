@@ -2095,16 +2095,11 @@ class CoffeeOrderSystem:
             except Exception:
                 pass
             try:
-                cursor = self.db.cursor()
-                cursor.execute(
-                    """
-                    SELECT name FROM inventory_items
-                    WHERE category = 'drinks'
-                      AND (amount IS NULL OR amount > COALESCE(minimum_threshold, 0))
-                    ORDER BY name
-                """
-                )
-                extra_drinks = [row[0] for row in cursor.fetchall()]
+                # Use the SAME source the ORDER path uses. This used to be a
+                # fourth inline copy of the inventory_items query, so the menu
+                # advertised teas that ordering then refused -- the operator
+                # had switched every drink off and only the order path knew.
+                extra_drinks = self._get_available_extra_drinks() or []
             except Exception as e:
                 logger.warning(f"Couldn't read extra drinks: {e}")
 
@@ -2182,7 +2177,7 @@ class CoffeeOrderSystem:
             if teas:
                 # Drop the trailing " tea" since the line is already "Tea:"
                 teas_short = [t.lower().replace(" tea", "").strip() or t for t in teas]
-                lines.append(f"🍵 Tea: {', '.join(teas_short)}")
+                lines.append(f"Tea: {', '.join(teas_short)}")
             if other_drinks:
                 lines.append(f"Other: {', '.join(other_drinks)}")
 
@@ -2307,26 +2302,24 @@ class CoffeeOrderSystem:
                 # Get available drink types based on ingredient availability
                 coffee_types = self._get_available_coffee_types()
 
-                # Get milk types from inventory with stock validation
-                cursor.execute(
-                    """
-                    SELECT name FROM inventory_items 
-                    WHERE category = 'milk' 
-                    AND (amount IS NULL OR amount > COALESCE(minimum_threshold, 0))
-                    ORDER BY name
-                """
-                )
-                milk_types = [row[0] for row in cursor.fetchall()]
+                # Use the accessor, not another private copy of the query.
+                # This one still read inventory_items directly, so it would
+                # have listed oat at an event where oat was switched off.
+                milk_types = self._get_available_milk_types() or []
+                sizes = self._get_available_sizes() or []
 
                 # Use dynamic data if available
                 if coffee_types and milk_types:
+                    size_line = (
+                        f"Size: {', '.join(sizes)}\n" if sizes else ""
+                    )
                     return (
                         "Coffee Menu:\n"
                         f"Types: {', '.join(coffee_types)}\n"
                         f"Milk: {', '.join(milk_types)}\n"
-                        "Size: Small, Medium, Large\n"
+                        f"{size_line}"
                         "Extras: Extra Shot, Decaf, Extra Hot\n"
-                        "Simply text your order, e.g. 'Large cappuccino with soy milk'"
+                        "Simply text your order, e.g. 'cappuccino with soy milk'"
                     )
         except Exception as e:
             logger.error(f"Error fetching menu items: {str(e)}")
@@ -2334,11 +2327,10 @@ class CoffeeOrderSystem:
         # Fallback to static menu if database query fails
         return (
             "Coffee Menu:\n"
-            "Types: Latte, Cappuccino, Flat White, Long Black, Espresso, Mocha, Hot Chocolate, Chai Latte\n"
-            "Milk: Full Cream, Skim, Soy, Almond, Oat, Lactose Free\n"
-            "Size: Small, Medium, Large\n"
+            "Types: Latte, Cappuccino, Flat White, Long Black, Espresso, Mocha\n"
+            "Milk: Full Cream, Skim, Soy, Almond\n"
             "Extras: Extra Shot, Decaf, Extra Hot\n"
-            "Simply text your order, e.g. 'Large cappuccino with soy milk'"
+            "Simply text your order, e.g. 'cappuccino with soy milk'"
         )
 
     def _is_vip_code(self, code):
@@ -3244,10 +3236,23 @@ class CoffeeOrderSystem:
         except Exception:
             example_size, example_milk = "medium", "full cream"
 
+        # Build the examples from what is ACTUALLY on, not from a fixed
+        # string. The old one named "1 sugar" and "earl grey tea" at a
+        # venue that serves neither -- an example is an instruction, and
+        # teaching an order we then refuse is worse than giving none.
+        examples = [f'"{example_size} {example_milk} latte"']
+        if not self._sugar_self_serve():
+            examples[0] = f'"{example_size} {example_milk} latte 1 sugar"'
+        examples.append('"flat white"')
+        try:
+            extras = self._get_available_extra_drinks() or []
+        except Exception:
+            extras = []
+        if extras:
+            examples.append(f'"{extras[0]}"')
         return (
             f"Hi {name}! What can I get you?\n"
-            f'Examples: "{example_size} {example_milk} latte 1 sugar", '
-            f'"flat white", "earl grey tea"\n'
+            f"Examples: {', '.join(examples)}\n"
             f"Reply MENU to see what's on offer."
         )
 
