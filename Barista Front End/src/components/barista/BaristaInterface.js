@@ -3739,21 +3739,43 @@ const BaristaInterface = () => {
                 
                 <button
                   className="mt-4 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 flex items-center"
-                  onClick={() => {
-                    // Save all station settings to localStorage for persistence
+                  onClick={async () => {
+                    // Cache locally so the fields survive a reload even if
+                    // the network is down. This is a CACHE, not the save --
+                    // it used to be treated as one, which is why a location
+                    // typed here vanished on another device.
                     try {
                       localStorage.setItem(`coffee_station_name_${selectedStation}`, settings.stationName);
                       localStorage.setItem(`coffee_station_location_${selectedStation}`, settings.stationLocation);
                       localStorage.setItem(`coffee_station_barista_${selectedStation}`, settings.baristaName);
-                      
-                      // Also update station state if needed via StationsService
-                      updateStation && updateStation({
-                        id: selectedStation,
+                    } catch (e) { /* private mode: the server save below still counts */ }
+
+                    // The signature is updateStation(stationId, data).
+                    // This call passed ONE object with the id inside it, so
+                    // the hook received the whole object as `stationId` and
+                    // `undefined` as the data -- nothing was ever sent. The
+                    // other call site in this same file (station name) had
+                    // it right, which is how the two drifted.
+                    if (!updateStation) {
+                      showToast('Cannot save: station service unavailable.', 'error', 6000);
+                      return;
+                    }
+                    try {
+                      const ok = await updateStation(selectedStation, {
                         name: settings.stationName,
                         location: settings.stationLocation,
                         baristaName: settings.baristaName
                       });
-                      showToast('Station settings saved successfully!', 'success');
+                      // And only claim success if it succeeded. The toast
+                      // used to fire whatever happened, so a save that
+                      // never left the browser still said "saved
+                      // successfully" -- which is worse than an error,
+                      // because you stop looking.
+                      if (ok === false) {
+                        showToast('Could not save station settings to the server.', 'error', 6000);
+                      } else {
+                        showToast('Station settings saved successfully!', 'success');
+                      }
                     } catch (error) {
                       console.error('Error saving station settings:', error);
                       showToast('Error saving station settings. Please try again.', 'error', 6000);
