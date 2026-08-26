@@ -11696,6 +11696,30 @@ def get_catalog(category):
         # a menu.
         #
         # Opt-in rather than default, so the editor keeps seeing everything.
+        # ALWAYS annotate. Steve wants unavailable items greyed out rather
+        # than vanishing -- "grey = not available" reads as a deliberate
+        # decision, where a missing tile just looks like the system does
+        # not know about oat milk. Greying needs the item to still be in
+        # the response, so the flag goes on every item and the client
+        # decides whether to dim it or drop it.
+        try:
+            enabled_names = coffee_system._event_enabled(
+                _CATALOG_TO_EVENT_CATEGORY.get(category, category))
+            if enabled_names:
+                keep_set = set(enabled_names)
+                for it in items:
+                    it['event_enabled'] = coffee_system._normalise_menu_name(
+                        it.get('short_name') or it.get('name')) in keep_set
+            else:
+                # No opinion configured, or everything switched off: do not
+                # grey the whole menu out on the strength of a blank config.
+                for it in items:
+                    it['event_enabled'] = True
+        except Exception as e:
+            logger.warning(f"catalog event_enabled annotation failed: {e}")
+            for it in items:
+                it.setdefault('event_enabled', True)
+
         if request.args.get('event_only') == '1':
             try:
                 enabled = coffee_system._event_enabled(
