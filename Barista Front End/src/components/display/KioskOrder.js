@@ -169,6 +169,12 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
   // both; only the screen never asked.
   const [strength, setStrength] = useState('');
   const [extraHot, setExtraHot] = useState(false);
+  // Decaf. Stocked at the venue and orderable by SMS and at the
+  // walk-in screen, but the touchscreen and the phone-QR flow had
+  // no way to ask for it at all -- so the customers most likely to
+  // want it (an afternoon session, someone avoiding caffeine) were
+  // the only ones who could not choose it.
+  const [decaf, setDecaf] = useState(false);
   const [chosenStation, setChosenStation] = useState(null); // collect-from station id
   const [phone, setPhone] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -263,7 +269,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
     // time out despite typing in this field" -- twenty seconds of
     // typing counted as twenty seconds of nobody being there.
   }, [step, name, drink, milk, size, sugar, chosenStation, phone,
-      notes, strength, extraHot, resetIdle]);
+      notes, strength, extraHot, decaf, resetIdle]);
 
   // AND a real activity listener, because the list above is the bug.
   //
@@ -422,6 +428,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
         sugar,
         strength: strength || '',
         extraHot: !!extraHot,
+        beanType: decaf ? 'decaf' : '',
         notes: notes.trim(),
       });
       return;
@@ -476,6 +483,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
           strength: strength || undefined,
           notes: notes.trim() || undefined,
           temp: extraHot ? 'extra hot' : undefined,
+          bean_type: decaf ? 'decaf' : undefined,
           channel,
           src: new URLSearchParams(window.location.search).get('src') || undefined,
           // The event this link belongs to. Carried through from the QR
@@ -764,6 +772,18 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
               style={extraHot ? { backgroundColor: headerColor } : {}}
             >
               {extraHot ? '✓ Extra hot' : 'Extra hot?'}
+            </button>
+            {/* Decaf rides along for the same reason Extra hot does: a
+                common ask, a cheap one, and not worth a screen of its
+                own. Only offered on espresso drinks, which is the only
+                place the step appears anyway. */}
+            <button
+              onClick={() => setDecaf(v => !v)}
+              className={`w-full py-4 rounded-2xl text-xl font-bold shadow mb-3 ${
+                decaf ? 'text-white' : 'bg-white text-gray-800'}`}
+              style={decaf ? { backgroundColor: headerColor } : {}}
+            >
+              {decaf ? '✓ Decaf' : 'Decaf?'}
             </button>
             <label className="block mb-3">
               <span className="block text-base text-gray-600 mb-1">

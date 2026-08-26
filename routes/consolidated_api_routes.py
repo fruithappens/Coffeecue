@@ -4704,6 +4704,12 @@ def create_kiosk_order():
         # renders extraHot off order_details['temp'].
         strength = str(data.get('strength') or '').strip().lower()
         temp = str(data.get('temp') or data.get('temperature') or '').strip().lower()
+        # Decaf. Stocked at the venue, orderable by SMS and at the walk-in
+        # screen, but this endpoint dropped it -- so the touchscreen and
+        # the phone-QR flow were the only two ways to order that could not
+        # ask for it. Same key the walk-in path writes, so the barista card
+        # and the label read it without knowing where the order came from.
+        bean_type = str(data.get('bean_type') or '').strip().lower()
 
         # EventsAir pre-identification (research Phase 4.8): the EA app
         # links here with ?cid={ContactID}; the kiosk passes it through.
@@ -4906,6 +4912,7 @@ def create_kiosk_order():
             'notes': note,
             'strength': strength,
             'temp': temp,
+            'bean_type': bean_type or None,
             'order_type': 'kiosk',
             'created_by': 'kiosk',
             # Set from the notes-box VIP code. Was hardcoded False, which
