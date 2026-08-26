@@ -573,7 +573,8 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
         </div>
       )}
 
-      <div className="w-full max-w-3xl max-h-[92vh] overflow-y-auto rounded-3xl p-6 md:p-8"
+      <div className={`w-full max-h-[92vh] overflow-y-auto rounded-3xl p-6 md:p-8
+                       ${step === 'done' ? 'max-w-5xl' : 'max-w-3xl'}`}
            style={{ backgroundColor: '#f8fafc' }}>
 
         {/* ---------- NAME (after the drink is built) ---------- */}
@@ -944,17 +945,28 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
         )}
 
         {step === 'done' && result && (
-          <div className="text-center py-8">
-            <div className="text-7xl mb-4">✅</div>
-            <h2 className="text-4xl font-extrabold text-gray-800 mb-2">Thanks, {name.trim()}!</h2>
-            <p className="text-2xl text-gray-600 mb-6">Your order number is</p>
-            <div className="text-8xl font-black mb-6" style={{ color: headerColor }}>#{result.order_number}</div>
-            <p className="text-2xl text-gray-700 font-semibold">
-              Collect from <b>{result.station_name || `Station ${result.station_id}`}</b>
-            </p>
-            {phone.trim() && (
-              <p className="text-lg text-gray-500 mt-2">We'll text you when it's ready.</p>
-            )}
+          /* TWO COLUMNS ON A WIDE SCREEN. This was one tall centred
+             stack, and on a landscape iPad it ran off the bottom --
+             Steve had to scroll to read his own order number: "would be
+             good if could fit on single page there is lots of width
+             avalible". There is: the number and the counter go left, the
+             QR and the summary right, and nothing scrolls. Stacks back
+             to one column on a phone. */
+          <div className="text-center py-6 md:grid md:grid-cols-2 md:gap-8 md:items-center md:text-left">
+            <div className="md:flex md:flex-col md:justify-center">
+              <div className="text-6xl md:text-7xl mb-3">✅</div>
+              <h2 className="text-3xl md:text-4xl font-extrabold text-gray-800 mb-1">Thanks, {name.trim()}!</h2>
+              <p className="text-xl md:text-2xl text-gray-600 mb-2">Your order number is</p>
+              <div className="text-7xl md:text-8xl font-black mb-3 leading-none"
+                   style={{ color: headerColor }}>#{result.order_number}</div>
+              <p className="text-xl md:text-2xl text-gray-700 font-semibold">
+                Collect from <b>{result.station_name || `Station ${result.station_id}`}</b>
+              </p>
+              {phone.trim() && (
+                <p className="text-base md:text-lg text-gray-500 mt-2">We'll text you when it's ready.</p>
+              )}
+            </div>
+            <div className="md:flex md:flex-col md:items-center">
 
             {/* Track-it QR. Two jobs at once.
                 For someone who gave no number, this is the ONLY way they
@@ -965,12 +977,12 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                 friend" without anyone typing a link or crowding the
                 counter. */}
             {result?.order_number && (
-              <div className="mt-6 flex flex-col items-center">
+              <div className="mt-2 md:mt-0 flex flex-col items-center">
                 <img
                   src={`/api/qr?size=8&data=${encodeURIComponent(
                     `${window.location.origin}/order?order=${result.order_number}`)}`}
                   alt={`Track order ${result.order_number}`}
-                  className="w-40 h-40 rounded-lg bg-white p-2 shadow"
+                  className="w-32 h-32 md:w-40 md:h-40 rounded-lg bg-white p-2 shadow"
                 />
                 <p className="text-base text-gray-600 mt-2 max-w-xs">
                   {phone.trim()
@@ -983,7 +995,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
             {/* What you actually ordered, so you can see it all arrived
                 -- not just the drink name. Steve, tracking his own:
                 "your not confident that the whole order was recieved". */}
-            <div className="mt-6 mx-auto max-w-md rounded-2xl bg-gray-50 border-2 border-gray-200 px-5 py-4">
+            <div className="mt-4 mx-auto w-full max-w-md rounded-2xl bg-gray-50 border-2 border-gray-200 px-5 py-3 text-center">
               <div className="text-sm uppercase tracking-wide text-gray-500 mb-1">
                 Your order
               </div>
@@ -996,14 +1008,20 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                   sugar === 0 ? 'no sugar' : `${sugar} sugar${sugar > 1 ? 's' : ''}`,
                   strength || null,
                   extraHot ? 'extra hot' : null,
-                  notes.trim() || null,
+                  // What the SERVER stored, not what they typed. A VIP
+                  // code is stripped server-side, and this screen sits on
+                  // a shared counter for fifteen seconds with the next
+                  // person in the queue reading it. Falls back to the
+                  // typed text only if the server did not say -- an older
+                  // server, where no code stripping happens either.
+                  (result?.notes !== undefined ? result.notes : notes).trim() || null,
                 ].filter(Boolean).join(' · ')}
               </div>
             </div>
 
             {/* The countdown, out loud, with a way to buy more time. */}
             {doneLeft != null && (
-              <div className="mt-6 flex flex-col items-center gap-3">
+              <div className="mt-4 flex flex-col items-center gap-2">
                 <div className="text-lg text-gray-500">
                   This screen clears in <b className="text-gray-800">{doneLeft}</b>
                   {doneLeft === 1 ? ' second' : ' seconds'}
@@ -1018,9 +1036,10 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
             )}
 
             <button onClick={onClose}
-              className="mt-6 px-10 py-4 rounded-2xl text-xl font-bold text-white" style={{ backgroundColor: headerColor }}>
+              className="mt-5 px-10 py-4 rounded-2xl text-xl font-bold text-white" style={{ backgroundColor: headerColor }}>
               Done
             </button>
+            </div>
           </div>
         )}
       </div>
