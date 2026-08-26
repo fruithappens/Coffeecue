@@ -5046,6 +5046,42 @@ def simulate_sms():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+@bp.route('/sms/health', methods=['GET'])
+@jwt_required_with_demo()
+def sms_health():
+    """Answers "is SMS working?" without anyone having to text the system.
+
+    Built after the National Wine Centre demo, where SMS was dead on
+    arrival, recovered on its own, and nobody could say why. On the day,
+    someone needs that answer in one glance — and needs it to distinguish
+    the three failures that all look identical from the floor:
+
+      * we are in test mode         -> messages swallowed, never sent
+      * Twilio cannot reach us      -> webhook hits stay at zero
+      * Twilio reaches us, refused  -> hits climb, rejects climb with them
+
+    The third was invisible before this endpoint existed, because the
+    signature check rejects a webhook BEFORE anything is written down.
+    """
+    try:
+        from services import sms_health as health
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db if coffee_system else None
+        messaging_service = current_app.config.get('messaging_service')
+        return jsonify({
+            'success': True,
+            'health': health.snapshot(db=db, messaging_service=messaging_service),
+        })
+    except Exception as e:
+        logger.error(f"sms_health error: {e}")
+        # A health check that 500s tells the reader nothing except that
+        # something else is also broken. Say so plainly instead.
+        return jsonify({
+            'success': False,
+            'health': {'status': 'unknown', 'problems': [f'Health check failed: {e}']},
+        }), 200
+
+
 @bp.route('/qr', methods=['GET'])
 def generate_qr():
     """Public QR PNG generator: /api/qr?data=<urlencoded>&size=10

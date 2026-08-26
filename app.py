@@ -576,10 +576,27 @@ def create_app():
                 f"Failed to start question-timeout service (non-fatal): {qto_err}"
             )
             question_timeout = None
+
+        # Keep-warm pinger. Railway can idle the container down; the
+        # first inbound Twilio webhook after a quiet spell then lands on
+        # a booting app, Twilio times out at ~15s, and that order simply
+        # never exists. Event days are exactly this shape — a quiet
+        # morning, then the whole room at the first break.
+        # See services/keep_warm.py. KEEP_WARM_MINUTES=0 disables it.
+        try:
+            from services.keep_warm import KeepWarmService
+            keep_warm = KeepWarmService()
+            keep_warm.start()
+        except Exception as warm_err:
+            logger.error(
+                f"Failed to start keep-warm service (non-fatal): {warm_err}"
+            )
+            keep_warm = None
     else:
         logger.info("Skipping background services in reloader parent process")
         pickup_reminder = None
         question_timeout = None
+        keep_warm = None
     
     # Register route blueprints
     app.register_blueprint(admin_bp)
