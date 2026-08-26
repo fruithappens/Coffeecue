@@ -1,6 +1,7 @@
 // components/BaristaInterface.js
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import StationPrinterPanel from '../barista-tabs/StationPrinterPanel';
+import EightySixBoard from '../barista-tabs/EightySixBoard';
 import { ToastManager, showToast } from '../shared/Toast';
 import AuthService from '../../services/AuthService';
 import printService from '../../services/PrintService';
@@ -2950,6 +2951,10 @@ const BaristaInterface = () => {
         {/* Stock Management Tab */}
         {!loading && activeTab === 'stock' && (
           <div className="p-4">
+            {/* Reality's shortcut: one tap 86s an item on every
+                channel, whatever the ledger believes. Sits above the
+                counts because "we just ran out" outranks bookkeeping. */}
+            <EightySixBoard />
             {/* Local Stock Management Information */}
             <DismissibleInfoPanel
               id="stockInfoPanel"
