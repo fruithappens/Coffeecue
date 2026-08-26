@@ -388,16 +388,24 @@ const PrintersTab = () => {
   const [stations, setStations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [nameDrafts, setNameDrafts] = useState({});
+  // Which station's jobs to show. Steve: "currently a big list and you
+  // dont knwo if you see a error which station is belongs to unless you
+  // can nut out which printer name and or order number and that a bit
+  // slow." Filtering SERVER-side so "last 20" means the last 20 for that
+  // station -- filtering the same 20 rows in the browser would just show
+  // fewer of them, which is the opposite of what you want when one
+  // station is busy and the other is the one with the fault.
+  const [jobStation, setJobStation] = useState('');
 
   const refresh = useCallback(async () => {
     const [printerList, jobList] = await Promise.all([
       printService.getPrinters(),
-      printService.getJobs(),
+      printService.getJobs(jobStation ? { stationId: jobStation } : {}),
     ]);
     setPrinters(printerList);
     setJobs(jobList);
     setLoading(false);
-  }, []);
+  }, [jobStation]);
 
   useEffect(() => {
     refresh();
@@ -675,7 +683,24 @@ const PrintersTab = () => {
 
       {/* Job queue */}
       <div className="bg-white rounded-lg shadow-md p-4">
-        <h2 className="text-xl font-bold mb-3">Print Queue (last 20)</h2>
+        <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+          <h2 className="text-xl font-bold">
+            Print Queue (last 20{jobStation ? ` — ${stationName(jobStation)}` : ''})
+          </h2>
+          <label className="flex items-center gap-2 text-sm">
+            <span className="text-gray-600">Station</span>
+            <select
+              value={jobStation}
+              onChange={(e) => setJobStation(e.target.value)}
+              className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm"
+            >
+              <option value="">All stations</option>
+              {stations.map(st => (
+                <option key={st.id} value={st.id}>{st.name || `Station ${st.id}`}</option>
+              ))}
+            </select>
+          </label>
+        </div>
 
         {/* WHY NOTHING IS PRINTING, at the top of the thing you are
             staring at. Steve had two jobs sitting at "queued / 0
@@ -707,6 +732,7 @@ const PrintersTab = () => {
                   <th className="py-2 pr-3">Created</th>
                   <th className="py-2 pr-3">Order</th>
                   <th className="py-2 pr-3">Type</th>
+                  <th className="py-2 pr-3">Station</th>
                   <th className="py-2 pr-3">Printer</th>
                   <th className="py-2 pr-3">Status</th>
                   <th className="py-2 pr-3">Attempts</th>
@@ -722,6 +748,9 @@ const PrintersTab = () => {
                     </td>
                     <td className="py-2 pr-3">{j.order_id ? `#${j.order_id}` : '—'}</td>
                     <td className="py-2 pr-3">{j.type}</td>
+                    <td className="py-2 pr-3 whitespace-nowrap font-medium">
+                      {stationName(j.station_id)}
+                    </td>
                     <td className="py-2 pr-3">{j.printer_name || stationName(j.station_id)}</td>
                     <td className="py-2 pr-3">
                       <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
