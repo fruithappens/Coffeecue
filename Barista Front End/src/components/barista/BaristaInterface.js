@@ -1,5 +1,6 @@
 // components/BaristaInterface.js
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import StationPrinterPanel from '../barista-tabs/StationPrinterPanel';
 import { ToastManager, showToast } from '../shared/Toast';
 import AuthService from '../../services/AuthService';
 import printService from '../../services/PrintService';
@@ -3528,6 +3529,13 @@ const BaristaInterface = () => {
                     />
                     <span>Automatically print a cup label when an order is started</span>
                   </label>
+                  {/* This station's printer: status, fault in words,
+                      and the queue -- so the barista standing next to
+                      the printer can finally see what it is doing. */}
+                  <StationPrinterPanel
+                    stationId={selectedStation}
+                    stationPrinter={stationPrinter}
+                  />
                   <button
                     className="bg-gray-200 text-gray-700 px-3 py-1.5 rounded text-sm hover:bg-gray-300"
                     onClick={async () => {
