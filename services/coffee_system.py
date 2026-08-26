@@ -4348,6 +4348,60 @@ class CoffeeOrderSystem:
         ]
         return [n for n in names if n]
 
+    # What counts as a bean row in the mixed 'coffee' category. The
+    # category holds both drink-named rows (legacy) and real bean rows;
+    # same test the walk-in dialog applies client-side.
+    _BEAN_WORDS = re.compile(
+        r"(bean|blend|roast|single\s*origin|decaf|colombian?|ethiopian?"
+        r"|brazilian?|kenyan?|guatemalan?)", re.I)
+
+    def _get_available_bean_types(self):
+        """Bean choices actually in stock, prettied for a menu.
+
+        ['house blend', 'decaf'] -- house-ish first. Empty list when no
+        bean rows exist (legacy events), which callers must treat as
+        "don't offer the choice", not "offer nothing".
+        """
+        try:
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            cursor = self.db.cursor()
+            unlimited = self._is_unlimited_stock_mode()
+            if unlimited:
+                cursor.execute(
+                    "SELECT name FROM inventory_items WHERE category = 'coffee'"
+                )
+            else:
+                cursor.execute(
+                    """
+                    SELECT name FROM inventory_items
+                    WHERE category = 'coffee'
+                    AND (COALESCE(amount, current_quantity) IS NULL
+                         OR COALESCE(amount, current_quantity) > COALESCE(minimum_threshold, 0))
+                """
+                )
+            beans, seen = [], set()
+            for row in cursor.fetchall():
+                raw = row[0] if not isinstance(row, dict) else list(row.values())[0]
+                if not raw or not self._BEAN_WORDS.search(str(raw)):
+                    continue
+                name = re.sub(r"\s*(coffee\s*)?beans?\s*$", "", str(raw).strip(),
+                              flags=re.I).strip().lower()
+                if name and name not in seen:
+                    seen.add(name)
+                    beans.append(name)
+            beans.sort(key=lambda b: (0 if ("house" in b or "blend" in b) else 1, b))
+            return beans
+        except Exception as e:
+            logger.warning(f"_get_available_bean_types: {e}")
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            return []
+
     def _get_available_milk_types(self):
         """Get list of available milk types from inventory management.
 
@@ -7840,17 +7894,34 @@ class CoffeeOrderSystem:
             except (TypeError, ValueError):
                 grams_per_shot = 22.0
             bean_kg = shots * grams_per_shot / 1000.0
+            # Decrement the BEAN the customer chose, not the drink name.
+            # This passed name="flat white": no inventory row is called
+            # that, so the category fallback fired and decremented
+            # whichever coffee row it found first -- meaning a decaf
+            # order burned house blend stock, and the decaf row never
+            # moved. Steve: "not sure how this would track stock then".
+            # It didn't.
+            #
+            # bean_type ("decaf", "house blend") partial-matches the
+            # real rows ("decaf beans", "house blend beans") via rule 3.
+            # Orders with no bean choice keep the old name + category
+            # fallback, so legacy events keep decrementing SOMETHING
+            # rather than nothing.
+            bean_name = (
+                str(processed_details.get("bean_type") or "").strip().lower()
+                or coffee_type
+            )
             if bean_kg > 0 and coffee_type:
                 if self._decrement_inventory_item(
                     cursor,
                     db_type,
                     category="coffee",
-                    name=coffee_type,
+                    name=bean_name,
                     amount=bean_kg,
                     station_id=station_id,
                     restock=restock,
                 ):
-                    result["decremented"].append(f"coffee:{coffee_type}")
+                    result["decremented"].append(f"coffee:{bean_name}")
                 else:
                     result["skipped"].append(
                         {

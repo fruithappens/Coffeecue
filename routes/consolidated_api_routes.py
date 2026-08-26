@@ -4608,11 +4608,23 @@ def _kiosk_menu_data(coffee_system):
         sugar_self_serve = coffee_system._sugar_self_serve()
     except Exception:
         pass
+    # Bean choices with stock behind them. Steve, on finding my hardcoded
+    # House blend / Decaf tiles: "the 'house blend' must be hard coded?
+    # and decaf must be unable to turn off? not sure how this would track
+    # stock then". Right on all three counts. The kiosk and the order
+    # editor now read this list; an empty list means the event has no
+    # bean rows, and the choice is simply not offered.
+    beans = []
+    try:
+        beans = coffee_system._get_available_bean_types()
+    except Exception:
+        pass
     return {
         'stations': stations,
         'coffee_types': build('coffee_types'),
         'milks': build('milk_types'),
         'sizes': build('sizes'),
+        'beans': beans,
         # Kiosk skips its sugar question when the venue runs
         # help-yourself sugar (baristas never add it).
         'sugar_self_serve': sugar_self_serve,
