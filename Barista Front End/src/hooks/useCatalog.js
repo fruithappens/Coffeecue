@@ -29,7 +29,8 @@ const _cache = new Map();
 const _inflight = new Map();
 
 const _cacheKey = (category, opts) =>
-  `${category}|${opts.includeInactive ? 1 : 0}|${opts.includeCustom !== false ? 1 : 0}`;
+  `${category}|${opts.includeInactive ? 1 : 0}|${opts.includeCustom !== false ? 1 : 0}`
+  + `|${opts.eventOnly ? 1 : 0}`;
 
 /**
  * @param {('milk'|'drink'|'size'|'sweetener')} category
@@ -43,6 +44,10 @@ export default function useCatalog(category, options = {}) {
   const opts = {
     includeInactive: !!options.includeInactive,
     includeCustom: options.includeCustom !== false,
+    // eventOnly narrows the canonical catalogue to what THIS event serves.
+    // Order-entry screens want this; the inventory editor must not, since
+    // it needs the full set to offer toggles for.
+    eventOnly: !!options.eventOnly,
   };
   const key = _cacheKey(category, opts);
 
@@ -61,6 +66,7 @@ export default function useCatalog(category, options = {}) {
       const params = new URLSearchParams();
       if (opts.includeInactive) params.set('include_inactive', '1');
       if (!opts.includeCustom) params.set('include_custom', '0');
+      if (opts.eventOnly) params.set('event_only', '1');
       const qs = params.toString();
       const path = `/catalog/${category}${qs ? '?' + qs : ''}`;
 

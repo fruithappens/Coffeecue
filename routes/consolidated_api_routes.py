@@ -11600,6 +11600,18 @@ def upsert_pricing_settings():
 VALID_CATALOG_CATEGORIES = {'milk', 'drink', 'size', 'sweetener'}
 
 
+# The catalogue and the event menu name their categories differently
+# ('milk' vs 'milk', but 'drink' vs 'drinks', 'size' vs 'cups').
+_CATALOG_TO_EVENT_CATEGORY = {
+    'milk': 'milk',
+    'drink': 'drinks',
+    'coffee': 'coffee',
+    'size': 'cups',
+    'sweetener': 'sweeteners',
+    'syrup': 'syrups',
+}
+
+
 @bp.route('/catalog/<category>', methods=['GET'])
 @jwt_required_with_demo()
 def get_catalog(category):
@@ -11670,6 +11682,43 @@ def get_catalog(category):
                 'is_active': active,
                 'is_custom': custom,
             })
+
+        # event_only=1 narrows the CANONICAL catalogue to what this event
+        # actually serves.
+        #
+        # The catalogue deliberately lists everything that exists, because
+        # the Organiser's inventory editor needs the full set to offer
+        # toggles for. Order-entry surfaces need the opposite: only what is
+        # switched on. Serving both from one unfiltered endpoint is why the
+        # walk-in screen still offered Oat, Lactose-Free and even "Smoke
+        # Test Milk" at an event configured for four milks -- it was reading
+        # the catalogue of everything that COULD exist and presenting it as
+        # a menu.
+        #
+        # Opt-in rather than default, so the editor keeps seeing everything.
+        if request.args.get('event_only') == '1':
+            try:
+                enabled = coffee_system._event_enabled(
+                    _CATALOG_TO_EVENT_CATEGORY.get(category, category))
+                if enabled:
+                    keep = set(enabled)
+                    filtered = [
+                        it for it in items
+                        if coffee_system._normalise_menu_name(
+                            it.get('short_name') or it.get('name')) in keep
+                    ]
+                    # Never hand back an empty menu because two vocabularies
+                    # failed to line up -- an empty walk-in dropdown is a
+                    # barista who cannot take an order at all.
+                    if filtered:
+                        items = filtered
+                    else:
+                        logger.warning(
+                            "catalog event_only: no %s matched the event menu "
+                            "%s -- serving the full catalogue rather than an "
+                            "empty one", category, enabled)
+            except Exception as e:
+                logger.warning(f"catalog event_only filter failed: {e}")
 
         return jsonify({'category': category, 'items': items})
     except Exception as e:
