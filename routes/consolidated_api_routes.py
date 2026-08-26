@@ -5550,6 +5550,44 @@ def recipes_check():
         return jsonify({'success': False, 'error': str(e)}), 200
 
 
+@bp.route('/kiosk/verify-pin', methods=['POST'])
+def kiosk_verify_pin():
+    """Gate for the hidden device admin panel (demo findings A3).
+
+    Public by necessity -- a locked kiosk has no JWT -- so the PIN is
+    verified HERE, never shipped to the client. The panel this guards
+    is the escape hatch from iOS standalone mode (no browser chrome,
+    no way out) and the device-failover path: display -> barista
+    terminal in twenty seconds.
+
+    kiosk_pin lives in settings (default 1234 until changed in the
+    Organiser). Wrong attempts pay a small delay; the reply says
+    whether the default is still in use so the panel can nag.
+    """
+    import time as _time
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        data = request.get_json() or {}
+        attempt = str(data.get('pin') or '').strip()
+        stored = str(coffee_system._get_setting_fresh('kiosk_pin', '') or '').strip()
+        is_default = not stored
+        actual = stored or '1234'
+        import hmac
+        ok = bool(attempt) and hmac.compare_digest(attempt, actual)
+        if not ok:
+            _time.sleep(0.4)  # brute-force tax
+            try:
+                from services.logging_utils import event as _event
+                _event('KIOSK_PIN_FAIL', remote_addr=request.remote_addr)
+            except Exception:
+                pass
+            return jsonify({'success': False}), 401
+        return jsonify({'success': True, 'default_pin': is_default})
+    except Exception as e:
+        logger.error(f"kiosk_verify_pin error: {e}")
+        return jsonify({'success': False}), 500
+
+
 @bp.route('/qr', methods=['GET'])
 def generate_qr():
     """Public QR PNG generator: /api/qr?data=<urlencoded>&size=10

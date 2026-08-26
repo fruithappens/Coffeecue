@@ -24,6 +24,7 @@
 //   - Theme support (light / dark / coffee)
 //   - Tap-anywhere to toggle fullscreen on iPad
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import KioskAdminPanel from './KioskAdminPanel';
 import { Coffee, Check, Clock, ArrowLeft, RefreshCw, MapPin,
          Maximize2, MessageCircle, RotateCw, Volume2, VolumeX } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
@@ -1792,6 +1793,16 @@ const DisplayScreen = () => {
   // Windows → Display orientation), prefer that. CSS rotation works
   // but adds a transform that can blur text slightly on some
   // browsers.
+  // The hidden device admin panel rides OUTSIDE the rotation wrapper
+  // so its trigger corner stays at the physical top-left of the glass
+  // whatever way the content is turned.
+  const adminPanel = (
+    <KioskAdminPanel
+      stationId={currentStation?.id}
+      stationName={currentStation?.name}
+    />
+  );
+
   if (rotationStyle) {
     // Apply zoom on the inner content (so it doesn't fight the
     // outer rotation transform).
@@ -1807,10 +1818,11 @@ const DisplayScreen = () => {
         ...rotationStyle,
       }}>
         <div style={innerStyle}>{content}</div>
+        {adminPanel}
       </div>
     );
   }
-  return content;
+  return <>{content}{adminPanel}</>;
 };
 
 // --- Subcomponent: a column of orders ---
