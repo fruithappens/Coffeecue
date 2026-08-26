@@ -63,6 +63,11 @@ const EditOrderDialog = ({ order, onClose, onSave, onCancelOrder, saving = false
   // screens read, so the edit form cannot offer a size the event dropped.
   const [sizes, setSizes] = useState([]);
   const [sugarSelfServe, setSugarSelfServe] = useState(false);
+  // null = not loaded / old server -> fall back to the standard pair.
+  // []   = the event has no bean rows -> the choice is not offered.
+  // Steve caught the first version hardcoding House blend / Decaf, which
+  // made decaf impossible to switch off and tracked no stock.
+  const [beans, setBeans] = useState(null);
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -73,6 +78,7 @@ const EditOrderDialog = ({ order, onClose, onSave, onCancelOrder, saving = false
         const s = (b.menu.sizes || []).map(x => (x.value || x.name || '').toLowerCase());
         if (s.length) setSizes(s);
         if (b.menu.sugar_self_serve) setSugarSelfServe(true);
+        if (Array.isArray(b.menu.beans)) setBeans(b.menu.beans);
       } catch (e) {
         /* offline: fall back to the three standard sizes below */
       }
@@ -81,6 +87,7 @@ const EditOrderDialog = ({ order, onClose, onSave, onCancelOrder, saving = false
   }, []);
 
   const sizeChoices = sizes.length ? sizes : ['small', 'medium', 'large'];
+  const beanChoices = beans === null ? ['house blend', 'decaf'] : beans;
 
   const d = o.orderDetails || o.order_details || {};
   const [drink, setDrink] = useState(o.coffeeType || o.coffee_type || o.type || '');
@@ -238,12 +245,17 @@ const EditOrderDialog = ({ order, onClose, onSave, onCancelOrder, saving = false
                     active={String(shots) === v} onClick={() => setShots(v)} />
                 ))}
               </QuickGroup>
+              {beanChoices.length > 0 && (
               <QuickGroup label="Beans">
-                <QuickTile label="House blend" emoji="🫘"
-                  active={!beanType} onClick={() => setBeanType('')} />
-                <QuickTile label="Decaf" emoji="🌙"
-                  active={eq(beanType, 'decaf')} onClick={() => setBeanType('decaf')} />
+                {beanChoices.map((b, i) => (
+                  <QuickTile key={b}
+                    label={b}
+                    emoji={/decaf/i.test(b) ? '🌙' : '🫘'}
+                    active={i === 0 ? !beanType || eq(beanType, b) : eq(beanType, b)}
+                    onClick={() => setBeanType(i === 0 ? '' : b)} />
+                ))}
               </QuickGroup>
+              )}
             </div>
 
             <QuickGroup label="Extras">
@@ -322,8 +334,10 @@ const EditOrderDialog = ({ order, onClose, onSave, onCancelOrder, saving = false
             <div>
               <label className={labelCls}>Beans</label>
               <select value={beanType} onChange={(e) => setBeanType(e.target.value)} className={inputCls}>
-                <option value="">House blend</option>
-                <option value="decaf">Decaf</option>
+                {beanChoices.length === 0 && <option value="">—</option>}
+                {beanChoices.map((b, i) => (
+                  <option key={b} value={i === 0 ? '' : b}>{b}</option>
+                ))}
               </select>
             </div>
           </div>

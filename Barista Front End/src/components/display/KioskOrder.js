@@ -776,7 +776,16 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
             {/* Decaf rides along for the same reason Extra hot does: a
                 common ask, a cheap one, and not worth a screen of its
                 own. Only offered on espresso drinks, which is the only
-                place the step appears anyway. */}
+                place the step appears anyway.
+
+                GATED ON STOCK. The first version hardcoded this toggle,
+                which meant decaf could not be switched off and the offer
+                had no stock behind it. The menu now lists bean rows that
+                actually have stock; no decaf row, no toggle. An old
+                server that sends no beans list keeps the toggle (fail
+                toward offering, since the barista can always say no). */}
+            {(!Array.isArray(menu?.beans)
+              || menu.beans.some(b => /decaf/i.test(b))) && (
             <button
               onClick={() => setDecaf(v => !v)}
               className={`w-full py-4 rounded-2xl text-xl font-bold shadow mb-3 ${
@@ -785,6 +794,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
             >
               {decaf ? '✓ Decaf' : 'Decaf?'}
             </button>
+            )}
             <label className="block mb-3">
               <span className="block text-base text-gray-600 mb-1">
                 Anything else? (optional)
