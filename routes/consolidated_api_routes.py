@@ -1079,6 +1079,19 @@ def get_pending_orders():
                 'extraHot': (order_details.get('temp') == 'extra hot'
                              or 'extra hot' in (order_details.get('notes') or '').lower()),
                 'strength': order_details.get('strength', ''),
+                # Notes, shots and bean choice. Found by the audit sweep
+                # Steve asked for: an edit saved "1/4 strength no lid",
+                # shots=2, bean_type=decaf, the API confirmed all three
+                # changed -- and this serializer sent none of them, so
+                # the pending card showed a plain order. The current-order
+                # serializer (line ~560) carries them; this one, built
+                # separately, never did. Same two-serializers disease as
+                # everything else today.
+                'notes': order_details.get('notes', ''),
+                'specialInstructions': order_details.get('notes', ''),
+                'shots': order_details.get('shots'),
+                'bean_type': order_details.get('bean_type'),
+                'beanType': order_details.get('bean_type'),
                 # Order channel + no-SMS flag (EA app orders).
                 'orderSource': order_details.get('source') or 'sms',
                 'needsContact': bool(order_details.get('needs_contact')),

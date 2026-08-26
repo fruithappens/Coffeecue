@@ -86,6 +86,29 @@ const RegularOrdersList = ({
                 )}
                 {order.size ? `${order.size} ` : ''}{order.coffeeType}, {order.milkType}, {order.sugar}
               </div>
+              {/* The card must show everything the barista must DO.
+                  Notes ("1/4 strength, no lid") and non-default shots or
+                  beans were saved but invisible here -- the one place a
+                  barista reads before committing to make the drink. */}
+              {(order.notes || order.specialInstructions) && (
+                <div className="mt-1 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-0.5">
+                  {order.notes || order.specialInstructions}
+                </div>
+              )}
+              {(order.beanType || (order.shots && String(order.shots) !== '1')) && (
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {order.beanType && (
+                    <span className="inline-block bg-stone-200 text-stone-800 text-xs px-2 py-0.5 rounded-sm capitalize">
+                      {order.beanType}
+                    </span>
+                  )}
+                  {order.shots && String(order.shots) !== '1' && (
+                    <span className="inline-block bg-stone-200 text-stone-800 text-xs px-2 py-0.5 rounded-sm">
+                      {order.shots} shots
+                    </span>
+                  )}
+                </div>
+              )}
               {order.alternativeMilk && (
                 <div className="mt-1">
                   <span className="inline-block bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-sm">
