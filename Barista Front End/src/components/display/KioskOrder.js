@@ -417,6 +417,18 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
 
   // After sugar: EA-identified visitors skip the name step (we already
   // greeted them by their registration name); everyone else types one.
+  // Where to go once drink+milk are settled and there is no size step.
+  // The SIZE step already skipped sugar in self-serve mode; the MILK
+  // step's transitions did not -- so a single-size venue (the size step
+  // never renders) asked the sugar question its own settings had turned
+  // off. Steve, testing on his phone: "it asked about sugar. that
+  // option should not display." One decision, every path.
+  const afterMilk = () => {
+    if (needsSizeStep) { goTo('size'); return; }
+    if (menu?.sugar_self_serve) { setSugar(0); afterSugar(); return; }
+    goTo('sugar');
+  };
+
   const afterSugar = () => {
     if (drinkIsEspresso) { goTo('strength'); return; }
     afterStrength();
@@ -500,6 +512,16 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
       if (r.ok && b.success) {
         setResult(b);
         setStep('done');
+        try {
+          // Remember the live order ON THE DEVICE. The EA app's webview
+          // restarts from scratch when closed and reopened, and the
+          // customer's coffee does not stop existing because the app
+          // did -- /my checks this on load and restores the beacon
+          // until the order is done or three hours pass.
+          localStorage.setItem('cupq_active_order', JSON.stringify({
+            n: b.order_number, at: Date.now(),
+          }));
+        } catch (er) { /* private mode: beacon lives as long as the page */ }
         if (onOrderPlaced) {
           // Phone flow: the page becomes a live status card. No
           // auto-close — the customer watches for READY here.
@@ -567,9 +589,10 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4"
          onPointerDown={resetIdle}
-         style={{ background: `linear-gradient(135deg, ${headerColor}ee, #000000cc)` }}>
+         style={{ background: `linear-gradient(135deg, ${headerColor}ee, #000000cc)`,
+                  paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
 
       {/* Idle countdown — big, unmissable, tap-to-dismiss. */}
       {idleCountdown != null && idleCountdown > 0 && (
@@ -662,7 +685,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                         if (MILKLESS.test(d.value || '')) {
                           // Juice & friends: no milk question.
                           setMilk(noMilkOption());
-                          goTo(needsSizeStep ? 'size' : 'sugar');
+                          afterMilk();
                         } else {
                           goTo('milk');
                         }
@@ -687,7 +710,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                     disabled={!ok}
                     sub={!ok ? `Not available with ${drink?.name || 'that drink'}`
                       : (madeHere(m) ? null : `Station ${stationLabel(m)} only`)}
-                    onClick={() => { if (ok) { setMilk(m); goTo(needsSizeStep ? 'size' : 'sugar'); } }} />
+                    onClick={() => { if (ok) { setMilk(m); afterMilk(); } }} />
                 );
               })}
             </div>
@@ -741,6 +764,11 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
         {/* ---------- STRENGTH (espresso drinks only) ---------- */}
         {step === 'strength' && (
           <>
+            {menu?.sugar_self_serve && (
+              <p className="text-base text-gray-500 mb-2">
+                Sugar and sweeteners are help-yourself at pickup.
+              </p>
+            )}
             <Header title="How strong?" onBack={goBack} />
             <div className="grid grid-cols-3 gap-2 py-4">
               {/* Three, not four. Steve: "think should be normal, double,

@@ -825,6 +825,23 @@ const MyCoffeePage = () => {
   }
 
   // ---- not identified yet -------------------------------------------------
+  // A live order remembered on this device survives the app being
+  // closed: restore the beacon instead of offering a fresh order form.
+  // Cleared by age (3h) here and by the tracking page on pickup.
+  if (!me && !checkExisting) {
+    try {
+      const raw = localStorage.getItem('cupq_active_order');
+      if (raw) {
+        const a = JSON.parse(raw);
+        if (a && a.n && Date.now() - (a.at || 0) < 3 * 3600 * 1000) {
+          window.location.replace(`/order?order=${a.n}&restored=1`);
+          return null;
+        }
+        localStorage.removeItem('cupq_active_order');
+      }
+    } catch (er) { /* unreadable = no memory; order form it is */ }
+  }
+
   if (!me && !checkExisting) {
     // COFFEE FIRST. The mobile-entry screen used to be the front door,
     // which put a form between a thirsty person and the menu (and was
