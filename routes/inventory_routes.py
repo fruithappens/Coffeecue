@@ -242,52 +242,15 @@ def get_inventory_item(item_id):
         }), 500
 
 # Create new inventory item
-@bp.route('/api/inventory', methods=['POST'])
-@jwt_required_with_demo()
-def create_inventory_item():
-    """Create a new inventory item"""
-    try:
-        # Get request data
-        if not request.is_json:
-            return jsonify({
-                'success': False,
-                'error': 'Request must be JSON'
-            }), 400
-        
-        data = request.json
-        
-        # Get current user ID
-        user_id = get_current_user_id()
-        
-        # Get coffee system from app context
-        coffee_system = current_app.config.get('coffee_system')
-        db = coffee_system.db
-        
-        # Create item
-        item_id = InventoryItem.create(db, data, user_id)
-        
-        if not item_id:
-            return jsonify({
-                'success': False,
-                'error': 'Failed to create inventory item'
-            }), 400
-        
-        # Get new item
-        new_item = InventoryItem.get_by_id(db, item_id)
-        
-        return jsonify({
-            'success': True,
-            'message': f'Inventory item created successfully',
-            'item': new_item
-        }), 201
-    except Exception as e:
-        logger.error(f"Error creating inventory item: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+# The POST /api/inventory handler that lived here SHADOWED the
+# consolidated one (this blueprint registers first, Flask's first
+# match wins) -- which meant the one-row-per-ingredient guard added
+# in #429 never actually ran: creates came through THIS unguarded
+# path while the 409 logic sat dead behind it. Found by sweep 2's
+# carried-forward check. Removed so the guarded handler serves.
+# The GET stays: its (station_id = X OR IS NULL) 'effective view'
+# semantics are used by station screens.
 
-# Update inventory item
 @bp.route('/api/inventory/<int:item_id>', methods=['PUT', 'PATCH'])
 @jwt_required_with_demo()
 def update_inventory_item(item_id):
