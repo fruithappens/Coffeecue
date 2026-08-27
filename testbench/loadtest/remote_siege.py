@@ -140,6 +140,15 @@ def take_backup(base, token):
     if err:
         print(f"  backup call failed: {err}")
         return False
+    # The scheduler fingerprints the data and SKIPS identical backups
+    # (wrote:false, "no change since the last backup"). That is a pass:
+    # an up-to-date backup that already exists protects exactly as well
+    # as a fresh copy of the same bytes. The gate aborted a siege on
+    # this the day the volume dedupe landed -- demanding a new FILE
+    # when the guarantee we need is a current SNAPSHOT.
+    if isinstance(body, dict) and body.get("status") == "success" and not body.get("wrote"):
+        print(f"  backup current ({ms/1000:.1f}s): server says no data change since last one")
+        return True
     after = count_backups(base, token)
     if after is None or before is None:
         print("  could not read the backup list to confirm it landed")
