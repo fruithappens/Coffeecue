@@ -85,7 +85,13 @@ const MyCoffeePage = () => {
   const [params] = useSearchParams();
   // ?cid= wins (a merge field, if the app ever supplies one), then whatever
   // this device remembered from last time.
-  const paramCid = params.get('cid');
+  // A half-configured EventsAir link sends the merge token LITERALLY --
+  // ?cid={ContactID} -- and every attendee would land on an error. An
+  // unexpanded token is no identity at all: ignore it and fall through
+  // to the ordinary flow.
+  const paramCidRaw = params.get('cid');
+  const paramCid = (paramCidRaw && !/[{}[\]%]/.test(paramCidRaw))
+    ? paramCidRaw : null;
   // Which QR they scanned: ?src=foyer-poster, ?src=cart-1-ipad, ?src=lanyard.
   // Remembered like cid, because the page reloads on its own during
   // ordering and the parameter would otherwise be lost after the first tap.
