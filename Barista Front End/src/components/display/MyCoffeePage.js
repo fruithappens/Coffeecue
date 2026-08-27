@@ -295,6 +295,15 @@ const MyCoffeePage = () => {
   // lands IN the ordering flow; looking up an existing order is the
   // link, not the gate.
   const [checkExisting, setCheckExisting] = useState(false);
+  // Order-number recovery. Steve force-quit the EA app, which wipes ALL
+  // site data, having ordered as "fred" with no phone -- neither number
+  // nor name could find that order again. The order number CAN (it is
+  // on the done screen and the barista can read it out), and it is
+  // explicit where a bare digit entry would be ambiguous with badge
+  // numbers.
+  const [orderNum, setOrderNum] = useState('');
+  const [orderNumBusy, setOrderNumBusy] = useState(false);
+  const [orderNumError, setOrderNumError] = useState('');
   // Bumping this remounts the coffee-first order flow from its first
   // screen. It is what the X now does there: Steve hit X mid-order and
   // was dumped on the old name-and-number page -- "confusing and out of
@@ -878,6 +887,29 @@ const MyCoffeePage = () => {
     );
   }
 
+  const findOrderByNumber = async () => {
+    if (!orderNum) return;
+    setOrderNumBusy(true);
+    setOrderNumError('');
+    try {
+      const r = await fetch(`/api/orders/${encodeURIComponent(orderNum)}/track`);
+      const b = r.ok ? await r.json() : null;
+      if (b?.success) {
+        try {
+          remember('cupq_active_order',
+            JSON.stringify({ n: orderNum, at: Date.now() }), 3 * 3600);
+        } catch (er) { /* memory is a bonus */ }
+        window.location.href = `/order?order=${orderNum}`;
+        return;
+      }
+      setOrderNumError("We can't find that order number.");
+    } catch (e) {
+      setOrderNumError('Network problem — try again.');
+    } finally {
+      setOrderNumBusy(false);
+    }
+  };
+
   if (!me) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center p-6"
@@ -933,6 +965,29 @@ const MyCoffeePage = () => {
                 : 'Use my mobile number instead'}
             </button>
           )}
+          <div className="mt-5 pt-4 border-t border-gray-200">
+            <p className="text-sm text-gray-600 mb-2">
+              Or find an order by its number (it's on the order screen):
+            </p>
+            <div className="flex gap-2">
+              <input
+                className="flex-1 border-2 rounded-xl px-3 py-3 text-xl text-center"
+                inputMode="numeric"
+                placeholder="e.g. 250"
+                value={orderNum}
+                onChange={(e) => { setOrderNum(e.target.value.replace(/\D/g, '')); setOrderNumError(''); }}
+                onKeyDown={(e) => { if (e.key === 'Enter' && orderNum) findOrderByNumber(); }}
+              />
+              <button
+                className="px-5 rounded-xl bg-gray-800 text-white font-semibold disabled:opacity-40"
+                disabled={!orderNum || orderNumBusy}
+                onClick={findOrderByNumber}
+              >
+                {orderNumBusy ? '…' : 'Find'}
+              </button>
+            </div>
+            {orderNumError && <p className="text-red-600 mt-2 text-sm">{orderNumError}</p>}
+          </div>
           <button
             className="w-full mt-3 py-3 text-gray-600 underline"
             onClick={() => setFullOrder(true)}

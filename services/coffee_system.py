@@ -3604,7 +3604,13 @@ class CoffeeOrderSystem:
             cursor = self.db.cursor()
             cursor.execute("SELECT value FROM settings WHERE key = 'event_inventory'")
             row = cursor.fetchone()
-            raw = row[0] if row and row[0] else None
+            # Both cursor shapes pass through here. row[0] on a dict row
+            # raised KeyError into the blanket except -> None -> "no
+            # filter" -> the event's extra espresso drinks (ristretto,
+            # magic...) silently never joined the menu on prod.
+            raw = None
+            if row:
+                raw = row.get('value') if isinstance(row, dict) else row[0]
             if not raw:
                 return None
             data = json.loads(raw) if isinstance(raw, str) else raw
