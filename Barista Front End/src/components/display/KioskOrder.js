@@ -20,6 +20,7 @@
 //   GET  /api/display/menu   → { menu: { stations:[{id,name,wait,load}], coffee_types, milks, sizes } }
 //   POST /api/display/order  → { order_number, station_id, station_name }
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { remember } from '../../utils/deviceMemory';
 import { X, ArrowLeft, Plus, Minus, Check, Loader, MapPin, Zap } from 'lucide-react';
 
 // Idle handling: after IDLE_WARN_MS of no touch, a full-screen countdown
@@ -512,16 +513,13 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
       if (r.ok && b.success) {
         setResult(b);
         setStep('done');
-        try {
-          // Remember the live order ON THE DEVICE. The EA app's webview
-          // restarts from scratch when closed and reopened, and the
-          // customer's coffee does not stop existing because the app
-          // did -- /my checks this on load and restores the beacon
-          // until the order is done or three hours pass.
-          localStorage.setItem('cupq_active_order', JSON.stringify({
-            n: b.order_number, at: Date.now(),
-          }));
-        } catch (er) { /* private mode: beacon lives as long as the page */ }
+        // Remember the live order ON THE DEVICE (localStorage AND a
+        // cookie -- the EA app's webview can wipe one and keep the
+        // other on a full quit). /my checks this on load and restores
+        // the beacon until the order is done or three hours pass.
+        remember('cupq_active_order', JSON.stringify({
+          n: b.order_number, at: Date.now(),
+        }), 3 * 3600);
         if (onOrderPlaced) {
           // Phone flow: the page becomes a live status card. No
           // auto-close — the customer watches for READY here.

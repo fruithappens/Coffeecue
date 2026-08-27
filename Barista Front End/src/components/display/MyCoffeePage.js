@@ -15,6 +15,7 @@
 // Anyone we don't recognise falls through to the normal ordering flow, so
 // a wrong badge number or a guest who isn't in EventsAir is never stuck.
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { recall, remember, forget } from '../../utils/deviceMemory';
 import { useSearchParams } from 'react-router-dom';
 import { Volume2, VolumeX } from 'lucide-react';
 import KioskOrder from './KioskOrder';
@@ -100,7 +101,7 @@ const MyCoffeePage = () => {
 
 
   const [cid, setCid] = useState(
-    () => paramCid || localStorage.getItem(STORAGE_KEY) || ''
+    () => paramCid || recall(STORAGE_KEY) || ''
   );
   const [me, setMe] = useState(null);
   // Liveness, tracked from REAL fetches rather than a decorative spinner.
@@ -288,6 +289,12 @@ const MyCoffeePage = () => {
   // lands IN the ordering flow; looking up an existing order is the
   // link, not the gate.
   const [checkExisting, setCheckExisting] = useState(false);
+  // Bumping this remounts the coffee-first order flow from its first
+  // screen. It is what the X now does there: Steve hit X mid-order and
+  // was dumped on the old name-and-number page -- "confusing and out of
+  // order... like a legacy menu system". X means start over, not
+  // time-travel to the retired front door.
+  const [orderEpoch, setOrderEpoch] = useState(0);
   // When one mobile belongs to several attendees (a delegate who booked
   // for their team), we ask instead of guessing.
   const [choices, setChoices] = useState(null);
@@ -341,7 +348,7 @@ const MyCoffeePage = () => {
         // in. Without this, someone who identified by phone left `cid`
         // empty and every later call — order, save usual — would 404.
         if (b.cid) {
-          localStorage.setItem(STORAGE_KEY, b.cid);
+          remember(STORAGE_KEY, b.cid, 7 * 24 * 3600);
           setCid((prev) => (prev === b.cid ? prev : b.cid));
         }
         if (byPhone) localStorage.setItem(PHONE_KEY, id);
@@ -364,7 +371,7 @@ const MyCoffeePage = () => {
         // `byPhone`, and a restored id is not a phone lookup, so a silent
         // background retry blamed a badge they never used.
         try {
-          localStorage.removeItem(STORAGE_KEY);
+          forget(STORAGE_KEY);
         } catch (_) { /* storage blocked - the state reset below still holds */ }
         setCid('');
         setMe(null);
@@ -698,7 +705,7 @@ const MyCoffeePage = () => {
   };
 
   const forget = () => {
-    localStorage.removeItem(STORAGE_KEY);
+    forget(STORAGE_KEY);
     localStorage.removeItem(PHONE_KEY);
     setCid(''); setPhone(''); setMe(null); setEntry('');
     setError(''); setChoices(null);
@@ -759,7 +766,7 @@ const MyCoffeePage = () => {
       const b = await r.json();
       if (b?.choose) { setChoices(b.choose); setGuestAsk(false); return; }
       if (b?.success && b.cid) {
-        localStorage.setItem(STORAGE_KEY, b.cid);
+        remember(STORAGE_KEY, b.cid, 7 * 24 * 3600);
         localStorage.setItem(PHONE_KEY, phoneForGuest);
         setGuestAsk(false);
         setGuestName('');
@@ -830,14 +837,14 @@ const MyCoffeePage = () => {
   // Cleared by age (3h) here and by the tracking page on pickup.
   if (!me && !checkExisting) {
     try {
-      const raw = localStorage.getItem('cupq_active_order');
+      const raw = recall('cupq_active_order');
       if (raw) {
         const a = JSON.parse(raw);
         if (a && a.n && Date.now() - (a.at || 0) < 3 * 3600 * 1000) {
           window.location.replace(`/order?order=${a.n}&restored=1`);
           return null;
         }
-        localStorage.removeItem('cupq_active_order');
+        forget('cupq_active_order');
       }
     } catch (er) { /* unreadable = no memory; order form it is */ }
   }
@@ -851,7 +858,8 @@ const MyCoffeePage = () => {
     return (
       <div className="min-h-screen bg-white">
         <KioskOrder
-          onClose={() => setCheckExisting(true)}
+          key={orderEpoch}
+          onClose={() => setOrderEpoch((e) => e + 1)}
           onOrderPlaced={(orderNumber) => {
             // No identity to hang a /my beacon on -- the order-number
             // tracking view is the beacon (the same URL the done-screen
@@ -859,12 +867,6 @@ const MyCoffeePage = () => {
             window.location.href = `/order?order=${orderNumber}`;
           }}
         />
-        <button
-          className="fixed bottom-3 left-0 right-0 mx-auto w-max text-sm text-gray-500 underline bg-white/90 px-3 py-1 rounded"
-          onClick={() => setCheckExisting(true)}
-        >
-          Already ordered? Check your status
-        </button>
       </div>
     );
   }

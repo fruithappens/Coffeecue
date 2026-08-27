@@ -1,8 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { forget } from '../../utils/deviceMemory';
 import {
   Shield, X, Monitor, Coffee, Settings as SettingsIcon, RotateCw,
   Volume2, RefreshCw, LogOut, Maximize, Delete,
 } from 'lucide-react';
+
+const MY_CID_KEY = 'coffee_cue_my_cid';
 
 /**
  * The hidden device admin panel (demo findings A3).
@@ -40,6 +43,9 @@ const clearDeviceState = () => {
     }
     doomed.forEach((k) => localStorage.removeItem(k));
     sessionStorage.clear();
+    // The cookie halves of the device memory go with it.
+    forget('cupq_active_order');
+    forget(MY_CID_KEY);
   } catch (e) { /* private mode: nothing stored anyway */ }
 };
 
