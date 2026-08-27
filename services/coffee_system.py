@@ -4976,6 +4976,15 @@ class CoffeeOrderSystem:
             allowed = self._active_station_capability_set(dimension)
             if not allowed:
                 return items
+            # The capabilities editor's 'espresso drinks' GROUP TOKEN
+            # means "this station makes the espresso family". Every list
+            # that reaches this filter on the coffee_types dimension IS
+            # espresso drinks by construction, so the token grants them
+            # all -- without this, event-enabled drinks beyond a
+            # station's explicit list (ristretto, magic, cortado) were
+            # silently stripped here, one call before every menu.
+            if dimension == "coffee_types" and "espresso drinks" in allowed:
+                return items
             kept = [it for it in items if str(it).strip().lower() in allowed]
             return kept if kept else items
         except Exception as e:
