@@ -381,9 +381,13 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
   const fastestStation = useMemo(() => {
     if (capable.length === 0) return null;
     return capable.slice().sort((a, b) => {
-      const la = stationById[a]?.load ?? 0, lb = stationById[b]?.load ?? 0;
-      if (la !== lb) return la - lb;
-      return (stationById[a]?.wait ?? 0) - (stationById[b]?.wait ?? 0);
+      // Wait FIRST: the badge says "Fastest" and prints minutes, so the
+      // minutes must decide. Sorting by load first put "Fastest -
+      // Station 1 · ~8 min" beside a Station 2 offering ~6 min. Load
+      // only breaks ties.
+      const wa = stationById[a]?.wait ?? 0, wb = stationById[b]?.wait ?? 0;
+      if (wa !== wb) return wa - wb;
+      return (stationById[a]?.load ?? 0) - (stationById[b]?.load ?? 0);
     })[0];
   }, [capable, stationById]);
 
