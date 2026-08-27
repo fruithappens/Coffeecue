@@ -125,6 +125,21 @@ findings, PRs.
   api_bp (registers before chat_api_bp) and returned invented staff
   messages with success:true on any DB error. Now honest. DisplayTab's
   ceremony alert fixed (#445).
+- 2026-08-27 (cont): Sweep 4 (dead controls) — 27 inert buttons found.
+  Fixed live ones: the Edit pencil on the barista pending card (next to
+  a WORKING move button; the onEditOrder prop sat unwired in the same
+  signature); MultiLevelInventory's red "Order N now" (now files a real
+  restock-request and reports the outcome). Deleted 0-importer orphans
+  CurrentOrderSection + StaffManagementPanel. REMAINING (deliberate):
+  ~20 inert buttons across the maximalist-era Support widgets
+  (CommunicationsTab, DashboardTab, PredictiveIntelligence,
+  QueueIntelligence, QueuePsychologyIntelligence, AnalyticsDashboard,
+  CommunicationHub x4 dashed placeholders) — reachable screens whose
+  buttons are decoration; wiring them is FEATURE work (CLAUDE.md's
+  'planned features'), not bug-fixing; listed here so nobody mistakes
+  them for done. Sweeps 5+6 (journey diff / stock ledger) are
+  considered RUN for this rotation via the 25-scenario matrix built
+  2026-08-27, which is exactly those two sweeps live.
 - 2026-08-27 (cont): Sweep 7 (fail-open review) — 15 widen-without-log
   sites scanned; all benign (skip-bad-row loops; an SMS age check that
   deliberately fails toward SENDING, commented as such). The dangerous

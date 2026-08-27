@@ -688,7 +688,45 @@ const MultiLevelInventory = () => {
                       </div>
                       <div className="text-sm">{suggestion.message}</div>
                       <div className="mt-2">
-                        <button className="text-sm bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600">
+                        {/* Sweep 4: an urgent red "Order now" that
+                            ordered nothing. It now files a real restock
+                            request against the matching ledger row and
+                            says what happened either way. */}
+                        <button
+                          className="text-sm bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
+                          onClick={async (e) => {
+                            const btn = e.currentTarget;
+                            btn.disabled = true;
+                            try {
+                              const hdrs = {
+                                Authorization: `Bearer ${localStorage.getItem('coffee_system_token') || ''}`,
+                                'Content-Type': 'application/json',
+                              };
+                              const ri = await fetch('/api/inventory', { headers: hdrs });
+                              const bi = ri.ok ? await ri.json() : {};
+                              let rows = bi.items || bi.data || [];
+                              if (rows && !Array.isArray(rows)) rows = rows.items || rows.inventory || [];
+                              const target = (rows || []).find((it) =>
+                                String(it.category).toLowerCase() === (suggestion.type === 'milk' ? 'milk' : 'coffee')
+                                && String(suggestion.item).toLowerCase().includes(String(it.name).toLowerCase()));
+                              if (!target) {
+                                btn.textContent = 'No matching stock row';
+                                return;
+                              }
+                              const rr = await fetch('/api/inventory/restock-request', {
+                                method: 'POST',
+                                headers: hdrs,
+                                body: JSON.stringify({
+                                  items: [{ id: target.id, quantity: suggestion.suggestedAmount }],
+                                  notes: suggestion.message,
+                                }),
+                              });
+                              btn.textContent = rr.ok ? 'Restock requested ✓' : 'Request failed';
+                            } catch (err) {
+                              btn.textContent = 'Request failed';
+                            }
+                          }}
+                        >
                           Order {suggestion.suggestedAmount}{suggestion.type === 'milk' ? 'L' : 'kg'} now
                         </button>
                       </div>
