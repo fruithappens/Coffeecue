@@ -45,19 +45,32 @@ const InventoryManagement = () => {
     },
     coffee: {
       // 'Coffee' here means BEANS, not drinks. Drinks belong on the
-      // Menu Items page. Historical bug: the defaults below seeded
-      // drink names ('Espresso', 'Cappuccino', 'Latte') into the
-      // coffee category — which then surfaced as 'bean type' options
-      // in the walk-in dialog, producing nonsense orders like
-      // 'Cappuccino Latte'. Fixed to actual bean SKUs that match
-      // what Quick Setup writes (house blend beans / decaf beans).
-      name: 'Coffee Beans',
+      // DRINKS, not beans. The event blob's 'coffee' category is read
+      // by the menu bridge as DRINK on/off toggles (Quick Setup writes
+      // drinks here, every order channel reads them as drinks). Beans
+      // are INGREDIENTS: they live in Event Stock with kilograms and
+      // reach customers via the bean chooser, never via this list. An
+      // earlier fix pointed the DEFAULTS at bean SKUs -- which meant
+      // Reset to Defaults would have replaced the drink menu with rows
+      // named 'House Blend Beans' that the reader would offer as
+      // drinks. Defaults now match what the reader means.
+      // This category holds espresso DRINKS (latte, flat white...),
+      // not beans -- beans are INGREDIENTS with kilograms, on the Event
+      // Stock screen. It was titled 'Coffee Beans' for months and the
+      // name misled everyone incl. its owner (Steve: "should this
+      // still be here? how would i turn decaf off?" -- decaf is a bean,
+      // which is exactly why it is not in this list). The storage key
+      // ('coffee') is unchanged; only the label tells the truth now.
+      name: 'Espresso Drinks',
       icon: <Coffee size={20} />,
       color: 'amber',
       defaultItems: [
-        { name: 'House Blend Beans',     description: 'Standard espresso blend' },
-        { name: 'Decaf Beans',           description: 'Decaffeinated beans for SMS-routed decaf orders' },
-        { name: 'Single Origin Beans',   description: 'Optional rotating single origin' },
+        { name: 'Espresso',    description: 'Strong coffee shot' },
+        { name: 'Latte',       description: 'Espresso with steamed milk' },
+        { name: 'Cappuccino',  description: 'Espresso with foam' },
+        { name: 'Flat White',  description: 'Double shot with microfoam' },
+        { name: 'Long Black',  description: 'Espresso topped with hot water' },
+        { name: 'Mocha',       description: 'Chocolate coffee drink' },
       ]
     },
     cups: {
