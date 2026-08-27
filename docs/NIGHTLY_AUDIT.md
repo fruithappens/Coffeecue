@@ -152,3 +152,15 @@ findings, PRs.
   fallback killed, 2 placebo toasts made honest, 2 dead buttons wired,
   7 orphan components deleted, 1 decoy key removed, 2 silent helpers
   given voices. Next rotation starts again at Sweep 1.
+- 2026-08-27: THE SIEGE (go/no-go gate, ops roadmap). Two runs against
+  live production, bench numbers only, backup gate passed (deduped
+  snapshot accepted after #449 fixed the gate's file-count semantics).
+  R1 event pace (60 phones polling /my @8s, 52 SMS orders / 5 min):
+  2,062 polls p50 688ms p95 934ms, orders p95 1.26s, board p95 1.09s,
+  ZERO errors on every surface. R2 double pressure (120 phones, 93
+  orders): 4,130 polls p95 916ms -- flat vs half the load -- zero
+  errors, health ok, login answering. VERDICT: GO. Note: p50 ~700ms is
+  above the 500ms aspiration but stable and error-free at 2x event
+  scale; the flat p95 curve says the ceiling is far above what 400
+  people can produce. All 145 bench orders cancelled after; inventory
+  drift zero; queue restored to baseline 3.
