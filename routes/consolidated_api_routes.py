@@ -4676,8 +4676,14 @@ def _kiosk_menu_data(coffee_system):
                 # The kiosk shows featured drinks as the main grid and
                 # folds the rest behind a "Something else" tile.
                 try:
+                    # The FALLBACK constant is the classic six, which is
+                    # what "main grid" means. The full catalog menu
+                    # (_STANDARD_DRINK_MENU) also carries macchiato,
+                    # cortado, piccolo... -- using it made eight tiles
+                    # "featured" and folded almost nothing.
                     entry['featured'] = item_lower in {
-                        str(x).lower() for x in coffee_system._STANDARD_DRINK_MENU}
+                        str(x).lower()
+                        for x in coffee_system._STANDARD_DRINK_MENU_FALLBACK}
                 except Exception:
                     entry['featured'] = True
             out.append(entry)
