@@ -232,15 +232,6 @@ const MobileOrderPage = () => {
               We can't find that order number.
             </div>
           )}
-          {/* Once the cup is in hand (or the order is unfindable) this
-              page's job is done -- hand the person back to ordering
-              instead of stranding them on a finished beacon. */}
-          {(collected || gone) && (
-            <a href="/my"
-               className="block mt-6 mx-auto w-max px-6 py-3 rounded-xl bg-amber-600 text-white text-lg font-bold">
-              Order another coffee
-            </a>
-          )}
           {/* Share it. Steve: "a friend could use their phone to scan it so
               they don't have to type a link or get close to a display
               counter". Someone standing next to you scans this off your
