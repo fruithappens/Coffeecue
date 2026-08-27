@@ -639,7 +639,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
           <>
             <Header title={eaIdentity
               ? `Hi ${eaIdentity.firstName}! Pick a drink ☕`
-              : 'Order here ☕ — pick a drink'} />
+              : 'Order here ☕'} />
             {eaIdentity && (
               <div className="flex items-center justify-center -mt-2 mb-2">
                 <span className="text-sm text-gray-500">
@@ -1025,12 +1025,12 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
             <img
               src={`/api/qr?size=5&data=${encodeURIComponent(
                 `${window.location.origin}/order${myStation ? `?station=${myStation}` : ''}`)}`}
-              alt="Order from your own phone"
+              alt="Share the menu with a friend"
               className="w-20 h-20 rounded bg-white p-1"
             />
             <div className="text-left">
               <div className="text-base font-semibold text-gray-700">
-                Waiting behind? Order from your own phone
+                Share the menu with a friend
               </div>
               <div className="text-sm text-gray-500">
                 Scan this code{smsNumber ? ` or text ${smsNumber}` : ''}
