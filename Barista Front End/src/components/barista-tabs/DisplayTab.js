@@ -539,15 +539,12 @@ const DisplayTab = ({
         <button
           className="mt-6 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 flex items-center"
           onClick={() => {
-            // Save settings using the SettingsService via setSettings (instead of manual localStorage)
-            try {
-              // setSettings should automatically persist via SettingsService
-              // All the settings are already being updated in real-time via setSettings calls above
-              alert('Display and notification settings are automatically saved!');
-            } catch (error) {
-              console.error('Error saving notification settings:', error);
-              alert('Error saving settings. Please try again.');
-            }
+            // Sweep 1 carried-forward: this alert claimed automatic
+            // persistence inside a try block that TRIED NOTHING. The
+            // settings updates above do write as they change, so the
+            // honest wording is a confirmation of that fact -- not a
+            // fake save ritual with a fake error branch.
+            alert('These settings apply as you change them - nothing further to save.');
           }}
         >
           <Check size={18} className="mr-1" />
