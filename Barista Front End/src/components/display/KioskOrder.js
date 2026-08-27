@@ -1023,21 +1023,26 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                 Text me when it's ready
               </button>
             )}
-            <div className="mt-4 flex gap-3">
-              {/* Both choices are EQUAL, valid ways forward — same colour,
-                  same weight. The old white "No thanks" next to a filled
-                  "Text me →" read as cancel-vs-proceed (Steve), when
-                  skipping the phone is a perfectly normal choice. */}
-              <button onClick={() => { setPhone(''); setEaSuggest(null); goTo('name'); }}
-                className="flex-1 py-5 rounded-2xl text-xl font-extrabold text-white shadow active:scale-95"
-                style={{ backgroundColor: headerColor }}>
-                {isOwnDevice ? '📱 Watch it on this phone' : "📺 I'll watch the board"}
-              </button>
-              <button disabled={!phoneValid || lookupBusy} onClick={continueWithNumber}
-                className="flex-1 py-5 rounded-2xl text-xl font-extrabold text-white shadow active:scale-95 disabled:opacity-40"
-                style={{ backgroundColor: headerColor }}>
-                {lookupBusy ? 'One sec…' : 'Continue →'}
-              </button>
+            <div className="mt-4">
+              {/* ONE way forward at a time. With a number typed, the skip
+                  button next to Continue read as a live choice between two
+                  actions -- Steve: "i was confused if I click on the watch
+                  or continue". Empty field = the skip IS the way forward;
+                  valid number = Continue is. Clearing the field brings the
+                  skip back. */}
+              {phoneValid ? (
+                <button disabled={lookupBusy} onClick={continueWithNumber}
+                  className="w-full py-5 rounded-2xl text-xl font-extrabold text-white shadow active:scale-95 disabled:opacity-40"
+                  style={{ backgroundColor: headerColor }}>
+                  {lookupBusy ? 'One sec…' : 'Continue →'}
+                </button>
+              ) : (
+                <button onClick={() => { setPhone(''); setEaSuggest(null); goTo('name'); }}
+                  className="w-full py-5 rounded-2xl text-xl font-extrabold text-white shadow active:scale-95"
+                  style={{ backgroundColor: headerColor }}>
+                  {isOwnDevice ? '📱 No number — watch it on this phone' : "📺 No number — I'll watch the board"}
+                </button>
+              )}
             </div>
           </>
         )}
