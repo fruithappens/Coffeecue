@@ -2166,18 +2166,24 @@ def _station_can_make_order(db, station_id, order_details):
     # blocking on it would make every tea/hot-choc un-startable. Let them pass.
     coffee_types = caps_raw.get('coffee_types') or caps_raw.get('drinks')
     _espresso_set = [d.lower() for d in ESPRESSO_DRINKS]
+    _caps_lower = ([str(c).lower() for c in coffee_types]
+                   if isinstance(coffee_types, list) else [])
     if (
         requested_type
         and requested_type in _espresso_set
+        # 'espresso drinks' is the capabilities editor's family token:
+        # a station that claims the family makes ANY espresso drink the
+        # event enables, so the explicit list stops being a fence.
+        and 'espresso drinks' not in _caps_lower
         and isinstance(coffee_types, list)
         and len(coffee_types) > 0
-        and requested_type not in [str(c).lower() for c in coffee_types]
+        and requested_type not in _caps_lower
     ):
         return {
             'blocked': True,
             'reason': (
                 f"This station isn't set up to make {requested_type}. "
-                f"Available here: {', '.join(coffee_types)}."
+                f"Available here: {', '.join(c for c in coffee_types if str(c).lower() != 'espresso drinks')}."
             ),
         }
 
