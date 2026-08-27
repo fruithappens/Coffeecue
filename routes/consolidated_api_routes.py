@@ -4705,10 +4705,30 @@ def _kiosk_menu_data(coffee_system):
         beans = coffee_system._get_available_bean_types()
     except Exception:
         pass
+    milks_built = build('milk_types')
+    # Milks the event configured but switched OFF ride along, marked
+    # unavailable: an oat drinker should SEE oat greyed out, not wonder
+    # whether the app forgot it exists (Steve, from the walk-up
+    # dialog's greyed list). Only what the Organiser actually listed --
+    # this invents nothing.
+    try:
+        inv = _kv_get(coffee_system.db, 'event_inventory', default=None) or {}
+        have = {e['value'] for e in milks_built}
+        for it in (inv.get('milk') or []):
+            if not isinstance(it, dict) or it.get('enabled', True):
+                continue
+            nm = str(it.get('name') or '').strip()
+            base = nm[:-5].strip() if nm.lower().endswith(' milk') else nm
+            v = base.lower()
+            if v and v not in have:
+                milks_built.append({'name': base.title(), 'value': v,
+                                    'stations': [], 'unavailable': True})
+    except Exception as e:
+        logger.warning(f"kiosk greyed-milk ride-along failed: {e}")
     return {
         'stations': stations,
         'coffee_types': build('coffee_types'),
-        'milks': build('milk_types'),
+        'milks': milks_built,
         'sizes': build('sizes'),
         'beans': beans,
         # Kiosk skips its sugar question when the venue runs

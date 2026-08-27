@@ -777,12 +777,13 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
             <Header title="Milk?" onBack={goBack} />
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {milkOptions.map(m => {
-                const ok = compatible(drink, m);
+                const ok = !m.unavailable && compatible(drink, m);
                 return (
                   <Tile key={m.value} emoji={milkEmoji(m.value)} label={m.name}
                     active={milk?.value === m.value}
                     disabled={!ok}
-                    sub={!ok ? `Not available with ${drink?.name || 'that drink'}`
+                    sub={m.unavailable ? 'Not available today'
+                      : !ok ? `Not available with ${drink?.name || 'that drink'}`
                       : (madeHere(m) ? null : `Station ${stationLabel(m)} only`)}
                     onClick={() => { if (ok) { setMilk(m); afterMilk(); } }} />
                 );
