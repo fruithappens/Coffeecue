@@ -65,7 +65,18 @@ const MobileOrderPage = () => {
     if (!trackNumber) return;
     try {
       const r = await fetch(`/api/orders/${encodeURIComponent(trackNumber)}/track`);
-      if (r.status === 404) { setGone(true); return; }
+      if (r.status === 404) {
+        setGone(true);
+        // An order the server no longer knows must not keep pulling the
+        // device back here -- forget it so /my offers ordering again.
+        try {
+          const raw = localStorage.getItem('cupq_active_order');
+          if (raw && String((JSON.parse(raw) || {}).n) === String(trackNumber)) {
+            localStorage.removeItem('cupq_active_order');
+          }
+        } catch (er) { /* nothing remembered */ }
+        return;
+      }
       const b = await r.json();
       if (b?.success) {
         setTrack(b);
