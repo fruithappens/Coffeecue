@@ -20,6 +20,7 @@
 //   GET  /api/display/menu   → { menu: { stations:[{id,name,wait,load}], coffee_types, milks, sizes } }
 //   POST /api/display/order  → { order_number, station_id, station_name }
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import DrinkIcon from './DrinkIcon';
 import { remember } from '../../utils/deviceMemory';
 import { X, ArrowLeft, Plus, Minus, Check, Loader, MapPin, Zap } from 'lucide-react';
 
@@ -548,7 +549,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
   };
 
   // ---- presentational helpers -------------------------------------------
-  const Tile = ({ active, disabled, onClick, emoji, label, sub }) => (
+  const Tile = ({ active, disabled, onClick, emoji, icon, label, sub }) => (
     <button
       onClick={onClick}
       disabled={disabled}
@@ -556,7 +557,9 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
         ${disabled ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-800 hover:shadow-lg active:scale-95 shadow'}`}
       style={active ? { boxShadow: `0 0 0 4px ${headerColor}` } : undefined}
     >
-      <span className="text-5xl mb-2" aria-hidden>{emoji}</span>
+      <span className="mb-2 flex items-center justify-center h-14" aria-hidden>
+        {icon || <span className="text-5xl">{emoji}</span>}
+      </span>
       <span className="text-xl font-bold leading-tight">{label}</span>
       {sub && <span className="mt-1 text-xs font-semibold text-amber-600">{sub}</span>}
     </button>
@@ -697,7 +700,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                   return (
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                       {shown.map(d => (
-                        <Tile key={d.value} emoji={drinkEmoji(d.value)} label={d.name}
+                        <Tile key={d.value} icon={<DrinkIcon name={d.value} />} label={d.name}
                           active={drink?.value === d.value}
                           disabled={(d.stations || []).length === 0}
                           sub={(d.stations || []).length === 0 ? 'Not available today'
