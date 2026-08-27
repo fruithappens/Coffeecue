@@ -485,6 +485,14 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
         goTo('name_confirm');
         return;
       }
+      // A shared number is a question, not a failure: a delegate who
+      // registered their whole team against one mobile gets asked which
+      // of them is ordering (HTTP 300 with the candidates).
+      if (r.status === 300 && Array.isArray(b?.choose) && b.choose.length > 0) {
+        setEaSuggest({ choose: b.choose.slice(0, 4) });
+        goTo('name_confirm');
+        return;
+      }
     } catch (e) { /* offline lookup = just ask for the name */ }
     setEaSuggest(null);
     goTo('name');
@@ -1036,24 +1044,43 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
         {/* ---------- NAME CONFIRM (the number found someone) ---------- */}
         {step === 'name_confirm' && eaSuggest && (
           <>
-            <Header title="Is this you?" onBack={goBack} />
+            <Header title={eaSuggest.choose ? 'Which one are you?' : 'Is this you?'}
+                    onBack={goBack} />
             <p className="text-xl text-gray-600 mb-4 font-medium">
-              That number is registered to <b>{eaSuggest.firstName}</b>.
+              {eaSuggest.choose
+                ? <>That number is registered to more than one person.</>
+                : <>That number is registered to <b>{eaSuggest.firstName}</b>.</>}
             </p>
             <div className="space-y-3">
-              <button
-                onClick={() => { setName(eaSuggest.firstName); afterName(); }}
-                className="w-full py-4 rounded-2xl text-white text-xl font-bold"
-                style={{ backgroundColor: headerColor }}
-              >
-                Yes — I'm {eaSuggest.firstName}
-              </button>
+              {eaSuggest.choose ? (
+                eaSuggest.choose.map((c) => (
+                  <button key={c.cid || c.first_name}
+                    onClick={() => {
+                      setEaSuggest({ firstName: c.first_name, cid: c.cid || null });
+                      setName(c.first_name);
+                      afterName();
+                    }}
+                    className="w-full py-4 rounded-2xl text-white text-xl font-bold"
+                    style={{ backgroundColor: headerColor }}
+                  >
+                    I'm {c.first_name}
+                  </button>
+                ))
+              ) : (
+                <button
+                  onClick={() => { setName(eaSuggest.firstName); afterName(); }}
+                  className="w-full py-4 rounded-2xl text-white text-xl font-bold"
+                  style={{ backgroundColor: headerColor }}
+                >
+                  Yes — I'm {eaSuggest.firstName}
+                </button>
+              )}
               <button
                 onClick={() => { setEaSuggest(null); goTo('name'); }}
                 className="w-full py-4 rounded-2xl text-xl font-bold border-4"
                 style={{ borderColor: headerColor, color: headerColor }}
               >
-                No — use another name
+                {eaSuggest.choose ? 'Someone else — type a name' : 'No — use another name'}
               </button>
             </div>
           </>
