@@ -186,6 +186,10 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
   // has_phone only — the number itself never reaches the browser) and
   // skip the name/phone steps. Unknown cid or channel off → normal flow.
   const [eaIdentity, setEaIdentity] = useState(null); // {cid, firstName, hasPhone}
+  // Explicit SMS opt-in against the REGISTRATION mobile (never shown to
+  // the browser). Steve's flow: confirm what's on record, opt IN to the
+  // ready-text, or change details -- never assume the text.
+  const [useRegisteredPhone, setUseRegisteredPhone] = useState(false);
   useEffect(() => {
     // The cid can arrive two ways: in the URL (an app link with a merge
     // field) or as a PROP from /my, which holds the identity in state
@@ -476,6 +480,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
           station_id: myStation,
           preferred_station: chosenStation,
           phone: phone.trim(),
+          use_registered_phone: useRegisteredPhone || undefined,
           ea_contact_id: eaIdentity?.cid || undefined,
           // Provenance. This overlay is the cart's own touchscreen, so the
           // channel is fixed; ?src= lets one event run several kiosks and
@@ -848,7 +853,39 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
         )}
 
         {/* ---------- PHONE (always optional — offer a ready-text) ---------- */}
-        {step === 'phone' && (
+        {step === 'phone' && eaIdentity?.hasPhone && !phone && (
+          <>
+            <Header title="Is this right?" onBack={goBack} />
+            <p className="text-xl text-gray-600 mb-4 font-medium">
+              We have <b>{name || eaIdentity.firstName}</b> and a mobile number
+              on your registration.
+            </p>
+            <div className="space-y-3">
+              <button
+                onClick={() => { setUseRegisteredPhone(true); goTo('review'); }}
+                className="w-full py-4 rounded-2xl text-white text-xl font-bold"
+                style={{ backgroundColor: headerColor }}
+              >
+                Yes — text that number when it’s ready
+              </button>
+              <button
+                onClick={() => { setUseRegisteredPhone(false); goTo('review'); }}
+                className="w-full py-4 rounded-2xl text-xl font-bold border-4"
+                style={{ borderColor: headerColor, color: headerColor }}
+              >
+                No texts — I’ll watch this screen
+              </button>
+              <button
+                onClick={() => { setUseRegisteredPhone(false);
+                  setEaIdentity((e) => (e ? { ...e, hasPhone: false } : e)); }}
+                className="w-full py-3 text-gray-600 underline"
+              >
+                Use a different name or number
+              </button>
+            </div>
+          </>
+        )}
+        {step === 'phone' && !(eaIdentity?.hasPhone && !phone) && (
           <>
             <Header title={isOwnDevice ? 'How should we tell you?' : 'Want a text when it’s ready?'}
                     onBack={goBack} />

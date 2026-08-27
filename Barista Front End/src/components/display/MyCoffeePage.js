@@ -283,6 +283,11 @@ const MyCoffeePage = () => {
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
   const [fullOrder, setFullOrder] = useState(false);
+  // Coffee first (Steve: "even if it could not find ea persons name i
+  // think it should start with the order"). An unidentified visitor
+  // lands IN the ordering flow; looking up an existing order is the
+  // link, not the gate.
+  const [checkExisting, setCheckExisting] = useState(false);
   // When one mobile belongs to several attendees (a delegate who booked
   // for their team), we ask instead of guessing.
   const [choices, setChoices] = useState(null);
@@ -820,6 +825,33 @@ const MyCoffeePage = () => {
   }
 
   // ---- not identified yet -------------------------------------------------
+  if (!me && !checkExisting) {
+    // COFFEE FIRST. The mobile-entry screen used to be the front door,
+    // which put a form between a thirsty person and the menu (and was
+    // the first thing the EventsAir app showed when its link carried no
+    // contact id). Ordering is now the front door; identity happens at
+    // the end of the flow, where it belongs.
+    return (
+      <div className="min-h-screen bg-white">
+        <KioskOrder
+          onClose={() => setCheckExisting(true)}
+          onOrderPlaced={(orderNumber) => {
+            // No identity to hang a /my beacon on -- the order-number
+            // tracking view is the beacon (the same URL the done-screen
+            // share-QR encodes): live status until collected.
+            window.location.href = `/order?order=${orderNumber}`;
+          }}
+        />
+        <button
+          className="fixed bottom-3 left-0 right-0 mx-auto w-max text-sm text-gray-500 underline bg-white/90 px-3 py-1 rounded"
+          onClick={() => setCheckExisting(true)}
+        >
+          Already ordered? Check your status
+        </button>
+      </div>
+    );
+  }
+
   if (!me) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center p-6"
@@ -882,6 +914,12 @@ const MyCoffeePage = () => {
             {badgeLookup
               ? "I don't have a badge — just order"
               : 'Just order without giving a number'}
+          </button>
+          <button
+            className="w-full mt-2 py-2 text-gray-500 underline text-sm"
+            onClick={() => setCheckExisting(false)}
+          >
+            Back to ordering
           </button>
         </div>
         {fullOrder && (
