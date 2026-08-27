@@ -410,6 +410,14 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
   // behind a "Something else" tile until asked for.
   const [showAllDrinks, setShowAllDrinks] = useState(false);
 
+  // Phone-first identity (Steve's Treenet flow: no badge ids printed).
+  // The number is a SEARCH key against the attendee list first, and an
+  // SMS opt-in second -- separately chosen, never implied. eaSuggest
+  // holds a name the number found, waiting to be confirmed or refused.
+  const [eaSuggest, setEaSuggest] = useState(null); // {firstName, cid}
+  const [smsOptIn, setSmsOptIn] = useState(true);
+  const [lookupBusy, setLookupBusy] = useState(false);
+
   const sizeChoices = menu?.sizes || [];
   const needsSizeStep = sizeChoices.length > 1;
 
@@ -459,7 +467,26 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
       });
       return;
     }
-    if (eaIdentity) { afterName(); return; }
+    // Phone first (optional), then name -- a number can find the name
+    // on the attendee list, so asking for it second wasted the answer.
+    goTo('phone');
+  };
+  // Continue from the phone step with a number: search the attendee
+  // list before asking anything else. Whatever happens -- found,
+  // ambiguous, unknown, offline -- the flow continues; the lookup can
+  // only ever SAVE typing, never block an order.
+  const continueWithNumber = async () => {
+    setLookupBusy(true);
+    try {
+      const r = await fetch(`/api/ea/me?phone=${encodeURIComponent(phone.trim())}`);
+      const b = await r.json().catch(() => null);
+      if (r.ok && b?.success && b.first_name) {
+        setEaSuggest({ firstName: b.first_name, cid: b.cid || null });
+        goTo('name_confirm');
+        return;
+      }
+    } catch (e) { /* offline lookup = just ask for the name */ }
+    setEaSuggest(null);
     goTo('name');
   };
   // After the name: choose a station if there's a choice, else auto-route.
@@ -477,8 +504,8 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
   // mobile skip the step entirely — the server attaches it for the
   // ready-SMS without the number ever reaching this screen.
   const routeFromStation = () => {
-    if (eaIdentity && eaIdentity.hasPhone) { goTo('review'); return; }
-    goTo('phone');
+    // The phone step already happened (it now leads, not trails).
+    goTo('review');
   };
   const chooseStation = (sid) => { setChosenStation(sid); routeFromStation(); };
 
@@ -501,9 +528,15 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
           sugar: sugar === 0 ? 'No sugar' : `${sugar} sugar${sugar > 1 ? 's' : ''}`,
           station_id: myStation,
           preferred_station: chosenStation,
-          phone: phone.trim(),
+          // The number is only ATTACHED when texts were opted into --
+          // it may have been typed purely to find the name.
+          phone: smsOptIn ? phone.trim() : '',
           use_registered_phone: useRegisteredPhone || undefined,
-          ea_contact_id: eaIdentity?.cid || undefined,
+          // A confirmed lookup links the order to the attendee, which
+          // is what lets a wiped device find it again by number.
+          ea_contact_id: eaIdentity?.cid
+            || (name.trim() === (eaSuggest?.firstName || '') ? eaSuggest?.cid : undefined)
+            || undefined,
           // Provenance. This overlay is the cart's own touchscreen, so the
           // channel is fixed; ?src= lets one event run several kiosks and
           // still tell them apart on the report (cart-1-ipad, foyer-ipad).
@@ -923,14 +956,14 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
             </p>
             <div className="space-y-3">
               <button
-                onClick={() => { setUseRegisteredPhone(true); goTo('review'); }}
+                onClick={() => { setUseRegisteredPhone(true); afterName(); }}
                 className="w-full py-4 rounded-2xl text-white text-xl font-bold"
                 style={{ backgroundColor: headerColor }}
               >
                 Yes — text that number when it’s ready
               </button>
               <button
-                onClick={() => { setUseRegisteredPhone(false); goTo('review'); }}
+                onClick={() => { setUseRegisteredPhone(false); afterName(); }}
                 className="w-full py-4 rounded-2xl text-xl font-bold border-4"
                 style={{ borderColor: headerColor, color: headerColor }}
               >
@@ -970,20 +1003,57 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
               className="w-full text-3xl font-bold p-5 rounded-2xl border-4 border-gray-200 focus:outline-none"
               style={{ borderColor: phoneValid ? headerColor : undefined }}
             />
-            <div className="mt-6 flex gap-3">
+            {phoneValid && (
+              <button
+                onClick={() => setSmsOptIn(!smsOptIn)}
+                className="mt-4 w-full flex items-center gap-3 rounded-2xl border-4 p-4 text-left text-lg font-semibold"
+                style={{ borderColor: smsOptIn ? headerColor : '#e5e7eb',
+                         color: smsOptIn ? headerColor : '#6b7280' }}
+              >
+                <span className="text-2xl">{smsOptIn ? '☑' : '☐'}</span>
+                Text me when it's ready
+              </button>
+            )}
+            <div className="mt-4 flex gap-3">
               {/* Both choices are EQUAL, valid ways forward — same colour,
                   same weight. The old white "No thanks" next to a filled
                   "Text me →" read as cancel-vs-proceed (Steve), when
                   skipping the phone is a perfectly normal choice. */}
-              <button onClick={() => { setPhone(''); goTo('review'); }}
+              <button onClick={() => { setPhone(''); setEaSuggest(null); goTo('name'); }}
                 className="flex-1 py-5 rounded-2xl text-xl font-extrabold text-white shadow active:scale-95"
                 style={{ backgroundColor: headerColor }}>
                 {isOwnDevice ? '📱 Watch it on this phone' : "📺 I'll watch the board"}
               </button>
-              <button disabled={!phoneValid} onClick={() => goTo('review')}
+              <button disabled={!phoneValid || lookupBusy} onClick={continueWithNumber}
                 className="flex-1 py-5 rounded-2xl text-xl font-extrabold text-white shadow active:scale-95 disabled:opacity-40"
                 style={{ backgroundColor: headerColor }}>
-                💬 Text me when ready
+                {lookupBusy ? 'One sec…' : 'Continue →'}
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* ---------- NAME CONFIRM (the number found someone) ---------- */}
+        {step === 'name_confirm' && eaSuggest && (
+          <>
+            <Header title="Is this you?" onBack={goBack} />
+            <p className="text-xl text-gray-600 mb-4 font-medium">
+              That number is registered to <b>{eaSuggest.firstName}</b>.
+            </p>
+            <div className="space-y-3">
+              <button
+                onClick={() => { setName(eaSuggest.firstName); afterName(); }}
+                className="w-full py-4 rounded-2xl text-white text-xl font-bold"
+                style={{ backgroundColor: headerColor }}
+              >
+                Yes — I'm {eaSuggest.firstName}
+              </button>
+              <button
+                onClick={() => { setEaSuggest(null); goTo('name'); }}
+                className="w-full py-4 rounded-2xl text-xl font-bold border-4"
+                style={{ borderColor: headerColor, color: headerColor }}
+              >
+                No — use another name
               </button>
             </div>
           </>
@@ -1016,9 +1086,9 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                 <MapPin size={20} /> Collect from {chosenStation != null ? stationName(chosenStation) : 'the next available station'}
                 {chosenStation != null && waitText(chosenStation) ? ` · ${waitText(chosenStation)}` : ''}
               </div>
-              {phone.trim() ? (
+              {phone.trim() && smsOptIn ? (
                 <div className="mt-1 text-base text-gray-500">We'll text {phone.trim()} when it's ready.</div>
-              ) : (eaIdentity && eaIdentity.hasPhone && (
+              ) : (eaIdentity && eaIdentity.hasPhone && useRegisteredPhone && (
                 <div className="mt-1 text-base text-gray-500">
                   {eaIdentity.guest
                     ? "We'll text the number you gave us when it's ready."
