@@ -44,6 +44,12 @@ const MobileOrderPage = () => {
   }, [trackNumber]);
   const [track, setTrack] = useState(null);
   const [gone, setGone] = useState(false);
+  // Heartbeat, same as /my's identified card: proof the beacon is
+  // actually talking to the server, and honest when it is not. The
+  // counter resets only when the server answered.
+  const [lastOkAt, setLastOkAt] = useState(null);
+  const [connected, setConnected] = useState(true);
+  const [, setTick] = useState(0);
   const [collecting, setCollecting] = useState(false);
   const [collected, setCollected] = useState(false);
   // Same chime and same button as /my. A customer who scanned the kiosk
@@ -79,6 +85,8 @@ const MobileOrderPage = () => {
     if (!trackNumber) return;
     try {
       const r = await fetch(`/api/orders/${encodeURIComponent(trackNumber)}/track`);
+      setLastOkAt(Date.now());
+      setConnected(true);
       if (r.status === 404) {
         setGone(true);
         // An order the server no longer knows must not keep pulling the
@@ -111,7 +119,11 @@ const MobileOrderPage = () => {
           } catch (er) { /* nothing remembered, nothing to clear */ }
         }
       }
-    } catch (e) { /* keep the last known state */ }
+    } catch (e) {
+      // Keep the last known order state, but say the line went quiet --
+      // a stale card must not look exactly like a working one.
+      setConnected(false);
+    }
   }, [trackNumber]);
 
   useEffect(() => {
@@ -120,6 +132,15 @@ const MobileOrderPage = () => {
     const t = setInterval(poll, 8000);
     return () => clearInterval(t);
   }, [trackNumber, poll]);
+
+  // Drives the "checked 12s ago" counter. Only while the order is still
+  // in flight -- a once-a-second render on a finished page is a battery
+  // cost for nothing.
+  useEffect(() => {
+    if (!trackNumber || collected || gone) return undefined;
+    const t = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, [trackNumber, collected, gone]);
 
   // Keep the screen awake while they watch for READY (best effort —
   // unsupported browsers just ignore it).
@@ -262,7 +283,30 @@ const MobileOrderPage = () => {
             </details>
           )}
 
-          <p className="text-center text-gray-500 text-sm mt-6">
+          {!collected && !gone && (() => {
+            const staleSeconds = lastOkAt
+              ? Math.max(0, Math.round((Date.now() - lastOkAt) / 1000))
+              : 99;
+            const worried = !connected || staleSeconds > 30;
+            return (
+              <div className="mt-6 flex items-center justify-center gap-2 text-sm">
+                <span className={`inline-block w-2 h-2 rounded-full
+                                  ${worried
+                                    ? 'bg-amber-500'
+                                    : 'bg-green-500 motion-safe:animate-pulse'}`} />
+                <span className={worried ? 'text-amber-700' : 'text-gray-500'}>
+                  {!connected
+                    ? 'Not connected — trying again'
+                    : staleSeconds > 30
+                      ? `Last checked ${staleSeconds}s ago — reconnecting`
+                      : staleSeconds <= 1
+                        ? 'Checking now'
+                        : `Checked ${staleSeconds}s ago`}
+                </span>
+              </div>
+            );
+          })()}
+          <p className="text-center text-gray-500 text-sm mt-2">
             Keep this page open — it updates by itself. No text message needed.
           </p>
           <button
