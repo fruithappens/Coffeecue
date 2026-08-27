@@ -311,6 +311,20 @@ const MobileOrderPage = () => {
             Keep this page open — it updates by itself. No text message needed.
           </p>
           <button
+            className="block mx-auto mt-2 text-sm text-gray-500 underline"
+            onClick={() => {
+              try {
+                const raw = recall('cupq_active_order');
+                if (raw && String((JSON.parse(raw) || {}).n) === String(trackNumber)) {
+                  forget('cupq_active_order');
+                }
+              } catch (er) { /* nothing remembered */ }
+              window.location.href = '/my?find=1';
+            }}
+          >
+            Wrong order? Search again
+          </button>
+          <button
             className="w-full mt-6 py-3 rounded-xl bg-gray-800 text-white font-semibold"
             onClick={() => { setParams({ ...(stationId ? { station: stationId } : {}) }); setTrack(null); }}
           >

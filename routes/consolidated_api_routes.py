@@ -5811,6 +5811,17 @@ def _track_full_drink(od):
         bits.append('no milk')
     sugar = val('sugar', 'sweetener')
     if sugar:
+        # At a help-yourself-sugar venue, "No sugar" on the customer's
+        # own status page reads like a mistake in their order. Tell them
+        # where the sugar actually is (Steve's wording request). The
+        # stored value stays 'No sugar' -- barista labels want it short.
+        if sugar.strip().lower() in ('no sugar', 'none', '0'):
+            try:
+                cs = current_app.config.get('coffee_system')
+                if cs and cs._sugar_self_serve():
+                    sugar = 'add your own sugar at pickup'
+            except Exception:
+                pass
         bits.append(sugar)
     strength = val('strength')
     if strength:

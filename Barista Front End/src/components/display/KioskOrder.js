@@ -780,7 +780,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
               </button>
               <div className="text-center min-w-[120px]">
                 <div className="text-7xl font-extrabold" style={{ color: headerColor }}>{sugar}</div>
-                <div className="text-lg font-semibold text-gray-500">{sugar === 0 ? 'No sugar' : `sugar${sugar > 1 ? 's' : ''}`}</div>
+                <div className="text-lg font-semibold text-gray-500">{sugar === 0 ? (menu?.sugar_self_serve ? 'Add your own sugar at pickup' : 'No sugar') : `sugar${sugar > 1 ? 's' : ''}`}</div>
               </div>
               <button onClick={() => setSugar(s => Math.min(9, s + 1))}
                 className="p-6 rounded-full bg-white shadow text-gray-700 active:scale-95">
@@ -999,7 +999,9 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                 <li>{drinkEmoji(drink?.value)} {drink?.name}</li>
                 <li>{milkEmoji(milk?.value)} {milk?.name}</li>
                 {size && <li>🥤 {size.name}</li>}
-                <li>🍬 {sugar === 0 ? 'No sugar' : `${sugar} sugar${sugar > 1 ? 's' : ''}`}</li>
+                <li>🍬 {sugar === 0
+                  ? (menu?.sugar_self_serve ? 'Add your own sugar at pickup' : 'No sugar')
+                  : `${sugar} sugar${sugar > 1 ? 's' : ''}`}</li>
                 {/* Only listed when chosen. A review screen that solemnly
                     confirms "Normal strength" on every order trains people
                     to stop reading it. */}
@@ -1133,7 +1135,9 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
               <div className="text-lg text-gray-600 mt-0.5">
                 {[
                   milk?.name,
-                  sugar === 0 ? 'no sugar' : `${sugar} sugar${sugar > 1 ? 's' : ''}`,
+                  sugar === 0
+                    ? (menu?.sugar_self_serve ? 'add your own sugar at pickup' : 'no sugar')
+                    : `${sugar} sugar${sugar > 1 ? 's' : ''}`,
                   strength || null,
                   extraHot ? 'extra hot' : null,
                   // What the SERVER stored, not what they typed. A VIP
