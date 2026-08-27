@@ -2152,9 +2152,10 @@ const BaristaInterface = () => {
       // from the backend). updateSettings PUTs to /api/settings and is
       // non-fatal if the API call fails.
       SettingsService.updateSettings(localSettings)
-        .catch(err => console.warn('Could not sync notification settings to backend:', err));
-
-      showToast('Notification settings saved', 'success');
+        .then(() => showToast('Notification settings saved', 'success'))
+        .catch(() => showToast(
+          'Saved on this device, but the server sync failed — the public '
+          + 'Display may not reflect these until it succeeds.', 'error', 6000));
     };
     
     return (
@@ -4238,9 +4239,18 @@ const BaristaInterface = () => {
                     placeholder="Enjoy your coffee!"
                     defaultValue={settings.displayCustomMessage || ''}
                     onBlur={(e) => {
-                      if ((e.target.value || '') !== (settings.displayCustomMessage || '')) {
-                        setSettings(prev => ({ ...prev, displayCustomMessage: e.target.value }));
-                        showToast('Custom message saved — shows in the Display footer', 'success');
+                      const v = e.target.value || '';
+                      if (v !== (settings.displayCustomMessage || '')) {
+                        setSettings(prev => ({ ...prev, displayCustomMessage: v }));
+                        // The Display is a DIFFERENT DEVICE reading the
+                        // backend -- setSettings alone is this device's
+                        // localStorage, so the old toast claimed a footer
+                        // update that never left the room (sweep 1
+                        // placebo hunt). Claim success only when the
+                        // server said yes.
+                        SettingsService.updateSettings({ displayCustomMessage: v })
+                          .then(() => showToast('Custom message saved — shows in the Display footer', 'success'))
+                          .catch(() => showToast('Server update failed — message saved on this device only, the Display will NOT show it', 'error', 6000));
                       }
                     }}
                     className="w-full p-2 border rounded"
