@@ -860,6 +860,7 @@ const MyCoffeePage = () => {
         <KioskOrder
           key={orderEpoch}
           onClose={() => setOrderEpoch((e) => e + 1)}
+          onCheckExisting={() => setCheckExisting(true)}
           onOrderPlaced={(orderNumber) => {
             // No identity to hang a /my beacon on -- the order-number
             // tracking view is the beacon (the same URL the done-screen

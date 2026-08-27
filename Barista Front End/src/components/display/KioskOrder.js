@@ -57,7 +57,7 @@ export const milkEmoji = (name) => {
 // /order). They are different channels for reporting and only the caller
 // knows which one it is, so it is a prop, not a guess.
 const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced,
-                      eaCid, channel = 'kiosk', onPick }) => {
+                      eaCid, channel = 'kiosk', onPick , onCheckExisting }) => {
   // PICK MODE. With `onPick` supplied this screen chooses a drink and
   // hands it back instead of ordering one -- same tiles, same pictures,
   // same steps, no name/phone/station and no POST.
@@ -678,6 +678,14 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                       </button>
                     ))}
                   </div>
+                )}
+                {onCheckExisting && (
+                  <button
+                    onClick={onCheckExisting}
+                    className="block mx-auto mb-3 text-sm text-gray-500 underline"
+                  >
+                    Already ordered? Find my order
+                  </button>
                 )}
                 {(() => {
                   // A drink an old server never labelled counts as
