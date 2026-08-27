@@ -10640,12 +10640,19 @@ def cup_reconciliation():
             counts = _kv_get(db, 'cup_counts', default={}) or {}
             row = counts.get(sid, {})
             for field in ('start', 'end'):
-                if data.get(field) is not None:
-                    try:
-                        row[field] = int(data[field])
-                    except (TypeError, ValueError):
-                        return jsonify({'success': False,
-                                        'message': f'{field} must be a whole number'}), 400
+                if field not in data:
+                    continue
+                if data.get(field) is None:
+                    # Explicit null CLEARS a mistyped count. Without this,
+                    # a fat-fingered morning entry was permanent and the
+                    # reconciliation carried it into the client report.
+                    row.pop(field, None)
+                    continue
+                try:
+                    row[field] = int(data[field])
+                except (TypeError, ValueError):
+                    return jsonify({'success': False,
+                                    'message': f'{field} must be a whole number'}), 400
             try:
                 row['updated_by'] = str(get_jwt_identity() or '')
             except Exception:
