@@ -11,6 +11,7 @@
 // They keep the tab open (or re-scan later; the number is in the URL).
 // A phone number remains OPTIONAL for anyone who does want the text.
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { remember, recall, forget } from '../../utils/deviceMemory';
 import { useSearchParams } from 'react-router-dom';
 import KioskOrder from './KioskOrder';
 import BackupBaristaUnlock from './BackupBaristaUnlock';
@@ -35,10 +36,10 @@ const MobileOrderPage = () => {
     // device's beacon.
     if (!trackNumber) return;
     try {
-      const raw = localStorage.getItem('cupq_active_order');
+      const raw = recall('cupq_active_order');
       if (raw && String((JSON.parse(raw) || {}).n) === String(trackNumber)) {
-        localStorage.setItem('cupq_active_order',
-          JSON.stringify({ n: trackNumber, at: Date.now() }));
+        remember('cupq_active_order',
+          JSON.stringify({ n: trackNumber, at: Date.now() }), 3 * 3600);
       }
     } catch (er) { /* private mode */ }
   }, [trackNumber]);
@@ -92,9 +93,9 @@ const MobileOrderPage = () => {
         // An order the server no longer knows must not keep pulling the
         // device back here -- forget it so /my offers ordering again.
         try {
-          const raw = localStorage.getItem('cupq_active_order');
+          const raw = recall('cupq_active_order');
           if (raw && String((JSON.parse(raw) || {}).n) === String(trackNumber)) {
-            localStorage.removeItem('cupq_active_order');
+            forget('cupq_active_order');
           }
         } catch (er) { /* nothing remembered */ }
         return;
@@ -112,9 +113,9 @@ const MobileOrderPage = () => {
           // closing and reopening the app would restore a beacon for a
           // coffee already in hand (the restore lives in MyCoffeePage).
           try {
-            const raw = localStorage.getItem('cupq_active_order');
+            const raw = recall('cupq_active_order');
             if (raw && String((JSON.parse(raw) || {}).n) === String(trackNumber)) {
-              localStorage.removeItem('cupq_active_order');
+              forget('cupq_active_order');
             }
           } catch (er) { /* nothing remembered, nothing to clear */ }
         }
