@@ -4450,8 +4450,18 @@ def _kiosk_menu_data(coffee_system):
                 caps = {}
         if not isinstance(caps, dict):
             caps = {}
+        # 'espresso drinks' is a GROUP TOKEN from the station
+        # capabilities editor -- one checkbox meaning "makes the
+        # espresso family". It is a capability fact, not a drink: left
+        # in this list it surfaced on the kiosk and the 86 board as an
+        # orderable tile literally named "Espresso Drinks" (Steve:
+        # "what does espresso drinks mean"), and tapping it would have
+        # ordered a drink no recipe knows. The individual drinks ride
+        # alongside it in caps, so dropping the token loses nothing.
+        _GROUP_TOKENS = {'espresso drinks'}
         caps_by_station[sid] = {
-            'coffee_types': [str(x).lower() for x in (caps.get('coffee_types') or caps.get('drinks') or [])],
+            'coffee_types': [str(x).lower() for x in (caps.get('coffee_types') or caps.get('drinks') or [])
+                             if str(x).lower() not in _GROUP_TOKENS],
             'milk_types':   [str(x).lower() for x in (caps.get('milk_types') or caps.get('milks') or [])],
             'sizes':        [str(x).lower() for x in (caps.get('sizes') or [])],
         }
