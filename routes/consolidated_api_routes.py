@@ -400,7 +400,10 @@ def _pending_questions_by_phone(cursor):
             if ph and q:
                 out[str(ph)] = str(q)  # later rows overwrite = latest wins
         return out
-    except Exception:
+    except Exception as e:
+        # Empty means "no unanswered questions", which hides real ones
+        # when this read breaks -- say so (sweep 7: fail-open review).
+        logger.warning(f"questions_by_phone read failed; cards show none: {e}")
         return {}
 
 
@@ -11938,7 +11941,8 @@ def _branding_for_label(db):
             # which is wrong the moment an operator renames the system.
             'systemName': (b.get('systemName') or b.get('system_name') or ''),
         }
-    except Exception:
+    except Exception as e:
+        logger.warning(f"label branding read failed; footer uses defaults: {e}")
         return {}
 
 
