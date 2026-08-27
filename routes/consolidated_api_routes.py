@@ -4459,9 +4459,14 @@ def _kiosk_menu_data(coffee_system):
         # ordered a drink no recipe knows. The individual drinks ride
         # alongside it in caps, so dropping the token loses nothing.
         _GROUP_TOKENS = {'espresso drinks'}
+        _raw_drinks = [str(x).lower() for x in (caps.get('coffee_types') or caps.get('drinks') or [])]
         caps_by_station[sid] = {
-            'coffee_types': [str(x).lower() for x in (caps.get('coffee_types') or caps.get('drinks') or [])
-                             if str(x).lower() not in _GROUP_TOKENS],
+            # The token itself is dropped (it is not a drink) but its
+            # MEANING is kept: this station makes the espresso family,
+            # so event-enabled espresso drinks beyond its explicit list
+            # (ristretto, magic, cortado...) are still its to make.
+            'espresso_family': any(t in _GROUP_TOKENS for t in _raw_drinks),
+            'coffee_types': [x for x in _raw_drinks if x not in _GROUP_TOKENS],
             'milk_types':   [str(x).lower() for x in (caps.get('milk_types') or caps.get('milks') or [])],
             'sizes':        [str(x).lower() for x in (caps.get('sizes') or [])],
         }
@@ -4598,6 +4603,23 @@ def _kiosk_menu_data(coffee_system):
     for ex in extras:
         universe['coffee_types'].setdefault(ex, ex)
     extra_set = set(extras)
+    # Union event-enabled ESPRESSO drinks into the universe. The tea fold
+    # above covers the 'drinks' category; espresso extras enabled in the
+    # Organiser (ristretto, magic, cortado...) never joined -- SMS sold
+    # them while the kiosk had never heard of them (Steve: "ristretto is
+    # currently in the event avalabilites... pretty sure magic is there
+    # also"). Same accessor SMS uses, so the surfaces cannot disagree.
+    event_espresso = set()
+    try:
+        raw_extras = {str(x).lower() for x in
+                      (coffee_system._get_available_extra_drinks() or [])}
+        for d in (coffee_system._get_available_coffee_types() or []):
+            dl = str(d).lower()
+            if dl not in raw_extras:
+                event_espresso.add(dl)
+                universe['coffee_types'].setdefault(dl, dl)
+    except Exception as e:
+        logger.warning(f"kiosk event espresso union failed: {e}")
     claimed_coffee = set()
     for caps in caps_by_station.values():
         for c in caps['coffee_types']:
@@ -4615,6 +4637,9 @@ def _kiosk_menu_data(coffee_system):
                 out.append(sid)
             elif dim == 'coffee_types' and item_lower in extra_set and item_lower not in claimed_coffee:
                 out.append(sid)  # enabled extra nobody claims → made everywhere
+            elif (dim == 'coffee_types' and item_lower in event_espresso
+                  and caps.get('espresso_family')):
+                out.append(sid)  # espresso-family station makes the family
         return out
 
     def title(s):
@@ -4642,6 +4667,13 @@ def _kiosk_menu_data(coffee_system):
             }
             if dim == 'coffee_types':
                 entry['category'] = categorize(item_lower)
+                # The kiosk shows featured drinks as the main grid and
+                # folds the rest behind a "Something else" tile.
+                try:
+                    entry['featured'] = item_lower in {
+                        str(x).lower() for x in coffee_system._STANDARD_DRINK_MENU}
+                except Exception:
+                    entry['featured'] = True
             out.append(entry)
         return out
 
