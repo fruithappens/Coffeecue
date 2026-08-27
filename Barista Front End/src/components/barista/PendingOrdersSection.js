@@ -375,7 +375,15 @@ const PendingOrdersSection = ({
                       ↪
                     </button>
                   )}
-                  <button className="p-1 text-gray-500 hover:text-gray-700">
+                  {/* Sweep 4: this pencil rendered next to a WORKING
+                      move button and did nothing when tapped -- the
+                      onEditOrder prop was sitting right there in this
+                      component's signature, unwired. */}
+                  <button
+                    className="p-1 text-gray-500 hover:text-gray-700"
+                    onClick={() => onEditOrder && onEditOrder(order)}
+                    title="Edit order"
+                  >
                     <Edit size={16} />
                   </button>
                 </div>
