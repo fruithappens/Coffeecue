@@ -207,8 +207,11 @@ const MobileOrderPage = () => {
             </button>
           )}
           {collected && (
-            <div className="mt-4 text-center text-green-700 font-semibold text-lg">
-              Enjoy your coffee.
+            <div className={`mt-4 text-center font-semibold text-lg ${
+              track?.status === 'cancelled' ? 'text-gray-600' : 'text-green-700'}`}>
+              {track?.status === 'cancelled'
+                ? 'This order was cancelled.'
+                : 'Enjoy your coffee.'}
             </div>
           )}
           {/* The WHOLE order, so someone can see their almond milk and
