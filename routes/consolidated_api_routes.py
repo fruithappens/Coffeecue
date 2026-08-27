@@ -5312,6 +5312,43 @@ def list_recipes():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@bp.route('/recipes/drinks-debug', methods=['GET'])
+@jwt_required_with_demo()
+def drinks_debug():
+    """Every stage of the drink-menu pipeline, separately. Built when
+    ristretto and magic were enabled in the event inventory yet the
+    kiosk kept serving exactly the standard six, twice, after two fixes
+    that each looked complete -- the merged result alone cannot say
+    which stage lied."""
+    coffee_system = current_app.config.get('coffee_system')
+    out = {}
+    try:
+        out['standard_menu'] = list(coffee_system._STANDARD_DRINK_MENU)
+    except Exception as e:
+        out['standard_error'] = str(e)
+    try:
+        en = coffee_system._get_event_enabled_coffees()
+        out['event_enabled_coffees'] = sorted(en) if en else en
+    except Exception as e:
+        out['event_enabled_error'] = str(e)
+    try:
+        out['extra_drinks'] = list(coffee_system._get_available_extra_drinks() or [])
+    except Exception as e:
+        out['extra_drinks_error'] = str(e)
+    try:
+        out['available_coffee_types'] = list(
+            coffee_system._get_available_coffee_types() or [])
+    except Exception as e:
+        out['available_error'] = str(e)
+    try:
+        from services.recipes import get_overrides
+        out['overrides'] = [
+            [c, n, st] for (c, n), st in get_overrides(coffee_system.db).items()]
+    except Exception as e:
+        out['overrides_error'] = str(e)
+    return jsonify({'success': True, **out})
+
+
 @bp.route('/recipes/milks-debug', methods=['GET'])
 @jwt_required_with_demo()
 def milks_debug():
