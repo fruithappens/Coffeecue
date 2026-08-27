@@ -96,3 +96,18 @@ findings, PRs.
   ?order=NN stored-shape mode) and /api/recipes/milks-debug. Final
   matrix: 24/25, last fail a poisoned-txn 400 (fixed after). Railway
   missed one deploy (re-push nudge worked, as memory predicted).
+- 2026-08-27: Sweep 1 (placebo hunt) — 29 success-message candidates
+  scanned, triaged to 2 live placebos + 5 orphan components. Fixed:
+  the barista "Custom Message" field claimed a Display-footer update
+  that never left the device (setSettings is localStorage; the Display
+  reads the backend) — now syncs the server and claims success only on
+  its yes; notification-settings toast fired success even when the
+  backend sync failed — now honest both ways. Deleted orphans (each
+  carrying placebo alerts waiting to be rewired): ModernBaristaInterface
+  + its HelpDialog ("In a real application, this would call an API" —
+  told baristas help "has been sent" while console.logging),
+  SystemModeToggle, EventSetupPanel, StockManagementSection. Also this
+  run: Railway volume verified live (on_volume: true, 2 auto-backups
+  already on it), Demo/Cafe preset shipped (#443). Carried forward:
+  GET /api/inventory ignores ?station_id= filter; DisplayTab's
+  "automatically saved!" alert unverified.
