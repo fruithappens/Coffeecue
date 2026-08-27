@@ -401,6 +401,14 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
   const drinksForTab = (menu?.coffee_types || [])
     .filter(d => drinkCat === 'All' || (d.category || 'Coffee') === drinkCat);
 
+  // Six familiar tiles, everything else one tap away. Steve: "I like
+  // that the coffee menu only has 6 main items but feel like if someone
+  // wanted ristretto they might not know its a posability so maybe last
+  // item could be something else or other". Server marks the standard
+  // menu featured; the long tail (ristretto, magic, cortado...) hides
+  // behind a "Something else" tile until asked for.
+  const [showAllDrinks, setShowAllDrinks] = useState(false);
+
   const sizeChoices = menu?.sizes || [];
   const needsSizeStep = sizeChoices.length > 1;
 
@@ -671,25 +679,41 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                     ))}
                   </div>
                 )}
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {drinksForTab.map(d => (
-                    <Tile key={d.value} emoji={drinkEmoji(d.value)} label={d.name}
-                      active={drink?.value === d.value}
-                      disabled={(d.stations || []).length === 0}
-                      sub={(d.stations || []).length === 0 ? 'Not available today'
-                        : (madeHere(d) ? null : `Station ${stationLabel(d)} only`)}
-                      onClick={() => {
-                        setDrink(d);
-                        if (MILKLESS.test(d.value || '')) {
-                          // Juice & friends: no milk question.
-                          setMilk(noMilkOption());
-                          afterMilk();
-                        } else {
-                          goTo('milk');
-                        }
-                      }} />
-                  ))}
-                </div>
+                {(() => {
+                  // A drink an old server never labelled counts as
+                  // featured, so nothing vanishes on a stale bundle.
+                  const hidden = showAllDrinks ? []
+                    : drinksForTab.filter(d => d.featured === false);
+                  const shown = showAllDrinks ? drinksForTab
+                    : drinksForTab.filter(d => d.featured !== false);
+                  return (
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      {shown.map(d => (
+                        <Tile key={d.value} emoji={drinkEmoji(d.value)} label={d.name}
+                          active={drink?.value === d.value}
+                          disabled={(d.stations || []).length === 0}
+                          sub={(d.stations || []).length === 0 ? 'Not available today'
+                            : (madeHere(d) ? null : `Station ${stationLabel(d)} only`)}
+                          onClick={() => {
+                            setDrink(d);
+                            if (MILKLESS.test(d.value || '')) {
+                              // Juice & friends: no milk question.
+                              setMilk(noMilkOption());
+                              afterMilk();
+                            } else {
+                              goTo('milk');
+                            }
+                          }} />
+                      ))}
+                      {hidden.length > 0 && (
+                        <Tile emoji="✨" label="Something else"
+                          sub={hidden.slice(0, 3).map(d => d.name).join(', ')
+                               + (hidden.length > 3 ? '…' : '')}
+                          onClick={() => setShowAllDrinks(true)} />
+                      )}
+                    </div>
+                  );
+                })()}
               </>
             )}
           </>
