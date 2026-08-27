@@ -40,72 +40,12 @@ def handle_order_request(function_name, order_id):
         return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
 
 # Sample test data generation (kept as fallback)
-def generate_sample_orders():
-    now = datetime.now()
-    return [
-        {
-            'id': f'order_{i}',
-            'order_number': f'45{280 + i}',
-            'customer_name': customer,
-            'coffee_type': coffee,
-            'milk_type': milk,
-            'sugar': sugar,
-            'status': status,
-            'created_at': (now - timedelta(minutes=wait_time)).isoformat(),
-            'wait_time': wait_time,
-            'priority': priority
-        }
-        for i, (customer, coffee, milk, sugar, status, wait_time, priority) in enumerate([
-            ('Sarah Williams', 'Regular Flat White', 'Full cream', '2 sugars', 'pending', 5, False),
-            ('James Cooper', 'Regular Latte', 'Almond milk', 'No sugar', 'pending', 7, False),
-            ('Emma Davis', 'Large Latte', 'Soy milk', '1 sugar', 'pending', 8, False),
-            ('Thomas Brown', 'Large Latte', 'Soy milk', '0 sugar', 'pending', 9, False),
-            ('Michael Johnson', 'Large Cappuccino', 'Oat milk', '1 sugar', 'in-progress', 3, True),
-        ])
-    ]
-
-def generate_sample_in_progress_orders():
-    now = datetime.now()
-    return [
-        {
-            'id': 'order_in_progress_1',
-            'order_number': '45281',
-            'customer_name': 'Michael Johnson',
-            'phone_number': '+61 423 555 789',
-            'coffee_type': 'Large Cappuccino', 
-            'milk_type': 'Oat milk', 
-            'sugar': '1 sugar',
-            'extra_hot': True,
-            'priority': True,
-            'created_at': (now - timedelta(minutes=3)).isoformat(),
-            'wait_time': 3
-        }
-    ]
-
-def generate_sample_chat_messages():
-    now = datetime.now()
-    return [
-        {
-            'sender': 'Julia (Station #1)',
-            'content': 'Running low on alternative milks over here, anyone have extra?',
-            'created_at': (now - timedelta(minutes=15)).isoformat(),
-            'is_urgent': False
-        },
-        {
-            'sender': 'Alex (Station #2)',
-            'content': 'I can share some oat milk',
-            'created_at': (now - timedelta(minutes=5)).isoformat(),
-            'is_urgent': False
-        },
-        {
-            'sender': 'Station #2',
-            'content': 'URGENT: Coffee machine is jamming at Station #2!',
-            'created_at': (now - timedelta(minutes=5)).isoformat(),
-            'is_urgent': True
-        }
-    ]
-
-# Helper function to clean order IDs
+# Three sample-data generators lived here (fake orders for 'Sarah
+# Williams' and friends, fake chat). Principle 6: no UI may pretend
+# data is live when it isn't. The order ones were already unused; the
+# chat one was WIRED as this endpoint's error fallback -- a database
+# hiccup showed staff invented messages marked success:true. Deleted
+# in sweep 3; errors now say so.
 def clean_order_id(order_id):
     """Remove prefixes like 'order_' from IDs and return the base ID"""
     if not order_id:
@@ -635,19 +575,14 @@ def get_chat_messages():
                 'messages': messages
             })
         else:
-            # If table doesn't exist, return sample data
-            logger.warning("chat_messages table not found, using sample data")
-            return jsonify({
-                'success': True,
-                'messages': generate_sample_chat_messages()
-            })
-    
+            logger.warning("chat_messages table not found")
+            return jsonify({'success': True, 'messages': [],
+                            'note': 'chat storage not initialised yet'})
+
     except Exception as e:
         logger.error(f"Error fetching chat messages: {str(e)}")
-        return jsonify({
-            'success': True,
-            'messages': generate_sample_chat_messages()
-        })
+        return jsonify({'success': False, 'messages': [],
+                        'error': 'chat temporarily unavailable'}), 500
 
 @bp.route('/test', methods=['GET'])
 def test_api():
