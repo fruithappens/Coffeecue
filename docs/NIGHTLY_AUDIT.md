@@ -125,3 +125,15 @@ findings, PRs.
   api_bp (registers before chat_api_bp) and returned invented staff
   messages with success:true on any DB error. Now honest. DisplayTab's
   ceremony alert fixed (#445).
+- 2026-08-27 (cont): Sweep 7 (fail-open review) — 15 widen-without-log
+  sites scanned; all benign (skip-bad-row loops; an SMS age check that
+  deliberately fails toward SENDING, commented as such). The dangerous
+  fail-opens of this class were already found and fixed earlier this
+  rotation (milk fallback, unlimited-mode gate coherence, printer 2xx
+  decoding). Added logging to the two silent read-helpers on decision
+  paths (customer-question cards, label branding footer).
+  ROTATION COMPLETE: all 7 sweeps run at least once. Net across the
+  rotation: 1 shadowed security guard revived, 1 live fake-data
+  fallback killed, 2 placebo toasts made honest, 2 dead buttons wired,
+  7 orphan components deleted, 1 decoy key removed, 2 silent helpers
+  given voices. Next rotation starts again at Sweep 1.
