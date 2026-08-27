@@ -28,6 +28,20 @@ const MobileOrderPage = () => {
   const [params, setParams] = useSearchParams();
   const stationId = params.get('station');
   const trackNumber = params.get('order');
+  useEffect(() => {
+    // Refresh the device's memory of ITS OWN live order (written at
+    // placement) so a long wait doesn't age it out. Only when it
+    // matches: scanning a friend's share-QR must not hijack this
+    // device's beacon.
+    if (!trackNumber) return;
+    try {
+      const raw = localStorage.getItem('cupq_active_order');
+      if (raw && String((JSON.parse(raw) || {}).n) === String(trackNumber)) {
+        localStorage.setItem('cupq_active_order',
+          JSON.stringify({ n: trackNumber, at: Date.now() }));
+      }
+    } catch (er) { /* private mode */ }
+  }, [trackNumber]);
   const [track, setTrack] = useState(null);
   const [gone, setGone] = useState(false);
   const [collecting, setCollecting] = useState(false);
@@ -72,7 +86,19 @@ const MobileOrderPage = () => {
         setGone(false);
         // Survives a reload: if the barista marked it collected, or this
         // phone did before the page was refreshed, show it as done.
-        if (b.status === 'picked_up' || b.status === 'picked-up') setCollected(true);
+        if (b.status === 'picked_up' || b.status === 'picked-up'
+            || b.status === 'cancelled') {
+          setCollected(true);
+          // The device stops remembering a FINISHED order -- otherwise
+          // closing and reopening the app would restore a beacon for a
+          // coffee already in hand (the restore lives in MyCoffeePage).
+          try {
+            const raw = localStorage.getItem('cupq_active_order');
+            if (raw && String((JSON.parse(raw) || {}).n) === String(trackNumber)) {
+              localStorage.removeItem('cupq_active_order');
+            }
+          } catch (er) { /* nothing remembered, nothing to clear */ }
+        }
       }
     } catch (e) { /* keep the last known state */ }
   }, [trackNumber]);
