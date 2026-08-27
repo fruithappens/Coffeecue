@@ -294,7 +294,12 @@ const MyCoffeePage = () => {
   // think it should start with the order"). An unidentified visitor
   // lands IN the ordering flow; looking up an existing order is the
   // link, not the gate.
-  const [checkExisting, setCheckExisting] = useState(false);
+  // /my?find=1 lands straight on the find-my-order screen AND skips
+  // the beacon restore. It exists for the person who typed a WRONG
+  // order number: the beacon page sends them here, and without the
+  // flag the restore would bounce them right back to the wrong order.
+  // Steve: "no way to search again without quitting the whole app".
+  const [checkExisting, setCheckExisting] = useState(() => !!params.get('find'));
   // Order-number recovery. Steve force-quit the EA app, which wipes ALL
   // site data, having ordered as "fred" with no phone -- neither number
   // nor name could find that order again. The order number CAN (it is
