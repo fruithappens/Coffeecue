@@ -4860,15 +4860,21 @@ def create_kiosk_order():
         # station is shown on the kiosk review + the order board). A number just
         # opts them into a ready-SMS. Normalise to E.164 so SMS actually sends.
         raw_phone = (data.get('phone') or data.get('phone_number') or '').strip()
+
         phone = ''
         if raw_phone:
             try:
                 phone = coffee_system._normalize_phone(raw_phone)
             except Exception:
                 phone = raw_phone
-        # EA-identified and no number typed: use the registration mobile
-        # (resolved server-side above) so the ready-SMS just works.
-        if not phone and ea_phone:
+        # EA-identified and no number typed: the registration mobile is
+        # attached ONLY when the customer tapped the opt-in (Steve's
+        # flow: "we have xx name and number on record is this correct?
+        # opt in for sms reminder"). It used to attach automatically --
+        # a text nobody asked for, to a number nobody confirmed. The
+        # number stays server-side either way; the browser only ever
+        # learns has_phone.
+        if not phone and ea_phone and data.get('use_registered_phone'):
             phone = ea_phone
 
         try:
