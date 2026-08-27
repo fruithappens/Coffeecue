@@ -1033,6 +1033,7 @@ const MyCoffeePage = () => {
             <KioskOrder
               eaCid={cid}
               onClose={() => { setFullOrder(false); load(cid); }}
+              onOrderPlaced={() => { setFullOrder(false); load(cid); }}
             />
           </div>
         )}
@@ -1138,9 +1139,18 @@ const MyCoffeePage = () => {
           {/* eaCid so the order is filed against THIS person: their name on
               the cup, their phone attached server-side, and the order then
               shows here as theirs instead of vanishing. */}
+          {/* onOrderPlaced: Done flips STRAIGHT to the waiting beacon
+              (Steve's spec: selections -> name -> optional SMS -> beacon
+              until collected). Before this, Done showed a static screen,
+              closing it re-looked-up by PHONE ONLY, found nothing for an
+              EA order without a number, and dumped the customer back at
+              the start as if their order had vanished. The lookup now
+              also matches the EA contact, and this handoff skips the
+              dead end entirely. */}
           <KioskOrder
             eaCid={cid}
             onClose={() => { setFullOrder(false); load(cid); }}
+            onOrderPlaced={() => { setFullOrder(false); load(cid); }}
           />
         </div>
       )}

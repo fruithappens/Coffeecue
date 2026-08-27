@@ -1331,10 +1331,18 @@ def ea_me():
             "       s.name AS station_name "
             "FROM orders o "
             "LEFT JOIN station_stats s ON s.station_id = o.station_id "
-            "WHERE o.phone = %s AND o.status IN ('pending','in-progress','completed') "
+            # Match by PHONE or by the EA CONTACT the order was filed
+            # against. Phone-only matching sent Steve back to the start
+            # screen the moment he hit Done: an EA-identified order
+            # placed WITHOUT an SMS number has no phone to match, so
+            # the beacon page decided nothing was in flight while his
+            # coffee sat in the queue.
+            "WHERE (o.phone = %s "
+            "       OR o.order_details::jsonb->>'ea_contact_id' = %s) "
+            "AND o.status IN ('pending','in-progress','completed') "
             "AND o.created_at > NOW() - INTERVAL '3 hours' "
             "ORDER BY o.created_at DESC LIMIT 1",
-            (rec.get('mobile_e164') or '',))
+            (rec.get('mobile_e164') or '', str(rec.get('ea_contact_id') or '')))
         arow = cur.fetchone()
         if arow:
             if isinstance(arow, dict):
