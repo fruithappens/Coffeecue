@@ -111,3 +111,17 @@ findings, PRs.
   already on it), Demo/Cafe preset shipped (#443). Carried forward:
   GET /api/inventory ignores ?station_id= filter; DisplayTab's
   "automatically saved!" alert unverified.
+- 2026-08-27 (cont): Sweeps 2+3. Sweep 2 (write/read pairing): the
+  POST /api/inventory duplicate-409 guard from #429 was SHADOWED by a
+  legacy handler registering first -- every create ran unguarded until
+  #445; verified live (first real 409). Kill switches confirmed wired
+  (order_intake). Withdrawn as false positives: refresh-token key
+  (variable-keyed read), station_id filter (deliberate station-view
+  semantics), requested_station_id (reporting field). Cruft removed:
+  dead coffee_sound_enabled write. Sweep 3 (hardcoded census): 73
+  vocabulary hits triaged; the class that mattered was sample-data
+  generators in routes/api_routes.py -- fake orders (unused defs,
+  deleted) and a LIVE fake-chat fallback: /chat/messages is served by
+  api_bp (registers before chat_api_bp) and returned invented staff
+  messages with success:true on any DB error. Now honest. DisplayTab's
+  ceremony alert fixed (#445).

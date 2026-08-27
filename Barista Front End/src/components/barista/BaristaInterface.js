@@ -3873,8 +3873,12 @@ const BaristaInterface = () => {
                         const newSoundEnabled = e.target.checked;
                         setSettings(prev => ({...prev, soundEnabled: newSoundEnabled}));
                         
-                        // Update localStorage and trigger event for sound system
-                        localStorage.setItem('coffee_sound_enabled', newSoundEnabled ? 'true' : 'false');
+                        // (A 'coffee_sound_enabled' key was also written
+                        // here "for the sound system" -- but the sound
+                        // service reads soundEnabled from the
+                        // coffee_cue_settings blob persisted below, and
+                        // nothing anywhere read the extra key. Sweep 2:
+                        // one fact, one store.)
                         window.dispatchEvent(new CustomEvent('app:toggleSound', { 
                           detail: { enabled: newSoundEnabled } 
                         }));
