@@ -533,6 +533,51 @@ def _m017_stock_overrides(cur):
     """)
 
 
+def _m018_shipped_demo_template(cur):
+    """Ship the 'Demo / Cafe' Quick Setup preset (demo findings A5).
+
+    Steve talked himself out of a separate 'demo mode' -- correctly:
+    'the demo IS the product, set up fast.' What was actually needed is
+    a saved preset that applies a small tight menu, one active station's
+    worth of settings and unlimited stock in one action, so a cafe demo
+    goes from cold device to taking orders in under a minute.
+
+    ON CONFLICT (name) DO NOTHING: if an operator has saved their own
+    'Demo / Cafe' template, theirs wins forever."""
+    import json as _json
+    payload = {
+        "milks": ["full cream", "skim", "oat", "almond"],
+        "sizes": ["medium"],
+        "sweeteners": ["no sugar", "1 sugar", "2 sugar"],
+        "drinks": {"espresso_drinks": True, "hot_chocolate": True,
+                   "chai": False, "matcha": False},
+        "teas": {"english_breakfast": False, "earl_grey": False,
+                 "green": False, "peppermint": False, "chamomile": False,
+                 "lemon_ginger": False, "rooibos": False, "generic": False},
+        "custom_teas": "",
+        "unlimited_stock": True,
+        "all_stations_same_capabilities": True,
+        "always_open_schedule": True,
+        "vip_code": "VIP",
+        "activate_all_stations": True,
+        "started_sms_policy": "queue_only",
+    }
+    cur.execute(
+        """
+        INSERT INTO event_templates (name, description, payload)
+        VALUES (%s, %s, %s)
+        ON CONFLICT (name) DO NOTHING
+        """,
+        (
+            "Demo / Cafe",
+            "Fast demo setup: espresso drinks + hot chocolate, four "
+            "milks, one size, unlimited stock, every station active. "
+            "Apply, then wipe event data afterwards to reset.",
+            _json.dumps(payload),
+        ),
+    )
+
+
 # Master list. Append new migrations at the bottom — DO NOT renumber
 # existing ones, and DO NOT change `version`. The runner trusts the
 # version number to determine which migrations to skip.
@@ -556,6 +601,7 @@ MIGRATIONS: list[Migration] = [
     Migration(15, 'recipes',                   _m015_recipes),
     Migration(16, 'recipes_null_safe_unique',  _m016_recipes_null_safe_unique),
     Migration(17, 'stock_overrides',           _m017_stock_overrides),
+    Migration(18, 'shipped_demo_template',     _m018_shipped_demo_template),
 ]
 
 
