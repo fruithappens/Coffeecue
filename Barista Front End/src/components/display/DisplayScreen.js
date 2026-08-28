@@ -24,6 +24,7 @@
 //   - Theme support (light / dark / coffee)
 //   - Tap-anywhere to toggle fullscreen on iPad
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import startConnectionWatchdog from '../../utils/connectionWatchdog';
 import KioskAdminPanel from './KioskAdminPanel';
 import { Coffee, Check, Clock, ArrowLeft, RefreshCw, MapPin,
          Maximize2, MessageCircle, RotateCw, Volume2, VolumeX } from 'lucide-react';
@@ -189,6 +190,10 @@ const _normalizeRotation = (value) => {
 };
 
 const DisplayScreen = () => {
+  // Self-heal after a network outage: an iPad in fullscreen has no F5.
+  // The watchdog reloads on the down->up transition, never mid-touch
+  // (a customer ordering keeps their screen; see connectionWatchdog).
+  useEffect(() => startConnectionWatchdog({ idleMs: 60000 }), []);
   const [searchParams] = useSearchParams();
   const stationId = searchParams.get('station');
   // ?orientation= overrides the saved setting. Useful for the
