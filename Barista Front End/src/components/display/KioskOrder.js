@@ -648,10 +648,17 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4"
+    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 overflow-y-auto"
          onPointerDown={resetIdle}
          style={{ background: `linear-gradient(135deg, ${headerColor}ee, #000000cc)`,
-                  paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
+                  // The EventsAir app's webview sits UNDER the app's own
+                  // header and nav bar and reports a viewport it does not
+                  // actually show -- Steve: "cant quite see very top of
+                  // page and very bottom". Safe-area padding both ends,
+                  // and the overlay itself scrolls, so anything a bar
+                  // covers can always be scrolled into view.
+                  paddingTop: 'max(1.25rem, env(safe-area-inset-top))',
+                  paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
 
       {/* Idle countdown — big, unmissable, tap-to-dismiss. */}
       {idleCountdown != null && idleCountdown > 0 && (
@@ -668,7 +675,11 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
         </div>
       )}
 
-      <div className={`w-full max-h-[92vh] overflow-y-auto rounded-3xl p-6 md:p-8
+      {/* Phones: the card takes its natural height and the PAGE scrolls
+          -- an inner scroll area inside a mis-reported webview viewport
+          is how the top and bottom went missing. Kiosks (sm+) keep the
+          centred card with its own scroll. */}
+      <div className={`w-full sm:max-h-[92vh] sm:overflow-y-auto rounded-3xl p-6 md:p-8
                        ${step === 'done' ? 'max-w-5xl' : 'max-w-3xl'}`}
            style={{ backgroundColor: '#f8fafc' }}>
 
