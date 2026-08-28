@@ -5206,12 +5206,20 @@ def create_kiosk_order():
                 pass
 
         station_name = f"Station {target}"
+        station_location = ''
         try:
             nc = db.cursor()
-            nc.execute("SELECT name FROM station_stats WHERE station_id = %s", (target,))
+            # Operator labels live in notes/equipment_notes on this schema
+            # (see station_api_routes); name holds seed defaults.
+            nc.execute("SELECT COALESCE(notes,''), COALESCE(equipment_notes,''), "
+                       "COALESCE(name,'') FROM station_stats WHERE station_id = %s",
+                       (target,))
             nr = nc.fetchone()
-            if nr and (nr[0] if not isinstance(nr, dict) else nr.get('name')):
-                station_name = nr[0] if not isinstance(nr, dict) else nr.get('name')
+            if nr:
+                _n, _loc, _nm = ((nr.get('notes'), nr.get('equipment_notes'), nr.get('name'))
+                                 if isinstance(nr, dict) else (nr[0], nr[1], nr[2]))
+                station_name = _n or _nm or station_name
+                station_location = _loc or ''
         except Exception:
             pass
 
@@ -6106,6 +6114,7 @@ def track_order_public(order_id):
             # order, so the screen and the sticker agree.
             'drink_full': _track_full_drink(od),
             'station_name': station_name,
+            'station_location': station_location,
             'collection_note': od.get('collection_note') or '',
         })
     except Exception as e:
