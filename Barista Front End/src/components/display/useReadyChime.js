@@ -21,6 +21,7 @@
 //     all, so it wakes the context too.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Volume2, VolumeX } from 'lucide-react';
+import playCupQSignature from '../../utils/cupqSignature';
 
 export const SOUND_KEY = 'coffee_my_sound_on';
 
@@ -53,23 +54,10 @@ export default function useReadyChime() {
     try {
       const ctx = wakeAudio();
       if (!ctx) return;
-      const fire = () => {
-        const t0 = ctx.currentTime;
-        // Two short rising notes. A single beep reads as an error tone;
-        // rising reads as good news.
-        [[880, 0], [1175, 0.16]].forEach(([hz, at]) => {
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.type = 'sine';
-          osc.frequency.value = hz;
-          gain.gain.setValueAtTime(0.0001, t0 + at);
-          gain.gain.exponentialRampToValueAtTime(0.35, t0 + at + 0.02);
-          gain.gain.exponentialRampToValueAtTime(0.0001, t0 + at + 0.32);
-          osc.connect(gain); gain.connect(ctx.destination);
-          osc.start(t0 + at);
-          osc.stop(t0 + at + 0.34);
-        });
-      };
+      // The CupQ signature -- drop, pour, "Q", steam. One motif on
+      // every good-news moment so the sound itself comes to mean
+      // coffee (see utils/cupqSignature.js for the design).
+      const fire = () => playCupQSignature(ctx);
       // resume() is async, so wait for it rather than firing into a
       // context that is still waking.
       if (ctx.state === 'suspended' && ctx.resume) {
