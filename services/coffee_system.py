@@ -4536,6 +4536,21 @@ class CoffeeOrderSystem:
                     seen.add(name)
                     beans.append(name)
             beans.sort(key=lambda b: (0 if ("house" in b or "blend" in b) else 1, b))
+            # The 86 board beats the ledger here like everywhere else.
+            # Steve 86'd decaf and the app kept offering the Decaf?
+            # button ("this is why i wanted a full optional turn off
+            # not just a 86 disable") -- because this list only checked
+            # STOCK, which unlimited mode skips entirely. An 86'd bean
+            # now leaves every menu at once and stays gone until the
+            # chip is tapped back on.
+            try:
+                from services.recipes import get_overrides
+                dead = {n for (c, n), st in get_overrides(self.db).items()
+                        if c == "coffee" and st == "86"}
+                if dead:
+                    beans = [b for b in beans if b not in dead]
+            except Exception:
+                pass
             return beans
         except Exception as e:
             logger.warning(f"_get_available_bean_types: {e}")
