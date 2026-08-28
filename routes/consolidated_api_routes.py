@@ -4433,6 +4433,21 @@ def _kiosk_menu_data(coffee_system):
     stations = []
     caps_by_station = {}
     cur = db.cursor()
+    # The operator's labels ("Coffee Station 1", "Concourse") live in the
+    # STATIONS table; station_stats often carries only a bare default
+    # name and no location. Read both, prefer the richer value.
+    labels = {}
+    try:
+        cur.execute("SELECT id, COALESCE(name,''), COALESCE(location,'') FROM stations")
+        for r in cur.fetchall():
+            _id, _nm, _loc = ((r.get('id'), r.get('name'), r.get('location'))
+                              if isinstance(r, dict) else (r[0], r[1], r[2]))
+            labels[_id] = (_nm or '', _loc or '')
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
     cur.execute(
         "SELECT station_id, COALESCE(name,''), COALESCE(status,'active'), capabilities, "
         "COALESCE(wait_time, 0), COALESCE(current_load, 0), COALESCE(location,'') "
@@ -4441,10 +4456,11 @@ def _kiosk_menu_data(coffee_system):
     for row in cur.fetchall():
         is_d = isinstance(row, dict)
         sid = row.get('station_id') if is_d else row[0]
-        name = (row.get('name') if is_d else row[1]) or f"Station {sid}"
+        _lab = labels.get(sid, ('', ''))
+        name = (row.get('name') if is_d else row[1]) or _lab[0] or f"Station {sid}"
         # The room, not just the number: "Station 1" means nothing to a
         # delegate; "Station 1 · Concourse" is somewhere to walk to.
-        location = (row.get('location') if is_d else row[6]) or ''
+        location = ((row.get('location') if is_d else row[6]) or _lab[1] or '')
         status = (row.get('status') if is_d else row[2]) or 'active'
         caps_raw = row.get('capabilities') if is_d else row[3]
         wait = (row.get('wait_time') if is_d else row[4]) or 0
@@ -5963,6 +5979,18 @@ def track_order_public(order_id):
                 if nm:
                     station_name = nm
                 station_location = loc or ''
+            if not station_location:
+                # The room usually lives in the STATIONS table, not
+                # station_stats -- same overlay the kiosk menu does.
+                c2.execute("SELECT COALESCE(name,''), COALESCE(location,'') "
+                           "FROM stations WHERE id = %s", (station_id,))
+                r4 = c2.fetchone()
+                if r4:
+                    nm2, loc2 = ((r4.get('name'), r4.get('location'))
+                                 if isinstance(r4, dict) else (r4[0], r4[1]))
+                    station_location = loc2 or ''
+                    if not station_name or station_name == f"Station {station_id}":
+                        station_name = nm2 or station_name
         except Exception:
             db.rollback()
         first_name = str(od.get('name') or '').split(' ')[0]
