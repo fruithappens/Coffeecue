@@ -46,6 +46,7 @@ const clearDeviceState = () => {
     sessionStorage.clear();
     // The cookie halves of the device memory go with it.
     forget('cupq_active_order');
+    forget('cupq_sms_pref');
     forget(MY_CID_KEY);
   } catch (e) { /* private mode: nothing stored anyway */ }
 };
