@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { forget } from '../../utils/deviceMemory';
+import playCupQSignature from '../../utils/cupqSignature';
 import {
   Shield, X, Monitor, Coffee, Settings as SettingsIcon, RotateCw,
   Volume2, RefreshCw, LogOut, Maximize, Delete,
@@ -54,20 +55,9 @@ const beep = () => {
     const Ctx = window.AudioContext || window.webkitAudioContext;
     if (!Ctx) return;
     const ctx = new Ctx();
-    const go = () => {
-      const t0 = ctx.currentTime;
-      [[880, 0], [1175, 0.16]].forEach(([hz, at]) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.value = hz;
-        gain.gain.setValueAtTime(0.0001, t0 + at);
-        gain.gain.exponentialRampToValueAtTime(0.4, t0 + at + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.0001, t0 + at + 0.3);
-        osc.connect(gain); gain.connect(ctx.destination);
-        osc.start(t0 + at); osc.stop(t0 + at + 0.32);
-      });
-    };
+    // "Test sound" plays the real thing: the staff member hears
+    // exactly what customers will, at the volume the room will.
+    const go = () => playCupQSignature(ctx);
     if (ctx.state === 'suspended') ctx.resume().then(go);
     else go();
   } catch (e) { /* silent devices stay silent */ }
