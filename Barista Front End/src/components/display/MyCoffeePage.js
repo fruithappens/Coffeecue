@@ -16,6 +16,7 @@
 // a wrong badge number or a guest who isn't in EventsAir is never stuck.
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { recall, remember, forget } from '../../utils/deviceMemory';
+import playCupQSignature from '../../utils/cupqSignature';
 import { useSearchParams } from 'react-router-dom';
 import { Volume2, VolumeX } from 'lucide-react';
 import KioskOrder from './KioskOrder';
@@ -155,6 +156,11 @@ const MyCoffeePage = () => {
   const [soundOn, setSoundOn] = useState(() => {
     try { return localStorage.getItem(SOUND_KEY) === 'true'; } catch (e) { return false; }
   });
+  // What the play attempt actually did: 'running' = audio flowed (a
+  // silent phone means the mute switch/volume), 'blocked' = the
+  // surrounding app never let audio start. Steve, in the EA app:
+  // "I cant here the sound preview" -- with no way to tell which.
+  const [audioState, setAudioState] = useState('unknown');
   const toggleSound = () => {
     const next = !soundOn;
     setSoundOn(next);
@@ -166,6 +172,14 @@ const MyCoffeePage = () => {
     if (next) {
       wakeAudio();
       playReadyChime();
+      setTimeout(() => {
+        try {
+          setAudioState(audioRef.current && audioRef.current.state === 'running'
+            ? 'running' : 'blocked');
+        } catch (e) { setAudioState('blocked'); }
+      }, 400);
+    } else {
+      setAudioState('unknown');
     }
   };
 
@@ -211,23 +225,11 @@ const MyCoffeePage = () => {
       // resume() is async. Waiting for it means the chime still lands
       // when the context was suspended a millisecond ago -- which is the
       // ordinary case on a phone that just woke up.
-      const fire = () => {
-        const t0 = ctx.currentTime;
-        // Two short rising notes. A single beep reads as an error tone;
-        // rising reads as good news.
-        [[880, 0], [1175, 0.16]].forEach(([hz, at]) => {
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.type = 'sine';
-          osc.frequency.value = hz;
-          gain.gain.setValueAtTime(0.0001, t0 + at);
-          gain.gain.exponentialRampToValueAtTime(0.35, t0 + at + 0.02);
-          gain.gain.exponentialRampToValueAtTime(0.0001, t0 + at + 0.32);
-          osc.connect(gain); gain.connect(ctx.destination);
-          osc.start(t0 + at);
-          osc.stop(t0 + at + 0.34);
-        });
-      };
+      // The CupQ signature -- the same motif the beacon and the admin
+      // test play. This page had kept a private copy of the OLD
+      // two-beep, so identified attendees were hearing a different
+      // brand than everyone else.
+      const fire = () => playCupQSignature(ctx);
       if (ctx.state === 'suspended' && ctx.resume) {
         Promise.resolve(ctx.resume()).then(fire).catch(() => {
           /* audio stayed blocked -- the page still works silently */
@@ -1124,6 +1126,18 @@ const MyCoffeePage = () => {
               : <VolumeX size={18} className="shrink-0" />}
             {soundOn ? 'Sound on when ready' : 'Tap for a sound when ready'}
           </button>
+          {soundOn && audioState === 'running' && (
+            <p className="mt-1 text-xs text-center text-gray-500">
+              Chime played — didn't hear it? Check your phone's silent
+              switch and volume.
+            </p>
+          )}
+          {soundOn && audioState === 'blocked' && (
+            <p className="mt-1 text-xs text-center text-amber-700">
+              This app is blocking sound. This screen still turns green
+              when it's ready — or opt in for a text.
+            </p>
+          )}
 
           {/* A code someone ELSE can scan to order their own. Steve: "can
               this page have a qr code on it so others can order off of

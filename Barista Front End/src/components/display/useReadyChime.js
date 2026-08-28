@@ -29,6 +29,13 @@ export default function useReadyChime() {
   const [soundOn, setSoundOn] = useState(() => {
     try { return localStorage.getItem(SOUND_KEY) === 'true'; } catch (e) { return false; }
   });
+  // What actually happened when we tried to play: 'running' = audio is
+  // flowing (if it's silent, the phone's mute switch or volume is the
+  // culprit); 'blocked' = the surrounding app never let the audio
+  // context start at all (some in-app browsers do this). Steve, testing
+  // in the EventsAir app: "I cant here the sound preview" -- a silent
+  // failure with no way to tell which of the three causes it was.
+  const [audioState, setAudioState] = useState('unknown');
 
   const audioRef = useRef(null);
   const getAudio = useCallback(() => {
@@ -80,6 +87,15 @@ export default function useReadyChime() {
         // place -- so enabling it here is also what makes it work later.
         wakeAudio();
         playChime();
+        // Give resume() a moment, then report the truth of the attempt.
+        setTimeout(() => {
+          try {
+            setAudioState(audioRef.current && audioRef.current.state === 'running'
+              ? 'running' : 'blocked');
+          } catch (e) { setAudioState('blocked'); }
+        }, 400);
+      } else {
+        setAudioState('unknown');
       }
       return next;
     });
@@ -100,28 +116,47 @@ export default function useReadyChime() {
     };
   }, [soundOn, wakeAudio]);
 
-  return { soundOn, toggleSound, playChime, wakeAudio };
+  return { soundOn, toggleSound, playChime, wakeAudio, audioState };
 }
 
 // Red with a line through it when muted, green when on -- readable at a
 // glance without reading the words (Steve: "maybe red speaker with cross
 // though it and then green speaker icon").
-export function SoundToggleButton({ soundOn, onToggle, className = '' }) {
+export function SoundToggleButton({ soundOn, onToggle, className = '', audioState }) {
   return (
-    <button
-      type="button"
-      onClick={onToggle}
-      aria-pressed={soundOn}
-      className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl
-                  border-2 text-sm font-semibold transition-colors ${className}
-                  ${soundOn
-                    ? 'border-green-600 text-green-700 bg-green-50'
-                    : 'border-red-500 text-red-600 bg-red-50'}`}
-    >
-      {soundOn
-        ? <Volume2 size={18} className="shrink-0" />
-        : <VolumeX size={18} className="shrink-0" />}
-      {soundOn ? 'Sound on when ready' : 'Tap for a sound when ready'}
-    </button>
+    <div className={className}>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-pressed={soundOn}
+        className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl
+                    border-2 text-sm font-semibold transition-colors
+                    ${soundOn
+                      ? 'border-green-600 text-green-700 bg-green-50'
+                      : 'border-red-500 text-red-600 bg-red-50'}`}
+      >
+        {soundOn
+          ? <Volume2 size={18} className="shrink-0" />
+          : <VolumeX size={18} className="shrink-0" />}
+        {soundOn ? 'Sound on when ready' : 'Tap for a sound when ready'}
+      </button>
+      {/* Say WHY it's silent instead of failing quietly. 'running' with
+          no audible chime means the phone itself is muting us (ring/
+          silent switch, volume); 'blocked' means the app around this
+          page never let audio start. Either way the page still turns
+          green and (if opted in) the text still arrives. */}
+      {soundOn && audioState === 'running' && (
+        <p className="mt-1 text-xs text-center text-gray-500">
+          Chime played — didn't hear it? Check your phone's silent
+          switch and volume.
+        </p>
+      )}
+      {soundOn && audioState === 'blocked' && (
+        <p className="mt-1 text-xs text-center text-amber-700">
+          This app is blocking sound. The screen still turns green when
+          it's ready — or add your mobile for a text.
+        </p>
+      )}
+    </div>
   );
 }
