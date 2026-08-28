@@ -1,5 +1,6 @@
 // components/BaristaInterface.js
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import startConnectionWatchdog from '../../utils/connectionWatchdog';
 import StationPrinterPanel from '../barista-tabs/StationPrinterPanel';
 import EightySixBoard from '../barista-tabs/EightySixBoard';
 import { ToastManager, showToast } from '../shared/Toast';
@@ -102,6 +103,10 @@ const ScaledDisplayPreview = ({ url }) => {
 };
 
 const BaristaInterface = () => {
+  // Self-heal after a network outage (same watchdog as the displays,
+  // longer idle guard: a barista mid-edit must never lose their screen;
+  // the reload waits for two quiet minutes).
+  useEffect(() => startConnectionWatchdog({ idleMs: 120000 }), []);
   // Use the AppMode context
   const { isDemoMode, toggleAppMode } = useAppMode();
 
