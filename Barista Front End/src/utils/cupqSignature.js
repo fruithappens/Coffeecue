@@ -20,9 +20,12 @@
 //                    like the last hiss off the milk wand. Felt more
 //                    than heard.
 //
-// ~1.1 seconds end to end: long enough to be a motif, short enough to
-// play forty times an hour without anyone hating it. All mid-high
-// frequencies, so it carries on a phone speaker in a noisy room.
+// v2, ~2.4 seconds: Steve heard v1 through the QR page and asked for
+// "much longer maybe a bit fanfare" -- so the pour grew into a five-
+// note run, a major chord lands under it, and the top lifts an octave
+// for the ta-da. Same DNA (drop first, steam last), bigger payoff.
+// All mid-high frequencies, so it carries on a phone speaker in a
+// noisy room.
 //
 // Pure WebAudio, no samples: nothing to load, nothing to license, and
 // it plays from a context the caller already unlocked (iOS rules --
@@ -34,73 +37,91 @@ export default function playCupQSignature(ctx, master = 0.9) {
   out.gain.value = master;
   out.connect(ctx.destination);
 
-  // --- 1. the drop ---------------------------------------------------
-  {
-    const osc = ctx.createOscillator();
-    const g = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(320, t0);
-    osc.frequency.exponentialRampToValueAtTime(170, t0 + 0.12);
-    g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(0.30, t0 + 0.015);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.14);
-    osc.connect(g); g.connect(out);
-    osc.start(t0); osc.stop(t0 + 0.16);
-  }
-
-  // --- 2. the pour: E5 A5 C#6, lightly swung -------------------------
-  const pour = [[659.3, 0.12], [880.0, 0.26], [1108.7, 0.42]];
-  pour.forEach(([hz, at]) => {
-    [['triangle', 0, 0.26], ['sine', 6, 0.10]].forEach(([type, cents, peak]) => {
+  // one voice: warm triangle doubled by a detuned sine
+  const note = (hz, at, len, peak) => {
+    [['triangle', 0, peak], ['sine', 6, peak * 0.38]].forEach(([type, cents, p]) => {
       const osc = ctx.createOscillator();
       const g = ctx.createGain();
       osc.type = type;
       osc.frequency.value = hz;
       if (osc.detune) osc.detune.value = cents;
       g.gain.setValueAtTime(0.0001, t0 + at);
-      g.gain.exponentialRampToValueAtTime(peak, t0 + at + 0.018);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + at + 0.24);
+      g.gain.exponentialRampToValueAtTime(p, t0 + at + 0.018);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + at + len);
       osc.connect(g); g.connect(out);
-      osc.start(t0 + at); osc.stop(t0 + at + 0.26);
+      osc.start(t0 + at); osc.stop(t0 + at + len + 0.02);
     });
+  };
+
+  // --- 1. two drops: blub-blub ---------------------------------------
+  [[0.0, 320, 170], [0.16, 360, 200]].forEach(([at, f1, f2]) => {
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(f1, t0 + at);
+    osc.frequency.exponentialRampToValueAtTime(f2, t0 + at + 0.11);
+    g.gain.setValueAtTime(0.0001, t0 + at);
+    g.gain.exponentialRampToValueAtTime(0.28, t0 + at + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + at + 0.13);
+    osc.connect(g); g.connect(out);
+    osc.start(t0 + at); osc.stop(t0 + at + 0.15);
   });
 
-  // --- 3. the "Q": E6, vibrato, octave shimmer -----------------------
+  // --- 2. the pour: a five-note run up A-major pentatonic ------------
+  // E5  F#5  A5  B5  C#6 -- swung and slightly accelerating, the sound
+  // of a level being climbed.
+  const run = [[659.3, 0.36], [740.0, 0.52], [880.0, 0.66], [987.8, 0.78], [1108.7, 0.88]];
+  run.forEach(([hz, at]) => note(hz, at, 0.22, 0.22));
+
+  // --- 3. the fanfare chord: A major lands ---------------------------
+  // Root pad + triad hit together at the top of the climb.
   {
-    const at = 0.58;
+    const at = 1.02;
+    // low warmth so the chord has a floor (quiet -- phone speakers
+    // barely render it, bigger speakers feel it)
+    note(220.0, at, 0.85, 0.10);
+    [880.0, 1108.7, 1318.5].forEach((hz) => note(hz, at, 0.55, 0.20));
+  }
+
+  // --- 4. the "Q": the octave ta-da ----------------------------------
+  // E6 holds, then LIFTS to A6 with vibrato -- the flourish.
+  {
+    const at = 1.30;
     const osc = ctx.createOscillator();
     const g = ctx.createGain();
     osc.type = 'triangle';
-    osc.frequency.value = 1318.5;
-    // gentle vibrato: 6 Hz, ±9 cents -- a voice, not a siren
+    osc.frequency.setValueAtTime(1318.5, t0 + at);
+    osc.frequency.setValueAtTime(1318.5, t0 + at + 0.22);
+    osc.frequency.exponentialRampToValueAtTime(1760.0, t0 + at + 0.30);
     const lfo = ctx.createOscillator();
     const lfoGain = ctx.createGain();
     lfo.frequency.value = 6;
-    lfoGain.gain.value = 7; // Hz of wobble
+    lfoGain.gain.value = 9;
     lfo.connect(lfoGain);
     if (osc.frequency) lfoGain.connect(osc.frequency);
     g.gain.setValueAtTime(0.0001, t0 + at);
     g.gain.exponentialRampToValueAtTime(0.30, t0 + at + 0.02);
-    g.gain.setValueAtTime(0.30, t0 + at + 0.18);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + at + 0.52);
+    g.gain.setValueAtTime(0.30, t0 + at + 0.45);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + at + 1.00);
     osc.connect(g); g.connect(out);
-    osc.start(t0 + at); osc.stop(t0 + at + 0.55);
-    lfo.start(t0 + at); lfo.stop(t0 + at + 0.55);
+    osc.start(t0 + at); osc.stop(t0 + at + 1.05);
+    lfo.start(t0 + at); lfo.stop(t0 + at + 1.05);
 
     const shimmer = ctx.createOscillator();
     const sg = ctx.createGain();
     shimmer.type = 'sine';
-    shimmer.frequency.value = 2637;
+    shimmer.frequency.setValueAtTime(2637, t0 + at);
+    shimmer.frequency.exponentialRampToValueAtTime(3520, t0 + at + 0.30);
     sg.gain.setValueAtTime(0.0001, t0 + at);
-    sg.gain.exponentialRampToValueAtTime(0.05, t0 + at + 0.03);
-    sg.gain.exponentialRampToValueAtTime(0.0001, t0 + at + 0.40);
+    sg.gain.exponentialRampToValueAtTime(0.05, t0 + at + 0.04);
+    sg.gain.exponentialRampToValueAtTime(0.0001, t0 + at + 0.80);
     shimmer.connect(sg); sg.connect(out);
-    shimmer.start(t0 + at); shimmer.stop(t0 + at + 0.42);
+    shimmer.start(t0 + at); shimmer.stop(t0 + at + 0.85);
   }
 
-  // --- 4. the steam --------------------------------------------------
+  // --- 5. the steam ---------------------------------------------------
   try {
-    const dur = 0.30;
+    const dur = 0.5;
     const buf = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * dur), ctx.sampleRate);
     const data = buf.getChannelData(0);
     for (let i = 0; i < data.length; i += 1) data[i] = Math.random() * 2 - 1;
@@ -110,10 +131,10 @@ export default function playCupQSignature(ctx, master = 0.9) {
     hp.type = 'highpass';
     hp.frequency.value = 6000;
     const g = ctx.createGain();
-    g.gain.setValueAtTime(0.0001, t0 + 0.60);
-    g.gain.exponentialRampToValueAtTime(0.035, t0 + 0.64);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.90);
+    g.gain.setValueAtTime(0.0001, t0 + 1.55);
+    g.gain.exponentialRampToValueAtTime(0.035, t0 + 1.62);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 2.05);
     src.connect(hp); hp.connect(g); g.connect(out);
-    src.start(t0 + 0.60); src.stop(t0 + 0.92);
+    src.start(t0 + 1.55); src.stop(t0 + 2.08);
   } catch (e) { /* the steam is garnish; the motif stands without it */ }
 }

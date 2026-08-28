@@ -55,7 +55,7 @@ const MobileOrderPage = () => {
   const [collected, setCollected] = useState(false);
   // Same chime and same button as /my. A customer who scanned the kiosk
   // QR is watching exactly the same wait and deserves the same warning.
-  const { soundOn, toggleSound, playChime } = useReadyChime();
+  const { soundOn, toggleSound, playChime, audioState } = useReadyChime();
   const prevTrackStatus = useRef(null);
 
   useEffect(() => {
@@ -254,7 +254,7 @@ const MobileOrderPage = () => {
           )}
           {/* The sound button, which this page did not have. */}
           {!gone && !ready && (
-            <SoundToggleButton soundOn={soundOn} onToggle={toggleSound} className="mt-4" />
+            <SoundToggleButton soundOn={soundOn} onToggle={toggleSound} audioState={audioState} className="mt-4" />
           )}
           {gone && (
             <div className="mt-3 text-center text-gray-500">
