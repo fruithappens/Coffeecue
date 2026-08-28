@@ -21,7 +21,7 @@
 //   POST /api/display/order  → { order_number, station_id, station_name }
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import DrinkIcon from './DrinkIcon';
-import { remember } from '../../utils/deviceMemory';
+import { remember, recall } from '../../utils/deviceMemory';
 import { X, ArrowLeft, Plus, Minus, Check, Loader, MapPin, Zap } from 'lucide-react';
 
 // Idle handling: after IDLE_WARN_MS of no touch, a full-screen countdown
@@ -449,6 +449,24 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
   // holds a name the number found, waiting to be confirmed or refused.
   const [eaSuggest, setEaSuggest] = useState(null); // {firstName, cid}
   const [smsOptIn, setSmsOptIn] = useState(true);
+  // On the customer's OWN phone, remember their number and their SMS
+  // choice between orders -- Steve selected SMS once, ordered again
+  // later, and the fresh form's default quietly dropped his number
+  // ("i have had phone on and selected sms and not recieved any").
+  // NEVER on the shared kiosk: the cart's iPad must not offer the
+  // previous customer's mobile to the next one.
+  useEffect(() => {
+    if (!isOwnDevice) return;
+    try {
+      const raw = recall('cupq_sms_pref');
+      if (raw) {
+        const pref = JSON.parse(raw);
+        if (pref && typeof pref.phone === 'string') setPhone(pref.phone);
+        if (pref && typeof pref.optIn === 'boolean') setSmsOptIn(pref.optIn);
+      }
+    } catch (e) { /* no memory, fresh form */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [lookupBusy, setLookupBusy] = useState(false);
 
   const sizeChoices = menu?.sizes || [];
@@ -614,6 +632,12 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
         remember('cupq_active_order', JSON.stringify({
           n: b.order_number, at: Date.now(),
         }), 3 * 3600);
+        if (isOwnDevice) {
+          // Their number and their texts choice, for next time.
+          remember('cupq_sms_pref', JSON.stringify({
+            phone: phone.trim(), optIn: smsOptIn,
+          }), 7 * 24 * 3600);
+        }
         if (onOrderPlaced) {
           // Phone flow: the page becomes a live status card. No
           // auto-close — the customer watches for READY here.
