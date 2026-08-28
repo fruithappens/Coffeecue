@@ -543,6 +543,11 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
           // The number is only ATTACHED when texts were opted into --
           // it may have been typed purely to find the name.
           phone: smsOptIn ? phone.trim() : '',
+          // For FINDING, never texting: lets the server mint a guest
+          // identity for a typed name, so "Sam" appears when this
+          // number is searched later. Sent regardless of the SMS
+          // opt-in, which governs only the field above.
+          lookup_phone: phone.trim() || undefined,
           use_registered_phone: useRegisteredPhone || undefined,
           // A confirmed lookup links the order to the attendee, which
           // is what lets a wiped device find it again by number.

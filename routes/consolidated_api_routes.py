@@ -4883,6 +4883,56 @@ def create_kiosk_order():
                 logger.warning(f"kiosk EA lookup skipped (fail-open): {ea_err}")
                 ea_contact_id = ''
 
+        # A typed name with a typed number is an IDENTITY, not just an
+        # order field. Steve ordered as "Sam", quit the app, searched his
+        # number -- Bart and Steve appeared, Sam did not, and Sam's order
+        # was unfindable by anything. Orders now mint (or reuse) a local
+        # attendee row per (number, name) -- the same kind /api/ea/guest
+        # makes -- so the name joins that number's candidate list and the
+        # order is recoverable by identity. lookup_phone arrives even when
+        # SMS was declined: it is for FINDING, never texting; the order's
+        # own phone field stays governed by the opt-in.
+        if not ea_contact_id:
+            lookup_phone = str(data.get('lookup_phone') or '').strip()
+            if lookup_phone and name and len(name) >= 2:
+                try:
+                    from routes.ea_survey_routes import (
+                        GUEST_ID_PREFIX, _ensure_tables, normalize_phone_e164)
+                    e164 = normalize_phone_e164(lookup_phone)
+                    if e164:
+                        _ensure_tables(db)
+                        first = name.split()[0]
+                        cur0 = db.cursor()
+                        # One row per (number, name): Bart, Steve and Sam
+                        # can share a mobile. Deliberately NOT /guest's
+                        # one-row-per-number upsert, which would RENAME
+                        # the previous person.
+                        cur0.execute(
+                            "SELECT ea_contact_id FROM ea_attendees "
+                            "WHERE (mobile_e164 = %s OR mobile_alt_e164 = %s) "
+                            "AND LOWER(first_name) = LOWER(%s) LIMIT 1",
+                            (e164, e164, first))
+                        row0 = cur0.fetchone()
+                        if row0:
+                            ea_contact_id = (row0.get('ea_contact_id')
+                                             if isinstance(row0, dict) else row0[0])
+                        else:
+                            import secrets as _secrets
+                            ea_contact_id = GUEST_ID_PREFIX + _secrets.token_hex(6)
+                            cur0.execute(
+                                "INSERT INTO ea_attendees (ea_contact_id, first_name, "
+                                "display_name_local, mobile_e164, synced_at) "
+                                "VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)",
+                                (ea_contact_id, first, first, e164))
+                            db.commit()
+                except Exception as mint_err:
+                    logger.warning(f"guest identity mint skipped: {mint_err}")
+                    try:
+                        db.rollback()
+                    except Exception:
+                        pass
+                    ea_contact_id = ''
+
         if not name or len(name) < 2:
             return jsonify({'success': False, 'message': 'Please enter your name.'}), 400
         if not coffee_type:
