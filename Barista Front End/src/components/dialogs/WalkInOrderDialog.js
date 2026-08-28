@@ -156,6 +156,9 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
     teaDoubleCup: true,        // default ON — tea is hot
     teaCustomBlend: '',        // free-text override (e.g. "House Special")
   });
+  // True once the operator taps a milk themselves -- the black-coffee
+  // no-milk default must never fight a deliberate choice.
+  const milkTouchedRef = React.useRef(false);
 
   // True when the selected drink is a tea — matches any drink with
   // "Tea" in the name. Drives the tea-specific UI block below.
@@ -1350,6 +1353,18 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
       hasChanges = true;
     }
 
+    // A black coffee defaults to NO MILK (Steve: "even when you're
+    // selecting long black, the default should be no milk already
+    // selected... for all menus"). Only flips the DEFAULT dairy pick --
+    // a milk the operator chose by hand is never overridden.
+    const _isBlack = /(espresso|long black|ristretto|americano)/
+      .test(String(orderDetails.coffeeType || '').toLowerCase());
+    if (_isBlack && orderDetails.milkType
+        && orderDetails.milkType !== 'no_milk' && !milkTouchedRef.current) {
+      updatedDetails.milkType = 'no_milk';
+      hasChanges = true;
+    }
+
     // Check if selected milk is still available - be more careful here.
     //
     // Default milk: walk through the operator-configured preference
@@ -1881,14 +1896,14 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
                     key={m.id}
                     active={orderDetails.milkType === m.id}
                     disabled={m.unavailable}
-                    onClick={() => setOrderDetails(prev => ({ ...prev, milkType: m.id }))}
+                    onClick={() => { milkTouchedRef.current = true; setOrderDetails(prev => ({ ...prev, milkType: m.id })); }}
                     emoji={milkEmoji(m.name)}
                     label={m.name}
                   />
                 ))}
                 <QuickTile
                   active={orderDetails.milkType === 'no_milk'}
-                  onClick={() => setOrderDetails(prev => ({ ...prev, milkType: 'no_milk' }))}
+                  onClick={() => { milkTouchedRef.current = true; setOrderDetails(prev => ({ ...prev, milkType: 'no_milk' })); }}
                   emoji="🚫"
                   label="No milk"
                 />

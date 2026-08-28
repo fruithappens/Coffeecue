@@ -4435,13 +4435,16 @@ def _kiosk_menu_data(coffee_system):
     cur = db.cursor()
     cur.execute(
         "SELECT station_id, COALESCE(name,''), COALESCE(status,'active'), capabilities, "
-        "COALESCE(wait_time, 0), COALESCE(current_load, 0) "
+        "COALESCE(wait_time, 0), COALESCE(current_load, 0), COALESCE(location,'') "
         "FROM station_stats ORDER BY station_id"
     )
     for row in cur.fetchall():
         is_d = isinstance(row, dict)
         sid = row.get('station_id') if is_d else row[0]
         name = (row.get('name') if is_d else row[1]) or f"Station {sid}"
+        # The room, not just the number: "Station 1" means nothing to a
+        # delegate; "Station 1 · Concourse" is somewhere to walk to.
+        location = (row.get('location') if is_d else row[6]) or ''
         status = (row.get('status') if is_d else row[2]) or 'active'
         caps_raw = row.get('capabilities') if is_d else row[3]
         wait = (row.get('wait_time') if is_d else row[4]) or 0
@@ -4494,7 +4497,8 @@ def _kiosk_menu_data(coffee_system):
                 wait = live_wait
         except Exception:
             pass
-        stations.append({'id': sid, 'name': name, 'wait': int(wait or 0), 'load': int(load or 0)})
+        stations.append({'id': sid, 'name': name, 'location': location,
+                         'wait': int(wait or 0), 'load': int(load or 0)})
 
     universe = {'coffee_types': {}, 'milk_types': {}, 'sizes': {}}
     for _sid, caps in caps_by_station.items():
@@ -5202,6 +5206,7 @@ def create_kiosk_order():
             'order_number': order_number,
             'station_id': target,
             'station_name': station_name,
+            'station_location': station_location,
             'reassigned': reassigned,
             # The notes AS STORED -- with any VIP code already removed.
             #
@@ -5945,13 +5950,19 @@ def track_order_public(order_id):
             r2 = cur.fetchone()
             position = (r2[0] if not isinstance(r2, dict) else list(r2.values())[0]) if r2 else None
         station_name = f"Station {station_id}" if station_id else ''
+        station_location = ''
         try:
             c2 = db.cursor()
-            c2.execute("SELECT COALESCE(name,'') FROM station_stats WHERE station_id = %s",
+            c2.execute("SELECT COALESCE(name,''), COALESCE(location,'') "
+                       "FROM station_stats WHERE station_id = %s",
                        (station_id,))
             r3 = c2.fetchone()
-            if r3 and (r3[0] if not isinstance(r3, dict) else list(r3.values())[0]):
-                station_name = r3[0] if not isinstance(r3, dict) else list(r3.values())[0]
+            if r3:
+                nm, loc = ((r3.get('name'), r3.get('location'))
+                           if isinstance(r3, dict) else (r3[0], r3[1]))
+                if nm:
+                    station_name = nm
+                station_location = loc or ''
         except Exception:
             db.rollback()
         first_name = str(od.get('name') or '').split(' ')[0]

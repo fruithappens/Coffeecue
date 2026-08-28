@@ -192,11 +192,15 @@ const MobileOrderPage = () => {
                 Ready in {track.eta_text}
               </div>
             )}
-            {ready && (
-              <div className="mt-3 text-xl font-semibold">
+            {/* WHERE, from the first moment -- not only once it's
+                ready. A delegate wants to drift toward the right room
+                (Steve: the beacon "does not say which station to
+                collect from"). */}
+            {(track?.station_name || track?.collection_note) && (
+              <div className={ready ? 'mt-3 text-xl font-semibold' : 'mt-2 text-base opacity-95'}>
                 {track?.collection_note
                   ? `Collect from ${track.collection_note}`
-                  : `Collect from ${track?.station_name || 'the counter'}`}
+                  : `Collect from ${track.station_name}${track?.station_location ? ` · ${track.station_location}` : ''}`}
               </div>
             )}
           </div>

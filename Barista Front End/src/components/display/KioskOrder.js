@@ -331,7 +331,13 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
     (menu?.stations || []).forEach(s => { m[s.id] = s; });
     return m;
   }, [menu]);
-  const stationName = (id) => stationById[id]?.name || `Station ${id}`;
+  const stationName = (id) => {
+    const st = stationById[id];
+    const nm = st?.name || `Station ${id}`;
+    // "Station 1" is a number; "Station 1 · Concourse" is somewhere to
+    // walk to (Steve: "it needs to say the station location details").
+    return st?.location ? `${nm} · ${st.location}` : nm;
+  };
   const stationWait = (id) => (stationById[id]?.wait ?? null);
 
   // "No milk" is always offered (tea / black coffee) even if no station lists it.
@@ -340,7 +346,21 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
     if (!base.some(m => (m.value || '').includes('no milk'))) {
       base.push({ name: 'No milk', value: 'no milk', stations: (menu?.stations || []).map(s => s.id) });
     }
-    return base;
+    // Steve's shelf order: dairy first, then No milk (a first-class
+    // choice, not an afterthought at the end), then the alternative
+    // milks, and everything unavailable at the bottom.
+    const DAIRY = ['full cream', 'whole', 'skim', 'lactose-free', 'lactose free'];
+    const bucket = (m) => {
+      const v = String(m.value || '').toLowerCase();
+      if (m.unavailable) return 4;
+      if (v.includes('no milk')) return 2;
+      return DAIRY.some(d => v === d || v.startsWith(d)) ? 1 : 3;
+    };
+    return base.sort((a, b) => {
+      const ba = bucket(a), bb = bucket(b);
+      if (ba !== bb) return ba - bb;
+      return String(a.value).localeCompare(String(b.value));
+    });
   }, [menu]);
 
   const madeHere = (item) => {
@@ -403,8 +423,17 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
     });
     return present;
   }, [menu]);
+  // Most-ordered first (Steve's floor experience), long tail after.
+  const DRINK_RANK = ['flat white', 'cappuccino', 'latte', 'long black',
+    'espresso', 'mocha'];
   const drinksForTab = (menu?.coffee_types || [])
-    .filter(d => drinkCat === 'All' || (d.category || 'Coffee') === drinkCat);
+    .filter(d => drinkCat === 'All' || (d.category || 'Coffee') === drinkCat)
+    .slice()
+    .sort((a, b) => {
+      const ra = DRINK_RANK.indexOf(a.value), rb = DRINK_RANK.indexOf(b.value);
+      if (ra !== -1 || rb !== -1) return (ra === -1 ? 99 : ra) - (rb === -1 ? 99 : rb);
+      return String(a.value).localeCompare(String(b.value));
+    });
 
   // Six familiar tiles, everything else one tap away. Steve: "I like
   // that the coffee menu only has 6 main items but feel like if someone
@@ -482,7 +511,12 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
   const continueWithNumber = async () => {
     setLookupBusy(true);
     try {
-      const r = await fetch(`/api/ea/me?phone=${encodeURIComponent(phone.trim())}`);
+      // A dead connection must not hold "One sec..." forever (Steve's
+      // hung screen): six seconds, then the flow just asks for a name.
+      const abort = new AbortController();
+      const timer = setTimeout(() => abort.abort(), 6000);
+      const r = await fetch(`/api/ea/me?phone=${encodeURIComponent(phone.trim())}`,
+        { signal: abort.signal }).finally(() => clearTimeout(timer));
       const b = await r.json().catch(() => null);
       if (r.ok && b?.success && b.first_name) {
         setEaSuggest({ firstName: b.first_name, cid: b.cid || null });
@@ -497,7 +531,8 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
         goTo('name_confirm');
         return;
       }
-    } catch (e) { /* offline lookup = just ask for the name */ }
+    } catch (e) { /* offline or slow lookup = just ask for the name */ }
+    setLookupBusy(false);
     setEaSuggest(null);
     goTo('name');
   };
@@ -798,11 +833,19 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {milkOptions.map(m => {
                 const ok = !m.unavailable && compatible(drink, m);
+                // A long black defaults to NO MILK -- the highlighted
+                // tile says so before a single tap (Steve). Tapping any
+                // milk still works: a dash of milk is a real order.
+                const blackDefault = !milk
+                  && /(^|\s)(espresso|long black|ristretto|americano)(\s|$)/
+                    .test(String(drink?.value || ''))
+                  && String(m.value || '').includes('no milk');
                 return (
                   <Tile key={m.value} emoji={milkEmoji(m.value)} label={m.name}
-                    active={milk?.value === m.value}
+                    active={milk?.value === m.value || blackDefault}
                     disabled={!ok}
-                    sub={m.unavailable ? 'Not available today'
+                    sub={blackDefault ? 'the usual for this drink'
+                      : m.unavailable ? 'Not available today'
                       : !ok ? `Not available with ${drink?.name || 'that drink'}`
                       : (madeHere(m) ? null : `Station ${stationLabel(m)} only`)}
                     onClick={() => { if (ok) { setMilk(m); afterMilk(); } }} />
@@ -1018,13 +1061,12 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                   updates itself. Say that first and offer the text as an
                   extra. On the cart's own screen it is not an option at
                   all, because they are about to walk away from it. */}
+              {/* One short sentence (Steve: "that is a really long
+                  sentence... just say enter your number, and we'll look
+                  up your details"). */}
               {isOwnDevice
-                ? (<>Keep this page open and it will tell you right here — no number
-                     needed. Add your mobile if you’d rather get a text as well, or
-                     just watch the board.</>)
-                : collectingHere
-                ? "Pop in your mobile and we’ll text you when it’s ready — or just wait nearby and watch the board for your name. No phone needed."
-                : <>Your order will be ready at <b>{stationName(chosenStation)}</b>. Add your mobile for a text when it’s done, or skip and watch the board there for your name. No phone needed.</>}
+                ? 'Enter your mobile and we\u2019ll look up your details \u2014 or skip and watch it right here.'
+                : 'Enter your mobile and we\u2019ll look up your details \u2014 or skip and watch the board.'}
             </p>
             <input
               autoFocus value={phone} onChange={(e) => setPhone(e.target.value)}
@@ -1035,12 +1077,20 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
             {phoneValid && (
               <button
                 onClick={() => setSmsOptIn(!smsOptIn)}
-                className="mt-4 w-full flex items-center gap-3 rounded-2xl border-4 p-4 text-left text-lg font-semibold"
-                style={{ borderColor: smsOptIn ? headerColor : '#e5e7eb',
-                         color: smsOptIn ? headerColor : '#6b7280' }}
+                className={`mt-4 w-full flex items-center gap-3 rounded-2xl border-4 p-4 text-left text-lg font-semibold
+                            ${smsOptIn ? 'bg-green-50 border-green-600 text-green-800'
+                                       : 'bg-white border-gray-300 text-gray-500'}`}
               >
-                <span className="text-2xl">{smsOptIn ? '☑' : '☐'}</span>
-                Text me when it's ready
+                <span className={`flex items-center justify-center w-8 h-8 rounded-lg text-xl font-black
+                                  ${smsOptIn ? 'bg-green-600 text-white' : 'border-2 border-gray-400 text-transparent'}`}>
+                  ✓
+                </span>
+                <span className="flex-1">
+                  Text me when it's ready
+                  <span className="block text-sm font-normal opacity-80">
+                    {smsOptIn ? 'On — tap to turn off' : 'Optional — tap to turn on'}
+                  </span>
+                </span>
               </button>
             )}
             <div className="mt-4">
