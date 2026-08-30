@@ -5354,6 +5354,88 @@ def create_kiosk_order():
         return jsonify({'success': False, 'message': 'Could not place your order. Please see a barista.'}), 500
 
 
+@bp.route('/display/order-group', methods=['POST'])
+def create_kiosk_order_group():
+    """Place several drinks as ONE collected group from the app / QR.
+
+    Each item runs through the SAME single-order path (recipe resolve,
+    stock gate, provenance stamp) so a group can never sneak an
+    unmakeable drink past the gate. Then they are linked by a shared
+    group_id (the lead order's number) + position, so the barista serves
+    them together and each cup labels as <lead>-<pos> Name. This is the
+    app-side of the SMS FRIEND flow Steve wanted on /my + QR.
+    """
+    coffee_system = current_app.config.get('coffee_system')
+    if not coffee_system or not getattr(coffee_system, 'db', None):
+        return jsonify({'success': False, 'message': 'Service unavailable'}), 503
+    db = coffee_system.db
+    body = request.get_json(silent=True) or {}
+    items = body.get('items') or []
+    if not isinstance(items, list) or not items:
+        return jsonify({'success': False, 'message': 'No drinks in the group'}), 400
+    items = items[:10]
+    shared = {k: body.get(k) for k in (
+        'phone', 'use_registered_phone', 'ea_contact_id', 'station_id',
+        'preferred_station', 'channel', 'src', 'e', 'lookup_phone') if k in body}
+
+    placed, failed = [], []
+    with current_app.test_client() as c:
+        for it in items:
+            payload = dict(shared)
+            payload.update({
+                'name': (it.get('name') or shared.get('name') or 'Guest'),
+                'coffee_type': it.get('coffee_type') or it.get('drink'),
+                'milk': it.get('milk') or 'no milk',
+                'size': it.get('size') or 'medium',
+                'sugar': it.get('sugar') or 'No sugar',
+                'strength': it.get('strength') or '',
+                'temp': it.get('temp') or '',
+                'bean_type': it.get('bean_type') or '',
+                'notes': it.get('notes') or '',
+            })
+            try:
+                r = c.post('/api/display/order', json=payload)
+                jb = r.get_json() or {}
+                if r.status_code == 200 and jb.get('success'):
+                    placed.append((jb.get('order_number'), payload['name']))
+                else:
+                    failed.append((payload['name'], jb.get('message') or 'unavailable'))
+            except Exception as e:
+                failed.append((payload.get('name'), str(e)[:80]))
+
+    if not placed:
+        return jsonify({'success': False,
+                        'message': 'None of the drinks could be placed',
+                        'failed': [{'name': n, 'reason': r} for n, r in failed]}), 409
+
+    group_id = str(placed[0][0])
+    try:
+        cur = db.cursor()
+        for pos, (num, _nm) in enumerate(placed, start=1):
+            cur.execute(
+                "UPDATE orders SET order_details = "
+                "COALESCE(order_details::jsonb, '{}'::jsonb) || %s::jsonb "
+                "WHERE order_number = %s",
+                (json.dumps({'group_id': group_id, 'group_position': pos,
+                             'group_size': len(placed)}), str(num)))
+        db.commit()
+    except Exception as e:
+        logger.warning(f"group link failed (orders still placed): {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+    return jsonify({
+        'success': True,
+        'group_id': group_id,
+        'order_number': group_id,
+        'orders': [{'order_number': n, 'name': nm} for n, nm in placed],
+        'count': len(placed),
+        'failed': [{'name': n, 'reason': r} for n, r in failed],
+    })
+
+
 @bp.route('/sms/simulate', methods=['POST'])
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff'])

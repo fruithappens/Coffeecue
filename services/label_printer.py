@@ -88,6 +88,18 @@ def render_label_png(
             od = {}
 
     order_number = str(order.get("order_number") or order.get("id") or "?")
+    # Group cups share the LEAD order's number with a position suffix, so a
+    # round reads 281-1 / 281-2 / 281-3 on the cups (Steve). Solo orders
+    # keep their plain number.
+    _gid = od.get("group_id")
+    _gpos = od.get("group_position")
+    if _gid and _gpos and str(_gid) != order_number:
+        label_number = f"{_gid}-{_gpos}"
+    elif _gid and _gpos:
+        # The lead order of a group: its own number IS the group id.
+        label_number = f"{order_number}-{_gpos}"
+    else:
+        label_number = order_number
     name = (
         od.get("name")
         or order.get("customer_name")
@@ -146,7 +158,7 @@ def render_label_png(
     # right-hand side blank (Steve: "there is lots of white space on the
     # RHS"), and the name had its own line underneath. Putting them side
     # by side frees a whole row, which goes to making both bigger.
-    num_text = f"#{order_number}"
+    num_text = f"#{label_number}"
     draw.text((16, y), num_text, fill="black", font=f_num)
     try:
         num_w = draw.textlength(num_text, font=f_num)
