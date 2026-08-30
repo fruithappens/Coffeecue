@@ -181,6 +181,22 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
   const [phone, setPhone] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState(null);
+  // GROUP CART: drinks built and set aside to place together as one
+  // collected round (Steve's app group ordering). Empty = a normal
+  // single order, and the single-order flow below is untouched.
+  const [cart, setCart] = useState([]);
+  const currentDrinkSnapshot = () => ({
+    name: name.trim(), drink, milk, size, sugar, strength, extraHot, decaf, notes,
+  });
+  const addAnotherDrink = () => {
+    // Stash the drink just built; keep the phone/station/identity for the
+    // whole group. Reset only the per-cup fields for the next one.
+    setCart((c) => [...c, currentDrinkSnapshot()]);
+    setDrink(null); setMilk(null); setSize(null); setSugar(0);
+    setStrength(''); setExtraHot(false); setDecaf(false); setNotes('');
+    setName(''); setDrinkCat('All');
+    goTo('drink');
+  };
   const [errorMsg, setErrorMsg] = useState('');
 
   // EventsAir pre-identification: the EA event app links to this page
@@ -518,8 +534,11 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
       });
       return;
     }
-    // Phone first (optional), then name -- a number can find the name
-    // on the attendee list, so asking for it second wasted the answer.
+    // A SUBSEQUENT drink in a group already has the orderer's phone and
+    // station from the first cup -- just name this cup and go to review.
+    if (cart.length > 0) { goTo('name'); return; }
+    // First drink: phone first (a number can find the name on the
+    // attendee list, so asking for it second wasted the answer).
     goTo('phone');
   };
   // Continue from the phone step with a number: search the attendee
@@ -556,6 +575,8 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
   };
   // After the name: choose a station if there's a choice, else auto-route.
   const afterName = () => {
+    // Subsequent group cup: identity + collection already set -> review.
+    if (cart.length > 0) { goTo('review'); return; }
     if (capable.length > 1) { goTo('location'); return; }
     const only = capable.length === 1 ? capable[0] : null;
     setChosenStation(only);
@@ -582,44 +603,44 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
     setSubmitting(true);
     setErrorMsg('');
     try {
-      const r = await fetch('/api/display/order', {
+      // Shared identity/collection — one contact + one collection for
+      // the whole round; the single-drink fields go per item.
+      const shared = {
+        station_id: myStation,
+        preferred_station: chosenStation,
+        // The number is only ATTACHED when texts were opted into.
+        phone: smsOptIn ? phone.trim() : '',
+        // For FINDING, never texting -- mints a guest identity for a
+        // typed name so it's searchable later. Governed by neither opt-in.
+        lookup_phone: phone.trim() || undefined,
+        use_registered_phone: useRegisteredPhone || undefined,
+        ea_contact_id: eaIdentity?.cid
+          || (name.trim() === (eaSuggest?.firstName || '') ? eaSuggest?.cid : undefined)
+          || undefined,
+        channel,
+        src: new URLSearchParams(window.location.search).get('src') || undefined,
+        e: new URLSearchParams(window.location.search).get('e') || undefined,
+      };
+      const toItem = (it) => ({
+        name: (it.name || '').trim(),
+        coffee_type: it.drink?.value,
+        milk: it.milk?.value || 'no milk',
+        size: it.size?.value || (sizeChoices[0]?.value) || 'medium',
+        sugar: it.sugar === 0 ? 'No sugar' : `${it.sugar} sugar${it.sugar > 1 ? 's' : ''}`,
+        strength: it.strength || undefined,
+        notes: (it.notes || '').trim() || undefined,
+        temp: it.extraHot ? 'extra hot' : undefined,
+        bean_type: it.decaf ? 'decaf' : undefined,
+      });
+      const isGroup = cart.length > 0;
+      const url = isGroup ? '/api/display/order-group' : '/api/display/order';
+      const body = isGroup
+        ? { ...shared, items: [...cart, currentDrinkSnapshot()].map(toItem) }
+        : { ...shared, ...toItem(currentDrinkSnapshot()) };
+      const r = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: name.trim(),
-          coffee_type: drink?.value,
-          milk: milk?.value || 'no milk',
-          size: size?.value || (sizeChoices[0]?.value) || 'medium',
-          sugar: sugar === 0 ? 'No sugar' : `${sugar} sugar${sugar > 1 ? 's' : ''}`,
-          station_id: myStation,
-          preferred_station: chosenStation,
-          // The number is only ATTACHED when texts were opted into --
-          // it may have been typed purely to find the name.
-          phone: smsOptIn ? phone.trim() : '',
-          // For FINDING, never texting: lets the server mint a guest
-          // identity for a typed name, so "Sam" appears when this
-          // number is searched later. Sent regardless of the SMS
-          // opt-in, which governs only the field above.
-          lookup_phone: phone.trim() || undefined,
-          use_registered_phone: useRegisteredPhone || undefined,
-          // A confirmed lookup links the order to the attendee, which
-          // is what lets a wiped device find it again by number.
-          ea_contact_id: eaIdentity?.cid
-            || (name.trim() === (eaSuggest?.firstName || '') ? eaSuggest?.cid : undefined)
-            || undefined,
-          // Provenance. This overlay is the cart's own touchscreen, so the
-          // channel is fixed; ?src= lets one event run several kiosks and
-          // still tell them apart on the report (cart-1-ipad, foyer-ipad).
-          strength: strength || undefined,
-          notes: notes.trim() || undefined,
-          temp: extraHot ? 'extra hot' : undefined,
-          bean_type: decaf ? 'decaf' : undefined,
-          channel,
-          src: new URLSearchParams(window.location.search).get('src') || undefined,
-          // The event this link belongs to. Carried through from the QR
-          // so an old poster cannot order into a new event.
-          e: new URLSearchParams(window.location.search).get('e') || undefined,
-        }),
+        body: JSON.stringify(body),
       });
       const b = await r.json();
       if (r.ok && b.success) {
@@ -1191,24 +1212,53 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
           <>
             <Header title="All good?" onBack={goBack} />
             <div className="bg-white rounded-2xl p-6 shadow mb-4">
-              <div className="text-2xl font-extrabold text-gray-800 mb-3">{name.trim()}</div>
-              <ul className="text-xl text-gray-700 space-y-1">
-                <li>{drinkEmoji(drink?.value)} {drink?.name}</li>
-                <li>{milkEmoji(milk?.value)} {milk?.name}</li>
-                {size && <li>🥤 {size.name}</li>}
-                <li>🍬 {sugar === 0
-                  ? (menu?.sugar_self_serve ? 'Add your own sugar at pickup' : 'No sugar')
-                  : `${sugar} sugar${sugar > 1 ? 's' : ''}`}</li>
-                {/* Only listed when chosen. A review screen that solemnly
-                    confirms "Normal strength" on every order trains people
-                    to stop reading it. */}
-                {strength && (
-                  <li>💪 {strength === 'strong' ? 'Double shot'
-                        : strength === 'weak' ? 'Half strength'
-                        : 'Extra strong'}</li>
-                )}
-                {extraHot && <li>🌡️ Extra hot</li>}
-              </ul>
+              {cart.length > 0 ? (
+                // GROUP: every cup, named, so the orderer can check the round.
+                <ul className="space-y-3">
+                  {[...cart, currentDrinkSnapshot()].map((it, i) => (
+                    <li key={i} className="flex items-start gap-3 border-b last:border-b-0 pb-2 last:pb-0">
+                      <span className="text-2xl">{drinkEmoji(it.drink?.value)}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xl font-extrabold text-gray-800">
+                          {it.name || 'Guest'}
+                          {i === cart.length && <span className="ml-2 text-xs font-semibold text-amber-600">this one</span>}
+                        </div>
+                        <div className="text-base text-gray-600">
+                          {[it.size?.name, it.drink?.name].filter(Boolean).join(' ')}
+                          {it.milk && !/no milk/i.test(it.milk?.value || '') ? `, ${it.milk?.name}` : ''}
+                          {it.strength ? `, ${it.strength === 'strong' ? 'double shot' : it.strength === 'weak' ? 'half strength' : 'extra strong'}` : ''}
+                          {it.extraHot ? ', extra hot' : ''}
+                          {it.decaf ? ', decaf' : ''}
+                        </div>
+                      </div>
+                      {i < cart.length && (
+                        <button onClick={() => setCart((c) => c.filter((_, j) => j !== i))}
+                          className="text-gray-400 hover:text-red-500 shrink-0" title="Remove this coffee">
+                          <X size={20} />
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <>
+                  <div className="text-2xl font-extrabold text-gray-800 mb-3">{name.trim()}</div>
+                  <ul className="text-xl text-gray-700 space-y-1">
+                    <li>{drinkEmoji(drink?.value)} {drink?.name}</li>
+                    <li>{milkEmoji(milk?.value)} {milk?.name}</li>
+                    {size && <li>🥤 {size.name}</li>}
+                    <li>🍬 {sugar === 0
+                      ? (menu?.sugar_self_serve ? 'Add your own sugar at pickup' : 'No sugar')
+                      : `${sugar} sugar${sugar > 1 ? 's' : ''}`}</li>
+                    {strength && (
+                      <li>💪 {strength === 'strong' ? 'Double shot'
+                            : strength === 'weak' ? 'Half strength'
+                            : 'Extra strong'}</li>
+                    )}
+                    {extraHot && <li>🌡️ Extra hot</li>}
+                  </ul>
+                </>
+              )}
               <div className="mt-4 pt-3 border-t flex items-center gap-2 text-lg font-semibold" style={{ color: headerColor }}>
                 <MapPin size={20} /> Collect from {chosenStation != null ? stationName(chosenStation) : 'the next available station'}
                 {chosenStation != null && waitText(chosenStation) ? ` · ${waitText(chosenStation)}` : ''}
@@ -1234,10 +1284,19 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
             {errorMsg && (
               <div className="rounded-2xl p-4 mb-4 bg-red-100 text-red-800 text-lg font-semibold">{errorMsg}</div>
             )}
+            {/* Grow the order into a round -- another for you, or one for
+                a friend. Each gets its own name so the cups are labelled
+                281-1, 281-2... (Steve's app group ordering). */}
+            <button onClick={addAnotherDrink} disabled={submitting}
+              className="w-full py-4 rounded-2xl text-xl font-bold mb-3 border-2 flex items-center justify-center gap-2 disabled:opacity-50"
+              style={{ borderColor: headerColor, color: headerColor }}>
+              <Plus size={22} /> Add another coffee
+            </button>
             <button onClick={placeOrder} disabled={submitting || capable.length === 0}
               className="w-full py-6 rounded-2xl text-3xl font-extrabold text-white flex items-center justify-center gap-3 disabled:opacity-50"
               style={{ backgroundColor: headerColor }}>
-              {submitting ? <><Loader className="animate-spin" /> Placing…</> : <><Check size={32} /> Place order</>}
+              {submitting ? <><Loader className="animate-spin" /> Placing…</>
+                : <><Check size={32} /> {cart.length > 0 ? `Place ${cart.length + 1} coffees` : 'Place order'}</>}
             </button>
           </>
         )}
