@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import LandingPage from './components/shared/LandingPage';
 import BaristaInterface from './components/barista/BaristaInterface';
 import Organiser from './components/organiser/Organiser';
@@ -188,6 +188,15 @@ const ApiTestComponent = ({ apiStatus, onFallbackToggle }) => {
 // hooks the app:newOrder / order_updated events. Runs once at module
 // load (the service has its own idempotency guard).
 SoundNotificationService.init();
+
+
+// cupq.app/<eventcode> -> the order page, carrying the code as ?e= so the
+// order gate (utils/event_access) binds it to the right event.
+function EventCodeEntry() {
+  const { eventCode } = useParams();
+  const code = String(eventCode || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 32);
+  return <Navigate to={code ? `/my?e=${code}` : '/my'} replace />;
+}
 
 function App() {
   const [initialized, setInitialized] = useState(false);
@@ -680,7 +689,11 @@ function App() {
 
           <Routes>
             {/* Public routes */}
-            <Route path="/" element={<LandingPage />} />
+            {/* cupq.app now opens straight into ordering -- Steve: "just
+                tell someone got to cupq.app and place your order". Staff go
+                to cupq.app/login. The old landing lives on at /welcome. */}
+            <Route path="/" element={<MyCoffeePage />} />
+            <Route path="/welcome" element={<LandingPage />} />
           
           {/* Direct login route for clear access */}
           <Route path="/direct-login" element={<Navigate to="/login" replace />} />
@@ -760,6 +773,11 @@ function App() {
             />} 
           />
           
+          {/* cupq.app/treenet26 -> order page for that event. Any real
+              route above wins; a bare unknown segment is treated as an
+              event code and carried through as ?e= so orders bind to the
+              right event (an old QR/phone can't add to a new one). */}
+          <Route path="/:eventCode" element={<EventCodeEntry />} />
           {/* Fallback - catch all unmatched routes */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
