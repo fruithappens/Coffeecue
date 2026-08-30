@@ -78,8 +78,11 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
     // Insert at cursor if possible, else append.
     const el = inputRef.current;
     if (el && typeof el.selectionStart === 'number') {
-      const before = newMessage.slice(0, el.selectionStart);
+      let before = newMessage.slice(0, el.selectionStart);
       const after = newMessage.slice(el.selectionEnd);
+      // If the picker was opened by typing '@', that '@' is still in the
+      // text -- drop it so we don't get "@@station".
+      if (before.endsWith('@')) before = before.slice(0, -1);
       setNewMessage(`${before}${token}${after}`);
       // Restore focus + place cursor after the inserted token.
       setTimeout(() => {
@@ -482,7 +485,15 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
           ref={inputRef}
           type="text"
           value={newMessage}
-          onChange={(e) => setNewMessage(e.target.value)}
+          onChange={(e) => {
+            const v = e.target.value;
+            setNewMessage(v);
+            // The placeholder promises "use @ to mention a station" -- so
+            // actually make typing @ open the picker (Steve: "the @ symbol
+            // does not bring up other stations"). It opened only from the
+            // @ button before.
+            if (v.endsWith('@')) setShowMentionPicker(true);
+          }}
           placeholder="Type a message…  (use @ to mention a station)"
           className="flex-grow border-y border-r p-2 min-w-0"
           disabled={sending}
