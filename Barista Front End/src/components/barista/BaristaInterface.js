@@ -523,12 +523,6 @@ const BaristaInterface = () => {
   // Live pending customer-questions — count drives the Messages badge (replaces
   // the old hardcoded `unreadMessages = 2` that always showed a fake "2").
   const cq = useCustomerQuestions();
-  // Unread STATION CHAT (from other stations) — makes the Messages bubble
-  // react to chat, not only customer questions (Steve's note).
-  const chatUnread = useStationChatUnread(
-    selectedStation,
-    stations.find(s => s.id === selectedStation)?.name,
-    settings.baristaName);
   const [filter, setFilter] = useState('all');
   
   // Effect to ensure settings are synced with selected station
@@ -843,6 +837,15 @@ const BaristaInterface = () => {
 
   // Settings state (moved to a SettingsService in a full implementation)
   const [settings, setSettingsState] = useState(loadSettings());
+  // Unread STATION CHAT (from other stations) — makes the Messages bubble
+  // react to chat, not only customer questions (Steve's note). Declared
+  // AFTER `settings` because it reads settings.baristaName; placing it
+  // earlier hit a temporal-dead-zone crash ("Cannot access before
+  // initialization") that took the whole barista interface down.
+  const chatUnread = useStationChatUnread(
+    selectedStation,
+    stations.find(s => s.id === selectedStation)?.name,
+    settings.baristaName);
   // Mirrors `settings` synchronously. Two things need it:
   //
   //  1. Call sites that pass an updater function. setSettingsState would
