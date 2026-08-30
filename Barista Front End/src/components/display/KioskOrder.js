@@ -207,8 +207,16 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
   const loadRound = (round) => {
     const items = (round && round.items) || [];
     if (items.length === 0) return;
-    setCart(items.slice(0, -1));
-    const last = items[items.length - 1];
+    // Re-resolve each saved cup against the CURRENT menu, so the station
+    // metadata that drives the makeable check is fresh -- and a drink or
+    // milk since removed falls back to its saved object and is caught by
+    // the gate at placement rather than silently unmakeable here.
+    const rD = (d) => (menu?.coffee_types || []).find((x) => x.value === (d && d.value)) || d;
+    const rM = (m) => (milkOptions || []).find((x) => x.value === (m && m.value)) || m;
+    const rS = (z) => (sizeChoices || []).find((x) => x.value === (z && z.value)) || z;
+    const mapped = items.map((it) => ({ ...it, drink: rD(it.drink), milk: rM(it.milk), size: rS(it.size) }));
+    setCart(mapped.slice(0, -1));
+    const last = mapped[mapped.length - 1];
     setDrink(last.drink || null); setMilk(last.milk || null); setSize(last.size || null);
     setSugar(last.sugar || 0); setStrength(last.strength || '');
     setExtraHot(!!last.extraHot); setDecaf(!!last.decaf); setNotes(last.notes || '');
