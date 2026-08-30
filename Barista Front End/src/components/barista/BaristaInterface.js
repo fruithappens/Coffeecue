@@ -22,6 +22,7 @@ import { useAppMode } from '../../context/AppContext';
 import useOrders from '../../hooks/useOrders';
 import useStations from '../../hooks/useStations';
 import useStock from '../../hooks/useStock';
+import useLiveStock from '../../hooks/useLiveStock';
 import useSchedule from '../../hooks/useSchedule';
 import {
   getOrderBackgroundColor,
@@ -653,6 +654,13 @@ const BaristaInterface = () => {
     resetStock,
     getLowStockCount
   } = useStock(selectedStation, stations.find(s => s.id === selectedStation)?.name || 'Coffee Station');
+
+  // LIVE stock: the real inventory_items table (same source as depletion
+  // and the low-stock warnings), replacing the localStorage blob the tab
+  // used to show. Steve caught the two disagreeing (5 L tab vs 0.19 L
+  // warning). See useLiveStock.
+  const live = useLiveStock(selectedStation);
+  const [liveStockCat, setLiveStockCat] = useState('milk');
   
   const [selectedStockCategory, setSelectedStockCategory] = useState('milk');
   
@@ -2941,146 +2949,128 @@ const BaristaInterface = () => {
         {/* Stock Management Tab */}
         {!loading && activeTab === 'stock' && (
           <div className="p-4">
-            {/* Reality's shortcut: one tap 86s an item on every
-                channel, whatever the ledger believes. Sits above the
-                counts because "we just ran out" outranks bookkeeping. */}
+            {/* Reality's shortcut: one tap 86s an item on every channel,
+                whatever the ledger believes. */}
             <EightySixBoard />
-            {/* Local Stock Management Information */}
-            <DismissibleInfoPanel
-              id="stockInfoPanel"
-              title="Station-Specific Inventory Management"
-              message="This station's inventory is saved locally. Each station manages its own inventory independently."
-              borderColor="green"
-              bgColor="green"
-              isDismissed={dismissedPanels.stockInfoPanel}
-              onDismiss={dismissPanel}
-              extraContent={
-                (lowCount > 0 || criticalCount > 0) && (
-                  <p className="font-medium">
-                    {criticalCount > 0 && <span className="text-red-600 mr-2">Critical: {criticalCount} items</span>}
-                    {lowCount > 0 && <span className="text-yellow-600">Low: {lowCount} items</span>}
-                  </p>
-                )
-              }
-            />
-            
-            {/* Category Selector */}
+
+            {/* This tab now reads the LIVE inventory table -- the same
+                figures the recipes deplete and the low-stock alerts read.
+                No more "tab says 5 L, warning says 0.19 L". */}
+            <div className="mb-4 rounded-lg border-l-4 border-green-500 bg-green-50 px-4 py-3 text-sm text-green-800">
+              <span className="font-semibold">Live station stock.</span> These
+              are the real figures orders draw down and the low-stock alert
+              watches — edits here take effect immediately, everywhere.
+              {(live.criticalCount > 0 || live.lowCount > 0) && (
+                <span className="block mt-1 font-medium">
+                  {live.criticalCount > 0 && <span className="text-red-600 mr-2">Critical: {live.criticalCount}</span>}
+                  {live.lowCount > 0 && <span className="text-amber-700">Low: {live.lowCount}</span>}
+                </span>
+              )}
+            </div>
+
+            {/* Category selector, from whatever the live inventory holds */}
             <div className="flex flex-wrap gap-2 mb-4">
-              {stockCategories.map(category => (
+              {(live.categories.length ? live.categories : ['milk']).map(category => (
                 <button
                   key={category}
-                  className={`px-4 py-2 rounded-full ${selectedStockCategory === category ? 'bg-green-500 text-white' : 'bg-gray-200'}`}
-                  onClick={() => setSelectedStockCategory(category)}
+                  className={`px-4 py-2 rounded-full ${liveStockCat === category ? 'bg-green-500 text-white' : 'bg-gray-200'}`}
+                  onClick={() => setLiveStockCat(category)}
                 >
                   {category.charAt(0).toUpperCase() + category.slice(1)}
                 </button>
               ))}
             </div>
-            
-            {/* Stock Items */}
-            <h2 className="text-xl font-bold mb-4 flex items-center justify-between">
-              <span>{selectedStockCategory.charAt(0).toUpperCase() + selectedStockCategory.slice(1)} Inventory</span>
-              
+
+            <h2 className="text-xl font-bold mb-3 flex items-center justify-between">
+              <span>{liveStockCat.charAt(0).toUpperCase() + liveStockCat.slice(1)}</span>
+              <button onClick={live.reload} className="text-sm text-gray-400 hover:text-gray-700 font-normal">
+                Refresh
+              </button>
             </h2>
-            
-            <div className="space-y-4 bg-white rounded-lg shadow-md p-4">
-              {stockLoading ? (
+
+            <div className="space-y-3">
+              {live.loading ? (
                 <div className="flex justify-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-500"></div>
                 </div>
-              ) : getCategoryStock(selectedStockCategory).length > 0 ? (
-                getCategoryStock(selectedStockCategory).map(item => (
-                  <StockItem 
-                    key={item.id}
-                    item={item} 
-                    category={selectedStockCategory}
-                    updateStockItem={updateStockItem}
-                    deleteStockItem={deleteStockItem}
-                    addStockItem={addStockItem}
-                  />
-                ))
+              ) : (live.byCategory[liveStockCat] || []).length > 0 ? (
+                (live.byCategory[liveStockCat] || []).map(item => {
+                  const amt = parseFloat(item.amount) || 0;
+                  const cap = parseFloat(item.capacity) || 0;
+                  const min = parseFloat(item.minimum_threshold) || 0;
+                  const lvl = live.level(item);
+                  const scope = item.station_id ? 'this station' : 'event pool';
+                  return (
+                    <div key={item.id}
+                      className={`bg-white rounded-lg shadow-sm p-4 flex items-center justify-between gap-3 border-l-4 ${
+                        lvl === 'critical' ? 'border-red-500'
+                        : lvl === 'low' ? 'border-amber-400' : 'border-transparent'}`}>
+                      <div className="min-w-0">
+                        <div className="font-semibold capitalize truncate">{item.name}</div>
+                        <div className="text-sm text-gray-500">
+                          {amt}{item.unit ? ` ${item.unit}` : ''} left
+                          {cap ? ` of ${cap}` : ''} · min {min}
+                          <span className="ml-2 text-xs uppercase tracking-wide text-gray-400">{scope}</span>
+                          {lvl !== 'ok' && (
+                            <span className={`ml-2 text-xs font-bold ${lvl === 'critical' ? 'text-red-600' : 'text-amber-700'}`}>
+                              {lvl === 'critical' ? 'CRITICAL' : 'LOW'}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <input
+                          type="number" min="0" defaultValue={amt} key={`${item.id}-${amt}`}
+                          className="w-20 border-2 border-gray-200 rounded-lg px-2 py-1.5 text-right"
+                          onKeyDown={(e) => { if (e.key === 'Enter') live.setAmount(item.id, e.target.value); }}
+                          onBlur={(e) => { if ((parseFloat(e.target.value) || 0) !== amt) live.setAmount(item.id, e.target.value); }}
+                        />
+                        {cap > 0 && (
+                          <button
+                            onClick={() => live.setAmount(item.id, cap)}
+                            className="px-3 py-1.5 rounded-lg bg-green-500 text-white text-sm font-semibold hover:bg-green-600"
+                            title={`Restock to full (${cap})`}
+                          >
+                            Full
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
               ) : (
-                <div className="text-center py-8 text-gray-500">
+                <div className="text-center py-8 text-gray-500 bg-white rounded-lg shadow-sm">
                   <Package size={48} className="mx-auto mb-2 text-gray-400" />
-                  <p>No {selectedStockCategory} items found</p>
-                  <p className="text-sm text-gray-400">Click 'Add Event Stock' to add standard items or 'Custom Item' for unique items</p>
+                  <p>No {liveStockCat} items in inventory</p>
+                  <p className="text-sm text-gray-400">Add stock in Organiser → Event Stock</p>
                 </div>
               )}
             </div>
-            
-            {/* Stock Action Buttons */}
-            <div className="flex flex-wrap gap-2 mt-6">
-              <button 
-                className="flex-1 py-3 bg-green-500 text-white rounded-md font-medium hover:bg-green-600"
+
+            {(live.byCategory[liveStockCat] || []).length > 0 && (
+              <button
+                className="w-full mt-4 py-3 bg-green-500 text-white rounded-md font-medium hover:bg-green-600"
                 onClick={() => {
-                  // Show confirmation message in alert and proceed if user enters "yes"
-                  const userConfirmed = window.prompt(`Type 'yes' to confirm restocking all ${selectedStockCategory} items to full capacity:`) === 'yes';
-                  
-                  if (userConfirmed) {
-                    // Get all items in the current category
-                    const items = getCategoryStock(selectedStockCategory);
-                    // Update each item to full capacity
-                    items.forEach(item => {
-                      updateStockItem(selectedStockCategory, item.id, item.capacity);
+                  const rows = live.byCategory[liveStockCat] || [];
+                  if (window.prompt(`Type 'yes' to restock all ${liveStockCat} to full:`) === 'yes') {
+                    rows.forEach(it => {
+                      const cap = parseFloat(it.capacity) || 0;
+                      if (cap > 0) live.setAmount(it.id, cap);
                     });
                   }
                 }}
               >
-                Restock All to Full
+                Restock all {liveStockCat} to full
               </button>
-              
-              <button 
-                className="flex-1 py-3 bg-gray-500 text-white rounded-md font-medium hover:bg-gray-600"
-                onClick={() => {
-                  // Prompt for item selection to delete
-                  const items = getCategoryStock(selectedStockCategory);
-                  if (items.length === 0) {
-                    showToast(`No ${selectedStockCategory} items to delete`, 'info');
-                    return;
-                  }
-                  
-                  // Create item options as a numbered list
-                  let message = `Select item to delete:\n`;
-                  items.forEach((item, index) => {
-                    message += `${index + 1}. ${item.name}\n`;
-                  });
-                  
-                  // Get selection
-                  const selection = prompt(message);
-                  if (selection) {
-                    const index = parseInt(selection, 10) - 1;
-                    if (!isNaN(index) && index >= 0 && index < items.length) {
-                      const item = items[index];
-                      // Ask for confirmation using prompt instead of confirm
-                      const deleteConfirmed = window.prompt(`Type 'yes' to confirm deleting ${item.name}:`) === 'yes';
-                      if (deleteConfirmed) {
-                        deleteStockItem(selectedStockCategory, item.id);
-                      }
-                    } else {
-                      showToast('Invalid selection', 'error');
-                    }
-                  }
-                }}
-              >
-                Delete Item
-              </button>
-              
-              <button 
-                className="flex-1 py-3 bg-red-500 text-white rounded-md font-medium hover:bg-red-600"
-                onClick={() => {
-                  // Ask for confirmation using prompt instead of confirm
-                  const resetConfirmed = window.prompt('Type \'yes\' to reset all stock to default values. This cannot be undone:') === 'yes';
-                  if (resetConfirmed) {
-                    resetStock();
-                  }
-                }}
-              >
-                Reset to Defaults
-              </button>
-            </div>
+            )}
+
+            <p className="text-xs text-gray-400 mt-3">
+              Structural changes (adding items, capacities, minimums) live in
+              Organiser → Event Stock. This tab is for adjusting what's on hand.
+            </p>
           </div>
         )}
-        
+
         {/* Inventory Intelligence Tab */}
         {!loading && activeTab === 'inventory' && (
           <div className="p-4">
