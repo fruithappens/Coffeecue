@@ -11,6 +11,7 @@
 // They keep the tab open (or re-scan later; the number is in the URL).
 // A phone number remains OPTIONAL for anyone who does want the text.
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import CancelOrderButton from './CancelOrderButton';
 import BaristaAskCard from './BaristaAskCard';
 import { remember, recall, forget } from '../../utils/deviceMemory';
 import { useSearchParams } from 'react-router-dom';
@@ -336,6 +337,17 @@ const MobileOrderPage = () => {
           >
             Wrong order? Search again
           </button>
+          {/* Cancel — only while still queued (server refuses once it's
+              being made). */}
+          <CancelOrderButton orderNumber={trackNumber} status={track?.status}
+            onCancelled={() => {
+              try {
+                const raw = recall('cupq_active_order');
+                if (raw && String((JSON.parse(raw) || {}).n) === String(trackNumber)) {
+                  forget('cupq_active_order');
+                }
+              } catch (er) { /* nothing remembered */ }
+            }} />
           <button
             className="w-full mt-6 py-3 rounded-xl bg-gray-800 text-white font-semibold"
             onClick={() => { setParams({ ...(stationId ? { station: stationId } : {}) }); setTrack(null); }}

@@ -4201,6 +4201,78 @@ def cancel_order_barista(order_id):
         return jsonify({"success": False, "message": f"Error cancelling order: {e}"}), 500
 
 
+@bp.route('/orders/<order_id>/customer-cancel', methods=['POST'])
+def customer_cancel_order(order_id):
+    """The customer cancels their OWN order from the tracking page -- PUBLIC,
+    like /track. Only while it is still PENDING (in the queue, not yet being
+    made), mirroring the SMS CANCEL rule: once a barista has started it, it
+    is too late by phone and they must see a barista."""
+    try:
+        clean_id = clean_order_id(order_id)
+        coffee_system = current_app.config.get('coffee_system')
+        if not coffee_system or not getattr(coffee_system, 'db', None):
+            return jsonify({"success": False, "message": "Service unavailable"}), 503
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        cur = db.cursor()
+        cur.execute('SELECT id, status, station_id, order_details FROM orders WHERE order_number = %s', (clean_id,))
+        row = cur.fetchone()
+        if not row:
+            return jsonify({"success": False, "message": "Order not found"}), 404
+        o_id, status, station_id, raw_details = (
+            (row[0], row[1], row[2], row[3]) if not isinstance(row, dict)
+            else (row['id'], row['status'], row['station_id'], row.get('order_details')))
+        if status == 'cancelled':
+            return jsonify({"success": True, "message": "Already cancelled", "cancelled": True})
+        if status != 'pending':
+            # in-progress / completed / picked_up: too late by phone.
+            return jsonify({"success": False, "too_late": True,
+                            "message": "Your order is already being made — please see a barista."}), 409
+        # Pending: give the ingredients back (idempotent), cancel, free a load slot.
+        try:
+            details = raw_details
+            if isinstance(details, str):
+                details = json.loads(details)
+            if isinstance(details, dict) and details.get('_stock_decremented') \
+                    and not details.get('_stock_restocked'):
+                dbtype = 'sqlite' if 'sqlite3' in str(type(db)).lower() else 'postgres'
+                coffee_system._restock_for_order(db, dbtype, station_id, details)
+                cur.execute('UPDATE orders SET order_details = %s WHERE id = %s',
+                            (json.dumps(details), o_id))
+        except Exception as restock_err:
+            logger.warning(f"customer-cancel restock skipped (non-fatal): {restock_err}")
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            cur = db.cursor()
+        cur.execute('UPDATE orders SET status = %s, updated_at = %s WHERE id = %s',
+                    ('cancelled', datetime.now(), o_id))
+        if station_id is not None:
+            try:
+                cur.execute("UPDATE station_stats SET current_load = GREATEST(0, current_load - 1), "
+                            "last_updated = %s WHERE station_id = %s", (datetime.now(), station_id))
+            except Exception:
+                pass
+        db.commit()
+        try:
+            _emit_order_status_change(clean_id, 'cancelled')
+        except Exception:
+            pass
+        return jsonify({"success": True, "cancelled": True,
+                        "message": "Your order has been cancelled."})
+    except Exception as e:
+        logger.error(f"customer_cancel_order error: {e}")
+        try:
+            current_app.config.get('coffee_system').db.rollback()
+        except Exception:
+            pass
+        return jsonify({"success": False, "message": "Could not cancel — please see a barista."}), 500
+
+
 # ============================================================================
 # DISPLAY ENDPOINTS (PUBLIC FACING)
 # ============================================================================
