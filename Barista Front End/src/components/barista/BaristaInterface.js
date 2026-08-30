@@ -23,6 +23,7 @@ import useOrders from '../../hooks/useOrders';
 import useStations from '../../hooks/useStations';
 import useStock from '../../hooks/useStock';
 import useLiveStock from '../../hooks/useLiveStock';
+import useStationChatUnread from '../../hooks/useStationChatUnread';
 import useSchedule from '../../hooks/useSchedule';
 import {
   getOrderBackgroundColor,
@@ -522,6 +523,12 @@ const BaristaInterface = () => {
   // Live pending customer-questions — count drives the Messages badge (replaces
   // the old hardcoded `unreadMessages = 2` that always showed a fake "2").
   const cq = useCustomerQuestions();
+  // Unread STATION CHAT (from other stations) — makes the Messages bubble
+  // react to chat, not only customer questions (Steve's note).
+  const chatUnread = useStationChatUnread(
+    selectedStation,
+    stations.find(s => s.id === selectedStation)?.name,
+    settings.baristaName);
   const [filter, setFilter] = useState('all');
   
   // Effect to ensure settings are synced with selected station
@@ -4795,14 +4802,18 @@ const BaristaInterface = () => {
         title="Messages — customer questions & station chat"
         onClick={() => {
           // When opening, land on Questions if any are pending, else Chat.
-          if (!chatOpen) setMessagesTab(cq.count > 0 ? 'questions' : 'chat');
+          if (!chatOpen) {
+            const toChat = cq.count === 0 && chatUnread.unread > 0;
+            setMessagesTab(cq.count > 0 ? 'questions' : (toChat ? 'chat' : 'chat'));
+            if (toChat || cq.count === 0) chatUnread.markRead();
+          }
           setChatOpen(!chatOpen);
         }}
       >
         <MessageCircle size={24} />
-        {cq.count > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full">
-            {cq.count}
+        {(cq.count + chatUnread.unread) > 0 && (
+          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold min-w-5 h-5 px-1 flex items-center justify-center rounded-full">
+            {cq.count + chatUnread.unread}
           </span>
         )}
       </button>
@@ -4899,10 +4910,10 @@ const BaristaInterface = () => {
                 Questions{cq.count > 0 ? ` (${cq.count})` : ''}
               </button>
               <button
-                onClick={() => setMessagesTab('chat')}
+                onClick={() => { setMessagesTab('chat'); chatUnread.markRead(); }}
                 className={`px-3 py-1 rounded text-sm font-medium ${messagesTab === 'chat' ? 'bg-white shadow text-blue-700' : 'text-gray-600 hover:bg-gray-200'}`}
               >
-                Station chat
+                Station chat{chatUnread.unread > 0 ? ` (${chatUnread.unread})` : ''}
               </button>
             </div>
             <button
