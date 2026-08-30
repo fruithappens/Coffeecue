@@ -608,6 +608,24 @@ const BaristaInterface = () => {
   // the bean counter at zero and never saw a whisper. Poll it, show a
   // persistent red banner, toast + sound ONCE per item (no nagging).
   const [lowStockItems, setLowStockItems] = useState([]);
+  // "View Details" on a completed order was a placebo -- it only toasted
+  // "Details for order #N are not available", though the order exists.
+  // Now it expands the card and pulls the full breakdown from /track.
+  const [expandedOrderId, setExpandedOrderId] = useState(null);
+  const [expandedOrderData, setExpandedOrderData] = useState({}); // id -> detail | 'loading' | 'error'
+  const openOrderDetails = async (id) => {
+    if (expandedOrderId === id) { setExpandedOrderId(null); return; }
+    setExpandedOrderId(id);
+    if (expandedOrderData[id] && expandedOrderData[id] !== 'error') return;
+    setExpandedOrderData(prev => ({ ...prev, [id]: 'loading' }));
+    try {
+      const r = await fetch(`/api/orders/${id}/track`);
+      const b = r.ok ? await r.json() : null;
+      setExpandedOrderData(prev => ({ ...prev, [id]: (b && b.success) ? b : 'error' }));
+    } catch (e) {
+      setExpandedOrderData(prev => ({ ...prev, [id]: 'error' }));
+    }
+  };
   const alertedLowStockRef = useRef(new Set());
   useEffect(() => {
     let cancelled = false;
@@ -1815,14 +1833,30 @@ const BaristaInterface = () => {
           <div className="font-bold">Order #{order.id}</div>
           <button 
             className="text-sm text-gray-600 bg-gray-200 px-2 py-1 rounded hover:bg-gray-300"
-            onClick={() => {
-              console.log(`Viewing details for order #${order.id}`);
-              showToast(`Details for order #${order.id} are not available.`, 'info');
-            }}
+            onClick={() => openOrderDetails(order.id)}
           >
-            View Details
+            {expandedOrderId === order.id ? 'Hide Details' : 'View Details'}
           </button>
         </div>
+        {expandedOrderId === order.id && (
+          <div className="mt-2 pt-2 border-t border-gray-100 text-sm text-gray-700">
+            {expandedOrderData[order.id] === 'loading' ? (
+              <span className="text-gray-400">Loading…</span>
+            ) : expandedOrderData[order.id] === 'error' || !expandedOrderData[order.id] ? (
+              <span className="text-gray-500">Couldn't load the full details — the summary above is what we have.</span>
+            ) : (() => {
+              const d = expandedOrderData[order.id];
+              return (
+                <div className="space-y-0.5">
+                  {d.drink_full && <div><span className="text-gray-500">Order:</span> {d.drink_full}</div>}
+                  {d.station_name && <div><span className="text-gray-500">Station:</span> {d.station_name}{d.station_location ? ` · ${d.station_location}` : ''}</div>}
+                  {d.notice && <div className="text-amber-700">{d.notice}</div>}
+                  <div><span className="text-gray-500">Status:</span> {d.status === 'picked_up' ? 'Picked up' : d.status}</div>
+                </div>
+              );
+            })()}
+          </div>
+        )}
         <div className="mt-2">
           <div className="text-gray-700 flex items-center">
             {order.milkType && order.milkType !== 'No Milk' && (
