@@ -24,6 +24,7 @@ import useStations from '../../hooks/useStations';
 import useStock from '../../hooks/useStock';
 import useLiveStock from '../../hooks/useLiveStock';
 import useStationChatUnread from '../../hooks/useStationChatUnread';
+import AskCustomerControls from './AskCustomerControls';
 import useSchedule from '../../hooks/useSchedule';
 import {
   getOrderBackgroundColor,
@@ -1740,6 +1741,11 @@ const BaristaInterface = () => {
             </div>
           );
         })()}
+
+        {/* Ask THIS customer (out-of-oat etc.) -- works with or without
+            a phone number, unlike the SMS button above. Self-contained
+            component; adds no hooks here. */}
+        <AskCustomerControls order={order} />
 
         {/* Time-into-order bar. Fills as the order ages against a 5-minute
             make target (or promisedTime when the API sends one). It used

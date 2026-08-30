@@ -1101,6 +1101,13 @@ def get_pending_orders():
                 # The customer's latest unanswered SMS, shown on the card.
                 'customer_message': questions_by_phone.get(str(phone or '')),
                 'customerMessage': questions_by_phone.get(str(phone or '')),
+                # Barista<->customer per-order thread (the 'out of oat,
+                # almond ok?' channel). Both flow through the existing
+                # order fetch + poll, so the card updates on its own.
+                'barista_ask': order_details.get('_barista_ask'),
+                'baristaAsk': order_details.get('_barista_ask'),
+                'customer_reply': order_details.get('_customer_reply'),
+                'customerReply': order_details.get('_customer_reply'),
                 'status': status,
                 'created_at': created_at,
                 'createdAt': created_at.isoformat() if hasattr(created_at, 'isoformat') else created_at,
@@ -6116,6 +6123,12 @@ def track_order_public(order_id):
             'station_name': station_name,
             'station_location': station_location,
             'collection_note': od.get('collection_note') or '',
+            # A barista's question for THIS customer, shown until they
+            # answer it (Steve: "we have just run out of oat is almond
+            # ok?"). Cleared from view once _customer_reply lands.
+            'barista_ask': (od.get('_barista_ask')
+                            if isinstance(od, dict) and not od.get('_customer_reply')
+                            else None),
         })
     except Exception as e:
         logger.error(f"track_order_public error: {e}")
@@ -6124,6 +6137,89 @@ def track_order_public(order_id):
         except Exception:
             pass
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@bp.route('/orders/<order_id>/ask', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def ask_customer(order_id):
+    """Barista -> ONE customer, tied to this order. Answerable from the
+    tracking page, and SMS-notified when a number exists. Steve's
+    scenario: 'we have just run out of oat is almond ok?'"""
+    coffee_system = current_app.config.get('coffee_system')
+    db = coffee_system.db
+    try:
+        db.rollback()
+    except Exception:
+        pass
+    clean_id = clean_order_id(order_id)
+    body = request.get_json(silent=True) or {}
+    message = str(body.get('message') or '').strip()
+    if not message:
+        return jsonify({'success': False, 'message': 'message required'}), 400
+    options = [str(o).strip() for o in (body.get('options') or []) if str(o).strip()][:5]
+    ask = {'message': message[:280], 'options': options,
+           'at': datetime.now().isoformat()}
+    cur = db.cursor()
+    # A new question supersedes any prior reply.
+    cur.execute(
+        "UPDATE orders SET order_details = "
+        "(COALESCE(order_details::jsonb, '{}'::jsonb) - '_customer_reply') || %s::jsonb "
+        "WHERE order_number = %s",
+        (json.dumps({'_barista_ask': ask}), clean_id))
+    if cur.rowcount == 0:
+        db.rollback()
+        return jsonify({'success': False, 'message': 'order not found'}), 404
+    db.commit()
+    # SMS notify if there's a real, non-bench number. Async + bench-guarded,
+    # so a slow carrier never blocks the barista.
+    sms_sent = False
+    try:
+        cur.execute("SELECT phone FROM orders WHERE order_number = %s", (clean_id,))
+        r = cur.fetchone()
+        phone = (r[0] if not isinstance(r, dict) else r.get('phone')) if r else ''
+        phone = str(phone or '').strip()
+        if phone and not phone.lower().startswith(('walk', 'none')):
+            base = (os.environ.get('PUBLIC_BASE_URL', '') or '').rstrip('/')
+            link = f"{base}/order?order={clean_id}" if base else "your order page"
+            opt = (' Reply: ' + ' / '.join(options)) if options else ''
+            sms_body = f"Coffee #{clean_id}: {message}{opt}\nAnswer here: {link}"
+            messaging_service = current_app.config.get('messaging_service')
+            if messaging_service:
+                _dispatch_sms_async(messaging_service, phone, sms_body, clean_id)
+                sms_sent = True
+    except Exception as e:
+        logger.warning(f"ask-customer SMS skipped (non-fatal): {e}")
+    return jsonify({'success': True, 'sms_sent': sms_sent})
+
+
+@bp.route('/orders/<order_id>/reply', methods=['POST'])
+def customer_reply_to_barista(order_id):
+    """Customer -> barista: answer the barista's question from the tracking
+    page. PUBLIC, like /track (the tracking page carries no auth)."""
+    coffee_system = current_app.config.get('coffee_system')
+    db = coffee_system.db
+    try:
+        db.rollback()
+    except Exception:
+        pass
+    clean_id = clean_order_id(order_id)
+    body = request.get_json(silent=True) or {}
+    reply = str(body.get('reply') or '').strip()[:280]
+    if not reply:
+        return jsonify({'success': False, 'message': 'reply required'}), 400
+    cur = db.cursor()
+    cur.execute(
+        "UPDATE orders SET order_details = "
+        "COALESCE(order_details::jsonb, '{}'::jsonb) || %s::jsonb "
+        "WHERE order_number = %s",
+        (json.dumps({'_customer_reply': {'text': reply,
+                                         'at': datetime.now().isoformat()}}), clean_id))
+    if cur.rowcount == 0:
+        db.rollback()
+        return jsonify({'success': False, 'message': 'order not found'}), 404
+    db.commit()
+    return jsonify({'success': True})
 
 
 # _display_phone used to live here: last-4 masking for the public

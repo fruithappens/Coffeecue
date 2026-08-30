@@ -1,0 +1,120 @@
+import React, { useState } from 'react';
+import { MessageSquare } from 'lucide-react';
+
+// Ask THIS customer a question, tied to their order, from the barista
+// card -- and see their reply come back. Works whether or not they left
+// a phone number (unlike the SMS-only message button beside it). Steve:
+// "the barista can contact every customer regardless if they left a
+// mobile number... we have jsut run out of oat is almond ok?"
+//
+// Self-contained on purpose: it holds its own form state and does its
+// own POST, so it drops into the order card with one line and adds no
+// hooks to the (fragile) barista interface body.
+const authHeaders = () => ({
+  Authorization: `Bearer ${localStorage.getItem('coffee_system_token') || ''}`,
+  'Content-Type': 'application/json',
+});
+
+const PRESETS = [
+  { label: 'Out of a milk', message: "We've run out of your milk — is another OK?", options: 'Full cream, Skim, Soy, Almond, Cancel' },
+  { label: 'Running behind', message: "We're running a few minutes behind — still want it?", options: 'Yes please, Cancel' },
+];
+
+export default function AskCustomerControls({ order }) {
+  const ask = order.barista_ask || order.baristaAsk || null;
+  const reply = order.customer_reply || order.customerReply || null;
+
+  const [open, setOpen] = useState(false);
+  const [message, setMessage] = useState('');
+  const [optionsText, setOptionsText] = useState('');
+  const [sending, setSending] = useState(false);
+
+  const send = async () => {
+    const msg = message.trim();
+    if (!msg || sending) return;
+    setSending(true);
+    try {
+      const options = optionsText.split(',').map((o) => o.trim()).filter(Boolean);
+      await fetch(`/api/orders/${encodeURIComponent(order.id)}/ask`, {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ message: msg, options }),
+      });
+      setOpen(false); setMessage(''); setOptionsText('');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  // The reply is the payoff — show it loud and clear when it lands.
+  if (reply && reply.text) {
+    return (
+      <div className="mt-2 rounded-lg border-2 border-green-500 bg-green-50 p-2">
+        <div className="text-xs font-bold uppercase tracking-wide text-green-700">Customer replied</div>
+        <div className="text-lg font-semibold text-green-900">“{reply.text}”</div>
+        <button onClick={() => setOpen(true)}
+          className="mt-1 text-sm text-green-700 underline">Ask something else</button>
+        {open && <AskForm {...{ message, setMessage, optionsText, setOptionsText, sending, send, setOpen }} />}
+      </div>
+    );
+  }
+
+  if (ask && ask.message && !open) {
+    return (
+      <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-2 text-sm">
+        <span className="text-amber-800">Waiting for a reply to: </span>
+        <span className="font-semibold text-amber-900">“{ask.message}”</span>
+        <button onClick={() => setOpen(true)} className="ml-2 text-amber-700 underline">Ask again</button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2">
+      {!open ? (
+        <button onClick={() => setOpen(true)}
+          className="flex items-center gap-1.5 text-sm font-semibold text-gray-600 hover:text-amber-700">
+          <MessageSquare size={15} /> Ask customer (any phone or none)
+        </button>
+      ) : (
+        <AskForm {...{ message, setMessage, optionsText, setOptionsText, sending, send, setOpen }} />
+      )}
+    </div>
+  );
+}
+
+function AskForm({ message, setMessage, optionsText, setOptionsText, sending, send, setOpen }) {
+  return (
+    <div className="mt-1 border rounded-lg p-2 bg-white">
+      <div className="flex flex-wrap gap-1 mb-2">
+        {PRESETS.map((p) => (
+          <button key={p.label} type="button"
+            onClick={() => { setMessage(p.message); setOptionsText(p.options); }}
+            className="text-xs bg-gray-100 hover:bg-gray-200 rounded px-2 py-1">
+            {p.label}
+          </button>
+        ))}
+      </div>
+      <input
+        autoFocus value={message} onChange={(e) => setMessage(e.target.value)}
+        placeholder="Message to the customer"
+        className="w-full border rounded px-2 py-1.5 text-sm mb-1"
+      />
+      <input
+        value={optionsText} onChange={(e) => setOptionsText(e.target.value)}
+        placeholder="Reply buttons (comma-separated) — optional"
+        className="w-full border rounded px-2 py-1.5 text-sm mb-2"
+      />
+      <div className="flex gap-2">
+        <button onClick={send} disabled={sending || !message.trim()}
+          className="flex-1 bg-amber-600 hover:bg-amber-700 text-white rounded py-1.5 text-sm font-semibold disabled:opacity-40">
+          {sending ? 'Sending…' : 'Send to customer'}
+        </button>
+        <button onClick={() => setOpen(false)}
+          className="px-3 rounded bg-gray-100 text-gray-600 text-sm">Cancel</button>
+      </div>
+      <div className="text-[11px] text-gray-400 mt-1">
+        Shows on their order page. If they left a mobile, it also texts them.
+      </div>
+    </div>
+  );
+}

@@ -11,6 +11,7 @@
 // They keep the tab open (or re-scan later; the number is in the URL).
 // A phone number remains OPTIONAL for anyone who does want the text.
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import BaristaAskCard from './BaristaAskCard';
 import { remember, recall, forget } from '../../utils/deviceMemory';
 import { useSearchParams } from 'react-router-dom';
 import KioskOrder from './KioskOrder';
@@ -174,6 +175,13 @@ const MobileOrderPage = () => {
             <div className="mb-4 rounded-2xl bg-amber-100 border-2 border-amber-500 p-4 text-amber-950">
               <div className="font-extrabold text-lg mb-1">Please read</div>
               <div className="text-base leading-snug">{track.notice}</div>
+            </div>
+          )}
+          {/* The barista's question for this order (out-of-oat etc.) --
+              answerable right here, tap or type. */}
+          {!collected && (
+            <div className="mb-4">
+              <BaristaAskCard orderNumber={trackNumber} ask={track?.barista_ask || null} />
             </div>
           )}
           <div className={`${copy.tone} text-white rounded-2xl p-6 text-center shadow-lg
