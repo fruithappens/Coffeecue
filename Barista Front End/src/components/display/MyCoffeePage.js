@@ -15,6 +15,7 @@
 // Anyone we don't recognise falls through to the normal ordering flow, so
 // a wrong badge number or a guest who isn't in EventsAir is never stuck.
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import CancelOrderButton from './CancelOrderButton';
 import BaristaAskCard from './BaristaAskCard';
 import { recall, remember, forget } from '../../utils/deviceMemory';
 import playCupQSignature from '../../utils/cupqSignature';
@@ -1104,6 +1105,7 @@ const MyCoffeePage = () => {
           <div className="mb-4">
             <BaristaAskCard orderNumber={active.order_number} />
           </div>
+          <CancelOrderButton orderNumber={active.order_number} status={active.status} />
           <p className="text-center text-gray-500 text-sm mt-2">
             Keep this page open — it updates by itself.
           </p>
