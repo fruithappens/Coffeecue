@@ -20,6 +20,7 @@
 //   GET  /api/display/menu   → { menu: { stations:[{id,name,wait,load}], coffee_types, milks, sizes } }
 //   POST /api/display/order  → { order_number, station_id, station_name }
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { getSavedRounds, saveRound } from '../../utils/savedRounds';
 import DrinkIcon from './DrinkIcon';
 import { remember, recall } from '../../utils/deviceMemory';
 import { X, ArrowLeft, Plus, Minus, Check, Loader, MapPin, Zap } from 'lucide-react';
@@ -196,6 +197,30 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
     setStrength(''); setExtraHot(false); setDecaf(false); setNotes('');
     setName(''); setDrinkCat('All');
     goTo('drink');
+  };
+  // Saved group rounds (Phase 2): a team's regular round, re-ordered in
+  // one tap. Device-local. Only offered on a personal phone -- a shared
+  // kiosk would mix strangers' rounds.
+  const [savedRounds, setSavedRounds] = useState(() => (isOwnDevice ? getSavedRounds() : []));
+  const [roundName, setRoundName] = useState('');
+  const [roundSaved, setRoundSaved] = useState(false);
+  const loadRound = (round) => {
+    const items = (round && round.items) || [];
+    if (items.length === 0) return;
+    setCart(items.slice(0, -1));
+    const last = items[items.length - 1];
+    setDrink(last.drink || null); setMilk(last.milk || null); setSize(last.size || null);
+    setSugar(last.sugar || 0); setStrength(last.strength || '');
+    setExtraHot(!!last.extraHot); setDecaf(!!last.decaf); setNotes(last.notes || '');
+    setName(last.name || '');
+    if (fastestStation != null) setChosenStation(fastestStation);
+    goTo('phone');
+  };
+  const doSaveRound = () => {
+    const nm = roundName.trim();
+    if (!nm) return;
+    setSavedRounds(saveRound(nm, [...cart, currentDrinkSnapshot()]));
+    setRoundSaved(true);
   };
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -831,6 +856,26 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                     Already ordered? Find my order
                   </button>
                 )}
+                {/* Saved rounds: one tap to re-place a team's regular round
+                    (Steve's "GROUPWallfly"). Only on a personal phone, and
+                    only when fresh (no drink picked, nothing in the cart). */}
+                {isOwnDevice && cart.length === 0 && !drink && savedRounds.length > 0 && (
+                  <div className="mb-4">
+                    <div className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-2">Your saved rounds</div>
+                    <div className="flex flex-wrap gap-2">
+                      {savedRounds.map((rnd) => (
+                        <button key={rnd.name} onClick={() => loadRound(rnd)}
+                          className="px-4 py-3 rounded-2xl border-2 text-left"
+                          style={{ borderColor: headerColor }}>
+                          <div className="font-extrabold" style={{ color: headerColor }}>☕ {rnd.name}</div>
+                          <div className="text-xs text-gray-500">
+                            {rnd.items.length} coffee{rnd.items.length === 1 ? '' : 's'} · tap to re-order
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {(() => {
                   // A drink an old server never labelled counts as
                   // featured, so nothing vanishes on a stale bundle.
@@ -1283,6 +1328,24 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
             )}
             {errorMsg && (
               <div className="rounded-2xl p-4 mb-4 bg-red-100 text-red-800 text-lg font-semibold">{errorMsg}</div>
+            )}
+            {/* Save this round to re-order in one tap next time (own
+                phone only -- a shared kiosk shouldn't hoard rounds). */}
+            {isOwnDevice && cart.length > 0 && (
+              roundSaved ? (
+                <div className="mb-3 text-center text-sm font-semibold text-green-700">
+                  Saved — you'll see it on your next visit.
+                </div>
+              ) : (
+                <div className="mb-3 flex gap-2">
+                  <input value={roundName} onChange={(e) => setRoundName(e.target.value)}
+                    placeholder="Save this round as… (e.g. Wallfly)"
+                    className="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2 text-sm" />
+                  <button onClick={doSaveRound} disabled={!roundName.trim()}
+                    className="px-4 rounded-xl text-sm font-semibold text-white disabled:opacity-40"
+                    style={{ backgroundColor: headerColor }}>Save</button>
+                </div>
+              )
             )}
             {/* Grow the order into a round -- another for you, or one for
                 a friend. Each gets its own name so the cups are labelled
