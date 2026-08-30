@@ -64,31 +64,43 @@ def read_settings(kv_value):
     return {
         "code": normalize_code(raw.get("code")),
         "require": bool(raw.get("require")),
+        # Optional shared secret a customer must enter to order. The code
+        # routes to the event (and is public, in the QR/URL); the password
+        # is the "were you actually invited" gate. Empty = no password.
+        "password": str(raw.get("password") or "").strip()[:64],
     }
 
 
-def check(kv_value, presented_code):
+WRONG_PASSWORD_MESSAGE = (
+    "That event password isn't right. Please check with the event staff.")
+
+
+def check(kv_value, presented_code, presented_password=None):
     """May this order proceed?
 
     Returns (allowed, message). The message is empty when allowed.
 
-    Deliberately permissive in three cases, each of which would
-    otherwise turn a safety feature into an outage:
-
-      - the event does not require a code
-      - the event requires one but has not SET one, which is a
-        misconfiguration and must not take ordering down
-      - the codes match
+    The CODE binds the order to the event (blocks last event's QR). The
+    optional PASSWORD is a second gate: when set AND required, the order
+    must carry the right password too. Both fail OPEN when unconfigured,
+    so a missing setting never takes ordering down.
     """
     cfg = read_settings(kv_value)
     if not cfg["require"]:
         return True, ""
-    if not cfg["code"]:
-        # Required but never configured. Fail open, loudly in the logs.
-        return True, ""
-    if normalize_code(presented_code) == cfg["code"]:
-        return True, ""
-    return False, WRONG_EVENT_MESSAGE
+    # Code gate (only when a code is actually set).
+    if cfg["code"] and normalize_code(presented_code) != cfg["code"]:
+        return False, WRONG_EVENT_MESSAGE
+    # Password gate (only when a password is actually set).
+    if cfg["password"] and str(presented_password or "").strip() != cfg["password"]:
+        return False, WRONG_PASSWORD_MESSAGE
+    return True, ""
+
+
+def password_required(kv_value):
+    """True when ordering needs a password (set AND enforced)."""
+    cfg = read_settings(kv_value)
+    return bool(cfg["require"] and cfg["password"])
 
 
 def stamp_link(url, code):

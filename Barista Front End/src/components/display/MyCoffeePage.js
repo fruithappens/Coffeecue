@@ -113,6 +113,47 @@ const MyCoffeePage = () => {
     () => paramCid || recall(STORAGE_KEY) || ''
   );
   const [me, setMe] = useState(null);
+  // Event password gate. null = still checking; false = no gate (or
+  // already passed on this device); true = must enter it before ordering.
+  // Steve's optional "were you invited" layer on top of the event code.
+  const [pwGate, setPwGate] = useState(false);
+  const [pwInput, setPwInput] = useState('');
+  const [pwError, setPwError] = useState('');
+  const [pwChecking, setPwChecking] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        let already = false;
+        try { already = !!sessionStorage.getItem('cupq_event_pw'); } catch (e) { /* */ }
+        if (already) return;
+        const r = await fetch('/api/event-access/public');
+        const b = r.ok ? await r.json() : null;
+        if (!cancelled && b && b.password_required) setPwGate(true);
+      } catch (e) { /* fail open: no gate */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  const submitPw = async () => {
+    const pw = pwInput.trim();
+    if (!pw) return;
+    setPwChecking(true); setPwError('');
+    try {
+      const r = await fetch('/api/event-access/verify', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pw }),
+      });
+      const b = await r.json().catch(() => ({}));
+      if (r.ok && b.ok) {
+        try { sessionStorage.setItem('cupq_event_pw', pw); } catch (e) { /* */ }
+        setPwGate(false);
+      } else {
+        setPwError("That's not the event password. Check with the event staff.");
+      }
+    } catch (e) {
+      setPwError('Network problem — try again.');
+    } finally { setPwChecking(false); }
+  };
   // Liveness, tracked from REAL fetches rather than a decorative spinner.
   // Steve, watching his own order sit on "In the queue" while the barista
   // made it: "there should be a bit of a something that has motion or
@@ -734,6 +775,38 @@ const MyCoffeePage = () => {
     setCid(''); setPhone(''); setMe(null); setEntry('');
     setError(''); setChoices(null);
   };
+
+  // ---- event password gate (before anything else) -----------------------
+  if (pwGate) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6"
+           style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top))' }}>
+        <div className="w-full max-w-sm text-center">
+          <div className="text-5xl mb-3" aria-hidden>🔒</div>
+          <h1 className="text-2xl font-bold mb-1">Event password</h1>
+          <p className="text-gray-600 mb-5">
+            This event's coffee ordering is password-protected. Enter the
+            password you were given.
+          </p>
+          <input
+            autoFocus value={pwInput}
+            onChange={(e) => { setPwInput(e.target.value); setPwError(''); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') submitPw(); }}
+            placeholder="Event password"
+            className="w-full border-2 rounded-xl px-4 py-4 text-xl text-center"
+          />
+          {pwError && <p className="text-red-600 mt-3">{pwError}</p>}
+          <button
+            className="w-full mt-4 py-4 rounded-xl bg-blue-600 text-white text-lg font-semibold disabled:opacity-40"
+            disabled={!pwInput.trim() || pwChecking}
+            onClick={submitPw}
+          >
+            {pwChecking ? 'Checking…' : 'Continue'}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // ---- one number, several people ----------------------------------------
   if (!me && choices) {

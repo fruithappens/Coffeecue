@@ -18,7 +18,8 @@ from utils.broadcast import (
     is_live as broadcast_is_live)
 from utils.event_access import (
     ACCESS_SETTING_KEY, check as event_access_check,
-    read_settings as event_access_settings)
+    read_settings as event_access_settings,
+    password_required as event_password_required)
 from utils.notification_hold import (
     HOLD_SETTING_KEY, clear_held, is_held, is_holding, mark_held,
     should_release, summarise as summarise_held)
@@ -4957,7 +4958,8 @@ def create_kiosk_order():
         try:
             allowed, gate_msg = event_access_check(
                 _kv_get(db, ACCESS_SETTING_KEY, default=None),
-                data.get('e') or data.get('event_code') or request.args.get('e'))
+                data.get('e') or data.get('event_code') or request.args.get('e'),
+                data.get('event_password') or data.get('password'))
             if not allowed:
                 logger.info("Order refused: event code mismatch")
                 return jsonify({'success': False, 'message': gate_msg,
@@ -5376,7 +5378,8 @@ def create_kiosk_order_group():
     items = items[:10]
     shared = {k: body.get(k) for k in (
         'phone', 'use_registered_phone', 'ea_contact_id', 'station_id',
-        'preferred_station', 'channel', 'src', 'e', 'lookup_phone') if k in body}
+        'preferred_station', 'channel', 'src', 'e', 'lookup_phone',
+        'event_password') if k in body}
 
     placed, failed = [], []
     with current_app.test_client() as c:
@@ -11505,6 +11508,56 @@ def get_today_report():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@bp.route('/event-access/verify', methods=['POST'])
+def event_access_verify():
+    """Check an entered event password WITHOUT placing an order, so the
+    ordering page can gate up front instead of at checkout. Public."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        raw = _kv_get(db, ACCESS_SETTING_KEY, default=None)
+        if not event_password_required(raw):
+            return jsonify({'success': True, 'ok': True})  # no gate
+        body = request.get_json(silent=True) or {}
+        cfg = event_access_settings(raw)
+        ok = str(body.get('password') or '').strip() == cfg['password']
+        return jsonify({'success': True, 'ok': bool(ok)})
+    except Exception as e:
+        logger.warning(f"event_access_verify failed (fail-open): {e}")
+        return jsonify({'success': True, 'ok': True})
+
+
+@bp.route('/event-access/public', methods=['GET'])
+def event_access_public():
+    """What a PUBLIC ordering page needs to know -- never the secret.
+
+    Tells the order flow whether a password gate is in force so it can
+    prompt for one. The password value itself is never returned here.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        raw = _kv_get(db, ACCESS_SETTING_KEY, default=None)
+        cfg = event_access_settings(raw)
+        return jsonify({
+            'success': True,
+            'password_required': bool(event_password_required(raw)),
+            'code': cfg['code'],
+            'require': bool(cfg['require']),
+        })
+    except Exception as e:
+        logger.warning(f"event_access_public failed (fail-open): {e}")
+        return jsonify({'success': True, 'password_required': False})
+
+
 @bp.route('/event-access', methods=['GET', 'PUT'])
 @jwt_required_with_demo()
 def event_access_config():
@@ -11530,6 +11583,7 @@ def event_access_config():
             merged = {
                 'code': body.get('code', current['code']),
                 'require': bool(body.get('require', current['require'])),
+                'password': body.get('password', current.get('password', '')),
             }
             cfg = event_access_settings(merged)
             _kv_put(db, ACCESS_SETTING_KEY, cfg)
@@ -11541,8 +11595,11 @@ def event_access_config():
             return jsonify({'success': True, **cfg})
 
         cfg = event_access_settings(_kv_get(db, ACCESS_SETTING_KEY, default=None))
+        # The admin card may edit the password, so it needs the value; it
+        # is behind auth here (the PUBLIC endpoint below never returns it).
         return jsonify({'success': True, **cfg,
-                        'enforcing': bool(cfg['require'] and cfg['code'])})
+                        'enforcing': bool(cfg['require'] and cfg['code']),
+                        'password_set': bool(cfg.get('password'))})
     except Exception as e:
         logger.error(f"event_access_config error: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500

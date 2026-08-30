@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import EventWordingCard from './EventWordingCard';
+import EventAccessCard from './EventAccessCard';
 import { 
   MessageSquare, Phone, Mail, Bell, Smartphone,
   Send, User, Clock, CheckCircle, AlertCircle,
@@ -366,6 +367,7 @@ const EnhancedCommunicationHub = () => {
           Lives here because this is where the operator thinks about
           messages; the backend reads these fresh per send. */}
       <EventWordingCard />
+      <div className="mt-4"><EventAccessCard /></div>
 
       {/* Header */}
       <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">

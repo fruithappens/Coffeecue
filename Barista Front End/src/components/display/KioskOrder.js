@@ -638,9 +638,14 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
     try {
       // Shared identity/collection — one contact + one collection for
       // the whole round; the single-drink fields go per item.
+      let eventPassword;
+      try { eventPassword = sessionStorage.getItem('cupq_event_pw') || undefined; } catch (er) { /* */ }
       const shared = {
         station_id: myStation,
         preferred_station: chosenStation,
+        // Verified up front by the /my gate when the event requires one;
+        // sent so the order-time gate agrees.
+        event_password: eventPassword,
         // The number is only ATTACHED when texts were opted into.
         phone: smsOptIn ? phone.trim() : '',
         // For FINDING, never texting -- mints a guest identity for a
