@@ -38,6 +38,15 @@ export default function useStationChatUnread(stationId, stationName, baristaName
 
   useEffect(() => {
     if (!stationId) return undefined;
+    // First time on this device, baseline "read" to NOW so the badge
+    // counts chats that arrive from here on -- not a pile of history the
+    // barista never saw.
+    const sid0 = typeof stationId === 'string' ? parseInt(stationId, 10) : stationId;
+    try {
+      if (sid0 && !localStorage.getItem(readKey(sid0))) {
+        localStorage.setItem(readKey(sid0), String(Date.now()));
+      }
+    } catch (e) { /* private mode: harmless */ }
     // Keep chat polling even while the panel is closed, so the badge is
     // live. initialize() is safe to call again -- it just (re)starts the
     // 10s poll for this station.
