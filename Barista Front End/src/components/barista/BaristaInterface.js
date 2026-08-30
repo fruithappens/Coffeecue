@@ -4732,21 +4732,34 @@ const BaristaInterface = () => {
             carries the full numbers in the tooltip, and one tap jumps to
             the Stock tab -- which is where the old banner told them to go
             anyway. */}
-        {lowStockItems.length > 0 && (
-          <button
-            onClick={() => setActiveTab('stock')}
-            title={lowStockItems.map(i =>
-              `${i.name}: ${parseFloat(i.amount) || 0}${i.unit ? ` ${i.unit}` : ''} left (min ${parseFloat(i.minimum_threshold) || 0})`
-            ).join(' · ') + ' — restock, or turn the item off in the Stock tab.'}
-            className="px-3 py-2 rounded flex items-center gap-2 bg-red-50 border-2 border-red-500
-                       text-red-700 font-semibold hover:bg-red-100 transition-colors max-w-[45vw]"
-          >
-            <AlertTriangle size={16} className="shrink-0" />
-            <span className="truncate">
-              Low stock: {lowStockItems.map(i => i.name).join(', ')}
-            </span>
-          </button>
-        )}
+        {lowStockItems.length > 0 && (() => {
+          // Name the CATEGORY so "medium" isn't mistaken for a recipe or a
+          // milk -- Steve: "what does the medium mean? sounds like its
+          // either the cups or a recipe". It was the cups.
+          const label = (i) => {
+            const n = String(i.name || '');
+            const c = String(i.category || '').toLowerCase();
+            if (c === 'cups') return `${n} cups`;
+            if (c === 'milk' && !/milk$/i.test(n)) return `${n} milk`;
+            if (c === 'coffee' && !/beans?$/i.test(n)) return `${n} beans`;
+            return n;
+          };
+          return (
+            <button
+              onClick={() => setActiveTab('stock')}
+              title={lowStockItems.map(i =>
+                `${label(i)}: ${parseFloat(i.amount) || 0}${i.unit ? ` ${i.unit}` : ''} left (min ${parseFloat(i.minimum_threshold) || 0})`
+              ).join(' · ') + ' — restock, or turn the item off in the Stock tab.'}
+              className="px-3 py-2 rounded flex items-center gap-2 bg-red-50 border-2 border-red-500
+                         text-red-700 font-semibold hover:bg-red-100 transition-colors max-w-[45vw]"
+            >
+              <AlertTriangle size={16} className="shrink-0" />
+              <span className="truncate">
+                Low stock: {lowStockItems.map(label).join(', ')}
+              </span>
+            </button>
+          );
+        })()}
       </div>
       
       {/* Messages bubble — opens the unified inbox (customer Questions +
