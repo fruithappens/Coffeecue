@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { MessageSquare } from 'lucide-react';
 
 // Ask THIS customer a question, tied to their order, from the barista
@@ -21,8 +21,30 @@ const PRESETS = [
 ];
 
 export default function AskCustomerControls({ order }) {
-  const ask = order.barista_ask || order.baristaAsk || null;
-  const reply = order.customer_reply || order.customerReply || null;
+  // Read the thread from /track (public, reliable) rather than the order
+  // serializer -- /orders/in-progress has two routes and one shadows the
+  // other, so a field added to the "wrong" one never reaches the card.
+  const [ask, setAsk] = useState(order.barista_ask || order.baristaAsk || null);
+  const [reply, setReply] = useState(order.customer_reply || order.customerReply || null);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    if (!order.id) return undefined;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const r = await fetch(`/api/orders/${encodeURIComponent(order.id)}/track`);
+        const b = r.ok ? await r.json() : null;
+        if (!cancelled && b && b.success) {
+          setAsk(b.barista_ask || null);
+          setReply(b.customer_reply || null);
+        }
+      } catch (e) { /* keep last */ }
+    };
+    poll();
+    const t = setInterval(poll, 8000);
+    return () => { cancelled = true; clearInterval(t); mounted.current = false; };
+  }, [order.id]);
 
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState('');
@@ -39,6 +61,8 @@ export default function AskCustomerControls({ order }) {
         method: 'POST', headers: authHeaders(),
         body: JSON.stringify({ message: msg, options }),
       });
+      setAsk({ message: msg, options: optionsText.split(',').map((o)=>o.trim()).filter(Boolean) });
+      setReply(null);
       setOpen(false); setMessage(''); setOptionsText('');
     } finally {
       setSending(false);
