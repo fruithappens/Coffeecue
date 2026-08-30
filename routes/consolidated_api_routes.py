@@ -6129,6 +6129,10 @@ def track_order_public(order_id):
             'barista_ask': (od.get('_barista_ask')
                             if isinstance(od, dict) and not od.get('_customer_reply')
                             else None),
+            # The customer's answer, so the barista's card can show it
+            # without depending on which /orders serializer wins the
+            # route (there are two, one shadows the other).
+            'customer_reply': (od.get('_customer_reply') if isinstance(od, dict) else None),
         })
     except Exception as e:
         logger.error(f"track_order_public error: {e}")
