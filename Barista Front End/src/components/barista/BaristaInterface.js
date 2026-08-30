@@ -12,7 +12,7 @@ import {
   MessageCircle, Printer, Plus, Clock,
   Bell, XCircle, RefreshCw, Edit, ArrowLeft, ChevronDown,
   Send, CheckCircle, Brain, Scale, Users, MoreHorizontal, Wrench, Shuffle,
-  Truck, Maximize2, Minimize2, ArrowRightLeft,
+  Truck, Maximize2, Minimize2, ArrowRightLeft, AlertTriangle,
 } from 'lucide-react';
 
 // Import app mode context
@@ -2750,23 +2750,7 @@ const BaristaInterface = () => {
             </div>
           </div>
         )}
-        {lowStockItems.length > 0 && (
-          <div className="mb-3 rounded-lg border-l-4 border-red-600 bg-red-50 px-4 py-3 text-red-800">
-            <div className="font-bold flex items-center">
-              ⚠ Low stock at this station
-            </div>
-            <div className="text-sm mt-1">
-              {lowStockItems.map(i =>
-                `${i.name}: ${parseFloat(i.amount) || 0}${i.unit ? ` ${i.unit}` : ''} left (min ${parseFloat(i.minimum_threshold) || 0})`
-              ).join(' · ')}
-            </div>
-            <div className="text-xs mt-1 text-red-700">
-              Orders keep coming — restock from back of house, or turn the item off
-              in the Stock tab so customers stop ordering it.
-            </div>
-          </div>
-        )}
-        
+
         {/* Orders Tab */}
         {!loading && activeTab === 'orders' && (
           <>
@@ -4741,7 +4725,28 @@ const BaristaInterface = () => {
           </button>
         </div>
         
-        {/* Removed Break Time and Need Help buttons as they're redundant with organiser settings and help at the top */}
+        {/* Low-stock warning, relocated from a full-width top banner to a
+            compact chip on the RIGHT of the action bar (Steve: it "takes
+            up quite a lot of space at the top"). Names which items are
+            low so it's readable at a glance on a touch screen (no hover),
+            carries the full numbers in the tooltip, and one tap jumps to
+            the Stock tab -- which is where the old banner told them to go
+            anyway. */}
+        {lowStockItems.length > 0 && (
+          <button
+            onClick={() => setActiveTab('stock')}
+            title={lowStockItems.map(i =>
+              `${i.name}: ${parseFloat(i.amount) || 0}${i.unit ? ` ${i.unit}` : ''} left (min ${parseFloat(i.minimum_threshold) || 0})`
+            ).join(' · ') + ' — restock, or turn the item off in the Stock tab.'}
+            className="px-3 py-2 rounded flex items-center gap-2 bg-red-50 border-2 border-red-500
+                       text-red-700 font-semibold hover:bg-red-100 transition-colors max-w-[45vw]"
+          >
+            <AlertTriangle size={16} className="shrink-0" />
+            <span className="truncate">
+              Low stock: {lowStockItems.map(i => i.name).join(', ')}
+            </span>
+          </button>
+        )}
       </div>
       
       {/* Messages bubble — opens the unified inbox (customer Questions +
