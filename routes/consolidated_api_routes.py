@@ -10441,6 +10441,62 @@ def upsert_sponsor_ticker():
 
 
 # ----------------------------------------------------------------------
+# Display background VIDEO (Steve): a gentle looping animation behind the
+# board, most visible when there are no orders. Portrait (9:16) and
+# landscape (16:9) versions, the display picks by its own orientation.
+# A value is either a hosted URL (best for HD) or a data: URL (short
+# compressed clips). Kept in its OWN KV, not branding — these blobs are
+# big and must not ride along on every branding/display-config read.
+# ----------------------------------------------------------------------
+_BG_VIDEO_MAX = 12_000_000  # ~9MB clip as base64; bigger should be a URL
+
+
+def _clean_bg_video(v):
+    if not isinstance(v, str) or not v:
+        return ''
+    if v.startswith('data:'):
+        return v if len(v) <= _BG_VIDEO_MAX else ''
+    # A plain URL — keep it short and sane.
+    return v[:2000]
+
+
+@bp.route('/display/bg-video', methods=['GET'])
+def get_display_bg_video():
+    """Display background video (portrait + landscape). PUBLIC — the display
+    screens read it with no login."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        d = _kv_get(coffee_system.db, 'display_bg_video', default={}) or {}
+        return jsonify({
+            'success': True,
+            'portrait': d.get('portrait') or '',
+            'landscape': d.get('landscape') or '',
+        })
+    except Exception as e:
+        logger.error(f"get_display_bg_video error: {e}")
+        return jsonify({'success': True, 'portrait': '', 'landscape': ''}), 200
+
+
+@bp.route('/display/bg-video', methods=['PUT', 'POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def upsert_display_bg_video():
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        data = request.get_json(silent=True) or {}
+        payload = data.get('settings') if isinstance(data.get('settings'), dict) else data
+        out = {
+            'portrait': _clean_bg_video(payload.get('portrait')),
+            'landscape': _clean_bg_video(payload.get('landscape')),
+        }
+        _kv_put(coffee_system.db, 'display_bg_video', out, merge=False)
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"upsert_display_bg_video error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ----------------------------------------------------------------------
 # Pre-event pre-orders (client request via Steve): before the event
 # opens, SMS orders are SAVED as customer preferences instead of being
 # made; the reply template is operator-editable live ({name} {order}

@@ -431,6 +431,9 @@ const DisplayScreen = () => {
   // Sponsor wall takeover config (from the same /api/sponsors payload).
   const [sponsorWall, setSponsorWall] = useState({ takeover: false, everySec: 180, forSec: 20, hasSponsors: false });
   const [wallTakeover, setWallTakeover] = useState(false);
+  // Background video (public /api/display/bg-video). Portrait + landscape;
+  // the display plays the one matching its own orientation.
+  const [bgVideo, setBgVideo] = useState({ portrait: '', landscape: '' });
   const [showKiosk, setShowKiosk] = useState(false);
 
   // Track which orders are "new" so we can pulse-highlight ready
@@ -642,6 +645,20 @@ const DisplayScreen = () => {
     const interval = setInterval(cycle, sponsorWall.everySec * 1000);
     return () => { clearInterval(interval); clearTimeout(hideTimer); };
   }, [sponsorWall.takeover, sponsorWall.hasSponsors, sponsorWall.everySec, sponsorWall.forSec, isPickupMode]);
+
+  // Background video — fetched ONCE (the payload can be a big data URL, so
+  // no polling). A display reload picks up a change.
+  useEffect(() => {
+    let dead = false;
+    (async () => {
+      try {
+        const r = await fetch('/api/display/bg-video', { cache: 'no-store' });
+        const b = r.ok ? await r.json() : null;
+        if (!dead && b && b.success) setBgVideo({ portrait: b.portrait || '', landscape: b.landscape || '' });
+      } catch (e) { /* no video */ }
+    })();
+    return () => { dead = true; };
+  }, []);
 
   // Merge in any display settings (event name, custom message, etc.)
   // from the settings hook.
@@ -1176,6 +1193,11 @@ const DisplayScreen = () => {
     ? (config.background_portrait || config.background_landscape || '')
     : (config.background_landscape || config.background_portrait || '');
   const hasBg = !!bgImage;
+  // Background VIDEO for this orientation (falls back to the other if only
+  // one was uploaded). Sits behind the board, over the bg image/colour.
+  const videoSrc = isPortrait
+    ? (bgVideo.portrait || bgVideo.landscape || '')
+    : (bgVideo.landscape || bgVideo.portrait || '');
 
   // h-screen, not min-h-screen. With min-h-screen the column could grow
   // TALLER than the viewport, and overflow-hidden then clipped whatever
@@ -1187,9 +1209,27 @@ const DisplayScreen = () => {
     <div className={`h-screen w-full ${hasBg ? '' : theme.bg} ${theme.text}
                      flex flex-col font-sans overflow-hidden`}
          onClick={tryFullscreen}
-         style={hasBg
-           ? { ...containerStyle, backgroundImage: `url("${bgImage}")`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }
-           : containerStyle}>
+         style={{
+           ...(hasBg
+             ? { ...containerStyle, backgroundImage: `url("${bgImage}")`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }
+             : containerStyle),
+           position: 'relative', isolation: 'isolate',
+         }}>
+
+      {/* Background video — a gentle loop behind the board, most visible
+          when the queue is quiet. z-index sits below the content but over
+          the bg image/colour. Muted + playsInline so it autoplays anywhere. */}
+      {videoSrc && (
+        <video
+          key={videoSrc}
+          autoPlay
+          loop
+          muted
+          playsInline
+          src={videoSrc}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: -1 }}
+        />
+      )}
 
       {/* Sponsor ticker (top) — a scrolling logo reel above the board when
           the Organiser set the position to 'top'. Hidden when disabled or

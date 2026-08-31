@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import SettingsService from '../../services/SettingsService';
 import brandingConfig, { updateBranding, resetBranding } from '../../config/brandingConfig';
+import DisplayBackgroundVideo from './DisplayBackgroundVideo';
 
 /**
  * Branding Settings Component
@@ -690,6 +691,9 @@ const BrandingSettings = () => {
                 ))}
               </div>
             </div>
+
+            {/* Full-screen Display background VIDEO — same idea, animated. */}
+            <DisplayBackgroundVideo />
 
             {/* Sponsor / free-coffee thanks. Renders on the customer
                 display screen + in order-ready SMS when enabled. */}
