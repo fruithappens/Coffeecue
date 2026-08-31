@@ -11,6 +11,17 @@ import ApiServiceClass from '../../services/ApiService';
 const BROADCAST_MAX_RECIPIENTS = 500;
 const BROADCAST_MAX_LEN = 480;
 
+// The broadcast preview lists a few real recipient numbers so you can sanity-
+// check the audience. Mask them — enough to confirm "yep, that's a mobile"
+// without printing a customer's full number on screen. Non-phone labels
+// (e.g. "Walk-in") pass through untouched.
+const maskNumber = (s) => {
+  const str = String(s || '').trim();
+  if (!/^\+?\d[\d\s-]{5,}$/.test(str)) return str;
+  const keep = 7; // country code + a couple of digits
+  return str.length > keep ? `${str.slice(0, keep)}••••` : str;
+};
+
 const CommunicationsTab = () => {
   // Default to 'broadcast' — overview/twilio/templates/history were
   // hardcoded mock content, hidden until backed by real endpoints.
@@ -351,7 +362,7 @@ const CommunicationsTab = () => {
               </p>
               {broadcastPreview.sample && broadcastPreview.sample.length > 0 && (
                 <p className="text-xs text-gray-600 mt-2">
-                  Sample numbers: {broadcastPreview.sample.join(', ')}
+                  Sample numbers: {broadcastPreview.sample.map(maskNumber).join(', ')}
                 </p>
               )}
             </div>
