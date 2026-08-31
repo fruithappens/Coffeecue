@@ -1861,8 +1861,8 @@ class CoffeeOrderSystem:
                 {**(state.get("temp_data") or {})},
             )
             return (
-                "Sure - type your question and I'll send it straight to the "
-                "team. They'll text back within a minute."
+                "Sure - type your question and I'll send it straight to your "
+                "barista."
             )
 
         return self._forward_question_to_baristas(phone, question_text, state)
@@ -2014,10 +2014,7 @@ class CoffeeOrderSystem:
         # message picks up where they left off (e.g. they were
         # mid-order). The barista's reply lands as a separate SMS, no
         # state churn needed.
-        return (
-            "Sent your question to the team. They'll text back within "
-            "60 seconds. (If they're slammed, I'll let you know.)"
-        )
+        return "Thanks - passed to your barista."
 
     def _handle_forgetme_command(self, phone):
         """Handle FORGETME command — wipe this phone's customer record.

@@ -6346,10 +6346,10 @@ def ask_customer(order_id):
             phone = ''; station_id = None
         phone = str(phone or '').strip()
         if phone and not phone.lower().startswith(('walk', 'none')):
-            base = (os.environ.get('PUBLIC_BASE_URL', '') or '').rstrip('/')
-            link = f"{base}/order?order={clean_id}" if base else "your order page"
+            # No "Answer here: <link>" tail — someone getting an SMS knows to
+            # just reply, and the reply now routes to the barista (Steve).
             opt = (' Reply: ' + ' / '.join(options)) if options else ''
-            sms_body = f"Coffee #{clean_id}: {message}{opt}\nAnswer here: {link}"
+            sms_body = f"Coffee #{clean_id}: {message}{opt}"
             messaging_service = current_app.config.get('messaging_service')
             if messaging_service:
                 _dispatch_sms_async(messaging_service, phone, sms_body, clean_id)
@@ -6372,6 +6372,40 @@ def ask_customer(order_id):
                 logger.warning(f"ask-customer: could not park reply state (non-fatal): {park_err}")
     except Exception as e:
         logger.warning(f"ask-customer SMS skipped (non-fatal): {e}")
+    return jsonify({'success': True, 'sms_sent': sms_sent})
+
+
+@bp.route('/orders/<order_id>/ack', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def ack_customer(order_id):
+    """Barista quick acknowledgement to the customer — a one-way 'got it'
+    so they know their reply landed (Steve: 'a thumbs up, that's fine').
+    Unlike /ask it does NOT change the order's question/reply state, so the
+    answer stays on the card. Plain ASCII (SMS-segment cost)."""
+    coffee_system = current_app.config.get('coffee_system')
+    db = coffee_system.db
+    try:
+        db.rollback()
+    except Exception:
+        pass
+    clean_id = clean_order_id(order_id)
+    body = request.get_json(silent=True) or {}
+    message = str(body.get('message') or 'Got it - making your coffee now.').strip()[:160]
+    sms_sent = False
+    try:
+        cur = db.cursor()
+        cur.execute("SELECT phone FROM orders WHERE order_number = %s", (clean_id,))
+        r = cur.fetchone()
+        phone = (r[0] if not isinstance(r, dict) else r.get('phone')) if r else ''
+        phone = str(phone or '').strip()
+        if phone and not phone.lower().startswith(('walk', 'none')):
+            messaging_service = current_app.config.get('messaging_service')
+            if messaging_service:
+                _dispatch_sms_async(messaging_service, phone, f"Coffee #{clean_id}: {message}", clean_id)
+                sms_sent = True
+    except Exception as e:
+        logger.warning(f"ack-customer SMS skipped (non-fatal): {e}")
     return jsonify({'success': True, 'sms_sent': sms_sent})
 
 

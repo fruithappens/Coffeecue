@@ -146,19 +146,16 @@ class QuestionTimeoutService:
                 pass
 
     def _send_fallback(self, phone, name):
-        """SMS the customer the 'all busy' fallback."""
-        if not phone or not self.messaging_service:
-            return
-        try:
-            greet = f"Hi {name}, " if name else ""
-            body = (
-                f"{greet}sorry — all baristas are slammed right now. "
-                "Want to continue ordering? Reply with your coffee, or "
-                "text BARISTA again to retry."
-            )
-            self.messaging_service.send_message(phone, body)
-        except Exception as e:
-            logger.error("[question-timeout] fallback SMS failed: %s", e)
+        """No customer-facing 'all baristas are slammed' SMS.
+
+        Steve (live test): that message reads worse than silence — a
+        customer who's texted assumes the barista has it, and (with the
+        reply-routing fix) the barista genuinely does: the answer sits on
+        the order's question card. So the sweeper still clears the pending
+        badge after the timeout, but sends the customer nothing. Left as a
+        no-op (rather than deleted) so the tick's call site is unchanged and
+        a future soft nudge can slot straight back in here if wanted."""
+        return
 
     def _emit_timed_out(self, qid):
         """Fire 'customer_question_timed_out' so any open Barista UI
