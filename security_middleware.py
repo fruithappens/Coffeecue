@@ -85,7 +85,9 @@ def add_security_headers(response):
         "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net",
         "img-src 'self' data: https: blob:",
         "connect-src 'self' ws: wss:",
-        "media-src 'self'",
+        # Display background videos are stored as data: URLs (uploaded clips)
+        # or pasted https: URLs, so media-src must allow both — mirrors img-src.
+        "media-src 'self' data: https: blob:",
         "object-src 'none'",
         "base-uri 'self'",
         "form-action 'self'",
