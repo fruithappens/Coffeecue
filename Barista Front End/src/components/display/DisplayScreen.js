@@ -1450,24 +1450,45 @@ const DisplayScreen = () => {
           </div>
         )}
 
-        {/* Portrait has no column boundary to hang over -- one tall
-            column means an overhanging QR would sit on top of order
-            cards. Keep the older inline treatment there. */}
+        {/* Portrait: keep the QR's grid footprint so the branding never
+            slides under the ribbon that now hangs where it used to sit. */}
         {orderQrUrl && isPortrait && (
-          <div className="flex items-center gap-3 flex-shrink-0 mr-2"
+          <div aria-hidden className="flex-shrink-0" style={{ width: 176 }} />
+        )}
+        {/* Portrait scan-to-order RIBBON. Steve wanted the vertical board's
+            QR to get the same dip the landscape centre code has, but pushed
+            to the RIGHT so it drops out of the banner over the right end of
+            the Ready header and comes back — "a ribbon that changes shape a
+            bit and then comes back". Same construction as the centre one:
+            an absolutely-positioned panel in the banner's colour, only the
+            BOTTOM corners rounded so it melts into the band above with no
+            seam, shadow thrown straight down onto the header it overlaps.
+            Absolute, so it hangs BELOW the band instead of growing it; the
+            Ready count moves to the left in portrait (see Column) so the
+            dip covers nothing that matters. On the fullscreen event board
+            the operator chrome is hidden, so the Ready header sits directly
+            under the banner and the dip lands squarely on it. */}
+        {orderQrUrl && isPortrait && (
+          <div className="absolute top-0 right-4 z-30 flex flex-col items-center"
                onClick={(e) => e.stopPropagation()}>
-            <div className="text-right leading-tight hidden md:block">
-              <div className="text-lg font-bold">Order from</div>
-              <div className="text-lg font-bold">your phone</div>
-              <div className="text-xs" style={{ color: bannerInkDim }}>scan me</div>
-            </div>
-            <div className="bg-white rounded-xl p-1.5 shadow-sm">
-              <img
-                src={`/api/qr?size=8&data=${encodeURIComponent(orderQrUrl)}`}
-                alt="Scan to order"
-                className="w-20 h-20"
-                onError={(e) => { e.currentTarget.style.display = 'none'; }}
-              />
+            <div className="px-3 pt-2 pb-3 rounded-b-3xl"
+                 style={{ backgroundColor: BANNER_BG,
+                          borderLeft: `6px solid ${bannerEdge}`,
+                          borderRight: `6px solid ${bannerEdge}`,
+                          borderBottom: `6px solid ${bannerEdge}`,
+                          boxShadow: BANNER_SHADOW }}>
+              <div className="bg-white rounded-xl p-2 shadow-lg">
+                <img
+                  src={`/api/qr?size=9&data=${encodeURIComponent(orderQrUrl)}`}
+                  alt="Scan to order"
+                  className="w-32 h-32"
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                />
+              </div>
+              <div className="text-center text-xs font-bold mt-1.5"
+                   style={{ color: bannerInkDim }}>
+                Order from your phone
+              </div>
             </div>
           </div>
         )}
@@ -2181,9 +2202,11 @@ const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
             edges, so a left-hand count on the right-hand column sits
             directly under the code (Steve: "the ready for pickup should
             be top right so its not under the qr code"). Outer edges are
-            the one place the ribbon can never reach. */}
+            the one place the ribbon can never reach. In PORTRAIT the code
+            moves to the right instead, so the Ready count flips to the LEFT
+            there for the very same reason — never under the QR. */}
         <div className={`absolute top-0 bottom-0 px-5 flex items-center text-xl font-bold ${
-          isReady ? 'right-0' : 'left-0'}`}
+          (isReady && !isPortrait) ? 'right-0' : 'left-0'}`}
              style={{ backgroundColor: 'rgba(0,0,0,0.16)' }}>
           {orders.length}
         </div>
