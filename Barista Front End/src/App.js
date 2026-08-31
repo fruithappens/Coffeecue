@@ -11,6 +11,7 @@ import MyCoffeePage from './components/display/MyCoffeePage';
 import HowToOrderPage from './components/display/HowToOrderPage';
 import DisplaySelector from './components/display/DisplaySelector';
 import SupportInterface from './components/support/SupportInterface';
+import OpsBoard from './components/support/OpsBoard';
 import LoginPage from './components/auth/LoginPage';
 import AuthService from './services/AuthService';
 import DeploymentService from './services/DeploymentService';
@@ -748,18 +749,30 @@ function App() {
             } 
           />
 
-          <Route 
-            path="/support" 
+          <Route
+            path="/support"
             element={
               <AuthGuard requiredRoles={['support', 'admin']}>
-                <ErrorBoundary 
+                <ErrorBoundary
                   componentName="Support Interface"
                   showErrorDetails={true}
                 >
                   <SupportInterface />
                 </ErrorBoundary>
               </AuthGuard>
-            } 
+            }
+          />
+
+          {/* Event-day single-screen ops board — leave it open, glance at it. */}
+          <Route
+            path="/opsboard"
+            element={
+              <AuthGuard requiredRoles={['support', 'admin', 'staff', 'event_organizer', 'organizer', 'organiser']}>
+                <ErrorBoundary componentName="Ops Board" showErrorDetails={true}>
+                  <OpsBoard />
+                </ErrorBoundary>
+              </AuthGuard>
+            }
           />
           
           {/* Unauthorized access page */}
