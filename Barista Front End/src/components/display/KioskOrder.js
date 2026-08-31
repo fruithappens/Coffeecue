@@ -1174,12 +1174,16 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                   updates itself. Say that first and offer the text as an
                   extra. On the cart's own screen it is not an option at
                   all, because they are about to walk away from it. */}
-              {/* One short sentence (Steve: "that is a really long
-                  sentence... just say enter your number, and we'll look
-                  up your details"). */}
+              {/* Lead with the benefit that's true for EVERYONE: an
+                  optional text when the drink is ready. "We'll look up your
+                  details" only holds when EventsAir is wired up; with EA off
+                  (most events) the lookup finds nothing and the flow asks for
+                  a name anyway, so the promise read as broken (Steve). The EA
+                  lookup still runs silently and pre-fills the name when it
+                  can \u2014 a quiet head-start, not a promise we might not keep. */}
               {isOwnDevice
-                ? 'Enter your mobile and we\u2019ll look up your details \u2014 or skip and watch it right here.'
-                : 'Enter your mobile and we\u2019ll look up your details \u2014 or skip and watch the board.'}
+                ? 'Enter your mobile so we can text you when it\u2019s ready \u2014 or skip and watch it right here.'
+                : 'Enter your mobile so we can text you when it\u2019s ready \u2014 or skip and watch the board.'}
             </p>
             <input
               autoFocus value={phone} onChange={(e) => setPhone(e.target.value)}
