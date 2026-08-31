@@ -1005,11 +1005,6 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
         {/* ---------- STRENGTH (espresso drinks only) ---------- */}
         {step === 'strength' && (
           <>
-            {menu?.sugar_self_serve && (
-              <p className="text-base text-gray-500 mb-2">
-                Sugar and sweeteners are help-yourself at pickup.
-              </p>
-            )}
             <Header title="How strong?" onBack={goBack} />
             <div className="grid grid-cols-3 gap-2 py-4">
               {/* Three, not four. Steve: "think should be normal, double,
@@ -1069,6 +1064,21 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
               {decaf ? '✓ Decaf' : 'Decaf?'}
             </button>
             )}
+            {/* Sugar / sweeteners: NOT an option to pick here — help
+                yourself at the counter. As a small grey line at the top it
+                was missed (Steve). Now it's a greyed, dashed card sitting
+                with the other add-ons: reads clearly as "already handled,
+                nothing to choose", and is far harder to skip than a caption. */}
+            {menu?.sugar_self_serve && (
+              <div className="w-full py-4 px-4 rounded-2xl mb-3 bg-gray-100
+                              border-2 border-dashed border-gray-300
+                              flex items-center justify-center gap-2 text-gray-500">
+                <span className="text-2xl leading-none" aria-hidden>🍬</span>
+                <span className="text-base font-semibold text-center">
+                  Sugar &amp; sweeteners — help yourself at pickup
+                </span>
+              </div>
+            )}
             <label className="block mb-3">
               <span className="block text-base text-gray-600 mb-1">
                 Anything else? (optional)
@@ -1077,7 +1087,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                 type="text"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value.slice(0, 80))}
-                placeholder="e.g. 1/4 strength, 3 shots, no lid, half full"
+                placeholder="e.g. 1/4 strength, 3 shots"
                 className="w-full px-4 py-4 rounded-2xl text-lg border-2 border-gray-200
                            focus:outline-none"
                 style={notes ? { borderColor: headerColor } : {}}
