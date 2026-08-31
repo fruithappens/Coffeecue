@@ -4,7 +4,7 @@ import {
   LogOut, Bell, Sliders,
   FileText, Activity, Brain, Zap, LineChart,
   Radio, Shield, Package, ArrowLeft, CheckCircle, Database, Menu,
-  HelpCircle
+  HelpCircle, Image as ImageIcon
 } from 'lucide-react';
 // MessageSquare, TrendingUp, BarChart, Layers, UserPlus were imported
 // but unused — left in the original sprawl. Trimmed in batch G of the
@@ -30,6 +30,7 @@ import EnhancedScheduleManagement from './EnhancedScheduleManagement';
 import QuickSetup from './QuickSetup';
 import SetupWizard from './SetupWizard';
 import ReadinessTab from './ReadinessTab';
+import SponsorsPanel from './SponsorsPanel';
 import SubTabs from '../shared/SubTabs';
 import SmsFlowReference from './SmsFlowReference';
 import InventoryIntegrationService from '../../services/InventoryIntegrationService';
@@ -259,6 +260,19 @@ const OrganiserInterface = () => {
               {sidebarOpen && <span>Comms Hub</span>}
             </button>
 
+            {/* Sponsors — logo ticker on the public display */}
+            <button
+              className={`w-full flex items-center px-3 py-2 rounded-md ${
+                activeSection === 'sponsors'
+                  ? 'bg-amber-100 text-amber-800'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+              onClick={() => setActiveSection('sponsors')}
+            >
+              <ImageIcon size={20} className="mr-3" />
+              {sidebarOpen && <span>Sponsors</span>}
+            </button>
+
             {/* Users */}
             <button
               className={`w-full flex items-center px-3 py-2 rounded-md ${
@@ -339,6 +353,7 @@ const OrganiserInterface = () => {
               : insightsTab === 'forecast' ? '🤖 Predictive Intelligence & Resilience'
               : '📊 Real-Time Analytics Dashboard')}
             {activeSection === 'communication' && '📡 Communication Hub'}
+            {activeSection === 'sponsors' && '🏷️ Sponsors'}
             {activeSection === 'users' && 'User Management'}
             {activeSection === 'settings' && (settingsTab === 'eventData' ? 'Event Data' : 'System Settings')}
             {activeSection === 'help' && '📱 How the SMS Bot Works'}
@@ -645,7 +660,12 @@ const OrganiserInterface = () => {
           {activeSection === 'communication' && (
             <EnhancedCommunicationHub />
           )}
-          
+
+          {/* Sponsors — logo ticker for the public display */}
+          {activeSection === 'sponsors' && (
+            <SponsorsPanel />
+          )}
+
           {/* User Management */}
           {activeSection === 'users' && (
             <div className="bg-white rounded-lg shadow p-6">

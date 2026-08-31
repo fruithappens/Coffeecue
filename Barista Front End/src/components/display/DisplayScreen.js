@@ -36,6 +36,7 @@ import ApiService from '../../services/ApiService';
 import { parseServerDate } from '../../utils/orderUtils';
 import { useSettings } from '../../hooks/useSettings';
 import KioskOrder from './KioskOrder';
+import SponsorTicker from './SponsorTicker';
 
 // Visual theme presets. Each provides bg, panel, text, accent.
 const THEMES = {
@@ -423,6 +424,9 @@ const DisplayScreen = () => {
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [smsPhoneNumber, setSmsPhoneNumber] = useState('');
   const [orders, setOrders] = useState({ pending: [], inProgress: [], ready: [] });
+  // Sponsor logo ticker (public /api/sponsors). Polled so the Organiser
+  // Sponsors panel changes appear on the board without a display reload.
+  const [sponsorTicker, setSponsorTicker] = useState({ enabled: false, position: 'bottom', sponsors: [] });
   const [showKiosk, setShowKiosk] = useState(false);
 
   // Track which orders are "new" so we can pulse-highlight ready
@@ -584,6 +588,29 @@ const DisplayScreen = () => {
     })();
     return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sponsor ticker — its own public fetch, polled so the Organiser can
+  // add/remove/reorder logos (or flip top/bottom) and the board follows
+  // within ~20s, no reload. Fails silent to "no ticker".
+  useEffect(() => {
+    let dead = false;
+    const load = async () => {
+      try {
+        const r = await fetch('/api/sponsors', { cache: 'no-store' });
+        const b = r.ok ? await r.json() : null;
+        if (!dead && b && b.success) {
+          setSponsorTicker({
+            enabled: !!b.enabled,
+            position: b.position === 'top' ? 'top' : 'bottom',
+            sponsors: Array.isArray(b.sponsors) ? b.sponsors : [],
+          });
+        }
+      } catch (e) { /* keep last / stay empty */ }
+    };
+    load();
+    const t = setInterval(load, 20000);
+    return () => { dead = true; clearInterval(t); };
+  }, []);
 
   // Merge in any display settings (event name, custom message, etc.)
   // from the settings hook.
@@ -1132,6 +1159,13 @@ const DisplayScreen = () => {
          style={hasBg
            ? { ...containerStyle, backgroundImage: `url("${bgImage}")`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }
            : containerStyle}>
+
+      {/* Sponsor ticker (top) — a scrolling logo reel above the board when
+          the Organiser set the position to 'top'. Hidden when disabled or
+          empty, so it never eats space or breaks the board. */}
+      {sponsorTicker.enabled && sponsorTicker.position === 'top' && (
+        <SponsorTicker items={sponsorTicker.sponsors} position="top" />
+      )}
 
       {/* --- Header (brand band) --- */}
       {/* Three cells, not a flex row: branding | centre gutter | controls.
@@ -1746,6 +1780,13 @@ const DisplayScreen = () => {
             : (config.custom_message || '')}
         </div>
       </footer>
+      )}
+
+      {/* Sponsor ticker (bottom) — scrolling logo reel below the board when
+          the Organiser set the position to 'bottom'. Hidden when disabled
+          or empty. */}
+      {sponsorTicker.enabled && sponsorTicker.position === 'bottom' && (
+        <SponsorTicker items={sponsorTicker.sponsors} position="bottom" />
       )}
 
       {/* Self-service kiosk overlay. Routes to this display's station (or a

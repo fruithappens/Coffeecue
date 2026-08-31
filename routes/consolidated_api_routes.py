@@ -10296,6 +10296,83 @@ def upsert_branding_settings():
 
 
 # ----------------------------------------------------------------------
+# Sponsor logo ticker (Steve, last-minute for Treenet): a horizontally
+# scrolling strip of sponsor logos on the public display, above OR below
+# the Brewing/Ready sections. Logos are stored as data URLs in the
+# settings KV 'sponsor_ticker' (same pattern as the branding logo), so
+# the Organiser Sponsors panel can add/remove/reorder them with no
+# redeploy. Kept SEPARATE from the single SMS-sponsor line (that lives in
+# branding_settings.sponsorName/Message) — this is the visual logo reel.
+# ----------------------------------------------------------------------
+def _sponsor_ticker_read(db):
+    data = _kv_get(db, 'sponsor_ticker', default={}) or {}
+    return {
+        'enabled': bool(data.get('enabled')),
+        'position': 'top' if data.get('position') == 'top' else 'bottom',
+        'sponsors': [
+            {
+                'id': str(s.get('id') or i),
+                'name': (s.get('name') or '').strip()[:80],
+                'image': s.get('image') or '',
+            }
+            for i, s in enumerate(data.get('sponsors') or [])
+            if isinstance(s, dict) and s.get('image')
+        ],
+    }
+
+
+@bp.route('/sponsors', methods=['GET'])
+def get_sponsor_ticker():
+    """Sponsor logo ticker for the display. PUBLIC — the /tv1, /pickup1
+    and /kiosk1 screens read this with no login. Logos are public
+    marketing images (no PII), so an open read is fine."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        return jsonify({'success': True, **_sponsor_ticker_read(coffee_system.db)})
+    except Exception as e:
+        logger.error(f"get_sponsor_ticker error: {e}")
+        # Fail OPEN to "no ticker" so the display never breaks over this.
+        return jsonify({'success': True, 'enabled': False, 'position': 'bottom', 'sponsors': []}), 200
+
+
+@bp.route('/sponsors', methods=['PUT', 'POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def upsert_sponsor_ticker():
+    """Save the sponsor ticker (Organiser Sponsors panel). Replaces the
+    whole blob — the panel owns all of it and always sends the full list.
+    Caps the list and the per-logo size so one save can't bloat the KV."""
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        data = request.get_json() or {}
+        payload = data.get('settings') if isinstance(data.get('settings'), dict) else data
+        raw = payload.get('sponsors') or []
+        sponsors = []
+        for i, s in enumerate(raw[:30]):  # sane cap on count
+            if not isinstance(s, dict):
+                continue
+            img = s.get('image') or ''
+            # ~600KB cap per logo data URL (the panel downscales first).
+            if not img or len(img) > 600_000:
+                continue
+            sponsors.append({
+                'id': str(s.get('id') or i),
+                'name': (s.get('name') or '').strip()[:80],
+                'image': img,
+            })
+        out = {
+            'enabled': bool(payload.get('enabled')),
+            'position': 'top' if payload.get('position') == 'top' else 'bottom',
+            'sponsors': sponsors,
+        }
+        _kv_put(coffee_system.db, 'sponsor_ticker', out, merge=False)
+        return jsonify({'success': True, 'settings': out})
+    except Exception as e:
+        logger.error(f"upsert_sponsor_ticker error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ----------------------------------------------------------------------
 # Pre-event pre-orders (client request via Steve): before the event
 # opens, SMS orders are SAVED as customer preferences instead of being
 # made; the reply template is operator-editable live ({name} {order}
