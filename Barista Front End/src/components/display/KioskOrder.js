@@ -59,7 +59,19 @@ export const milkEmoji = (name) => {
 // /order). They are different channels for reporting and only the caller
 // knows which one it is, so it is a prop, not a guess.
 const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced,
-                      eaCid, channel = 'kiosk', onPick , onCheckExisting }) => {
+                      eaCid, channel = 'kiosk', onPick , onCheckExisting,
+                      eventCode = '' }) => {
+  // Event code carried with the order. Priority: a code already on the URL
+  // (a scanned QR / a code the visitor typed on /my) wins; otherwise the
+  // `eventCode` a trusted on-site surface (the board) passed in. Lets the
+  // kiosk keep ordering when the gate is on without a code ever being typed
+  // at the counter. Empty when no gate is configured.
+  const carriedEventCode = (() => {
+    try {
+      const fromUrl = new URLSearchParams(window.location.search).get('e');
+      return (fromUrl && fromUrl.trim()) || eventCode || '';
+    } catch (e) { return eventCode || ''; }
+  })();
   // PICK MODE. With `onPick` supplied this screen chooses a drink and
   // hands it back instead of ordering one -- same tiles, same pictures,
   // same steps, no name/phone/station and no POST.
@@ -657,7 +669,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
           || undefined,
         channel,
         src: new URLSearchParams(window.location.search).get('src') || undefined,
-        e: new URLSearchParams(window.location.search).get('e') || undefined,
+        e: carriedEventCode || undefined,
       };
       const toItem = (it) => ({
         name: (it.name || '').trim(),
@@ -1405,7 +1417,8 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
           <div className="mt-6 pt-4 border-t border-gray-200 flex items-center justify-center gap-4 opacity-80">
             <img
               src={`/api/qr?size=5&data=${encodeURIComponent(
-                `${window.location.origin}/order${myStation ? `?station=${myStation}` : ''}`)}`}
+                `${window.location.origin}/order${myStation ? `?station=${myStation}` : ''}` +
+                (carriedEventCode ? `${myStation ? '&' : '?'}e=${carriedEventCode}` : ''))}`}
               alt="Share the menu with a friend"
               className="w-20 h-20 rounded bg-white p-1"
             />
