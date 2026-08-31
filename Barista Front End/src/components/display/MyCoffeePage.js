@@ -125,7 +125,7 @@ const MyCoffeePage = () => {
   // Sponsor ticker on the waiting beacon (Steve: "a ticker on the bottom
   // of the waiting beacon with the sponsors"). Self-contained public fetch,
   // polled; hidden until the operator adds logos in Organiser -> Sponsors.
-  const [sponsorTicker, setSponsorTicker] = useState({ enabled: false, sponsors: [] });
+  const [sponsorTicker, setSponsorTicker] = useState({ enabled: false, size: 'small', sponsors: [] });
   useEffect(() => {
     let dead = false;
     const load = async () => {
@@ -133,7 +133,7 @@ const MyCoffeePage = () => {
         const r = await fetch('/api/sponsors', { cache: 'no-store' });
         const b = r.ok ? await r.json() : null;
         if (!dead && b && b.success) {
-          setSponsorTicker({ enabled: !!b.enabled, sponsors: Array.isArray(b.sponsors) ? b.sponsors : [] });
+          setSponsorTicker({ enabled: !!b.enabled, size: ['small', 'medium', 'large'].includes(b.size) ? b.size : 'small', sponsors: Array.isArray(b.sponsors) ? b.sponsors : [] });
         }
       } catch (e) { /* stay empty */ }
     };
@@ -1272,7 +1272,7 @@ const MyCoffeePage = () => {
             <div className="mt-8">
               <p className="text-[11px] uppercase tracking-wider text-gray-400 mb-2">Proudly supported by</p>
               <div className="rounded-xl overflow-hidden shadow-sm">
-                <SponsorTicker items={sponsorTicker.sponsors} position="bottom" />
+                <SponsorTicker items={sponsorTicker.sponsors} position="bottom" size={sponsorTicker.size} />
               </div>
             </div>
           )}

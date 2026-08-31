@@ -12,7 +12,16 @@ import React, { useMemo } from 'react';
 // uniform height, so mixed shapes/backgrounds (transparent PNG, logo-on-
 // white, wide vs square) all line up and read as deliberate. Renders
 // nothing for an empty list, so the display is never broken by this.
-export default function SponsorTicker({ items = [], position = 'bottom' }) {
+// Three heights (Steve): small = the original strip, medium, and large ≈
+// a fifth of the screen. Large uses vh so it scales with the screen.
+const SIZES = {
+  small: { row: '76px', logo: '52px', maxW: '190px', gap: 40, pad: '8px 18px' },
+  medium: { row: '118px', logo: '84px', maxW: '260px', gap: 52, pad: '10px 22px' },
+  large: { row: '20vh', logo: '13vh', maxW: '30vw', gap: 64, pad: '1.4vh 2vw' },
+};
+
+export default function SponsorTicker({ items = [], position = 'bottom', size = 'small' }) {
+  const sz = SIZES[size] || SIZES.small;
   const list = useMemo(
     () => (Array.isArray(items) ? items : []).filter((s) => s && s.image),
     [items],
@@ -45,11 +54,11 @@ export default function SponsorTicker({ items = [], position = 'bottom' }) {
       style={{ background: 'rgba(255,255,255,0.94)', ...edgeBorder }}
       aria-label="Event sponsors"
     >
-      <div className="relative overflow-hidden" style={{ height: 76 }}>
+      <div className="relative overflow-hidden" style={{ height: sz.row }}>
         <div
           className="absolute top-0 left-0 h-full flex items-center"
           style={{
-            gap: 40,
+            gap: sz.gap,
             paddingLeft: 20,
             paddingRight: 20,
             willChange: 'transform',
@@ -61,11 +70,11 @@ export default function SponsorTicker({ items = [], position = 'bottom' }) {
               key={`${s.id}-${i}`}
               className="flex items-center justify-center"
               style={{
-                height: 76,
+                height: sz.row,
                 flex: '0 0 auto',
                 background: '#fff',
                 borderRadius: 12,
-                padding: '8px 18px',
+                padding: sz.pad,
                 boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
               }}
             >
@@ -73,7 +82,7 @@ export default function SponsorTicker({ items = [], position = 'bottom' }) {
                 src={s.image}
                 alt={s.name || 'Sponsor'}
                 draggable={false}
-                style={{ maxHeight: 52, maxWidth: 190, objectFit: 'contain', display: 'block' }}
+                style={{ maxHeight: sz.logo, maxWidth: sz.maxW, objectFit: 'contain', display: 'block' }}
               />
             </div>
           ))}

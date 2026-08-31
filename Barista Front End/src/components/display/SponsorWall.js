@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 // Full-screen sponsor wall for a spare screen (or a board takeover).
 //
@@ -9,8 +9,10 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 // layout) and /api/display/config (event name + logo for the header).
 //
 // `embedded` renders without the full-screen chrome, for the board takeover.
-export default function SponsorWall({ embedded = false }) {
-  const [data, setData] = useState({ sponsors: [], tiers: [], wall: { layout: 'scroll', background: 'tint' } });
+export default function SponsorWall({ embedded = false, preview = null }) {
+  const [fetched, setFetched] = useState({ sponsors: [], tiers: [], wall: { layout: 'scroll', background: 'tint' } });
+  // Preview mode (the Sponsors panel) feeds unsaved state straight in.
+  const data = preview || fetched;
   const [brand, setBrand] = useState({ event_name: '', logo: '', bgP: '', bgL: '' });
   const [portrait, setPortrait] = useState(
     typeof window !== 'undefined' ? window.innerHeight >= window.innerWidth : false,
@@ -22,13 +24,14 @@ export default function SponsorWall({ embedded = false }) {
   }, []);
 
   useEffect(() => {
+    if (preview) return undefined; // preview: use props, don't poll
     let dead = false;
     const load = async () => {
       try {
         const r = await fetch('/api/sponsors', { cache: 'no-store' });
         const b = r.ok ? await r.json() : null;
         if (!dead && b && b.success) {
-          setData({
+          setFetched({
             sponsors: Array.isArray(b.sponsors) ? b.sponsors : [],
             tiers: Array.isArray(b.tiers) ? b.tiers : [],
             wall: b.wall && typeof b.wall === 'object' ? b.wall : { layout: 'scroll' },
@@ -39,7 +42,7 @@ export default function SponsorWall({ embedded = false }) {
     load();
     const t = setInterval(load, 30000);
     return () => { dead = true; clearInterval(t); };
-  }, []);
+  }, [preview]);
 
   useEffect(() => {
     let dead = false;
@@ -120,17 +123,42 @@ export default function SponsorWall({ embedded = false }) {
 }
 
 // --- GRID: every tier at once, Platinum on top, logos equal size --------
+// Scales the whole grid down to fit the screen so nothing clips, however
+// many sponsors there are (Steve's find: it was overflowing + cutting off).
 function WallGrid({ groups }) {
+  const outerRef = useRef(null);
+  const innerRef = useRef(null);
+  const [scale, setScale] = useState(1);
+  useLayoutEffect(() => {
+    const fit = () => {
+      const outer = outerRef.current, inner = innerRef.current;
+      if (!outer || !inner) return;
+      // scrollHeight/Width are the UNSCALED layout size (transforms don't
+      // change layout), so this stays correct across re-fits.
+      const naturalH = inner.scrollHeight;
+      const naturalW = inner.scrollWidth;
+      if (!naturalH || !naturalW) return;
+      const s = Math.min(1, outer.clientHeight / naturalH, outer.clientWidth / naturalW);
+      setScale(s > 0 ? s : 1);
+    };
+    fit();
+    const t1 = setTimeout(fit, 200);
+    const t2 = setTimeout(fit, 800);
+    window.addEventListener('resize', fit);
+    return () => { clearTimeout(t1); clearTimeout(t2); window.removeEventListener('resize', fit); };
+  }, [groups]);
   return (
-    <div style={{ height: '100%', overflow: 'auto', padding: '0 4vw 3vh' }}>
-      {groups.map((g) => (
-        <section key={g.tier.id} style={{ marginBottom: '3vh' }}>
-          <h2 style={tierHeadingStyle}>{g.tier.name}</h2>
-          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '1.6vw' }}>
-            {g.items.map((s) => <LogoCard key={s.id} s={s} h="9vh" maxH={120} />)}
-          </div>
-        </section>
-      ))}
+    <div ref={outerRef} style={{ height: '100%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div ref={innerRef} style={{ width: '100%', transform: `scale(${scale})`, transformOrigin: 'center center', padding: '0 3vw' }}>
+        {groups.map((g) => (
+          <section key={g.tier.id} style={{ marginBottom: '3vh' }}>
+            <h2 style={tierHeadingStyle}>{g.tier.name}</h2>
+            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '1.6vw' }}>
+              {g.items.map((s) => <LogoCard key={s.id} s={s} h="9vh" maxH={120} />)}
+            </div>
+          </section>
+        ))}
+      </div>
     </div>
   );
 }

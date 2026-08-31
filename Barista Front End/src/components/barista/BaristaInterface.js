@@ -4143,8 +4143,10 @@ const BaristaInterface = () => {
                         { key: 'tv', label: '📺 TV board' },
                         { key: 'kiosk', label: '👆 Touch kiosk' },
                         { key: 'pickup', label: '✅ Pickup only' },
+                        { key: 'sponsors', label: '🏷️ Sponsor wall' },
                       ].map(v => {
-                        const shortPath = `/${v.key}${chosen}`;
+                        // The sponsor wall is event-wide — one screen, no station suffix.
+                        const shortPath = v.key === 'sponsors' ? '/sponsors' : `/${v.key}${chosen}`;
                         const url = `${window.location.origin}${shortPath}`;
                         return (
                           <div key={v.key} className="flex items-center gap-2 bg-gray-50 rounded px-2 py-1">
