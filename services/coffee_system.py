@@ -1883,6 +1883,31 @@ class CoffeeOrderSystem:
                     return self._restart_conversation(phone, message)
         except Exception:
             pass
+        # Record the answer ON THE ORDER too, so the barista's question card
+        # (the milk-substitution "/ask" prompt, which reads _customer_reply)
+        # shows it — not only the Messages inbox. Harmless when no card is
+        # open. Same shape the tracking-page /reply endpoint writes.
+        try:
+            if order_no:
+                _cur = self.db.cursor()
+                try:
+                    self.db.rollback()
+                except Exception:
+                    pass
+                _cur.execute(
+                    "UPDATE orders SET order_details = "
+                    "COALESCE(order_details::jsonb, '{}'::jsonb) || %s::jsonb "
+                    "WHERE order_number = %s",
+                    (json.dumps({'_customer_reply': {
+                        'text': (message or '').strip()[:280],
+                        'at': datetime.now().isoformat()}}), order_no))
+                self.db.commit()
+        except Exception as reply_err:
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            logger.warning(f"could not record _customer_reply on order (non-fatal): {reply_err}")
         tag = (
             f"[Re order #{order_no}"
             + (f" @ Station {station}" if station else "")

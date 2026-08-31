@@ -6336,9 +6336,14 @@ def ask_customer(order_id):
     # so a slow carrier never blocks the barista.
     sms_sent = False
     try:
-        cur.execute("SELECT phone FROM orders WHERE order_number = %s", (clean_id,))
+        cur.execute("SELECT phone, station_id FROM orders WHERE order_number = %s", (clean_id,))
         r = cur.fetchone()
-        phone = (r[0] if not isinstance(r, dict) else r.get('phone')) if r else ''
+        if isinstance(r, dict):
+            phone = r.get('phone'); station_id = r.get('station_id')
+        elif r:
+            phone = r[0]; station_id = r[1] if len(r) > 1 else None
+        else:
+            phone = ''; station_id = None
         phone = str(phone or '').strip()
         if phone and not phone.lower().startswith(('walk', 'none')):
             base = (os.environ.get('PUBLIC_BASE_URL', '') or '').rstrip('/')
@@ -6349,6 +6354,22 @@ def ask_customer(order_id):
             if messaging_service:
                 _dispatch_sms_async(messaging_service, phone, sms_body, clean_id)
                 sms_sent = True
+            # Park the conversation so the customer's SMS REPLY routes BACK to
+            # the barista (updates this order's _customer_reply + the Messages
+            # inbox) instead of being parsed as a brand-new order. Without this
+            # a reply to "run out of full cream, is skim ok?" fell into the
+            # order bot and answered "Welcome back, Bart!" — the barista never
+            # saw it (Steve, live test 2026-09-01). Mirrors the older
+            # message path in this file.
+            try:
+                coffee_system._set_conversation_state(phone, 'awaiting_barista_reply', {
+                    'order_number': clean_id,
+                    'station_id': station_id,
+                    'barista_message': message[:200],
+                    'sent_at': datetime.now().isoformat(),
+                })
+            except Exception as park_err:
+                logger.warning(f"ask-customer: could not park reply state (non-fatal): {park_err}")
     except Exception as e:
         logger.warning(f"ask-customer SMS skipped (non-fatal): {e}")
     return jsonify({'success': True, 'sms_sent': sms_sent})
