@@ -1469,7 +1469,15 @@ const DisplayScreen = () => {
             the operator chrome is hidden, so the Ready header sits directly
             under the banner and the dip lands squarely on it. */}
         {orderQrUrl && isPortrait && (
-          <div className="absolute top-0 right-4 z-30 flex flex-col items-center"
+          <div className="absolute right-4 z-30 flex flex-col items-center"
+               // Anchored to the banner's BOTTOM (top:100%) and pulled up,
+               // so the ribbon dips a CONSISTENT amount below the band —
+               // clearly onto the Ready header — whether the operator chrome
+               // is showing (tall banner) or hidden in fullscreen (short
+               // banner). Top-anchoring made the dip vanish when the banner
+               // grew. translateY is tuned so the panel top still lands
+               // inside the banner (never over the sponsor ticker above it).
+               style={{ top: '100%', transform: 'translateY(-92px)' }}
                onClick={(e) => e.stopPropagation()}>
             <div className="px-3 pt-2 pb-3 rounded-b-3xl"
                  style={{ backgroundColor: BANNER_BG,
@@ -1481,11 +1489,11 @@ const DisplayScreen = () => {
                 <img
                   src={`/api/qr?size=9&data=${encodeURIComponent(orderQrUrl)}`}
                   alt="Scan to order"
-                  className="w-32 h-32"
+                  className="w-28 h-28"
                   onError={(e) => { e.currentTarget.style.display = 'none'; }}
                 />
               </div>
-              <div className="text-center text-xs font-bold mt-1.5"
+              <div className="text-center text-xs font-bold mt-1"
                    style={{ color: bannerInkDim }}>
                 Order from your phone
               </div>
