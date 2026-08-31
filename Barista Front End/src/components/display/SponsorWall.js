@@ -163,10 +163,14 @@ function WallGrid({ groups }) {
     <div ref={outerRef} style={{ height: '100%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div ref={innerRef} style={{ width: '100%', transform: `scale(${scale})`, transformOrigin: 'center center', padding: '0 3vw' }}>
         {rows.map((row, ri) => (row.type === 'full' ? (
-          <section key={row.group.tier.id} style={{ marginBottom: '3vh' }}>
+          <section key={row.group.tier.id} style={{ marginBottom: '2.5vh' }}>
             <h2 style={tierHeadingStyle}>{row.group.tier.name}</h2>
-            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '1.6vw' }}>
-              {row.group.items.map((s) => <LogoCard key={s.id} s={s} h="9vh" maxH={120} />)}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(clamp(140px, 15vw, 300px), 1fr))',
+              gap: '1.4vh 1.4vw', alignItems: 'stretch',
+            }}>
+              {row.group.items.map((s) => <LogoCard key={s.id} s={s} h="13vh" fill />)}
             </div>
           </section>
         ) : (
@@ -227,15 +231,23 @@ const tierHeadingStyle = {
   color: '#0f766e', textTransform: 'uppercase', letterSpacing: '0.12em', margin: '1.6vh 0',
 };
 
-function LogoCard({ s, h, maxH }) {
+// fill: stretch to the full width of the grid cell (used by the grid wall so
+// logos spread across the screen instead of sitting tiny in the middle).
+function LogoCard({ s, h, maxH, fill }) {
   return (
     <div style={{
-      background: '#fff', borderRadius: 16, padding: '1.4vh 2vw',
+      background: '#fff', borderRadius: 16, padding: fill ? '1vh 1.2vw' : '1.4vh 2vw',
       boxShadow: '0 2px 10px rgba(0,0,0,0.08)', border: '1px solid rgba(0,0,0,0.06)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      height: `calc(${h} + 2.8vh)`,
+      ...(fill ? { width: '100%', height: h } : { height: `calc(${h} + 2.8vh)` }),
     }}>
-      <img src={s.image} alt={s.name || 'Sponsor'} style={{ height: h, maxHeight: maxH, maxWidth: '38vw', objectFit: 'contain', display: 'block' }} />
+      <img
+        src={s.image}
+        alt={s.name || 'Sponsor'}
+        style={fill
+          ? { maxHeight: '76%', maxWidth: '90%', objectFit: 'contain', display: 'block' }
+          : { height: h, maxHeight: maxH, maxWidth: '38vw', objectFit: 'contain', display: 'block' }}
+      />
     </div>
   );
 }
