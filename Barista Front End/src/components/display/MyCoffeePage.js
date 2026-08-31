@@ -17,6 +17,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import CancelOrderButton from './CancelOrderButton';
 import BaristaAskCard from './BaristaAskCard';
+import SponsorTicker from './SponsorTicker';
 import { recall, remember, forget } from '../../utils/deviceMemory';
 import playCupQSignature from '../../utils/cupqSignature';
 import { useSearchParams } from 'react-router-dom';
@@ -120,6 +121,26 @@ const MyCoffeePage = () => {
   const [pwInput, setPwInput] = useState('');
   const [pwError, setPwError] = useState('');
   const [pwChecking, setPwChecking] = useState(false);
+
+  // Sponsor ticker on the waiting beacon (Steve: "a ticker on the bottom
+  // of the waiting beacon with the sponsors"). Self-contained public fetch,
+  // polled; hidden until the operator adds logos in Organiser -> Sponsors.
+  const [sponsorTicker, setSponsorTicker] = useState({ enabled: false, sponsors: [] });
+  useEffect(() => {
+    let dead = false;
+    const load = async () => {
+      try {
+        const r = await fetch('/api/sponsors', { cache: 'no-store' });
+        const b = r.ok ? await r.json() : null;
+        if (!dead && b && b.success) {
+          setSponsorTicker({ enabled: !!b.enabled, sponsors: Array.isArray(b.sponsors) ? b.sponsors : [] });
+        }
+      } catch (e) { /* stay empty */ }
+    };
+    load();
+    const t = setInterval(load, 30000);
+    return () => { dead = true; clearInterval(t); };
+  }, []);
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -1244,6 +1265,17 @@ const MyCoffeePage = () => {
           >
             Order another
           </button>
+
+          {/* Sponsor ticker on the waiting beacon — a scrolling logo reel
+              along the bottom. Hidden until the operator adds sponsors. */}
+          {sponsorTicker.enabled && sponsorTicker.sponsors.length > 0 && (
+            <div className="mt-8">
+              <p className="text-[11px] uppercase tracking-wider text-gray-400 mb-2">Proudly supported by</p>
+              <div className="rounded-xl overflow-hidden shadow-sm">
+                <SponsorTicker items={sponsorTicker.sponsors} position="bottom" />
+              </div>
+            </div>
+          )}
         </div>
         {fullOrder && (
           <div className="fixed inset-0 bg-white z-50 overflow-auto">
