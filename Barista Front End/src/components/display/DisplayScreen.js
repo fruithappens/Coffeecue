@@ -1453,7 +1453,7 @@ const DisplayScreen = () => {
         {/* Portrait: keep the QR's grid footprint so the branding never
             slides under the ribbon that now hangs where it used to sit. */}
         {orderQrUrl && isPortrait && (
-          <div aria-hidden className="flex-shrink-0" style={{ width: 176 }} />
+          <div aria-hidden className="flex-shrink-0" style={{ width: 200 }} />
         )}
         {/* Portrait scan-to-order RIBBON. Steve wanted the vertical board's
             QR to get the same dip the landscape centre code has, but pushed
@@ -1469,15 +1469,15 @@ const DisplayScreen = () => {
             the operator chrome is hidden, so the Ready header sits directly
             under the banner and the dip lands squarely on it. */}
         {orderQrUrl && isPortrait && (
-          <div className="absolute right-4 z-30 flex flex-col items-center"
-               // Anchored to the banner's BOTTOM (top:100%) and pulled up,
-               // so the ribbon dips a CONSISTENT amount below the band —
-               // clearly onto the Ready header — whether the operator chrome
-               // is showing (tall banner) or hidden in fullscreen (short
-               // banner). Top-anchoring made the dip vanish when the banner
-               // grew. translateY is tuned so the panel top still lands
-               // inside the banner (never over the sponsor ticker above it).
-               style={{ top: '100%', transform: 'translateY(-92px)' }}
+          <div className="absolute top-0 right-4 z-30 flex flex-col items-center"
+               // Anchored to the banner TOP, which sits right at the sponsor
+               // ticker line and stays there whether the operator chrome is
+               // showing or hidden in fullscreen. The panel grows DOWN from
+               // that line into the Ready header, so the QR is as large as
+               // the run from the ticker to the dip allows (Steve: "scaled
+               // up to the bottom of the ticker line to make the QR that bit
+               // larger"). The dip depth into the Ready bar is set by the
+               // panel height below.
                onClick={(e) => e.stopPropagation()}>
             <div className="px-3 pt-2 pb-3 rounded-b-3xl"
                  style={{ backgroundColor: BANNER_BG,
@@ -1487,9 +1487,9 @@ const DisplayScreen = () => {
                           boxShadow: BANNER_SHADOW }}>
               <div className="bg-white rounded-xl p-2 shadow-lg">
                 <img
-                  src={`/api/qr?size=9&data=${encodeURIComponent(orderQrUrl)}`}
+                  src={`/api/qr?size=10&data=${encodeURIComponent(orderQrUrl)}`}
                   alt="Scan to order"
-                  className="w-28 h-28"
+                  className="w-40 h-40"
                   onError={(e) => { e.currentTarget.style.display = 'none'; }}
                 />
               </div>
