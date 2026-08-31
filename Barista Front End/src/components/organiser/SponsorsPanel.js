@@ -47,7 +47,7 @@ const SponsorsPanel = () => {
   const [position, setPosition] = useState('bottom');
   const [sponsors, setSponsors] = useState([]);
   const [tiers, setTiers] = useState([]);
-  const [wall, setWall] = useState({ enabled: false, layout: 'scroll', takeover: false, everySec: 180, forSec: 20 });
+  const [wall, setWall] = useState({ enabled: false, layout: 'scroll', background: 'tint', takeover: false, everySec: 180, forSec: 20 });
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
@@ -245,6 +245,16 @@ const SponsorsPanel = () => {
               ))}
             </div>
             <p className="text-xs text-gray-500 mt-1.5">{wall.layout === 'grid' ? 'All logos at once, grouped by tier (Platinum on top).' : 'One tier at a time, lingering by each tier’s dwell time.'}</p>
+          </div>
+          <div>
+            <div className="text-sm font-medium text-gray-700 mb-1.5">Background</div>
+            <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden">
+              {[['tint', 'Soft tint'], ['white', 'White'], ['branded', 'Event-branded']].map(([v, label]) => (
+                <button key={v} type="button" onClick={() => setWall((w) => ({ ...w, background: v }))}
+                  className={`px-3 py-2 text-sm font-semibold ${wall.background === v ? 'bg-amber-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>{label}</button>
+              ))}
+            </div>
+            <p className="text-xs text-gray-500 mt-1.5">“Event-branded” reuses your uploaded display background image (falls back to the tint if none is set).</p>
           </div>
           <div>
             <label className="flex items-start gap-2 cursor-pointer">
