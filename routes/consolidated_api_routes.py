@@ -10337,6 +10337,9 @@ def _norm_tiers(raw):
             'id': str(t.get('id') or name.lower().replace(' ', '-') or i),
             'name': name,
             'dwell': _clamp_num(t.get('dwell'), 1, 60, 5),
+            # 'compact' tiers sit side-by-side in the grid wall (Steve: the
+            # coffee/dinner single-logo tiers can share a row and go wider).
+            'compact': bool(t.get('compact')),
         })
     return tiers
 

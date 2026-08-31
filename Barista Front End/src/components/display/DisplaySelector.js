@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { DISPLAY_POLL_MS } from './DisplayScreen';
 import { useNavigate } from 'react-router-dom';
-import { Coffee, Monitor, ArrowLeft, Loader, Hand, Eye, Copy, Check } from 'lucide-react';
+import { Coffee, Monitor, ArrowLeft, Loader, Hand, Eye, Copy, Check, Award } from 'lucide-react';
 import StationsService from '../../services/StationsService';
 
 const DisplaySelector = () => {
@@ -68,6 +68,15 @@ const DisplaySelector = () => {
       window.prompt('Copy this address for the other screen:', url);
     }
     setCopied(`${stationId}:${kind}`);
+    setTimeout(() => setCopied(''), 2000);
+  };
+
+  // The sponsor wall is one event-wide screen (/sponsors), not per-station.
+  const copySponsorUrl = async () => {
+    const url = `${window.location.origin}/sponsors`;
+    try { await navigator.clipboard.writeText(url); }
+    catch (e) { window.prompt('Copy this address for the sponsor screen:', url); }
+    setCopied('sponsors:wall');
     setTimeout(() => setCopied(''), 2000);
   };
 
@@ -199,6 +208,42 @@ const DisplaySelector = () => {
                     </div>
                   </div>
                   <OpenButtons id="all" />
+                </div>
+
+                {/* Sponsor Wall — one event-wide screen; grid/scroll,
+                    background and the ticker are all set in Organiser → Sponsors. */}
+                <div className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+                  <div className="flex items-start">
+                    <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center mr-3">
+                      <Award size={20} className="text-amber-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-gray-800">Sponsor Wall</h3>
+                      <p className="text-sm text-gray-600">Full-screen sponsor logos. Grid or scroll, background and ticker are set in Organiser &rarr; Sponsors.</p>
+                      <p className="mt-2 text-xs">
+                        <span className="inline-block rounded-full px-2 py-1 bg-amber-100 text-amber-800">Sponsors</span>
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-3 border rounded-lg p-2 hover:border-amber-400 transition-colors">
+                    <button
+                      type="button"
+                      onClick={() => navigate('/sponsors')}
+                      className="w-full flex items-center gap-2 font-semibold text-gray-800 text-left"
+                    >
+                      <Award size={18} className="shrink-0 text-amber-600" /> Open sponsor wall
+                    </button>
+                    <div className="text-xs text-gray-500 mt-0.5">Adapts to vertical or landscape</div>
+                    <button
+                      type="button"
+                      onClick={copySponsorUrl}
+                      className="mt-2 text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                    >
+                      {copied === 'sponsors:wall'
+                        ? <><Check size={12} /> Address copied</>
+                        : <><Copy size={12} /> Copy address</>}
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

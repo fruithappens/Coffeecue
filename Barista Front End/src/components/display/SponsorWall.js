@@ -147,17 +147,40 @@ function WallGrid({ groups }) {
     window.addEventListener('resize', fit);
     return () => { clearTimeout(t1); clearTimeout(t2); window.removeEventListener('resize', fit); };
   }, [groups]);
+  // Consecutive 'compact' tiers share one row (each becomes a column), so
+  // single-logo tiers like Coffee + Dinner sit side by side instead of each
+  // eating a full row. Non-compact tiers stay full-width.
+  const rows = [];
+  let run = [];
+  groups.forEach((g) => {
+    if (g.tier.compact) { run.push(g); return; }
+    if (run.length) { rows.push({ type: 'compact', groups: run }); run = []; }
+    rows.push({ type: 'full', group: g });
+  });
+  if (run.length) rows.push({ type: 'compact', groups: run });
+
   return (
     <div ref={outerRef} style={{ height: '100%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div ref={innerRef} style={{ width: '100%', transform: `scale(${scale})`, transformOrigin: 'center center', padding: '0 3vw' }}>
-        {groups.map((g) => (
-          <section key={g.tier.id} style={{ marginBottom: '3vh' }}>
-            <h2 style={tierHeadingStyle}>{g.tier.name}</h2>
+        {rows.map((row, ri) => (row.type === 'full' ? (
+          <section key={row.group.tier.id} style={{ marginBottom: '3vh' }}>
+            <h2 style={tierHeadingStyle}>{row.group.tier.name}</h2>
             <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '1.6vw' }}>
-              {g.items.map((s) => <LogoCard key={s.id} s={s} h="9vh" maxH={120} />)}
+              {row.group.items.map((s) => <LogoCard key={s.id} s={s} h="9vh" maxH={120} />)}
             </div>
           </section>
-        ))}
+        ) : (
+          <div key={`compact-${ri}`} style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'flex-start', gap: '4vw', marginBottom: '3vh' }}>
+            {row.groups.map((g) => (
+              <section key={g.tier.id} style={{ textAlign: 'center' }}>
+                <h2 style={{ ...tierHeadingStyle, margin: '0 0 1.2vh' }}>{g.tier.name}</h2>
+                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '1.2vw' }}>
+                  {g.items.map((s) => <LogoCard key={s.id} s={s} h="7.5vh" maxH={100} />)}
+                </div>
+              </section>
+            ))}
+          </div>
+        )))}
       </div>
     </div>
   );
