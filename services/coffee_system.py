@@ -800,7 +800,10 @@ class CoffeeOrderSystem:
                         "suggestion_context": "usual_order",  # Mark that we've suggested their usual order
                     },
                 )
-                return f"Welcome back, {name}! {usual_suggestions}"
+                # The suggestion already greets by name ("...today, {name}?"),
+                # so don't add the name again or it reads "Welcome back, Bart!
+                # ...today, Bart?" (Steve, live test).
+                return f"Welcome back! {usual_suggestions}"
             else:
                 # Start a new conversation state without suggestion context
                 self._set_conversation_state(
@@ -9412,7 +9415,9 @@ class CoffeeOrderSystem:
                         "awaiting_coffee_type",
                         {"name": name, "suggestion_context": "usual_order"},
                     )
-                    return f"Welcome back, {name}! {usual_suggestions}"
+                    # The suggestion already greets by name, so don't add it
+                    # again (would read "Welcome back, Bart! ...today, Bart?").
+                    return f"Welcome back! {usual_suggestions}"
                 else:
                     # Just welcome them back and ask for coffee
                     self._set_conversation_state(
