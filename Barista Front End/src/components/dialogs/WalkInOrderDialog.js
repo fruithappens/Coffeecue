@@ -1,5 +1,5 @@
 // components/dialogs/WalkInOrderDialog.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { XCircle, Search, Coffee, Users, Star, AlertTriangle } from 'lucide-react';
 // DEFAULT_MILK_TYPES is the legacy hardcoded list; useCatalog('milk')
 // is the canonical source. The legacy import is kept as a fallback
@@ -199,6 +199,47 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
     }
   }, [targetStation]);
 
+  // 86-board awareness. The customer menu hides sold-out items (it reads
+  // /api/display/menu, which applies the overrides), but this walk-in
+  // dialog builds its lists straight from station inventory -- so a 86'd
+  // item (e.g. Decaf, which Steve turned OFF) still showed here. Read the
+  // same overrides the 86 board writes and hide anything sold out, so every
+  // ordering surface agrees. Only ever HIDES; never adds.
+  const [dead86, setDead86] = useState(() => new Set());
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch('/api/stock-overrides', {
+          headers: { Authorization: `Bearer ${localStorage.getItem('coffee_system_token') || ''}` },
+        });
+        const b = r.ok ? await r.json() : {};
+        const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const set = new Set();
+        (b.overrides || []).forEach((o) => {
+          // sold out everywhere, or specifically at the station this order is for
+          if (o.state === '86' && (!o.station_id || o.station_id === targetStationId)) {
+            set.add(`${o.category}|${norm(o.name)}`);
+          }
+        });
+        if (!cancelled) setDead86(set);
+      } catch (e) { /* overrides unreachable: show everything, same as before */ }
+    })();
+    return () => { cancelled = true; };
+  }, [targetStationId]);
+
+  // Category strings match the 86 board's POST payload: drink / milk / coffee.
+  const is86 = useMemo(() => {
+    const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    return (cat, name) => dead86.has(`${cat}|${norm(name)}`);
+  }, [dead86]);
+  const visibleCoffeeTypes = useMemo(
+    () => availableCoffeeTypes.filter((d) => !is86('drink', d)), [availableCoffeeTypes, is86]);
+  const visibleBeanTypes = useMemo(
+    () => availableBeanTypes.filter((b) => !is86('coffee', b)), [availableBeanTypes, is86]);
+  const visibleMilks = useMemo(
+    () => availableMilks.filter((m) => !is86('milk', m && m.name)), [availableMilks, is86]);
+
   // Numeric quick-pick keyboard shortcuts. Press 1-9 to jump to the
   // first 9 available drinks. Ignored while typing into a text input
   // (otherwise typing a name with a digit would silently change the
@@ -213,7 +254,7 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
       if (tag === 'input' || tag === 'textarea' || tag === 'select' || editable) return;
       const n = parseInt(e.key, 10);
       if (!Number.isInteger(n) || n < 1 || n > 9) return;
-      const drink = availableCoffeeTypes[n - 1];
+      const drink = visibleCoffeeTypes[n - 1];
       if (!drink) return;
       e.preventDefault();
       setOrderDetails(prev => ({ ...prev, coffeeType: drink }));
@@ -221,7 +262,7 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [availableCoffeeTypes]);
+  }, [visibleCoffeeTypes]);
 
   // Load station inventory and available options
   useEffect(() => {
@@ -1875,7 +1916,7 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
                 keyboard shortcuts already exist, and showing them is how
                 anyone finds out. */}
             <QuickGroup label="Drink">
-              {availableCoffeeTypes.map((d, i) => (
+              {visibleCoffeeTypes.map((d, i) => (
                 <QuickTile
                   key={d}
                   active={orderDetails.coffeeType === d}
@@ -1889,9 +1930,9 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
 
             {/* Milk is meaningless on a tea or a hot chocolate, so it goes
                 away rather than sitting there inviting a wrong answer. */}
-            {!isTeaDrink && availableMilks.length > 0 && (
+            {!isTeaDrink && visibleMilks.length > 0 && (
               <QuickGroup label="Milk">
-                {availableMilks.map(m => (
+                {visibleMilks.map(m => (
                   <QuickTile
                     key={m.id}
                     active={orderDetails.milkType === m.id}
@@ -1966,9 +2007,9 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
                   />
                 ))}
               </QuickGroup>
-              {availableBeanTypes.length > 1 && (
+              {visibleBeanTypes.length > 1 && (
                 <QuickGroup label="Beans">
-                  {availableBeanTypes.map(b => (
+                  {visibleBeanTypes.map(b => (
                     <QuickTile
                       key={b}
                       active={orderDetails.beanType === b}
@@ -2272,7 +2313,7 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
                       below, this row just shows the hints. */}
                   {availableCoffeeTypes.length > 1 && (
                     <div className="mt-2 flex flex-wrap gap-1">
-                      {availableCoffeeTypes.slice(0, 9).map((d, i) => (
+                      {visibleCoffeeTypes.slice(0, 9).map((d, i) => (
                         <button
                           key={d}
                           type="button"
@@ -2414,7 +2455,7 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
                       onChange={handleChange}
                       className="w-full p-2 border rounded"
                     >
-                      {availableBeanTypes.map(bean => (
+                      {visibleBeanTypes.map(bean => (
                         <option key={bean} value={bean}>
                           {bean}
                           {bean.toLowerCase().includes('decaf') ? ' (Decaf)' : ''}
