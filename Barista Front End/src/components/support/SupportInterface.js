@@ -122,7 +122,7 @@ const SupportInterface = () => {
             <div className="flex items-center">
               <button
                 className="mr-2 p-1 rounded hover:bg-gray-200"
-                onClick={() => { window.location.href = '/'; }}
+                onClick={() => { window.location.href = '/welcome'; }}
                 title="Back to Home"
               >
                 <ArrowLeft size={20} />

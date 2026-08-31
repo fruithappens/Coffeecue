@@ -2315,7 +2315,7 @@ const BaristaInterface = () => {
         <div className="flex items-center">
           <button 
             className="mr-2 p-1 rounded hover:bg-amber-700"
-            onClick={() => window.history.back()}
+            onClick={() => { window.location.href = '/welcome'; }}
             title="Back to Home"
           >
             <ArrowLeft size={20} />
