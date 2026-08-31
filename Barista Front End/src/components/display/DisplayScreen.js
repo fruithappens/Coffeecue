@@ -427,7 +427,7 @@ const DisplayScreen = () => {
   const [orders, setOrders] = useState({ pending: [], inProgress: [], ready: [] });
   // Sponsor logo ticker (public /api/sponsors). Polled so the Organiser
   // Sponsors panel changes appear on the board without a display reload.
-  const [sponsorTicker, setSponsorTicker] = useState({ enabled: false, position: 'bottom', sponsors: [] });
+  const [sponsorTicker, setSponsorTicker] = useState({ enabled: false, position: 'bottom', size: 'small', sponsors: [] });
   // Sponsor wall takeover config (from the same /api/sponsors payload).
   const [sponsorWall, setSponsorWall] = useState({ takeover: false, everySec: 180, forSec: 20, hasSponsors: false });
   const [wallTakeover, setWallTakeover] = useState(false);
@@ -607,6 +607,7 @@ const DisplayScreen = () => {
           setSponsorTicker({
             enabled: !!b.enabled,
             position: b.position === 'top' ? 'top' : 'bottom',
+            size: ['small', 'medium', 'large'].includes(b.size) ? b.size : 'small',
             sponsors,
           });
           const w = (b.wall && typeof b.wall === 'object') ? b.wall : {};
@@ -1194,7 +1195,7 @@ const DisplayScreen = () => {
           the Organiser set the position to 'top'. Hidden when disabled or
           empty, so it never eats space or breaks the board. */}
       {sponsorTicker.enabled && sponsorTicker.position === 'top' && (
-        <SponsorTicker items={sponsorTicker.sponsors} position="top" />
+        <SponsorTicker items={sponsorTicker.sponsors} position="top" size={sponsorTicker.size} />
       )}
 
       {/* Board takeover: the full-screen sponsor wall, shown for a few
@@ -1825,7 +1826,7 @@ const DisplayScreen = () => {
           the Organiser set the position to 'bottom'. Hidden when disabled
           or empty. */}
       {sponsorTicker.enabled && sponsorTicker.position === 'bottom' && (
-        <SponsorTicker items={sponsorTicker.sponsors} position="bottom" />
+        <SponsorTicker items={sponsorTicker.sponsors} position="bottom" size={sponsorTicker.size} />
       )}
 
       {/* Self-service kiosk overlay. Routes to this display's station (or a

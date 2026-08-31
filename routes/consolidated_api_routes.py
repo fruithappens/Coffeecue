@@ -10364,6 +10364,7 @@ def _sponsor_ticker_read(db):
     return {
         'enabled': bool(data.get('enabled')),
         'position': 'top' if data.get('position') == 'top' else 'bottom',
+        'size': data.get('size') if data.get('size') in ('small', 'medium', 'large') else 'small',
         'tiers': tiers,
         'wall': _norm_wall(data.get('wall')),
         'sponsors': [
@@ -10390,7 +10391,7 @@ def get_sponsor_ticker():
     except Exception as e:
         logger.error(f"get_sponsor_ticker error: {e}")
         # Fail OPEN to "no ticker" so the display never breaks over this.
-        return jsonify({'success': True, 'enabled': False, 'position': 'bottom',
+        return jsonify({'success': True, 'enabled': False, 'position': 'bottom', 'size': 'small',
                         'tiers': [dict(t) for t in _DEFAULT_TIERS], 'wall': _norm_wall({}),
                         'sponsors': []}), 200
 
@@ -10424,6 +10425,7 @@ def upsert_sponsor_ticker():
         out = {
             'enabled': bool(payload.get('enabled')),
             'position': 'top' if payload.get('position') == 'top' else 'bottom',
+            'size': payload.get('size') if payload.get('size') in ('small', 'medium', 'large') else 'small',
             'tiers': _norm_tiers(payload.get('tiers')),
             'wall': _norm_wall(payload.get('wall')),
             'sponsors': sponsors,

@@ -1,5 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { UploadCloud, Trash2, ArrowUp, ArrowDown, Save, ExternalLink, Plus, Layers, GripVertical } from 'lucide-react';
+import SponsorTicker from '../display/SponsorTicker';
+import SponsorWall from '../display/SponsorWall';
 
 // Sponsors — logos, tiers, the scrolling ticker, and the full-screen wall.
 //
@@ -45,6 +47,7 @@ const uid = (p) => `${p}-${Date.now()}-${Math.floor(Math.random() * 1e5)}`;
 const SponsorsPanel = () => {
   const [enabled, setEnabled] = useState(false);
   const [position, setPosition] = useState('bottom');
+  const [tickerSize, setTickerSize] = useState('small');
   const [sponsors, setSponsors] = useState([]);
   const [tiers, setTiers] = useState([]);
   const [wall, setWall] = useState({ enabled: false, layout: 'scroll', background: 'tint', takeover: false, everySec: 180, forSec: 20 });
@@ -76,6 +79,7 @@ const SponsorsPanel = () => {
         const b = r.ok ? await r.json() : {};
         setEnabled(!!b.enabled);
         setPosition(b.position === 'top' ? 'top' : 'bottom');
+        setTickerSize(['small', 'medium', 'large'].includes(b.size) ? b.size : 'small');
         setSponsors(Array.isArray(b.sponsors) ? b.sponsors : []);
         setTiers(Array.isArray(b.tiers) ? b.tiers : []);
         if (b.wall && typeof b.wall === 'object') setWall((w) => ({ ...w, ...b.wall }));
@@ -129,7 +133,7 @@ const SponsorsPanel = () => {
       const cleanTiers = tiers.filter((t) => (t.name || '').trim());
       const r = await fetch('/api/sponsors', {
         method: 'PUT', headers: authHeaders(),
-        body: JSON.stringify({ enabled, position, sponsors, tiers: cleanTiers, wall }),
+        body: JSON.stringify({ enabled, position, size: tickerSize, sponsors, tiers: cleanTiers, wall }),
       });
       if (r.ok) setSavedAt(new Date()); else setErr('Save failed — try again.');
     } catch (e) { setErr('Save failed — check your connection.'); }
@@ -138,6 +142,13 @@ const SponsorsPanel = () => {
 
   const origin = (typeof window !== 'undefined' && window.location.origin) || '';
   const tierName = (id) => (tiers.find((t) => t.id === id) || {}).name || '';
+  // Live-preview data — the wall reads this instead of the saved /api/sponsors,
+  // so the preview reflects unsaved edits. Memoised so unrelated typing doesn't
+  // restart the scroll animation.
+  const previewData = useMemo(
+    () => ({ sponsors, tiers: tiers.filter((t) => (t.name || '').trim()), wall }),
+    [sponsors, tiers, wall],
+  );
 
   return (
     <div className="max-w-4xl mx-auto p-4 sm:p-6">
@@ -170,6 +181,16 @@ const SponsorsPanel = () => {
                 className={`px-4 py-2 text-sm font-semibold capitalize ${position === p ? 'bg-amber-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>{p}</button>
             ))}
           </div>
+        </div>
+        <div>
+          <div className="text-sm font-medium text-gray-700 mb-1.5">Ticker size</div>
+          <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden">
+            {[['small', 'Small'], ['medium', 'Medium'], ['large', 'Large']].map(([v, label]) => (
+              <button key={v} type="button" disabled={!loaded} onClick={() => setTickerSize(v)}
+                className={`px-3 py-2 text-sm font-semibold ${tickerSize === v ? 'bg-amber-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>{label}</button>
+            ))}
+          </div>
+          <p className="text-xs text-gray-500 mt-1.5">Large ≈ a fifth of the screen height.</p>
         </div>
       </div>
 
@@ -298,6 +319,27 @@ const SponsorsPanel = () => {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Live preview — see the ticker size + wall layout/background change
+          as you edit, without leaving the panel or saving first. */}
+      <div className="bg-white rounded-xl shadow-sm p-4 sm:p-5 mb-5">
+        <h3 className="font-semibold text-gray-800 mb-1">Live preview</h3>
+        <p className="text-sm text-gray-500 mb-3">Reflects your changes above — no need to save first.</p>
+        {sponsors.length === 0 ? (
+          <p className="text-sm text-gray-400">Add some logos to see the preview.</p>
+        ) : (
+          <>
+            <div className="text-[11px] uppercase tracking-wider text-gray-400 mb-1">Ticker — {tickerSize}</div>
+            <div className="rounded-lg overflow-hidden border border-gray-200 mb-4 bg-gray-100">
+              <SponsorTicker items={sponsors} size={tickerSize} position="bottom" />
+            </div>
+            <div className="text-[11px] uppercase tracking-wider text-gray-400 mb-1">Wall — {wall.layout}, {wall.background} background</div>
+            <div className="rounded-lg overflow-hidden border border-gray-200" style={{ height: 360 }}>
+              <SponsorWall embedded preview={previewData} />
+            </div>
+          </>
+        )}
       </div>
 
       <div className="flex items-center gap-3">
