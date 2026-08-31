@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { UploadCloud, Trash2, ArrowUp, ArrowDown, Save, ExternalLink, Plus, Layers } from 'lucide-react';
+import { UploadCloud, Trash2, ArrowUp, ArrowDown, Save, ExternalLink, Plus, Layers, GripVertical } from 'lucide-react';
 
 // Sponsors — logos, tiers, the scrolling ticker, and the full-screen wall.
 //
@@ -54,6 +54,20 @@ const SponsorsPanel = () => {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const fileRef = useRef(null);
+  // Drag-to-reorder (Steve: arrows are slow). Grip handle is the drag
+  // source; each row is a drop target. Arrows stay as a touch fallback
+  // (HTML5 drag doesn't fire on touchscreens).
+  const dragSp = useRef(null);
+  const [dragOverSp, setDragOverSp] = useState(null);
+  const dragTr = useRef(null);
+  const [dragOverTr, setDragOverTr] = useState(null);
+  const reorder = (arr, from, to) => {
+    if (from == null || to == null || from === to) return arr;
+    const next = [...arr];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    return next;
+  };
 
   useEffect(() => {
     (async () => {
@@ -169,7 +183,14 @@ const SponsorsPanel = () => {
         {tiers.length === 0 && <p className="text-sm text-gray-400 mb-3">No tiers yet — add Platinum, Gold, etc.</p>}
         <div className="space-y-2">
           {tiers.map((t, i) => (
-            <div key={t.id || i} className="flex items-center gap-2">
+            <div key={t.id || i}
+              onDragOver={(e) => { e.preventDefault(); setDragOverTr(i); }}
+              onDrop={(e) => { e.preventDefault(); setTiers((prev) => reorder(prev, dragTr.current, i)); dragTr.current = null; setDragOverTr(null); }}
+              className={`flex items-center gap-2 rounded px-1 py-0.5 ${dragOverTr === i ? 'bg-amber-50 ring-1 ring-amber-300' : ''}`}>
+              <span draggable onDragStart={() => { dragTr.current = i; }} onDragEnd={() => { dragTr.current = null; setDragOverTr(null); }}
+                className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 flex-shrink-0" title="Drag to reorder">
+                <GripVertical size={16} />
+              </span>
               <span className="text-xs text-gray-400 w-5 text-right">{i + 1}</span>
               <input value={t.name || ''} onChange={(e) => patchTier(i, { name: e.target.value })}
                 placeholder="Tier name (e.g. Platinum)" className="flex-1 min-w-0 border border-gray-200 rounded px-2 py-1.5 text-sm" />
@@ -209,7 +230,14 @@ const SponsorsPanel = () => {
         ) : (
           <ul className="divide-y divide-gray-100">
             {sponsors.map((s, i) => (
-              <li key={s.id || i} className="flex items-center gap-3 py-2.5">
+              <li key={s.id || i}
+                onDragOver={(e) => { e.preventDefault(); setDragOverSp(i); }}
+                onDrop={(e) => { e.preventDefault(); setSponsors((prev) => reorder(prev, dragSp.current, i)); dragSp.current = null; setDragOverSp(null); }}
+                className={`flex items-center gap-2 py-2.5 px-1 rounded ${dragOverSp === i ? 'bg-amber-50 ring-1 ring-amber-300' : ''}`}>
+                <span draggable onDragStart={() => { dragSp.current = i; }} onDragEnd={() => { dragSp.current = null; setDragOverSp(null); }}
+                  className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 flex-shrink-0" title="Drag to reorder">
+                  <GripVertical size={18} />
+                </span>
                 <div className="w-24 h-12 flex items-center justify-center bg-gray-50 rounded border border-gray-200 flex-shrink-0">
                   <img src={s.image} alt={s.name || 'logo'} style={{ maxHeight: 40, maxWidth: 88, objectFit: 'contain' }} />
                 </div>
