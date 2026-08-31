@@ -45,7 +45,7 @@ import brandingConfig from '../../config/brandingConfig';
 // the "under development" placeholder below.
 const KNOWN_SECTIONS = [
   'quickSetup', 'operations', 'stations', 'orders', 'eventLifecycle',
-  'schedule', 'insights', 'communication', 'users', 'settings', 'help',
+  'schedule', 'insights', 'communication', 'sponsors', 'users', 'settings', 'help',
 ];
 
 /**
