@@ -36,6 +36,7 @@ import ApiService from '../../services/ApiService';
 import { parseServerDate } from '../../utils/orderUtils';
 import { useSettings } from '../../hooks/useSettings';
 import KioskOrder from './KioskOrder';
+import { fetchEventAccess, stampLink } from '../../utils/eventGate';
 import SponsorTicker from './SponsorTicker';
 import SponsorWall from './SponsorWall';
 
@@ -211,9 +212,25 @@ const DisplayScreen = () => {
   // no override it falls back to this deployment's own /my page, which is
   // always correct even if nobody configures anything. ?qr=off hides it.
   const qrParam = searchParams.get('qr');
-  const orderQrUrl = qrParam === 'off'
+  // Event code (if the event requires one). Stamped onto the board's own
+  // "scan to order" QR so a phone that scans it lands already past the code
+  // gate, and passed to the on-site kiosk so counter ordering keeps working.
+  const [eventCode, setEventCode] = useState('');
+  useEffect(() => {
+    let dead = false;
+    fetchEventAccess().then((a) => {
+      if (!dead && a.require && a.code) setEventCode(a.code);
+    });
+    return () => { dead = true; };
+  }, []);
+  const orderQrUrlBase = qrParam === 'off'
     ? ''
     : (qrParam || (typeof window !== 'undefined' ? `${window.location.origin}/my` : ''));
+  // Only stamp the deployment's own /my link — never a custom ?qr= link an
+  // operator pointed elsewhere (a rebrand.ly short URL, a different domain).
+  const orderQrUrl = (orderQrUrlBase && !qrParam)
+    ? stampLink(orderQrUrlBase, eventCode)
+    : orderQrUrlBase;
   // ?mode=pickup → a clean "collect your order" screen (no queue clutter, no
   // kiosk button, no SMS footer). Default 'orders' = the live queue + the
   // self-service "Order here" button. Lets an operator run two screens: a
@@ -1918,6 +1935,7 @@ const DisplayScreen = () => {
         <KioskOrder
           stationId={currentStation && currentStation.id !== 'all' ? currentStation.id : null}
           headerColor={headerColor}
+          eventCode={eventCode}
           onClose={() => { setShowKiosk(false); handleRefresh(); }}
         />
       )}

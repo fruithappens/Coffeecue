@@ -23,6 +23,8 @@ import playCupQSignature from '../../utils/cupqSignature';
 import { useSearchParams } from 'react-router-dom';
 import { Volume2, VolumeX } from 'lucide-react';
 import KioskOrder from './KioskOrder';
+import { fetchEventAccess, urlCodeMatches, normalizeCode,
+         stampUrlWithCode, rememberCodeOk, codeAlreadyOk } from '../../utils/eventGate';
 
 const STORAGE_KEY = 'coffee_cue_my_cid';
 // Which QR/sign this visit came from. Session, not local: a delegate who
@@ -121,6 +123,13 @@ const MyCoffeePage = () => {
   const [pwInput, setPwInput] = useState('');
   const [pwError, setPwError] = useState('');
   const [pwChecking, setPwChecking] = useState(false);
+  // Event-code gate: a cold visitor (typed cupq.app, no QR) is asked for the
+  // code once; a scan carries ?e= and skips it. Dormant until the event is
+  // set to require a code — see utils/eventGate.js.
+  const [codeGate, setCodeGate] = useState(false);
+  const [codeInput, setCodeInput] = useState('');
+  const [codeError, setCodeError] = useState('');
+  const [eventCode, setEventCode] = useState('');
 
   // Sponsor ticker on the waiting beacon (Steve: "a ticker on the bottom
   // of the waiting beacon with the sponsors"). Self-contained public fetch,
@@ -144,17 +153,37 @@ const MyCoffeePage = () => {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      try {
-        let already = false;
-        try { already = !!sessionStorage.getItem('cupq_event_pw'); } catch (e) { /* */ }
-        if (already) return;
-        const r = await fetch('/api/event-access/public');
-        const b = r.ok ? await r.json() : null;
-        if (!cancelled && b && b.password_required) setPwGate(true);
-      } catch (e) { /* fail open: no gate */ }
+      const access = await fetchEventAccess();
+      if (cancelled) return;
+      // Event-CODE gate first: only when the event requires a code, one is
+      // set, this device hasn't already entered it, and the URL didn't arrive
+      // with a matching code (a scanned QR / cupq.app/<code> link did).
+      if (access.require && access.code) {
+        setEventCode(access.code);
+        if (!urlCodeMatches(access.code) && !codeAlreadyOk()) {
+          setCodeGate(true);
+        }
+      }
+      // Password gate (independent second layer), unless already satisfied.
+      let pwOk = false;
+      try { pwOk = !!sessionStorage.getItem('cupq_event_pw'); } catch (e) { /* */ }
+      if (!pwOk && access.passwordRequired) setPwGate(true);
     })();
     return () => { cancelled = true; };
   }, []);
+  const submitCode = () => {
+    const typed = normalizeCode(codeInput);
+    if (!typed) return;
+    if (typed === eventCode) {
+      rememberCodeOk();
+      // Stamp ?e= into the URL so the order that follows carries the code.
+      stampUrlWithCode(eventCode);
+      setCodeGate(false);
+      setCodeError('');
+    } else {
+      setCodeError("That code doesn't match this event. Check the code on the poster, or scan the QR here.");
+    }
+  };
   const submitPw = async () => {
     const pw = pwInput.trim();
     if (!pw) return;
@@ -796,6 +825,39 @@ const MyCoffeePage = () => {
     setCid(''); setPhone(''); setMe(null); setEntry('');
     setError(''); setChoices(null);
   };
+
+  // ---- event CODE gate (a cold visitor is asked for the code once) -------
+  if (codeGate) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6"
+           style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top))' }}>
+        <div className="w-full max-w-sm text-center">
+          <div className="text-5xl mb-3" aria-hidden>☕</div>
+          <h1 className="text-2xl font-bold mb-1">Event code</h1>
+          <p className="text-gray-600 mb-5">
+            Enter the event code to order — it's on the posters and signage
+            here. Scanned a QR code at the event? You won't need this.
+          </p>
+          <input
+            autoFocus value={codeInput}
+            onChange={(e) => { setCodeInput(e.target.value); setCodeError(''); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') submitCode(); }}
+            placeholder="Event code"
+            autoCapitalize="none" autoCorrect="off" spellCheck={false}
+            className="w-full border-2 rounded-xl px-4 py-4 text-xl text-center"
+          />
+          {codeError && <p className="text-red-600 mt-3">{codeError}</p>}
+          <button
+            className="w-full mt-4 py-4 rounded-xl bg-blue-600 text-white text-lg font-semibold disabled:opacity-40"
+            disabled={!codeInput.trim()}
+            onClick={submitCode}
+          >
+            Continue
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // ---- event password gate (before anything else) -----------------------
   if (pwGate) {
