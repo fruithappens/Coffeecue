@@ -167,10 +167,12 @@ function WallGrid({ groups }) {
             <h2 style={tierHeadingStyle}>{row.group.tier.name}</h2>
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(clamp(140px, 15vw, 300px), 1fr))',
-              gap: '1.4vh 1.4vw', alignItems: 'stretch',
+              // Cap the card width so a single-logo tier isn't a huge sparse
+              // banner, while a many-logo tier still spreads across the row.
+              gridTemplateColumns: 'repeat(auto-fit, minmax(clamp(150px, 16vw, 300px), 340px))',
+              gap: '1.6vh 1.6vw', alignItems: 'stretch', justifyContent: 'center',
             }}>
-              {row.group.items.map((s) => <LogoCard key={s.id} s={s} h="13vh" fill />)}
+              {row.group.items.map((s) => <LogoCard key={s.id} s={s} h="14vh" fill />)}
             </div>
           </section>
         ) : (
