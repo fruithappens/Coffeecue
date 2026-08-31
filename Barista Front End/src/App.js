@@ -4,6 +4,7 @@ import LandingPage from './components/shared/LandingPage';
 import BaristaInterface from './components/barista/BaristaInterface';
 import Organiser from './components/organiser/Organiser';
 import DisplayScreen from './components/display/DisplayScreen';
+import SponsorWall from './components/display/SponsorWall';
 import SignPage from './components/display/SignPage';
 import MobileOrderPage from './components/display/MobileOrderPage';
 import MyCoffeePage from './components/display/MyCoffeePage';
@@ -29,7 +30,7 @@ import BasicBaristaInterface from './components/fallbacks/BasicBaristaInterface'
 // are deliberately unauthenticated, so anything that reports "you are not
 // connected" because an authenticated call failed is telling them about a
 // call their screen was never going to make.
-const PUBLIC_SCREEN_PATHS = ['/display', '/displays', '/order', '/my', '/track'];
+const PUBLIC_SCREEN_PATHS = ['/display', '/displays', '/order', '/my', '/track', '/sponsors'];
 const PublicScreenGate = ({ children }) => {
   const path = (typeof window !== 'undefined' ? window.location.pathname : '') || '';
   const isPublic = PUBLIC_SCREEN_PATHS.some(
@@ -704,6 +705,8 @@ function App() {
           
           {/* Display routes - publicly accessible */}
           <Route path="/display" element={<DisplayScreen />} />
+          {/* Full-screen sponsor wall — public, adapts vertical/landscape */}
+          <Route path="/sponsors" element={<SponsorWall />} />
           <Route path="/sign" element={<SignPage />} />
           {/* Scan-to-order: /order = the guest's own phone (WiFi, no
               SIM needed); /how = the delegate splash screen with both

@@ -10304,16 +10304,70 @@ def upsert_branding_settings():
 # redeploy. Kept SEPARATE from the single SMS-sponsor line (that lives in
 # branding_settings.sponsorName/Message) — this is the visual logo reel.
 # ----------------------------------------------------------------------
+# Tiers are user-defined (Steve: "might be diamond sponsor for a event and
+# platinum for another"), ordered (rank = list order), each with a dwell
+# time used by the wall's scroll mode ("10 seconds for platinums and 6 for
+# gold and 3 for silver"). These are only SEED defaults for a fresh event;
+# the operator renames/reorders/re-times them freely.
+_DEFAULT_TIERS = [
+    {'id': 'platinum', 'name': 'Platinum', 'dwell': 10},
+    {'id': 'gold', 'name': 'Gold', 'dwell': 6},
+    {'id': 'silver', 'name': 'Silver', 'dwell': 4},
+    {'id': 'bronze', 'name': 'Bronze', 'dwell': 3},
+]
+
+
+def _clamp_num(v, lo, hi, default):
+    try:
+        v = float(v)
+    except (TypeError, ValueError):
+        v = default
+    return max(lo, min(hi, v))
+
+
+def _norm_tiers(raw):
+    tiers = []
+    for i, t in enumerate((raw or [])[:20]):
+        if not isinstance(t, dict):
+            continue
+        name = (t.get('name') or '').strip()[:40]
+        if not name:
+            continue
+        tiers.append({
+            'id': str(t.get('id') or name.lower().replace(' ', '-') or i),
+            'name': name,
+            'dwell': _clamp_num(t.get('dwell'), 1, 60, 5),
+        })
+    return tiers
+
+
+def _norm_wall(raw):
+    raw = raw if isinstance(raw, dict) else {}
+    return {
+        'enabled': bool(raw.get('enabled')),
+        'layout': 'grid' if raw.get('layout') == 'grid' else 'scroll',
+        'takeover': bool(raw.get('takeover')),
+        'everySec': _clamp_num(raw.get('everySec'), 15, 3600, 180),
+        'forSec': _clamp_num(raw.get('forSec'), 3, 600, 20),
+    }
+
+
 def _sponsor_ticker_read(db):
     data = _kv_get(db, 'sponsor_ticker', default={}) or {}
+    tiers = _norm_tiers(data.get('tiers'))
+    if not tiers:
+        tiers = [dict(t) for t in _DEFAULT_TIERS]
     return {
         'enabled': bool(data.get('enabled')),
         'position': 'top' if data.get('position') == 'top' else 'bottom',
+        'tiers': tiers,
+        'wall': _norm_wall(data.get('wall')),
         'sponsors': [
             {
                 'id': str(s.get('id') or i),
                 'name': (s.get('name') or '').strip()[:80],
                 'image': s.get('image') or '',
+                'tier': (s.get('tier') or '').strip()[:40],
             }
             for i, s in enumerate(data.get('sponsors') or [])
             if isinstance(s, dict) and s.get('image')
@@ -10332,7 +10386,9 @@ def get_sponsor_ticker():
     except Exception as e:
         logger.error(f"get_sponsor_ticker error: {e}")
         # Fail OPEN to "no ticker" so the display never breaks over this.
-        return jsonify({'success': True, 'enabled': False, 'position': 'bottom', 'sponsors': []}), 200
+        return jsonify({'success': True, 'enabled': False, 'position': 'bottom',
+                        'tiers': [dict(t) for t in _DEFAULT_TIERS], 'wall': _norm_wall({}),
+                        'sponsors': []}), 200
 
 
 @bp.route('/sponsors', methods=['PUT', 'POST'])
@@ -10359,10 +10415,13 @@ def upsert_sponsor_ticker():
                 'id': str(s.get('id') or i),
                 'name': (s.get('name') or '').strip()[:80],
                 'image': img,
+                'tier': (s.get('tier') or '').strip()[:40],
             })
         out = {
             'enabled': bool(payload.get('enabled')),
             'position': 'top' if payload.get('position') == 'top' else 'bottom',
+            'tiers': _norm_tiers(payload.get('tiers')),
+            'wall': _norm_wall(payload.get('wall')),
             'sponsors': sponsors,
         }
         _kv_put(coffee_system.db, 'sponsor_ticker', out, merge=False)

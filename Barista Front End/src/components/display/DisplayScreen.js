@@ -37,6 +37,7 @@ import { parseServerDate } from '../../utils/orderUtils';
 import { useSettings } from '../../hooks/useSettings';
 import KioskOrder from './KioskOrder';
 import SponsorTicker from './SponsorTicker';
+import SponsorWall from './SponsorWall';
 
 // Visual theme presets. Each provides bg, panel, text, accent.
 const THEMES = {
@@ -427,6 +428,9 @@ const DisplayScreen = () => {
   // Sponsor logo ticker (public /api/sponsors). Polled so the Organiser
   // Sponsors panel changes appear on the board without a display reload.
   const [sponsorTicker, setSponsorTicker] = useState({ enabled: false, position: 'bottom', sponsors: [] });
+  // Sponsor wall takeover config (from the same /api/sponsors payload).
+  const [sponsorWall, setSponsorWall] = useState({ takeover: false, everySec: 180, forSec: 20, hasSponsors: false });
+  const [wallTakeover, setWallTakeover] = useState(false);
   const [showKiosk, setShowKiosk] = useState(false);
 
   // Track which orders are "new" so we can pulse-highlight ready
@@ -599,10 +603,18 @@ const DisplayScreen = () => {
         const r = await fetch('/api/sponsors', { cache: 'no-store' });
         const b = r.ok ? await r.json() : null;
         if (!dead && b && b.success) {
+          const sponsors = Array.isArray(b.sponsors) ? b.sponsors : [];
           setSponsorTicker({
             enabled: !!b.enabled,
             position: b.position === 'top' ? 'top' : 'bottom',
-            sponsors: Array.isArray(b.sponsors) ? b.sponsors : [],
+            sponsors,
+          });
+          const w = (b.wall && typeof b.wall === 'object') ? b.wall : {};
+          setSponsorWall({
+            takeover: !!w.takeover,
+            everySec: Number(w.everySec) || 180,
+            forSec: Number(w.forSec) || 20,
+            hasSponsors: sponsors.some((s) => s && s.image),
           });
         }
       } catch (e) { /* keep last / stay empty */ }
@@ -611,6 +623,24 @@ const DisplayScreen = () => {
     const t = setInterval(load, 20000);
     return () => { dead = true; clearInterval(t); };
   }, []);
+
+  // Board takeover: periodically flip the whole board to the sponsor wall
+  // for a few seconds, then back (Steve). Off for the pickup screen — that
+  // one must stay a clean collection board. Only runs when configured and
+  // there are sponsors to show.
+  useEffect(() => {
+    if (!sponsorWall.takeover || !sponsorWall.hasSponsors || isPickupMode) {
+      setWallTakeover(false);
+      return undefined;
+    }
+    let hideTimer;
+    const cycle = () => {
+      setWallTakeover(true);
+      hideTimer = setTimeout(() => setWallTakeover(false), sponsorWall.forSec * 1000);
+    };
+    const interval = setInterval(cycle, sponsorWall.everySec * 1000);
+    return () => { clearInterval(interval); clearTimeout(hideTimer); };
+  }, [sponsorWall.takeover, sponsorWall.hasSponsors, sponsorWall.everySec, sponsorWall.forSec, isPickupMode]);
 
   // Merge in any display settings (event name, custom message, etc.)
   // from the settings hook.
@@ -1165,6 +1195,15 @@ const DisplayScreen = () => {
           empty, so it never eats space or breaks the board. */}
       {sponsorTicker.enabled && sponsorTicker.position === 'top' && (
         <SponsorTicker items={sponsorTicker.sponsors} position="top" />
+      )}
+
+      {/* Board takeover: the full-screen sponsor wall, shown for a few
+          seconds on a timer, then gone. Fixed overlay so it covers the
+          whole board; the wall reads its own /api/sponsors. */}
+      {wallTakeover && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 45 }}>
+          <SponsorWall embedded />
+        </div>
       )}
 
       {/* --- Header (brand band) --- */}
