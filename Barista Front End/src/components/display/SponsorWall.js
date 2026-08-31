@@ -11,6 +11,11 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 're
 // `embedded` renders without the full-screen chrome, for the board takeover.
 export default function SponsorWall({ embedded = false, preview = null }) {
   const [fetched, setFetched] = useState({ sponsors: [], tiers: [], wall: { layout: 'scroll', background: 'tint' } });
+  // Whether the first sponsors fetch has resolved. Until it has, an empty
+  // list means "still loading", NOT "none configured" — so we show a gentle
+  // loading state instead of flashing "No sponsors added yet" (Steve).
+  // Preview mode (and a takeover handed live data) is ready immediately.
+  const [ready, setReady] = useState(!!preview);
   // Preview mode (the Sponsors panel) feeds unsaved state straight in.
   const data = preview || fetched;
   const [brand, setBrand] = useState({ event_name: '', logo: '', bgP: '', bgL: '' });
@@ -38,6 +43,7 @@ export default function SponsorWall({ embedded = false, preview = null }) {
           });
         }
       } catch (e) { /* keep last */ }
+      finally { if (!dead) setReady(true); }
     };
     load();
     const t = setInterval(load, 30000);
@@ -109,8 +115,19 @@ export default function SponsorWall({ embedded = false, preview = null }) {
 
       <div style={{ flex: '1 1 auto', minHeight: 0, position: 'relative', zIndex: 1 }}>
         {groups.length === 0 ? (
-          <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280', fontSize: 'clamp(14px,2vh,22px)' }}>
-            No sponsors added yet.
+          <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, color: '#6b7280', fontSize: 'clamp(14px,2vh,22px)' }}>
+            {(!preview && !ready) ? (
+              // Still loading the first payload — show the event mark, not an
+              // alarming "none" message (Steve: it flashed on takeover).
+              <>
+                {brand.logo
+                  ? <img src={brand.logo} alt="" style={{ height: '12vh', maxHeight: 140, objectFit: 'contain', opacity: 0.9 }} />
+                  : null}
+                <div style={{ opacity: 0.7 }}>Loading sponsors…</div>
+              </>
+            ) : (
+              'No sponsors added yet.'
+            )}
           </div>
         ) : layout === 'grid' ? (
           <WallGrid groups={groups} />

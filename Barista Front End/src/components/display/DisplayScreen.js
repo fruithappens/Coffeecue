@@ -431,6 +431,9 @@ const DisplayScreen = () => {
   // Sponsor wall takeover config (from the same /api/sponsors payload).
   const [sponsorWall, setSponsorWall] = useState({ takeover: false, everySec: 180, forSec: 20, hasSponsors: false });
   const [wallTakeover, setWallTakeover] = useState(false);
+  // Full wall payload, handed to the takeover so it renders instantly from
+  // data we already have — no second fetch, no "No sponsors yet" flash.
+  const [sponsorWallData, setSponsorWallData] = useState(null);
   // Background video (public /api/display/bg-video). Portrait + landscape;
   // the display plays the one matching its own orientation.
   const [bgVideo, setBgVideo] = useState({ portrait: '', landscape: '' });
@@ -619,6 +622,11 @@ const DisplayScreen = () => {
             everySec: Number(w.everySec) || 180,
             forSec: Number(w.forSec) || 20,
             hasSponsors: sponsors.some((s) => s && s.image),
+          });
+          setSponsorWallData({
+            sponsors,
+            tiers: Array.isArray(b.tiers) ? b.tiers : [],
+            wall: w,
           });
         }
       } catch (e) { /* keep last / stay empty */ }
@@ -1240,10 +1248,11 @@ const DisplayScreen = () => {
 
       {/* Board takeover: the full-screen sponsor wall, shown for a few
           seconds on a timer, then gone. Fixed overlay so it covers the
-          whole board; the wall reads its own /api/sponsors. */}
+          whole board. Handed the sponsor data we already polled, so it
+          renders instantly with no second fetch and no empty-state flash. */}
       {wallTakeover && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 45 }}>
-          <SponsorWall embedded />
+          <SponsorWall embedded preview={sponsorWallData} />
         </div>
       )}
 
@@ -1673,6 +1682,7 @@ const DisplayScreen = () => {
           <Column
             kind="ready"
             boardOpts={boardOpts}
+            portraitRows={1}
             hasBg={hasBg}
             theme={theme}
             fonts={fonts}
@@ -1705,6 +1715,7 @@ const DisplayScreen = () => {
           <Column
             kind="ready"
             boardOpts={boardOpts}
+            portraitRows={2}
             hasBg={hasBg}
             theme={theme}
             fonts={fonts}
@@ -1722,6 +1733,7 @@ const DisplayScreen = () => {
         <Column
           kind="brewing"
           boardOpts={boardOpts}
+          portraitRows={showCompleted ? 2 : 1}
           hasBg={hasBg}
           theme={theme}
           fonts={fonts}
@@ -1739,6 +1751,7 @@ const DisplayScreen = () => {
           <Column
             kind="ready"
             boardOpts={boardOpts}
+            portraitRows={2}
             hasBg={hasBg}
             theme={theme}
             fonts={fonts}
@@ -1954,7 +1967,7 @@ const DisplayScreen = () => {
 // --- Subcomponent: a column of orders ---
 const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
                   showCustomerName, showDetails, newReadyMap, hasBg,
-                  accent, ink, boardOpts = {} }) => {
+                  accent, ink, boardOpts = {}, portraitRows = 2 }) => {
   const isReady = kind === 'ready';
   // Auto page-flip: a wall display can't be scrolled. The first version
   // used a FIXED guess (6 per page in landscape), so 5 tall cards
@@ -1966,6 +1979,8 @@ const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
   const [measuredFit, setMeasuredFit] = useState(null);
   const [availableH, setAvailableH] = useState(null);
   const [cardH, setCardH] = useState(null);
+  // Real per-column cap over a background (null = no cap / measured grid).
+  const [panelMaxH, setPanelMaxH] = useState(null);
   useEffect(() => {
     const measure = () => {
       const el = bodyRef.current;
@@ -1973,26 +1988,67 @@ const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
       const card = el.querySelector('[data-kcard]');
       if (!card || !card.offsetHeight) return;
       const gap = 24; // grid gap-6
-      // Available height: with a background image the panel hugs content
-      // up to a viewport cap, so derive from the viewport (stable — the
-      // panel's own height shrinks with its content and would feed back).
-      // Without a background the grid row fixes the column height.
-      const headerAndPadding = 96;
-      const available = hasBg
-        ? window.innerHeight * (isPortrait ? 0.42 : 0.78) - headerAndPadding
-        : el.clientHeight - 8;
       const pagerReserve = 44; // dots + "x–y of z" row
+      let available;
+      let panelMax = null;
+      if (hasBg) {
+        // Over a background the panels hug their content, so we can't read
+        // a fixed column height off the DOM — it would feed back. Earlier
+        // this used a fixed 42vh (portrait) / 78vh (landscape) guess, but
+        // two 42vh columns plus the banner, the sponsor ticker and the
+        // footer add up to MORE than the screen, so a full column's last
+        // card was clipped — and a BIGGER ticker made it worse, because
+        // the guess never subtracted it.
+        //
+        // Take the real space <main> is given instead: it's flex-grow
+        // between the banner, ticker(s) and footer, so its height already
+        // reflects whatever the ticker's size is. Split that between the
+        // two stacked columns in portrait; one full-height column in
+        // landscape. Now the cards scale to what's genuinely left, and the
+        // ticker size takes care of itself.
+        const mainEl = el.closest('main');
+        const secHeader = el.previousElementSibling; // this column's title bar
+        const colHeaderH = secHeader ? secHeader.getBoundingClientRect().height : 64;
+        const mainH = mainEl ? mainEl.clientHeight : window.innerHeight * 0.8;
+        const mainPadV = 48; // pt-6 + pb-6 on <main>
+        const colGap = 32;   // md:gap-8 between the two portrait columns
+        const region = Math.max(160, mainH - mainPadV);
+        // Portrait stacks `portraitRows` columns (2 = Ready + Brewing, 1 =
+        // Brewing-only or pickup mode); landscape lays them side by side, so
+        // each gets the full region.
+        const perColumn = (isPortrait && portraitRows > 1)
+          ? (region - colGap) / portraitRows
+          : region;
+        panelMax = Math.max(120, Math.floor(perColumn - 4)); // tiny safety margin
+        available = panelMax - colHeaderH;
+      } else {
+        // Without a background the grid row fixes the column height.
+        available = el.clientHeight - 8;
+      }
       // NOTE: offsetHeight is a layout value — unaffected by the CSS
       // `zoom` we may apply below, so this can't feed back on itself.
       const n = Math.floor((available - pagerReserve + gap) / (card.offsetHeight + gap));
       setMeasuredFit(Math.max(1, n));
       setAvailableH(available);
       setCardH(card.offsetHeight);
+      setPanelMaxH(panelMax);
     };
     measure();
     window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-  }, [orders.length, isPortrait, hasBg]);
+    // Re-measure when the surrounding layout changes size (ticker size,
+    // orientation, footer wrap) — <main>'s height is our source of truth,
+    // and it changes without a window resize event.
+    let ro;
+    const mainEl = bodyRef.current && bodyRef.current.closest('main');
+    if (mainEl && typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(() => measure());
+      ro.observe(mainEl);
+    }
+    return () => {
+      window.removeEventListener('resize', measure);
+      if (ro) ro.disconnect();
+    };
+  }, [orders.length, isPortrait, hasBg, portraitRows]);
 
   // Operator board controls (barista Display tab). cardsPerPage 3..8
   // forces N per page and SCALES the cards down to fit; 0 = auto.
@@ -2095,8 +2151,14 @@ const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
                       border: '1px solid rgba(255,255,255,0.55)' }} />
     <section
       className={`rounded-3xl overflow-hidden flex flex-col ${theme.panel} shadow-xl h-full
-                        ${hasBg ? (isPortrait ? 'w-full max-h-[42vh]' : 'w-full max-h-[78vh]') : ''}`}
-      style={{ backfaceVisibility: 'hidden' }}>
+                        ${hasBg ? 'w-full' : ''}`}
+      style={{ backfaceVisibility: 'hidden',
+               // Cap each column to the real space it was measured to have,
+               // so a full column can't overflow past the footer. Falls back
+               // to the old vh cap until the first measure lands.
+               ...(hasBg
+                 ? { maxHeight: panelMaxH ? `${panelMaxH}px` : (isPortrait ? '42vh' : '78vh') }
+                 : {}) }}>
       {/* Title centred, count pinned right. Centring with justify-between
           is not possible with two children of different widths -- the
           title would sit wherever the count's width left it. Absolute
