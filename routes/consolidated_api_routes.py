@@ -10343,9 +10343,13 @@ def _norm_tiers(raw):
 
 def _norm_wall(raw):
     raw = raw if isinstance(raw, dict) else {}
+    bg = raw.get('background')
     return {
         'enabled': bool(raw.get('enabled')),
         'layout': 'grid' if raw.get('layout') == 'grid' else 'scroll',
+        # Backdrop: 'tint' (soft green wash, default), 'white' (clean, logos
+        # pop), or 'branded' (reuse the display's uploaded background image).
+        'background': bg if bg in ('tint', 'white', 'branded') else 'tint',
         'takeover': bool(raw.get('takeover')),
         'everySec': _clamp_num(raw.get('everySec'), 15, 3600, 180),
         'forSec': _clamp_num(raw.get('forSec'), 3, 600, 20),

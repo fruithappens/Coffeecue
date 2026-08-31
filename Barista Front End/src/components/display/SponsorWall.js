@@ -10,8 +10,16 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 //
 // `embedded` renders without the full-screen chrome, for the board takeover.
 export default function SponsorWall({ embedded = false }) {
-  const [data, setData] = useState({ sponsors: [], tiers: [], wall: { layout: 'scroll' } });
-  const [brand, setBrand] = useState({ event_name: '', logo: '' });
+  const [data, setData] = useState({ sponsors: [], tiers: [], wall: { layout: 'scroll', background: 'tint' } });
+  const [brand, setBrand] = useState({ event_name: '', logo: '', bgP: '', bgL: '' });
+  const [portrait, setPortrait] = useState(
+    typeof window !== 'undefined' ? window.innerHeight >= window.innerWidth : false,
+  );
+  useEffect(() => {
+    const onResize = () => setPortrait(window.innerHeight >= window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   useEffect(() => {
     let dead = false;
@@ -40,7 +48,10 @@ export default function SponsorWall({ embedded = false }) {
         const r = await fetch('/api/display/config', { cache: 'no-store' });
         const b = r.ok ? await r.json() : null;
         const c = b && (b.config || b);
-        if (!dead && c) setBrand({ event_name: c.event_name || '', logo: c.logo || '' });
+        if (!dead && c) setBrand({
+          event_name: c.event_name || '', logo: c.logo || '',
+          bgP: c.background_portrait || '', bgL: c.background_landscape || '',
+        });
       } catch (e) { /* header just omits branding */ }
     })();
     return () => { dead = true; };
@@ -62,14 +73,28 @@ export default function SponsorWall({ embedded = false }) {
 
   const layout = data.wall && data.wall.layout === 'grid' ? 'grid' : 'scroll';
 
+  // Backdrop: white (logos pop), branded (the display's uploaded background
+  // image — with a soft white scrim so headings + white cards still read),
+  // or the default soft-green tint.
+  const wallBg = (data.wall && data.wall.background) || 'tint';
+  const bgImg = portrait ? brand.bgP : brand.bgL;
+  const branded = wallBg === 'branded' && !!bgImg;
+  const bgStyle = wallBg === 'white'
+    ? { background: '#ffffff' }
+    : branded
+      ? { backgroundImage: `url("${bgImg}")`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundColor: '#0b3d2e' }
+      : { background: 'linear-gradient(160deg,#f4faf7 0%,#e9f5ee 100%)' };
+
   return (
     <div style={{
       position: embedded ? 'relative' : 'fixed', inset: 0, width: '100%', height: embedded ? '100%' : '100vh',
       display: 'flex', flexDirection: 'column', overflow: 'hidden',
-      background: 'linear-gradient(160deg,#f4faf7 0%,#e9f5ee 100%)', color: '#123',
-      fontFamily: 'ui-sans-serif,system-ui,sans-serif',
+      color: '#123', fontFamily: 'ui-sans-serif,system-ui,sans-serif',
+      ...bgStyle,
     }}>
-      <header style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 18, padding: '3vh 4vw 1.5vh' }}>
+      {/* Soft scrim over a branded photo so tier headings + white cards stay legible. */}
+      {branded && <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.45)', pointerEvents: 'none' }} />}
+      <header style={{ position: 'relative', zIndex: 1, flex: '0 0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 18, padding: '3vh 4vw 1.5vh' }}>
         {brand.logo ? <img src={brand.logo} alt="" style={{ height: '7vh', maxHeight: 84, objectFit: 'contain' }} /> : null}
         <div style={{ textAlign: 'center' }}>
           {brand.event_name ? <div style={{ fontSize: 'clamp(20px,3.2vh,40px)', fontWeight: 800, letterSpacing: '-0.01em' }}>{brand.event_name}</div> : null}
@@ -79,7 +104,7 @@ export default function SponsorWall({ embedded = false }) {
         </div>
       </header>
 
-      <div style={{ flex: '1 1 auto', minHeight: 0, position: 'relative' }}>
+      <div style={{ flex: '1 1 auto', minHeight: 0, position: 'relative', zIndex: 1 }}>
         {groups.length === 0 ? (
           <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280', fontSize: 'clamp(14px,2vh,22px)' }}>
             No sponsors added yet.
@@ -155,7 +180,8 @@ function LogoCard({ s, h, maxH }) {
   return (
     <div style={{
       background: '#fff', borderRadius: 16, padding: '1.4vh 2vw',
-      boxShadow: '0 2px 10px rgba(0,0,0,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      boxShadow: '0 2px 10px rgba(0,0,0,0.08)', border: '1px solid rgba(0,0,0,0.06)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
       height: `calc(${h} + 2.8vh)`,
     }}>
       <img src={s.image} alt={s.name || 'Sponsor'} style={{ height: h, maxHeight: maxH, maxWidth: '38vw', objectFit: 'contain', display: 'block' }} />
