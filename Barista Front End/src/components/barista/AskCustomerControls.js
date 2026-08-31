@@ -50,6 +50,24 @@ export default function AskCustomerControls({ order }) {
   const [message, setMessage] = useState('');
   const [optionsText, setOptionsText] = useState('');
   const [sending, setSending] = useState(false);
+  const [acked, setAcked] = useState(false);
+  const [acking, setAcking] = useState(false);
+
+  // Quick acknowledgement back to the customer (Steve: "a thumbs up, that's
+  // fine"). One-way SMS; doesn't disturb the reply on the card.
+  const ackCustomer = async (msg) => {
+    if (acking) return;
+    setAcking(true);
+    try {
+      await fetch(`/api/orders/${encodeURIComponent(order.id)}/ack`, {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ message: msg }),
+      });
+      setAcked(true);
+    } finally {
+      setAcking(false);
+    }
+  };
 
   const send = async () => {
     const msg = message.trim();
@@ -69,14 +87,28 @@ export default function AskCustomerControls({ order }) {
     }
   };
 
-  // The reply is the payoff — show it loud and clear when it lands.
+  // The reply is the payoff — show it loud and clear when it lands, with a
+  // one-tap acknowledgement so the customer knows it was received.
   if (reply && reply.text) {
     return (
       <div className="mt-2 rounded-lg border-2 border-green-500 bg-green-50 p-2">
         <div className="text-xs font-bold uppercase tracking-wide text-green-700">Customer replied</div>
         <div className="text-lg font-semibold text-green-900">“{reply.text}”</div>
-        <button onClick={() => setOpen(true)}
-          className="mt-1 text-sm text-green-700 underline">Ask something else</button>
+        {acked ? (
+          <div className="mt-2 text-sm font-semibold text-green-700">✓ Acknowledged</div>
+        ) : (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <button onClick={() => ackCustomer('Got it - making your coffee now.')} disabled={acking}
+              className="px-3 py-1.5 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 disabled:opacity-50">
+              👍 Got it
+            </button>
+            <button onClick={() => ackCustomer('No worries, all sorted - making it now.')} disabled={acking}
+              className="px-3 py-1.5 rounded-lg bg-green-100 text-green-800 text-sm font-semibold hover:bg-green-200 disabled:opacity-50">
+              All sorted
+            </button>
+            <button onClick={() => setOpen(true)} className="text-sm text-green-700 underline">Ask something else</button>
+          </div>
+        )}
         {open && <AskForm {...{ message, setMessage, optionsText, setOptionsText, sending, send, setOpen }} />}
       </div>
     );
