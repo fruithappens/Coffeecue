@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { UploadCloud, Trash2, ArrowUp, ArrowDown, Save, ExternalLink, Plus, Layers, GripVertical } from 'lucide-react';
+import { UploadCloud, Trash2, ArrowUp, ArrowDown, Save, ExternalLink, Plus, Layers, GripVertical, Columns } from 'lucide-react';
 import SponsorTicker from '../display/SponsorTicker';
 import SponsorWall from '../display/SponsorWall';
 
@@ -221,6 +221,11 @@ const SponsorsPanel = () => {
                   className="w-16 border border-gray-200 rounded px-2 py-1.5 text-sm text-right" />
                 <span className="text-xs text-gray-500">sec</span>
               </div>
+              <button type="button" onClick={() => patchTier(i, { compact: !t.compact })}
+                className={`p-1.5 rounded ${t.compact ? 'bg-amber-100 text-amber-700' : 'hover:bg-gray-100 text-gray-400'}`}
+                title="Side by side in the grid wall — good for small tiers (Coffee, Dinner)">
+                <Columns size={15} />
+              </button>
               <button type="button" onClick={() => moveTier(i, -1)} disabled={i === 0} className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30"><ArrowUp size={15} /></button>
               <button type="button" onClick={() => moveTier(i, 1)} disabled={i === tiers.length - 1} className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30"><ArrowDown size={15} /></button>
               <button type="button" onClick={() => removeTier(i)} className="p-1.5 rounded hover:bg-red-50 text-red-600"><Trash2 size={15} /></button>
