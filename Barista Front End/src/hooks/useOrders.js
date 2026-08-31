@@ -237,7 +237,37 @@ export default function useOrders(stationId = null) {
   const [queueCount, setQueueCount] = useState(0);
   const [lastUpdated, setLastUpdated] = useState(Date.now());
   const [isRefreshing, setIsRefreshing] = useState(false);
-  
+
+  // Self-heal the connection banner. `online` gets forced false on a single
+  // transient getOrders() throw, but recovery is buried in the batched
+  // getOrders update and is fragile -- so the red "Could not connect to
+  // backend service. Using sample data instead." banner could stay stuck up
+  // across every tab until a manual page reload, even though the server was
+  // answering fine (health returns status:"success"). A backend blip during a
+  // live event must not read as an outage. This poll flips `online` back true
+  // within a few seconds of the server actually responding, independently of
+  // the getOrders flow. It ONLY ever recovers (false -> true); the existing
+  // logic still owns turning it false, so nothing about the offline detection
+  // changes -- this just makes the "back online" edge reliable.
+  useEffect(() => {
+    if (online) return undefined;
+    let cancelled = false;
+    const tryHeal = async () => {
+      try {
+        const ok = await OrderDataService.checkConnection();
+        if (ok && !cancelled) {
+          setOnline(true);
+          // The shared ApiNotificationBanner watches this flag too; clear it so
+          // both banners drop together once we're genuinely reconnected.
+          try { localStorage.setItem('use_fallback_data', 'false'); } catch (e) { /* ignore */ }
+        }
+      } catch (e) { /* still down: try again on the next tick */ }
+    };
+    tryHeal();
+    const healTimer = setInterval(tryHeal, 5000);
+    return () => { cancelled = true; clearInterval(healTimer); };
+  }, [online]);
+
   // Auto-refresh settings.
   // Default ON: previously this was off unless someone had explicitly toggled
   // it, so a fresh barista screen never polled and new orders only appeared on
