@@ -5,9 +5,10 @@
 // pretending. Status, attendee-mirror sync, the last 10 webhook log rows,
 // and a rehearsal test-order button (no phone by default → zero SMS risk).
 import React, { useState, useEffect, useCallback } from 'react';
-import { CalendarClock, RefreshCw, Send } from 'lucide-react';
+import { CalendarClock, RefreshCw, Send, Copy } from 'lucide-react';
 import ApiServiceClass from '../../services/ApiService';
 import { showToast } from '../shared/Toast';
+import { fetchEventAccess } from '../../utils/eventGate';
 
 const api = new ApiServiceClass();
 
@@ -26,6 +27,57 @@ const Row = ({ label, children }) => (
     <span className="font-medium text-right">{children}</span>
   </div>
 );
+
+// Ready-to-paste embed for EventsAir. An EA page's HTML/Source-Code box
+// takes this iframe snippet to embed the coffee ordering page inside the
+// attendee app (Steve). The src uses THIS deployment's own origin, so it's
+// always the correct live URL — no hand-editing a hard-coded domain.
+const EmbedCard = () => {
+  const origin = (typeof window !== 'undefined' && window.location.origin) || 'https://cupq.app';
+  // If an event code is set, bake it into the src (?e=<code>) so the embedded
+  // page skips the code gate — an EA attendee already got into the app with a
+  // code, so asking again inside is pointless friction (Steve). Re-copy the
+  // snippet if you change the event code.
+  const [code, setCode] = useState('');
+  useEffect(() => { fetchEventAccess().then((a) => setCode(a.code || '')).catch(() => setCode('')); }, []);
+  const src = code ? `${origin}/my?e=${code}` : `${origin}/my`;
+  const embed = `<div style="position: relative; width: 100%; height: 100vh; min-height: 640px; margin: 0; padding: 0; overflow: hidden;"><iframe style="display: block; width: 100%; height: 100vh; min-height: 640px; border: none; margin: 0; padding: 0;" src="${src}" width="auto" height="auto" allowfullscreen="allowfullscreen"></iframe></div>`;
+  const copy = () => {
+    try {
+      navigator.clipboard.writeText(embed).then(
+        () => showToast('Embed code copied', 'success'),
+        () => showToast('Copy failed — select the text and copy manually', 'error'));
+    } catch (e) {
+      showToast('Copy failed — select the text and copy manually', 'error');
+    }
+  };
+  return (
+    <div className="bg-white rounded-lg shadow-md p-4">
+      <h3 className="text-lg font-bold mb-2">Embed code for EventsAir</h3>
+      <p className="text-sm text-gray-500 mb-3">
+        In EventsAir, add an HTML element and open its <strong>Source Code</strong> box,
+        then paste this to embed the coffee ordering page inside the attendee app.
+        {code
+          ? ' It includes the event code, so attendees already in the EA app aren’t asked for it again. Re-copy this if you change the event code.'
+          : ''}
+      </p>
+      <textarea
+        readOnly
+        value={embed}
+        rows={4}
+        onFocus={(e) => e.target.select()}
+        onClick={(e) => e.target.select()}
+        className="w-full border rounded px-2 py-1.5 text-xs font-mono bg-gray-50 resize-none"
+      />
+      <button
+        className="mt-2 inline-flex items-center gap-1.5 bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700"
+        onClick={copy}
+      >
+        <Copy size={14} /> Copy embed code
+      </button>
+    </div>
+  );
+};
 
 // Credentials card — writes to the EventsAir KV config (secrets are
 // write-only: the GET returns *_set booleans, never values). This is
@@ -332,6 +384,8 @@ const EventsAirTab = () => {
       </div>
 
       <CredentialsCard onChanged={refresh} />
+
+      <EmbedCard />
 
       <div className="bg-white rounded-lg shadow-md p-4">
         <h3 className="text-lg font-bold mb-2">Webhook log (last 10)</h3>
