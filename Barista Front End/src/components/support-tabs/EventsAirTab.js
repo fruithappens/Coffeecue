@@ -54,11 +54,10 @@ const EmbedCard = () => {
   return (
     <div className="bg-white rounded-lg shadow-md p-4">
       <h3 className="text-lg font-bold mb-2">Embed code for EventsAir</h3>
-      <p className="text-sm text-gray-500 mb-3">
-        In EventsAir, add an HTML element and open its <strong>Source Code</strong> box,
-        then paste this to embed the coffee ordering page inside the attendee app.
+      <p className="text-sm text-gray-500 mb-2">
+        Embed the coffee ordering page inside the EventsAir attendee app.
         {code
-          ? ' It includes the event code, so attendees already in the EA app aren’t asked for it again. Re-copy this if you change the event code.'
+          ? ' The event code is included, so attendees already in the EA app aren’t asked for it again — re-copy this if you ever change the event code.'
           : ''}
       </p>
       <textarea
@@ -75,6 +74,19 @@ const EmbedCard = () => {
       >
         <Copy size={14} /> Copy embed code
       </button>
+      <div className="mt-4 border-t pt-3">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+          Add it in EventsAir
+        </p>
+        <ol className="text-sm text-gray-600 list-decimal pl-5 space-y-1">
+          <li>Open your EventsAir <strong>attendee app / portal</strong> and add or edit a <strong>page</strong> (a Static Content / HTML page).</li>
+          <li>Insert an <strong>HTML</strong> element to open the HTML editor.</li>
+          <li>In the editor, go to <strong>Tools → Source Code</strong>.</li>
+          <li><strong>Paste</strong> the code above into the Source Code box, then click <strong>Update</strong>.</li>
+          <li><strong>Save</strong> the page.</li>
+          <li><strong>Test</strong> it in the app — the coffee ordering page should load straight in.</li>
+        </ol>
+      </div>
     </div>
   );
 };
