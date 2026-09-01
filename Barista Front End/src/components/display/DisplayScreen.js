@@ -1503,21 +1503,20 @@ const DisplayScreen = () => {
             the operator chrome is hidden, so the Ready header sits directly
             under the banner and the dip lands squarely on it. */}
         {orderQrUrl && isPortrait && (
-          <div className="absolute top-0 right-4 z-30 flex flex-col items-center"
-               // Anchored to the banner TOP, which sits right at the sponsor
-               // ticker line and stays there whether the operator chrome is
-               // showing or hidden in fullscreen. The panel grows DOWN from
-               // that line into the Ready header, so the QR is as large as
-               // the run from the ticker to the dip allows (Steve: "scaled
-               // up to the bottom of the ticker line to make the QR that bit
-               // larger"). The dip depth into the Ready bar is set by the
-               // panel height below.
+          // STACKED: anchored to the banner TOP, dips DOWN over the Ready
+          //   header (the Ready count moves left so nothing is covered).
+          // SIDE-BY-SIDE (columns): the right column is BREWING, so a
+          //   downward dip covers its title. Anchor to the banner BOTTOM
+          //   instead and grow UP over the sponsor ticker, leaving BREWING
+          //   fully visible (Steve: "qr goes straight up and over the ticker
+          //   so the word brewing can be seen").
+          <div className={`absolute right-4 z-30 flex flex-col items-center ${portraitColumns ? 'bottom-0' : 'top-0'}`}
                onClick={(e) => e.stopPropagation()}>
-            <div className="px-3 pt-2 pb-3 rounded-b-3xl"
+            <div className={`px-3 pt-2 pb-3 ${portraitColumns ? 'rounded-t-3xl' : 'rounded-b-3xl'}`}
                  style={{ backgroundColor: BANNER_BG,
                           borderLeft: `6px solid ${bannerEdge}`,
                           borderRight: `6px solid ${bannerEdge}`,
-                          borderBottom: `6px solid ${bannerEdge}`,
+                          [portraitColumns ? 'borderTop' : 'borderBottom']: `6px solid ${bannerEdge}`,
                           boxShadow: BANNER_SHADOW }}>
               <div className="bg-white rounded-xl p-2 shadow-lg">
                 <img
