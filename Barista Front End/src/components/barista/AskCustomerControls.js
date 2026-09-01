@@ -91,7 +91,7 @@ export default function AskCustomerControls({ order }) {
   // one-tap acknowledgement so the customer knows it was received.
   if (reply && reply.text) {
     return (
-      <div className="mt-2 rounded-lg border-2 border-green-500 bg-green-50 p-2">
+      <div className="mt-2 w-full rounded-lg border-2 border-green-500 bg-green-50 p-2">
         <div className="text-xs font-bold uppercase tracking-wide text-green-700">Customer replied</div>
         <div className="text-lg font-semibold text-green-900">“{reply.text}”</div>
         {acked ? (
@@ -116,7 +116,7 @@ export default function AskCustomerControls({ order }) {
 
   if (ask && ask.message && !open) {
     return (
-      <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-2 text-sm">
+      <div className="mt-2 w-full rounded-lg border border-amber-300 bg-amber-50 p-2 text-sm">
         <span className="text-amber-800">Waiting for a reply to: </span>
         <span className="font-semibold text-amber-900">“{ask.message}”</span>
         <button onClick={() => setOpen(true)} className="ml-2 text-amber-700 underline">Ask again</button>
@@ -124,17 +124,23 @@ export default function AskCustomerControls({ order }) {
     );
   }
 
-  return (
-    <div className="mt-2">
-      {!open ? (
-        <button onClick={() => setOpen(true)}
-          className="flex items-center gap-1.5 text-sm font-semibold text-gray-600 hover:text-amber-700">
-          <MessageSquare size={15} /> Ask customer (any phone or none)
-        </button>
-      ) : (
+  // Open: the question form takes a full-width line below the action row.
+  if (open) {
+    return (
+      <div className="w-full">
         <AskForm {...{ message, setMessage, optionsText, setOptionsText, sending, send, setOpen }} />
-      )}
-    </div>
+      </div>
+    );
+  }
+  // Collapsed: just an icon that sits in the action row beside Complete /
+  // Message / Print — no full-width "Ask customer" label eating a line, so
+  // more order cards fit on screen (Steve). Tooltip carries the meaning.
+  return (
+    <button onClick={() => setOpen(true)}
+      title="Ask this customer a question (works with any phone, or none)"
+      className="px-3 rounded-lg flex items-center justify-center bg-gray-200 hover:bg-gray-300 text-gray-700">
+      <MessageSquare size={18} />
+    </button>
   );
 }
 

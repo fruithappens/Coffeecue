@@ -1705,7 +1705,7 @@ const BaristaInterface = () => {
           const _done = orderStages(order);
           const allStagesDone = _stages.length > 0 && _stages.every(s => _done[s]);
           return (
-            <div className="mt-2 flex space-x-2">
+            <div className="mt-2 flex flex-wrap gap-2">
               <button
                 className={`flex-1 text-white py-2 rounded-lg font-bold ${
                   allStagesDone
@@ -1738,14 +1738,15 @@ const BaristaInterface = () => {
                   <Printer size={18} />
                 </button>
               )}
+              {/* Ask THIS customer (out-of-oat etc.) -- an icon in the action
+                  row (works with any phone or none). Collapsed it's just an
+                  icon so the card stays compact; it expands to a full-width
+                  panel that wraps below (Steve: drop the wording, keep the
+                  icon, fit more orders). */}
+              <AskCustomerControls order={order} />
             </div>
           );
         })()}
-
-        {/* Ask THIS customer (out-of-oat etc.) -- works with or without
-            a phone number, unlike the SMS button above. Self-contained
-            component; adds no hooks here. */}
-        <AskCustomerControls order={order} />
 
         {/* Time-into-order bar. Fills as the order ages against a 5-minute
             make target (or promisedTime when the API sends one). It used
