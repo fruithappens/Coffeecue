@@ -130,7 +130,7 @@ const CredentialsCard = ({ onChanged }) => {
 
   const testConnection = async () => {
     setBusy(true);
-    const r = await api.request('/integrations/eventsair/status')
+    const r = await api.request('/integrations/eventsair/status?probe=1')
       .catch(e => ({ success: false, error: e?.message }));
     setBusy(false);
     const h = r?.health || {};
