@@ -222,6 +222,31 @@ const QuickSetup = () => {
 
   const [applying, setApplying] = useState(false);
   const [result, setResult] = useState(null);
+  const [savingVip, setSavingVip] = useState(false);
+
+  // Save ONLY the VIP code — no rebuild, no diff, nothing else touched.
+  // The full Apply below is destructive (it rebuilds inventory); making a
+  // one-field change go through that was alarming and dangerous mid-event
+  // (Steve). This writes settings.vip_code on its own.
+  const saveVipCodeOnly = async () => {
+    setSavingVip(true);
+    const code = (config.vip_code || '').trim();
+    try {
+      await api.request('/settings/vip-code', {
+        method: 'PUT', body: JSON.stringify({ vip_code: code }),
+      });
+      window.dispatchEvent(new CustomEvent('app:toast', { detail: {
+        message: code ? `VIP code saved as "${code}" — nothing else changed.`
+                      : 'VIP code cleared — nothing else changed.',
+        type: 'success', duration: 5000 } }));
+    } catch (e) {
+      window.dispatchEvent(new CustomEvent('app:toast', { detail: {
+        message: 'Could not save the VIP code — check the connection and try again.',
+        type: 'error', duration: 6000 } }));
+    } finally {
+      setSavingVip(false);
+    }
+  };
   // Drift-preview modal state. opened by the Apply button; the real
   // apply is gated behind the operator confirming the diff.
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -1311,16 +1336,28 @@ const QuickSetup = () => {
             <span className="block text-gray-600 mb-1">
               VIP code (SMS customers texting this become VIP)
             </span>
-            <input
-              type="text"
-              value={config.vip_code || ''}
-              onChange={(e) => setConfig(c => ({ ...c, vip_code: e.target.value }))}
-              placeholder="VIP"
-              className="w-48 px-2 py-1 border border-gray-300 rounded font-mono"
-              maxLength={20}
-            />
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={config.vip_code || ''}
+                onChange={(e) => setConfig(c => ({ ...c, vip_code: e.target.value }))}
+                placeholder="VIP"
+                className="w-48 px-2 py-1 border border-gray-300 rounded font-mono"
+                maxLength={20}
+              />
+              <button
+                type="button"
+                onClick={saveVipCodeOnly}
+                disabled={savingVip}
+                className="px-3 py-1 rounded bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
+              >
+                {savingVip ? 'Saving…' : 'Save VIP code'}
+              </button>
+            </div>
             <span className="block text-xs text-gray-500 mt-1">
-              Leave blank to keep whatever code is currently saved.
+              <strong>Save VIP code</strong> changes ONLY the VIP code — safe to use
+              mid-event, it doesn't touch inventory, stations or anything else.
+              (The big Apply at the bottom rebuilds the whole event.)
             </span>
           </label>
         </div>
