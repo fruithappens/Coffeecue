@@ -18,6 +18,25 @@ import {
   UserX
 } from 'lucide-react';
 import ApiServiceClass from '../../services/ApiService';
+import { showToast } from '../shared/Toast';
+
+// Turn a raw API/DB error into something an operator can act on. The most
+// common one here is a duplicate email/username — the DB throws a unique-
+// constraint violation that used to be swallowed to the console, so a save
+// just silently did nothing (Steve).
+const friendlyUserError = (error, fallback) => {
+  const raw = String((error && (error.message || error.error)) || '').toLowerCase();
+  if (raw.includes('users_email_key') || (raw.includes('email') && (raw.includes('duplicate') || raw.includes('already exists') || raw.includes('unique')))) {
+    return 'That email is already used by another account. Use a different email, or leave it blank.';
+  }
+  if (raw.includes('users_username_key') || (raw.includes('username') && (raw.includes('duplicate') || raw.includes('already exists') || raw.includes('unique')))) {
+    return 'That username is already taken. Pick a different username.';
+  }
+  if (raw.includes('401') || raw.includes('unauthor') || raw.includes('token')) {
+    return 'Your session expired — please log out and back in, then try again.';
+  }
+  return (error && error.message) ? `${fallback}: ${error.message}` : fallback;
+};
 
 // Create an instance of ApiService
 const ApiService = new ApiServiceClass();
@@ -82,8 +101,10 @@ const UsersAccessTab = () => {
       await loadUsers();
       setShowAddUser(false);
       setNewUser({ username: '', email: '', role: 'barista', password: '' });
+      showToast('User added', 'success');
     } catch (error) {
       console.error('Error adding user:', error);
+      showToast(friendlyUserError(error, 'Could not add that user'), 'error', 7000);
     } finally {
       setLoading(false);
     }
@@ -95,8 +116,10 @@ const UsersAccessTab = () => {
       await ApiService.put(`/users/${userId}`, updates);
       await loadUsers();
       setEditingUser(null);
+      showToast('User updated', 'success');
     } catch (error) {
       console.error('Error updating user:', error);
+      showToast(friendlyUserError(error, 'Could not save that change'), 'error', 7000);
     } finally {
       setLoading(false);
     }
@@ -104,13 +127,15 @@ const UsersAccessTab = () => {
 
   const handleDeleteUser = async (userId) => {
     if (!window.confirm('Are you sure you want to delete this user?')) return;
-    
+
     setLoading(true);
     try {
       await ApiService.delete(`/users/${userId}`);
       await loadUsers();
+      showToast('User deleted', 'success');
     } catch (error) {
       console.error('Error deleting user:', error);
+      showToast(friendlyUserError(error, 'Could not delete that user'), 'error', 7000);
     } finally {
       setLoading(false);
     }
@@ -118,13 +143,14 @@ const UsersAccessTab = () => {
 
   const handleResetPassword = async (userId) => {
     if (!window.confirm('Reset password for this user?')) return;
-    
+
     setLoading(true);
     try {
       const response = await ApiService.post(`/users/${userId}/reset-password`);
       alert(`New password: ${response.data.newPassword}`);
     } catch (error) {
       console.error('Error resetting password:', error);
+      showToast(friendlyUserError(error, 'Could not reset the password'), 'error', 7000);
     } finally {
       setLoading(false);
     }
