@@ -8,7 +8,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { CalendarClock, RefreshCw, Send, Copy } from 'lucide-react';
 import ApiServiceClass from '../../services/ApiService';
 import { showToast } from '../shared/Toast';
-import { fetchEventAccess } from '../../utils/eventGate';
+import { fetchEventAccess, normalizeCode } from '../../utils/eventGate';
 
 const api = new ApiServiceClass();
 
@@ -27,6 +27,76 @@ const Row = ({ label, children }) => (
     <span className="font-medium text-right">{children}</span>
   </div>
 );
+
+// The CupQ event code — the one code that unlocks ordering. Set it to the
+// SAME code attendees use for the EA app so it's consistent everywhere
+// (cupq.app/<code>, the embed, and the EA app). CupQ can't read EA's app
+// code (it isn't in EA's API), so it's entered here. Writes event_access KV.
+const EventAccessCard = () => {
+  const origin = (typeof window !== 'undefined' && window.location.origin) || 'https://cupq.app';
+  const [code, setCode] = useState('');
+  const [requireCode, setRequireCode] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    fetchEventAccess().then((a) => {
+      setCode(a.code || ''); setRequireCode(!!a.require); setLoaded(true);
+    }).catch(() => setLoaded(true));
+  }, []);
+  const clean = normalizeCode(code);
+  const save = async () => {
+    setSaving(true);
+    try {
+      await api.request('/event-access',
+        { method: 'PUT', body: JSON.stringify({ code, require: requireCode }) });
+      showToast('Event code saved', 'success');
+    } catch (e) {
+      showToast('Save failed', 'error');
+    } finally { setSaving(false); }
+  };
+  return (
+    <div className="bg-white rounded-lg shadow-md p-4">
+      <h3 className="text-lg font-bold mb-2">Event access code</h3>
+      <p className="text-sm text-gray-500 mb-3">
+        The one code that unlocks ordering. Use the <strong>same code attendees use for
+        the EA app</strong> so it's consistent everywhere. (CupQ can't read the EA app's
+        code automatically, so set it here.)
+      </p>
+      <label className="block text-sm mb-1">
+        <span className="text-gray-600">Event code</span>
+        <input
+          className="mt-1 w-full border rounded px-2 py-1.5"
+          value={code}
+          placeholder="e.g. treenet26"
+          autoCapitalize="none" autoCorrect="off" spellCheck={false}
+          onChange={(e) => setCode(e.target.value)}
+        />
+      </label>
+      {clean && (
+        <p className="text-sm text-gray-600 mb-2">
+          Shareable link: <code className="bg-gray-100 px-1 py-0.5 rounded">{origin}/{clean}</code>
+          <span className="text-gray-400"> — also the code typed on <code>{origin}/my</code></span>
+        </p>
+      )}
+      <label className="flex items-start gap-2 text-sm mb-3">
+        <input type="checkbox" className="mt-0.5" checked={requireCode}
+               onChange={(e) => setRequireCode(e.target.checked)} />
+        <span>
+          <strong>Require this code to order.</strong> Turn ON for the event (direct
+          visitors are asked for it; QR/app users skip it). OFF = anyone can order —
+          leave OFF during setup/testing.
+        </span>
+      </label>
+      <button
+        className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700 disabled:opacity-40"
+        disabled={saving || !loaded}
+        onClick={save}
+      >
+        {saving ? 'Saving…' : 'Save'}
+      </button>
+    </div>
+  );
+};
 
 // Ready-to-paste embed for EventsAir. An EA page's HTML/Source-Code box
 // takes this iframe snippet to embed the coffee ordering page inside the
@@ -415,6 +485,8 @@ const EventsAirTab = () => {
       </div>
 
       <CredentialsCard onChanged={refresh} />
+
+      <EventAccessCard />
 
       <EmbedCard />
 
