@@ -11820,6 +11820,52 @@ def get_today_report():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@bp.route('/settings/vip-code', methods=['GET', 'PUT'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def vip_code_setting():
+    """Read/write ONLY the VIP code (settings.vip_code), no side effects.
+
+    Quick Setup can also set it, but that path rebuilds the whole event —
+    a destructive, alarming flow for a one-field change (Steve: 'all I was
+    trying to do was add a VIP code and this looks scary and dangerous').
+    This is the safe, standalone editor: it touches nothing but this key.
+    """
+    coffee_system = current_app.config.get('coffee_system')
+    db = coffee_system.db
+    try:
+        db.rollback()
+    except Exception:
+        pass
+    if request.method == 'PUT':
+        body = request.get_json(silent=True) or {}
+        code = str(body.get('vip_code') or body.get('code') or '').strip()[:64]
+        try:
+            cur = db.cursor()
+            if code:
+                cur.execute(
+                    "INSERT INTO settings(key, value) VALUES('vip_code', %s) "
+                    "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (code,))
+            else:
+                cur.execute("DELETE FROM settings WHERE key = 'vip_code'")
+            db.commit()
+            return jsonify({'success': True, 'vip_code': code})
+        except Exception as e:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            return jsonify({'success': False, 'message': str(e)}), 500
+    try:
+        cur = db.cursor()
+        cur.execute("SELECT value FROM settings WHERE key = 'vip_code'")
+        r = cur.fetchone()
+        val = (r[0] if not isinstance(r, dict) else r.get('value')) if r else ''
+        return jsonify({'success': True, 'vip_code': val or ''})
+    except Exception:
+        return jsonify({'success': True, 'vip_code': ''})
+
+
 @bp.route('/event-access/verify', methods=['POST'])
 def event_access_verify():
     """Check an entered event password WITHOUT placing an order, so the
