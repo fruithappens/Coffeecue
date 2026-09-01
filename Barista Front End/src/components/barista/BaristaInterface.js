@@ -4310,11 +4310,15 @@ const BaristaInterface = () => {
                     <option value="auto">Auto — match screen shape</option>
                     <option value="landscape">Landscape (16:9) — 3 columns side-by-side</option>
                     <option value="portrait">Portrait (9:16) — stacked, Ready on top</option>
+                    <option value="portrait-columns">Portrait (9:16) — side by side (Ready | Brewing)</option>
                   </select>
                   <p className="text-xs text-gray-500 mt-1">
-                    Decides whether the customer Display shows three columns side-by-side
-                    (wide screen / horizontal iPad) or a single tall stacked layout (tall
-                    screen / vertical iPad). "Auto" picks based on the screen's aspect ratio.
+                    How the customer Display arranges the board. <strong>Landscape</strong> =
+                    columns across a wide screen. <strong>Portrait — stacked</strong> = Ready
+                    above Brewing on a tall screen. <strong>Portrait — side by side</strong> =
+                    Ready and Brewing as two columns across the top of a tall screen, freeing
+                    the lower half for the background image/video (great on a big vertical LCD).
+                    "Auto" picks stacked or landscape from the screen's shape.
                   </p>
                 </div>
 

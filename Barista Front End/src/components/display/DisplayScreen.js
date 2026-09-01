@@ -76,6 +76,9 @@ export const DISPLAY_POLL_MS = 5000;
 
 const resolveOrientation = (setting) => {
   const explicit = (setting || '').toLowerCase();
+  // 'portrait-columns' is portrait with the side-by-side sub-layout (see
+  // portraitColumns below); orientation-wise it's just portrait.
+  if (explicit === 'portrait-columns') return 'portrait';
   if (explicit === 'portrait' || explicit === 'landscape') return explicit;
   if (typeof window === 'undefined') return 'landscape';
   return window.innerHeight > window.innerWidth ? 'portrait' : 'landscape';
@@ -1087,7 +1090,8 @@ const DisplayScreen = () => {
   const portraitColumns = isPortrait && (
     colsParam === '1' ? true
       : colsParam === '0' ? false
-      : config.display_portrait_layout === 'columns'
+      : (config.display_mode === 'portrait-columns'
+         || config.display_portrait_layout === 'columns')
   );
 
   // Container styles. Zoom is applied with transform so we don't
