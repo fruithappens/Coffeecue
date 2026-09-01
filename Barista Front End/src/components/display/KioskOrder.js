@@ -642,7 +642,10 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
 
   const collectingHere = myStation != null && chosenStation === myStation;
   const phoneDigits = phone.replace(/\D/g, '');
-  const phoneValid = phoneDigits.length >= 8;
+  // A full number, not a partial one. AU mobiles are 10 digits (04xx xxx xxx);
+  // an international number typed with its country code is 10+. The old >=8
+  // let a half-typed number through and enabled Continue too early (Steve).
+  const phoneValid = phoneDigits.length >= 10;
 
   const placeOrder = async () => {
     setSubmitting(true);
@@ -1199,7 +1202,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
             </p>
             <input
               autoFocus value={phone} onChange={(e) => setPhone(e.target.value)}
-              inputMode="tel" placeholder="0408 263 333"
+              inputMode="tel" placeholder="04XX XXX XXX"
               className="w-full text-3xl font-bold p-5 rounded-2xl border-4 border-gray-200 focus:outline-none"
               style={{ borderColor: phoneValid ? headerColor : undefined }}
             />

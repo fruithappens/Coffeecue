@@ -1093,7 +1093,7 @@ const MyCoffeePage = () => {
           <input
             className="w-full border-2 rounded-xl px-4 py-4 text-2xl text-center"
             inputMode={mode === 'phone' ? 'tel' : 'numeric'}
-            placeholder={mode === 'phone' ? '0412 345 678' : 'e.g. 56'}
+            placeholder={mode === 'phone' ? '04XX XXX XXX' : 'e.g. 56'}
             value={entry}
             onChange={(e) => setEntry(e.target.value.trim())}
             onKeyDown={(e) => {
