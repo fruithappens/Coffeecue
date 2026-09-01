@@ -2956,6 +2956,60 @@ def _notify_customer_order_ready(phone, order_number, order_details, station_id)
         if not isinstance(order_details, dict):
             order_details = {}
 
+        # GROUP-AWARE READY. A round ordered together shares a group_id. Tell
+        # the customer to collect only when EVERY drink is done -- otherwise
+        # they get a "come collect" per drink and walk up to a half-made round
+        # (Steve). Non-final drinks stay silent; the LAST one sends ONE message
+        # for the whole group. Solo orders (no group_id) are unaffected.
+        _group_final = None
+        _group_id = order_details.get('group_id')
+        if _group_id:
+            try:
+                _dbg = current_app.config.get('coffee_system').db
+                _gc = _dbg.cursor()
+                _gc.execute(
+                    "SELECT COUNT(*) AS total, "
+                    "COUNT(*) FILTER (WHERE status NOT IN "
+                    "('completed','picked_up','cancelled')) AS remaining "
+                    "FROM orders WHERE "
+                    "COALESCE(order_details::jsonb, '{}'::jsonb)->>'group_id' = %s",
+                    (str(_group_id),))
+                _row = _gc.fetchone()
+                _total, _remaining = 0, 0
+                if _row:
+                    if isinstance(_row, dict):
+                        _total = _row.get('total') or 0
+                        _remaining = _row.get('remaining') or 0
+                    else:
+                        _total, _remaining = (_row[0] or 0), (_row[1] or 0)
+                if _remaining > 0:
+                    logger.info(f"Order {order_number}: group {_group_id} ready-SMS held "
+                                f"({_remaining} of {_total} still being made)")
+                    return
+                # Last drink done. Guard on a flag on the lead order so a rare
+                # simultaneous completion can't fire the group text twice.
+                _gc.execute("SELECT order_details FROM orders WHERE order_number = %s",
+                            (str(_group_id),))
+                _lr = _gc.fetchone()
+                _lraw = (_lr[0] if not isinstance(_lr, dict) else _lr.get('order_details')) if _lr else None
+                _lod = json.loads(_lraw) if isinstance(_lraw, str) else (_lraw or {})
+                if not isinstance(_lod, dict):
+                    _lod = {}
+                if _lod.get('_group_ready_sent'):
+                    return
+                _lod['_group_ready_sent'] = True
+                _gc.execute("UPDATE orders SET order_details = %s WHERE order_number = %s",
+                            (json.dumps(_lod), str(_group_id)))
+                _dbg.commit()
+                _group_final = (str(_group_id), _total)
+            except Exception as _grp_err:
+                logger.warning(f"group-ready check failed, sending single: {_grp_err}")
+                try:
+                    current_app.config.get('coffee_system').db.rollback()
+                except Exception:
+                    pass
+                _group_final = None
+
         # HOLD -- checked before anything else, because holding is a
         # decision about WHEN to tell the customer, not about how to send.
         # Putting it after the bench wall meant a bench order was never
@@ -2993,7 +3047,12 @@ def _notify_customer_order_ready(phone, order_number, order_details, station_id)
             except Exception:
                 pass
 
-        body = _render_ready_message(order_number, order_details, station_id)
+        if _group_final:
+            body = _render_group_ready_message(
+                order_details.get('name'), _group_final[1], station_id,
+                order_details, _group_final[0])
+        else:
+            body = _render_ready_message(order_number, order_details, station_id)
 
         # BENCH WALL: the Test Bench's simulator phones all share the
         # +6140000 prefix (never a real customer). A bench-created order
@@ -3097,6 +3156,31 @@ def _render_ready_message(order_number, order_details, station_id):
         'order_number': order_number,
         'station': station_label,
     }, default_body)
+    return f"{body}{sponsor}"
+
+
+def _render_group_ready_message(name, count, station_id, order_details, group_number):
+    """One 'your whole round is ready' SMS for a group order — sent only once
+    every drink in it is done (see _notify_customer_order_ready). Plain ASCII
+    (no emoji: UCS-2 doubles the per-segment cost)."""
+    name = name or 'there'
+    station_label = (str((order_details or {}).get('collection_note') or '').strip()
+                     or (f"Station {station_id}" if station_id else "the counter"))
+    sponsor = ''
+    try:
+        cs = current_app.config.get('coffee_system')
+        if cs and getattr(cs, 'db', None):
+            sponsor = _sms_sponsor_tag(cs.db)
+    except Exception:
+        sponsor = ''
+    try:
+        n = int(count or 0)
+    except Exception:
+        n = 0
+    drinks = f"{n} coffees" if n and n != 1 else "coffee"
+    verb = 'are' if n != 1 else 'is'
+    body = (f"Hi {name}, your {drinks} (order #{group_number}) "
+            f"{verb} ready at {station_label}. Enjoy!")
     return f"{body}{sponsor}"
 
 
