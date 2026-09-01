@@ -14465,14 +14465,20 @@ def put_eventsair_config():
 @role_required_with_demo(['admin', 'staff'])
 def eventsair_status():
     """Health: configured? token reachable? Used by the Organiser
-    Connect-EventsAir panel and /api/health/full."""
+    Connect-EventsAir panel and /api/health/full.
+
+    ?probe=1 does a REAL token fetch (round-trips Microsoft Entra) so the
+    'Test connection' button can report token_ok. Off by default: a plain
+    status check must never block on a third party (a hung /status took prod
+    down for 19 min on 2026-08-20), so the round trip is opt-in only."""
     try:
         coffee_system = current_app.config.get('coffee_system')
         db = coffee_system.db
         from services.eventsair import get_client, is_enabled
         client = get_client(db)
+        probe = str(request.args.get('probe', '')).lower() in ('1', 'true', 'yes')
         return jsonify({'success': True, 'enabled': is_enabled(db),
-                        'health': client.health()})
+                        'health': client.health(probe=probe)})
     except Exception as e:
         logger.error(f"eventsair_status error: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
