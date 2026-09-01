@@ -972,6 +972,17 @@ def ea_sync_attendees():
     ea_event_id = row.get('ea_event_id') or client.event_id
     if not ea_event_id:
         return jsonify({'success': False, 'message': 'no ea_event_id configured'}), 400
+    # ?replace=1 → after a SUCCESSFUL full pull, drop any mirror rows that
+    # weren't refreshed this run (their synced_at stays older than run_start).
+    # That's how a switch to a new event evicts the previous event's
+    # attendees (e.g. the Simpsons test data) so the mirror holds ONLY the
+    # current event — the mirror is CupQ-local, nothing is written to EA.
+    replace = str(request.args.get('replace', '')).lower() in ('1', 'true', 'yes')
+    run_start = None
+    if replace:
+        _c = db.cursor()
+        _c.execute("SELECT CURRENT_TIMESTAMP")
+        run_start = (_c.fetchone() or [None])[0]
     total, skip = 0, 0
     while True:
         ok, data = client.fetch_contacts_page(ea_event_id, skip=skip, take=200)
@@ -986,6 +997,14 @@ def ea_sync_attendees():
         if len(page) < 200:
             break
         skip += 200
+    # Replace-mode purge: only after every page succeeded AND we actually
+    # synced something (never wipe the mirror on an empty pull).
+    purged = 0
+    if replace and run_start is not None and total > 0:
+        cur_p = db.cursor()
+        cur_p.execute("DELETE FROM ea_attendees WHERE synced_at < %s", (run_start,))
+        purged = cur_p.rowcount or 0
+        db.commit()
     # Counts that decide whether preference-led ordering is viable: an
     # attendee with no mobile cannot be texted, and one with no preference
     # still has to be asked.
@@ -995,7 +1014,7 @@ def ea_sync_attendees():
     cur.execute("SELECT COUNT(*) FROM ea_attendees "
                 "WHERE coffee_pref IS NOT NULL AND coffee_pref <> ''")
     with_pref = (cur.fetchone() or [0])[0]
-    return jsonify({'success': True, 'synced': total,
+    return jsonify({'success': True, 'synced': total, 'purged': purged,
                     'with_mobile': with_mobile, 'with_coffee_pref': with_pref})
 
 
