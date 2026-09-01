@@ -296,6 +296,10 @@ const DisplayScreen = () => {
     display_flip_seconds: 10,
     display_cards_per_page: 0,
     display_overflow_mode: 'flip',
+    // Portrait board layout: 'stacked' (Ready above Brewing, default) or
+    // 'columns' (Ready | Brewing side by side across the top, freeing the
+    // lower screen for the background art). ?cols=1/0 overrides per-screen.
+    display_portrait_layout: 'stacked',
     // Is this screen a TOUCHSCREEN? On: tap-to-order kiosk button.
     // Off (wall TV nobody can reach): SMS ordering is the primary CTA.
     display_touch_ordering: true,
@@ -1076,6 +1080,15 @@ const DisplayScreen = () => {
   );
 
   const isPortrait = orientation === 'portrait';
+  // Portrait side-by-side: Ready | Brewing as two columns across the top
+  // (uses the width, frees the lower screen for the art) instead of stacked.
+  // ?cols=1 / ?cols=0 overrides the saved display_portrait_layout per screen.
+  const colsParam = searchParams.get('cols');
+  const portraitColumns = isPortrait && (
+    colsParam === '1' ? true
+      : colsParam === '0' ? false
+      : config.display_portrait_layout === 'columns'
+  );
 
   // Container styles. Zoom is applied with transform so we don't
   // re-render the layout — useful when an iPad is mirrored to a
@@ -1753,8 +1766,8 @@ const DisplayScreen = () => {
         // (Steve: "not sitting over the top of the tick for the ready for
         // pickup or the zero"). Widening only the landscape two-column
         // gap gives it clear air without costing card width anywhere else.
-        ? `flex-grow flex ${qrGap} px-6 md:px-10 pt-6 pb-6 ${isPortrait ? 'flex-col justify-start' : 'flex-row items-start'}`
-        : `flex-grow grid ${qrGap} px-6 md:px-10 pb-6 ${isPortrait
+        ? `flex-grow flex ${qrGap} px-6 md:px-10 pt-6 pb-6 ${(isPortrait && !portraitColumns) ? 'flex-col justify-start' : 'flex-row items-start'}`
+        : `flex-grow grid ${qrGap} px-6 md:px-10 pb-6 ${(isPortrait && !portraitColumns)
             ? 'grid-cols-1 grid-rows-2'
             : (showCompleted ? 'grid-cols-2' : 'grid-cols-1')}`}>
 
@@ -1765,7 +1778,8 @@ const DisplayScreen = () => {
           <Column
             kind="ready"
             boardOpts={boardOpts}
-            portraitRows={2}
+            portraitRows={portraitColumns ? 1 : 2}
+            sideBySide={portraitColumns}
             hasBg={hasBg}
             theme={theme}
             fonts={fonts}
@@ -1783,7 +1797,8 @@ const DisplayScreen = () => {
         <Column
           kind="brewing"
           boardOpts={boardOpts}
-          portraitRows={showCompleted ? 2 : 1}
+          portraitRows={portraitColumns ? 1 : (showCompleted ? 2 : 1)}
+          sideBySide={portraitColumns}
           hasBg={hasBg}
           theme={theme}
           fonts={fonts}
@@ -2018,7 +2033,7 @@ const DisplayScreen = () => {
 // --- Subcomponent: a column of orders ---
 const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
                   showCustomerName, showDetails, newReadyMap, hasBg,
-                  accent, ink, boardOpts = {}, portraitRows = 2 }) => {
+                  accent, ink, boardOpts = {}, portraitRows = 2, sideBySide = false }) => {
   const isReady = kind === 'ready';
   // Auto page-flip: a wall display can't be scrolled. The first version
   // used a FIXED guess (6 per page in landscape), so 5 tall cards
@@ -2182,7 +2197,7 @@ const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
        presence mid-turn while the background branding still shows
        through it (Steve: total disappearance was "a bit jarring"). */
     <div key={spinTick}
-         className={hasBg ? (isPortrait ? 'w-full' : 'flex-1 min-w-0') : 'h-full'}
+         className={hasBg ? ((isPortrait && !sideBySide) ? 'w-full' : 'flex-1 min-w-0') : 'h-full'}
          style={{ perspective: '1600px' }}>
       <style>{`@keyframes displayPanelSpin {
         0%   { transform: rotateY(0deg); }
@@ -2208,7 +2223,7 @@ const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
                // so a full column can't overflow past the footer. Falls back
                // to the old vh cap until the first measure lands.
                ...(hasBg
-                 ? { maxHeight: panelMaxH ? `${panelMaxH}px` : (isPortrait ? '42vh' : '78vh') }
+                 ? { maxHeight: panelMaxH ? `${panelMaxH}px` : ((isPortrait && !sideBySide) ? '42vh' : '78vh') }
                  : {}) }}>
       {/* Title centred, count pinned right. Centring with justify-between
           is not possible with two children of different widths -- the
