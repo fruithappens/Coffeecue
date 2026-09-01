@@ -56,11 +56,15 @@ const THEMES = {
 // across a room is usually looking for their NAME, not a number they
 // may not have memorised. It now sits beside the number, large enough
 // to find at the same distance.
+// Number sizes stepped DOWN one notch (Steve): on a 55-65" portrait LCD the
+// order number is enormous anyway, and the smaller number + tighter card
+// padding lets 6+ orders fit in a column without feeling cramped. Name/body/
+// label unchanged, so the number stays the anchor without dominating.
 const FONT_SCALE = {
-  small:        { num: 'text-6xl',  name: 'text-3xl', body: 'text-lg',  label: 'text-sm' },
-  medium:       { num: 'text-7xl',  name: 'text-4xl', body: 'text-xl',  label: 'text-base' },
-  large:        { num: 'text-8xl',  name: 'text-5xl', body: 'text-2xl', label: 'text-lg' },
-  'extra-large':{ num: 'text-9xl',  name: 'text-6xl', body: 'text-3xl', label: 'text-xl' },
+  small:        { num: 'text-5xl',  name: 'text-3xl', body: 'text-lg',  label: 'text-sm' },
+  medium:       { num: 'text-6xl',  name: 'text-4xl', body: 'text-xl',  label: 'text-base' },
+  large:        { num: 'text-7xl',  name: 'text-5xl', body: 'text-2xl', label: 'text-lg' },
+  'extra-large':{ num: 'text-8xl',  name: 'text-6xl', body: 'text-3xl', label: 'text-xl' },
 };
 
 // Pick the layout for the current viewport + setting combination.
@@ -134,7 +138,7 @@ const OrderCard = ({ order, variant, fonts, theme, showCustomerName, showDetails
 
   return (
     <div className={`relative rounded-2xl ${theme.panel} ${ringClass} shadow-lg
-                     p-6 md:p-8 transition-all duration-500
+                     px-6 py-3 md:px-8 md:py-4 transition-all duration-500
                      ${isNew && variant === 'ready' ? 'animate-pulse-once' : ''}`}>
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
@@ -155,7 +159,7 @@ const OrderCard = ({ order, variant, fonts, theme, showCustomerName, showDetails
             )}
           </div>
           {showDetails && (
-            <div className={`${fonts.label} mt-3 ${theme.subtext}`}>
+            <div className={`${fonts.label} mt-1.5 ${theme.subtext}`}>
               {[order.size, order.milkType, order.coffeeType]
                 .filter(Boolean)
                 .join(' · ')}
