@@ -858,6 +858,42 @@ def create_app():
         # commit of a read-only transaction is free.
         db.commit()
 
+        # users.email need NOT be unique or non-null: login is by username
+        # (verify_login → WHERE username), and an operator legitimately
+        # reuses one email across several of their own accounts. The old
+        # UNIQUE NOT NULL made a second account with the same email fail with
+        # a raw 500 that the UI swallowed — a save that "just didn't work"
+        # (Steve). Relax it, but CAREFULLY, because ALTER TABLE users takes
+        # ACCESS EXCLUSIVE and a blocked one wedges login (see the boot-lock
+        # note above): (1) check first and only ALTER when actually needed,
+        # so steady-state deploys take no lock; (2) cap the lock wait so a
+        # blocked lock fails fast and logs, instead of hanging the boot.
+        try:
+            _c = db.cursor()
+            _c.execute("SELECT 1 FROM information_schema.table_constraints "
+                       "WHERE table_name='users' AND constraint_name='users_email_key'")
+            _has_unique = _c.fetchone() is not None
+            _c.execute("SELECT is_nullable FROM information_schema.columns "
+                       "WHERE table_name='users' AND column_name='email'")
+            _row = _c.fetchone()
+            _email_notnull = bool(_row) and str(_row[0]).upper() == 'NO'
+            if _has_unique or _email_notnull:
+                _c.execute("SET lock_timeout = '3s'")
+                if _has_unique:
+                    _c.execute("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_key")
+                if _email_notnull:
+                    _c.execute("ALTER TABLE users ALTER COLUMN email DROP NOT NULL")
+                _c.execute("RESET lock_timeout")
+                db.commit()
+                logger.info("users.email: relaxed unique/not-null "
+                            "(login is by username; email may repeat or be blank)")
+        except Exception as _relax_err:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            logger.warning(f"users.email constraint relax skipped (non-fatal): {_relax_err}")
+
     # Belt and braces: whatever ran during startup, do not enter the
     # serving loop holding a transaction. Anything still open here is a
     # bug in one of the init paths, so say so loudly rather than leaving
