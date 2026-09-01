@@ -350,6 +350,27 @@ the thermal label render, and printer-config.
 
 ## P3 — UX polish
 
+### Group orders: letter-suffix numbering (`336a, 336b, 336c`) — PARKED 2026-09-01 (M/L)
+Steve's call: a round ordered together should read as ONE order with lettered
+drinks (`336a … 336e`) instead of scattered sequential numbers (336, 337, …)
+that can also gap when another order interleaves. Letter (not dash) chosen so
+there's no 3-vs-4-digit ambiguity.
+- **Parked deliberately, not skipped.** The *critical* half — holding the
+  "ready/collect" alert until the whole group is done, then one group SMS — is
+  DONE and tested (#543, `_notify_customer_order_ready` is group-aware). The
+  lettering is the cosmetic remainder.
+- **Why parked:** it's the widest-blast-radius change — the order number is on
+  cup labels, the beacon, the SMS, tracking/cancel/pickup — so making `336a`
+  *real* (renumber the group's drinks at creation + teach every surface the new
+  shape) needs a careful build + full end-to-end test, not race-week pressure.
+- **How:** `order_number` is already `VARCHAR(20)`, so no schema change. In
+  `create_kiosk_order_group` (routes/consolidated_api_routes.py ~5499) take ONE
+  base from the sequence and assign `<base>a/b/c…` at creation (before any
+  print_jobs/order_messages reference the number); set `group_id = <base>`.
+  Then verify board, beacon, SMS body, printed label, and track/cancel/pickup.
+  Do it right after CTN/Treenet 2026, with the restore-point + bench-phone test
+  pattern used for the group-ready fix.
+
 ### ✅ "Send test order" button — DONE 2026-06-12 (in Readiness tab)
 ### ✅ event_name in page title — DONE 2026-06-12
 ### ✅ Walk-in: pre-fill last customer name — DONE 2026-06-12
