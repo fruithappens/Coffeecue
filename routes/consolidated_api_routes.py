@@ -4499,6 +4499,54 @@ def get_display_config():
         })
 
 
+def _station_eta_minutes(db, station_id):
+    """Queue-aware wait for a NEW order at this station, using the SAME model
+    as the customer's waiting beacon (utils/order_eta). This is what makes the
+    station-picker number agree with the number shown while waiting: both count
+    the real orders ahead (pending + in-progress) at the station's measured
+    pace. Previously the picker used a separate, more optimistic calc, so a
+    station could offer "~2 min" and the beacon then say "18 min" (Steve).
+    Returns int minutes, or None on error so the caller keeps its fallback."""
+    try:
+        cur = db.cursor()
+        cur.execute(
+            "SELECT order_details FROM orders WHERE station_id = %s "
+            "AND status = 'pending'", (station_id,))
+        ahead = []
+        for r in (cur.fetchall() or []):
+            raw = r[0] if not isinstance(r, dict) else r.get('order_details')
+            try:
+                ahead.append(json.loads(raw) if isinstance(raw, str) else (raw or {}))
+            except Exception:
+                ahead.append({})
+        cur.execute(
+            "SELECT COUNT(*) FROM orders WHERE station_id = %s "
+            "AND status IN ('in-progress','in_progress')", (station_id,))
+        r2 = cur.fetchone()
+        bench = (r2[0] if not isinstance(r2, dict) else list(r2.values())[0]) or 0
+        cur.execute(
+            "SELECT EXTRACT(EPOCH FROM COALESCE(completed_at, updated_at)) "
+            "FROM orders WHERE station_id = %s "
+            "AND status IN ('completed','picked_up') "
+            "AND COALESCE(completed_at, updated_at) > NOW() - INTERVAL '2 hours' "
+            "ORDER BY COALESCE(completed_at, updated_at) DESC LIMIT 40",
+            (station_id,))
+        epochs = []
+        for r in (cur.fetchall() or []):
+            v = r[0] if not isinstance(r, dict) else list(r.values())[0]
+            if v is not None:
+                epochs.append(float(v))
+        pace = eta_seconds_per_coffee(epochs)
+        # A brand-new order: 'pending', everything currently active is ahead.
+        return eta_estimate_minutes('pending', ahead, bench, pace)
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return None
+
+
 def _kiosk_menu_data(coffee_system):
     """Build the self-service kiosk menu. For each orderable item (coffee type,
     milk, size) return the station IDs that can make it — so the Display kiosk
@@ -4594,10 +4642,18 @@ def _kiosk_menu_data(coffee_system):
         # says it exists "so the barista header and what customers are
         # told finally agree" -- this was the surface that never joined.
         # Static column stays as the fallback if the calc errors.
+        # Queue-aware wait using the SAME order_eta model as the customer's
+        # waiting beacon, so the picker number and the beacon agree (Steve:
+        # picker said 2 min, beacon said 18). Falls back to the live station
+        # calc, then the static column, on any error.
         try:
-            live_wait = coffee_system._get_station_wait_time(sid)
-            if live_wait is not None:
-                wait = live_wait
+            eta = _station_eta_minutes(db, sid)
+            if eta is not None:
+                wait = eta
+            else:
+                live_wait = coffee_system._get_station_wait_time(sid)
+                if live_wait is not None:
+                    wait = live_wait
         except Exception:
             pass
         stations.append({'id': sid, 'name': name, 'location': location,
