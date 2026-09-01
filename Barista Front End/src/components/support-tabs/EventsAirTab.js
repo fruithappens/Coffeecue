@@ -223,7 +223,10 @@ const EventsAirTab = () => {
 
   const refresh = useCallback(async () => {
     try {
-      const s = await api.request('/ea/status');
+      // ?probe=1 so the status light reflects a REAL token check, not just
+      // "config present". The token is cached server-side, so repeated polls
+      // are cheap after the first.
+      const s = await api.request('/ea/status?probe=1');
       setStatus(s || null);
     } catch (e) {
       setStatus({ success: false, error: e?.message });
@@ -265,6 +268,15 @@ const EventsAirTab = () => {
   const enabled = !!status?.channel_enabled;
   const today = status?.today || {};
 
+  // Connection traffic light: green = token verified, orange = configured
+  // but not verified (checking / token failing), red = no credentials, grey
+  // = still loading. Reflects the real probe above.
+  const ea = status?.ea || {};
+  const light = !status ? { c: '#94a3b8', t: 'Checking…' }
+    : (ea.stub || ea.configured === false) ? { c: '#ef4444', t: 'Not connected' }
+    : ea.token_ok ? { c: '#22c55e', t: 'Connected' }
+    : { c: '#f59e0b', t: 'Configured (unverified)' };
+
   return (
     <div className="p-4 space-y-6 max-w-4xl">
       <div className="bg-white rounded-lg shadow-md p-4">
@@ -273,10 +285,17 @@ const EventsAirTab = () => {
             <CalendarClock size={20} className="mr-2" /> EventsAir Survey Channel
             <span className="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded uppercase">Beta</span>
           </h2>
-          <button className="text-gray-500 hover:text-gray-700 flex items-center text-sm"
-                  onClick={refresh}>
-            <RefreshCw size={16} className="mr-1" /> Refresh
-          </button>
+          <div className="flex items-center gap-3">
+            <span className="inline-flex items-center gap-1.5 text-sm font-medium"
+                  title={ea.detail || ''}>
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: light.c }} />
+              {light.t}
+            </span>
+            <button className="text-gray-500 hover:text-gray-700 flex items-center text-sm"
+                    onClick={refresh}>
+              <RefreshCw size={16} className="mr-1" /> Refresh
+            </button>
+          </div>
         </div>
 
         {!status ? (
