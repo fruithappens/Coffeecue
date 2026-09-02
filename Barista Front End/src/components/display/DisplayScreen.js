@@ -669,7 +669,12 @@ const DisplayScreen = () => {
   // one must stay a clean collection board. Only runs when configured and
   // there are sponsors to show.
   useEffect(() => {
-    if (!sponsorWall.takeover || !sponsorWall.hasSponsors || isPickupMode) {
+    // NEVER take over while a customer is mid-order (showKiosk). The takeover is
+    // a full-screen overlay, so it used to cover the order flow and the customer
+    // had to wait the 20s out (Steve saw this on the touch kiosk). Gating on
+    // showKiosk both blocks a new takeover AND clears an active one the instant
+    // someone starts ordering. Also off for pickup screens / when nothing to show.
+    if (!sponsorWall.takeover || !sponsorWall.hasSponsors || isPickupMode || showKiosk) {
       setWallTakeover(false);
       return undefined;
     }
@@ -680,7 +685,7 @@ const DisplayScreen = () => {
     };
     const interval = setInterval(cycle, sponsorWall.everySec * 1000);
     return () => { clearInterval(interval); clearTimeout(hideTimer); };
-  }, [sponsorWall.takeover, sponsorWall.hasSponsors, sponsorWall.everySec, sponsorWall.forSec, isPickupMode]);
+  }, [sponsorWall.takeover, sponsorWall.hasSponsors, sponsorWall.everySec, sponsorWall.forSec, isPickupMode, showKiosk]);
 
   // Background video — fetched ONCE (the payload can be a big data URL, so
   // no polling). A display reload picks up a change.
@@ -1289,7 +1294,13 @@ const DisplayScreen = () => {
           whole board. Handed the sponsor data we already polled, so it
           renders instantly with no second fetch and no empty-state flash. */}
       {wallTakeover && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 45 }}>
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 45, cursor: 'pointer' }}
+          onClick={() => setWallTakeover(false)}
+          title="Tap to order"
+        >
+          {/* Tap anywhere dismisses the takeover so a customer who walks up
+              mid-cycle can get straight to ordering instead of waiting it out. */}
           <SponsorWall embedded preview={sponsorWallData} />
         </div>
       )}
