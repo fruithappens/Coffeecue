@@ -33,7 +33,8 @@ import {
   formatBatchName,
   calculateMinutesDiff,
   buildGroupInfo,
-  applicableStages
+  applicableStages,
+  parseServerDate
 } from '../../utils/orderUtils';
 import { getMilkColorStyle, getMilkDotStyle } from '../../utils/milkColorHelper';
 import '../../styles/milkColors.css';
@@ -5065,7 +5066,13 @@ const ReadyForPickupColumn = ({
         const ts = o.completedAt || o.completed_at
                 || o.updatedAt   || o.updated_at;
         if (!ts) return true;
-        const t = new Date(ts).getTime();
+        // parseServerDate, NOT new Date(): the backend sends naive UTC
+        // (no 'Z'), which new Date() reads as LOCAL. On UTC+9:30 (Adelaide)
+        // that put every just-completed order ~9.5h in the past, so it was
+        // instantly older than this recency window and the column showed
+        // "Nothing ready yet" while the customer Display (which already uses
+        // parseServerDate) showed it. THIS was the barista-vs-display split.
+        const t = parseServerDate(ts).getTime();
         if (Number.isNaN(t)) return true;
         // No phone means no "your coffee is ready" text was ever sent,
         // so this card is the only trace of it -- give it longer.
@@ -5079,8 +5086,8 @@ const ReadyForPickupColumn = ({
         return t >= floor && t <= now + 5 * 60 * 1000;
       })
       .sort((a, b) => {
-        const ta = new Date(a.completedAt || a.completed_at || a.updatedAt || a.updated_at || 0).getTime();
-        const tb = new Date(b.completedAt || b.completed_at || b.updatedAt || b.updated_at || 0).getTime();
+        const ta = parseServerDate(a.completedAt || a.completed_at || a.updatedAt || a.updated_at || 0).getTime();
+        const tb = parseServerDate(b.completedAt || b.completed_at || b.updatedAt || b.updated_at || 0).getTime();
         return tb - ta;
       });
   }, [completedOrders, stationId, hiddenIds, expiryMinutes]);

@@ -4,6 +4,7 @@
 // inbox panel body (flex column).
 import React from 'react';
 import { Send, Ban } from 'lucide-react';
+import { parseServerDate } from '../../utils/orderUtils';
 
 export default function CustomerQuestionsList({ items, replyDrafts, setReplyDrafts, sending, sendReply, blocking, blockSender }) {
   return (
@@ -18,7 +19,7 @@ export default function CustomerQuestionsList({ items, replyDrafts, setReplyDraf
           <ul className="space-y-3">
             {items.map(q => {
               const ageSec = q.createdAt
-                ? Math.floor((Date.now() - new Date(q.createdAt).getTime()) / 1000)
+                ? Math.floor((Date.now() - parseServerDate(q.createdAt).getTime()) / 1000)
                 : 0;
               const timeLeft = Math.max(0, 60 - ageSec);
               return (

@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Coffee, Clock, CheckCircle, Package, Users, Search, Filter, AlertCircle } from 'lucide-react';
 import { getMilkColorStyle, getMilkDotStyle } from '../../utils/milkColorHelper';
+import { parseServerDate } from '../../utils/orderUtils';
 import '../../styles/milkColors.css';
 
 const AllOrdersTab = () => {
@@ -218,12 +219,12 @@ const AllOrdersTab = () => {
             )}
             {status === 'inProgress' && order.startedAt && (
               <div className="text-blue-600">
-                Started {Math.round((Date.now() - new Date(order.startedAt)) / 60000)} min ago
+                Started {Math.round((Date.now() - parseServerDate(order.startedAt)) / 60000)} min ago
               </div>
             )}
             {status === 'completed' && order.completedAt && (
               <div className="text-green-600">
-                Ready {Math.round((Date.now() - new Date(order.completedAt)) / 60000)} min ago
+                Ready {Math.round((Date.now() - parseServerDate(order.completedAt)) / 60000)} min ago
               </div>
             )}
             {status === 'previous' && order.pickedUpAt && (
