@@ -783,6 +783,16 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
     return (w || w === 0) ? `~${w} min` : '';
   };
 
+  // In the EventsAir app, /my is an <iframe height:100vh>, so the iframe's
+  // bottom sits BEHIND the app's own bottom nav (~120px) and the footer/QR
+  // stayed cut off even with a safe-area pad. A cross-origin frame throws on
+  // window.top, so this is a reliable "am I embedded?" check — pad a big nav
+  // bar's worth when embedded so the (scrolling) overlay can bring the footer
+  // fully clear; standalone / on the wall kiosk keeps a lighter pad.
+  const embeddedInApp = (() => {
+    try { return window.self !== window.top; } catch (e) { return true; }
+  })();
+
   return (
     <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 overflow-y-auto"
          onPointerDown={resetIdle}
@@ -796,7 +806,9 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                   // worth at the bottom so the overlay -- which scrolls -- can
                   // always bring the footer fully clear of that bar.
                   paddingTop: 'max(1.25rem, env(safe-area-inset-top))',
-                  paddingBottom: 'calc(env(safe-area-inset-bottom) + 6rem)' }}>
+                  paddingBottom: embeddedInApp
+                    ? 'calc(env(safe-area-inset-bottom) + 11rem)'
+                    : 'calc(env(safe-area-inset-bottom) + 6rem)' }}>
 
       {/* Idle countdown — big, unmissable, tap-to-dismiss. */}
       {idleCountdown != null && idleCountdown > 0 && (
