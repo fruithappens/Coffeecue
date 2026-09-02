@@ -3252,10 +3252,15 @@ class CoffeeOrderSystem:
                 phone, pending_multi, {"temp_data": {"name": nm}}
             )
 
-        # Usual-order shortcut ("the usual").
+        # Usual-order shortcut ("the usual"). The message here is the COMMAND
+        # ("the usual" / "my usual"), NEVER the customer's name — using it as the
+        # name placed the order under the literal name "The usual" (Steve saw
+        # this on #345). Pull the SAVED name, exactly like the `USUAL` keyword
+        # branch above; _process_usual_order asks for the name if we have none
+        # yet and sets the conversation state itself, so no pre-set is needed.
         if self.nlp.is_asking_for_usual(message):
-            nm = (message or "").strip()
-            self._set_conversation_state(phone, "awaiting_coffee_type", {"name": nm})
+            customer = self.get_customer(phone)
+            nm = customer.get("name", "") if customer else ""
             return self._process_usual_order(phone, nm)
 
         # The reply may carry the name AND the order ("Sarah large flat white
@@ -3486,6 +3491,12 @@ class CoffeeOrderSystem:
 
     def _process_usual_order(self, phone, name):
         """Process a request for the usual order"""
+        # Defensive: the REQUEST phrase must never become the name. A caller
+        # that passed the raw message ("the usual") would otherwise place the
+        # order under the literal name "The usual" (#345). Drop it and fall
+        # through to the saved name / a proper name prompt.
+        if name and self.nlp.is_asking_for_usual(name):
+            name = ""
         # Get customer information if name not provided
         if not name:
             customer = self.get_customer(phone)
