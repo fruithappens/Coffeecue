@@ -743,7 +743,10 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
       <span className="mb-2 flex items-center justify-center h-14" aria-hidden>
         {icon || <span className="text-5xl">{emoji}</span>}
       </span>
-      <span className="text-xl font-bold leading-tight">{label}</span>
+      {/* break-words + full width so a long single-word label ("Cappuccino",
+          "Medium") wraps instead of clipping — matters most with iPhone
+          Display Zoom / Larger Text on, which narrows the viewport. */}
+      <span className="text-xl font-bold leading-tight break-words w-full">{label}</span>
       {sub && <span className="mt-1 text-xs font-semibold text-amber-600">{sub}</span>}
     </button>
   );
@@ -1037,12 +1040,16 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                 <button
                   key={opt.label}
                   onClick={() => setStrength(opt.value)}
-                  className={`py-5 px-3 rounded-2xl text-xl font-bold shadow active:scale-95 ${
+                  className={`py-4 px-2 rounded-2xl font-bold shadow active:scale-95 leading-tight ${
                     strength === opt.value ? 'text-white' : 'bg-white text-gray-800'}`}
                   style={strength === opt.value ? { backgroundColor: headerColor } : {}}
                 >
-                  {opt.label}
-                  <span className="block text-sm font-normal opacity-70 mt-0.5">{opt.hint}</span>
+                  {/* text-lg (not xl) + wrapping so a one-word label like
+                      "Normal" fits its third of the row even with iPhone
+                      Display Zoom / Larger Text on (that narrows the viewport
+                      AND enlarges the font, which clipped "Normal" -> "Norm"). */}
+                  <span className="block text-lg leading-tight break-words">{opt.label}</span>
+                  <span className="block text-xs font-normal opacity-70 mt-0.5">{opt.hint}</span>
                 </button>
               ))}
             </div>
