@@ -9758,22 +9758,50 @@ class CoffeeOrderSystem:
 
     @property
     def db(self):
-        """The shared database connection, revived if it has died.
+        """The database connection for the current caller.
 
-        This object is created ONCE at boot and handed to CoffeeOrderSystem,
-        then used by ~460 call sites. There was no liveness check anywhere:
-        when the connection died, every one of those call sites failed with
-        "connection already closed" until somebody restarted the app.
+        PER-REQUEST POOLED CONNECTION (added 2026-09): inside a Flask
+        request/SocketIO context, hand out a connection dedicated to THIS
+        request, checked out from the pool and returned on teardown
+        (app.py `_release_db_locks`). This is what lets the server serve
+        requests concurrently: once psycopg is cooperative under eventlet
+        (patch_psycopg in run_server.py), two requests sharing ONE
+        connection would collide ("another command is already in progress"),
+        so each request needs its own. Checkout is lazy — a request that
+        never touches the DB never takes a connection from the pool.
 
-        Seen in production on 23 Aug, hours after the outage: /api/health was
-        200 (it does not touch this connection) while /api/orders,
-        /api/stations and /api/reports/today all returned 500. Endpoints that
-        take a fresh pooled connection kept working, which is what pinned it
-        to this singleton rather than to Postgres.
-
-        The pool in utils.database already recovers from a dead pool. This
-        gives the singleton the same property, in one place instead of 460.
+        SHARED SINGLETON (unchanged) everywhere else — startup, the SMS
+        conversation scheduler, background tasks — where there is no request
+        context. Those are low-concurrency; the singleton is revived if it
+        has died (the pool recovers a dead pool; this gives the singleton the
+        same property, in one place instead of ~460 call sites). Historically
+        this WAS the connection every handler used, and a closed singleton
+        500'd /api/orders while /api/health (which touches nothing) stayed
+        200 — see the git history for 23 Aug.
         """
+        # --- request-scoped pooled connection ---
+        try:
+            from flask import g, has_request_context
+
+            if has_request_context():
+                conn = getattr(g, "_pooled_db", None)
+                try:
+                    if conn is not None and not getattr(conn, "closed", 0):
+                        return conn
+                except Exception:
+                    pass
+                from utils.database import get_db_connection
+
+                conn = get_db_connection()
+                if conn is not None:
+                    g._pooled_db = conn
+                    return conn
+                # pool unavailable — fall through to the shared singleton
+        except Exception:
+            # Any import/context problem: fall back to the singleton below.
+            pass
+
+        # --- shared singleton (non-request contexts) ---
         conn = self._db
         try:
             if conn is not None and not getattr(conn, "closed", 0):
