@@ -790,11 +790,13 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                   // The EventsAir app's webview sits UNDER the app's own
                   // header and nav bar and reports a viewport it does not
                   // actually show -- Steve: "cant quite see very top of
-                  // page and very bottom". Safe-area padding both ends,
-                  // and the overlay itself scrolls, so anything a bar
-                  // covers can always be scrolled into view.
+                  // page and very bottom". The app's bottom nav (~80px) is
+                  // TALLER than env(safe-area-inset-bottom) (~34px), so the
+                  // footer stayed cut off (Steve, again). Pad a full nav-bar's
+                  // worth at the bottom so the overlay -- which scrolls -- can
+                  // always bring the footer fully clear of that bar.
                   paddingTop: 'max(1.25rem, env(safe-area-inset-top))',
-                  paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
+                  paddingBottom: 'calc(env(safe-area-inset-bottom) + 6rem)' }}>
 
       {/* Idle countdown — big, unmissable, tap-to-dismiss. */}
       {idleCountdown != null && idleCountdown > 0 && (
