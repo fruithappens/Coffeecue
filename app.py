@@ -986,14 +986,14 @@ def create_app():
     # failing handler can no longer take the rest of the app down.
     @app.before_request
     def _ensure_db_not_poisoned():
-        try:
-            from utils.database import ensure_clean_connection
-            cs = app.config.get('coffee_system')
-            if cs is not None and getattr(cs, 'db', None) is not None:
-                ensure_clean_connection(cs.db)
-        except Exception:
-            # Never block a request just because the defensive cleanup failed.
-            pass
+        # Requests now use a PER-REQUEST pooled connection (see
+        # CoffeeOrderSystem.db). Each one is checked out clean from the pool
+        # (close_connection rolls back before putconn), so cross-request
+        # poisoning of a shared connection can no longer happen — and there
+        # is nothing to scrub here. Deliberately a no-op: touching cs.db here
+        # would force every request (health checks, static) to check a
+        # connection out of the pool whether it needs one or not.
+        return
     
 
     # ...and the matching hook at the END of a request.
@@ -1018,11 +1018,20 @@ def create_app():
     # the handler raised, so it covers the poisoned case too.
     @app.teardown_request
     def _release_db_locks(exc=None):
+        # Return THIS request's pooled connection to the pool. close_connection
+        # rolls back first, so locks/idle-in-transaction are released here
+        # (not "whenever the next request turns up") and the connection goes
+        # back clean for the next borrower. Runs even if the handler raised.
+        # A request that never touched the DB has no _pooled_db and is a no-op.
         try:
-            from utils.database import ensure_clean_connection
-            cs = app.config.get('coffee_system')
-            if cs is not None and getattr(cs, 'db', None) is not None:
-                ensure_clean_connection(cs.db)
+            from flask import g
+            pooled = getattr(g, '_pooled_db', None)
+            if pooled is not None:
+                from utils.database import close_connection
+                try:
+                    close_connection(pooled)  # rollback + putconn (returns to pool)
+                finally:
+                    g._pooled_db = None
         except Exception:
             # Never turn a cleanup failure into a request failure.
             pass

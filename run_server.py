@@ -2,6 +2,28 @@
 """
 Script to run the Expresso server - production ready for Railway
 """
+# --- CONCURRENCY PATCH (must be the very first thing that runs) ---
+# This is the ACTUAL production entrypoint (Dockerfile CMD / railway
+# startCommand / Procfile all run `python run_server.py`). Historically it
+# started the app with eventlet's async mode declared but NEVER
+# monkey-patched, so every blocking call — every Postgres query especially —
+# froze the single hub until it returned. Result: the server handled ONE
+# request at a time (measured live: 10 concurrent requests took 13.4s in a
+# strict 1.3s staircase), which starved the CloudPRNT printer's poll under
+# load (25-55s label delays).
+#
+# monkey_patch() turns eventlet's green sockets on before anything imports
+# socket/ssl/requests. patch_psycopg() additionally makes psycopg2 (libpq, a
+# C extension the socket patch can't reach) yield to the hub during a query
+# instead of freezing it. Together they let one worker serve many requests
+# at once. Pairs with the per-request pooled DB connection in
+# CoffeeOrderSystem.db (else green queries would collide on one connection).
+# MUST precede every other import. See wsgi.py for the original write-up.
+import eventlet  # noqa: E402
+eventlet.monkey_patch()  # noqa: E402
+from psycogreen.eventlet import patch_psycopg  # noqa: E402
+patch_psycopg()  # noqa: E402
+
 import os
 import sys
 from app import create_app
