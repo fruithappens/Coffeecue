@@ -375,7 +375,10 @@ export const getOrderBackgroundColor = (order, settings) => {
  * @returns {string} Formatted time string
  */
 export const formatTimeSince = (dateString) => {
-  const date = new Date(dateString);
+  // parseServerDate, not new Date(): backend timestamps are naive UTC
+  // (no trailing Z), which new Date() reads as LOCAL — on UTC+9:30 that
+  // made a 1-minute-old order read "570m ago".
+  const date = parseServerDate(dateString);
   const now = new Date();
   const diffMinutes = Math.floor((now - date) / (1000 * 60));
   
@@ -403,7 +406,11 @@ export const formatBatchName = (batchName) => {
  * @returns {number} Minutes difference
  */
 export const calculateMinutesDiff = (date1, date2 = new Date()) => {
-  return Math.floor((new Date(date2) - new Date(date1)) / 60000);
+  // parseServerDate handles both: a naive-UTC server string gets 'Z'
+  // appended (so it isn't read 9.5h early on UTC+9:30 Adelaide), while a
+  // Date or epoch passes through untouched. Without this, "Completed N
+  // minutes ago" showed ~570 on a fresh order.
+  return Math.floor((parseServerDate(date2) - parseServerDate(date1)) / 60000);
 };
 
 /**
