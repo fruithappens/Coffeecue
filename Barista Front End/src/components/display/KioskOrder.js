@@ -444,8 +444,11 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
   };
 
   // Drinks that never take milk — asking "what milk with your juice?"
-  // confused real customers. These skip straight past the milk step.
-  const MILKLESS = /(juice|smoothie|sparkling|lemonade|soft drink|still water)/;
+  // confused real customers. These skip straight past the milk step. Now
+  // includes BLACK COFFEES (Steve: "long black should skip the milk tab
+  // altogether"). Macchiato/piccolo/cortado are deliberately excluded at the
+  // call site — they take a dash of milk, so they keep the milk step.
+  const MILKLESS = /(juice|smoothie|sparkling|lemonade|soft drink|still water|long black|short black|americano|espresso)/;
   const noMilkOption = () =>
     milkOptions.find(m => (m.value || '').includes('no milk'))
     || { name: 'No milk', value: 'no milk', stations: (menu?.stations || []).map(s => s.id) };
@@ -938,8 +941,11 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                             : (madeHere(d) ? null : `Station ${stationLabel(d)} only`)}
                           onClick={() => {
                             setDrink(d);
-                            if (MILKLESS.test(d.value || '')) {
-                              // Juice & friends: no milk question.
+                            const v = d.value || '';
+                            // Milkless drinks (juices, black coffees) skip the
+                            // milk step — but a macchiato-style coffee takes a
+                            // dash of milk, so it keeps the step.
+                            if (MILKLESS.test(v) && !/macchiato|piccolo|cortado/i.test(v)) {
                               setMilk(noMilkOption());
                               afterMilk();
                             } else {

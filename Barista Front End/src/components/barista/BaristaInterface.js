@@ -1665,6 +1665,23 @@ const BaristaInterface = () => {
           )}
         </div>
 
+        {/* Notes + customer message MUST follow the drink onto the in-progress
+            card — they were only on the pending card, so a "1/4 strength / no
+            lid / make it decaf" instruction vanished the moment the barista
+            hit Start (Asher, live). Same fields the pending card reads. */}
+        {(order.notes || order.specialInstructions) && (
+          <div className="mt-2 text-sm text-amber-900 bg-amber-50 border border-amber-300 rounded px-2 py-1 flex items-start gap-1">
+            <span aria-hidden="true">📝</span>
+            <span className="font-semibold">{order.notes || order.specialInstructions}</span>
+          </div>
+        )}
+        {(order.customerMessage || order.customer_message) && (
+          <div className="mt-2 px-2 py-1 bg-amber-50 border border-amber-300 text-amber-900 text-sm rounded flex items-start gap-1">
+            <span aria-hidden="true">💬</span>
+            <span className="italic">{order.customerMessage || order.customer_message}</span>
+          </div>
+        )}
+
         {/* Team mode stage chips: two-plus baristas sharing this iPad
             tick their part (shots / milk). COMPLETE stays the explicit
             final tap — it lights up when every part is ticked but never
@@ -4828,11 +4845,20 @@ const BaristaInterface = () => {
         }}
       >
         <MessageCircle size={24} />
-        {(cq.count + chatUnread.unread) > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold min-w-5 h-5 px-1 flex items-center justify-center rounded-full">
-            {cq.count + chatUnread.unread}
-          </span>
-        )}
+        {/* Unread badge — bigger, ringed and PULSING so a minimised inbox
+            can't hide 10 waiting messages (Steve). Counts customer questions
+            + station chat + any customer message sitting on an active order
+            (the 💬 replies that never fed the old badge). */}
+        {(() => {
+          const orderMsgs = [...(pendingOrders || []), ...(inProgressOrders || [])]
+            .filter(o => String(o.customerMessage || o.customer_message || '').trim()).length;
+          const total = cq.count + chatUnread.unread + orderMsgs;
+          return total > 0 ? (
+            <span className="absolute -top-2 -right-2 bg-red-600 text-white text-sm font-extrabold min-w-6 h-6 px-1.5 flex items-center justify-center rounded-full ring-2 ring-white animate-pulse">
+              {total}
+            </span>
+          ) : null;
+        })()}
       </button>
       
       {/* Dialogs */}
