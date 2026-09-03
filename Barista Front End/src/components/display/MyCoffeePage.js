@@ -35,6 +35,21 @@ const PHONE_KEY = 'coffee_cue_my_phone';
 // asked for it.
 const SOUND_KEY = 'coffee_my_sound_on';
 
+// Am I inside the EventsAir app's webview (an iframe), or a standalone
+// phone browser? A cross-origin frame throws on window.top, so this is a
+// reliable check. Used to pad a full nav-bar's worth at the bottom of the
+// beacon when embedded, so the sponsor strip / "which station" clear the
+// app's bottom nav (same allowance the order overlay got in #551).
+const IS_EMBEDDED = (() => {
+  try { return window.self !== window.top; } catch (e) { return true; }
+})();
+// Bottom pad that keeps the beacon's lowest content clear of the browser
+// toolbar (standalone) or the app's nav bar (embedded), on top of the
+// device's own safe-area inset.
+const BEACON_PAD_BOTTOM = IS_EMBEDDED
+  ? 'calc(env(safe-area-inset-bottom) + 11rem)'
+  : 'calc(env(safe-area-inset-bottom) + 2rem)';
+
 const STATUS = {
   pending: { title: 'In the queue', tone: 'bg-blue-600' },
   'in-progress': { title: 'Being made now', tone: 'bg-amber-500' },
@@ -1195,15 +1210,17 @@ const MyCoffeePage = () => {
     const ready = active.status === 'completed';
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center p-6"
-           style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top))',
-                    paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
+           style={{ minHeight: '100dvh',
+                    paddingTop: 'max(1.5rem, env(safe-area-inset-top))',
+                    paddingBottom: BEACON_PAD_BOTTOM }}>
         <div className="w-full max-w-md">
           <div className={`${copy.tone} text-white rounded-2xl p-6 text-center shadow-lg
                            ${ready ? 'animate-pulse' : ''}`}>
             <div className="text-sm uppercase tracking-wide opacity-90">
               {me.first_name}'s order
             </div>
-            <div className="text-6xl font-extrabold my-2">#{active.order_number}</div>
+            <div className="font-extrabold my-2"
+                 style={{ fontSize: 'clamp(2.5rem, 13vw, 3.75rem)', lineHeight: 1.05 }}>#{active.order_number}</div>
             <div className="text-2xl font-bold">{copy.title}</div>
             {/* WHERE. A card that says a coffee is ready without saying
                 which cart is only half an answer at a two-cart event

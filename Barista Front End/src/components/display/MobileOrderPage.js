@@ -29,6 +29,18 @@ const STATUS_COPY = {
   cancelled: { title: 'Cancelled', tone: 'bg-red-600' },
 };
 
+// Embedded in the EventsAir app's webview, or a standalone phone browser?
+// (A cross-origin frame throws on window.top.) The status beacon is what a
+// QR / receipt scan lands on, so its bottom must clear the phone browser's
+// toolbar (standalone) or the app's nav bar (embedded) on top of the
+// device safe-area inset — otherwise "Collect from Station X" is cut off.
+const IS_EMBEDDED = (() => {
+  try { return window.self !== window.top; } catch (e) { return true; }
+})();
+const BEACON_PAD_BOTTOM = IS_EMBEDDED
+  ? 'calc(env(safe-area-inset-bottom) + 11rem)'
+  : 'calc(env(safe-area-inset-bottom) + 2rem)';
+
 const MobileOrderPage = () => {
   const [params, setParams] = useSearchParams();
   const stationId = params.get('station');
@@ -194,7 +206,10 @@ const MobileOrderPage = () => {
     const copy = STATUS_COPY[track?.status] || { title: 'Checking…', tone: 'bg-gray-400' };
     const ready = track?.status === 'completed';
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center p-6">
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center p-6"
+           style={{ minHeight: '100dvh',
+                    paddingTop: 'max(1.5rem, env(safe-area-inset-top))',
+                    paddingBottom: BEACON_PAD_BOTTOM }}>
         <div className="w-full max-w-md">
           {/* Incident notice. Above the order card on purpose: if the
               system is in trouble, that outranks the queue position the
@@ -219,7 +234,8 @@ const MobileOrderPage = () => {
           <div className={`${copy.tone} text-white rounded-2xl p-6 text-center shadow-lg
                            ${ready ? 'animate-pulse' : ''}`}>
             <div className="text-sm uppercase tracking-wide opacity-90">Your order</div>
-            <div className="text-6xl font-extrabold my-2">#{trackNumber}</div>
+            <div className="font-extrabold my-2"
+                 style={{ fontSize: 'clamp(2.5rem, 13vw, 3.75rem)', lineHeight: 1.05 }}>#{trackNumber}</div>
             <div className="text-2xl font-bold">{copy.title}</div>
             {track?.status === 'pending' && track?.position > 0 && (
               <div className="mt-2 text-lg">You're #{track.position} in line</div>
