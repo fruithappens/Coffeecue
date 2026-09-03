@@ -800,21 +800,27 @@ const DisplayScreen = () => {
     status,
     stationId: o.stationId || o.station_id,
     rawStatus: o.status,                  // for client-side dedupe / filter
-    completedAt: o.completed_at || o.completedAt || o.updated_at || o.updatedAt,
+    // Prefer the ISO `completedAt` — the public feed ALSO sends `completed_at`
+    // in RFC format ("Wed, 03 Sep 2026 01:18:14 GMT"), which parseServerDate
+    // mangles to NaN. The recency filter below then fails OPEN (keeps NaN
+    // rows), so every completed order stuck on the board forever — 90-min-old
+    // "ready" orders clogging the display while the barista list (which reads
+    // the ISO field first) correctly aged them off. This is that asymmetry.
+    completedAt: o.completedAt || o.completed_at || o.updatedAt || o.updated_at,
   }));
 
   // Only show orders that are actually "ready for pickup" and were
   // completed recently. Without this filter, every old completed
-  // order ever sits on the customer Display forever (Steve saw 30
-  // ancient test orders dominating his screen — none from the
-  // current event). 30 minutes is a sensible default; bumps to a
-  // longer window if the operator slows down.
+  // order ever sits on the customer Display forever. 10 minutes
+  // (Steve, live 2026-09-03): a collected coffee should drop off fast
+  // so stale, already-picked-up orders don't clog the board — the
+  // barista taps "Collected" for the rest.
   //
   // Sorted newest-first so the most recent "your order is ready"
   // is at the top of the column. With a fixed slice of 4-6
   // entries below, this means old no-show orders naturally
   // age off the bottom as new ones come in.
-  const READY_RECENCY_MINUTES = 30;
+  const READY_RECENCY_MINUTES = 10;
   const filterReadyForDisplay = (list) => {
     const cutoff = Date.now() - READY_RECENCY_MINUTES * 60 * 1000;
     const filtered = list.filter(o => {
