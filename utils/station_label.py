@@ -30,18 +30,32 @@ def station_label(db, station_id, default_prefix='Station',
     try:
         cur = db.cursor()
         cur.execute(
-            "SELECT name, location, equipment_notes FROM station_stats "
+            "SELECT name, notes, location, equipment_notes FROM station_stats "
             "WHERE station_id = %s", (station_id,))
         row = cur.fetchone()
-        name = location = notes = None
+        name = notes_name = location = notes = None
         if row:
             if isinstance(row, dict):
                 name = row.get('name')
+                notes_name = row.get('notes')
                 location = row.get('location')
                 notes = row.get('equipment_notes')
             else:
-                name, location, notes = row[0], row[1], row[2]
+                name, notes_name, location, notes = row[0], row[1], row[2], row[3]
+
+        # WHERE the customer-facing NAME actually lives.
+        #
+        # station_stats stores the operator's station name in `notes`, NOT
+        # the `name` column (which is usually empty): the stations API maps
+        # name<-notes (station_api_routes.py:88), so displays and signage
+        # show "Coffee Station 2". Reading only `name` here made the SMS say
+        # a bare "Station 2" while every screen said "Coffee Station 2".
+        # Prefer whichever is set, and never surface stray capabilities JSON.
         name = (name or '').strip()
+        if not name:
+            cand = (notes_name or '').strip()
+            if cand and not cand.startswith('{'):
+                name = cand
 
         # WHERE the location actually lives.
         #
