@@ -3132,7 +3132,15 @@ def _render_ready_message(order_number, order_details, station_id):
     # table at Coffee Station 1") that replaces the plain station text —
     # riding the existing {station} placeholder, so custom templates
     # keep working untouched.
+    # Friendly station NAME + LOCATION ("Coffee Station 2 - Ferguson Room")
+    # instead of a bare "Station 2" a guest can't place on the floor (Steve).
+    # collection_note (express-batch table) still wins; the helper itself
+    # falls back to "Station N", and stays SMS-cost-aware (length-capped).
+    from utils.station_label import station_label as _pretty_station
+    _cs_sl = current_app.config.get('coffee_system')
+    _db_sl = getattr(_cs_sl, 'db', None) if _cs_sl else None
     station_label = (str(order_details.get('collection_note') or '').strip()
+                     or (_pretty_station(_db_sl, station_id) if (_db_sl and station_id) else '')
                      or (f"Station {station_id}" if station_id else "the counter"))
     sponsor = ''
     try:
@@ -3164,7 +3172,11 @@ def _render_group_ready_message(name, count, station_id, order_details, group_nu
     every drink in it is done (see _notify_customer_order_ready). Plain ASCII
     (no emoji: UCS-2 doubles the per-segment cost)."""
     name = name or 'there'
+    from utils.station_label import station_label as _pretty_station
+    _cs_sl = current_app.config.get('coffee_system')
+    _db_sl = getattr(_cs_sl, 'db', None) if _cs_sl else None
     station_label = (str((order_details or {}).get('collection_note') or '').strip()
+                     or (_pretty_station(_db_sl, station_id) if (_db_sl and station_id) else '')
                      or (f"Station {station_id}" if station_id else "the counter"))
     sponsor = ''
     try:

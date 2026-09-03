@@ -349,6 +349,13 @@ def _snapshot_order(db, order_number, station_id=None):
         modifiers.append(str(od["strength"]))
     if od.get("decaf"):
         modifiers.append("DECAF")
+    # Customer's free-text NOTES ("1/4 strength, 3 shots", "no lid", "oat not
+    # soy") must print on the cup — they were never added, so the sticker
+    # dropped the one instruction the barista follows while making the drink
+    # (Steve/Asher, live). specialInstructions is the camelCase alias.
+    _notes = str(od.get("notes") or od.get("specialInstructions") or "").strip()
+    if _notes:
+        modifiers.append(_notes)
     return {
         "order_number": onum,
         "name": od.get("name") or "Customer",
