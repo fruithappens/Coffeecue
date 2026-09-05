@@ -8,6 +8,7 @@ from utils.station_label import station_label
 from utils.database import get_db_connection
 from twilio.twiml.messaging_response import MessagingResponse
 import os
+import re
 import time
 from datetime import datetime
 import qrcode
@@ -22,6 +23,32 @@ logger = logging.getLogger("expresso.services.messaging")
 from services.sms_health import note_outbound
 
 BENCH_PHONE_PREFIX = '+6140000'
+
+
+def _to_e164_au(to):
+    """Best-effort E.164 for Twilio, Australia-default.
+
+    Customers type their number the way they say it — "0412 693 279" — not
+    "+61412693279". Twilio needs E.164 or it rejects the send. The display/
+    kiosk path normalised at save time, but the barista walk-in path stored
+    the number raw, so a locally-typed number reached Twilio unnormalised and
+    failed. Normalising HERE, at the one point every send passes through,
+    fixes every path at once (walk-in, reminders, broadcast, conversation)
+    and any already-stored raw number. Idempotent for numbers already in +…
+    form; leaves blank/unparseable input untouched.
+    """
+    s = str(to or '').strip()
+    if not s:
+        return s
+    plus = s.startswith('+')
+    digits = re.sub(r'\D', '', s)
+    if not digits:
+        return s
+    if plus:
+        return '+' + digits          # already international, just clean it
+    if digits.startswith('0'):
+        return '+61' + digits[1:]    # AU national -> E.164
+    return '+' + digits              # has a country code but no '+'
 
 # Ensure directory exists
 os.makedirs(os.path.dirname(__file__), exist_ok=True)
@@ -116,6 +143,12 @@ class MessagingService:
         Returns:
             Message SID if successful, None otherwise
         """
+        # E.164 normalisation, in the one place every send passes through —
+        # so a locally-typed "0412 693 279" reaches Twilio as "+61412693279"
+        # no matter which path created the order. Before the bench check so a
+        # bench number in national form is still recognised.
+        to = _to_e164_au(to)
+
         # BENCH WALL, in the one place every send has to pass through.
         #
         # There was already a wall like this, but it sat at ONE call site
