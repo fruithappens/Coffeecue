@@ -350,7 +350,19 @@ the thermal label render, and printer-config.
 
 ## P3 — UX polish
 
-### Group orders: letter-suffix numbering (`336a, 336b, 336c`) — PARKED 2026-09-01 (M/L)
+### ✅ Group orders: letter-suffix numbering (`336a, 336b, 336c`) — DONE 2026-09-05 (#569 #570 #571)
+Built and verified live on 2026-09-05, right after Treenet as planned. #569 pre-assigns
+`<base>a/b/c` BEFORE the insert (never renamed after — creation broadcasts the number
+to the board), one `nextval` per round so numbers no longer gap; covers app, touchscreen
+AND SMS rounds; the beacon shows the lead cup. #570 fixes the ready-guard lead lookup
+(a lettered round's lead is `<base>a`, not the bare base). #571 pins a round to ONE
+station (a cup that station can't make is refused with a reason, not rerouted 500 m
+away), sends ONE "being made" + ONE pickup reminder per round, and files every customer
+text in `order_messages` for the barista's Messages view. Proven on live rounds
+#963/#966 (lettering, one ready text) and #969/#970 (one station, one started, one
+reminder). Details in the PR descriptions. The original parking note follows for history.
+
+#### (historical) PARKED 2026-09-01 (M/L)
 Steve's call: a round ordered together should read as ONE order with lettered
 drinks (`336a … 336e`) instead of scattered sequential numbers (336, 337, …)
 that can also gap when another order interleaves. Letter (not dash) chosen so
