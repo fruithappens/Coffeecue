@@ -548,10 +548,14 @@ const DisplayScreen = () => {
       announcedIdsRef.current.add(id);
       // Digits read one at a time — "one five nine" carries over venue
       // noise better than "a hundred and fifty-nine".
-      const digits = String(o.order_number || o.id)
-        .replace(/\D/g, '').split('').join(' ');
+      const raw = String(o.order_number || o.id);
+      const digits = raw.replace(/\D/g, '').split('').join(' ');
+      // A group round is lettered (336a/336b/336c) — speak the letter so
+      // the three cups are distinguishable when read aloud.
+      const letterMatch = raw.match(/\d([a-z])$/i);
+      const letter = letterMatch ? ` ${letterMatch[1].toUpperCase()}` : '';
       const first = String(o.customerName || '').trim().split(' ')[0];
-      let text = `Order number ${digits || String(o.order_number || o.id)}`;
+      let text = `Order number ${digits ? digits + letter : raw}`;
       if (first && first.toLowerCase() !== 'customer') text += `, for ${first}`;
       announceQueueRef.current.push(text);
       // A backlog of stale announcements helps nobody — keep the last 6.

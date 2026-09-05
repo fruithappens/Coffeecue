@@ -506,9 +506,15 @@ def reset_order_numbers():
     try:
         db = get_db_connection()
         cursor = db.cursor()
+        # Compare on the DIGITS of the number. Postgres does not promise to
+        # evaluate the regex guard before the CAST, and once group rounds are
+        # lettered (336a) a bare CAST(order_number AS BIGINT) can error on a
+        # row the guard was meant to skip. Stripping to digits makes the cast
+        # always valid, and correctly counts 336a as using number 336.
         cursor.execute(
-            "SELECT COUNT(*) FROM orders WHERE order_number ~ '^[0-9]+$' "
-            "AND CAST(order_number AS BIGINT) >= %s", (start,))
+            "SELECT COUNT(*) FROM orders "
+            "WHERE CAST(NULLIF(regexp_replace(order_number, '[^0-9]', '', 'g'), '') "
+            "          AS BIGINT) >= %s", (start,))
         row = cursor.fetchone()
         clash = (row[0] if not isinstance(row, dict) else list(row.values())[0]) or 0
         if clash:

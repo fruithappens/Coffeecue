@@ -93,7 +93,13 @@ def render_label_png(
     # keep their plain number.
     _gid = od.get("group_id")
     _gpos = od.get("group_position")
-    if _gid and _gpos and str(_gid) != order_number:
+    if len(order_number) >= 2 and order_number[-1].isalpha() and order_number[-2].isdigit():
+        # Already lettered (336a / 336b): the number IS the round mark, so
+        # print it as-is. The -pos form below is kept only for rounds placed
+        # before lettering existed. Steve: a letter, not a dash, so there is
+        # no 3-vs-4-digit ambiguity on the cup.
+        label_number = order_number
+    elif _gid and _gpos and str(_gid) != order_number:
         label_number = f"{_gid}-{_gpos}"
     elif _gid and _gpos:
         # The lead order of a group: its own number IS the group id.
