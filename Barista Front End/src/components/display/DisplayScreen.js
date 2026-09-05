@@ -41,6 +41,8 @@ import SponsorTicker from './SponsorTicker';
 import { playPreset } from '../../services/SoundNotificationService';
 import { event as logEvent } from '../../services/logging';
 
+import SponsorWall from './SponsorWall';
+
 // Connection-loss bookkeeping for the display (see hooks/useOrders.js for
 // the barista's): one event per outage, sent once the server is back.
 let _wasConnected = true;
@@ -59,7 +61,6 @@ const _noteConnected = (flag) => {
   } catch (e) { /* logging only */ }
   return flag;
 };
-import SponsorWall from './SponsorWall';
 
 // The board's scan-QR carries ?src=tv<station> so the report can count
 // 'scanned the QR on screen N' apart from app and poster arrivals.
