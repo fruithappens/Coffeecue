@@ -19,6 +19,20 @@ Script to run the Expresso server - production ready for Railway
 # at once. Pairs with the per-request pooled DB connection in
 # CoffeeOrderSystem.db (else green queries would collide on one connection).
 # MUST precede every other import. See wsgi.py for the original write-up.
+# --- DNS resolver fix (MUST precede `import eventlet`) ---
+# monkey_patch() below swaps in eventlet's own DNS resolver, "greendns",
+# which is driven by dnspython. dnspython is an UNPINNED transitive
+# dependency, so a container REBUILD can pull a newer dnspython that
+# eventlet 0.33.3's greendns can't drive — and then every PUBLIC DNS lookup
+# times out ("Failed to resolve api.twilio.com / cupq.app"), silently
+# killing ALL outbound (SMS, keep-warm) while inbound + Postgres (private
+# DNS) keep working. This bit us right after a redeploy with no networking
+# code changed (Treenet, 2026-09-05). Forcing greendns OFF makes eventlet
+# use the system resolver (run in a threadpool, so it still never blocks the
+# hub) and the dnspython version stops mattering.
+import os as _os
+_os.environ.setdefault("EVENTLET_NO_GREENDNS", "yes")
+
 import eventlet  # noqa: E402
 eventlet.monkey_patch()  # noqa: E402
 from psycogreen.eventlet import patch_psycopg  # noqa: E402
