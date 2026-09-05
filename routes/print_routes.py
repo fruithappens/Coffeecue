@@ -752,10 +752,34 @@ def cloudprnt_fetch():
         png = renderer(payload, job.get("width_dots"), options=opts)
         png = _shift_right(png, job.get("offset_dots"))
         cur.execute(
-            "UPDATE print_jobs SET status = 'fetched', fetched_at = NOW() WHERE id = %s",
+            # RETURNING the queue wait in SQL keeps it tz-safe: NOW() and
+            # created_at are both the DB's naive local time, so the delta is
+            # right where a Python datetime.now() - created_at would not be.
+            "UPDATE print_jobs SET status = 'fetched', fetched_at = NOW() WHERE id = %s "
+            "RETURNING EXTRACT(EPOCH FROM (NOW() - created_at))",
             (token,),
         )
+        _waited = None
+        try:
+            _wrow = cur.fetchone()
+            if _wrow is not None:
+                _wv = list(_wrow.values())[0] if isinstance(_wrow, dict) else _wrow[0]
+                _waited = float(_wv) if _wv is not None else None
+        except Exception:
+            _waited = None
         db.commit()
+        # How long the label sat queued before the printer collected it. On a
+        # slow/congested link (Steve's Telstra-4G printer that "took close to a
+        # minute") this is where the time quietly goes -- the server render is
+        # ~1s. One line per label turns "felt like a minute" into a number, so
+        # a future spike points at the link, not the app.
+        logger.info(
+            "cloudprnt deliver token=%s order=%s bytes=%d queued=%ss",
+            token,
+            job.get("order_id"),
+            len(png),
+            round(_waited, 1) if _waited is not None else "?",
+        )
         return Response(png, mimetype="image/png")
     except Exception as e:
         # Record WHY on the job itself. The printer only ever reports
@@ -796,24 +820,46 @@ def cloudprnt_confirm():
     try:
         cur = db.cursor()
         cur.execute(
-            "SELECT attempts, printer_id FROM print_jobs WHERE id = %s", (token,)
+            "SELECT attempts, printer_id, order_id, "
+            "EXTRACT(EPOCH FROM (NOW() - created_at)) AS total_s, "
+            "EXTRACT(EPOCH FROM (NOW() - fetched_at)) AS print_s "
+            "FROM print_jobs WHERE id = %s",
+            (token,),
         )
         row = cur.fetchone()
         if not row:
             return jsonify({"success": True})
         if isinstance(row, dict):
-            attempts, printer_id = row.get("attempts") or 0, row.get("printer_id")
+            attempts = row.get("attempts") or 0
+            printer_id = row.get("printer_id")
+            order_id = row.get("order_id")
+            total_s = row.get("total_s")
+            print_s = row.get("print_s")
         else:
-            attempts, printer_id = (row[0] or 0), row[1]
+            attempts, printer_id, order_id, total_s, print_s = (
+                (row[0] or 0),
+                row[1],
+                row[2],
+                row[3],
+                row[4],
+            )
         ok = _cloudprnt_success(code)
         # Method and status are not in the app log (only Railway's HTTP log),
         # so this single line is what makes a protocol argument diagnosable.
         logger.info(
-            "cloudprnt result token=%s mac=%s code=%r -> %s",
+            # total_s = queued + delivery + print (order label to done);
+            # print_s = collection to result (the printer's own leg). Together
+            # with the deliver line's queued= they split a slow label into
+            # queue-wait vs link/print, so "close to a minute" is diagnosable.
+            "cloudprnt result token=%s order=%s mac=%s code=%r -> %s "
+            "(total=%ss print-leg=%ss)",
             token,
+            order_id,
             _norm_mac(request.args.get("mac")),
             code,
             "OK" if ok else "FAIL",
+            round(total_s, 1) if total_s is not None else "?",
+            round(print_s, 1) if print_s is not None else "?",
         )
         if ok:
             cur.execute(
