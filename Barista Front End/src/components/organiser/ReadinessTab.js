@@ -62,7 +62,7 @@ const ReadinessTab = () => {
 
   // Admin alerts config (get-texted-on-issues). Loaded from
   // /api/settings/admin-alerts.
-  const [alertCfg, setAlertCfg] = useState({ enabled: false, phone: '', min_severity: 'critical', cooldown_minutes: 15 });
+  const [alertCfg, setAlertCfg] = useState({ enabled: false, phone: '', email: '', min_severity: 'critical', cooldown_minutes: 15 });
   const [alertSaving, setAlertSaving] = useState(false);
   const [alertStatus, setAlertStatus] = useState(null);
 
@@ -391,6 +391,17 @@ const ReadinessTab = () => {
                 placeholder="+61400000000"
                 disabled={!alertCfg.enabled}
                 className="w-full px-3 py-2 border border-gray-300 rounded font-mono disabled:bg-gray-100"
+              />
+            </label>
+            <label className="text-sm">
+              <span className="block text-gray-600 mb-1">Alert email</span>
+              <input
+                type="email"
+                value={alertCfg.email || ''}
+                onChange={e => setAlertCfg(c => ({ ...c, email: e.target.value }))}
+                placeholder="you@example.com"
+                disabled={!alertCfg.enabled}
+                className="w-full px-3 py-2 border border-gray-300 rounded disabled:bg-gray-100"
               />
             </label>
             <label className="text-sm">
