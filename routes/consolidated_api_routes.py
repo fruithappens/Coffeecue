@@ -2762,8 +2762,60 @@ def _notify_customer_order_started(phone, order_number, order_details):
         if not isinstance(order_details, dict):
             order_details = {}
 
+        # ONE "being made" text per round. Starting cup b or c of a round
+        # says nothing; the first cup started sends "your 3 coffees are
+        # being made", guarded by a flag on the lead (same lead resolution
+        # as the ready text: a lettered round's lead is <base>a). Steve:
+        # a 15-coffee round must not be 15 texts.
+        _group_id = order_details.get('group_id')
+        if _group_id:
+            try:
+                _gdb = current_app.config.get('coffee_system').db
+                _gcur = _gdb.cursor()
+                _gcur.execute(
+                    "SELECT order_number, order_details FROM orders "
+                    "WHERE order_number IN (%s, %s) ORDER BY order_number LIMIT 1",
+                    (str(_group_id), f"{_group_id}a"))
+                _lr = _gcur.fetchone()
+                _lead_num = ((_lr[0] if not isinstance(_lr, dict) else _lr.get('order_number'))
+                             if _lr else str(_group_id))
+                _lraw = ((_lr[1] if not isinstance(_lr, dict) else _lr.get('order_details'))
+                         if _lr else None)
+                _lod = json.loads(_lraw) if isinstance(_lraw, str) else (_lraw or {})
+                if not isinstance(_lod, dict):
+                    _lod = {}
+                if _lod.get('_group_started_sent'):
+                    logger.info(f"Order {order_number}: started-SMS skipped "
+                                f"(round {_group_id} already told)")
+                    return
+                _lod['_group_started_sent'] = True
+                _gcur.execute("UPDATE orders SET order_details = %s WHERE order_number = %s",
+                              (json.dumps(_lod), str(_lead_num)))
+                _gcur.execute(
+                    "SELECT COUNT(*) FROM orders WHERE "
+                    "COALESCE(order_details::jsonb, '{}'::jsonb)->>'group_id' = %s "
+                    "AND status <> 'cancelled'", (str(_group_id),))
+                _cr = _gcur.fetchone()
+                _n = int(((_cr[0] if not isinstance(_cr, dict) else list(_cr.values())[0]) or 0)
+                         if _cr else 0)
+                _gdb.commit()
+                body = _render_group_started_message(
+                    order_details.get('name'), _n, str(_group_id))
+                messaging_service.send_message(phone, body)
+                _record_order_message(str(_lead_num), phone, body, 'sent')
+                return
+            except Exception as _gs_err:
+                # Never let the round logic silence a customer: fall back to
+                # the plain per-cup text, exactly the pre-round behaviour.
+                logger.warning(f"group started-SMS failed, sending per-cup: {_gs_err}")
+                try:
+                    current_app.config.get('coffee_system').db.rollback()
+                except Exception:
+                    pass
+
         body = _render_started_message(order_number, order_details)
         messaging_service.send_message(phone, body)
+        _record_order_message(str(order_number), phone, body, 'sent')
     except Exception as exc:
         logger.error(f"Error sending start-notification SMS: {exc}")
 
@@ -3134,6 +3186,13 @@ def _notify_customer_order_ready(phone, order_number, order_details, station_id)
         # A real OS thread is deliberate: un-patched eventlet means
         # threading.Thread is a genuine thread, so the blocking call happens
         # off the hub entirely. daemon=True so it can never hold shutdown.
+        # File it where the barista's per-order Messages view looks
+        # (order_messages). Real sends never wrote there -- only the bench
+        # guard and test_no_send did -- so the view showed no ready texts at
+        # all. A round's text is filed against its LEAD cup, the order the
+        # customer was sent to track. Steve: "yes, good idea".
+        _record_order_message(
+            str(_lead_num) if _group_final else str(order_number), phone, body, 'sent')
         _dispatch_sms_async(messaging_service, phone, body, order_number)
     except Exception as exc:
         logger.error(f"Error sending ready-notification SMS: {exc}")
@@ -3210,6 +3269,42 @@ def _render_ready_message(order_number, order_details, station_id):
         'station': station_label,
     }, default_body)
     return f"{body}{sponsor}"
+
+
+def _record_order_message(order_number, phone, body, sid='sent'):
+    """File an outbound customer text in order_messages, the table the
+    barista's per-order Messages view reads. Never raises: a failed log
+    line must not stop the text."""
+    try:
+        _db = current_app.config.get('coffee_system').db
+        _c = _db.cursor()
+        _c.execute(
+            "INSERT INTO order_messages (order_number, phone, message, message_sid) "
+            "VALUES (%s, %s, %s, %s)",
+            (str(order_number), phone, body, sid))
+        _db.commit()
+    except Exception as _rec_err:
+        logger.debug(f"order_messages record skipped: {_rec_err}")
+        try:
+            current_app.config.get('coffee_system').db.rollback()
+        except Exception:
+            pass
+
+
+def _render_group_started_message(name, count, group_number):
+    """One 'your round is being made' SMS for a group order -- sent when the
+    FIRST cup starts, never again for that round. Plain ASCII (no emoji:
+    UCS-2 doubles the per-segment cost)."""
+    name = name or 'there'
+    try:
+        n = int(count or 0)
+    except Exception:
+        n = 0
+    drinks = f"{n} coffees" if n and n != 1 else "coffee"
+    verb = 'are' if n != 1 else 'is'
+    ready = "they're" if n != 1 else "it's"
+    return (f"Hi {name}, your {drinks} (order #{group_number}) {verb} being made "
+            f"now - we'll text you when {ready} ready.")
 
 
 def _render_group_ready_message(name, count, station_id, order_details, group_number):
@@ -5353,6 +5448,25 @@ def create_kiosk_order():
         expected = preferred_station or requested_station
         reassigned = bool(expected and target != expected)
 
+        # One station per round. The group endpoint pins every later cup to
+        # the station the round's FIRST cup landed on and asks for it to be
+        # locked: a drink this station can't make is REFUSED with a reason,
+        # not quietly routed elsewhere. Steve: stations can be 500 m apart
+        # at a conference, so a round split across two is worse than one
+        # cup declined. Solo orders never set this and reassign as before.
+        if reassigned and data.get('lock_station'):
+            try:
+                from utils.station_label import station_label as _lock_label
+                _where = _lock_label(db, expected) or f"Station {expected}"
+            except Exception:
+                _where = f"Station {expected}"
+            return jsonify({
+                'success': False, 'station_locked': True,
+                'message': (f"Sorry, {coffee_type} with {milk or 'no milk'} isn't "
+                            f"available at {_where} right now - please choose "
+                            f"something else for this cup."),
+            }), 409
+
         # No phone requirement — an order without a number is fine (the customer
         # watches the board). When a number IS given for a collect-elsewhere
         # order, the ready-SMS will tell them where to collect.
@@ -5606,11 +5720,19 @@ def create_kiosk_order_group():
         authorise_preassigned(_letters)
 
     placed, failed = [], []
+    # One station per round: whatever station the FIRST cup lands on (the
+    # caller's choice, or wherever load-balancing put it), every later cup
+    # is pinned there and locked -- see lock_station in create_kiosk_order.
+    _round_station = None
     with current_app.test_client() as c:
         for _i, it in enumerate(items, start=1):
             payload = dict(shared)
             if _letters:
                 payload['_order_number'] = _letters[_i - 1]
+            if _round_station is not None:
+                payload['station_id'] = _round_station
+                payload['preferred_station'] = _round_station
+                payload['lock_station'] = True
             payload.update({
                 'name': (it.get('name') or shared.get('name') or 'Guest'),
                 'coffee_type': it.get('coffee_type') or it.get('drink'),
@@ -5627,6 +5749,8 @@ def create_kiosk_order_group():
                 jb = r.get_json() or {}
                 if r.status_code == 200 and jb.get('success'):
                     placed.append((jb.get('order_number'), payload['name']))
+                    if _round_station is None and jb.get('station_id') is not None:
+                        _round_station = jb.get('station_id')
                 else:
                     failed.append((payload['name'], jb.get('message') or 'unavailable'))
             except Exception as e:
