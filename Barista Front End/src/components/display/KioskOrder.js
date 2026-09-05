@@ -220,9 +220,14 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
   // sponsors should be seen while people choose, not only on the beacon).
   // Not on the cart's touchscreen -- the board behind it already scrolls
   // the ticker. Cheap: an unchanged payload is a 304.
+  // 'Phone' by the page's own declaration (MobileOrderPage says 'web', /my
+  // says 'app'/'web'; only the cart's touchscreen is 'kiosk'), not by the
+  // absence of a login token -- an operator testing on their own signed-in
+  // phone would otherwise see no strip and think it broken.
+  const phoneSurface = channel !== 'kiosk' || isOwnDevice;
   const [sponsorStrip, setSponsorStrip] = useState({ enabled: false, sponsors: [] });
   useEffect(() => {
-    if (!isOwnDevice) return undefined;
+    if (!phoneSurface) return undefined;
     let dead = false;
     (async () => {
       try {
@@ -232,8 +237,8 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
       } catch (e) { /* no strip */ }
     })();
     return () => { dead = true; };
-  }, [isOwnDevice]);
-  const stripOn = isOwnDevice && sponsorStrip.enabled && sponsorStrip.sponsors.length > 0;
+  }, [phoneSurface]);
+  const stripOn = phoneSurface && sponsorStrip.enabled && sponsorStrip.sponsors.length > 0;
   const [roundName, setRoundName] = useState('');
   const [roundSaved, setRoundSaved] = useState(false);
   const loadRound = (round) => {
