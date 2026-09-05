@@ -12,12 +12,18 @@ from utils.database import get_db_connection, close_connection
 from auth import generate_tokens, verify_login
 
 # Create a blueprint
+# The login throttle lives HERE, not in app.py: this blueprint is registered
+# before app.py's own /api/auth/login route, so this handler is the live one
+# (app.py's is a shadowed fallback that carries the same limit).
+from security_middleware import limiter
+
 bp = Blueprint('auth', __name__)
 
 # Configure logging
 logger = logging.getLogger("expresso.routes.auth")
 
 @bp.route('/api/auth/login', methods=['POST'])
+@limiter.limit("10 per minute; 60 per hour")
 def api_login():
     """API endpoint for login"""
     if not request.is_json:
