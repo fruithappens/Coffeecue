@@ -30,8 +30,32 @@ _testing = os.getenv('TESTING_MODE', 'False').lower() == 'true'
 # Env override so the operator can dial these without code changes.
 _default_hourly = int(os.getenv('RATELIMIT_HOURLY', '5000'))
 _default_daily = int(os.getenv('RATELIMIT_DAILY', '50000'))
+def _client_ip():
+    """Rate-limit key: the REAL client, not the edge in front of us.
+
+    cupq.app sits behind Cloudflare, then Railway's proxy. ProxyFix trusts
+    ONE hop (x_for=1), so request.remote_addr resolves to the nearest
+    proxy's view -- a Cloudflare edge address, which changes from request
+    to request. Keyed on that, no bucket ever fills: 11 rapid bad logins
+    from one laptop each landed in a fresh bucket and all came back 401
+    (probed 2026-09-05). Cloudflare always sets CF-Connecting-IP to the
+    true client; fall back to the first X-Forwarded-For entry, then
+    remote_addr, so a deployment behind a different edge still works.
+    """
+    try:
+        cf = (request.headers.get('CF-Connecting-IP') or '').strip()
+        if cf:
+            return cf
+        xff = (request.headers.get('X-Forwarded-For') or '').split(',')[0].strip()
+        if xff:
+            return xff
+    except Exception:
+        pass
+    return get_remote_address()
+
+
 limiter = Limiter(
-    key_func=get_remote_address,
+    key_func=_client_ip,
     default_limits=[] if _testing else [f"{_default_daily} per day", f"{_default_hourly} per hour"],
     storage_uri="memory://",
     enabled=not _testing,

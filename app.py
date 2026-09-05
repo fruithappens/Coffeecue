@@ -1037,6 +1037,9 @@ def create_app():
             pass
 
     # Authentication API endpoints
+    # NOTE: the LIVE /api/auth/login is routes/auth_routes.py (registered
+    # earlier, so it shadows this one); it carries this same limit. This
+    # copy only serves if that blueprint fails to import.
     # Login is throttled per client IP. Only staff log in (customers never
     # do), so a per-IP limit can't hit attendees behind the venue NAT --
     # but it does end password guessing: 4 bad attempts in 9 s all came
