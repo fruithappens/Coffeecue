@@ -152,6 +152,14 @@ class PickupReminderService:
             if not rows:
                 return
 
+            # ONE reminder per round. A round's cups all complete together
+            # (the ready text already waits for the last one), so each would
+            # earn its own reminder -- Steve's phone showed five reminders
+            # for two rounds; a 15-coffee round would be 15 texts. A cup
+            # with a group_id is reminded ONCE for the whole round, only
+            # when nothing in it is still being made, and every cup is
+            # stamped so no sibling sends again (this tick or the next).
+            reminded_groups = set()
             for row in rows:
                 if isinstance(row, dict):
                     order_id = row.get('id')
@@ -163,12 +171,35 @@ class PickupReminderService:
                     order_id, order_number, phone, details_raw, station_id = row
 
                 details = self._parse_details(details_raw)
-                self._send_reminder(phone, order_number, details, station_id)
+                group_id = details.get('group_id')
+                if group_id:
+                    gid = str(group_id)
+                    if gid in reminded_groups:
+                        continue  # a sibling sent this tick; stamped below
+                    total, remaining, lead_num, lead_station = self._group_state(cur, gid)
+                    if remaining > 0:
+                        # Still being made -- not the round's turn yet. Left
+                        # unstamped so it is re-evaluated next tick.
+                        continue
+                    body = self._send_group_reminder(
+                        phone, gid, total, details, lead_station or station_id)
+                    reminded_groups.add(gid)
+                    cur.execute(
+                        "UPDATE orders SET reminder_sent_at = %s WHERE "
+                        "COALESCE(order_details::jsonb, '{}'::jsonb)->>'group_id' = %s "
+                        "AND reminder_sent_at IS NULL",
+                        (datetime.now(), gid),
+                    )
+                    self._record(cur, lead_num or gid, phone, body)
+                    continue
+
+                body = self._send_reminder(phone, order_number, details, station_id)
                 # Stamp so we don't re-send. Done in same transaction.
                 cur.execute(
                     "UPDATE orders SET reminder_sent_at = %s WHERE id = %s",
                     (datetime.now(), order_id),
                 )
+                self._record(cur, order_number, phone, body)
             conn.commit()
         except Exception as e:
             logger.exception("[pickup-reminder] DB error: %s", e)
@@ -194,6 +225,74 @@ class PickupReminderService:
             return json.loads(raw)
         except Exception:
             return {}
+
+    @staticmethod
+    def _record(cur, order_number, phone, body):
+        """File the reminder in order_messages (what the barista's per-order
+        Messages view reads), on the tick's own transaction. A round's is
+        filed against its lead cup. Never raises."""
+        if not body:
+            return
+        try:
+            cur.execute(
+                "INSERT INTO order_messages (order_number, phone, message, message_sid) "
+                "VALUES (%s, %s, %s, %s)",
+                (str(order_number), phone, body, 'reminder'),
+            )
+        except Exception as e:
+            logger.debug("[pickup-reminder] order_messages record skipped: %s", e)
+
+    @staticmethod
+    def _group_state(cur, group_id):
+        """(non-cancelled cups, cups still being made, lead cup number, lead
+        cup station) for a round. A lettered round's lead is <base>a; a
+        legacy round's lead IS the base. Uses the tick's own cursor."""
+        cur.execute(
+            "SELECT COUNT(*) FILTER (WHERE status <> 'cancelled') AS total, "
+            "       COUNT(*) FILTER (WHERE status NOT IN "
+            "         ('completed','picked_up','cancelled')) AS remaining, "
+            "       MIN(CASE WHEN order_number IN (%s, %s) THEN order_number END) AS lead_num, "
+            "       MIN(CASE WHEN order_number IN (%s, %s) THEN station_id END) AS lead_station "
+            "FROM orders WHERE "
+            "COALESCE(order_details::jsonb, '{}'::jsonb)->>'group_id' = %s",
+            (group_id, f"{group_id}a", group_id, f"{group_id}a", group_id),
+        )
+        row = cur.fetchone()
+        if not row:
+            return 0, 0, None, None
+        if isinstance(row, dict):
+            return (int(row.get('total') or 0), int(row.get('remaining') or 0),
+                    row.get('lead_num'), row.get('lead_station'))
+        return int(row[0] or 0), int(row[1] or 0), row[2], row[3]
+
+    def _send_group_reminder(self, phone, group_id, count, details, station_id):
+        """One reminder for the whole round. Returns the body sent (for the
+        message log) or None."""
+        try:
+            name = (details.get('name') or '').strip() or 'there'
+            drinks = f"{count} coffees" if count and count != 1 else "coffee"
+            verb = 'are' if count != 1 else 'is'
+            tail = 'them before they go cold' if count != 1 else 'it before it goes cold'
+            station_text = (_station_label(self.db, station_id) if station_id
+                            else 'the counter')
+            # ASCII only (see _send_reminder).
+            body = (
+                f"Hi {name}, just a reminder - your {drinks} (Order #{group_id}) "
+                f"{verb} still waiting at {station_text}. Come grab {tail}!"
+            )
+            if self.messaging_service:
+                self.messaging_service.send_message(phone, body)
+                logger.info(
+                    "[pickup-reminder] sent ONE round reminder for group %s to %s",
+                    group_id, phone,
+                )
+            return body
+        except Exception as e:
+            logger.error(
+                "[pickup-reminder] failed sending round reminder for %s: %s",
+                group_id, e,
+            )
+            return None
 
     def _send_reminder(self, phone, order_number, details, station_id):
         try:
@@ -224,8 +323,10 @@ class PickupReminderService:
                     "[pickup-reminder] sent reminder for order %s to %s",
                     order_number, phone,
                 )
+            return body
         except Exception as e:
             logger.error(
                 "[pickup-reminder] failed sending reminder for %s: %s",
                 order_number, e,
             )
+            return None
