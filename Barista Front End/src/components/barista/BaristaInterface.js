@@ -133,7 +133,29 @@ const BaristaInterface = () => {
   // Admin-only "Switch view" dropdown in the header (replaces the floating
   // cross-interface switcher on this screen).
   const [showViewSwitch, setShowViewSwitch] = useState(false);
-  
+
+  // Per-device screen zoom for the whole barista interface. Two problems from
+  // the event floor (Steve): on a SMALL tablet the Start button was a hard tap
+  // — baristas want everything bigger; on a big screen they'd rather shrink it
+  // to see more orders at once. CSS `zoom` reflows the layout properly (unlike
+  // transform: scale, which clips), and Chromium/Safari scale the fixed layer
+  // uniformly so centred modals stay centred. This is deliberately device-local
+  // (its own localStorage key, NOT the synced settings blob) so each tablet
+  // keeps its own size without pushing it to every other screen.
+  const ZOOM_MIN = 0.7, ZOOM_MAX = 1.6;
+  const [uiZoom, setUiZoom] = useState(() => {
+    try {
+      const v = parseFloat(localStorage.getItem('coffee_barista_zoom'));
+      if (v >= ZOOM_MIN && v <= ZOOM_MAX) return v;
+    } catch (_) { /* no stored value / private mode — default to 1 */ }
+    return 1;
+  });
+  const setZoom = (v) => {
+    const clamped = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(v * 100) / 100));
+    setUiZoom(clamped);
+    try { localStorage.setItem('coffee_barista_zoom', String(clamped)); } catch (_) { /* private mode */ }
+  };
+
   // Use schedule hook to get schedule data
   const {
     scheduleData,
@@ -2309,7 +2331,14 @@ const BaristaInterface = () => {
 
   // Main component render
   return (
-    <div className="bg-gray-100 min-h-screen flex flex-col">
+    <div
+      className="bg-gray-100 min-h-screen flex flex-col"
+      // At zoom < 1 a bare min-h-screen (100vh) would render shorter than the
+      // real viewport once scaled, leaving a grey strip at the bottom; dividing
+      // by the zoom keeps it filling the screen. At zoom > 1 the taller content
+      // simply overflows and scrolls, which is what we want.
+      style={uiZoom !== 1 ? { zoom: uiZoom, minHeight: `${100 / uiZoom}vh` } : undefined}
+    >
       {/* Toast Notifications */}
       <ToastManager />
 
@@ -2561,6 +2590,38 @@ const BaristaInterface = () => {
           {/* Customer questions + station chat now live in the blue Messages
               bubble (bottom-right); the static HELP button was removed to
               declutter the header. */}
+
+          {/* Screen size (per-device zoom). Bigger = easier taps on a small
+              tablet (the Start button was the pain point); smaller = more
+              orders on screen. Saved on THIS device only. Tap the % to reset. */}
+          <div
+            className="flex items-center rounded-full bg-amber-900 overflow-hidden mr-2"
+            title="Screen size on this device — bigger for easier taps, smaller to fit more orders. Saved on this tablet only."
+          >
+            <button
+              className="px-3 py-1 text-lg leading-none hover:bg-amber-950 disabled:opacity-40"
+              onClick={() => setZoom(uiZoom - 0.1)}
+              disabled={uiZoom <= ZOOM_MIN}
+              aria-label="Make everything smaller"
+            >
+              &minus;
+            </button>
+            <button
+              className="px-2 py-1 text-sm tabular-nums hover:bg-amber-950"
+              onClick={() => setZoom(1)}
+              title="Reset to 100%"
+            >
+              {Math.round(uiZoom * 100)}%
+            </button>
+            <button
+              className="px-3 py-1 text-lg leading-none hover:bg-amber-950 disabled:opacity-40"
+              onClick={() => setZoom(uiZoom + 0.1)}
+              disabled={uiZoom >= ZOOM_MAX}
+              aria-label="Make everything bigger"
+            >
+              +
+            </button>
+          </div>
 
           {/* Rush mode. The way in AND the way out -- in rush mode every
               other menu is gone, so this button must stay visible and
