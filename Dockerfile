@@ -66,6 +66,16 @@ RUN mkdir -p logs
 EXPOSE 5001
 
 # Set environment variables
+# MALLOC_ARENA_MAX: glibc gives each thread its own malloc arena and keeps
+# freed memory inside them, so a Python process running threads + greenlets
+# (eventlet, SMS threads, the reminder/keep-warm/backup loops, Pillow and
+# psycopg2 buffers) shows RSS that climbs with request volume even though
+# Python's own heap is flat. Measured on prod 2026-09-05 with tracemalloc:
+# +20 MB RSS in two minutes of read load, traced Python memory unchanged
+# -- the same ramp that reached ~1 GB and restarted the server on Treenet
+# day 2. Two arenas is the standard fix for Python web apps; the memory
+# watchdog also calls malloc_trim() each minute to hand freed arenas back.
+ENV MALLOC_ARENA_MAX=2
 ENV PYTHONPATH=/app
 ENV PORT=5001
 ENV NODE_ENV=production
