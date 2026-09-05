@@ -1,3 +1,4 @@
+import playCupQSignature from '../utils/cupqSignature';
 // SoundNotificationService.js
 //
 // Distinct chimes per event type — operator picks which sound goes
@@ -49,6 +50,9 @@ const _tone = (ctx, t0, freq, durationS, volume, type = 'sine') => {
 };
 
 const SOUNDS = {
+  // The phone beacon's branded motif (drop, pour, 'Q', steam) -- pickable
+  // for any event now, not only the beacon. See utils/cupqSignature.js.
+  cupq_signature: (ctx, t0, v) => playCupQSignature(ctx, Math.min(1, v * 1.2)),
   // Bright ascending two-note — "something new just landed"
   chime_up: (ctx, t0, v) => {
     _tone(ctx, t0,        523.25, 0.16, v, 'sine');  // C5
@@ -103,6 +107,7 @@ export const SOUND_PRESETS = [
   { key: 'retro_beep',   label: 'Retro beep' },
   { key: 'warning_blip', label: 'Warning blip' },
   { key: 'error_buzz',   label: 'Error buzz' },
+  { key: 'cupq_signature', label: 'CupQ signature (drop, pour, Q, steam)' },
   { key: 'none',         label: 'No sound for this event' },
 ];
 
@@ -114,6 +119,16 @@ export const DEFAULT_SOUND_CHOICES = {
   orderPickedUp: 'bell',
   lowStock:      'warning_blip',
   error:         'error_buzz',
+};
+
+// Play a preset on SOMEONE ELSE'S AudioContext -- the display board and the
+// phone beacon keep their own (Safari caps how many a page may create, and
+// each has its own unlock/strip logic). 'none' is silent; an unknown key
+// falls back to the default chime rather than to nothing.
+export const playPreset = (ctx, soundKey, volume = 0.7) => {
+  if (!ctx || soundKey === 'none') return;
+  const fn = SOUNDS[soundKey] || SOUNDS.chime_up;
+  try { fn(ctx, ctx.currentTime + 0.01, volume); } catch (e) { /* never block the caller */ }
 };
 
 // ---- Service --------------------------------------------------------------

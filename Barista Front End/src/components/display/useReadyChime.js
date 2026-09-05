@@ -21,6 +21,7 @@
 //     all, so it wakes the context too.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Volume2, VolumeX } from 'lucide-react';
+import { playPreset } from '../../services/SoundNotificationService';
 import playCupQSignature from '../../utils/cupqSignature';
 
 export const SOUND_KEY = 'coffee_my_sound_on';
@@ -57,14 +58,18 @@ export default function useReadyChime() {
     return ctx;
   }, [getAudio]);
 
-  const playChime = useCallback(() => {
+  // soundKey: the operator's pick for the beacon (barista Settings > Sounds),
+  // carried on the /track and /api/ea/me responses. Default = the signature.
+  const playChime = useCallback((soundKey) => {
     try {
       const ctx = wakeAudio();
       if (!ctx) return;
       // The CupQ signature -- drop, pour, "Q", steam. One motif on
       // every good-news moment so the sound itself comes to mean
       // coffee (see utils/cupqSignature.js for the design).
-      const fire = () => playCupQSignature(ctx);
+      const fire = () => (soundKey && soundKey !== 'cupq_signature'
+        ? playPreset(ctx, soundKey, 0.8)
+        : playCupQSignature(ctx));
       // resume() is async, so wait for it rather than firing into a
       // context that is still waking.
       if (ctx.state === 'suspended' && ctx.resume) {

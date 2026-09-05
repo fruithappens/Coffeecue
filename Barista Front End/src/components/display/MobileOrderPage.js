@@ -164,7 +164,7 @@ const MobileOrderPage = () => {
     // ready. `was` falls back to sessionStorage so a phone that slept
     // through the moment still gets told.
     if (!was || was === status || status !== 'completed') return;
-    if (soundOn) playChime();
+    if (soundOn) playChime(track?.beacon_sound);
     // Vibration is NOT gated on the toggle: it is private, does not
     // carry across a room, and reaches a phone lying face-down.
     try { navigator.vibrate && navigator.vibrate([120, 60, 120]); } catch (e) { /* fine */ }
