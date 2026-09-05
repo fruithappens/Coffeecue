@@ -90,16 +90,69 @@ def note_webhook_hit(accepted: bool = True):
         pass
 
 
+# Fired at most once per boot so a failing sender doesn't spam. Reset the
+# moment a send succeeds, so a LATER outage still alerts.
+_alerted_outbound_down = False
+
+
+def _outbound_is_down():
+    # Sends are being attempted and NONE are getting out. Two-plus failures
+    # with zero successes = systemic (the 2026-09-05 eventlet-DNS outage was
+    # exactly this), not one bad number.
+    return _state["outbound_failed"] >= 2 and _state["outbound_ok"] == 0
+
+
+def _maybe_alert_outbound_down():
+    """Best-effort email when outbound goes dark. Gated + rate-limited.
+
+    Honest limit: in a TOTAL egress/DNS outage the email can't send either
+    (it needs the network that's down) — that case is caught by the in-app
+    banner, which rides the inbound path. This email is for PARTIAL failures
+    (e.g. a Twilio account problem) where the box still reaches the internet.
+    """
+    global _alerted_outbound_down
+    if _alerted_outbound_down or not _outbound_is_down():
+        return
+    _alerted_outbound_down = True  # once per boot regardless of send outcome
+    to = os.getenv("ADMIN_ALERT_EMAIL", "").strip()
+    if not to:
+        return
+    failed = _state["outbound_failed"]
+
+    def _send():
+        try:
+            from services.email_utils import send_html_email
+            send_html_email(
+                to,
+                "⚠️ Coffee Cue: SMS sending is FAILING",
+                f"<p><b>Outbound SMS is failing on the live system</b> — "
+                f"{failed} attempts, 0 delivered since the last restart.</p>"
+                "<p>Anyone who opted into a ready-text is NOT getting it. "
+                "Check the barista screen banner and connectivity.</p>",
+            )
+        except Exception:
+            pass
+
+    try:
+        threading.Thread(target=_send, name="outbound-down-alert",
+                         daemon=True).start()
+    except Exception:
+        pass
+
+
 def note_outbound(ok: bool = True):
     """Record an outbound send attempt. Never raises."""
+    global _alerted_outbound_down
     try:
         with _lock:
             if ok:
                 _state["outbound_ok"] += 1
                 _state["outbound_last_at"] = _now_iso()
+                _alerted_outbound_down = False  # recovered — re-arm the alert
             else:
                 _state["outbound_failed"] += 1
                 _state["outbound_failed_last_at"] = _now_iso()
+                _maybe_alert_outbound_down()
     except Exception:
         pass
 
@@ -199,6 +252,18 @@ def snapshot(db=None, messaging_service=None):
             "does not exist."
         )
 
+    # The one an operator must see DURING service: texts are not going out.
+    # Front of the list because it's the most urgent, and surfaced as its own
+    # boolean so the barista banner can trip on it without parsing prose.
+    outbound_down = _outbound_is_down()
+    if outbound_down:
+        problems.insert(
+            0,
+            f"SMS SENDING IS FAILING — {s['outbound_failed']} attempts since "
+            "restart, 0 delivered. Anyone who asked for a text is NOT getting "
+            "it. Call names / point people to the board.",
+        )
+
     if problems:
         status = "warn"
     elif testing_mode is False and (s["webhook_hits"] or inbound.get("count_24h")):
@@ -209,6 +274,7 @@ def snapshot(db=None, messaging_service=None):
 
     return {
         "status": status,
+        "outbound_down": outbound_down,
         "problems": problems,
         "testing_mode": testing_mode,
         "from_number": from_number,
