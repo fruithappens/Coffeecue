@@ -5523,6 +5523,9 @@ def create_kiosk_order():
             'bean_type': bean_type or None,
             'order_type': 'kiosk',
             'created_by': 'kiosk',
+            # Explicit 'chose texts' flag from the kiosk/app/phone flows (None
+            # when the caller predates it) -- reportable without inference.
+            'sms_opt_in': (bool(data.get('sms_opt_in')) if 'sms_opt_in' in data else None),
             # Set from the notes-box VIP code. Was hardcoded False, which
             # is what a kiosk order used to be before a code could redeem
             # one -- and which, as a SECOND 'vip' key in this same dict,
@@ -5705,7 +5708,7 @@ def create_kiosk_order_group():
     shared = {k: body.get(k) for k in (
         'phone', 'use_registered_phone', 'ea_contact_id', 'station_id',
         'preferred_station', 'channel', 'src', 'e', 'lookup_phone',
-        'event_password') if k in body}
+        'event_password', 'sms_opt_in') if k in body}
 
     # Letter the round: reserve ONE base (336) and pre-assign 336a/336b/336c
     # so the sequence advances once per round (no gaps) and every surface

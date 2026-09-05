@@ -31,6 +31,9 @@ export const KNOWN_CODES = {
   QUICK_SETUP_PREVIEW_OPEN: 'Operator opened the Quick Setup drift preview modal.',
   QUICK_SETUP_APPLIED:     'Quick Setup apply succeeded (frontend-observable).',
   QUICK_SETUP_PREVIEW_FAIL: 'Dry-run endpoint failed; operator fell back to confirm dialog.',
+  // Customer surfaces (Treenet data-capture: what people wanted / chose)
+  UNAVAILABLE_TAP:         'Customer tapped a crossed-out drink or milk on the ordering screen.',
+  BEACON_SOUND:            'Customer toggled the ready-chime on the phone beacon.',
   // Auth + offline
   AUTH_FALLBACK_ENABLED:   'User accepted the fallback-mode prompt.',
   API_OFFLINE_DETECTED:    'Network or API health check failed.',
