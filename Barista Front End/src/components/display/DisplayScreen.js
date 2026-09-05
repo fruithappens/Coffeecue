@@ -501,7 +501,33 @@ const DisplayScreen = () => {
   const speakingRef = useRef(false);
   const announcedIdsRef = useRef(new Set());
   const firstPollRef = useRef(true);
+  // Browsers refuse speechSynthesis.speak() until the page has had a tap or
+  // key press (Chrome/Edge: "not-allowed"). A display opened straight from a
+  // URL, or reloaded, with announcements ON therefore stays silent -- and
+  // says nothing about it (Steve's Surface at Treenet). Track whether the
+  // page is armed, notice the refusal, and show a "tap once" strip until a
+  // real utterance succeeds.
+  const speechArmedRef = useRef(false);
+  const voiceBlockedRef = useRef(false);
+  const [voiceNeedsTap, setVoiceNeedsTap] = useState(false);
   useEffect(() => { announceOnRef.current = announceOn; }, [announceOn]);
+  useEffect(() => {
+    if (!('speechSynthesis' in window)) return undefined;
+    // Warm the voice list (Windows loads it asynchronously).
+    try { window.speechSynthesis.getVoices(); } catch (e) { /* noop */ }
+    if (announceOn) setVoiceNeedsTap(true);
+    const arm = () => {
+      speechArmedRef.current = true;
+      voiceBlockedRef.current = false;
+      setVoiceNeedsTap(false);
+      // Anything that was refused while blocked is still queued; say it now.
+      if (announceOnRef.current) setTimeout(speakNextAnnouncement, 100);
+    };
+    window.addEventListener('pointerdown', arm);
+    window.addEventListener('keydown', arm);
+    return () => { window.removeEventListener('pointerdown', arm); window.removeEventListener('keydown', arm); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useEffect(() => () => {
     try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) { /* noop */ }
   }, []);
@@ -526,6 +552,8 @@ const DisplayScreen = () => {
 
   const speakNextAnnouncement = () => {
     if (speakingRef.current || !announceOnRef.current) return;
+    // Known-blocked and still no gesture: keep the queue, don't spin.
+    if (voiceBlockedRef.current && !speechArmedRef.current) return;
     const text = announceQueueRef.current.shift();
     if (!text || !('speechSynthesis' in window)) return;
     speakingRef.current = true;
@@ -542,8 +570,26 @@ const DisplayScreen = () => {
       speakingRef.current = false;
       setTimeout(speakNextAnnouncement, 400);
     };
-    u.onend = done;
-    u.onerror = done;
+    u.onend = () => {
+      // It spoke: the page is armed and the "tap once" strip can go.
+      speechArmedRef.current = true;
+      voiceBlockedRef.current = false;
+      setVoiceNeedsTap(false);
+      done();
+    };
+    u.onerror = (ev) => {
+      if (ev && ev.error === 'not-allowed') {
+        // The browser wants a gesture first. Put the line back and show
+        // the strip; the next tap anywhere replays it.
+        voiceBlockedRef.current = true;
+        speechArmedRef.current = false;
+        announceQueueRef.current.unshift(text);
+        setVoiceNeedsTap(true);
+        speakingRef.current = false;
+        return;
+      }
+      done();
+    };
     // Let the chime land before the voice starts.
     setTimeout(() => window.speechSynthesis.speak(u), 450);
   };
@@ -575,6 +621,10 @@ const DisplayScreen = () => {
   const toggleAnnouncements = () => {
     const next = !announceOn;
     setAnnounceOn(next);
+    // The tap that toggles is itself the unlock gesture.
+    speechArmedRef.current = true;
+    voiceBlockedRef.current = false;
+    setVoiceNeedsTap(false);
     try { localStorage.setItem('coffee_display_announce', next ? 'true' : 'false'); } catch (e) { /* noop */ }
     announceOnRef.current = next;
     if (next && 'speechSynthesis' in window) {
@@ -1741,6 +1791,15 @@ const DisplayScreen = () => {
           >
             {announceOn ? <Volume2 size={24} /> : <VolumeX size={24} />}
           </button>
+          {/* Voice is ON but the browser hasn't had a tap yet (or refused to
+              speak): say so, loudly, instead of failing silently. Any tap or key
+              press anywhere on the page arms it and replays what was held. */}
+          {announceOn && voiceNeedsTap && (
+            <div className="fixed top-3 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-full bg-amber-500 text-black font-bold text-lg shadow-2xl animate-pulse cursor-pointer"
+                 onClick={(e) => e.stopPropagation()}>
+              Tap once anywhere to enable voice announcements
+            </div>
+          )}
           <button
             onClick={(e) => { e.stopPropagation(); setOrientation(orientation === 'portrait' ? 'landscape' : 'portrait'); }}
             className="p-2 rounded-full hover:opacity-80"
