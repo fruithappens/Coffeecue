@@ -1112,7 +1112,7 @@ class CoffeeOrderSystem:
                         )
                         return (
                             f"Hi {name}! What can I get you today? "
-                            f"(Just letting you know — {milk} isn't on at any "
+                            f"(Just letting you know - {milk} isn't on at any "
                             f"station right now.)"
                         )
 
@@ -1121,7 +1121,7 @@ class CoffeeOrderSystem:
                 if all([drink, milk, size]):
                     drink_label = f"decaf {drink}" if decaf else drink
                     sugar_text = f", {sugar}" if sugar else ""
-                    strength_text = f" ({strength})" if strength else ""
+                    strength_text = f"({strength})" if strength else ""
                     return (
                         f"What can I get you today, {name}? Your usual "
                         f"{size} {drink_label} with {milk} milk{sugar_text}"
@@ -1385,7 +1385,7 @@ class CoffeeOrderSystem:
         prefs = self._get_preferred_order(phone)
         if not prefs:
             return (
-                f"Got it — about {minutes} min away! Text us your order now "
+                f"Got it - about {minutes} min away! Text us your order now "
                 f"(e.g. 'medium latte with full cream') and we'll get it "
                 f"underway so it's ready when you arrive."
             )
@@ -1430,7 +1430,7 @@ class CoffeeOrderSystem:
                     "arrival_at": arrival.isoformat(),
                     "notes": (
                         (od.get("notes") or "")
-                        + f" (arriving ~{arrival.strftime('%H:%M')})"
+                        + f"(arriving ~{arrival.strftime('%H:%M')})"
                     ).strip(),
                 }
             )
@@ -1464,7 +1464,7 @@ class CoffeeOrderSystem:
             self.db.commit()
             self._set_conversation_state(phone, "completed")
             return (
-                f"Great {name}! Your {summary} is scheduled — we'll start "
+                f"Great {name}! Your {summary} is scheduled - we'll start "
                 f"making it just before you arrive, ready about "
                 f"{arrival.strftime('%H:%M')}. Order #{order_number}. "
                 f"Reply CHANGE to fix it or OOPS to cancel."
@@ -1658,7 +1658,7 @@ class CoffeeOrderSystem:
                     estimated_wait = 15  # Default
 
                 time_left = max(0, estimated_wait - wait_time_minutes)
-                response += f" Estimated completion in {time_left} more minutes."
+                response += f"Estimated completion in {time_left} more minutes."
 
             # Add linked order info if any
             if friend_orders:
@@ -1913,7 +1913,7 @@ class CoffeeOrderSystem:
             logger.warning(f"could not record _customer_reply on order (non-fatal): {reply_err}")
         tag = (
             f"[Re order #{order_no}"
-            + (f" @ Station {station}" if station else "")
+            + (f"@ Station {station}" if station else "")
             + "] "
         )
         self._set_conversation_state(phone, "completed")
@@ -2262,7 +2262,7 @@ class CoffeeOrderSystem:
             shown += remaining[:1]
             coffee_line_tail = ""
             if extra_count > 1:
-                coffee_line_tail = f" (+{extra_count - 1} more — just text the name)"
+                coffee_line_tail = f"(+{extra_count - 1} more - just text the name)"
 
             # Build the message
             lines = ["Menu:"]
@@ -2289,21 +2289,21 @@ class CoffeeOrderSystem:
                 milks_sorted = sorted(available_milks)
                 milk_tail = ""
                 if len(milks_sorted) > 6:
-                    milk_tail = f" (+{len(milks_sorted) - 6} more)"
+                    milk_tail = f"(+{len(milks_sorted) - 6} more)"
                     milks_sorted = milks_sorted[:6]
                 lines.append(f"Milk: {', '.join(milks_sorted)}{milk_tail}")
             else:
                 lines.append("Milk: (none in stock)")
 
             if available_sweeteners:
-                lines.append(f"🍯 {self._summarise_sweeteners(available_sweeteners)}")
+                lines.append(f"{self._summarise_sweeteners(available_sweeteners)}")
 
             lines.append(f"Size: {', '.join(sizes)}")
 
             if single_station_milks:
                 lines.append("")
                 lines.append(
-                    f"💡 {', '.join(single_station_milks)} only at certain stations — "
+                    f"{', '.join(single_station_milks)} only at certain stations - "
                     f"we'll route automatically."
                 )
 
@@ -3020,7 +3020,7 @@ class CoffeeOrderSystem:
         # Un-makeable milk → drop it and re-ask milk.
         milk_note = ""
         if od.get("milk") and not self._milk_is_makeable(od.get("milk")):
-            milk_note = f"We don't have {od.pop('milk')} at any station — "
+            milk_note = f"We don't have {od.pop('milk')} at any station - "
 
         state_data = {"name": name, "order_details": od}
 
@@ -3028,7 +3028,7 @@ class CoffeeOrderSystem:
             self._set_conversation_state(
                 phone, "awaiting_coffee_type", {"name": name, "order_details": od}
             )
-            return f"{prefix}What can I get you? (e.g. flat white, latte, cappuccino — or MENU for the list)"
+            return f"{prefix}What can I get you? (e.g. flat white, latte, cappuccino - or MENU for the list)"
         if "milk" not in od:
             if milk_note:
                 # They NAMED a milk we can't make — never swap dairy in
@@ -3059,7 +3059,7 @@ class CoffeeOrderSystem:
         return self._place_order(phone, name, od, prefix=prefix)
 
     def _split_multi_drink(self, message):
-        """Detect "two coffees in one text" — e.g. "1 oat latte and 1 flat
+        """Detect "two coffees in one text" - e.g. "1 oat latte and 1 flat
         white", "2 cappuccinos", "latte, flat white & long black".
 
         Returns a list of (segment_text, parsed_order_dict) for each distinct
@@ -3102,7 +3102,7 @@ class CoffeeOrderSystem:
         self._set_conversation_state(phone, "awaiting_coffee_type", {"name": name})
         return (
             f"I can do a group order, but {reason}. Easiest is one coffee at a "
-            f"time — what's the first one? (Then reply FRIEND to add the next.)"
+            f"time - what's the first one? (Then reply FRIEND to add the next.)"
         )
 
     def _handle_multi_drink_order(self, phone, message, state=None):
@@ -3323,7 +3323,7 @@ class CoffeeOrderSystem:
                 strength = usual_order.get("strength")
                 decaf = usual_order.get("decaf")
                 drink_label = f"decaf {coffee_type}" if decaf else coffee_type
-                strength_text = f" ({strength})" if strength else ""
+                strength_text = f"({strength})" if strength else ""
 
                 # Save name and set suggestion context
                 self._set_conversation_state(
@@ -3552,7 +3552,7 @@ class CoffeeOrderSystem:
             drink_label = f"decaf {coffee_type}" if decaf else coffee_type
             summary = f"{size} {drink_label} with {milk}, {sugar}"
             if strength:
-                summary += f" ({strength})"
+                summary += f"({strength})"
 
             return (
                 f"Great, {name}! Here's your usual order: {summary}"
@@ -4432,7 +4432,7 @@ class CoffeeOrderSystem:
 
         Returns None when the operator has expressed no opinion (no
         blob, or no such category) so callers can tell "switched
-        everything off" apart from "never configured" -- those must not
+        everything off"apart from "never configured" -- those must not
         behave the same way.
         """
         inv = self._get_event_inventory()
@@ -4527,7 +4527,7 @@ class CoffeeOrderSystem:
         """Which bean this order asks for, whatever shape the channel used.
 
         Decaf arrives in THREE shapes, one per era of the codebase:
-          * bean_type='decaf'          (kiosk, walk-in, order editor)
+          * bean_type='decaf'         (kiosk, walk-in, order editor)
           * decaf=True                 (the SMS NLP's flag)
           * type='decaf latte'         (older SMS parses fold it into
                                         the drink name)
@@ -4787,7 +4787,7 @@ class CoffeeOrderSystem:
             name = str(self._get_setting_fresh("venue_cafe_name", "") or "").strip()
         except Exception:
             name = ""
-        return f" Or grab it yourself from the {name}." if name else ""
+        return f"Or grab it yourself from the {name}." if name else ""
 
     def _is_valid_milk_type(self, requested_milk, available_milks):
         """Check if the requested milk type is valid and in stock"""
@@ -5389,7 +5389,7 @@ class CoffeeOrderSystem:
         # Phrase the read-back differently for black coffees so we don't say
         # "with no milk milk".
         milk = order_details["milk"]
-        milk_phrase = "" if milk == "no milk" else f" with {milk} milk"
+        milk_phrase = "" if milk == "no milk" else f"with {milk} milk"
 
         # Size note is set (not returned) when there's exactly one size, so
         # we FALL THROUGH to the sugar/confirm checks. The bug this fixes
@@ -5404,12 +5404,12 @@ class CoffeeOrderSystem:
             ) or ["small", "medium", "large"]
             if len(available_sizes) == 1:
                 order_details["size"] = available_sizes[0]
-                size_note = f" (all drinks are {available_sizes[0]} today)"
+                size_note = f"(all drinks are {available_sizes[0]} today)"
                 # fall through — do NOT return; sugar may already be known
             else:
                 self._set_conversation_state(phone, "awaiting_size", state_data)
                 return (
-                    f"Got it — {order_details['type']}{milk_phrase}. "
+                    f"Got it - {order_details['type']}{milk_phrase}. "
                     f"What size? ({', '.join(available_sizes)})"
                 )
 
@@ -5562,7 +5562,7 @@ class CoffeeOrderSystem:
 
     def _parse_sugar_input(self, message):
         """Parse a sugar reply into a canonical sugar string. Accepts 0-9 (and
-        higher, capped at 12), 'none'/'no', number words (one..ten), 'half' /
+        higher, capped at 12), 'none'/'no', number words (one..ten), 'half'/
         'quarter', and fractions (1/2, 1/4, .5, .25, 1.5). Returns None when
         nothing sugar-like is found so the caller can re-ask."""
         s = (message or "").lower().strip()
@@ -5581,7 +5581,7 @@ class CoffeeOrderSystem:
             "no thank you",
         ):
             return "no sugar"
-        if "half" in s or s in ("1/2", "½", ".5", "0.5"):
+        if "half"in s or s in ("1/2", "½", ".5", "0.5"):
             return "half sugar"
         if "quarter" in s or s in ("1/4", "¼", ".25", "0.25"):
             return "quarter sugar"
@@ -5684,7 +5684,7 @@ class CoffeeOrderSystem:
                 self._set_conversation_state(phone, "awaiting_confirmation", temp_data)
                 order_summary = self.nlp.format_order_summary(updated_details)
                 return (
-                    f"Updated — {change_summary}.\n"
+                    f"Updated - {change_summary}.\n"
                     f"Here's your order now: {order_summary}"
                     f"{self._format_price_tail(updated_details)}\n"
                     f"Reply YES to confirm, NO to cancel, or EDIT to change something else."
@@ -5921,11 +5921,11 @@ class CoffeeOrderSystem:
                 order_details["milk"] = self._default_milk()
 
         milk = order_details["milk"]
-        milk_phrase = "" if milk == "no milk" else f" with {milk} milk"
+        milk_phrase = "" if milk == "no milk" else f"with {milk} milk"
 
         if "size" not in order_details:
             self._set_conversation_state(phone, "awaiting_friend_size", shared_state)
-            return f"Got it — {order_details['type']}{milk_phrase} for {friend_name}. What size? (small, medium, large)"
+            return f"Got it - {order_details['type']}{milk_phrase} for {friend_name}. What size? (small, medium, large)"
 
         # Skip the sugar prompt to match the main order flow — default to no
         # sugar (shown in the summary; the customer can still EDIT).
@@ -8403,7 +8403,7 @@ class CoffeeOrderSystem:
         """
         if not sugar_text or "no" in sugar_text or sugar_text == "none":
             return 0
-        if "half" in sugar_text:
+        if "half"in sugar_text:
             return 1  # round up — half-sachets aren't a thing
         import re as _re
 
@@ -8519,7 +8519,7 @@ class CoffeeOrderSystem:
         ok, err = sp("SELECT amount, current_quantity FROM inventory_items LIMIT 1")
         if not ok:
             logger.error(
-                f"inventory heal VERIFICATION FAILED — will retry next call: {err}"
+                f"inventory heal VERIFICATION FAILED - will retry next call: {err}"
             )
             note(f"v3 verification FAILED: {err}")
             return
@@ -8552,7 +8552,7 @@ class CoffeeOrderSystem:
         try:
             cursor.connection.commit()
         except Exception as e:
-            note(f"v4 commit failed — will retry: {e}")
+            note(f"v4 commit failed - will retry: {e}")
             return
         self._inv_qty_cols_ok = True
         logger.info(
@@ -8743,7 +8743,7 @@ class CoffeeOrderSystem:
             #  2. match the order's decaf-ness: a decaf drink should burn decaf
             #     beans; a normal drink should not.
             #  3. then station scope, then name for stability.
-            want_decaf = "decaf" in (name or "").lower()
+            want_decaf = "decaf"in (name or "").lower()
             if (
                 _run(
                     f"""
@@ -9743,7 +9743,7 @@ class CoffeeOrderSystem:
         msg = (
             f"{p} sent {n}+ texts very fast and was auto-paused for {mins} "
             f"min to protect SMS credit. If it's a real customer who needs "
-            f"help, assist them at the counter — replies resume automatically "
+            f"help, assist them at the counter - replies resume automatically "
             f"after the pause. If it's spam, block the number."
         )
         try:
@@ -11166,7 +11166,7 @@ Text RESET to clear preferences or DELETE to remove all data."""
 
             self.db.commit()
 
-            return f"✅ Name updated to: {new_name}\nYour next order will use this name."
+            return f"Name updated to: {new_name}\nYour next order will use this name."
 
         except Exception as e:
             logger.error(f"Error in CHANGENAME command: {str(e)}")
@@ -11204,7 +11204,7 @@ Text RESET to clear preferences or DELETE to remove all data."""
 
             self.db.commit()
 
-            return f"✅ Preferences cleared!\nWe'll ask for your order details next time.\nYour name ({name}) is still saved."
+            return f"Preferences cleared!\nWe'll ask for your order details next time.\nYour name ({name}) is still saved."
 
         except Exception as e:
             logger.error(f"Error in RESET command: {str(e)}")
