@@ -1422,6 +1422,7 @@ def ea_me():
         'usual': _their_usual(rec),
         'has_phone': bool(rec.get('mobile_e164')),
         'active_order': active,
+        'beacon_sound': __import__('routes.consolidated_api_routes', fromlist=['_beacon_sound_setting'])._beacon_sound_setting(),
     })
 
 

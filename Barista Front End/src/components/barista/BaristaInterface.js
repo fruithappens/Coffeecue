@@ -929,6 +929,9 @@ const BaristaInterface = () => {
         'displayCustomMessage',
         'displayFlipSeconds', 'displayCardsPerPage', 'displayOverflowMode',
         'displayTouchOrdering',
+        // Sounds that play on OTHER devices (display board, phone beacon):
+        // chosen here, stored server-side, read by those screens.
+        'displayReadySound', 'beaconReadySound',
         'autoSendSmsOnComplete', 'remindAfterDelay', 'reminderDelay',
       ];
       const changed = {};
@@ -5359,6 +5362,34 @@ const SoundChoiceRows = ({ settings, setSettings }) => {
           </button>
         </div>
       ))}
+      {/* The two sounds that play on OTHER screens. Saved to the server (not
+          this device) so the display board and every phone pick them up;
+          Test plays the preset here so the operator can hear it. */}
+      <div className="mt-4 pt-3 border-t border-gray-200">
+        <div className="text-sm font-medium text-gray-700 mb-2">On the other screens</div>
+        {[
+          { key: 'displayReadySound', label: 'Display: order ready', def: 'chime_up', btnColor: 'bg-emerald-600 hover:bg-emerald-700' },
+          { key: 'beaconReadySound', label: "Customer's phone: order ready", def: 'cupq_signature', btnColor: 'bg-sky-600 hover:bg-sky-700' },
+        ].map(row => (
+          <div key={row.key} className="flex items-center gap-2 flex-wrap mb-2">
+            <span className="text-sm min-w-[150px]">{row.label}</span>
+            <select
+              value={settings[row.key] || row.def}
+              onChange={(e) => setSettings(prev => ({ ...prev, [row.key]: e.target.value }))}
+              className="flex-1 min-w-[180px] text-sm px-2 py-1 border border-gray-300 rounded"
+            >
+              {SOUND_PRESETS.map(p => (
+                <option key={p.key} value={p.key}>{p.label}</option>
+              ))}
+            </select>
+            <button type="button" className={`px-2 py-1 text-white text-xs rounded ${row.btnColor}`}
+              onClick={() => preview(settings[row.key] || row.def)}>
+              Test
+            </button>
+          </div>
+        ))}
+        <div className="text-xs text-gray-500">Applies to every display and phone within about 30 seconds.</div>
+      </div>
       <div className="text-xs text-gray-500 mt-2">
         Sounds are synthesized in-browser — no assets to download, works offline.
         "No sound" disables that alert without affecting the others.

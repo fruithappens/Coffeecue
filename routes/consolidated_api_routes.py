@@ -4529,6 +4529,26 @@ def _event_code_for_display(db):
         return ''
 
 
+def _beacon_sound_setting():
+    """The operator's pick for the phone beacon's ready sound (barista
+    Settings > Sounds), carried on /track and /api/ea/me so a phone needs
+    no extra request. Default: the CupQ signature. Never raises."""
+    try:
+        cs = current_app.config.get('coffee_system')
+        cur = cs.db.cursor()
+        cur.execute("SELECT value FROM settings WHERE key = 'beaconReadySound'")
+        row = cur.fetchone()
+        v = (row[0] if row and not isinstance(row, dict) else (row.get('value') if row else None))
+        v = str(v or '').strip()
+        return v or 'cupq_signature'
+    except Exception:
+        try:
+            current_app.config.get('coffee_system').db.rollback()
+        except Exception:
+            pass
+        return 'cupq_signature'
+
+
 def _revalidating_json(payload):
     """jsonify() plus a content ETag, so a client that re-polls an UNCHANGED
     payload gets a 304 with no body.
@@ -4651,6 +4671,9 @@ def get_display_config():
             # Touchscreen? On: tap-to-order kiosk button. Off (wall TV):
             # SMS is promoted as the primary way to order.
             'display_touch_ordering': True,
+            # Sounds chosen in the barista Settings > Sounds for the OTHER screens.
+            'ready_sound': 'chime_up',
+            'beacon_sound': 'cupq_signature',
         }
         try:
             if coffee_system and getattr(coffee_system, 'db', None):
@@ -4661,7 +4684,7 @@ def get_display_config():
                     "'showWaitTimes','displayTheme','displayFontSize','displayZoom',"
                     "'displayRotation','displayMode','displayCustomMessage',"
                     "'displayFlipSeconds','displayCardsPerPage','displayOverflowMode',"
-                    "'displayTouchOrdering')"
+                    "'displayTouchOrdering','displayReadySound','beaconReadySound')"
                 )
                 _rows = {k: v for k, v in scur.fetchall()}
 
@@ -4697,6 +4720,8 @@ def get_display_config():
                 disp['display_cards_per_page'] = _as_int('displayCardsPerPage', 0)
                 disp['display_overflow_mode'] = _as_str('displayOverflowMode', 'flip')
                 disp['display_touch_ordering'] = _as_bool('displayTouchOrdering', True)
+                disp['ready_sound'] = _as_str('displayReadySound', 'chime_up')
+                disp['beacon_sound'] = _as_str('beaconReadySound', 'cupq_signature')
         except Exception as e:
             logger.warning(f"display/config: could not read display settings: {e}")
             try:
@@ -4722,6 +4747,8 @@ def get_display_config():
                 "display_cards_per_page": disp['display_cards_per_page'],
                 "display_overflow_mode": disp['display_overflow_mode'],
                 "display_touch_ordering": disp['display_touch_ordering'],
+                "ready_sound": disp['ready_sound'],
+                "beacon_sound": disp['beacon_sound'],
                 "sms_number": config.get('TWILIO_PHONE_NUMBER', '') or branding.get('smsNumber', ''),
                 # The event's ordering code, so the poster page can stamp
                 # it into the QR it prints. Public because it is printed
@@ -6684,6 +6711,7 @@ def track_order_public(order_id):
             'order_number': clean_id,
             'status': status,
             'position': position,
+            'beacon_sound': _beacon_sound_setting(),
             'notice': notice,
             'eta_minutes': eta_minutes,
             'eta_text': eta_describe(eta_minutes),

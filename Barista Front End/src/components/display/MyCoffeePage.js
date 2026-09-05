@@ -20,6 +20,7 @@ import BaristaAskCard from './BaristaAskCard';
 import SponsorTicker from './SponsorTicker';
 import { recall, remember, forget } from '../../utils/deviceMemory';
 import playCupQSignature from '../../utils/cupqSignature';
+import { playPreset } from '../../services/SoundNotificationService';
 import { useSearchParams } from 'react-router-dom';
 import { Volume2, VolumeX } from 'lucide-react';
 import KioskOrder from './KioskOrder';
@@ -337,7 +338,11 @@ const MyCoffeePage = () => {
       // test play. This page had kept a private copy of the OLD
       // two-beep, so identified attendees were hearing a different
       // brand than everyone else.
-      const fire = () => playCupQSignature(ctx);
+      // Operator's pick for the beacon (barista Settings > Sounds), carried on
+      // /api/ea/me; the CupQ signature unless changed.
+      const fire = () => ((me && me.beacon_sound && me.beacon_sound !== 'cupq_signature')
+        ? playPreset(ctx, me.beacon_sound, 0.8)
+        : playCupQSignature(ctx));
       if (ctx.state === 'suspended' && ctx.resume) {
         Promise.resolve(ctx.resume()).then(fire).catch(() => {
           /* audio stayed blocked -- the page still works silently */

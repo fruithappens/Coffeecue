@@ -38,6 +38,7 @@ import { useSettings } from '../../hooks/useSettings';
 import KioskOrder from './KioskOrder';
 import { fetchEventAccess, stampLink } from '../../utils/eventGate';
 import SponsorTicker from './SponsorTicker';
+import { playPreset } from '../../services/SoundNotificationService';
 import SponsorWall from './SponsorWall';
 
 // The board's scan-QR carries ?src=tv<station> so the report can count
@@ -516,6 +517,10 @@ const DisplayScreen = () => {
   const chimeOn = readySound !== 'off';
   const chimeOnRef = useRef(chimeOn);
   useEffect(() => { chimeOnRef.current = chimeOn; }, [chimeOn]);
+  // Which preset the chime plays (barista Settings > Sounds). A ref, because
+  // playChime is called from the long-lived polling closure.
+  const readySoundRef = useRef('chime_up');
+  useEffect(() => { readySoundRef.current = config.ready_sound || 'chime_up'; }, [config.ready_sound]);
   const announceOnRef = useRef(announceOn);
   const announceQueueRef = useRef([]);
   const speakingRef = useRef(false);
@@ -570,16 +575,10 @@ const DisplayScreen = () => {
         setTimeout(() => setSoundNeedsTap(false), 20000);
         try { ctx.resume(); } catch (e2) { /* noop */ }
       }
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.frequency.value = 880;
-      gain.gain.setValueAtTime(0.25, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.4);
-      osc.onended = () => { try { ctx.close(); } catch (e) { /* noop */ } };
+      // The operator's chosen preset (barista Settings > Sounds), not a
+      // hard-wired tone. Presets run under ~1.5 s; close the context after.
+      playPreset(ctx, readySoundRef.current, 0.6);
+      setTimeout(() => { try { ctx.close(); } catch (e3) { /* noop */ } }, 2000);
     } catch (e) { /* a missing chime never blocks the announcement */ }
   };
 
@@ -714,6 +713,8 @@ const DisplayScreen = () => {
             show_order_details: c.show_order_details !== false,
             show_completed: c.show_completed !== false,
             show_wait_times: c.show_wait_times !== false,
+            // Chosen in the barista Settings > Sounds ('On the other screens').
+            ready_sound: c.ready_sound || 'chime_up',
             display_theme: c.display_theme || prev.display_theme,
             display_font_size: c.display_font_size || prev.display_font_size,
             display_zoom: c.display_zoom || prev.display_zoom,
