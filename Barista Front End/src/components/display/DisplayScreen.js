@@ -27,7 +27,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import startConnectionWatchdog from '../../utils/connectionWatchdog';
 import KioskAdminPanel from './KioskAdminPanel';
 import { Coffee, Check, Clock, ArrowLeft, RefreshCw, MapPin,
-         Maximize2, MessageCircle, RotateCw, Volume2, VolumeX } from 'lucide-react';
+         Maximize2, MessageCircle, RotateCw, Volume2, VolumeX, Volume1 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { CupMark, CupQWordmark } from './CupQMarks';
 import OrderDataService from '../../services/OrderDataService';
@@ -148,9 +148,17 @@ const OrderCard = ({ order, variant, fonts, theme, showCustomerName, showDetails
     : 'bg-amber-400 text-amber-950';
 
   return (
-    <div className={`relative rounded-2xl ${theme.panel} ${ringClass} shadow-lg
+    <div className={`relative isolate rounded-2xl ${theme.panel} ${ringClass} shadow-lg
                      px-6 py-3 md:px-8 md:py-4 transition-all duration-500
                      ${isNew && variant === 'ready' ? 'animate-pulse-once' : ''}`}>
+      {/* A FRESH completion also pulses its whole BACKGROUND green for
+          ~12 s, then settles back to the green ring (Steve: the ring alone
+          was easy to miss). Behind the text (isolate + -z-10); no tap
+          needed -- the one signal that always works on a screen nobody
+          can touch. */}
+      {isNew && variant === 'ready' && (
+        <div className="absolute inset-0 -z-10 rounded-2xl pointer-events-none cupq-ready-flash" aria-hidden />
+      )}
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           {/* Order number and name share a row, baseline-aligned. The
@@ -493,9 +501,21 @@ const DisplayScreen = () => {
   // the operator knows sound is actually reaching the TV speakers.
   // Refs (not state) inside the announce path so the long-lived polling
   // effect never needs new dependencies.
-  const [announceOn, setAnnounceOn] = useState(
-    () => localStorage.getItem('coffee_display_announce') === 'true'
-  );
+  // Sound on a fresh completion: 'off' | 'chime' | 'voice' (chime + spoken
+  // order number). Default CHIME -- Steve: the voice needs a tap to unlock
+  // and is easy to live without; a chime plus the green flash is what the
+  // room needs. Migrates the old voice-only flag once.
+  const [readySound, setReadySound] = useState(() => {
+    try {
+      const v = localStorage.getItem('coffee_display_sound');
+      if (v === 'off' || v === 'chime' || v === 'voice') return v;
+      return localStorage.getItem('coffee_display_announce') === 'true' ? 'voice' : 'chime';
+    } catch (e) { return 'chime'; }
+  });
+  const announceOn = readySound === 'voice';
+  const chimeOn = readySound !== 'off';
+  const chimeOnRef = useRef(chimeOn);
+  useEffect(() => { chimeOnRef.current = chimeOn; }, [chimeOn]);
   const announceOnRef = useRef(announceOn);
   const announceQueueRef = useRef([]);
   const speakingRef = useRef(false);
@@ -509,18 +529,25 @@ const DisplayScreen = () => {
   // real utterance succeeds.
   const speechArmedRef = useRef(false);
   const voiceBlockedRef = useRef(false);
-  const [voiceNeedsTap, setVoiceNeedsTap] = useState(false);
+  const [soundNeedsTap, setSoundNeedsTap] = useState(false);
   useEffect(() => { announceOnRef.current = announceOn; }, [announceOn]);
   useEffect(() => {
     if (!('speechSynthesis' in window)) return undefined;
     // Warm the voice list (Windows loads it asynchronously).
     try { window.speechSynthesis.getVoices(); } catch (e) { /* noop */ }
-    if (announceOn) setVoiceNeedsTap(true);
+    // Sound is wanted but the page has had no tap yet: show the strip, and
+    // let it go away on its own -- a TV nobody can touch must not wear it
+    // forever (the green flash needs no tap and still works).
+    if (readySound !== 'off') {
+      setSoundNeedsTap(true);
+      setTimeout(() => setSoundNeedsTap(false), 20000);
+    }
     const arm = () => {
       speechArmedRef.current = true;
       voiceBlockedRef.current = false;
-      setVoiceNeedsTap(false);
+      setSoundNeedsTap(false);
       // Anything that was refused while blocked is still queued; say it now.
+      if (chimeOnRef.current) playChime();
       if (announceOnRef.current) setTimeout(speakNextAnnouncement, 100);
     };
     window.addEventListener('pointerdown', arm);
@@ -537,6 +564,12 @@ const DisplayScreen = () => {
       const Ctx = window.AudioContext || window.webkitAudioContext;
       if (!Ctx) return;
       const ctx = new Ctx();
+      if (ctx.state === 'suspended') {
+        // No gesture yet: the browser will keep this silent. Say so.
+        setSoundNeedsTap(true);
+        setTimeout(() => setSoundNeedsTap(false), 20000);
+        try { ctx.resume(); } catch (e2) { /* noop */ }
+      }
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.frequency.value = 880;
@@ -557,7 +590,6 @@ const DisplayScreen = () => {
     const text = announceQueueRef.current.shift();
     if (!text || !('speechSynthesis' in window)) return;
     speakingRef.current = true;
-    playChime();
     const u = new SpeechSynthesisUtterance(text);
     u.rate = 0.95;
     try {
@@ -574,7 +606,7 @@ const DisplayScreen = () => {
       // It spoke: the page is armed and the "tap once" strip can go.
       speechArmedRef.current = true;
       voiceBlockedRef.current = false;
-      setVoiceNeedsTap(false);
+      setSoundNeedsTap(false);
       done();
     };
     u.onerror = (ev) => {
@@ -584,7 +616,7 @@ const DisplayScreen = () => {
         voiceBlockedRef.current = true;
         speechArmedRef.current = false;
         announceQueueRef.current.unshift(text);
-        setVoiceNeedsTap(true);
+        setSoundNeedsTap(true);
         speakingRef.current = false;
         return;
       }
@@ -595,6 +627,8 @@ const DisplayScreen = () => {
   };
 
   const enqueueAnnouncements = (readyOrders) => {
+    // One chime per batch of fresh completions, whether or not voice is on.
+    if (chimeOnRef.current && readyOrders.length) playChime();
     if (!announceOnRef.current || !('speechSynthesis' in window)) return;
     readyOrders.forEach(o => {
       const id = String(o.id);
@@ -619,22 +653,23 @@ const DisplayScreen = () => {
   };
 
   const toggleAnnouncements = () => {
-    const next = !announceOn;
-    setAnnounceOn(next);
-    // The tap that toggles is itself the unlock gesture.
+    // off -> chime -> chime + voice -> off. The tap is the unlock gesture.
+    const next = readySound === 'off' ? 'chime' : readySound === 'chime' ? 'voice' : 'off';
+    setReadySound(next);
+    try { localStorage.setItem('coffee_display_sound', next); } catch (e) { /* noop */ }
+    announceOnRef.current = next === 'voice';
+    chimeOnRef.current = next !== 'off';
     speechArmedRef.current = true;
     voiceBlockedRef.current = false;
-    setVoiceNeedsTap(false);
-    try { localStorage.setItem('coffee_display_announce', next ? 'true' : 'false'); } catch (e) { /* noop */ }
-    announceOnRef.current = next;
-    if (next && 'speechSynthesis' in window) {
-      playChime();
+    setSoundNeedsTap(false);
+    if (next === 'off') {
+      try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) { /* noop */ }
+      return;
+    }
+    playChime();
+    if (next === 'voice' && 'speechSynthesis' in window) {
       const u = new SpeechSynthesisUtterance('Order announcements on');
       setTimeout(() => window.speechSynthesis.speak(u), 450);
-    } else {
-      try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) { /* noop */ }
-      announceQueueRef.current = [];
-      speakingRef.current = false;
     }
   };
 
@@ -1783,21 +1818,23 @@ const DisplayScreen = () => {
           <button
             onClick={(e) => { e.stopPropagation(); toggleAnnouncements(); }}
             className="p-2 rounded-full hover:opacity-80"
-            style={{ backgroundColor: announceOn ? '#16a34a' : bannerChip,
-                     color: announceOn ? '#ffffff' : onHeader }}
-            title={announceOn
-              ? 'Voice announcements ON - tap to mute'
-              : 'Read new READY orders aloud through this screen (tap to enable - you should hear a confirmation)'}
+            style={{ backgroundColor: readySound === 'off' ? bannerChip : (soundNeedsTap ? '#f59e0b' : '#16a34a'),
+                     color: readySound === 'off' ? onHeader : '#ffffff' }}
+            title={readySound === 'off'
+              ? 'Sound OFF - tap for a chime on every fresh completion'
+              : readySound === 'chime'
+                ? 'Chime ON for fresh completions - tap to add the spoken order number'
+                : 'Chime + voice ON - tap to turn sound off'}
           >
-            {announceOn ? <Volume2 size={24} /> : <VolumeX size={24} />}
+            {readySound === 'off' ? <VolumeX size={24} /> : readySound === 'chime' ? <Volume1 size={24} /> : <Volume2 size={24} />}
           </button>
           {/* Voice is ON but the browser hasn't had a tap yet (or refused to
               speak): say so, loudly, instead of failing silently. Any tap or key
               press anywhere on the page arms it and replays what was held. */}
-          {announceOn && voiceNeedsTap && (
-            <div className="fixed top-3 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-full bg-amber-500 text-black font-bold text-lg shadow-2xl animate-pulse cursor-pointer"
+          {readySound !== 'off' && soundNeedsTap && (
+            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 px-6 py-4 rounded-2xl bg-amber-500 text-black font-bold text-xl shadow-2xl animate-pulse cursor-pointer text-center"
                  onClick={(e) => e.stopPropagation()}>
-              Tap once anywhere to enable voice announcements
+              Tap once anywhere to enable sound
             </div>
           )}
           <button
@@ -2083,6 +2120,10 @@ const DisplayScreen = () => {
           0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.5); }
           50%      { box-shadow: 0 0 0 10px rgba(34,197,94,0); }
         }
+        /* Fresh-completion background flash: green ~8 times over 12 s, then
+           rests transparent so only the ring remains. */
+        @keyframes cupqReadyFlash { 0%, 100% { opacity: 0; } 50% { opacity: 0.55; } }
+        .cupq-ready-flash { background: #22c55e; opacity: 0; animation: cupqReadyFlash 1.5s ease-in-out 0s 8; }
         .ready-breathe {
           animation: readyBreathe 2.6s ease-in-out infinite;
         }
@@ -2090,6 +2131,7 @@ const DisplayScreen = () => {
            asked for less motion gets a solid ring and no breathing. */
         @media (prefers-reduced-motion: reduce) {
           .ready-breathe, .animate-pulse-once { animation: none; }
+          .cupq-ready-flash { animation-iteration-count: 2; }
         }
       `}</style>
     </div>
