@@ -1583,11 +1583,22 @@ def print_jobs_list():
     _sweep_stuck_jobs(db)
     status = request.args.get("status")
     station_id = request.args.get("station_id")
+    # History window + size, so a whole event's jobs can be pulled and the
+    # printers compared on real numbers (Steve: the new TSP100IV SK was
+    # consistently slower and less reliable than the mC-Label3 at Treenet).
+    # since/until are ISO timestamps or dates; limit defaults to the old 20
+    # and is capped so the endpoint can't be used to dump the table forever.
+    since = request.args.get("since")
+    until = request.args.get("until")
+    try:
+        limit = max(1, min(int(request.args.get("limit") or 20), 5000))
+    except (TypeError, ValueError):
+        limit = 20
     try:
         cur = db.cursor()
         q = (
             "SELECT j.id, j.printer_id, j.order_id, j.type, j.status, j.attempts, "
-            "j.error, j.created_at, j.printed_at, p.name AS printer_name, "
+            "j.error, j.created_at, j.fetched_at, j.printed_at, p.name AS printer_name, "
             "p.station_id FROM print_jobs j LEFT JOIN printers p ON p.id = j.printer_id "
             "WHERE 1=1"
         )
@@ -1598,13 +1609,20 @@ def print_jobs_list():
         if station_id:
             q += " AND p.station_id = %s"
             params.append(int(station_id))
-        q += " ORDER BY j.created_at DESC LIMIT 20"
+        if since:
+            q += " AND j.created_at >= %s"
+            params.append(since)
+        if until:
+            q += " AND j.created_at < %s"
+            params.append(until)
+        q += " ORDER BY j.created_at DESC LIMIT %s"
+        params.append(limit)
         cur.execute(q, params)
         cols = [d[0] for d in cur.description]
         jobs = []
         for row in cur.fetchall():
             d = dict(zip(cols, row)) if not isinstance(row, dict) else dict(row)
-            for k in ("created_at", "printed_at"):
+            for k in ("created_at", "fetched_at", "printed_at"):
                 if hasattr(d.get(k), "isoformat"):
                     d[k] = d[k].isoformat()
             jobs.append(d)
