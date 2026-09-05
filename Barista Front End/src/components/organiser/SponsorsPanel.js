@@ -50,7 +50,7 @@ const SponsorsPanel = () => {
   const [tickerSize, setTickerSize] = useState('small');
   const [sponsors, setSponsors] = useState([]);
   const [tiers, setTiers] = useState([]);
-  const [wall, setWall] = useState({ enabled: false, layout: 'scroll', background: 'tint', takeover: false, everySec: 180, forSec: 20 });
+  const [wall, setWall] = useState({ enabled: false, layout: 'scroll', gridSize: 'medium', background: 'tint', takeover: false, everySec: 180, forSec: 20 });
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
@@ -300,6 +300,21 @@ const SponsorsPanel = () => {
             </div>
             <p className="text-xs text-gray-500 mt-1.5">{wall.layout === 'grid' ? 'All logos at once, grouped by tier (Platinum on top).' : 'One tier at a time, lingering by each tier’s dwell time.'}</p>
           </div>
+          {/* Grid logo size — only relevant to the Grid layout (the "wider /
+              more columns" lever Steve asked for). Small packs more logos
+              across the screen; Large shows a few big ones. */}
+          {wall.layout === 'grid' && (
+            <div>
+              <div className="text-sm font-medium text-gray-700 mb-1.5">Logo size (grid)</div>
+              <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden">
+                {[['small', 'Small'], ['medium', 'Medium'], ['large', 'Large']].map(([v, label]) => (
+                  <button key={v} type="button" onClick={() => setWall((w) => ({ ...w, gridSize: v }))}
+                    className={`px-3 py-2 text-sm font-semibold ${(wall.gridSize || 'medium') === v ? 'bg-amber-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>{label}</button>
+                ))}
+              </div>
+              <p className="text-xs text-gray-500 mt-1.5">Small = more logos per row (wider); Large = fewer, bigger logos.</p>
+            </div>
+          )}
           <div>
             <div className="text-sm font-medium text-gray-700 mb-1.5">Background</div>
             <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden">

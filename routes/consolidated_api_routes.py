@@ -10583,9 +10583,14 @@ def _norm_tiers(raw):
 def _norm_wall(raw):
     raw = raw if isinstance(raw, dict) else {}
     bg = raw.get('background')
+    gs = raw.get('gridSize')
     return {
         'enabled': bool(raw.get('enabled')),
         'layout': 'grid' if raw.get('layout') == 'grid' else 'scroll',
+        # Grid logo size: 'small' packs more logos per row (wider), 'large'
+        # shows a few big ones, 'medium' is the original look. Only affects
+        # the grid layout. Must be whitelisted here or it is dropped on save.
+        'gridSize': gs if gs in ('small', 'medium', 'large') else 'medium',
         # Backdrop: 'tint' (soft green wash, default), 'white' (clean, logos
         # pop), or 'branded' (reuse the display's uploaded background image).
         'background': bg if bg in ('tint', 'white', 'branded') else 'tint',
