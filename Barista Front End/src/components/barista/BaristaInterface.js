@@ -4768,6 +4768,11 @@ const BaristaInterface = () => {
               className="px-4 py-2 bg-gray-200 rounded flex items-center hover:bg-gray-300 transition-colors"
               disabled={holdBusy}
               onClick={async () => {
+                // Confirm: an accidental knock here silently stops EVERY
+                // "your coffee is ready" text until someone notices + releases
+                // (Steve: dangerous buttons need a guard against a mis-tap).
+                if (!window.confirm(
+                  'Hold all "coffee ready" texts?\n\nCustomers will NOT be told their order is ready until you press Release. Use this only for pre-orders or before a session starts.')) return;
                 setHoldBusy(true);
                 try {
                   const api = new (await import('../../services/ApiService')).default();
