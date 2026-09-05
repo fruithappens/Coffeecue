@@ -1371,6 +1371,33 @@ def ea_me():
                                      arow.get('station_name'))
             else:
                 num, st, sid, since, sname = arow[0], arow[1], arow[2], arow[3], arow[4]
+            # A lettered round (336a/b/c) is placed a, b, c within
+            # milliseconds, so "newest first" lands on the LAST drink
+            # (336c). The beacon should name the round by its lead cup,
+            # 336a -- the same order the kiosk redirected them to -- so
+            # swap to the lead when we picked a later letter.
+            try:
+                from utils.order_numbering import is_lettered, base_of
+                if is_lettered(num) and not str(num).endswith('a'):
+                    cur.execute(
+                        "SELECT o.order_number, o.status, o.station_id, "
+                        "       EXTRACT(EPOCH FROM (NOW() - o.updated_at))::int AS since_update, "
+                        "       s.name AS station_name "
+                        "FROM orders o "
+                        "LEFT JOIN station_stats s ON s.station_id = o.station_id "
+                        "WHERE o.order_number = %s", (f"{base_of(num)}a",))
+                    lrow = cur.fetchone()
+                    if lrow:
+                        if isinstance(lrow, dict):
+                            num, st = lrow['order_number'], lrow['status']
+                            sid, since, sname = (lrow.get('station_id'),
+                                                 lrow.get('since_update'),
+                                                 lrow.get('station_name'))
+                        else:
+                            num, st, sid, since, sname = (
+                                lrow[0], lrow[1], lrow[2], lrow[3], lrow[4])
+            except Exception as _lead_err:
+                logger.debug(f"beacon lead-cup swap skipped: {_lead_err}")
             active = {
                 'order_number': num,
                 'status': st,

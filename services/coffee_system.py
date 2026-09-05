@@ -3197,13 +3197,30 @@ class CoffeeOrderSystem:
         group_id = None
         group_label = f"{name}'s group"
         station_for_group = None
-        for od in resolved:
+        # Letter the round (336a/336b/336c): reserve ONE base up front so
+        # every drink -- the first included -- is stamped with the round's
+        # group_id before it is placed, and each carries its pre-assigned
+        # number into _confirm_order (one sequence tick per round, no gaps).
+        # Only for 2+ drinks. If the sequence is unavailable, _base is None
+        # and the loop below behaves exactly as it always did.
+        from utils.order_numbering import reserve_order_base, lettered
+
+        _base = reserve_order_base(self.db) if len(resolved) >= 2 else None
+        if _base:
+            group_id = str(_base)
+        for _i, od in enumerate(resolved, start=1):
             if station_for_group is not None:
                 od["station_id"] = station_for_group
                 od["stationId"] = station_for_group
             if group_id is not None:
                 od["group_id"] = group_id
                 od["group_label"] = group_label
+            if _base:
+                od["_preassigned_number"] = lettered(_base, _i)
+                # Same badge data the app/kiosk group sets, so the barista
+                # board shows 1/3, 2/3, 3/3 for an SMS round too.
+                od["group_position"] = _i
+                od["group_size"] = len(resolved)
             resp = self._confirm_order(phone, od, name)
             if not isinstance(resp, str) or resp.lower().startswith("sorry"):
                 break  # placement failed (no stations etc.) — stop, keep what stuck
@@ -6425,6 +6442,16 @@ class CoffeeOrderSystem:
             # SQLite test path.
             now = datetime.now()
             order_number = None
+            # Group lettering: the multi-drink flow reserves ONE base for the
+            # round and pre-assigns 336a/336b/336c per drink. Pop it so it
+            # never lands in the stored order_details; when set it replaces
+            # the per-drink nextval below (one sequence tick per round).
+            try:
+                _pre = order_details.pop("_preassigned_number", None)
+                if _pre:
+                    order_number = str(_pre)
+            except Exception:
+                order_number = None
             # Read the operator-configurable event prefix (e.g. "C")
             # from settings so both SMS and walk-in orders look like
             # "C1", "C2", … This is a UX request from Steve: long
@@ -6455,7 +6482,7 @@ class CoffeeOrderSystem:
             except Exception:
                 event_prefix = ""
 
-            if db_type != "sqlite":
+            if not order_number and db_type != "sqlite":
                 try:
                     seq_cursor = fresh_conn.cursor()
                     seq_cursor.execute("SELECT nextval('order_number_seq')")

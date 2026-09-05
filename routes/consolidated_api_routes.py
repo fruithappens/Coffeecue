@@ -1870,6 +1870,23 @@ def lookup_order(order_id):
             
             order = cursor.fetchone()
         
+        # A bare round number (336) names no order once a round is lettered
+        # (336a/b/c) -- resolve it to the lead drink before giving up.
+        if not order:
+            try:
+                from utils.order_numbering import is_lettered
+                if not is_lettered(clean_id):
+                    cursor.execute('''
+                        SELECT id, order_number, status, station_id,
+                               created_at, updated_at, completed_at,
+                               phone, order_details, queue_priority
+                        FROM orders
+                        WHERE order_number = %s
+                    ''', (f"{clean_id}a",))
+                    order = cursor.fetchone()
+            except Exception:
+                order = None
+
         # If still not found, return error
         if not order:
             return jsonify({
@@ -5337,18 +5354,33 @@ def create_kiosk_order():
         except Exception:
             order_prefix = ''
         order_number = None
+        # Group lettering (336a/336b/336c). The group endpoint reserves ONE
+        # base for the round and hands each drink its lettered number here,
+        # BEFORE the insert, so the board broadcast and any arrival-print
+        # already carry the final number (renaming after would ghost a
+        # "336" card). This endpoint is PUBLIC, so a number is honoured
+        # only if the group endpoint authorised that exact value moments
+        # ago -- a body carrying an unauthorised number is simply ignored.
         try:
-            seqc = db.cursor()
-            seqc.execute("SELECT nextval('order_number_seq')")
-            srow = seqc.fetchone()
-            if srow:
-                sval = srow[0] if not isinstance(srow, dict) else list(srow.values())[0]
-                order_number = f"{order_prefix}{int(sval)}"
-        except Exception:
+            from utils.order_numbering import consume_preassigned
+            _pre = str(data.get('_order_number') or '').strip()
+            if _pre and consume_preassigned(_pre):
+                order_number = _pre
+        except Exception as _pre_err:
+            logger.warning(f"preassigned number check skipped: {_pre_err}")
+        if not order_number:
             try:
-                db.rollback()
+                seqc = db.cursor()
+                seqc.execute("SELECT nextval('order_number_seq')")
+                srow = seqc.fetchone()
+                if srow:
+                    sval = srow[0] if not isinstance(srow, dict) else list(srow.values())[0]
+                    order_number = f"{order_prefix}{int(sval)}"
             except Exception:
-                pass
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
         if not order_number:
             order_number = f"K{now.strftime('%H%M%S')}{now.microsecond // 10000}"
 
@@ -5548,10 +5580,24 @@ def create_kiosk_order_group():
         'preferred_station', 'channel', 'src', 'e', 'lookup_phone',
         'event_password') if k in body}
 
+    # Letter the round: reserve ONE base (336) and pre-assign 336a/336b/336c
+    # so the sequence advances once per round (no gaps) and every surface
+    # sees the final number from the start. Only for 2+ drinks -- a single
+    # drink is never "336a". If the sequence is unavailable, fall back to
+    # today's per-drink numbering rather than refuse the order.
+    from utils.order_numbering import (
+        reserve_order_base, lettered, authorise_preassigned, discard_preassigned)
+    _base = reserve_order_base(db) if len(items) >= 2 else None
+    _letters = [lettered(_base, i) for i in range(1, len(items) + 1)] if _base else []
+    if _letters:
+        authorise_preassigned(_letters)
+
     placed, failed = [], []
     with current_app.test_client() as c:
-        for it in items:
+        for _i, it in enumerate(items, start=1):
             payload = dict(shared)
+            if _letters:
+                payload['_order_number'] = _letters[_i - 1]
             payload.update({
                 'name': (it.get('name') or shared.get('name') or 'Guest'),
                 'coffee_type': it.get('coffee_type') or it.get('drink'),
@@ -5573,12 +5619,22 @@ def create_kiosk_order_group():
             except Exception as e:
                 failed.append((payload.get('name'), str(e)[:80]))
 
+    # Any letter a failed drink never consumed must not linger in the
+    # allow-list (a later request could not use it anyway -- the value is
+    # unique to this round -- but keep the set from growing).
+    if _letters:
+        discard_preassigned(_letters)
+
     if not placed:
         return jsonify({'success': False,
                         'message': 'None of the drinks could be placed',
                         'failed': [{'name': n, 'reason': r} for n, r in failed]}), 409
 
-    group_id = str(placed[0][0])
+    # group_id is the ROUND's number: the reserved base ("336") when the
+    # drinks were lettered, else (fallback path) the lead drink's number as
+    # before. The one-per-round ready SMS says "order #<group_id>" and the
+    # label/beacon derive the round from it.
+    group_id = str(_base) if (_letters and placed) else str(placed[0][0])
     try:
         cur = db.cursor()
         for pos, (num, _nm) in enumerate(placed, start=1):
@@ -5599,7 +5655,12 @@ def create_kiosk_order_group():
     return jsonify({
         'success': True,
         'group_id': group_id,
-        'order_number': group_id,
+        # order_number is what the kiosk hands to the beacon redirect and
+        # remembers as the live order, so it must be a REAL order: the lead
+        # drink (336a). The bare round number (336) is no order's name once
+        # a round is lettered; it is returned separately as group_number.
+        'order_number': str(placed[0][0]),
+        'group_number': group_id,
         'orders': [{'order_number': n, 'name': nm} for n, nm in placed],
         'count': len(placed),
         'failed': [{'name': n, 'reason': r} for n, r in failed],
@@ -6309,6 +6370,20 @@ def track_order_public(order_id):
             "SELECT status, station_id, order_details, created_at FROM orders "
             "WHERE order_number = %s", (clean_id,))
         row = cur.fetchone()
+        if not row:
+            # A lettered round has no order named by its bare base (336 is
+            # the round; 336a/b/c are the drinks). Anything that quotes the
+            # round number -- the ready SMS says "order #336" -- resolves to
+            # the lead drink instead of a dead end.
+            try:
+                from utils.order_numbering import is_lettered
+                if not is_lettered(clean_id):
+                    cur.execute(
+                        "SELECT status, station_id, order_details, created_at FROM orders "
+                        "WHERE order_number = %s", (f"{clean_id}a",))
+                    row = cur.fetchone()
+            except Exception:
+                row = None
         if not row:
             return jsonify({'success': False, 'message': 'not found'}), 404
         status, station_id, od_raw, created_at = (
