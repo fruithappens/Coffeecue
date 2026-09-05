@@ -114,7 +114,7 @@ const MobileOrderPage = () => {
     let dead = false;
     (async () => {
       try {
-        const r = await fetch('/api/sponsors', { cache: 'no-store' });
+        const r = await fetch('/api/sponsors', { cache: 'no-cache' });
         const b = r.ok ? await r.json() : null;
         if (!dead && b && b.success) {
           setSponsorTicker({ enabled: !!b.enabled, size: 'small', sponsors: Array.isArray(b.sponsors) ? b.sponsors : [] });

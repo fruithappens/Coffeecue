@@ -154,7 +154,7 @@ const MyCoffeePage = () => {
     let dead = false;
     const load = async () => {
       try {
-        const r = await fetch('/api/sponsors', { cache: 'no-store' });
+        const r = await fetch('/api/sponsors', { cache: 'no-cache' });
         const b = r.ok ? await r.json() : null;
         if (!dead && b && b.success) {
           setSponsorTicker({ enabled: !!b.enabled, size: ['small', 'medium', 'large'].includes(b.size) ? b.size : 'small', sponsors: Array.isArray(b.sponsors) ? b.sponsors : [] });

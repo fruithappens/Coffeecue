@@ -71,6 +71,7 @@ def health_memory_trace():
 
 
 @bp.route('/health/full', methods=['GET'])
+@jwt_required_with_demo()
 def health_check_full():
     """Detailed health report. Each check returns ok / warn / fail
     with a human-readable detail. Failing one check doesn't kill the
