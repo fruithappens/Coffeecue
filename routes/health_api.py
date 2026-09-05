@@ -10,7 +10,8 @@ GET /api/health/full — auth-gated detailed check. Walks DB, Twilio
                        recent error counts. The Support → System
                        Health tab renders from this.
 """
-from flask import Blueprint, jsonify, current_app
+from flask import Blueprint, jsonify, current_app, request
+from auth import jwt_required_with_demo, role_required_with_demo
 from datetime import datetime, timedelta
 import logging
 import os
@@ -40,6 +41,35 @@ def health_check():
         }), 500
 
 
+@bp.route('/health/memory', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin'])
+def health_memory():
+    """Process memory: RSS/uptime/threads/live sockets, plus the top
+    allocation sites while tracemalloc is on (see POST .../trace). Admin
+    only -- allocation sites expose file paths and line numbers."""
+    from services import memory_watch as _mw
+    try:
+        n = int(request.args.get('top') or 25)
+    except (TypeError, ValueError):
+        n = 25
+    out = _mw.snapshot(current_app)
+    out.update(_mw.top_allocations(n))
+    return jsonify({'success': True, 'memory': out})
+
+
+@bp.route('/health/memory/trace', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin'])
+def health_memory_trace():
+    """Switch tracemalloc on/off at runtime: {"enabled": true, "frames": 1}.
+    Leave it on only while diagnosing -- it costs CPU and memory."""
+    from services import memory_watch as _mw
+    body = request.get_json(silent=True) or {}
+    state = _mw.trace(bool(body.get('enabled')), int(body.get('frames') or 1))
+    return jsonify({'success': True, 'tracing': state, 'memory': _mw.snapshot(current_app)})
+
+
 @bp.route('/health/full', methods=['GET'])
 def health_check_full():
     """Detailed health report. Each check returns ok / warn / fail
@@ -61,6 +91,20 @@ def health_check_full():
         rank = {'ok': 0, 'warn': 1, 'fail': 2}
         if rank.get(status, 0) > rank.get(overall, 0):
             overall = status
+
+    # --- 0. Process: memory / uptime / threads (the Railway sawtooth) ---
+    try:
+        from services import memory_watch as _mw
+        _p = _mw.snapshot(current_app)
+        _set_check(
+            'process',
+            'ok' if _p['rss_mb'] < _p['alert_mb'] else 'warn',
+            f"{_p['rss_mb']:.0f} MB RSS, up {_p['uptime_s'] // 60} min, "
+            f"{_p['threads']} threads, {_p['socketio_clients']} live sockets",
+            extra=_p,
+        )
+    except Exception as _pe:
+        _set_check('process', 'warn', f'process metrics unavailable: {_pe}')
 
     # --- 1. DB reachable + recent activity ---
     try:
