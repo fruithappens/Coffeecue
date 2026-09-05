@@ -1775,7 +1775,7 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
 
     const newOrder = {
       customer_name: orderDetails.customerName, // Backend expects snake_case
-      phone_number: orderDetails.phoneNumber || 'Walk-in', // Backend expects snake_case
+      phone_number: orderDetails.phoneNumber || '', // blank when no number — NEVER the literal "Walk-in" (that got texted to Twilio and failed every ready-SMS for no-phone walk-ins)
       coffee_type: coffeeTypeText, // Backend expects snake_case (without size)
       size: orderDetails.size, // Backend expects separate size field
       milk_type: selectedMilk.name, // Backend expects snake_case
