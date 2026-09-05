@@ -81,6 +81,11 @@ export default function SponsorWall({ embedded = false, preview = null }) {
   }, [data]);
 
   const layout = data.wall && data.wall.layout === 'grid' ? 'grid' : 'scroll';
+  // Grid logo size (Steve: "make the takeover wider / more columns"). Small
+  // packs many small logos across the screen; Large gives a few big ones.
+  // Medium is the original look, so an existing wall is unchanged by default.
+  const gridSize = ['small', 'medium', 'large'].includes(data.wall && data.wall.gridSize)
+    ? data.wall.gridSize : 'medium';
 
   // Backdrop: white (logos pop), branded (the display's uploaded background
   // image — with a soft white scrim so headings + white cards still read),
@@ -130,7 +135,7 @@ export default function SponsorWall({ embedded = false, preview = null }) {
             )}
           </div>
         ) : layout === 'grid' ? (
-          <WallGrid groups={groups} />
+          <WallGrid groups={groups} size={gridSize} />
         ) : (
           <WallScroll groups={groups} />
         )}
@@ -139,10 +144,21 @@ export default function SponsorWall({ embedded = false, preview = null }) {
   );
 }
 
+// Grid logo-size presets. `col` is the min column width (smaller → more
+// columns across the screen); `max` caps a sparse tier so one logo isn't a
+// giant banner; `fullH`/`compactH`/`compactMaxH` size the cards. Medium is
+// the original look.
+const GRID_SIZES = {
+  small:  { col: 'clamp(110px, 11vw, 190px)', max: '240px', fullH: '11vh', compactH: '6vh',   compactMaxH: 80 },
+  medium: { col: 'clamp(150px, 16vw, 300px)', max: '340px', fullH: '14vh', compactH: '7.5vh', compactMaxH: 100 },
+  large:  { col: 'clamp(200px, 22vw, 420px)', max: '520px', fullH: '20vh', compactH: '10vh',  compactMaxH: 140 },
+};
+
 // --- GRID: every tier at once, Platinum on top, logos equal size --------
 // Scales the whole grid down to fit the screen so nothing clips, however
 // many sponsors there are (Steve's find: it was overflowing + cutting off).
-function WallGrid({ groups }) {
+function WallGrid({ groups, size = 'medium' }) {
+  const dim = GRID_SIZES[size] || GRID_SIZES.medium;
   const outerRef = useRef(null);
   const innerRef = useRef(null);
   const [scale, setScale] = useState(1);
@@ -186,10 +202,12 @@ function WallGrid({ groups }) {
               display: 'grid',
               // Cap the card width so a single-logo tier isn't a huge sparse
               // banner, while a many-logo tier still spreads across the row.
-              gridTemplateColumns: 'repeat(auto-fit, minmax(clamp(150px, 16vw, 300px), 340px))',
+              // The min drives how many columns fit (the "wider / more columns"
+              // lever); both come from the chosen grid size.
+              gridTemplateColumns: `repeat(auto-fit, minmax(${dim.col}, ${dim.max}))`,
               gap: '1.6vh 1.6vw', alignItems: 'stretch', justifyContent: 'center',
             }}>
-              {row.group.items.map((s) => <LogoCard key={s.id} s={s} h="14vh" fill />)}
+              {row.group.items.map((s) => <LogoCard key={s.id} s={s} h={dim.fullH} fill />)}
             </div>
           </section>
         ) : (
@@ -198,7 +216,7 @@ function WallGrid({ groups }) {
               <section key={g.tier.id} style={{ textAlign: 'center' }}>
                 <h2 style={{ ...tierHeadingStyle, margin: '0 0 1.2vh' }}>{g.tier.name}</h2>
                 <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '1.2vw' }}>
-                  {g.items.map((s) => <LogoCard key={s.id} s={s} h="7.5vh" maxH={100} />)}
+                  {g.items.map((s) => <LogoCard key={s.id} s={s} h={dim.compactH} maxH={dim.compactMaxH} />)}
                 </div>
               </section>
             ))}
