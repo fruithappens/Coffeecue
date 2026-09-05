@@ -2679,13 +2679,27 @@ def _render_started_message(order_number, order_details):
     }, default_body)
 
 
+def _is_textable_phone(phone):
+    """True only for something we can actually SMS — at least 8 digits.
+
+    Walk-in orders with no number entered were stored with the literal
+    phone "Walk-in" (frontend fallback). The only guard here used to be
+    `if not phone`, which "Walk-in" passes — so every ready/started SMS
+    for those orders was dispatched to "Walk-in" and Twilio failed it (93
+    failed sends in the logs, incl. real opt-ins at Treenet). Anything
+    that isn't a real number must be treated as "no phone".
+    """
+    digits = ''.join(ch for ch in str(phone or '') if ch.isdigit())
+    return len(digits) >= 8
+
+
 def _notify_customer_order_started(phone, order_number, order_details):
     """Send a brief 'your drink is being made now' SMS.
 
     Never raises — the order has already been started in the DB by the
     time we get here, so a messaging failure must not roll that back.
     """
-    if not phone:
+    if not _is_textable_phone(phone):
         return
     try:
         messaging_service = current_app.config.get('messaging_service')
@@ -2937,9 +2951,10 @@ def _notify_customer_order_ready(phone, order_number, order_details, station_id)
 
     Mirror of _notify_customer_order_started for the pending →
     in-progress transition. Called from /complete; safe to call with
-    a blank phone (no-op).
+    a blank phone (no-op). Also a no-op for a non-number like the
+    "Walk-in" placeholder — see _is_textable_phone.
     """
-    if not phone:
+    if not _is_textable_phone(phone):
         return
     try:
         messaging_service = current_app.config.get('messaging_service')
