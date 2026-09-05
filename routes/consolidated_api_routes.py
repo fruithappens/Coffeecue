@@ -4529,6 +4529,34 @@ def _event_code_for_display(db):
         return ''
 
 
+def _revalidating_json(payload):
+    """jsonify() plus a content ETag, so a client that re-polls an UNCHANGED
+    payload gets a 304 with no body.
+
+    The display config and the sponsor payload embed their images as base64
+    (~150 KB each), and every display, kiosk and phone re-polls them every
+    30 s. At Treenet that was the 1.5 GB/hour egress peaks on Railway's
+    chart -- and attendees' mobile data -- almost all of it identical bytes.
+    Clients fetch these with cache:'no-cache' (revalidate) rather than
+    'no-store' (bypass), so the browser sends If-None-Match and a match
+    costs ~200 bytes. Cloudflare may weaken the tag (W/"..."); compare on
+    the value, not the prefix.
+    """
+    import hashlib
+    resp = jsonify(payload)
+    etag = '"' + hashlib.sha1(resp.get_data()).hexdigest()[:20] + '"'
+    inm = request.headers.get('If-None-Match', '') or ''
+    seen = [t.strip()[2:] if t.strip().startswith('W/') else t.strip() for t in inm.split(',')]
+    if etag in seen:
+        r = current_app.response_class(status=304)
+        r.headers['ETag'] = etag
+        r.headers['Cache-Control'] = 'no-cache'
+        return r
+    resp.headers['ETag'] = etag
+    resp.headers['Cache-Control'] = 'no-cache'
+    return resp
+
+
 @bp.route('/display/config', methods=['GET'])
 def get_display_config():
     """Get display screen configuration including event details, sponsor info, and SMS details.
@@ -4676,7 +4704,7 @@ def get_display_config():
             except Exception:
                 pass
 
-        return jsonify({
+        return _revalidating_json({
             "success": True,
             "config": {
                 "system_name": system_name,
@@ -10846,7 +10874,7 @@ def get_sponsor_ticker():
     marketing images (no PII), so an open read is fine."""
     try:
         coffee_system = current_app.config.get('coffee_system')
-        return jsonify({'success': True, **_sponsor_ticker_read(coffee_system.db)})
+        return _revalidating_json({'success': True, **_sponsor_ticker_read(coffee_system.db)})
     except Exception as e:
         logger.error(f"get_sponsor_ticker error: {e}")
         # Fail OPEN to "no ticker" so the display never breaks over this.

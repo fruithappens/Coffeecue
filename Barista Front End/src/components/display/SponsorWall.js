@@ -33,7 +33,7 @@ export default function SponsorWall({ embedded = false, preview = null }) {
     let dead = false;
     const load = async () => {
       try {
-        const r = await fetch('/api/sponsors', { cache: 'no-store' });
+        const r = await fetch('/api/sponsors', { cache: 'no-cache' });
         const b = r.ok ? await r.json() : null;
         if (!dead && b && b.success) {
           setFetched({
@@ -54,7 +54,7 @@ export default function SponsorWall({ embedded = false, preview = null }) {
     let dead = false;
     (async () => {
       try {
-        const r = await fetch('/api/display/config', { cache: 'no-store' });
+        const r = await fetch('/api/display/config', { cache: 'no-cache' });
         const b = r.ok ? await r.json() : null;
         const c = b && (b.config || b);
         if (!dead && c) setBrand({
