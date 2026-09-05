@@ -677,6 +677,8 @@ def sms_webhook_cellcast():
 
 
 @bp.route('/sms/test')
+@jwt_required_with_demo()
+@role_required_with_demo(['admin'])
 def sms_test():
     """Test SMS functionality"""
     try:

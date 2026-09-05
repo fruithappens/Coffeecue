@@ -17,12 +17,16 @@ def check_env_security():
         with open('.env', 'r') as f:
             content = f.read()
             
-        # Check for exposed Twilio credentials
-        if 'AC02d0fa069d8f0c345d97187e15af3f2a' in content:
-            issues.append("🚨 CRITICAL: Real Twilio Account SID found in .env!")
-        
-        if '2d6f169c20be165735554fe978e92e69' in content:
-            issues.append("🚨 CRITICAL: Real Twilio Auth Token found in .env!")
+        # Check for exposed Twilio credentials. PATTERNS, not the real values:
+        # this file used to embed the actual Account SID and Auth Token as
+        # the strings to search for, which put the live credential pair
+        # itself into the repo. Any real-looking SID/token shape is flagged.
+        import re as _re
+        if _re.search(r"TWILIO_ACCOUNT_SID\s*=\s*.?AC[0-9a-fA-F]{32}", content):
+            issues.append("🚨 CRITICAL: A real-looking Twilio Account SID is set in .env (keep it out of git)")
+
+        if _re.search(r"TWILIO_AUTH_TOKEN\s*=\s*.?[0-9a-fA-F]{32}", content):
+            issues.append("🚨 CRITICAL: A real-looking Twilio Auth Token is set in .env (keep it out of git)")
             
         # Check for weak secrets
         if 'your_very_long_and_random_secret_key_here' in content:

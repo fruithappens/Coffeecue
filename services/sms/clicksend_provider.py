@@ -134,11 +134,16 @@ class ClickSendProvider(SMSProvider):
             if self.testing_mode:
                 logger.info("ClickSend inbound accepted (TESTING_MODE, no secret)")
                 return True
+            # FAIL CLOSED. This used to accept -- so with Twilio in use and
+            # CLICKSEND_WEBHOOK_SECRET unset (the normal state), anyone who
+            # POSTed a ClickSend-shaped payload here got it run through
+            # handle_sms(): a forged text placing a real order from a fake
+            # number. An unset secret now means the door is shut, not open.
             logger.warning(
-                "ClickSend inbound accepted without secret — set "
-                "CLICKSEND_WEBHOOK_SECRET in production for auth"
+                "ClickSend inbound REJECTED: CLICKSEND_WEBHOOK_SECRET is not set "
+                "(set it and add the X-Coffee-Cue-Webhook-Secret header in ClickSend)"
             )
-            return True
+            return False
         provided = request.headers.get('X-Coffee-Cue-Webhook-Secret', '')
         if provided != self.webhook_secret:
             logger.warning("ClickSend inbound rejected: secret header mismatch")

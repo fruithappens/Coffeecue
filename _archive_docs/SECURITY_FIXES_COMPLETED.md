@@ -78,8 +78,8 @@ This document summarizes the security improvements made to the Expresso Coffee O
 ### For Local Development
 ```bash
 # Copy your Twilio credentials to environment
-export TWILIO_ACCOUNT_SID="AC02d0fa069d8f0c345d97187e15af3f2a"
-export TWILIO_AUTH_TOKEN="2d6f169c20be165735554fe978e92e69"
+export TWILIO_ACCOUNT_SID="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+export TWILIO_AUTH_TOKEN="<redacted-rotate-this-token>"
 export TWILIO_PHONE_NUMBER="+61489263333"
 
 # Install new security dependencies
@@ -115,8 +115,8 @@ PG_SSL_MODE=require
 
 **Heroku:**
 ```bash
-heroku config:set TWILIO_ACCOUNT_SID=AC02d0fa069d8f0c345d97187e15af3f2a
-heroku config:set TWILIO_AUTH_TOKEN=2d6f169c20be165735554fe978e92e69
+heroku config:set TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+heroku config:set TWILIO_AUTH_TOKEN=<redacted-rotate-this-token>
 heroku config:set TWILIO_PHONE_NUMBER=+61489263333
 heroku config:set CORS_ALLOWED_ORIGINS=https://yourapp.herokuapp.com
 ```
@@ -124,16 +124,16 @@ heroku config:set CORS_ALLOWED_ORIGINS=https://yourapp.herokuapp.com
 **AWS ECS:**
 ```json
 "environment": [
-  {"name": "TWILIO_ACCOUNT_SID", "value": "AC02d0fa069d8f0c345d97187e15af3f2a"},
-  {"name": "TWILIO_AUTH_TOKEN", "value": "2d6f169c20be165735554fe978e92e69"},
+  {"name": "TWILIO_ACCOUNT_SID", "value": "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"},
+  {"name": "TWILIO_AUTH_TOKEN", "value": "<redacted-rotate-this-token>"},
   {"name": "TWILIO_PHONE_NUMBER", "value": "+61489263333"}
 ]
 ```
 
 **Docker:**
 ```bash
-docker run -e TWILIO_ACCOUNT_SID=AC02d0fa069d8f0c345d97187e15af3f2a \
-           -e TWILIO_AUTH_TOKEN=2d6f169c20be165735554fe978e92e69 \
+docker run -e TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx \
+           -e TWILIO_AUTH_TOKEN=<redacted-rotate-this-token> \
            -e TWILIO_PHONE_NUMBER=+61489263333 \
            your-app-image
 ```
