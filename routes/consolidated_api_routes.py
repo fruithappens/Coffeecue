@@ -3020,10 +3020,23 @@ def _notify_customer_order_ready(phone, order_number, order_details, station_id)
                     return
                 # Last drink done. Guard on a flag on the lead order so a rare
                 # simultaneous completion can't fire the group text twice.
-                _gc.execute("SELECT order_details FROM orders WHERE order_number = %s",
-                            (str(_group_id),))
+                # The lead order carries the flag. group_id is the ROUND's
+                # number: for a legacy round that IS the lead order's number,
+                # but a lettered round (336a/b/c) has no order named by its
+                # bare base -- its lead is "<base>a". Try both; the bare one
+                # sorts first so a legacy round still resolves to itself.
+                # Writing the flag to a name no order has would silently
+                # defeat this guard.
+                _gc.execute(
+                    "SELECT order_number, order_details FROM orders "
+                    "WHERE order_number IN (%s, %s) ORDER BY order_number LIMIT 1",
+                    (str(_group_id), f"{_group_id}a"))
                 _lr = _gc.fetchone()
-                _lraw = (_lr[0] if not isinstance(_lr, dict) else _lr.get('order_details')) if _lr else None
+                if _lr:
+                    _lead_num = _lr[0] if not isinstance(_lr, dict) else _lr.get('order_number')
+                    _lraw = _lr[1] if not isinstance(_lr, dict) else _lr.get('order_details')
+                else:
+                    _lead_num, _lraw = str(_group_id), None
                 _lod = json.loads(_lraw) if isinstance(_lraw, str) else (_lraw or {})
                 if not isinstance(_lod, dict):
                     _lod = {}
@@ -3031,7 +3044,7 @@ def _notify_customer_order_ready(phone, order_number, order_details, station_id)
                     return
                 _lod['_group_ready_sent'] = True
                 _gc.execute("UPDATE orders SET order_details = %s WHERE order_number = %s",
-                            (json.dumps(_lod), str(_group_id)))
+                            (json.dumps(_lod), str(_lead_num)))
                 _dbg.commit()
                 _group_final = (str(_group_id), _total)
             except Exception as _grp_err:
