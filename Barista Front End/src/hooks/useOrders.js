@@ -18,6 +18,28 @@ import StockService from '../services/StockService';
 import { planDepletion } from '../utils/stockDepletion';
 import { appendOrder, dedupeOrders, upsertOrder } from '../utils/orderListUtils';
 import { calculateWaitTime, parseServerDate } from '../utils/orderUtils';
+import { event as logEvent } from '../services/logging';
+
+// Connection-loss bookkeeping, for the record. The red banner shows it to
+// the barista; this LOGS it, so an outage can be reconstructed afterwards
+// (nothing logged the Treenet day-2 restarts). One event per outage, sent
+// when the connection is BACK -- the attempt while offline cannot land.
+let _wasOnline = true;
+let _offlineSince = null;
+const _noteOnline = (flag) => {
+  try {
+    const on = !!flag;
+    if (_wasOnline && !on) {
+      _offlineSince = Date.now();
+      logEvent('API_OFFLINE_DETECTED', { surface: 'barista' });
+    } else if (!_wasOnline && on && _offlineSince) {
+      logEvent('API_OUTAGE', { surface: 'barista', seconds: Math.round((Date.now() - _offlineSince) / 1000), started_at: new Date(_offlineSince).toISOString() });
+      _offlineSince = null;
+    }
+    _wasOnline = on;
+  } catch (e) { /* logging only */ }
+  return flag;
+};
 
 // How long a local optimistic transition wins over backend fetches.
 // Long enough that any polling/WS replay can't bounce the order back
@@ -256,7 +278,7 @@ export default function useOrders(stationId = null) {
       try {
         const ok = await OrderDataService.checkConnection();
         if (ok && !cancelled) {
-          setOnline(true);
+          setOnline(_noteOnline(true));
           // The shared ApiNotificationBanner watches this flag too; clear it so
           // both banners drop together once we're genuinely reconnected.
           try { localStorage.setItem('use_fallback_data', 'false'); } catch (e) { /* ignore */ }
@@ -391,7 +413,7 @@ export default function useOrders(stationId = null) {
           setError(null);
           
           // Set online status to false
-          setOnline(false);
+          setOnline(_noteOnline(false));
         }, 0);
         
         return;
@@ -743,7 +765,7 @@ export default function useOrders(stationId = null) {
       const updateStates = () => {
         // Update online status if it has changed
         if (batchedUpdates.onlineStatus !== undefined) {
-          setOnline(batchedUpdates.onlineStatus);
+          setOnline(_noteOnline(batchedUpdates.onlineStatus));
         }
         
         // Update queue count
@@ -889,7 +911,7 @@ export default function useOrders(stationId = null) {
             if (cachedData.previousOrders) setPreviousOrders(cachedData.previousOrders);
             
             // Force online status to false
-            setOnline(false);
+            setOnline(_noteOnline(false));
             setLoading(false);
             
             return;

@@ -34,6 +34,7 @@ export const KNOWN_CODES = {
   // Customer surfaces (Treenet data-capture: what people wanted / chose)
   UNAVAILABLE_TAP:         'Customer tapped a crossed-out drink or milk on the ordering screen.',
   BEACON_SOUND:            'Customer toggled the ready-chime on the phone beacon.',
+  API_OUTAGE:              'A screen lost the server and got it back: surface, started_at, seconds.',
   // Auth + offline
   AUTH_FALLBACK_ENABLED:   'User accepted the fallback-mode prompt.',
   API_OFFLINE_DETECTED:    'Network or API health check failed.',

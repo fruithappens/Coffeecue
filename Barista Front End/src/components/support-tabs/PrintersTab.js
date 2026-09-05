@@ -493,6 +493,12 @@ const PrintersTab = () => {
                         p.online ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                         {p.online ? 'online' : 'offline'}
                       </span>
+                      {p.poll_interval_s != null && (
+                        <div className={`mt-1 text-xs ${p.poll_slow ? 'text-red-700 font-semibold' : 'text-gray-500'}`}
+                             title="Measured from the polls this server receives">
+                          polls every {p.poll_interval_s}s{p.poll_slow ? ' — set CloudPRNT polling to 5 s on the printer' : ''}
+                        </div>
+                      )}
                     </td>
                     <td className="py-2 pr-3">
                       <input

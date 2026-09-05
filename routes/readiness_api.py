@@ -406,6 +406,76 @@ def _check_migrations(db):
 # Public endpoint.
 # ----------------------------------------------------------------------
 
+def _check_admin_alerts():
+    """The SMS-down / memory-high / restart alerts only help if they can reach
+    someone. Organiser > Event Readiness sets the phone and email."""
+    from services.admin_alerts import load_config
+    cfg = load_config()
+    if not cfg.get('enabled'):
+        return {'status': 'warn', 'detail': 'Admin alerts are OFF. Turn them on and set an email or phone so outages reach you.'}
+    if not (cfg.get('email') or cfg.get('phone')):
+        return {'status': 'warn', 'detail': 'Admin alerts are on but have no email or phone to send to.'}
+    to = ', '.join(x for x in (cfg.get('email'), cfg.get('phone')) if x)
+    return {'status': 'ok', 'detail': f'Alerts go to {to}.'}
+
+
+def _check_printers_polling(db):
+    """A printer polling every 30 s (the TSP100IV SK's factory setting) puts
+    ~30 s on every label. Measured from the polls received since boot."""
+    from routes.print_routes import poll_interval_s, POLL_SLOW_AFTER_S
+    cur = db.cursor()
+    cur.execute("SELECT name, mac_address FROM printers WHERE enabled = TRUE")
+    rows = cur.fetchall()
+    if not rows:
+        return {'status': 'skipped', 'detail': 'No label printers enabled.'}
+    slow, unseen, fine = [], [], []
+    for r in rows:
+        name, mac = (r[0], r[1]) if not isinstance(r, dict) else (r.get('name'), r.get('mac_address'))
+        iv = poll_interval_s(mac)
+        if iv is None:
+            unseen.append(str(name))
+        elif iv > POLL_SLOW_AFTER_S:
+            slow.append(f'{name} ({iv:.0f}s)')
+        else:
+            fine.append(f'{name} ({iv:.0f}s)')
+    if slow:
+        return {'status': 'warn', 'detail': f"Slow polling: {', '.join(slow)}. Set the printer's CloudPRNT polling time to 5 s (its web config) or every label waits that long."}
+    if unseen and not fine:
+        return {'status': 'warn', 'detail': f"No polls seen since the server started from: {', '.join(unseen)}. Power and network?"}
+    return {'status': 'ok', 'detail': f"Polling every {', '.join(fine)}" + (f"; not yet seen: {', '.join(unseen)}" if unseen else '') + '.'}
+
+
+def _check_memory_watch():
+    """The watchdog that logs memory, trims the allocator and alerts above the
+    line (services/memory_watch.py) -- the Treenet day-2 restarts."""
+    import threading
+    from services import memory_watch as mw
+    alive = any(t.name == 'memory-watch' and t.is_alive() for t in threading.enumerate())
+    snap = mw.snapshot(current_app)
+    if not alive:
+        return {'status': 'warn', 'detail': 'Memory watchdog thread is not running; memory growth would go unreported.'}
+    mb = snap.get('rss_mb') or 0
+    line = snap.get('alert_mb') or 700
+    return {'status': 'ok' if mb < line else 'warn',
+            'detail': f"Running; {mb:.0f} MB in use (alert above {line} MB), up {int((snap.get('uptime_s') or 0) // 60)} min."}
+
+
+def _check_inbound_sms():
+    """Outbound is proved by the test button; inbound needs a real text to
+    arrive and pass the Twilio signature check (the rotated auth token).
+    One text to the number proves the whole path."""
+    from services import sms_health
+    snap = sms_health.snapshot()
+    wh = snap.get('webhook') or {}
+    hits = int(wh.get('hits_since_boot') or 0)
+    rej = int(wh.get('rejected_since_boot') or 0)
+    if rej and not hits:
+        return {'status': 'fail', 'detail': f'{rej} inbound text(s) REJECTED since start: the Twilio auth token in Railway does not match the account (signature check).'}
+    if not hits:
+        return {'status': 'warn', 'detail': 'No inbound text seen since the server started. Text the CupQ number once to prove the webhook and auth token.'}
+    return {'status': 'ok', 'detail': f'{hits} inbound text(s) received since start' + (f', {rej} rejected' if rej else '') + '.'}
+
+
 @bp.route('/readiness', methods=['GET'])
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff'])
@@ -430,6 +500,10 @@ def get_readiness():
 
     checks = [
         _safe_check('sms_config', 'SMS configuration', _check_sms_config),
+        _safe_check('inbound_sms', 'Inbound texts arriving', _check_inbound_sms),
+        _safe_check('admin_alerts', 'Alerts reach the organiser', _check_admin_alerts),
+        _safe_check('printers_polling', 'Label printers polling fast', lambda: _check_printers_polling(db)),
+        _safe_check('memory_watch', 'Server memory watchdog', _check_memory_watch),
         _safe_check('stations', 'Stations', lambda: _check_stations(db)),
         _safe_check('event_name', 'Event name', lambda: _check_event_name(db)),
         _safe_check('capabilities', 'Station capability coverage',

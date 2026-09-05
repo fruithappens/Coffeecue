@@ -138,7 +138,47 @@ class MemoryWatchService:
     def stop(self):
         self._stop.set()
 
+    def _boot_report(self):
+        """Say the server started -- and whether that was a DEPLOY (new build)
+        or a RESTART of the same build (a crash, an OOM kill, a health-check
+        restart). On Treenet day 2 the server restarted several times with no
+        deploy and nobody knew for a day. Railway sets RAILWAY_DEPLOYMENT_ID
+        per deploy; the last one is remembered in the settings KV, so a boot
+        carrying the SAME id is a restart and is alerted (email/SMS)."""
+        try:
+            dep = (os.getenv("RAILWAY_DEPLOYMENT_ID") or "").strip()
+            sha = (os.getenv("RAILWAY_GIT_COMMIT_SHA") or "")[:7]
+            if not dep or self.db is None:
+                logger.info("[boot] started (no deployment id; not reporting)")
+                return
+            from routes.consolidated_api_routes import _kv_get, _kv_put
+            last = _kv_get(self.db, "last_deployment_id", default=None)
+            if last != dep:
+                _kv_put(self.db, "last_deployment_id", dep)
+                logger.info("[boot] new deploy %s (%s) -- not a restart", dep[:8], sha)
+                return
+            from services.admin_alerts import send_admin_alert
+            logger.warning("[boot] RESTART of the same deploy %s (%s)", dep[:8], sha)
+            send_admin_alert(
+                "SERVER_RESTARTED", "critical",
+                (f"CupQ server RESTARTED at {time.strftime('%H:%M')} without a deploy "
+                 f"(build {sha or dep[:8]}). It is back up; orders and the board recover "
+                 f"on their own, but the reminder timer and live counters reset. If this "
+                 f"repeats, check Railway's logs for the cause."),
+                db=self.db)
+        except Exception as e:
+            logger.warning("[boot] report failed: %s", e)
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+
     def _run(self):
+        # First tick waits 75 s: long enough for the DB and alert config to be
+        # readable, short enough that a restart is reported inside two minutes.
+        self._stop.wait(75)
+        if not self._stop.is_set():
+            self._boot_report()
         while not self._stop.is_set():
             try:
                 self._tick()

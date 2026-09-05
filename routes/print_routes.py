@@ -35,6 +35,33 @@ import urllib.parse
 
 logger = logging.getLogger(__name__)
 
+# Per-printer poll cadence, measured from the polls we actually receive.
+# The TSP100IV SK at Treenet polled every 30 s (a factory setting; the
+# mC-Label3 every 5 s), which alone put ~30 s on every label, and nothing
+# showed it. The server sees every poll, so it can say so -- in the Support
+# print panel and the readiness checks.
+import time as _time
+from collections import deque as _deque
+_POLL_TIMES = {}          # mac -> deque of recent poll times (monotonic)
+_POLL_SLOW_WARNED = set()
+POLL_SLOW_AFTER_S = 10
+
+
+def _note_poll(mac):
+    if not mac:
+        return
+    _POLL_TIMES.setdefault(mac, _deque(maxlen=12)).append(_time.monotonic())
+
+
+def poll_interval_s(mac):
+    """Median seconds between this printer's recent polls, or None."""
+    q = _POLL_TIMES.get(mac)
+    if not q or len(q) < 3:
+        return None
+    pts = list(q)
+    gaps = sorted(b - a for a, b in zip(pts, pts[1:]))
+    return round(gaps[len(gaps) // 2], 1)
+
 # App-facing API (JWT'd) and the printer-facing CloudPRNT endpoint
 # (public by necessity — printers can't OAuth) live on two blueprints.
 bp = Blueprint("print_api", __name__, url_prefix="/api/print")
@@ -639,6 +666,13 @@ def cloudprnt_poll():
             (status_json, printer["id"]),
         )
         db.commit()
+        _note_poll(mac)
+        _iv = poll_interval_s(mac)
+        if _iv and _iv > POLL_SLOW_AFTER_S and mac not in _POLL_SLOW_WARNED:
+            _POLL_SLOW_WARNED.add(mac)
+            logger.warning(
+                "printer %s (%s) polls every %.0fs -- set its CloudPRNT polling time "
+                "to 5 s or every label waits that long", printer.get("name"), mac, _iv)
         if not printer.get("enabled"):
             return jsonify({"jobReady": False})
         cur.execute(
@@ -1838,6 +1872,9 @@ def printers_list():
             online = bool(lp and (now - lp).total_seconds() <= CLOUDPRNT_POLL_TIMEOUT_S)
             d["online"] = online
             d["seconds_since_poll"] = int((now - lp).total_seconds()) if lp else None
+            _iv = poll_interval_s(d.get("mac_address"))
+            d["poll_interval_s"] = _iv
+            d["poll_slow"] = bool(_iv and _iv > POLL_SLOW_AFTER_S)
             # What the printer says is wrong with it, in words. Stored on
             # every poll and, until now, never shown to anybody.
             d["fault"] = printer_fault(d.get("last_status"))
