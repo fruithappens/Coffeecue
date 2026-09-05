@@ -449,6 +449,10 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
   // altogether"). Macchiato/piccolo/cortado are deliberately excluded at the
   // call site — they take a dash of milk, so they keep the milk step.
   const MILKLESS = /(juice|smoothie|sparkling|lemonade|soft drink|still water|long black|short black|americano|espresso)/;
+  // Black coffees where "a dash of cold water / a splash of milk" is a common
+  // ask — 16 of 20 typed notes at Treenet were exactly this on a long black.
+  // These get a quick one-tap style step instead of silently skipping past.
+  const BLACKSTYLE = /(long black|short black|americano)/i;
   const noMilkOption = () =>
     milkOptions.find(m => (m.value || '').includes('no milk'))
     || { name: 'No milk', value: 'no milk', stations: (menu?.stations || []).map(s => s.id) };
@@ -942,13 +946,22 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                           onClick={() => {
                             setDrink(d);
                             const v = d.value || '';
-                            // Milkless drinks (juices, black coffees) skip the
-                            // milk step — but a macchiato-style coffee takes a
-                            // dash of milk, so it keeps the step.
-                            if (MILKLESS.test(v) && !/macchiato|piccolo|cortado/i.test(v)) {
+                            // A long black / americano / short black gets a
+                            // quick "how would you like it?" step (black / dash
+                            // of water / splash of milk) — the #1 thing guests
+                            // typed in notes at Treenet.
+                            if (BLACKSTYLE.test(v)) {
+                              setMilk(noMilkOption());
+                              setNotes('');
+                              goTo('blackstyle');
+                            } else if (MILKLESS.test(v) && !/macchiato|piccolo|cortado/i.test(v)) {
+                              // Other milkless drinks (juices, espresso) skip
+                              // the milk step.
                               setMilk(noMilkOption());
                               afterMilk();
                             } else {
+                              // A macchiato-style coffee takes a dash of milk,
+                              // so it keeps the milk step.
                               goTo('milk');
                             }
                           }} />
@@ -992,6 +1005,24 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                     onClick={() => { if (ok) { setMilk(m); afterMilk(); } }} />
                 );
               })}
+            </div>
+          </>
+        )}
+
+        {/* ---------- LONG-BLACK STYLE (dash of water / splash of milk) ---------- */}
+        {step === 'blackstyle' && (
+          <>
+            <Header title="How would you like it?" onBack={goBack} />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Tile emoji="☕" label="Just black"
+                active={!notes}
+                onClick={() => { setNotes(''); afterMilk(); }} />
+              <Tile emoji="💧" label="Dash of cold water"
+                active={/cold water/i.test(notes)}
+                onClick={() => { setNotes('Dash of cold water'); afterMilk(); }} />
+              <Tile emoji="🥛" label="Splash of cold milk"
+                active={/splash/i.test(notes)}
+                onClick={() => { setNotes('Splash of cold milk'); afterMilk(); }} />
             </div>
           </>
         )}
