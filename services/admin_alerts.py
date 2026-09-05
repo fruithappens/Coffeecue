@@ -49,7 +49,7 @@ def load_config(db=None) -> dict:
     """Read admin-alert config from settings KV. Env overrides for the
     phone + enable so a deploy can pin them without the DB."""
     import os
-    cfg = {'enabled': False, 'phone': '', 'min_severity': 'critical',
+    cfg = {'enabled': False, 'phone': '', 'email': '', 'min_severity': 'critical',
            'cooldown_minutes': 15}
     try:
         if db is None:
@@ -67,6 +67,8 @@ def load_config(db=None) -> dict:
         cfg['phone'] = os.getenv('ADMIN_ALERT_PHONE')
     if os.getenv('ADMIN_ALERT_ENABLED'):
         cfg['enabled'] = os.getenv('ADMIN_ALERT_ENABLED', '').lower() == 'true'
+    if os.getenv('ADMIN_ALERT_EMAIL'):
+        cfg['email'] = os.getenv('ADMIN_ALERT_EMAIL')
     return cfg
 
 
@@ -86,7 +88,9 @@ def send_admin_alert(code: str, severity: str, message: str,
     """
     try:
         cfg = load_config(db)
-        if not cfg.get('enabled') or not (cfg.get('phone') or '').strip():
+        phone = (cfg.get('phone') or '').strip()
+        email = (cfg.get('email') or '').strip()
+        if not cfg.get('enabled') or not (phone or email):
             return False
         threshold = _SEVERITY_RANK.get((cfg.get('min_severity') or 'critical').lower(), 3)
         sev_rank = _SEVERITY_RANK.get((severity or 'info').lower(), 0)
@@ -96,16 +100,46 @@ def send_admin_alert(code: str, severity: str, message: str,
         if _within_cooldown(code, cooldown):
             logger.info("admin alert for %s suppressed (cooldown %dm)", code, cooldown)
             return False
+        # Mark BEFORE sending so a slow or failing channel can't spam on retry.
+        _last_sent[code] = time.monotonic()
 
         body = f"[Coffee Cue {severity.upper()}] {code}: {message}"[:300]
-        from services.sms import get_outbound_provider
-        result = get_outbound_provider().send(cfg['phone'].strip(), body)
-        _last_sent[code] = time.monotonic()
-        if result.ok:
-            logger.info("admin alert sent for %s to %s", code, cfg['phone'])
-            return True
-        logger.warning("admin alert send failed for %s: %s", code, result.error)
-        return None
+        sent_any = False
+
+        # SMS channel.
+        if phone:
+            try:
+                from services.sms import get_outbound_provider
+                result = get_outbound_provider().send(phone, body)
+                if result.ok:
+                    sent_any = True
+                    logger.info("admin alert SMS sent for %s to %s", code, phone)
+                else:
+                    logger.warning("admin alert SMS failed for %s: %s", code, result.error)
+            except Exception as e:  # noqa: BLE001
+                logger.warning("admin alert SMS crashed for %s: %s", code, e)
+
+        # EMAIL channel — the one that survives an SMS/Twilio outage, which is
+        # exactly what an SMS_OUTBOUND_DOWN alert is about. Best-effort; no-ops
+        # cleanly if EMAIL_ENABLED/SMTP aren't configured.
+        if email:
+            try:
+                from services.email_utils import send_html_email
+                send_html_email(
+                    email,
+                    f"[Coffee Cue {severity.upper()}] {code}",
+                    f"<p><b>{code}</b> &mdash; {severity.upper()}</p>"
+                    f"<p>{message}</p>"
+                    "<p style='color:#888;font-size:12px'>Automated alert from "
+                    "Coffee Cue. Manage recipients in Organiser &rarr; Event "
+                    "Readiness &rarr; Admin alerts.</p>",
+                )
+                sent_any = True
+                logger.info("admin alert email dispatched for %s to %s", code, email)
+            except Exception as e:  # noqa: BLE001
+                logger.warning("admin alert email crashed for %s: %s", code, e)
+
+        return sent_any or None
     except Exception as e:  # noqa: BLE001
         logger.warning("send_admin_alert crashed (non-fatal): %s", e)
         return None

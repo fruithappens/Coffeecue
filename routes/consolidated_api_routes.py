@@ -5679,10 +5679,24 @@ def sms_health():
         coffee_system = current_app.config.get('coffee_system')
         db = coffee_system.db if coffee_system else None
         messaging_service = current_app.config.get('messaging_service')
-        return jsonify({
-            'success': True,
-            'health': health.snapshot(db=db, messaging_service=messaging_service),
-        })
+        snap = health.snapshot(db=db, messaging_service=messaging_service)
+        # Fire the admin alert (email/SMS) the moment outbound goes dark. Done
+        # HERE, not in the low-level sms_health module, because this handler has
+        # the DB + settings context to read the configured recipient — and the
+        # barista banner polls this endpoint every ~30s, so it trips within
+        # ~30s of an outage. send_admin_alert self-throttles per code (cooldown),
+        # so repeated polls don't spam. Never let it break the health read.
+        if snap.get('outbound_down'):
+            try:
+                from services.admin_alerts import send_admin_alert
+                send_admin_alert(
+                    'SMS_OUTBOUND_DOWN', 'critical',
+                    (snap.get('problems') or ['Outbound SMS is failing.'])[0],
+                    db=db,
+                )
+            except Exception as _ae:
+                logger.warning(f"outbound-down admin alert skipped: {_ae}")
+        return jsonify({'success': True, 'health': snap})
     except Exception as e:
         logger.error(f"sms_health error: {e}")
         # A health check that 500s tells the reader nothing except that
@@ -10808,6 +10822,7 @@ def put_admin_alerts():
         cfg = {
             'enabled': bool(body.get('enabled')),
             'phone': (body.get('phone') or '').strip(),
+            'email': (body.get('email') or '').strip(),
             'min_severity': (body.get('min_severity') or 'critical').lower(),
             'cooldown_minutes': int(body.get('cooldown_minutes') or 15),
         }
@@ -10825,22 +10840,46 @@ def put_admin_alerts():
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff'])
 def test_admin_alert():
-    """Send a test alert SMS to the configured number, bypassing the
-    severity gate + cooldown (but still respecting enabled + phone)."""
+    """Send a test alert to the configured channel(s) — SMS and/or email —
+    bypassing the severity gate + cooldown (but still respecting what's set)."""
     try:
         coffee_system = current_app.config.get('coffee_system')
         from services.admin_alerts import load_config
         cfg = load_config(coffee_system.db)
-        if not cfg.get('phone'):
-            return jsonify({'success': False, 'error': 'No admin alert phone set.'}), 400
-        from services.sms import get_outbound_provider
-        result = get_outbound_provider().send(
-            cfg['phone'],
-            "[Coffee Cue TEST] Admin alerts are working. You'll get a text "
-            "here on error/critical events (rate-limited so you're not spammed).",
-        )
-        return jsonify({'success': result.ok, 'sent': result.ok,
-                        'provider': result.provider, 'message': result.error or 'sent'})
+        phone = (cfg.get('phone') or '').strip()
+        email = (cfg.get('email') or '').strip()
+        if not phone and not email:
+            return jsonify({'success': False,
+                            'error': 'No admin alert phone or email set.'}), 400
+        results = {}
+        if phone:
+            try:
+                from services.sms import get_outbound_provider
+                r = get_outbound_provider().send(
+                    phone,
+                    "[Coffee Cue TEST] Admin alerts are working. You'll get a "
+                    "message here on error/critical events (rate-limited).",
+                )
+                results['sms'] = 'sent' if r.ok else (r.error or 'failed')
+            except Exception as se:
+                results['sms'] = f'error: {se}'
+        if email:
+            try:
+                from services.email_utils import send_html_email, email_enabled
+                send_html_email(
+                    email, "[Coffee Cue TEST] Admin alerts are working",
+                    "<p>This is a test of Coffee Cue admin email alerts. "
+                    "You'll get an email here on error/critical events "
+                    "(e.g. outbound SMS failing), rate-limited so you're not "
+                    "spammed.</p>",
+                )
+                results['email'] = 'sent' if email_enabled() else (
+                    'dry-run — set EMAIL_ENABLED=true + SMTP_* in Railway to '
+                    'actually send')
+            except Exception as ee:
+                results['email'] = f'error: {ee}'
+        ok = any(v == 'sent' for v in results.values())
+        return jsonify({'success': ok, 'sent': ok, 'results': results})
     except Exception as e:
         logger.error(f"test_admin_alert error: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
