@@ -20,6 +20,8 @@ import { fetchEventAccess, urlCodeMatches, normalizeCode,
          stampUrlWithCode, rememberCodeOk, codeAlreadyOk } from '../../utils/eventGate';
 import BackupBaristaUnlock from './BackupBaristaUnlock';
 import useReadyChime, { SoundToggleButton } from './useReadyChime';
+import SponsorTicker from './SponsorTicker';
+import { event as logEvent } from '../../services/logging';
 
 const STATUS_COPY = {
   pending: { title: 'In the queue', tone: 'bg-blue-600' },
@@ -102,6 +104,49 @@ const MobileOrderPage = () => {
   // QR is watching exactly the same wait and deserves the same warning.
   const { soundOn, toggleSound, playChime, audioState } = useReadyChime();
   const prevTrackStatus = useRef(null);
+
+  // Sponsor ticker on the phone beacon, same strip as the display and /my.
+  // Steve: this is the page most people watch, and the sponsors never
+  // appeared on it. Fetched once; hidden until the operator adds logos.
+  const [sponsorTicker, setSponsorTicker] = useState({ enabled: false, size: 'small', sponsors: [] });
+  useEffect(() => {
+    if (!trackNumber) return undefined;
+    let dead = false;
+    (async () => {
+      try {
+        const r = await fetch('/api/sponsors', { cache: 'no-store' });
+        const b = r.ok ? await r.json() : null;
+        if (!dead && b && b.success) {
+          setSponsorTicker({ enabled: !!b.enabled, size: 'small', sponsors: Array.isArray(b.sponsors) ? b.sponsors : [] });
+        }
+      } catch (e) { /* no ticker */ }
+    })();
+    return () => { dead = true; };
+  }, [trackNumber]);
+  const tickerOn = sponsorTicker.enabled && sponsorTicker.sponsors.length > 0;
+
+  // Fit the whole card column to THIS phone's screen. Steve: the beacon
+  // should scale to each phone so most of it, and the buttons under the
+  // coloured card, are visible without scrolling. Measured after render:
+  // if the column is taller than the space above the ticker/nav, zoom it
+  // down (never below 0.7, never up). CSS zoom reflows, so nothing clips.
+  const colRef = useRef(null);
+  const [fit, setFit] = useState(1);
+  useEffect(() => {
+    if (!trackNumber) return undefined;
+    const measure = () => {
+      const el = colRef.current;
+      if (!el) return;
+      const vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+      const reserve = (tickerOn ? 84 : 0) + (IS_EMBEDDED ? 176 : 40) + 24;
+      const natural = el.scrollHeight / (fit || 1);
+      const next = Math.max(0.7, Math.min(1, (vh - reserve) / Math.max(1, natural)));
+      if (Math.abs(next - fit) > 0.02) setFit(next);
+    };
+    const t = setTimeout(measure, 50);
+    window.addEventListener('resize', measure);
+    return () => { clearTimeout(t); window.removeEventListener('resize', measure); };
+  }, [trackNumber, tickerOn, track?.status, collected, gone, fit]);
 
   useEffect(() => {
     const status = track?.status;
@@ -209,8 +254,9 @@ const MobileOrderPage = () => {
       <div className="min-h-screen bg-gray-50 flex flex-col items-center p-6"
            style={{ minHeight: '100dvh',
                     paddingTop: 'max(1.5rem, env(safe-area-inset-top))',
-                    paddingBottom: BEACON_PAD_BOTTOM }}>
-        <div className="w-full max-w-md">
+                    // Room for the sponsor strip when it is on.
+                    paddingBottom: tickerOn ? `calc(${BEACON_PAD_BOTTOM} + 84px)` : BEACON_PAD_BOTTOM }}>
+        <div className="w-full max-w-md" ref={colRef} style={fit !== 1 ? { zoom: fit } : undefined}>
           {/* Incident notice. Above the order card on purpose: if the
               system is in trouble, that outranks the queue position the
               customer came here to read.
@@ -310,7 +356,8 @@ const MobileOrderPage = () => {
           )}
           {/* The sound button, which this page did not have. */}
           {!gone && !ready && (
-            <SoundToggleButton soundOn={soundOn} onToggle={toggleSound} audioState={audioState} className="mt-4" />
+            <SoundToggleButton soundOn={soundOn} audioState={audioState} className="mt-4"
+              onToggle={() => { try { logEvent('BEACON_SOUND', { on: !soundOn, order: trackNumber }); } catch (e) { /* log only */ } toggleSound(); }} />
           )}
           {gone && (
             <div className="mt-3 text-center text-gray-500">
@@ -402,6 +449,15 @@ const MobileOrderPage = () => {
             Order another coffee
           </button>
         </div>
+        {/* Sponsor strip, pinned above the phone toolbar / the events-app
+            nav so it is seen without scrolling -- the display's ticker,
+            on the page people actually watch. */}
+        {tickerOn && (
+          <div className="fixed left-0 right-0 z-20 shadow-lg"
+               style={{ bottom: IS_EMBEDDED ? 'calc(env(safe-area-inset-bottom) + 8.5rem)' : 'env(safe-area-inset-bottom)' }}>
+            <SponsorTicker items={sponsorTicker.sponsors} position="bottom" size="small" />
+          </div>
+        )}
       </div>
     );
   }

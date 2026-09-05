@@ -1054,6 +1054,10 @@ const MyCoffeePage = () => {
       <div className="min-h-screen bg-white">
         <KioskOrder
           key={orderEpoch}
+          // Own phone via the events app (cid) or a plain web visit. Without
+          // this every order from /my landed as 'kiosk' -- the exact app-vs-
+          // touchscreen ambiguity the Treenet report had to work around.
+          channel={cid ? 'app' : 'web'}
           onClose={() => setOrderEpoch((e) => e + 1)}
           onCheckExisting={() => setCheckExisting(true)}
           onOrderPlaced={(orderNumber) => {
@@ -1185,7 +1189,7 @@ const MyCoffeePage = () => {
         </div>
         {fullOrder && (
           <div className="fixed inset-0 bg-white z-50 overflow-auto">
-            <KioskOrder onClose={() => setFullOrder(false)} />
+            <KioskOrder channel={cid ? 'app' : 'web'} onClose={() => setFullOrder(false)} />
           </div>
         )}
       </div>
@@ -1360,6 +1364,7 @@ const MyCoffeePage = () => {
           <div className="fixed inset-0 bg-white z-50 overflow-auto">
             <KioskOrder
               eaCid={cid}
+              channel={cid ? 'app' : 'web'}
               onClose={() => { setFullOrder(false); load(cid); }}
               onOrderPlaced={() => { setFullOrder(false); load(cid); }}
             />

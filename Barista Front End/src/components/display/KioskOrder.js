@@ -23,6 +23,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { getSavedRounds, saveRound } from '../../utils/savedRounds';
 import DrinkIcon from './DrinkIcon';
 import { remember, recall } from '../../utils/deviceMemory';
+import { event as logEvent } from '../../services/logging';
 import { X, ArrowLeft, Plus, Minus, Check, Loader, MapPin, Zap } from 'lucide-react';
 
 // Idle handling: after IDLE_WARN_MS of no touch, a full-screen countdown
@@ -678,6 +679,9 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
           || (name.trim() === (eaSuggest?.firstName || '') ? eaSuggest?.cid : undefined)
           || undefined,
         channel,
+        // Explicit, so the report can count 'chose texts' without inferring
+        // it from whether a number happened to be attached.
+        sms_opt_in: !!(smsOptIn && phone.trim()),
         src: new URLSearchParams(window.location.search).get('src') || undefined,
         e: carriedEventCode || undefined,
       };
@@ -739,7 +743,11 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
   };
 
   // ---- presentational helpers -------------------------------------------
-  const Tile = ({ active, disabled, onClick, emoji, icon, label, sub }) => (
+  // A disabled <button> swallows clicks, so a tap on a crossed-out item
+  // is caught by the wrapper and logged (onDisabledTap): the venue asked
+  // which unavailable drinks/milks people actually wanted (Steve).
+  const Tile = ({ active, disabled, onClick, onDisabledTap, emoji, icon, label, sub }) => (
+    <div onClick={disabled && onDisabledTap ? onDisabledTap : undefined} className="contents">
     <button
       onClick={onClick}
       disabled={disabled}
@@ -756,6 +764,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
       <span className="text-xl font-bold leading-tight break-words w-full">{label}</span>
       {sub && <span className="mt-1 text-xs font-semibold text-amber-600">{sub}</span>}
     </button>
+    </div>
   );
 
   const Header = ({ title, onBack }) => (
@@ -941,6 +950,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                         <Tile key={d.value} icon={<DrinkIcon name={d.value} />} label={d.name}
                           active={drink?.value === d.value}
                           disabled={(d.stations || []).length === 0}
+                          onDisabledTap={() => logEvent('UNAVAILABLE_TAP', { kind: 'drink', item: d.value, station: myStation, channel })}
                           sub={(d.stations || []).length === 0 ? 'Not available today'
                             : (madeHere(d) ? null : `Station ${stationLabel(d)} only`)}
                           onClick={() => {
@@ -998,6 +1008,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                   <Tile key={m.value} emoji={milkEmoji(m.value)} label={m.name}
                     active={milk?.value === m.value || blackDefault}
                     disabled={!ok}
+                    onDisabledTap={() => logEvent('UNAVAILABLE_TAP', { kind: 'milk', item: m.value, drink: drink?.value, station: myStation, channel })}
                     sub={blackDefault ? 'the usual for this drink'
                       : m.unavailable ? 'Not available today'
                       : !ok ? `Not available with ${drink?.name || 'that drink'}`

@@ -40,6 +40,14 @@ import { fetchEventAccess, stampLink } from '../../utils/eventGate';
 import SponsorTicker from './SponsorTicker';
 import SponsorWall from './SponsorWall';
 
+// The board's scan-QR carries ?src=tv<station> so the report can count
+// 'scanned the QR on screen N' apart from app and poster arrivals.
+const withSrc = (url, station) => {
+  if (!url || !station) return url;
+  try { const u = new URL(url); if (!u.searchParams.get('src')) u.searchParams.set('src', `tv${station}`); return u.toString(); }
+  catch (e) { return url; }
+};
+
 // Visual theme presets. Each provides bg, panel, text, accent.
 const THEMES = {
   light:   { bg: 'bg-gray-50',    panel: 'bg-white',         text: 'text-gray-900', subtext: 'text-gray-500', border: 'border-gray-200' },
@@ -1505,7 +1513,7 @@ const DisplayScreen = () => {
               <img
                 // `size` is the endpoint's module size, not pixel width;
                 // the CSS below decides how big it actually draws.
-                src={`/api/qr?size=10&data=${encodeURIComponent(orderQrUrl)}`}
+                src={`/api/qr?size=10&data=${encodeURIComponent(withSrc(orderQrUrl, currentStation?.id))}`}
                 alt="Scan to order"
                 className="w-44 h-44"
                 // A QR that fails to load should leave a clean header,
@@ -1557,7 +1565,7 @@ const DisplayScreen = () => {
                           boxShadow: BANNER_SHADOW }}>
               <div className="bg-white rounded-xl p-2 shadow-lg">
                 <img
-                  src={`/api/qr?size=10&data=${encodeURIComponent(orderQrUrl)}`}
+                  src={`/api/qr?size=10&data=${encodeURIComponent(withSrc(orderQrUrl, currentStation?.id))}`}
                   alt="Scan to order"
                   className="w-40 h-40"
                   onError={(e) => { e.currentTarget.style.display = 'none'; }}
@@ -1628,7 +1636,7 @@ const DisplayScreen = () => {
                     underneath rather than beside so the width goes into
                     the code instead of the words. */}
                 <img
-                  src={`/api/qr?size=8&data=${encodeURIComponent(orderQrUrl)}`}
+                  src={`/api/qr?size=8&data=${encodeURIComponent(withSrc(orderQrUrl, currentStation?.id))}`}
                   alt="Scan to order from your phone"
                   className="rounded bg-white p-1"
                   style={{ width: 'clamp(92px, 9.2vw, 128px)',
