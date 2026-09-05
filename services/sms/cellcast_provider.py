@@ -113,11 +113,13 @@ class CellcastProvider(SMSProvider):
             if self.testing_mode:
                 logger.info("Cellcast inbound accepted (TESTING_MODE, no secret)")
                 return True
+            # FAIL CLOSED (see clicksend_provider): an unset secret must not
+            # mean "accept anything".
             logger.warning(
-                "Cellcast inbound accepted without secret — set "
-                "CELLCAST_WEBHOOK_SECRET in production for auth"
+                "Cellcast inbound REJECTED: CELLCAST_WEBHOOK_SECRET is not set "
+                "(set it and add the X-Coffee-Cue-Webhook-Secret header in Cellcast)"
             )
-            return True
+            return False
         provided = request.headers.get('X-Coffee-Cue-Webhook-Secret', '')
         if provided != self.webhook_secret:
             logger.warning("Cellcast inbound rejected: secret header mismatch")

@@ -1037,7 +1037,15 @@ def create_app():
             pass
 
     # Authentication API endpoints
+    # Login is throttled per client IP. Only staff log in (customers never
+    # do), so a per-IP limit can't hit attendees behind the venue NAT --
+    # but it does end password guessing: 4 bad attempts in 9 s all came
+    # back 401 with no lockout before this. ProxyFix (x_for=1) makes the
+    # key the real client IP, not Railway's edge. 10/min covers a whole
+    # team logging in at once; 60/hour is ~1,400 guesses a day at most.
+    from security_middleware import limiter as _login_limiter
     @app.route('/api/auth/login', methods=['POST'])
+    @_login_limiter.limit("10 per minute; 60 per hour")
     def api_auth_login():
         """Direct API endpoint for authentication"""
         try:

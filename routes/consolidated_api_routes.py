@@ -14721,11 +14721,15 @@ def _eventsair_secret_ok(db):
     secret = (cfg.get('webhook_secret') or '').strip()
     testing = os.getenv('TESTING_MODE', 'false').lower() == 'true'
     if not secret:
-        # No secret configured. Accept in TESTING_MODE, warn in prod.
+        # No secret configured: accept only in TESTING_MODE. In prod this
+        # FAILS CLOSED -- the integration was live on cupq.app with
+        # enabled=true and no webhook_secret, so this branch was accepting
+        # anonymous POSTs. Harmless while Phase 0 only logs; not once it
+        # writes attendees. Set webhook_secret in Organiser > EventsAir.
         if testing:
             return True, 'testing-mode, no secret'
-        logger.warning("EventsAir inbound accepted without webhook_secret — set one in prod")
-        return True, 'no secret set'
+        logger.warning("EventsAir inbound REJECTED: webhook_secret not set (set one in Organiser > EventsAir)")
+        return False, 'webhook_secret not set'
     provided = request.headers.get('X-Coffee-Cue-Webhook-Secret', '')
     if provided != secret:
         return False, 'secret mismatch'
