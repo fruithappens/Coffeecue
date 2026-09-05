@@ -600,6 +600,17 @@ def create_app():
                 f"Failed to start keep-warm service (non-fatal): {warm_err}"
             )
             keep_warm = None
+
+        # Memory watchdog: logs RSS every minute, alerts the admin above
+        # MEMORY_ALERT_MB, and lets an admin switch tracemalloc on at
+        # runtime. See services/memory_watch.py for why (Railway's memory
+        # sawtooth; the server restarted itself on Treenet day 2 with no
+        # deploys). Non-fatal, like keep-warm.
+        try:
+            from services.memory_watch import MemoryWatchService
+            MemoryWatchService(db=db).start()
+        except Exception as mem_err:
+            logger.error(f"Failed to start memory watchdog (non-fatal): {mem_err}")
     else:
         logger.info("Skipping background services in reloader parent process")
         pickup_reminder = None
