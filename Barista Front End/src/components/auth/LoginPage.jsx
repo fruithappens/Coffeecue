@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import AuthService from '../../services/AuthService';
 import OfflineDataHelper from '../../utils/offlineDataHelper';
 import SettingsService from '../../services/SettingsService';
+import roleLanding from '../../utils/roleLanding';
 
 const LoginPage = ({ onLoginSuccess }) => {
   // SECURITY: never pre-fill credentials. These used to default to
@@ -36,11 +37,24 @@ const LoginPage = ({ onLoginSuccess }) => {
       return redirectPath;
     }
     
-    // Default to barista view
-    return '/barista';
+    // No explicit destination: decide by ROLE once we know it (after
+    // sign-in). This used to hard-code /barista, which is wrong for an
+    // organiser and a dead end for a display account.
+    return null;
   };
   
   const from = getRedirectPath();
+
+  // Already signed in and landed on the sign-in page (a bookmark, a back
+  // button): skip the form and go where this account belongs.
+  useEffect(() => {
+    try {
+      if (AuthService.getToken() && AuthService.validateToken().isValid) {
+        navigate(from || roleLanding(AuthService.getCurrentUser()?.role), { replace: true });
+      }
+    } catch (e) { /* show the form */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   
   // Check for existing token errors on mount and load branding settings
   useEffect(() => {
@@ -106,8 +120,10 @@ const LoginPage = ({ onLoginSuccess }) => {
         onLoginSuccess();
       }
       
-      // Navigate to the intended destination
-      navigate(from, { replace: true });
+      // Navigate to the intended destination, else by role: barista ->
+      // the board, display -> the screens, support -> support, everyone
+      // else -> /welcome (the section chooser).
+      navigate(from || roleLanding(AuthService.getCurrentUser()?.role), { replace: true });
     } catch (err) {
       console.error('Login failed:', err);
       

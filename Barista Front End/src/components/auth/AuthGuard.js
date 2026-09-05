@@ -40,7 +40,10 @@ const AuthGuard = ({ requiredRoles = [], children, redirectPath = '/login' }) =>
         // Check if user has required role (if any roles specified)
         let hasRequiredRole = true;
         if (requiredRoles.length > 0) {
-          hasRequiredRole = currentUser && requiredRoles.includes(currentUser.role);
+          // Case-insensitive: a role stored as 'Admin' or 'BARISTA' must not
+          // bounce a legitimate user to /unauthorized.
+          const _role = String((currentUser && currentUser.role) || '').toLowerCase();
+          hasRequiredRole = !!currentUser && requiredRoles.map((r) => String(r).toLowerCase()).includes(_role);
         }
         
         setAuthState({
