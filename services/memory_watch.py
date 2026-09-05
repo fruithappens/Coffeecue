@@ -148,6 +148,25 @@ class MemoryWatchService:
 
     def _tick(self):
         mb = rss_mb()
+        # Hand freed C-allocator memory back to the OS. glibc keeps freed
+        # blocks inside per-thread arenas and only trims the main heap top,
+        # so RSS climbs with request volume while Python's heap stays flat
+        # (measured 2026-09-05: +20 MB RSS / 2 min under load, tracemalloc
+        # flat). malloc_trim(0) releases what it can; it is cheap (ms) and
+        # a no-op anywhere it isn't glibc. Logged before/after so the
+        # effect is visible in the same line the ramp shows up in.
+        trimmed = None
+        try:
+            if sys.platform.startswith("linux"):
+                import ctypes
+                libc = ctypes.CDLL("libc.so.6")
+                if libc.malloc_trim(0):
+                    trimmed = rss_mb()
+        except Exception:
+            trimmed = None
+        if trimmed is not None and trimmed < mb - 1:
+            logger.info("[memory] malloc_trim released %.0f MB (rss %.0f -> %.0f MB)", mb - trimmed, mb, trimmed)
+            mb = trimmed
         up_min = int((time.time() - _BOOT_AT) / 60)
         logger.info(
             "[memory] rss=%.0fMB threads=%d uptime=%dm%s",
