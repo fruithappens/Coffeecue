@@ -39,6 +39,26 @@ import KioskOrder from './KioskOrder';
 import { fetchEventAccess, stampLink } from '../../utils/eventGate';
 import SponsorTicker from './SponsorTicker';
 import { playPreset } from '../../services/SoundNotificationService';
+import { event as logEvent } from '../../services/logging';
+
+// Connection-loss bookkeeping for the display (see hooks/useOrders.js for
+// the barista's): one event per outage, sent once the server is back.
+let _wasConnected = true;
+let _lostAt = null;
+const _noteConnected = (flag) => {
+  try {
+    const on = !!flag;
+    if (_wasConnected && !on) {
+      _lostAt = Date.now();
+      logEvent('API_OFFLINE_DETECTED', { surface: 'display' });
+    } else if (!_wasConnected && on && _lostAt) {
+      logEvent('API_OUTAGE', { surface: 'display', seconds: Math.round((Date.now() - _lostAt) / 1000), started_at: new Date(_lostAt).toISOString() });
+      _lostAt = null;
+    }
+    _wasConnected = on;
+  } catch (e) { /* logging only */ }
+  return flag;
+};
 import SponsorWall from './SponsorWall';
 
 // The board's scan-QR carries ?src=tv<station> so the report can count
@@ -861,13 +881,13 @@ const DisplayScreen = () => {
           } else {
             setCurrentStation(list[0]);
           }
-          setConnected(true);
+          setConnected(_noteConnected(true));
         } else {
           throw new Error('No stations found');
         }
       } catch (e) {
         setError('Failed to load stations: ' + (e.message || 'Unknown'));
-        setConnected(false);
+        setConnected(_noteConnected(false));
       }
     })();
   }, [stationId]);
@@ -1050,11 +1070,11 @@ const DisplayScreen = () => {
         setOrders(next);
         lastLoadAtRef.current = Date.now();
         setLastUpdated(new Date());
-        setConnected(true);
+        setConnected(_noteConnected(true));
         setLoading(false);
       } catch (e) {
         setError('Failed to load orders: ' + (e.message || 'Unknown'));
-        setConnected(false);
+        setConnected(_noteConnected(false));
         setLoading(false);
       }
     };

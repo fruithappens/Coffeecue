@@ -22,6 +22,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { getSavedRounds, saveRound } from '../../utils/savedRounds';
 import DrinkIcon from './DrinkIcon';
+import SponsorTicker from './SponsorTicker';
 import { remember, recall } from '../../utils/deviceMemory';
 import { event as logEvent } from '../../services/logging';
 import { X, ArrowLeft, Plus, Minus, Check, Loader, MapPin, Zap } from 'lucide-react';
@@ -215,6 +216,24 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
   // one tap. Device-local. Only offered on a personal phone -- a shared
   // kiosk would mix strangers' rounds.
   const [savedRounds, setSavedRounds] = useState(() => (isOwnDevice ? getSavedRounds() : []));
+  // Sponsor strip while ORDERING on the customer's own phone (Steve: the
+  // sponsors should be seen while people choose, not only on the beacon).
+  // Not on the cart's touchscreen -- the board behind it already scrolls
+  // the ticker. Cheap: an unchanged payload is a 304.
+  const [sponsorStrip, setSponsorStrip] = useState({ enabled: false, sponsors: [] });
+  useEffect(() => {
+    if (!isOwnDevice) return undefined;
+    let dead = false;
+    (async () => {
+      try {
+        const r = await fetch('/api/sponsors', { cache: 'no-cache' });
+        const b = r.ok ? await r.json() : null;
+        if (!dead && b && b.success) setSponsorStrip({ enabled: !!b.enabled, sponsors: Array.isArray(b.sponsors) ? b.sponsors : [] });
+      } catch (e) { /* no strip */ }
+    })();
+    return () => { dead = true; };
+  }, [isOwnDevice]);
+  const stripOn = isOwnDevice && sponsorStrip.enabled && sponsorStrip.sponsors.length > 0;
   const [roundName, setRoundName] = useState('');
   const [roundSaved, setRoundSaved] = useState(false);
   const loadRound = (round) => {
@@ -822,9 +841,10 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                   // worth at the bottom so the overlay -- which scrolls -- can
                   // always bring the footer fully clear of that bar.
                   paddingTop: 'max(1.25rem, env(safe-area-inset-top))',
+                  // Plus the sponsor strip's height when it is showing.
                   paddingBottom: embeddedInApp
-                    ? 'calc(env(safe-area-inset-bottom) + 11rem)'
-                    : 'calc(env(safe-area-inset-bottom) + 6rem)' }}>
+                    ? (stripOn ? 'calc(env(safe-area-inset-bottom) + 16rem)' : 'calc(env(safe-area-inset-bottom) + 11rem)')
+                    : (stripOn ? 'calc(env(safe-area-inset-bottom) + 11rem)' : 'calc(env(safe-area-inset-bottom) + 6rem)') }}>
 
       {/* Idle countdown — big, unmissable, tap-to-dismiss. */}
       {idleCountdown != null && idleCountdown > 0 && (
@@ -1606,6 +1626,14 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
           </div>
         )}
       </div>
+      {/* Sponsor strip, pinned above the phone toolbar / the events-app nav
+          while the customer picks their drink. */}
+      {stripOn && (
+        <div className="fixed left-0 right-0 z-[55] shadow-lg"
+             style={{ bottom: embeddedInApp ? 'calc(env(safe-area-inset-bottom) + 8.5rem)' : 'env(safe-area-inset-bottom)' }}>
+          <SponsorTicker items={sponsorStrip.sponsors} position="bottom" size="small" />
+        </div>
+      )}
     </div>
   );
 };
