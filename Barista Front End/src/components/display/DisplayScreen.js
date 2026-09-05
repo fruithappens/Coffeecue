@@ -579,7 +579,8 @@ const DisplayScreen = () => {
   // --- Fetch display config from backend ---
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    let cfgTimer = null;
+    const loadConfig = async () => {
       try {
         // Public customer-facing screen: fetch the config with a PLAIN
         // fetch, not ApiService.get. ApiService routes through a
@@ -591,7 +592,13 @@ const DisplayScreen = () => {
         const _resp = await fetch('/api/display/config');
         const _body = _resp.ok ? await _resp.json() : null;
         const c = _body && (_body.config || _body);
-        if (!cancelled && c && (c.event_name || c.sms_number || c.logo || c.system_name)) {
+        // Only apply a config that carries REAL branding. system_name is
+        // always present as a default, so keying on it (as before) let a
+        // blank/default config — "Coffee Event", no background — overwrite a
+        // good board when the backend briefly served defaults on a bad-network
+        // boot (Treenet Day 2). Require real branding; keep the last-good
+        // config until it arrives.
+        if (!cancelled && c && (c.event_name || c.logo || c.background_landscape || c.background_portrait)) {
           serverConfigRef.current = c;
           setSmsPhoneNumber(c.sms_number || '');
           setConfig(prev => ({
@@ -623,8 +630,13 @@ const DisplayScreen = () => {
           }));
         }
       } catch (e) { /* defaults OK if backend silent */ }
-    })();
-    return () => { cancelled = true; };
+    };
+    loadConfig();
+    // Poll: a transient blank/default config (bad-network boot — Treenet Day 2)
+    // then self-heals within ~30s instead of needing someone to spot it and
+    // refresh the screen.
+    cfgTimer = setInterval(loadConfig, 30000);
+    return () => { cancelled = true; if (cfgTimer) clearInterval(cfgTimer); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sponsor ticker — its own public fetch, polled so the Organiser can
