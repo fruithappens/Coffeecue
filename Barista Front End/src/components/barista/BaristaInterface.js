@@ -4,6 +4,7 @@ import startConnectionWatchdog from '../../utils/connectionWatchdog';
 import StationPrinterPanel from '../barista-tabs/StationPrinterPanel';
 import EightySixBoard from '../barista-tabs/EightySixBoard';
 import { ToastManager, showToast } from '../shared/Toast';
+import SmsHealthBanner from '../shared/SmsHealthBanner';
 import AuthService from '../../services/AuthService';
 import printService from '../../services/PrintService';
 import BroadcastDialog from '../dialogs/BroadcastDialog';
@@ -2311,7 +2312,11 @@ const BaristaInterface = () => {
     <div className="bg-gray-100 min-h-screen flex flex-col">
       {/* Toast Notifications */}
       <ToastManager />
-      
+
+      {/* Outbound-SMS-down alert — loud + always visible during service, the
+          one signal that survives a total outbound outage (see component). */}
+      <SmsHealthBanner />
+
       {/* Header - Connection Banner */}
       {!online && (
         <div className="bg-red-500 text-white p-2 text-center">
