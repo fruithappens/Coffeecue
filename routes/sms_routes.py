@@ -494,8 +494,13 @@ def _sms_webhook_inner():
         response = messaging_service.create_response(response_message)
         logger.info(f"Creating TwiML response: {response}")
         
-        # Make sure we're returning the response with correct content type
-        from flask import Response
+        # Make sure we're returning the response with correct content type.
+        # NB: do NOT `from flask import Response` here — Response is already
+        # imported at module top, and a local import made it a function-local
+        # for this whole handler, so the earlier `return Response(...)` (the
+        # main TwiML path, ~line 470) raised "cannot access local variable
+        # 'Response'" and the message fell into the "we dropped that one"
+        # recovery path. (Treenet: confirmations kept getting dropped.)
         return Response(response, mimetype='text/xml')
     except Exception as e:
         logger.error(f"Error processing SMS: {str(e)}", exc_info=True)
