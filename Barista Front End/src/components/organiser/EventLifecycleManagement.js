@@ -464,7 +464,7 @@ const EventLifecycleManagement = () => {
           </div>
           <div className="bg-gray-200 h-3 rounded-full overflow-hidden">
             <div 
-              className="bg-blue-500 h-full transition-all"
+              className="bg-amber-600 h-full transition-all"
               style={{ width: `${getPhaseProgress()}%` }}
             />
           </div>
@@ -522,7 +522,7 @@ const EventLifecycleManagement = () => {
             return (
               <div key={phase} className="relative pl-8 pb-6 last:pb-0">
                 <div className={`absolute left-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                  isActive ? 'bg-blue-500' : isPast ? 'bg-green-500' : 'bg-gray-300'
+                  isActive ? 'bg-amber-600' : isPast ? 'bg-green-500' : 'bg-gray-300'
                 }`}>
                   {isActive ? (
                     <Activity className="text-white" size={16} />

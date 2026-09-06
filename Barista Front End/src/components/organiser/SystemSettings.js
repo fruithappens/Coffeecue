@@ -105,7 +105,7 @@ const SystemSettings = () => {
                 type="text"
                 value={settings.eventName || ''}
                 onChange={(e) => updateSetting('eventName', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
                 placeholder="Annual Tech Conference 2024"
               />
             </div>
@@ -118,7 +118,7 @@ const SystemSettings = () => {
                 type="text"
                 value={settings.venue || ''}
                 onChange={(e) => updateSetting('venue', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
                 placeholder="Convention Center Hall A"
               />
             </div>
@@ -131,7 +131,7 @@ const SystemSettings = () => {
                 <select
                   value={settings.timeZone || 'America/New_York'}
                   onChange={(e) => updateSetting('timeZone', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
                 >
                   <option value="America/New_York">Eastern Time</option>
                   <option value="America/Chicago">Central Time</option>
@@ -147,7 +147,7 @@ const SystemSettings = () => {
                 <select
                   value={settings.currency || 'USD'}
                   onChange={(e) => updateSetting('currency', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
                 >
                   <option value="USD">USD ($)</option>
                   <option value="EUR">EUR (€)</option>
@@ -174,7 +174,7 @@ const SystemSettings = () => {
                 type="number"
                 value={settings.orderTimeout || 30}
                 onChange={(e) => updateSetting('orderTimeout', parseInt(e.target.value))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
               />
               <p className="text-sm text-gray-500 mt-1">
                 Orders will be automatically cancelled after this time if not completed
@@ -189,7 +189,7 @@ const SystemSettings = () => {
                 type="number"
                 value={settings.targetWaitTime || 5}
                 onChange={(e) => updateSetting('targetWaitTime', parseInt(e.target.value))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
               />
             </div>
             
@@ -356,7 +356,7 @@ const SystemSettings = () => {
                 type="number"
                 value={settings.sessionTimeout || 60}
                 onChange={(e) => updateSetting('sessionTimeout', parseInt(e.target.value))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
               />
             </div>
             
@@ -409,7 +409,7 @@ const SystemSettings = () => {
         <button
           onClick={handleSave}
           disabled={saving}
-          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center space-x-2"
+          className="px-6 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 flex items-center space-x-2"
         >
           {saving ? (
             <>

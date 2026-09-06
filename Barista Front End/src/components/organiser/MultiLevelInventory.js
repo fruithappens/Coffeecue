@@ -424,7 +424,7 @@ const MultiLevelInventory = () => {
         <div className="flex space-x-4">
           <button
             onClick={() => loadInventoryData()}
-            className="flex items-center space-x-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600"
+            className="flex items-center space-x-2 bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700"
           >
             <RefreshCw size={16} />
             <span>Refresh</span>
@@ -459,7 +459,7 @@ const MultiLevelInventory = () => {
                 {alert.action === 'redistribute' && (
                   <button
                     onClick={() => handleRedistribute(alert)}
-                    className="text-sm bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
+                    className="text-sm bg-amber-600 text-white px-3 py-1 rounded hover:bg-amber-700"
                   >
                     Redistribute {alert.suggestedTransfer}L
                   </button>

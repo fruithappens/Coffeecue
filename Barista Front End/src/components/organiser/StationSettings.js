@@ -299,7 +299,7 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
                           className={`px-4 py-2 rounded-md flex items-center ${
                             !dirty
                               ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                              : 'bg-blue-500 text-white hover:bg-blue-600'
+                              : 'bg-amber-600 text-white hover:bg-amber-700'
                           } disabled:opacity-50`}
                           title={!dirty ? 'No changes to save' : 'Save the changes you made'}
                         >
@@ -326,7 +326,7 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
                         value={stationData.name}
                         onChange={(e) => setStationData({ ...stationData, name: e.target.value })}
                         
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500 disabled:bg-gray-100"
                         placeholder="Enter station name..."
                       />
                     </div>
@@ -339,7 +339,7 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
                         value={stationData.location}
                         onChange={(e) => setStationData({ ...stationData, location: e.target.value })}
                         
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500 disabled:bg-gray-100"
                         placeholder="Enter location..."
                       />
                     </div>
@@ -354,7 +354,7 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
                       onChange={(e) => setStationData({ ...stationData, description: e.target.value })}
                       
                       rows={3}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500 disabled:bg-gray-100"
                       placeholder="Optional description..."
                     />
                   </div>
@@ -372,7 +372,7 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
                         value={stationData.status}
                         onChange={(e) => setStationData({ ...stationData, status: e.target.value })}
                         
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500 disabled:bg-gray-100"
                       >
                         <option value="active">Active</option>
                         <option value="inactive">Inactive</option>
@@ -390,7 +390,7 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
                         value={stationData.maxConcurrentOrders}
                         onChange={(e) => setStationData({ ...stationData, maxConcurrentOrders: parseInt(e.target.value) || 1 })}
                         
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500 disabled:bg-gray-100"
                       />
                     </div>
                   </div>
@@ -428,7 +428,7 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
                   type="text"
                   value={newStation.name}
                   onChange={(e) => setNewStation({ ...newStation, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500"
                   placeholder="Enter station name..."
                 />
               </div>
@@ -441,7 +441,7 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
                   type="text"
                   value={newStation.location}
                   onChange={(e) => setNewStation({ ...newStation, location: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500"
                   placeholder="Enter location..."
                 />
               </div>
@@ -454,7 +454,7 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
                   value={newStation.description}
                   onChange={(e) => setNewStation({ ...newStation, description: e.target.value })}
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500"
                   placeholder="Optional description..."
                 />
               </div>
@@ -467,7 +467,7 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
                   <select
                     value={newStation.status}
                     onChange={(e) => setNewStation({ ...newStation, status: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500"
                   >
                     <option value="active">Active</option>
                     <option value="inactive">Inactive</option>
@@ -483,7 +483,7 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
                     max="10"
                     value={newStation.maxConcurrentOrders}
                     onChange={(e) => setNewStation({ ...newStation, maxConcurrentOrders: parseInt(e.target.value) || 1 })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500"
                   />
                 </div>
               </div>

@@ -263,7 +263,7 @@ const DynamicStaffAllocation = () => {
           </select>
           <button
             onClick={() => setShowAdvanced(!showAdvanced)}
-            className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600"
+            className="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700"
           >
             {showAdvanced ? 'Hide' : 'Show'} Advanced
           </button>

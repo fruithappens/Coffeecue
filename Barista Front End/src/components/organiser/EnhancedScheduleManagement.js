@@ -482,7 +482,7 @@ const EnhancedScheduleManagement = () => {
               <h3 className="text-lg font-semibold">Event Timeline</h3>
               <button
                 onClick={() => setShowAddSession(true)}
-                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg flex items-center"
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg flex items-center"
               >
                 <Plus size={20} className="mr-2" />
                 Add Session
@@ -691,7 +691,7 @@ const EnhancedScheduleManagement = () => {
                     setStationLocks(locked);
                     localStorage.setItem('station_locks', JSON.stringify(locked));
                   }}
-                  className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg"
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg"
                 >
                   Quiet Period Mode
                 </button>
@@ -707,7 +707,7 @@ const EnhancedScheduleManagement = () => {
               <h3 className="text-lg font-semibold">Real-time Session Control</h3>
               <button
                 onClick={() => setShowAddSession(true)}
-                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg flex items-center"
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg flex items-center"
               >
                 <Plus size={20} className="mr-2" />
                 Add Session
@@ -797,19 +797,19 @@ const EnhancedScheduleManagement = () => {
                             <span className="text-sm text-gray-600">Extend:</span>
                             <button
                               onClick={() => extendSessionTime(session.id, 5)}
-                              className="px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded text-sm"
+                              className="px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-sm"
                             >
                               +5m
                             </button>
                             <button
                               onClick={() => extendSessionTime(session.id, 10)}
-                              className="px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded text-sm"
+                              className="px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-sm"
                             >
                               +10m
                             </button>
                             <button
                               onClick={() => extendSessionTime(session.id, 15)}
-                              className="px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded text-sm"
+                              className="px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-sm"
                             >
                               +15m
                             </button>
@@ -933,7 +933,7 @@ const EnhancedScheduleManagement = () => {
                 <p>No sessions scheduled for {new Date(selectedDate).toLocaleDateString()}</p>
                 <button
                   onClick={() => setShowAddSession(true)}
-                  className="mt-4 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg"
+                  className="mt-4 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg"
                 >
                   Add Session
                 </button>
@@ -954,7 +954,7 @@ const EnhancedScheduleManagement = () => {
                           setSelectedSession(session);
                           setShowAssignBarista(true);
                         }}
-                        className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm"
+                        className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm"
                       >
                         Assign Barista
                       </button>
@@ -1139,7 +1139,7 @@ const EnhancedScheduleManagement = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+                  className="px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700"
                 >
                   Add Session
                 </button>
@@ -1228,7 +1228,7 @@ const EnhancedScheduleManagement = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+                  className="px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700"
                 >
                   Assign
                 </button>
@@ -1310,7 +1310,7 @@ const EnhancedScheduleManagement = () => {
                   onClick={() => {
                     setShowAssignBarista(true);
                   }}
-                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+                  className="px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700"
                 >
                   Assign Barista
                 </button>

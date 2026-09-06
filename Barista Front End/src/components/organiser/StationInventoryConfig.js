@@ -607,7 +607,7 @@ const StationInventoryConfig = ({ stations }) => {
                       InventoryIntegrationService.forceSyncAllStations();
                       alert(`Copied to ${otherStations.length} station(s).`);
                     }}
-                    className="px-3 py-1 text-sm bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+                    className="px-3 py-1 text-sm bg-amber-600 text-white rounded-md hover:bg-amber-700 transition-colors"
                     title="Copy this station's enabled items to all other stations (overwrites)"
                   >
                     Apply to all stations
@@ -624,13 +624,13 @@ const StationInventoryConfig = ({ stations }) => {
                     placeholder="Search items..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500"
                   />
                 </div>
                 <select
                   value={filterCategory}
                   onChange={(e) => setFilterCategory(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500"
                 >
                   <option value="all">All Categories</option>
                   {Object.entries(categories).map(([key, category]) => (
@@ -640,7 +640,7 @@ const StationInventoryConfig = ({ stations }) => {
                 <select
                   value={filterAvailability}
                   onChange={(e) => setFilterAvailability(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500"
                 >
                   <option value="all">All Items</option>
                   <option value="available">Available Only</option>

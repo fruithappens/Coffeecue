@@ -456,7 +456,7 @@ const BrandingSettings = () => {
               type="checkbox"
               checked={settings.customBranding}
               onChange={(e) => setSettings({...settings, customBranding: e.target.checked})}
-              className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
+              className="w-5 h-5 text-blue-600 rounded focus:ring-amber-500"
             />
             <span className="text-lg font-medium">Enable Custom Branding</span>
           </label>
@@ -476,7 +476,7 @@ const BrandingSettings = () => {
                 value={settings.clientName}
                 onChange={(e) => setSettings({...settings, clientName: e.target.value})}
                 placeholder="Sydney Convention Centre"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
               />
             </div>
 
@@ -500,7 +500,7 @@ const BrandingSettings = () => {
                   value={settings.event_name}
                   onChange={(e) => setSettings({...settings, event_name: e.target.value})}
                   placeholder="e.g. Your Event Name"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   Used in <strong>every customer-facing place</strong>:
@@ -524,7 +524,7 @@ const BrandingSettings = () => {
                   value={settings.smsNumber}
                   onChange={(e) => setSettings({...settings, smsNumber: e.target.value})}
                   placeholder="+61 412 345 678"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   Number customers text to place an order. Appears in
@@ -723,7 +723,7 @@ const BrandingSettings = () => {
                     onChange={(e) => setSettings({...settings, sponsorName: e.target.value})}
                     placeholder="Acme Corp"
                     disabled={!settings.showSponsor}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
                   />
                 </div>
                 <div>
@@ -736,7 +736,7 @@ const BrandingSettings = () => {
                     onChange={(e) => setSettings({...settings, sponsorMessage: e.target.value})}
                     placeholder="Coffees today proudly sponsored by {sponsor} ☕"
                     disabled={!settings.showSponsor}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
                   />
                 </div>
               </div>
@@ -758,7 +758,7 @@ const BrandingSettings = () => {
                 value={settings.systemName}
                 onChange={(e) => setSettings({...settings, systemName: e.target.value})}
                 placeholder="Coffee Cue"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
               />
             </div>
             
@@ -771,7 +771,7 @@ const BrandingSettings = () => {
                 value={settings.companyName}
                 onChange={(e) => setSettings({...settings, companyName: e.target.value})}
                 placeholder="Coffee Cue"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
               />
             </div>
             
@@ -785,7 +785,7 @@ const BrandingSettings = () => {
                   value={settings.shortName}
                   onChange={(e) => setSettings({...settings, shortName: e.target.value})}
                   placeholder="Coffee Cue"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
               </div>
               
@@ -798,7 +798,7 @@ const BrandingSettings = () => {
                   value={settings.tagline}
                   onChange={(e) => setSettings({...settings, tagline: e.target.value})}
                   placeholder="Skip the Queue, Get Your Cue"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
               </div>
             </div>
@@ -812,7 +812,7 @@ const BrandingSettings = () => {
                   type="text"
                   value={settings.landingTitle}
                   onChange={(e) => setSettings({...settings, landingTitle: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
               </div>
               
@@ -824,7 +824,7 @@ const BrandingSettings = () => {
                   type="text"
                   value={settings.landingSubtitle}
                   onChange={(e) => setSettings({...settings, landingSubtitle: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
               </div>
             </div>
@@ -838,7 +838,7 @@ const BrandingSettings = () => {
                   type="text"
                   value={settings.adminPanelTitle}
                   onChange={(e) => setSettings({...settings, adminPanelTitle: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
               </div>
               
@@ -850,7 +850,7 @@ const BrandingSettings = () => {
                   type="text"
                   value={settings.baristaPanelTitle}
                   onChange={(e) => setSettings({...settings, baristaPanelTitle: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
               </div>
             </div>
@@ -864,7 +864,7 @@ const BrandingSettings = () => {
                 value={settings.footerText}
                 onChange={(e) => setSettings({...settings, footerText: e.target.value})}
                 placeholder="© 2025 Your Organisation"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
               />
               <p className="text-xs text-gray-500 mt-1">
                 This text appears at the bottom of the main page
@@ -980,7 +980,7 @@ const BrandingSettings = () => {
           <select
             value={settings.defaultLanguage}
             onChange={(e) => setSettings({...settings, defaultLanguage: e.target.value})}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
           >
             <option value="en">English</option>
             <option value="es">Español</option>
@@ -1081,7 +1081,7 @@ const BrandingSettings = () => {
         <button
           onClick={handleSave}
           disabled={saving}
-          className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center"
+          className="px-6 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 flex items-center"
         >
           {saving ? (
             <>

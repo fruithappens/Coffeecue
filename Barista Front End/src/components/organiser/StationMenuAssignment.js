@@ -250,7 +250,7 @@ const StationMenuAssignment = () => {
                                         type="checkbox"
                                         checked={isEnabled || false}
                                         onChange={() => toggleMenuItem(station.id, itemId)}
-                                        className="mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                        className="mr-3 h-4 w-4 text-blue-600 focus:ring-amber-500 border-gray-300 rounded"
                                       />
                                       <span className={`font-medium ${isEnabled ? 'text-gray-900' : 'text-gray-500'}`}>
                                         {item.name}

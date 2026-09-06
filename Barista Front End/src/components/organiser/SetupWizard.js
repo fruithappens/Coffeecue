@@ -475,7 +475,7 @@ const SetupWizard = ({ onClose }) => {
               </div>
             ) : (
               <button
-                className="w-full py-4 rounded-xl text-xl font-bold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                className="w-full py-4 rounded-xl text-xl font-bold bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50"
                 disabled={applying}
                 onClick={apply}>
                 {applying ? 'Building your event…' : 'Build my event'}
@@ -502,7 +502,7 @@ const SetupWizard = ({ onClose }) => {
           </button>
         </div>
         <div className="h-1.5 bg-gray-100 rounded-full mb-6">
-          <div className="h-1.5 bg-blue-600 rounded-full transition-all"
+          <div className="h-1.5 bg-amber-600 rounded-full transition-all"
             style={{ width: `${((stepIdx + 1) / STEPS.length) * 100}%` }} />
         </div>
 
@@ -514,7 +514,7 @@ const SetupWizard = ({ onClose }) => {
               disabled={stepIdx === 0} onClick={back}>
               <ArrowLeft size={18} className="mr-1" /> Back
             </button>
-            <button className="flex items-center px-6 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-40"
+            <button className="flex items-center px-6 py-2 rounded-lg bg-amber-600 text-white font-semibold hover:bg-amber-700 disabled:opacity-40"
               disabled={!canNext} onClick={next}>
               {step === 'welcome' ? "Let's go" : 'Next'} <ArrowRight size={18} className="ml-1" />
             </button>

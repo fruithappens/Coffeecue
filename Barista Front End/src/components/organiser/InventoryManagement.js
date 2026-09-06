@@ -422,7 +422,7 @@ const InventoryManagement = () => {
         <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Inventory Management</h2>
         <button
           onClick={initializeDefaultInventory}
-          className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+          className="px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700"
         >
           Reset to Defaults
         </button>
@@ -491,7 +491,7 @@ const InventoryManagement = () => {
               placeholder="Search items..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500"
             />
           </div>
 
@@ -525,7 +525,7 @@ const InventoryManagement = () => {
                       type="text"
                       value={newItem.description}
                       onChange={(e) => setNewItem({ ...newItem, description: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500"
                       placeholder="Enter description..."
                     />
                   </div>
@@ -543,7 +543,7 @@ const InventoryManagement = () => {
                           type={field.type}
                           value={newItem[field.key] || ''}
                           onChange={(e) => setNewItem({ ...newItem, [field.key]: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500"
                           placeholder={`Enter ${field.label.toLowerCase()}...`}
                           required={field.required}
                         />
@@ -607,7 +607,7 @@ const InventoryManagement = () => {
                           type="checkbox"
                           checked={item.enabled}
                           onChange={() => toggleItem(item.id)}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          className="h-4 w-4 text-blue-600 focus:ring-amber-500 border-gray-300 rounded"
                         />
                       </label>
                       <div>
@@ -697,7 +697,7 @@ const EditItemForm = ({ item, onSave, onCancel, category, categories }) => {
             type="text"
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500"
           />
         </div>
         <div>
@@ -708,7 +708,7 @@ const EditItemForm = ({ item, onSave, onCancel, category, categories }) => {
             type="text"
             value={formData.description}
             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500"
           />
         </div>
       </div>
@@ -725,7 +725,7 @@ const EditItemForm = ({ item, onSave, onCancel, category, categories }) => {
                 type={field.type}
                 value={formData[field.key] || ''}
                 onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500"
                 required={field.required}
               />
             </div>
@@ -742,7 +742,7 @@ const EditItemForm = ({ item, onSave, onCancel, category, categories }) => {
         </button>
         <button
           onClick={handleSave}
-          className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 flex items-center"
+          className="px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 flex items-center"
         >
           <Save size={16} className="mr-1" />
           Save
@@ -773,7 +773,7 @@ const CatalogNameInput = ({ categoryKey, value, onChange }) => {
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500"
         placeholder={useDatalist
           ? `Type or pick a ${catalogCategory}…`
           : 'Enter item name...'}
