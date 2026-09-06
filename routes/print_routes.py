@@ -2045,7 +2045,9 @@ def get_label_settings():
         )
         branding = _kv_get(db, "branding_settings", default={}) or {}
         merged["logo_available"] = bool(
-            branding.get("clientLogo") or branding.get("logo")
+            branding.get("labelLogo")
+            or branding.get("clientLogo")
+            or branding.get("logo")
         )
     except Exception:
         pass

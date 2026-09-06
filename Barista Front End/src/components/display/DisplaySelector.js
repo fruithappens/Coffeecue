@@ -211,7 +211,7 @@ const DisplaySelector = () => {
                 </div>
 
                 {/* Sponsor Wall — one event-wide screen; grid/scroll,
-                    background and the ticker are all set in Organiser → Sponsors. */}
+                    background and the ticker are all set in Organiser → Branding → Sponsors. */}
                 <div className="border rounded-lg p-4 hover:shadow-md transition-shadow">
                   <div className="flex items-start">
                     <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center mr-3">

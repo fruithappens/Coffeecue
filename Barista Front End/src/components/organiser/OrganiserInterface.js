@@ -1,15 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Coffee, Users, Clock, Calendar, Settings,
-  LogOut, Bell, Sliders,
-  FileText, Activity, Brain, Zap, LineChart,
-  Radio, Shield, Package, ArrowLeft, CheckCircle, Database, Menu,
-  HelpCircle, Image as ImageIcon
+  Coffee, Users, Clock, Calendar, Settings, LogOut, Activity, Brain, Zap,
+  LineChart, Radio, Shield, Package, Boxes, ArrowLeft, CheckCircle, Menu,
+  HelpCircle, Image as ImageIcon, Palette, Tag, Droplet, FileText, ListChecks,
 } from 'lucide-react';
-// MessageSquare, TrendingUp, BarChart, Layers, UserPlus were imported
-// but unused — left in the original sprawl. Trimmed in batch G of the
-// system audit (Messages section + others removed). LogOut is kept —
-// still rendered in the header.
 
 import GroupOrdersTab from '../barista/GroupOrdersTab';
 import AllOrdersTab from '../barista/AllOrdersTab';
@@ -20,7 +14,9 @@ import EventLifecycleManagement from './EventLifecycleManagement';
 import AnalyticsDashboard from '../support/AnalyticsDashboard';
 import EnhancedCommunicationHub from '../support/EnhancedCommunicationHub';
 import PredictiveIntelligence from '../support/PredictiveIntelligence';
-import EventSettings from './EventSettings';
+import BrandingSettings from './BrandingSettings';
+import MilkColorSettings from './MilkColorSettings';
+import LabelsTab from './LabelsTab';
 import EventDataManagement from './EventDataManagement';
 import InventoryManagement from './InventoryManagement';
 import EventStockManagement from './EventStockManagement';
@@ -34,41 +30,150 @@ import SponsorsPanel from './SponsorsPanel';
 import SubTabs from '../shared/SubTabs';
 import SmsFlowReference from './SmsFlowReference';
 import InventoryIntegrationService from '../../services/InventoryIntegrationService';
-import StationsService from '../../services/StationsService';
 import OrderDataService from '../../services/OrderDataService';
 import AuthService from '../../services/AuthService';
-import { useAppMode } from '../../context/AppContext';
 import useStations from '../../hooks/useStations';
 import brandingConfig from '../../config/brandingConfig';
 
-// Sections the sidebar can reach. Anything not in here falls through to
-// the "under development" placeholder below.
-const KNOWN_SECTIONS = [
-  'quickSetup', 'operations', 'stations', 'orders', 'eventLifecycle',
-  'schedule', 'insights', 'communication', 'sponsors', 'users', 'settings', 'help',
+// The sidebar, grouped by the job being done. Every section is at most one
+// sub-tab deep, and everything about one thing lives in one section:
+//
+//   Menu        what the event offers, how much of it, which station carries what
+//   Stations    the stations themselves (name, location, walk-in defaults)
+//   Branding    logo & look, sponsors, labels (stickers), milk colours
+//   Schedule    the sessions, and the day's phases
+//   Operations  readiness before doors, the live board, messages to stations/customers
+//
+// Before this: labels were in Support -> Printers, the sponsor thank-you
+// line was on the Branding form while the logos had their own sidebar
+// item, and the menu lived under "Stations" — three doors for the one
+// idea. (Steve: "menus have lots of sub menus and are not all in similar
+// or logical place.")
+const NAV = [
+  { heading: 'Set up', items: [
+    { id: 'quickSetup', label: 'Quick Setup', Icon: Zap },
+    { id: 'menu',       label: 'Menu',        Icon: Package },
+    { id: 'stations',   label: 'Stations',    Icon: Coffee },
+    { id: 'branding',   label: 'Branding',    Icon: Palette },
+    { id: 'schedule',   label: 'Schedule',    Icon: Calendar },
+    { id: 'users',      label: 'Users',       Icon: Users },
+  ] },
+  { heading: 'Run the day', items: [
+    { id: 'operations', label: 'Operations',  Icon: Activity },
+    { id: 'orders',     label: 'Orders',      Icon: Clock },
+  ] },
+  { heading: 'Review & system', items: [
+    { id: 'insights',   label: 'Insights',    Icon: Brain },
+    { id: 'settings',   label: 'Settings',    Icon: Settings },
+    { id: 'help',       label: 'Help',        Icon: HelpCircle },
+  ] },
 ];
+
+// Sub-tabs per section. A section not listed here has no tab bar.
+const TABS = {
+  menu: [
+    { id: 'inventory',        label: 'Event Inventory',   Icon: ListChecks },
+    { id: 'stock',            label: 'Event Stock',       Icon: Boxes },
+    { id: 'stationInventory', label: 'Station Inventory', Icon: Coffee },
+  ],
+  branding: [
+    { id: 'logo',     label: 'Logo & look',  Icon: Palette },
+    { id: 'sponsors', label: 'Sponsors',     Icon: ImageIcon },
+    { id: 'labels',   label: 'Labels',       Icon: Tag },
+    { id: 'milk',     label: 'Milk colours', Icon: Droplet },
+  ],
+  schedule: [
+    { id: 'sessions', label: 'Sessions', Icon: Calendar },
+    { id: 'phases',   label: 'Phases',   Icon: Zap },
+  ],
+  operations: [
+    { id: 'readiness', label: 'Readiness', Icon: CheckCircle },
+    { id: 'live',      label: 'Live',      Icon: Activity },
+    { id: 'messages',  label: 'Messages',  Icon: Radio },
+  ],
+  orders: [
+    { id: 'all',    label: 'All Orders',   Icon: Clock },
+    { id: 'groups', label: 'Group Orders', Icon: FileText },
+  ],
+  insights: [
+    { id: 'analytics', label: 'Analytics', Icon: LineChart },
+    { id: 'queue',     label: 'Queue',     Icon: Brain },
+    { id: 'forecast',  label: 'Forecast',  Icon: Shield },
+  ],
+};
+
+// Operations opens on Live so the landing screen is the one you watch
+// during service; everything else opens on its first tab.
+const DEFAULT_TAB = {
+  menu: 'inventory', branding: 'logo', schedule: 'sessions',
+  operations: 'live', orders: 'all', insights: 'analytics',
+};
+
+const KNOWN_SECTIONS = NAV.flatMap((g) => g.items.map((i) => i.id));
+
+// Header title per screen.
+const TITLES = {
+  quickSetup: 'Quick Setup',
+  menu: { inventory: 'Event Inventory', stock: 'Event Stock', stationInventory: 'Station Inventory' },
+  stations: 'Stations',
+  branding: { logo: 'Logo & look', sponsors: 'Sponsors', labels: 'Labels & stickers', milk: 'Milk colours' },
+  schedule: { sessions: 'Event Schedule', phases: 'Event Phases' },
+  users: 'Users',
+  operations: { readiness: 'Event Readiness', live: 'Live Operations', messages: 'Messages' },
+  orders: { all: 'All Orders', groups: 'Group Orders' },
+  insights: { analytics: 'Analytics', queue: 'Queue Psychology', forecast: 'Forecast' },
+  settings: 'Event Data',
+  help: 'How the SMS Bot Works',
+};
+
+// Deep links: /organiser#section or #section/tab (e.g. #branding/labels),
+// so Support, Readiness and the docs can point at an exact screen, and a
+// bookmark or the back button lands where you were.
+const readHash = () => {
+  const [s, t] = window.location.hash.replace(/^#\/?/, '').split('/');
+  if (!KNOWN_SECTIONS.includes(s)) return null;
+  const tabs = TABS[s];
+  const tab = tabs && tabs.some((x) => x.id === t) ? t : (DEFAULT_TAB[s] || null);
+  return { section: s, tab };
+};
 
 /**
  * Organiser Interface Component
  * Main interface for event organizers and admins
  */
 const OrganiserInterface = () => {
-  const { appMode } = useAppMode();
-  const { stations, loading, refreshData } = useStations();
-  
-  // Navigation state
-  // Sidebar area. Grouped sections own a sub-tab below (opsTab etc).
-  const [activeSection, setActiveSection] = useState('operations');
-  // Operations opens on Live rather than Readiness so the landing screen
-  // is unchanged from when these were two separate sidebar items.
-  const [opsTab, setOpsTab] = useState('dashboard');
-  const [ordersTab, setOrdersTab] = useState('all');
-  const [insightsTab, setInsightsTab] = useState('analytics');
-  const [settingsTab, setSettingsTab] = useState('system');
+  const { stations, refreshData } = useStations();
+
+  // Navigation state — which section, and which tab within each section
+  // (remembered per section so switching away and back keeps your place).
+  const [activeSection, setActiveSection] = useState(() => (readHash() || {}).section || 'operations');
+  const [tabBySection, setTabBySection] = useState(() => {
+    const h = readHash();
+    return { ...DEFAULT_TAB, ...(h && h.tab ? { [h.section]: h.tab } : {}) };
+  });
+  const activeTab = tabBySection[activeSection];
+  const setActiveTab = (id) => setTabBySection((t) => ({ ...t, [activeSection]: id }));
   const [showSetupWizard, setShowSetupWizard] = useState(false);
 
-  // Account menu (the top-right avatar) + working log out. Both the avatar
-  // and the sidebar "Log out" were dead before — no handler at all.
+  // Keep the URL hash in step (replace, not push — tabs shouldn't pile up
+  // in the back-button history), and follow it when something else
+  // changes it (a link inside the app).
+  useEffect(() => {
+    const want = TABS[activeSection] ? `#${activeSection}/${tabBySection[activeSection]}` : `#${activeSection}`;
+    if (window.location.hash !== want) window.history.replaceState(null, '', want);
+  }, [activeSection, tabBySection]);
+  useEffect(() => {
+    const onHash = () => {
+      const h = readHash();
+      if (!h) return;
+      setActiveSection(h.section);
+      if (h.tab) setTabBySection((t) => ({ ...t, [h.section]: h.tab }));
+    };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+
+  // Account menu (the top-right avatar) + working log out.
   const [accountOpen, setAccountOpen] = useState(false);
   const currentUser = AuthService.getCurrentUser();
   const userLabel = (currentUser && (currentUser.username || currentUser.full_name)) || 'admin';
@@ -78,32 +183,20 @@ const OrganiserInterface = () => {
       AuthService.logout();
     }
   };
-  const [stationTab, setStationTab] = useState(() => {
-    // Force new interface by clearing any old tab state
-    const newVersion = '2.0';
-    const savedVersion = localStorage.getItem('organiser_interface_version');
-    if (savedVersion !== newVersion) {
-      localStorage.setItem('organiser_interface_version', newVersion);
-      localStorage.removeItem('organiser_active_section');
-      localStorage.removeItem('organiser_station_tab');
-    }
-    return 'settings'; // Always start with settings tab
-  });
-  
+
   // UI state
   const [sidebarOpen, setSidebarOpen] = useState(true);
   // Mobile: the sidebar becomes an off-canvas drawer toggled by the header menu button.
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
-  // Load stations when component mounts
   useEffect(() => {
     // Stations are loaded by the useStations hook
-    console.log('Organiser Interface mounted');
-    
-    // Initialize inventory integration service
     InventoryIntegrationService.initializeStockServiceIntegration();
   }, []);
-  
+
+  const titleFor = TITLES[activeSection];
+  const title = typeof titleFor === 'string' ? titleFor : ((titleFor && titleFor[activeTab]) || activeSection);
+
   return (
     <div className="min-h-screen bg-gray-100 flex">
       {/* Mobile drawer backdrop — tap to close. */}
@@ -127,200 +220,44 @@ const OrganiserInterface = () => {
                 {sidebarOpen ? brandingConfig.adminPanelTitle : brandingConfig.shortName.split(' ').map(word => word[0]).join('')}
               </h1>
             </div>
-            <button 
-              onClick={() => setSidebarOpen(!sidebarOpen)} 
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
               className="text-gray-500 hover:text-gray-800"
             >
               {sidebarOpen ? '◀' : '▶'}
             </button>
           </div>
         </div>
-        
+
         <nav className="flex-1 px-2 py-4 overflow-y-auto" onClick={() => setMobileNavOpen(false)}>
-          <div className="space-y-1">
-            {/* Sidebar groups sections by the job being done, not by
-                screen. Sixteen items became eleven: Readiness + Live Ops
-                are one event-day area (Operations), Orders + Group Orders
-                one Orders area, Analytics + Queue + Forecast one Insights
-                area, Settings + Event Data one Settings area. Each group
-                renders a SubTabs bar; nothing was deleted, only reparented. */}
-            {/* Quick Setup wizard — discoverable up top so a fresh
-                event configuration takes one click instead of 30. */}
-            <button
-              className={`w-full flex items-center px-3 py-2 rounded-md ${
-                activeSection === 'quickSetup'
-                  ? 'bg-amber-100 text-amber-800'
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
-              onClick={() => setActiveSection('quickSetup')}
-            >
-              <Zap size={20} className="mr-3" />
-              {sidebarOpen && <span>Quick Setup</span>}
-            </button>
-
-            {/* Operations — Readiness (pre-doors checks, test SMS, admin
-                alerts) and Live (the during-service command centre).
-                Same operator, same day, one click apart. */}
-            <button
-              className={`w-full flex items-center px-3 py-2 rounded-md ${
-                activeSection === 'operations'
-                  ? 'bg-amber-100 text-amber-800'
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
-              onClick={() => setActiveSection('operations')}
-            >
-              <Activity size={20} className="mr-3" />
-              {sidebarOpen && <span>Operations</span>}
-            </button>
-
-            {/* Stations */}
-            <button
-              className={`w-full flex items-center px-3 py-2 rounded-md ${
-                activeSection === 'stations'
-                  ? 'bg-amber-100 text-amber-800'
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
-              onClick={() => setActiveSection('stations')}
-            >
-              <Coffee size={20} className="mr-3" />
-              {sidebarOpen && <span>Stations</span>}
-            </button>
-
-            {/* Orders — all orders, plus group orders */}
-            <button
-              className={`w-full flex items-center px-3 py-2 rounded-md ${
-                activeSection === 'orders'
-                  ? 'bg-amber-100 text-amber-800'
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
-              onClick={() => setActiveSection('orders')}
-            >
-              <Clock size={20} className="mr-3" />
-              {sidebarOpen && <span>Orders</span>}
-            </button>
-
-            {/* Event Phases. NOTE: its phases (SETUP / PRE_EVENT /
-                MORNING_PEAK ...) are hardcoded in EventLifecycleManagement
-                and do NOT read the sessions entered in Schedule, so it
-                describes a generic event day rather than this one. Left as
-                its own item until it is driven by real sessions. */}
-            <button
-              className={`w-full flex items-center px-3 py-2 rounded-md ${
-                activeSection === 'eventLifecycle'
-                  ? 'bg-amber-100 text-amber-800'
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
-              onClick={() => setActiveSection('eventLifecycle')}
-            >
-              <Zap size={20} className="mr-3" />
-              {sidebarOpen && <span>Event Phases</span>}
-            </button>
-
-            {/* Schedule — the real, server-backed session agenda */}
-            <button
-              className={`w-full flex items-center px-3 py-2 rounded-md ${
-                activeSection === 'schedule'
-                  ? 'bg-amber-100 text-amber-800'
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
-              onClick={() => setActiveSection('schedule')}
-            >
-              <Calendar size={20} className="mr-3" />
-              {sidebarOpen && <span>Schedule</span>}
-            </button>
-
-            {/* Insights — Analytics (real, historical), Queue and Forecast.
-                NOTE: all three are read-only. Analytics charts are sample
-                data (its own banner says so). Queue and Forecast do read live
-                orders, but their toggles — message tone, auto-adjust,
-                auto-order — persist nothing and nothing downstream reads
-                them. Real live figures are Operations -> Live. */}
-            <button
-              className={`w-full flex items-center px-3 py-2 rounded-md ${
-                activeSection === 'insights'
-                  ? 'bg-amber-100 text-amber-800'
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
-              onClick={() => setActiveSection('insights')}
-            >
-              <Brain size={20} className="mr-3" />
-              {sidebarOpen && <span>Insights</span>}
-            </button>
-
-            {/* Communication Hub */}
-            <button
-              className={`w-full flex items-center px-3 py-2 rounded-md ${
-                activeSection === 'communication'
-                  ? 'bg-amber-100 text-amber-800'
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
-              onClick={() => setActiveSection('communication')}
-            >
-              <Radio size={20} className="mr-3" />
-              {sidebarOpen && <span>Comms Hub</span>}
-            </button>
-
-            {/* Sponsors — logo ticker on the public display */}
-            <button
-              className={`w-full flex items-center px-3 py-2 rounded-md ${
-                activeSection === 'sponsors'
-                  ? 'bg-amber-100 text-amber-800'
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
-              onClick={() => setActiveSection('sponsors')}
-            >
-              <ImageIcon size={20} className="mr-3" />
-              {sidebarOpen && <span>Sponsors</span>}
-            </button>
-
-            {/* Users */}
-            <button
-              className={`w-full flex items-center px-3 py-2 rounded-md ${
-                activeSection === 'users'
-                  ? 'bg-amber-100 text-amber-800'
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
-              onClick={() => setActiveSection('users')}
-            >
-              <Users size={20} className="mr-3" />
-              {sidebarOpen && <span>Users</span>}
-            </button>
-
-            {/* Settings — system settings, plus Event Data export/wipe */}
-            <button
-              className={`w-full flex items-center px-3 py-2 rounded-md ${
-                activeSection === 'settings'
-                  ? 'bg-amber-100 text-amber-800'
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
-              onClick={() => setActiveSection('settings')}
-            >
-              <Settings size={20} className="mr-3" />
-              {sidebarOpen && <span>Settings</span>}
-            </button>
-
-            {/* Help — currently the SMS bot reference. A home for operator
-                documentation so the next explainer does not need a
-                sidebar item of its own. */}
-            <button
-              className={`w-full flex items-center px-3 py-2 rounded-md ${
-                activeSection === 'help'
-                  ? 'bg-amber-100 text-amber-800'
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
-              onClick={() => setActiveSection('help')}
-            >
-              <HelpCircle size={20} className="mr-3" />
-              {sidebarOpen && <span>Help</span>}
-            </button>
-
-            {/* Messages — removed in batch G of the system audit. The
-                section just rendered "Message center functionality coming
-                soon." Use the Communications Hub or Support → Broadcast
-                for real inter-station / customer messaging. */}
-          </div>
+          {NAV.map(({ heading, items }, gi) => (
+            <div key={heading} className={gi === 0 ? '' : 'mt-4'}>
+              {sidebarOpen ? (
+                <div className="px-3 mb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400">{heading}</div>
+              ) : (
+                gi !== 0 && <div className="mx-3 mb-2 border-t border-gray-200" />
+              )}
+              <div className="space-y-1">
+                {items.map(({ id, label, Icon }) => (
+                  <button
+                    key={id}
+                    className={`w-full flex items-center px-3 py-2 rounded-md ${
+                      activeSection === id
+                        ? 'bg-amber-100 text-amber-800'
+                        : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                    onClick={() => setActiveSection(id)}
+                    title={sidebarOpen ? undefined : label}
+                  >
+                    <Icon size={20} className="mr-3 flex-shrink-0" />
+                    {sidebarOpen && <span>{label}</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
         </nav>
-        
+
         <div className="p-4 border-t border-gray-200">
           <button onClick={handleLogout} className="flex items-center text-gray-700 w-full hover:text-red-600">
             <LogOut size={20} className="mr-3" />
@@ -328,7 +265,7 @@ const OrganiserInterface = () => {
           </button>
         </div>
       </div>
-      
+
       {/* Main content */}
       <div className="flex-1 overflow-auto">
         <header className="bg-white shadow-sm p-4 flex justify-between items-center">
@@ -341,29 +278,12 @@ const OrganiserInterface = () => {
             >
               <Menu size={24} />
             </button>
-            <h1 className="text-base sm:text-xl font-bold text-gray-800 truncate">
-            {activeSection === 'quickSetup' && '⚡ Quick Setup'}
-            {activeSection === 'operations' && (opsTab === 'readiness' ? '✅ Event Readiness' : '🚀 Live Operations Command Center')}
-            {activeSection === 'stations' && 'Station Management'}
-            {activeSection === 'orders' && (ordersTab === 'groups' ? 'Group Orders' : 'All Orders Overview')}
-            {activeSection === 'eventLifecycle' && 'Event Lifecycle Management'}
-            {activeSection === 'schedule' && 'Event Schedule'}
-            {activeSection === 'insights' && (
-              insightsTab === 'queue' ? 'Queue Psychology & Customer Intelligence'
-              : insightsTab === 'forecast' ? '🤖 Predictive Intelligence & Resilience'
-              : '📊 Real-Time Analytics Dashboard')}
-            {activeSection === 'communication' && '📡 Communication Hub'}
-            {activeSection === 'sponsors' && '🏷️ Sponsors'}
-            {activeSection === 'users' && 'User Management'}
-            {activeSection === 'settings' && (settingsTab === 'eventData' ? 'Event Data' : 'System Settings')}
-            {activeSection === 'help' && '📱 How the SMS Bot Works'}
-            </h1>
+            <h1 className="text-base sm:text-xl font-bold text-gray-800 truncate">{title}</h1>
           </div>
 
           <div className="flex items-center space-x-4">
-            {/* Account menu — click the avatar for the logged-in user +
-                a working Log out. (The old bell was a fake notification
-                placeholder with no feed behind it — removed.) */}
+            {/* Account menu — click the avatar for the logged-in user + a
+                working Log out. */}
             <div className="relative">
               <button
                 onClick={() => setAccountOpen(o => !o)}
@@ -392,19 +312,25 @@ const OrganiserInterface = () => {
             </div>
           </div>
         </header>
-        
+
         <main className="p-3 sm:p-6">
+          {/* One tab bar for every grouped section, so they all look and
+              behave the same. */}
+          {TABS[activeSection] && (
+            <SubTabs active={activeTab} onChange={setActiveTab} tabs={TABS[activeSection]} />
+          )}
+
           {/* Quick Setup */}
           {activeSection === 'quickSetup' && (
             <>
-              {/* Guided questionnaire — the "answer 12 questions, we
-                  build the event" path for operators who don't know the
-                  menus yet. Writes through the same endpoints as the
-                  one-page Quick Setup below. */}
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              {/* Guided questionnaire — the "answer 12 questions, we build
+                  the event" path for operators who don't know the menus
+                  yet. Writes through the same endpoints as the one-page
+                  Quick Setup below. */}
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
-                  <div className="font-bold text-blue-900">New here? Try the guided setup</div>
-                  <div className="text-sm text-blue-800">Answer about 12 quick questions (3 minutes) and the event builds itself — stations, milks, sizes, drinks, hours. Everything stays editable afterwards.</div>
+                  <div className="font-bold text-amber-900">New here? Try the guided setup</div>
+                  <div className="text-sm text-amber-800">Answer about 12 quick questions (3 minutes) and the event builds itself — stations, milks, sizes, drinks, hours. Everything stays editable afterwards.</div>
                 </div>
                 <button
                   className="w-full sm:w-auto sm:ml-4 flex-shrink-0 bg-amber-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-amber-700"
@@ -420,299 +346,151 @@ const OrganiserInterface = () => {
             <SetupWizard onClose={() => setShowSetupWizard(false)} />
           )}
 
-          {/* Operations — pre-doors readiness and the live command centre.
-              Sequential rather than duplicate: Readiness is what you run
-              before doors open, Live is what you watch during service. */}
-          {activeSection === 'operations' && (
-            <div>
-              <SubTabs
-                active={opsTab}
-                onChange={setOpsTab}
-                tabs={[
-                  { id: 'readiness', label: 'Readiness', Icon: CheckCircle },
-                  { id: 'dashboard', label: 'Live', Icon: Activity },
-                ]}
-              />
-              {opsTab === 'readiness' && <ReadinessTab />}
-              {opsTab === 'dashboard' && <EnhancedLiveOperationsDashboard />}
-            </div>
-          )}
-          
-          {/* Event Lifecycle */}
-          {activeSection === 'eventLifecycle' && (
-            <EventLifecycleManagement />
-          )}
-          
-          {/* Stations */}
+          {/* Menu — what this event offers, how much there is, which
+              stations carry what. All three are server-backed; the old
+              localStorage 'Menu Items' store was retired long ago. */}
+          {activeSection === 'menu' && activeTab === 'inventory' && <InventoryManagement />}
+          {activeSection === 'menu' && activeTab === 'stock' && <EventStockManagement />}
+          {activeSection === 'menu' && activeTab === 'stationInventory' && <StationInventoryConfig stations={stations} />}
+
+          {/* Stations — the stations themselves. Walk-in defaults live
+              inside Station Settings against the station being edited. */}
           {activeSection === 'stations' && (
-            <div>
-              {/* Tab Navigation
-
-                  RETIRED: 'Menu Items' (MenuManagement.js). It was a SECOND
-                  drinks menu kept in localStorage 'event_menu' — a store the
-                  server has never read — so switching a drink off there
-                  changed nothing for SMS, the kiosk, the attendee app or the
-                  barista. Event Inventory is the menu; Station Inventory is
-                  the per-station menu, and both are server-backed.
-
-                  The four tabs below are the whole model:
-                    Event Inventory  what this event offers
-                    Event Stock      how much of it there is
-                    Station Inventory which stations carry what
-                  Walk-in defaults now live inside Station Settings, against
-                  the station you are already editing.
-              */}
-              {/* Four tabs across 375px gives each one about 90px, so every label
-                  wrapped and "Station Inventory" was clipped off the right
-                  edge with nothing to say it was there. Two-up on a phone,
-                  one row from small screens up. */}
-              <div className="mb-6 bg-white p-2 rounded-lg shadow grid grid-cols-2 gap-2 sm:flex sm:gap-0">
-                <button
-                  className={`flex-1 py-2 px-2 sm:px-4 text-sm sm:text-base rounded-md ${stationTab === 'settings' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                  onClick={() => setStationTab('settings')}
-                >
-                  <Settings size={16} className="inline-block mr-1" />
-                  Station Settings
-                </button>
-                <button
-                  className={`flex-1 py-2 px-2 sm:px-4 text-sm sm:text-base rounded-md ${stationTab === 'inventory' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                  onClick={() => setStationTab('inventory')}
-                >
-                  <Package size={16} className="inline-block mr-1" />
-                  Event Inventory
-                </button>
-                <button
-                  className={`flex-1 py-2 px-2 sm:px-4 text-sm sm:text-base rounded-md ${stationTab === 'stock' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                  onClick={() => setStationTab('stock')}
-                >
-                  <Package size={16} className="inline-block mr-1" />
-                  Event Stock
-                </button>
-                <button
-                  className={`flex-1 py-2 px-2 sm:px-4 text-sm sm:text-base rounded-md ${stationTab === 'config' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                  onClick={() => setStationTab('config')}
-                >
-                  <Coffee size={16} className="inline-block mr-1" />
-                  Station Inventory
-                </button>
-              </div>
-              
-              {/* Tab Content */}
-              {stationTab === 'settings' && (
-                <StationSettings
-                  stations={stations}
-                  onStationUpdate={async (stationId, stationData) => {
-                    // ApiService is exported as a class — must be
-                    // instantiated before calling request(). The
-                    // previous version called ApiService.request(...)
-                    // directly on the class and silently failed with
-                    // "TypeError: ApiService.request is not a function",
-                    // which is why Add / Update / Delete Station all
-                    // appeared broken from the UI even after the
-                    // backend API was correct.
-                    try {
-                      console.log('Updating station:', stationId, stationData);
-                      const { default: ApiServiceClass } = await import('../../services/ApiService');
-                      const apiService = new ApiServiceClass();
-                      const response = await apiService.request(`/stations/${stationId}`, {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(stationData),
-                      });
-                      if (response.success) {
-                        console.log('Station updated successfully:', response);
-                        refreshData();
-                        return true;
-                      } else {
-                        console.error('Failed to update station:', response.error);
-                        return false;
-                      }
-                    } catch (error) {
-                      console.error('Error updating station:', error);
-                      return false;
-                    }
-                  }}
-                  onAddStation={async (stationData) => {
-                    try {
-                      console.log('Adding station:', stationData);
-                      const { default: ApiServiceClass } = await import('../../services/ApiService');
-                      const apiService = new ApiServiceClass();
-                      // Backend auto-assigns station_id when omitted
-                      // (see routes/station_api_routes.py create_station).
-                      // We send a client-suggested id as a fallback,
-                      // but the server-side allocation is the source
-                      // of truth.
-                      const newStationId = Math.max(0, ...stations.map(s => s.id || 0)) + 1;
-                      const response = await apiService.request('/stations', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ station_id: newStationId, ...stationData }),
-                      });
-                      if (response.success) {
-                        console.log('Station added successfully:', response);
-                        refreshData();
-                        return true;
-                      } else {
-                        console.error('Failed to add station:', response.error);
-                        return false;
-                      }
-                    } catch (error) {
-                      console.error('Error adding station:', error);
-                      return false;
-                    }
-                  }}
-                  onDeleteStation={async (stationId) => {
-                    try {
-                      console.log('Deleting station:', stationId);
-                      const { default: ApiServiceClass } = await import('../../services/ApiService');
-                      const apiService = new ApiServiceClass();
-                      const response = await apiService.request(`/stations/${stationId}`, {
-                        method: 'DELETE',
-                      });
-                      if (response.success) {
-                        console.log('Station deleted successfully:', response);
-                        refreshData();
-                        return true;
-                      } else {
-                        console.error('Failed to delete station:', response.error);
-                        return false;
-                      }
-                    } catch (error) {
-                      console.error('Error deleting station:', error);
-                      return false;
-                    }
-                  }}
-                />
-              )}
-              
-              {stationTab === 'inventory' && (
-                <InventoryManagement />
-              )}
-              
-              {stationTab === 'stock' && (
-                <EventStockManagement />
-              )}
-              
-              {stationTab === 'config' && (
-                <StationInventoryConfig stations={stations} />
-              )}
-              
-            </div>
-          )}
-          
-          {/* Orders — individual orders and group orders, one area. */}
-          {activeSection === 'orders' && (
-            <div>
-              <SubTabs
-                active={ordersTab}
-                onChange={setOrdersTab}
-                tabs={[
-                  { id: 'all', label: 'All Orders', Icon: Clock },
-                  { id: 'groups', label: 'Group Orders', Icon: FileText },
-                ]}
-              />
-              {ordersTab === 'all' && (
-                <div className="bg-white rounded-lg shadow p-6">
-                  <AllOrdersTab />
-                </div>
-              )}
-              {ordersTab === 'groups' && (
-                <div className="bg-white rounded-lg shadow">
-                  <GroupOrdersTab
-                    onSubmitGroupOrders={(groupOrder) => {
-                      // Handle group order submission
-                      const result = OrderDataService.submitGroupOrder(groupOrder);
-                      return result;
-                    }}
-                  />
-                </div>
-              )}
-            </div>
-          )}
-          
-          {/* Insights — Analytics, Queue and Forecast.
-
-              NOTE for whoever picks this up: Analytics renders sample data,
-              not this event's numbers. Queue and Forecast do read live orders
-              via hooks, but persist NOTHING. Their controls —
-              message tone (Precise/Friendly/Gamified), Auto-adjust,
-              Auto-order — are component state only. No localStorage, no
-              settings write, and nothing downstream reads them. They are
-              read-only views with controls that look actionable. */}
-          {activeSection === 'insights' && (
-            <div>
-              <SubTabs
-                active={insightsTab}
-                onChange={setInsightsTab}
-                tabs={[
-                  { id: 'analytics', label: 'Analytics', Icon: LineChart },
-                  { id: 'queue', label: 'Queue', Icon: Brain },
-                  { id: 'forecast', label: 'Forecast', Icon: Shield },
-                ]}
-              />
-              {insightsTab === 'analytics' && <AnalyticsDashboard />}
-              {insightsTab === 'queue' && <QueuePsychologyIntelligence />}
-              {insightsTab === 'forecast' && <PredictiveIntelligence />}
-            </div>
-          )}
-          
-          {/* Communication Hub */}
-          {activeSection === 'communication' && (
-            <EnhancedCommunicationHub />
+            <StationSettings
+              stations={stations}
+              onStationUpdate={async (stationId, stationData) => {
+                // ApiService is exported as a class — must be instantiated
+                // before calling request().
+                try {
+                  const { default: ApiServiceClass } = await import('../../services/ApiService');
+                  const apiService = new ApiServiceClass();
+                  const response = await apiService.request(`/stations/${stationId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(stationData),
+                  });
+                  if (response.success) {
+                    refreshData();
+                    return true;
+                  }
+                  console.error('Failed to update station:', response.error);
+                  return false;
+                } catch (error) {
+                  console.error('Error updating station:', error);
+                  return false;
+                }
+              }}
+              onAddStation={async (stationData) => {
+                try {
+                  const { default: ApiServiceClass } = await import('../../services/ApiService');
+                  const apiService = new ApiServiceClass();
+                  // Backend auto-assigns station_id when omitted (see
+                  // routes/station_api_routes.py create_station). We send a
+                  // client-suggested id as a fallback, but the server-side
+                  // allocation is the source of truth.
+                  const newStationId = Math.max(0, ...stations.map(s => s.id || 0)) + 1;
+                  const response = await apiService.request('/stations', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ station_id: newStationId, ...stationData }),
+                  });
+                  if (response.success) {
+                    refreshData();
+                    return true;
+                  }
+                  console.error('Failed to add station:', response.error);
+                  return false;
+                } catch (error) {
+                  console.error('Error adding station:', error);
+                  return false;
+                }
+              }}
+              onDeleteStation={async (stationId) => {
+                try {
+                  const { default: ApiServiceClass } = await import('../../services/ApiService');
+                  const apiService = new ApiServiceClass();
+                  const response = await apiService.request(`/stations/${stationId}`, {
+                    method: 'DELETE',
+                  });
+                  if (response.success) {
+                    refreshData();
+                    return true;
+                  }
+                  console.error('Failed to delete station:', response.error);
+                  return false;
+                } catch (error) {
+                  console.error('Error deleting station:', error);
+                  return false;
+                }
+              }}
+            />
           )}
 
-          {/* Sponsors — logo ticker for the public display */}
-          {activeSection === 'sponsors' && (
-            <SponsorsPanel />
-          )}
+          {/* Branding — logo & look, sponsors, labels, milk colours. */}
+          {activeSection === 'branding' && activeTab === 'logo' && <BrandingSettings />}
+          {activeSection === 'branding' && activeTab === 'sponsors' && <SponsorsPanel />}
+          {activeSection === 'branding' && activeTab === 'labels' && <LabelsTab />}
+          {activeSection === 'branding' && activeTab === 'milk' && <MilkColorSettings />}
 
-          {/* User Management */}
+          {/* Schedule — the real, server-backed session agenda, and the
+              day's phases. NOTE: Phases (SETUP / PRE_EVENT / MORNING_PEAK
+              ...) are hardcoded in EventLifecycleManagement and do NOT
+              read the sessions entered here, so they describe a generic
+              event day rather than this one. */}
+          {activeSection === 'schedule' && activeTab === 'sessions' && <EnhancedScheduleManagement />}
+          {activeSection === 'schedule' && activeTab === 'phases' && <EventLifecycleManagement />}
+
+          {/* Users */}
           {activeSection === 'users' && (
             <div className="bg-white rounded-lg shadow p-6">
               <UserManagementTab />
             </div>
           )}
-          
-          {/* Settings — system settings, plus the per-client Event Data
-              lifecycle (export / wipe / re-import). Both are "configure the
-              installation" rather than "run the event". */}
-          {activeSection === 'settings' && (
-            <div>
-              <SubTabs
-                active={settingsTab}
-                onChange={setSettingsTab}
-                tabs={[
-                  { id: 'system', label: 'System Settings', Icon: Settings },
-                  { id: 'eventData', label: 'Event Data', Icon: Database },
-                ]}
-              />
-              {settingsTab === 'system' && <EventSettings />}
-              {settingsTab === 'eventData' && <EventDataManagement />}
+
+          {/* Operations — Readiness (pre-doors checks, test SMS, admin
+              alerts), Live (the during-service board) and Messages
+              (broadcasts to stations and customers). Same operator, same
+              day, one click apart. */}
+          {activeSection === 'operations' && activeTab === 'readiness' && <ReadinessTab />}
+          {activeSection === 'operations' && activeTab === 'live' && <EnhancedLiveOperationsDashboard />}
+          {activeSection === 'operations' && activeTab === 'messages' && <EnhancedCommunicationHub />}
+
+          {/* Orders — individual orders and group orders. */}
+          {activeSection === 'orders' && activeTab === 'all' && (
+            <div className="bg-white rounded-lg shadow p-6">
+              <AllOrdersTab />
             </div>
           )}
+          {activeSection === 'orders' && activeTab === 'groups' && (
+            <div className="bg-white rounded-lg shadow">
+              <GroupOrdersTab
+                onSubmitGroupOrders={(groupOrder) => OrderDataService.submitGroupOrder(groupOrder)}
+              />
+            </div>
+          )}
+
+          {/* Insights — Analytics, Queue and Forecast. NOTE: Analytics
+              renders sample data, not this event's numbers. Queue and
+              Forecast read live orders but persist NOTHING — their
+              controls are component state only. Real live figures are
+              Operations -> Live. */}
+          {activeSection === 'insights' && activeTab === 'analytics' && <AnalyticsDashboard />}
+          {activeSection === 'insights' && activeTab === 'queue' && <QueuePsychologyIntelligence />}
+          {activeSection === 'insights' && activeTab === 'forecast' && <PredictiveIntelligence />}
+
+          {/* Settings — the per-client Event Data lifecycle (export / wipe /
+              re-import). "Configure the installation" rather than "run the
+              event". */}
+          {activeSection === 'settings' && <EventDataManagement />}
 
           {/* Help — operator documentation. Currently the SMS bot flow
               reference; add further explainers here rather than adding
               sidebar items. */}
-          {activeSection === 'help' && (
-            <SmsFlowReference />
-          )}
-          
-          {/* Schedule Management */}
-          {activeSection === 'schedule' && (
-            <EnhancedScheduleManagement />
-          )}
-          
-          {/* Messages section removed in batch G — see sidebar comment. */}
-          
-          {/* Unknown section fallback.
+          {activeSection === 'help' && <SmsFlowReference />}
 
-              This was a blacklist of 13 !== comparisons, and it had drifted:
-              'readiness', 'quickSetup', 'smsGuide' and 'eventData' were never
-              added to it, so "This section is under development." rendered
-              underneath four working screens. A whitelist cannot drift the
-              same way — a new section that forgets to register here shows the
-              placeholder instead of silently doubling up. */}
+          {/* Unknown section fallback — a whitelist, so a new section that
+              forgets to register in NAV shows this instead of silently
+              doubling up. */}
           {!KNOWN_SECTIONS.includes(activeSection) && (
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-xl font-semibold mb-4">{activeSection.charAt(0).toUpperCase() + activeSection.slice(1)}</h2>
