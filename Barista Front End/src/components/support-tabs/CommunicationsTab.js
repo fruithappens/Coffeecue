@@ -38,7 +38,7 @@ const CommunicationsTab = () => {
   
   const [testSmsForm, setTestSmsForm] = useState({
     to: '',
-    message: 'Test message from Expresso Support'
+    message: 'Test message from CupQ Support'
   });
   
   const [messageTemplates, setMessageTemplates] = useState([

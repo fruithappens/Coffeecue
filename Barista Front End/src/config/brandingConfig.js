@@ -40,7 +40,7 @@ const defaultBranding = {
   
   // Feature flags for white-labeling
   showPoweredBy: true,
-  poweredByText: 'Powered by Coffee Cue',
+  poweredByText: 'Powered by CupQ',
   
   // Contact/Support
   supportEmail: 'support@coffeecue.com',

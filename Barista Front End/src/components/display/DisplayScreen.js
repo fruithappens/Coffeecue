@@ -308,7 +308,7 @@ const DisplayScreen = () => {
   // come from the public /display/config (populated by the fetch below).
   // Declared here, BEFORE the derivations that read it, to avoid a TDZ error.
   const [config, setConfig] = useState({
-    system_name: 'Coffee Cue',
+    system_name: 'CupQ',
     event_name: 'Coffee Event',
     sms_number: '',
     sponsor: { enabled: false, name: '', message: '' },
@@ -720,7 +720,7 @@ const DisplayScreen = () => {
           setSmsPhoneNumber(c.sms_number || '');
           setConfig(prev => ({
             ...prev,
-            system_name: c.system_name || 'Coffee Cue',
+            system_name: c.system_name || 'CupQ',
             event_name: c.event_name || settings?.displaySettings?.eventName || 'Coffee Event',
             sms_number: c.sms_number || '',
             sponsor: c.sponsor || prev.sponsor,

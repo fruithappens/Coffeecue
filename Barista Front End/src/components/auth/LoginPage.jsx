@@ -77,7 +77,7 @@ const LoginPage = ({ onLoginSuccess }) => {
         if (!validationResult.isValid) {
           setTokenError(validationResult.error);
           setShowFallbackOption(true);
-          setError(`Token error detected: ${validationResult.error}`);
+          setError('Your session has expired - please sign in again.');
         }
       }
     };
@@ -90,7 +90,7 @@ const LoginPage = ({ onLoginSuccess }) => {
         console.error('Failed to load branding settings:', error);
         // Use default settings if API fails
         setBrandingSettings({
-          systemName: 'Coffee Cue System',
+          systemName: 'CupQ',
           event_name: 'Coffee Event',
           organization_name: 'Coffee Cue'
         });
@@ -155,7 +155,7 @@ const LoginPage = ({ onLoginSuccess }) => {
           {logo
             ? <img src={logo} alt="" className="login-logo" />
             : <div className="login-logo-fallback" aria-hidden="true">☕</div>}
-          <h2>{brandingSettings?.systemName || brandingSettings?.organization_name || 'Coffee Cue System'}</h2>
+          <h2>{brandingSettings?.systemName || brandingSettings?.organization_name || 'CupQ'}</h2>
           <p>{brandingSettings?.event_name || 'Coffee Event'}</p>
         </div>
         
@@ -235,7 +235,7 @@ const LoginPage = ({ onLoginSuccess }) => {
           align-items: center;
           min-height: 100vh;
           padding: 20px;
-          background: linear-gradient(135deg, #6F4E37 0%, #8B4513 45%, #C8821A 100%);
+          background: linear-gradient(135deg, #92400E 0%, #B45309 45%, #F59E0B 100%);
         }
 
         .login-card {
@@ -248,7 +248,7 @@ const LoginPage = ({ onLoginSuccess }) => {
         }
 
         .login-header {
-          background: linear-gradient(135deg, #8B4513 0%, #A05A1E 100%);
+          background: linear-gradient(135deg, #B45309 0%, #D97706 100%);
           color: white;
           padding: 28px 20px;
           text-align: center;
@@ -329,7 +329,7 @@ const LoginPage = ({ onLoginSuccess }) => {
         }
         
         .login-button {
-          background-color: #8B4513;
+          background-color: #B45309;
           color: white;
           border: none;
           padding: 10px 20px;
@@ -340,7 +340,7 @@ const LoginPage = ({ onLoginSuccess }) => {
         }
         
         .login-button:hover {
-          background-color: #704214;
+          background-color: #92400E;
         }
         
         .login-button.loading {
@@ -349,7 +349,7 @@ const LoginPage = ({ onLoginSuccess }) => {
         }
         
         .forgot-password {
-          color: #8B4513;
+          color: #B45309;
           text-decoration: none;
           font-size: 14px;
         }

@@ -14,13 +14,13 @@ import DisplayBackgroundVideo from './DisplayBackgroundVideo';
 const BrandingSettings = () => {
   const [settings, setSettings] = useState({
     // Brand Identity
-    systemName: brandingConfig.systemName || 'Coffee Cue',
-    companyName: brandingConfig.companyName || 'Coffee Cue',
-    shortName: brandingConfig.shortName || 'Coffee Cue',
-    landingTitle: brandingConfig.landingTitle || 'Coffee Cue Ordering System',
+    systemName: brandingConfig.systemName || 'CupQ',
+    companyName: brandingConfig.companyName || 'CupQ',
+    shortName: brandingConfig.shortName || 'CupQ',
+    landingTitle: brandingConfig.landingTitle || 'CupQ',
     landingSubtitle: brandingConfig.landingSubtitle || 'Select your role to continue',
-    adminPanelTitle: brandingConfig.adminPanelTitle || 'Coffee Cue Admin',
-    baristaPanelTitle: brandingConfig.baristaPanelTitle || 'Coffee Cue Barista',
+    adminPanelTitle: brandingConfig.adminPanelTitle || 'CupQ Admin',
+    baristaPanelTitle: brandingConfig.baristaPanelTitle || 'CupQ Barista',
     tagline: brandingConfig.tagline || 'Skip the Queue, Get Your Cue',
     footerText: brandingConfig.footerText || '© 2025 Coffee Cue',
     customBranding: true,
