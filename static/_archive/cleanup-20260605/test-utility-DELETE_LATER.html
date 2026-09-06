@@ -1,0 +1,1457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Expresso Test Utility - DELETE LATER</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f5f5f5;
+      color: #333;
+    }
+    header {
+      background-color: #e74c3c;
+      color: white;
+      padding: 10px 20px;
+      text-align: center;
+      border-radius: 5px;
+      margin-bottom: 20px;
+    }
+    .warning {
+      color: #e74c3c;
+      font-weight: bold;
+    }
+    .container {
+      display: flex;
+      gap: 20px;
+    }
+    .panel {
+      background-color: white;
+      border-radius: 5px;
+      padding: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      flex: 1;
+    }
+    .log-panel {
+      flex: 2;
+      max-height: 600px;
+      overflow-y: auto;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    input, select, button {
+      width: 100%;
+      padding: 8px;
+      margin-bottom: 15px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    button {
+      background-color: #3498db;
+      color: white;
+      cursor: pointer;
+      border: none;
+      font-weight: bold;
+    }
+    button:hover {
+      background-color: #2980b9;
+    }
+    .action-btn {
+      margin-top: 10px;
+    }
+    .log-entry {
+      margin-bottom: 10px;
+      padding: 8px;
+      border-bottom: 1px solid #eee;
+    }
+    .log-entry.error {
+      background-color: #ffecec;
+      color: #e74c3c;
+      border-left: 3px solid #e74c3c;
+    }
+    .log-entry.success {
+      background-color: #efffef;
+      color: #27ae60;
+      border-left: 3px solid #27ae60;
+    }
+    .log-entry.info {
+      background-color: #e8f4fc;
+      color: #3498db;
+      border-left: 3px solid #3498db;
+    }
+    .action-group {
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 15px;
+      margin-bottom: 15px;
+    }
+    .action-group h3 {
+      margin-top: 0;
+      color: #3498db;
+    }
+    .tabs {
+      display: flex;
+      margin-bottom: 15px;
+    }
+    .tab {
+      padding: 10px 15px;
+      cursor: pointer;
+      border: 1px solid #ddd;
+      border-bottom: none;
+      border-radius: 5px 5px 0 0;
+      background-color: #f8f8f8;
+    }
+    .tab.active {
+      background-color: white;
+      font-weight: bold;
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    #token-display {
+      word-break: break-all;
+      font-family: monospace;
+      font-size: 12px;
+      background-color: #f8f8f8;
+      padding: 10px;
+      border-radius: 4px;
+      max-height: 100px;
+      overflow-y: auto;
+    }
+    .test-result {
+      margin-top: 5px;
+      padding: 5px;
+      border-radius: 4px;
+    }
+    .test-result.pass {
+      background-color: #d4edda;
+      color: #155724;
+    }
+    .test-result.fail {
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Expresso Test Utility <span class="warning">- DELETE LATER</span></h1>
+    <p>This tool is for testing the Expresso frontend application - <strong>NOT FOR PRODUCTION USE</strong></p>
+  </header>
+
+  <div class="container">
+    <div class="panel">
+      <div class="tabs">
+        <div class="tab active" data-tab="login">Login Testing</div>
+        <div class="tab" data-tab="barista">Barista Interface</div>
+        <div class="tab" data-tab="orders">Orders Testing</div>
+        <div class="tab" data-tab="component">Component Tests</div>
+      </div>
+
+      <div class="tab-content active" id="login-tab">
+        <h2>Authentication Testing</h2>
+        <div class="action-group">
+          <h3>Login Form</h3>
+          <div>
+            <label for="username">Username:</label>
+            <input type="text" id="username" value="barista" placeholder="Enter username">
+          </div>
+          <div>
+            <label for="password">Password:</label>
+            <input type="password" id="password" value="ExpressoBarista2025" placeholder="Enter password">
+          </div>
+          <button id="login-btn">Test Login</button>
+          <button id="auto-login-btn" class="action-btn">Auto Login (with error handling)</button>
+          <div id="login-result"></div>
+        </div>
+
+        <div class="action-group">
+          <h3>Token Management</h3>
+          <div>
+            <label>Current Token:</label>
+            <div id="token-display">No token</div>
+          </div>
+          <button id="refresh-token-btn">Test Token Refresh</button>
+          <button id="validate-token-btn">Validate Token</button>
+          <button id="clear-token-btn" class="action-btn">Clear Tokens</button>
+        </div>
+
+        <div class="action-group">
+          <h3>Authentication Modes</h3>
+          <button id="enable-fallback-btn">Enable Fallback Mode</button>
+          <button id="disable-fallback-btn">Disable Fallback Mode</button>
+          <button id="create-dummy-token-btn">Create Dummy Token</button>
+        </div>
+      </div>
+
+      <div class="tab-content" id="barista-tab">
+        <h2>Barista Interface Testing</h2>
+        <div class="action-group">
+          <h3>Navigation</h3>
+          <button id="goto-barista-btn">Go to Barista Interface</button>
+          <button id="test-navigation-btn">Test Tab Navigation</button>
+        </div>
+
+        <div class="action-group">
+          <h3>Order Management</h3>
+          <label for="order-action">Order Action:</label>
+          <select id="order-action">
+            <option value="start">Start Order</option>
+            <option value="complete">Complete Order</option>
+            <option value="cancel">Cancel Order</option>
+          </select>
+          <button id="test-order-action-btn">Test Order Action</button>
+        </div>
+      </div>
+
+      <div class="tab-content" id="orders-tab">
+        <h2>Orders Testing</h2>
+        <div class="action-group">
+          <h3>Walk-in Order</h3>
+          <div>
+            <label for="coffee-type">Coffee Type:</label>
+            <select id="coffee-type">
+              <option value="cappuccino">Cappuccino</option>
+              <option value="latte">Latte</option>
+              <option value="espresso">Espresso</option>
+              <option value="flatwhite">Flat White</option>
+            </select>
+          </div>
+          <div>
+            <label for="milk-type">Milk Type:</label>
+            <select id="milk-type">
+              <option value="regular">Regular</option>
+              <option value="skim">Skim</option>
+              <option value="soy">Soy</option>
+              <option value="almond">Almond</option>
+              <option value="oat">Oat</option>
+            </select>
+          </div>
+          <div>
+            <label for="customer-name">Customer Name:</label>
+            <input type="text" id="customer-name" value="Test Customer" placeholder="Customer name">
+          </div>
+          <button id="create-walkin-order-btn">Create Walk-in Order</button>
+        </div>
+
+        <div class="action-group">
+          <h3>Order Data Flow</h3>
+          <button id="test-order-flow-btn">Test Order Flow</button>
+          <div id="order-flow-result"></div>
+        </div>
+      </div>
+
+      <div class="tab-content" id="component-tab">
+        <h2>Component Testing</h2>
+        <div class="action-group">
+          <h3>UI Components</h3>
+          <label for="component">Component to Test:</label>
+          <select id="component">
+            <option value="notifications">Notification System</option>
+            <option value="pending-orders">Pending Orders Component</option>
+            <option value="walk-in-dialog">Walk-in Order Dialog</option>
+            <option value="stations">Station Management</option>
+          </select>
+          <button id="test-component-btn">Test Component</button>
+        </div>
+
+        <div class="action-group">
+          <h3>Error Handling</h3>
+          <button id="test-error-handling-btn">Test Error Handling</button>
+          <button id="trigger-jwt-error-btn">Trigger JWT Error</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel log-panel">
+      <h2>Test Logs</h2>
+      <button id="clear-logs-btn">Clear Logs</button>
+      <div id="test-logs"></div>
+    </div>
+  </div>
+
+  <script>
+    // Test utility main script
+    (function() {
+      // Console capture
+      const originalConsole = {
+        log: console.log,
+        error: console.error,
+        warn: console.warn,
+        info: console.info
+      };
+
+      const logToUI = (message, type = 'info') => {
+        const logContainer = document.getElementById('test-logs');
+        const logEntry = document.createElement('div');
+        logEntry.className = `log-entry ${type}`;
+        
+        const timestamp = new Date().toLocaleTimeString();
+        logEntry.innerHTML = `<strong>[${timestamp}]</strong>: ${message}`;
+        
+        logContainer.prepend(logEntry);
+      };
+
+      // Override console methods to capture logs
+      console.log = function(...args) {
+        originalConsole.log(...args);
+        logToUI(args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : arg).join(' '));
+      };
+
+      console.error = function(...args) {
+        originalConsole.error(...args);
+        logToUI(args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : arg).join(' '), 'error');
+      };
+
+      console.warn = function(...args) {
+        originalConsole.warn(...args);
+        logToUI(args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : arg).join(' '), 'warning');
+      };
+
+      console.info = function(...args) {
+        originalConsole.info(...args);
+        logToUI(args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : arg).join(' '), 'info');
+      };
+
+      // Tab management
+      const tabs = document.querySelectorAll('.tab');
+      tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          // Remove active class from all tabs and contents
+          document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+          document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+          
+          // Add active class to clicked tab
+          tab.classList.add('active');
+          
+          // Show corresponding content
+          const tabId = `${tab.dataset.tab}-tab`;
+          document.getElementById(tabId).classList.add('active');
+        });
+      });
+
+      // Login testing
+      document.getElementById('login-btn').addEventListener('click', async () => {
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        
+        logToUI(`Attempting login with username: ${username}`, 'info');
+        
+        try {
+          // First check if the app is already loaded by looking for global React instance
+          if (!window.mainApp) {
+            logToUI('Loading main application...', 'info');
+            // Attempt to load the main app in an iframe to test it
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.src = '/';
+            document.body.appendChild(iframe);
+            
+            // Wait for iframe to load
+            await new Promise(resolve => {
+              iframe.onload = resolve;
+              // Timeout after 5 seconds
+              setTimeout(resolve, 5000);
+            });
+            
+            // Try to access the app inside the iframe
+            try {
+              window.mainApp = iframe.contentWindow;
+              logToUI('Main application loaded in hidden iframe', 'success');
+            } catch (e) {
+              logToUI('Failed to access main app in iframe: ' + e.message, 'error');
+              // Direct HTTP request as fallback
+              await testDirectLogin(username, password);
+              return;
+            }
+          }
+          
+          // Try to access AuthService if available
+          const result = await testAppLogin(username, password);
+          
+          // Update token display
+          updateTokenDisplay();
+          
+        } catch (error) {
+          console.error('Login test failed:', error);
+          document.getElementById('login-result').innerHTML = `
+            <div class="test-result fail">Login failed: ${error.message}</div>
+          `;
+        }
+      });
+
+      // Direct API login test (when app can't be accessed)
+      async function testDirectLogin(username, password) {
+        try {
+          logToUI('Attempting direct API login...', 'info');
+          
+          const response = await fetch('http://localhost:5001/api/auth/login', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify({ username, password }),
+            mode: 'cors'
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || `HTTP error ${response.status}`);
+          }
+          
+          const data = await response.json();
+          logToUI('Direct login successful', 'success');
+          
+          // Save token to localStorage to simulate app behavior
+          if (data.token) {
+            localStorage.setItem('coffee_system_token', data.token);
+            if (data.refreshToken) {
+              localStorage.setItem('coffee_system_refresh_token', data.refreshToken);
+            }
+            if (data.expiresIn) {
+              const expiry = new Date();
+              expiry.setSeconds(expiry.getSeconds() + data.expiresIn);
+              localStorage.setItem('coffee_system_token_expiry', expiry.toISOString());
+            }
+            
+            document.getElementById('login-result').innerHTML = `
+              <div class="test-result pass">Login successful! Token received and stored.</div>
+            `;
+            updateTokenDisplay();
+          } else {
+            throw new Error('No token received in login response');
+          }
+          
+          return data;
+        } catch (error) {
+          console.error('Direct login failed:', error);
+          document.getElementById('login-result').innerHTML = `
+            <div class="test-result fail">Direct login failed: ${error.message}</div>
+          `;
+          throw error;
+        }
+      }
+
+      // Test login through the application if possible
+      async function testAppLogin(username, password) {
+        logToUI('Trying to use application\'s AuthService...', 'info');
+        
+        // First try to find the AuthService in the app
+        let authService;
+        
+        try {
+          // Check different possible locations of AuthService
+          if (window.mainApp.AuthService) {
+            authService = window.mainApp.AuthService;
+          } else if (window.AuthService) {
+            authService = window.AuthService;
+          } else {
+            // Try to access via localStorage directly as fallback
+            logToUI('AuthService not found, using direct localStorage approach', 'warning');
+            return await testDirectLogin(username, password);
+          }
+          
+          logToUI('AuthService found, using it for login', 'success');
+          
+          // Use the app's AuthService to login
+          const result = await authService.login(username, password);
+          logToUI('Login via AuthService successful', 'success');
+          
+          document.getElementById('login-result').innerHTML = `
+            <div class="test-result pass">Login successful via AuthService!</div>
+          `;
+          
+          return result;
+        } catch (error) {
+          console.error('AuthService login failed:', error);
+          
+          // Fallback to direct login
+          logToUI('AuthService login failed, falling back to direct API login', 'warning');
+          return await testDirectLogin(username, password);
+        }
+      }
+
+      // Automated login test with retries and error handling
+      document.getElementById('auto-login-btn').addEventListener('click', async () => {
+        logToUI('Starting automated login test...', 'info');
+        
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        
+        // Test parameters
+        const MAX_RETRIES = 3;
+        const RETRY_DELAY = 2000; // 2 seconds
+        
+        let retryCount = 0;
+        let success = false;
+        
+        while (!success && retryCount < MAX_RETRIES) {
+          try {
+            if (retryCount > 0) {
+              logToUI(`Retry attempt ${retryCount}/${MAX_RETRIES}...`, 'info');
+              await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+            }
+            
+            // Try login
+            await testDirectLogin(username, password);
+            success = true;
+            
+            // If login succeeded, try to navigate to barista interface
+            logToUI('Login successful, attempting to navigate to barista interface...', 'info');
+            
+            // Check if token exists before navigating
+            const token = localStorage.getItem('coffee_system_token');
+            if (token) {
+              window.location.href = '/barista';
+            } else {
+              throw new Error('Login seemed successful but no token was stored');
+            }
+            
+          } catch (error) {
+            retryCount++;
+            logToUI(`Login attempt ${retryCount} failed: ${error.message}`, 'error');
+            
+            // Check for specific error types and handle accordingly
+            if (error.message.includes('401') || error.message.includes('Unauthorized')) {
+              logToUI('Authentication error detected. Checking credentials...', 'warning');
+              // For demo purposes, we're just retrying with the same credentials
+            } else if (error.message.includes('timeout') || error.message.includes('network')) {
+              logToUI('Network issue detected. Waiting before retry...', 'warning');
+              // Wait a bit longer for network issues
+              await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * 2));
+            }
+          }
+        }
+        
+        if (!success) {
+          logToUI(`Automated login failed after ${MAX_RETRIES} attempts. Trying fallback mode...`, 'error');
+          
+          // Enable fallback mode
+          localStorage.setItem('use_fallback_data', 'true');
+          
+          // Create dummy token for offline mode
+          createDummyToken();
+          
+          logToUI('Fallback mode enabled with dummy token. Attempting to navigate...', 'info');
+          
+          // Navigate to barista interface in fallback mode
+          setTimeout(() => {
+            window.location.href = '/barista';
+          }, 1000);
+        }
+      });
+
+      // Clear logs button
+      document.getElementById('clear-logs-btn').addEventListener('click', () => {
+        document.getElementById('test-logs').innerHTML = '';
+        logToUI('Logs cleared', 'info');
+      });
+
+      // Token display updater
+      function updateTokenDisplay() {
+        const tokenDisplay = document.getElementById('token-display');
+        const token = localStorage.getItem('coffee_system_token');
+        
+        if (token) {
+          tokenDisplay.innerText = token;
+          
+          // Show token expiry info if available
+          const expiry = localStorage.getItem('coffee_system_token_expiry');
+          if (expiry) {
+            const expiryDate = new Date(expiry);
+            const now = new Date();
+            const minutesRemaining = Math.floor((expiryDate - now) / (60 * 1000));
+            
+            tokenDisplay.innerText += `\n\nExpires: ${expiryDate.toLocaleString()} (${minutesRemaining} minutes remaining)`;
+          }
+        } else {
+          tokenDisplay.innerText = 'No token';
+        }
+      }
+
+      // Update token display on load
+      updateTokenDisplay();
+
+      // Refresh token button
+      document.getElementById('refresh-token-btn').addEventListener('click', async () => {
+        logToUI('Attempting to refresh token...', 'info');
+        
+        const refreshToken = localStorage.getItem('coffee_system_refresh_token');
+        if (!refreshToken) {
+          logToUI('No refresh token available', 'error');
+          return;
+        }
+        
+        try {
+          const response = await fetch('/api/auth/refresh', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ refreshToken })
+          });
+          
+          if (!response.ok) {
+            throw new Error(`HTTP error ${response.status}`);
+          }
+          
+          const data = await response.json();
+          
+          if (data.token) {
+            localStorage.setItem('coffee_system_token', data.token);
+            logToUI('Token refreshed successfully', 'success');
+            
+            if (data.refreshToken) {
+              localStorage.setItem('coffee_system_refresh_token', data.refreshToken);
+            }
+            
+            if (data.expiresIn) {
+              const expiry = new Date();
+              expiry.setSeconds(expiry.getSeconds() + data.expiresIn);
+              localStorage.setItem('coffee_system_token_expiry', expiry.toISOString());
+            }
+            
+            updateTokenDisplay();
+          } else {
+            throw new Error('No token in refresh response');
+          }
+        } catch (error) {
+          logToUI(`Token refresh failed: ${error.message}`, 'error');
+        }
+      });
+
+      // Validate token button
+      document.getElementById('validate-token-btn').addEventListener('click', () => {
+        logToUI('Validating token...', 'info');
+        
+        const token = localStorage.getItem('coffee_system_token');
+        if (!token) {
+          logToUI('No token to validate', 'error');
+          return;
+        }
+        
+        try {
+          // Check token format
+          const parts = token.split('.');
+          if (parts.length !== 3) {
+            logToUI('Invalid token format: Token should have 3 parts separated by dots', 'error');
+            return;
+          }
+          
+          // Decode token payload
+          const payload = JSON.parse(atob(parts[1]));
+          logToUI('Token payload decoded successfully', 'success');
+          console.log('Token payload:', payload);
+          
+          // Check expiration
+          if (payload.exp) {
+            const expiryDate = new Date(payload.exp * 1000);
+            const now = new Date();
+            
+            if (expiryDate > now) {
+              const minutesRemaining = Math.floor((expiryDate - now) / (60 * 1000));
+              logToUI(`Token is valid. Expires at ${expiryDate.toLocaleString()} (${minutesRemaining} minutes remaining)`, 'success');
+            } else {
+              logToUI(`Token has expired at ${expiryDate.toLocaleString()}`, 'error');
+            }
+          } else {
+            logToUI('Token does not have an expiration claim', 'warning');
+          }
+          
+          // Check other important claims
+          if (!payload.sub) {
+            logToUI('Token is missing subject (sub) claim', 'warning');
+          } else {
+            logToUI(`Token subject: ${payload.sub}`, 'info');
+          }
+          
+          if (payload.role) {
+            logToUI(`User role: ${payload.role}`, 'info');
+          }
+        } catch (error) {
+          logToUI(`Token validation failed: ${error.message}`, 'error');
+        }
+      });
+
+      // Clear token button
+      document.getElementById('clear-token-btn').addEventListener('click', () => {
+        localStorage.removeItem('coffee_system_token');
+        localStorage.removeItem('coffee_system_refresh_token');
+        localStorage.removeItem('coffee_system_token_expiry');
+        localStorage.removeItem('coffee_system_user');
+        
+        logToUI('All tokens and user data cleared', 'info');
+        updateTokenDisplay();
+      });
+
+      // Create dummy token for testing
+      function createDummyToken() {
+        // Create header
+        const header = {
+          alg: 'HS256',
+          typ: 'JWT'
+        };
+        
+        // Create payload with proper sub field as string
+        const now = Math.floor(Date.now() / 1000);
+        const payload = {
+          sub: 'demo_user', // Must be a string
+          name: 'Demo User',
+          role: 'barista',
+          stations: [1, 2, 3],
+          iat: now,
+          exp: now + (24 * 60 * 60), // 24 hours from now
+          permissions: ['manage_orders', 'view_stations']
+        };
+        
+        // Base64 encode parts
+        const headerB64 = btoa(JSON.stringify(header)).replace(/=/g, '');
+        const payloadB64 = btoa(JSON.stringify(payload)).replace(/=/g, '');
+        
+        // Create a dummy signature
+        const signature = 'dummy_signature_for_testing_purposes';
+        
+        // Create the token
+        const token = `${headerB64}.${payloadB64}.${signature}`;
+        
+        // Store token
+        localStorage.setItem('coffee_system_token', token);
+        localStorage.setItem('coffee_system_refresh_token', 'dummy_refresh_token');
+        
+        // Set expiry
+        const expiry = new Date();
+        expiry.setHours(expiry.getHours() + 24);
+        localStorage.setItem('coffee_system_token_expiry', expiry.toISOString());
+        
+        // Save user data
+        localStorage.setItem('coffee_system_user', JSON.stringify({
+          id: 'demo_user',
+          username: 'demo',
+          name: 'Demo User',
+          role: 'barista'
+        }));
+        
+        logToUI('Created and stored dummy token for testing', 'success');
+        updateTokenDisplay();
+        
+        return token;
+      }
+
+      // Create dummy token button
+      document.getElementById('create-dummy-token-btn').addEventListener('click', createDummyToken);
+
+      // Enable fallback mode button
+      document.getElementById('enable-fallback-btn').addEventListener('click', () => {
+        localStorage.setItem('use_fallback_data', 'true');
+        localStorage.setItem('fallback_data_available', 'true');
+        localStorage.setItem('demo_mode_enabled', 'true');
+        
+        logToUI('Fallback mode enabled', 'info');
+        
+        // Try to notify the app if possible
+        try {
+          window.dispatchEvent(new CustomEvent('fallback-mode-enabled'));
+          logToUI('Fallback mode event dispatched to application', 'success');
+        } catch (e) {
+          logToUI('Failed to dispatch fallback mode event: ' + e.message, 'warning');
+        }
+      });
+
+      // Disable fallback mode button
+      document.getElementById('disable-fallback-btn').addEventListener('click', () => {
+        localStorage.removeItem('use_fallback_data');
+        localStorage.removeItem('fallback_data_available');
+        localStorage.removeItem('demo_mode_enabled');
+        
+        logToUI('Fallback mode disabled', 'info');
+        
+        // Try to notify the app if possible
+        try {
+          window.dispatchEvent(new CustomEvent('fallback-mode-disabled'));
+          logToUI('Fallback mode disabled event dispatched to application', 'success');
+        } catch (e) {
+          logToUI('Failed to dispatch fallback mode event: ' + e.message, 'warning');
+        }
+      });
+
+      // Go to barista interface button
+      document.getElementById('goto-barista-btn').addEventListener('click', () => {
+        logToUI('Navigating to barista interface...', 'info');
+        window.location.href = '/barista';
+      });
+
+      // Test tab navigation button
+      document.getElementById('test-navigation-btn').addEventListener('click', async () => {
+        logToUI('Testing tab navigation in barista interface...', 'info');
+        
+        // This test requires being in the barista interface
+        if (!window.location.pathname.includes('/barista')) {
+          logToUI('Navigating to barista interface first...', 'info');
+          window.location.href = '/barista';
+          return;
+        }
+        
+        // Test sequence for tab navigation
+        const testTabs = async () => {
+          const tabs = ['#orders-tab', '#completed-tab', '#schedule-tab', '#stock-tab', '#settings-tab', '#display-tab'];
+          
+          for (const tabSelector of tabs) {
+            logToUI(`Clicking on tab: ${tabSelector}`, 'info');
+            
+            try {
+              const tabElement = document.querySelector(tabSelector);
+              if (!tabElement) {
+                logToUI(`Tab element not found: ${tabSelector}`, 'error');
+                continue;
+              }
+              
+              // Click the tab
+              tabElement.click();
+              
+              // Wait a moment for the content to load
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              
+              // Check if content loaded correctly
+              const tabContent = document.querySelector('.tab-content.active');
+              if (tabContent) {
+                logToUI(`Tab ${tabSelector} content loaded successfully`, 'success');
+              } else {
+                logToUI(`Tab ${tabSelector} content failed to load`, 'error');
+              }
+            } catch (error) {
+              logToUI(`Error navigating to tab ${tabSelector}: ${error.message}`, 'error');
+            }
+          }
+          
+          logToUI('Tab navigation test completed', 'info');
+        };
+        
+        // Wait for app to load fully
+        setTimeout(testTabs, 1500);
+      });
+
+      // Test order action button
+      document.getElementById('test-order-action-btn').addEventListener('click', async () => {
+        const action = document.getElementById('order-action').value;
+        logToUI(`Testing order action: ${action}`, 'info');
+        
+        // This test requires being in the barista interface
+        if (!window.location.pathname.includes('/barista')) {
+          logToUI('This test must be run from the barista interface', 'error');
+          return;
+        }
+        
+        try {
+          // Find an order to test with
+          const orders = document.querySelectorAll('.order-card');
+          
+          if (orders.length === 0) {
+            logToUI('No orders found to test with', 'error');
+            return;
+          }
+          
+          const order = orders[0];
+          logToUI(`Selected order: ${order.textContent.slice(0, 50)}...`, 'info');
+          
+          // Perform the requested action
+          switch (action) {
+            case 'start':
+              const startButton = order.querySelector('button.start-btn, button.begin-btn');
+              if (startButton) {
+                startButton.click();
+                logToUI('Start button clicked', 'success');
+              } else {
+                logToUI('Start button not found', 'error');
+              }
+              break;
+              
+            case 'complete':
+              const completeButton = order.querySelector('button.complete-btn, button.finish-btn');
+              if (completeButton) {
+                completeButton.click();
+                logToUI('Complete button clicked', 'success');
+              } else {
+                logToUI('Complete button not found', 'error');
+              }
+              break;
+              
+            case 'cancel':
+              const cancelButton = order.querySelector('button.cancel-btn');
+              if (cancelButton) {
+                cancelButton.click();
+                logToUI('Cancel button clicked', 'success');
+              } else {
+                logToUI('Cancel button not found', 'error');
+              }
+              break;
+          }
+          
+          // Wait for action to process
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          
+          // Check for success/error messages
+          const successMessage = document.querySelector('.success-message, .notification-success');
+          const errorMessage = document.querySelector('.error-message, .notification-error');
+          
+          if (successMessage) {
+            logToUI(`Action succeeded: ${successMessage.textContent}`, 'success');
+          } else if (errorMessage) {
+            logToUI(`Action failed: ${errorMessage.textContent}`, 'error');
+          } else {
+            logToUI('No success/error message detected', 'warning');
+          }
+          
+        } catch (error) {
+          logToUI(`Error testing order action: ${error.message}`, 'error');
+        }
+      });
+
+      // Create walk-in order button
+      document.getElementById('create-walkin-order-btn').addEventListener('click', async () => {
+        const coffeeType = document.getElementById('coffee-type').value;
+        const milkType = document.getElementById('milk-type').value;
+        const customerName = document.getElementById('customer-name').value;
+        
+        logToUI(`Creating walk-in order: ${coffeeType} with ${milkType} milk for ${customerName}`, 'info');
+        
+        // This test requires being in the barista interface
+        if (!window.location.pathname.includes('/barista')) {
+          logToUI('Navigating to barista interface first...', 'info');
+          window.location.href = '/barista';
+          
+          // Wait for the page to load and then retry
+          setTimeout(() => {
+            // Find and click the walk-in order button
+            const walkInButton = document.querySelector('button.walk-in-btn, button[data-testid="walk-in-button"]');
+            if (!walkInButton) {
+              logToUI('Walk-in order button not found', 'error');
+              return;
+            }
+            
+            logToUI('Clicking walk-in order button', 'info');
+            walkInButton.click();
+            
+            // Wait for dialog to appear
+            setTimeout(() => {
+              // Fill in the walk-in order form
+              const fillFormAndSubmit = () => {
+                try {
+                  // Find and fill form inputs
+                  const nameInput = document.querySelector('input[name="customerName"], input#customer-name');
+                  const coffeeSelect = document.querySelector('select[name="coffeeType"], select#coffee-type');
+                  const milkSelect = document.querySelector('select[name="milkType"], select#milk-type');
+                  const submitButton = document.querySelector('button[type="submit"], button.submit-btn');
+                  
+                  if (!nameInput || !coffeeSelect || !milkSelect || !submitButton) {
+                    logToUI('Walk-in order form elements not found', 'error');
+                    return;
+                  }
+                  
+                  // Fill the form
+                  nameInput.value = customerName;
+                  nameInput.dispatchEvent(new Event('input', { bubbles: true }));
+                  
+                  coffeeSelect.value = coffeeType;
+                  coffeeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                  
+                  milkSelect.value = milkType;
+                  milkSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                  
+                  // Submit form
+                  logToUI('Submitting walk-in order form', 'info');
+                  submitButton.click();
+                  
+                  // Check result
+                  setTimeout(() => {
+                    const successMessage = document.querySelector('.success-message, .notification-success');
+                    if (successMessage) {
+                      logToUI(`Walk-in order created successfully: ${successMessage.textContent}`, 'success');
+                    } else {
+                      logToUI('No success message found, order creation may have failed', 'warning');
+                    }
+                  }, 1500);
+                } catch (error) {
+                  logToUI(`Error creating walk-in order: ${error.message}`, 'error');
+                }
+              };
+              
+              fillFormAndSubmit();
+            }, 1500);
+          }, 2000);
+          
+          return;
+        }
+        
+        // Already on barista interface, proceed with test
+        try {
+          // Find and click the walk-in order button
+          const walkInButton = document.querySelector('button.walk-in-btn, button[data-testid="walk-in-button"]');
+          if (!walkInButton) {
+            logToUI('Walk-in order button not found', 'error');
+            return;
+          }
+          
+          logToUI('Clicking walk-in order button', 'info');
+          walkInButton.click();
+          
+          // Wait for dialog to appear
+          setTimeout(() => {
+            // Find and fill form inputs
+            const nameInput = document.querySelector('input[name="customerName"], input#customer-name');
+            const coffeeSelect = document.querySelector('select[name="coffeeType"], select#coffee-type');
+            const milkSelect = document.querySelector('select[name="milkType"], select#milk-type');
+            const submitButton = document.querySelector('button[type="submit"], button.submit-btn');
+            
+            if (!nameInput || !coffeeSelect || !milkSelect || !submitButton) {
+              logToUI('Walk-in order form elements not found', 'error');
+              return;
+            }
+            
+            // Fill the form
+            nameInput.value = customerName;
+            nameInput.dispatchEvent(new Event('input', { bubbles: true }));
+            
+            coffeeSelect.value = coffeeType;
+            coffeeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            
+            milkSelect.value = milkType;
+            milkSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            
+            // Submit form
+            logToUI('Submitting walk-in order form', 'info');
+            submitButton.click();
+            
+            // Check result
+            setTimeout(() => {
+              const successMessage = document.querySelector('.success-message, .notification-success');
+              if (successMessage) {
+                logToUI(`Walk-in order created successfully: ${successMessage.textContent}`, 'success');
+              } else {
+                logToUI('No success message found, order creation may have failed', 'warning');
+              }
+            }, 1500);
+          }, 1500);
+        } catch (error) {
+          logToUI(`Error creating walk-in order: ${error.message}`, 'error');
+        }
+      });
+
+      // Test order flow button
+      document.getElementById('test-order-flow-btn').addEventListener('click', async () => {
+        logToUI('Testing full order flow...', 'info');
+        
+        try {
+          // Step 1: Create a walk-in order
+          logToUI('Step 1: Creating walk-in order', 'info');
+          const orderData = {
+            customerName: 'Test Flow Customer',
+            coffeeType: 'Cappuccino',
+            milkType: 'Almond',
+            size: 'Medium',
+            sugar: 1
+          };
+          
+          const token = localStorage.getItem('coffee_system_token');
+          if (!token) {
+            logToUI('No authentication token available', 'error');
+            return;
+          }
+          
+          const createResponse = await fetch('/api/orders', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(orderData)
+          });
+          
+          if (!createResponse.ok) {
+            throw new Error(`Failed to create order: HTTP ${createResponse.status}`);
+          }
+          
+          const order = await createResponse.json();
+          logToUI(`Order created with ID: ${order.id || order.orderId}`, 'success');
+          
+          // Step 2: Start the order
+          logToUI('Step 2: Starting order processing', 'info');
+          const orderId = order.id || order.orderId;
+          
+          const startResponse = await fetch(`/api/orders/${orderId}/start`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          if (!startResponse.ok) {
+            throw new Error(`Failed to start order: HTTP ${startResponse.status}`);
+          }
+          
+          logToUI('Order processing started', 'success');
+          
+          // Step 3: Complete the order
+          logToUI('Step 3: Completing the order', 'info');
+          
+          const completeResponse = await fetch(`/api/orders/${orderId}/complete`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          if (!completeResponse.ok) {
+            throw new Error(`Failed to complete order: HTTP ${completeResponse.status}`);
+          }
+          
+          logToUI('Order completed successfully', 'success');
+          
+          // Step 4: Verify the order status
+          logToUI('Step 4: Verifying order status', 'info');
+          
+          const verifyResponse = await fetch(`/api/orders/${orderId}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          if (!verifyResponse.ok) {
+            throw new Error(`Failed to verify order: HTTP ${verifyResponse.status}`);
+          }
+          
+          const orderStatus = await verifyResponse.json();
+          
+          if (orderStatus.status === 'completed') {
+            logToUI('Order verified as completed', 'success');
+            document.getElementById('order-flow-result').innerHTML = `
+              <div class="test-result pass">Full order flow test completed successfully!</div>
+            `;
+          } else {
+            logToUI(`Order has unexpected status: ${orderStatus.status}`, 'warning');
+            document.getElementById('order-flow-result').innerHTML = `
+              <div class="test-result fail">Order has unexpected status: ${orderStatus.status}</div>
+            `;
+          }
+          
+        } catch (error) {
+          logToUI(`Order flow test failed: ${error.message}`, 'error');
+          document.getElementById('order-flow-result').innerHTML = `
+            <div class="test-result fail">Order flow test failed: ${error.message}</div>
+          `;
+        }
+      });
+
+      // Test component button
+      document.getElementById('test-component-btn').addEventListener('click', async () => {
+        const component = document.getElementById('component').value;
+        logToUI(`Testing component: ${component}`, 'info');
+        
+        // This test requires being in the barista interface
+        if (!window.location.pathname.includes('/barista')) {
+          logToUI('This test must be run from the barista interface', 'error');
+          return;
+        }
+        
+        try {
+          switch (component) {
+            case 'notifications':
+              // Test notification system
+              logToUI('Testing notification system...', 'info');
+              
+              // Check if notification system exists
+              const notificationSystem = window.notificationSystem || 
+                                        (window.mainApp && window.mainApp.notificationSystem);
+              
+              if (notificationSystem) {
+                logToUI('Notification system found, showing test notifications', 'success');
+                
+                // Show test notifications
+                notificationSystem.info('Test info notification');
+                setTimeout(() => notificationSystem.success('Test success notification'), 1000);
+                setTimeout(() => notificationSystem.warning('Test warning notification'), 2000);
+                setTimeout(() => notificationSystem.error('Test error notification'), 3000);
+              } else {
+                logToUI('Notification system not found, trying DOM-based approach', 'warning');
+                
+                // Try to find a function to trigger notifications
+                const notifyFn = window.notify || 
+                                (window.mainApp && window.mainApp.notify) || 
+                                window.showNotification || 
+                                (window.mainApp && window.mainApp.showNotification);
+                
+                if (notifyFn) {
+                  logToUI('Notification function found, showing test notification', 'success');
+                  notifyFn('Test notification', 'success');
+                } else {
+                  logToUI('No notification function found, attempting to create a notification element', 'warning');
+                  
+                  // Create a notification element
+                  const notification = document.createElement('div');
+                  notification.className = 'notification notification-success';
+                  notification.textContent = 'Test notification created by test utility';
+                  notification.style.position = 'fixed';
+                  notification.style.top = '20px';
+                  notification.style.right = '20px';
+                  notification.style.padding = '10px 20px';
+                  notification.style.background = '#4CAF50';
+                  notification.style.color = 'white';
+                  notification.style.borderRadius = '4px';
+                  notification.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
+                  notification.style.zIndex = '1000';
+                  document.body.appendChild(notification);
+                  
+                  // Remove after 3 seconds
+                  setTimeout(() => {
+                    document.body.removeChild(notification);
+                  }, 3000);
+                }
+              }
+              break;
+              
+            case 'pending-orders':
+              // Test pending orders component
+              logToUI('Testing pending orders component...', 'info');
+              
+              // Find the pending orders section
+              const pendingOrdersSection = document.querySelector('.pending-orders, #pending-orders, [data-testid="pending-orders"]');
+              
+              if (!pendingOrdersSection) {
+                logToUI('Pending orders section not found', 'error');
+                break;
+              }
+              
+              // Count the number of orders
+              const pendingOrders = pendingOrdersSection.querySelectorAll('.order-card, .order-item');
+              logToUI(`Found ${pendingOrders.length} pending orders`, 'info');
+              
+              // Test sorting functionality if available
+              const sortButtons = pendingOrdersSection.querySelectorAll('.sort-btn, button[data-sort]');
+              if (sortButtons.length > 0) {
+                logToUI(`Found ${sortButtons.length} sort buttons, testing sorting`, 'info');
+                
+                // Click the first sort button
+                sortButtons[0].click();
+                
+                // Wait a moment and check if sorting changed
+                setTimeout(() => {
+                  const sortedOrders = pendingOrdersSection.querySelectorAll('.order-card, .order-item');
+                  logToUI(`After sorting: ${sortedOrders.length} orders`, 'info');
+                }, 1000);
+              }
+              break;
+              
+            case 'walk-in-dialog':
+              // Test walk-in order dialog
+              logToUI('Testing walk-in order dialog...', 'info');
+              
+              // Find and click the walk-in order button
+              const walkInButton = document.querySelector('button.walk-in-btn, button[data-testid="walk-in-button"]');
+              if (!walkInButton) {
+                logToUI('Walk-in order button not found', 'error');
+                break;
+              }
+              
+              // Click the button to open the dialog
+              walkInButton.click();
+              
+              // Wait for dialog to appear
+              setTimeout(() => {
+                // Check if dialog opened
+                const dialog = document.querySelector('.dialog, .modal, [role="dialog"]');
+                if (!dialog) {
+                  logToUI('Walk-in order dialog did not open', 'error');
+                  return;
+                }
+                
+                logToUI('Walk-in order dialog opened successfully', 'success');
+                
+                // Check for form elements
+                const formElements = dialog.querySelectorAll('input, select, button');
+                logToUI(`Dialog contains ${formElements.length} form elements`, 'info');
+                
+                // Close the dialog
+                const closeButton = dialog.querySelector('.close-btn, [aria-label="Close"], button[type="button"]');
+                if (closeButton) {
+                  closeButton.click();
+                  
+                  // Check if dialog closed
+                  setTimeout(() => {
+                    const dialogAfterClose = document.querySelector('.dialog, .modal, [role="dialog"]');
+                    if (!dialogAfterClose || dialogAfterClose.style.display === 'none') {
+                      logToUI('Dialog closed successfully', 'success');
+                    } else {
+                      logToUI('Dialog did not close properly', 'warning');
+                    }
+                  }, 500);
+                } else {
+                  logToUI('Close button not found in dialog', 'warning');
+                }
+              }, 1000);
+              break;
+              
+            case 'stations':
+              // Test station management
+              logToUI('Testing station management...', 'info');
+              
+              // Navigate to settings tab if possible
+              const settingsTab = document.querySelector('#settings-tab, button[data-tab="settings"]');
+              if (settingsTab) {
+                settingsTab.click();
+                logToUI('Navigated to settings tab', 'info');
+                
+                // Wait for content to load
+                setTimeout(() => {
+                  // Look for station settings
+                  const stationSettings = document.querySelector('.station-settings, [data-testid="station-settings"]');
+                  if (!stationSettings) {
+                    logToUI('Station settings section not found', 'warning');
+                    return;
+                  }
+                  
+                  logToUI('Station settings section found', 'success');
+                  
+                  // Look for station toggles or controls
+                  const stationControls = stationSettings.querySelectorAll('input[type="checkbox"], .toggle, button');
+                  logToUI(`Found ${stationControls.length} station controls`, 'info');
+                  
+                  // Test toggle if available
+                  if (stationControls.length > 0) {
+                    const initialState = stationControls[0].checked;
+                    stationControls[0].click();
+                    
+                    // Check if state changed
+                    setTimeout(() => {
+                      if (stationControls[0].checked !== initialState) {
+                        logToUI('Station control toggle worked correctly', 'success');
+                      } else {
+                        logToUI('Station control toggle did not change state', 'warning');
+                      }
+                      
+                      // Reset to original state
+                      if (stationControls[0].checked !== initialState) {
+                        stationControls[0].click();
+                      }
+                    }, 500);
+                  }
+                }, 1000);
+              } else {
+                logToUI('Settings tab not found', 'error');
+              }
+              break;
+          }
+        } catch (error) {
+          logToUI(`Error testing component: ${error.message}`, 'error');
+        }
+      });
+
+      // Test error handling button
+      document.getElementById('test-error-handling-btn').addEventListener('click', async () => {
+        logToUI('Testing application error handling...', 'info');
+        
+        try {
+          // Make a request to a non-existent endpoint
+          logToUI('Making request to non-existent endpoint...', 'info');
+          
+          const response = await fetch('/api/nonexistent-endpoint', {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('coffee_system_token')}`
+            }
+          });
+          
+          // Check how the app handles the error
+          logToUI(`Response status: ${response.status}`, 'info');
+          
+          // Look for error handling UI elements
+          setTimeout(() => {
+            const errorMessage = document.querySelector('.error-message, .notification-error, .toast-error');
+            
+            if (errorMessage) {
+              logToUI(`Error displayed in UI: ${errorMessage.textContent}`, 'success');
+            } else {
+              logToUI('No error UI displayed, checking console for errors', 'warning');
+            }
+            
+            // Check if fallback mode was activated
+            if (localStorage.getItem('use_fallback_data') === 'true') {
+              logToUI('Fallback mode was activated in response to error', 'info');
+            }
+          }, 1000);
+          
+        } catch (error) {
+          logToUI(`Fetch error: ${error.message}`, 'error');
+        }
+      });
+
+      // Trigger JWT error button
+      document.getElementById('trigger-jwt-error-btn').addEventListener('click', async () => {
+        logToUI('Triggering JWT validation error...', 'info');
+        
+        try {
+          // Store the current token
+          const originalToken = localStorage.getItem('coffee_system_token');
+          
+          // Replace with an invalid token
+          const invalidToken = 'invalid.jwt.token';
+          localStorage.setItem('coffee_system_token', invalidToken);
+          
+          logToUI('Set invalid token, making API request...', 'info');
+          
+          // Make API request with invalid token
+          const response = await fetch('/api/orders', {
+            headers: {
+              'Authorization': `Bearer ${invalidToken}`
+            }
+          });
+          
+          logToUI(`Response with invalid token: ${response.status}`, 'info');
+          
+          // Check how the app handles the error
+          setTimeout(() => {
+            // Check if fallback mode was activated
+            if (localStorage.getItem('use_fallback_data') === 'true') {
+              logToUI('Fallback mode was activated in response to JWT error', 'success');
+            } else {
+              logToUI('Fallback mode was not activated', 'warning');
+            }
+            
+            // Look for error handling UI elements
+            const errorMessage = document.querySelector('.error-message, .notification-error, .toast-error');
+            
+            if (errorMessage) {
+              logToUI(`Error displayed in UI: ${errorMessage.textContent}`, 'info');
+            }
+            
+            // Restore original token
+            if (originalToken) {
+              localStorage.setItem('coffee_system_token', originalToken);
+              logToUI('Restored original token', 'info');
+            } else {
+              localStorage.removeItem('coffee_system_token');
+            }
+          }, 1500);
+          
+        } catch (error) {
+          logToUI(`Error during JWT test: ${error.message}`, 'error');
+        }
+      });
+
+      // Initialize
+      logToUI('Test utility initialized', 'info');
+      logToUI('WARNING: This tool is for testing only and should be deleted before deployment', 'warning');
+    })();
+  </script>
+</body>
+</html>

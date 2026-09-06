@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clean Start - Expresso</title>
+    <!-- Include token handler script -->
+    <script src="token-handler.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+            color: #212529;
+            line-height: 1.6;
+        }
+        .card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #007bff;
+            margin-top: 0;
+        }
+        p {
+            margin-bottom: 20px;
+        }
+        .button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .button:hover {
+            background-color: #0069d9;
+        }
+        .button-danger {
+            background-color: #dc3545;
+        }
+        .button-danger:hover {
+            background-color: #c82333;
+        }
+        .button-success {
+            background-color: #28a745;
+        }
+        .button-success:hover {
+            background-color: #218838;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+            display: none;
+        }
+        .status-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #eee;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            margin-top: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .tab {
+            padding: 10px 15px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            border-top-left-radius: 4px;
+            border-top-right-radius: 4px;
+            margin-bottom: -1px;
+        }
+        .tab.active {
+            color: #495057;
+            background-color: #fff;
+            border-color: #dee2e6 #dee2e6 #fff;
+        }
+        .tab:hover:not(.active) {
+            border-color: #e9ecef #e9ecef #dee2e6;
+            background-color: #f8f9fa;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Clean Start</h1>
+        <p>This tool helps you reset and configure the Expresso Coffee Ordering System.</p>
+        
+        <div class="tabs">
+            <div class="tab active" data-tab="basic">Basic Reset</div>
+            <div class="tab" data-tab="advanced">Advanced Options</div>
+            <div class="tab" data-tab="token">Token Validation</div>
+        </div>
+        
+        <div class="tab-content active" id="basic-tab">
+            <p>Use these options to clear all local storage and start fresh.</p>
+            <button id="clearStorageBtn" class="button button-danger">Clear All Storage</button>
+            <button id="startAppBtn" class="button button-success">Launch Clean App</button>
+        </div>
+        
+        <div class="tab-content" id="advanced-tab">
+            <p>Advanced options for debugging and development.</p>
+            <button id="enableFallbackBtn" class="button">Enable Fallback Mode</button>
+            <button id="disableFallbackBtn" class="button">Disable Fallback Mode</button>
+            <button id="fixTokensBtn" class="button">Fix Invalid Tokens</button>
+            <button id="setConfigBtn" class="button">Reset API Configuration</button>
+        </div>
+        
+        <div class="tab-content" id="token-tab">
+            <p>Validate current token(s) or create a new one.</p>
+            <button id="validateTokenBtn" class="button">Validate Current Token</button>
+            <button id="createTokenBtn" class="button">Create New Token</button>
+            <button id="checkTokensBtn" class="button">Check All Token Storage</button>
+        </div>
+        
+        <div id="status" class="status"></div>
+        <div id="log" class="log"></div>
+    </div>
+
+    <script>
+        const log = document.getElementById('log');
+        const status = document.getElementById('status');
+        const clearStorageBtn = document.getElementById('clearStorageBtn');
+        const startAppBtn = document.getElementById('startAppBtn');
+        const enableFallbackBtn = document.getElementById('enableFallbackBtn');
+        const disableFallbackBtn = document.getElementById('disableFallbackBtn');
+        const fixTokensBtn = document.getElementById('fixTokensBtn');
+        const setConfigBtn = document.getElementById('setConfigBtn');
+        const validateTokenBtn = document.getElementById('validateTokenBtn');
+        const createTokenBtn = document.getElementById('createTokenBtn');
+        const checkTokensBtn = document.getElementById('checkTokensBtn');
+        
+        // Set up tabs
+        const tabs = document.querySelectorAll('.tab');
+        const tabContents = document.querySelectorAll('.tab-content');
+        
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                // Remove active class from all tabs and contents
+                tabs.forEach(t => t.classList.remove('active'));
+                tabContents.forEach(t => t.classList.remove('active'));
+                
+                // Add active class to clicked tab and corresponding content
+                tab.classList.add('active');
+                document.getElementById(`${tab.dataset.tab}-tab`).classList.add('active');
+            });
+        });
+        
+        // Log message to UI
+        function logMessage(message) {
+            const now = new Date().toTimeString().split(' ')[0];
+            log.innerHTML += `[${now}] ${message}\n`;
+            log.scrollTop = log.scrollHeight;
+        }
+        
+        // Show status message
+        function showStatus(message, isSuccess = true) {
+            status.textContent = message;
+            status.className = `status ${isSuccess ? 'status-success' : 'status-error'}`;
+            status.style.display = 'block';
+        }
+        
+        // Clear all storage
+        function clearAllStorage() {
+            logMessage('Clearing all localStorage and sessionStorage...');
+            
+            try {
+                // List all localStorage items to log
+                logMessage('Current localStorage items:');
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    logMessage(`- ${key}`);
+                }
+                
+                // Clear localStorage
+                localStorage.clear();
+                
+                // Clear sessionStorage
+                sessionStorage.clear();
+                
+                // Clear cookies
+                document.cookie.split(';').forEach(cookie => {
+                    const name = cookie.split('=')[0].trim();
+                    document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+                });
+                
+                logMessage('Storage cleared successfully');
+                showStatus('All storage has been cleared successfully. You can now launch the app with a clean state.');
+            } catch (error) {
+                logMessage(`Error clearing storage: ${error.message}`);
+                showStatus(`Error clearing storage: ${error.message}`, false);
+            }
+        }
+        
+        // Launch app with clean configuration
+        function launchApp() {
+            // Set required configuration values
+            try {
+                // Reset configuration
+                setConfig();
+                
+                // Fix or create token
+                if (window.tokenHandler && typeof window.tokenHandler.fixInvalidTokens === 'function') {
+                    logMessage('Using token handler to fix/create tokens...');
+                    window.tokenHandler.fixInvalidTokens();
+                } else {
+                    logMessage('Token handler not available, using built-in token creation');
+                    createNewToken();
+                }
+                
+                logMessage('Authentication token and config set, launching app...');
+                
+                // Set environment settings
+                localStorage.setItem('use_fallback_data', 'false');
+                localStorage.setItem('isAuthenticated', 'true');
+                
+                // Redirect to main app after short delay to allow logging to complete
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 500);
+            } catch (error) {
+                logMessage(`Error launching app: ${error.message}`);
+                showStatus(`Error launching app: ${error.message}`, false);
+            }
+        }
+        
+        // Create a new token using token handler or fallback to internal implementation
+        function createNewToken() {
+            try {
+                let token;
+                
+                if (window.tokenHandler && typeof window.tokenHandler.createValidToken === 'function') {
+                    token = window.tokenHandler.createValidToken('barista');
+                    logMessage('Created token using token handler');
+                } else {
+                    // Fallback token creation if token handler not available
+                    const header = {
+                        alg: 'HS256',
+                        typ: 'JWT'
+                    };
+                    
+                    const now = Math.floor(Date.now() / 1000);
+                    const payload = {
+                        sub: 'barista_user',
+                        name: 'Barista User',
+                        role: 'barista',
+                        iat: now,
+                        exp: now + 3600 * 24 // 24 hours
+                    };
+                    
+                    // Base64Url encode
+                    function base64UrlEncode(str) {
+                        return btoa(str)
+                            .replace(/=/g, '')
+                            .replace(/\+/g, '-')
+                            .replace(/\//g, '_');
+                    }
+                    
+                    const encodedHeader = base64UrlEncode(JSON.stringify(header));
+                    const encodedPayload = base64UrlEncode(JSON.stringify(payload));
+                    const signature = base64UrlEncode('signature_' + Date.now());
+                    
+                    token = `${encodedHeader}.${encodedPayload}.${signature}`;
+                    logMessage('Created token using fallback method');
+                }
+                
+                // Store token in all possible locations
+                const tokenKeys = [
+                    'coffee_system_token', 
+                    'coffee_auth_token',
+                    'auth_token',
+                    'token',
+                    'access_token',
+                    'jwt_token'
+                ];
+                
+                tokenKeys.forEach(key => {
+                    localStorage.setItem(key, token);
+                });
+                
+                logMessage(`Created token: ${token.substring(0, 20)}...`);
+                
+                // Create user object
+                const user = {
+                    id: 'barista_user',
+                    name: 'Barista User',
+                    role: 'barista'
+                };
+                
+                // Set user in localStorage
+                localStorage.setItem('coffee_system_user', JSON.stringify(user));
+                localStorage.setItem('user', JSON.stringify(user));
+                
+                // Mark as authenticated
+                localStorage.setItem('isAuthenticated', 'true');
+                
+                showStatus('New token created successfully', true);
+                return token;
+            } catch (error) {
+                logMessage(`Error creating token: ${error.message}`);
+                showStatus(`Error creating token: ${error.message}`, false);
+                return null;
+            }
+        }
+        
+        // Set API configuration
+        function setConfig() {
+            try {
+                // Set Config values
+                localStorage.setItem('coffee_system_config', JSON.stringify({
+                    apiBaseUrl: 'http://localhost:5001/api',
+                    defaultWaitTime: 15,
+                    notificationTimeout: 30
+                }));
+                
+                logMessage('API configuration set successfully');
+                showStatus('API configuration set successfully', true);
+            } catch (error) {
+                logMessage(`Error setting configuration: ${error.message}`);
+                showStatus(`Error setting configuration: ${error.message}`, false);
+            }
+        }
+        
+        // Enable fallback mode
+        function enableFallback() {
+            try {
+                localStorage.setItem('use_fallback_data', 'true');
+                localStorage.setItem('fallback_data_available', 'true');
+                
+                logMessage('Fallback mode enabled');
+                showStatus('Fallback mode enabled - app will use sample data', true);
+            } catch (error) {
+                logMessage(`Error enabling fallback mode: ${error.message}`);
+                showStatus(`Error enabling fallback mode: ${error.message}`, false);
+            }
+        }
+        
+        // Disable fallback mode
+        function disableFallback() {
+            try {
+                localStorage.setItem('use_fallback_data', 'false');
+                localStorage.removeItem('fallback_data_available');
+                localStorage.removeItem('auth_error_refresh_needed');
+                
+                logMessage('Fallback mode disabled');
+                showStatus('Fallback mode disabled - app will use real API data', true);
+            } catch (error) {
+                logMessage(`Error disabling fallback mode: ${error.message}`);
+                showStatus(`Error disabling fallback mode: ${error.message}`, false);
+            }
+        }
+        
+        // Validate current token
+        function validateToken() {
+            try {
+                const token = localStorage.getItem('coffee_system_token');
+                
+                if (!token) {
+                    logMessage('No token found in localStorage');
+                    showStatus('No token found - create a new one', false);
+                    return;
+                }
+                
+                let validation;
+                if (window.tokenHandler && typeof window.tokenHandler.validateTokenFormat === 'function') {
+                    validation = window.tokenHandler.validateTokenFormat(token);
+                } else {
+                    // Simple validation if token handler not available
+                    const parts = token.split('.');
+                    
+                    if (parts.length !== 3) {
+                        validation = { isValid: false, error: 'Invalid token format (not 3 parts)' };
+                    } else {
+                        try {
+                            const payload = JSON.parse(atob(parts[1]));
+                            validation = { 
+                                isValid: true, 
+                                payload: payload,
+                                expiresAt: payload.exp ? new Date(payload.exp * 1000) : null
+                            };
+                        } catch (e) {
+                            validation = { isValid: false, error: 'Cannot parse token payload' };
+                        }
+                    }
+                }
+                
+                if (validation.isValid) {
+                    logMessage('Token validation successful');
+                    
+                    // Show details about the token
+                    const payload = validation.payload;
+                    logMessage(`Subject: ${payload.sub}`);
+                    logMessage(`Role: ${payload.role || 'not specified'}`);
+                    
+                    if (validation.expiresAt) {
+                        const now = new Date();
+                        const expiresIn = Math.floor((validation.expiresAt - now) / 1000 / 60); // minutes
+                        logMessage(`Expires: ${validation.expiresAt.toLocaleString()} (in ${expiresIn} minutes)`);
+                        
+                        showStatus(`Valid token found, expires in ${expiresIn} minutes`, true);
+                    } else {
+                        logMessage('No expiration time found in token');
+                        showStatus('Valid token found (no expiration)', true);
+                    }
+                } else {
+                    logMessage(`Token validation failed: ${validation.error}`);
+                    showStatus(`Invalid token: ${validation.error}`, false);
+                }
+            } catch (error) {
+                logMessage(`Error validating token: ${error.message}`);
+                showStatus(`Error validating token: ${error.message}`, false);
+            }
+        }
+        
+        // Check all token storage locations
+        function checkTokenStorage() {
+            try {
+                const tokenKeys = [
+                    'coffee_system_token', 
+                    'coffee_auth_token',
+                    'auth_token',
+                    'token',
+                    'access_token',
+                    'jwt_token'
+                ];
+                
+                let foundTokens = 0;
+                let validTokens = 0;
+                
+                logMessage('Checking all token storage locations:');
+                
+                tokenKeys.forEach(key => {
+                    const token = localStorage.getItem(key);
+                    
+                    if (token) {
+                        foundTokens++;
+                        logMessage(`- ${key}: ${token.substring(0, 20)}...`);
+                        
+                        // Validate if token handler available
+                        if (window.tokenHandler && typeof window.tokenHandler.validateTokenFormat === 'function') {
+                            const validation = window.tokenHandler.validateTokenFormat(token);
+                            if (validation.isValid) {
+                                validTokens++;
+                                logMessage(`  ✓ Valid token`);
+                            } else {
+                                logMessage(`  ✗ Invalid: ${validation.error}`);
+                            }
+                        }
+                    } else {
+                        logMessage(`- ${key}: Not found`);
+                    }
+                });
+                
+                if (foundTokens === 0) {
+                    showStatus('No tokens found in any storage location', false);
+                } else if (validTokens === foundTokens) {
+                    showStatus(`Found ${validTokens} valid tokens across ${foundTokens} locations`, true);
+                } else {
+                    showStatus(`Found ${foundTokens} tokens, but only ${validTokens} are valid`, false);
+                }
+            } catch (error) {
+                logMessage(`Error checking token storage: ${error.message}`);
+                showStatus(`Error checking token storage: ${error.message}`, false);
+            }
+        }
+        
+        // Fix tokens using token handler
+        function fixTokens() {
+            try {
+                if (window.tokenHandler && typeof window.tokenHandler.fixInvalidTokens === 'function') {
+                    const fixApplied = window.tokenHandler.fixInvalidTokens();
+                    
+                    if (fixApplied) {
+                        logMessage('Token fixes applied successfully');
+                        showStatus('Token fixes applied successfully', true);
+                    } else {
+                        logMessage('No token fixes needed');
+                        showStatus('No token fixes needed - all tokens are valid', true);
+                    }
+                } else {
+                    logMessage('Token handler not available, using createNewToken instead');
+                    createNewToken();
+                }
+            } catch (error) {
+                logMessage(`Error fixing tokens: ${error.message}`);
+                showStatus(`Error fixing tokens: ${error.message}`, false);
+            }
+        }
+        
+        // Add event listeners
+        clearStorageBtn.addEventListener('click', clearAllStorage);
+        startAppBtn.addEventListener('click', launchApp);
+        enableFallbackBtn.addEventListener('click', enableFallback);
+        disableFallbackBtn.addEventListener('click', disableFallback);
+        fixTokensBtn.addEventListener('click', fixTokens);
+        setConfigBtn.addEventListener('click', setConfig);
+        validateTokenBtn.addEventListener('click', validateToken);
+        createTokenBtn.addEventListener('click', createNewToken);
+        checkTokensBtn.addEventListener('click', checkTokenStorage);
+        
+        // Initialize
+        logMessage('Clean Start tool initialized');
+        
+        // Check for token handler
+        if (window.tokenHandler) {
+            logMessage('Token handler detected and available');
+        } else {
+            logMessage('Warning: Token handler not available - using built-in fallback methods');
+        }
+    </script>
+</body>
+</html>

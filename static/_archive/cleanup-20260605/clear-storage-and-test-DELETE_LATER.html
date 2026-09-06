@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clear Storage & Test - DELETE LATER</title>
+  <style>
+    body { font-family: sans-serif; max-width: 800px; margin: 20px auto; padding: 20px; }
+    button { padding: 10px 15px; margin: 5px; background: #007cba; color: white; border: none; cursor: pointer; border-radius: 3px; }
+    .success { color: green; background: #e6ffe6; padding: 10px; margin: 5px 0; border-left: 5px solid green; }
+    .error { color: red; background: #ffe6e6; padding: 10px; margin: 5px 0; border-left: 5px solid red; }
+    .info { color: blue; background: #e6f3ff; padding: 10px; margin: 5px 0; border-left: 5px solid blue; }
+  </style>
+</head>
+<body>
+  <h1>🧹 Clear Storage & Test Authentication</h1>
+  <p><strong>WARNING: DELETE BEFORE DEPLOYMENT</strong></p>
+  
+  <div>
+    <h3>Step 1: Clear All Storage</h3>
+    <button onclick="clearAllStorage()">Clear All localStorage</button>
+    <button onclick="clearTokens()">Clear Only Tokens</button>
+    <button onclick="showStorageContents()">Show Storage Contents</button>
+    <div id="storage-info"></div>
+  </div>
+  
+  <div>
+    <h3>Step 2: Test New Proxy Configuration</h3>
+    <button onclick="testProxyLogin()">Test Proxy Login</button>
+    <button onclick="testDirectAPI()">Test Direct API</button>
+    <div id="test-results"></div>
+  </div>
+  
+  <div>
+    <h3>Step 3: Redirect to Clean Login</h3>
+    <button onclick="goToLogin()">Go to Login Page</button>
+    <button onclick="goToBarista()">Try Barista Page</button>
+  </div>
+  
+  <script>
+    function log(message, type = 'info') {
+      const containers = ['storage-info', 'test-results'];
+      containers.forEach(containerId => {
+        const container = document.getElementById(containerId);
+        if (container) {
+          const div = document.createElement('div');
+          div.className = type;
+          div.innerHTML = `<strong>[${new Date().toLocaleTimeString()}]</strong> ${message}`;
+          container.appendChild(div);
+        }
+      });
+      console.log(`[${type.toUpperCase()}] ${message}`);
+    }
+    
+    function clearAllStorage() {
+      localStorage.clear();
+      sessionStorage.clear();
+      log('✅ All storage cleared', 'success');
+      showStorageContents();
+    }
+    
+    function clearTokens() {
+      const tokenKeys = [
+        'coffee_system_token',
+        'coffee_system_user', 
+        'coffee_system_refresh_token',
+        'coffee_system_token_expiry',
+        'coffee_auth_token',
+        'jwt_token',
+        'use_fallback_data',
+        'coffee_system_config'
+      ];
+      
+      tokenKeys.forEach(key => {
+        localStorage.removeItem(key);
+      });
+      
+      log('✅ All tokens and config cleared', 'success');
+      showStorageContents();
+    }
+    
+    function showStorageContents() {
+      const items = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        const value = localStorage.getItem(key);
+        items.push(`${key}: ${value.substring(0, 50)}${value.length > 50 ? '...' : ''}`);
+      }
+      
+      if (items.length === 0) {
+        log('localStorage is empty', 'info');
+      } else {
+        log(`localStorage contains ${items.length} items:<br>${items.join('<br>')}`, 'info');
+      }
+    }
+    
+    async function testProxyLogin() {
+      log('Testing proxy login (using /api)...', 'info');
+      
+      try {
+        const response = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            username: 'barista',
+            password: 'ExpressoBarista2025'
+          })
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          log('✅ Proxy login successful!', 'success');
+          log(`Token received: ${data.token.substring(0, 50)}...`, 'info');
+          
+          // Store the token
+          localStorage.setItem('coffee_system_token', data.token);
+          localStorage.setItem('coffee_system_user', JSON.stringify(data.user));
+          
+          return true;
+        } else {
+          log(`❌ Proxy login failed: ${response.status} ${response.statusText}`, 'error');
+          return false;
+        }
+      } catch (error) {
+        log(`❌ Proxy login error: ${error.message}`, 'error');
+        return false;
+      }
+    }
+    
+    async function testDirectAPI() {
+      log('Testing direct API (using localhost:5001)...', 'info');
+      
+      try {
+        const response = await fetch('http://localhost:5001/api/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            username: 'barista',
+            password: 'ExpressoBarista2025'
+          })
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          log('✅ Direct API login successful!', 'success');
+          return true;
+        } else {
+          log(`❌ Direct API login failed: ${response.status} ${response.statusText}`, 'error');
+          return false;
+        }
+      } catch (error) {
+        log(`❌ Direct API error: ${error.message}`, 'error');
+        return false;
+      }
+    }
+    
+    function goToLogin() {
+      window.location.href = '/login';
+    }
+    
+    function goToBarista() {
+      window.location.href = '/barista';
+    }
+    
+    // Auto-show storage contents on load
+    window.addEventListener('load', function() {
+      log('Storage clearing tool loaded', 'info');
+      showStorageContents();
+    });
+  </script>
+</body>
+</html>

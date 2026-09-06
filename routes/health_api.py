@@ -295,3 +295,12 @@ def health_check_full():
         'version': '1.0.0',
         'checks': checks,
     }), 200 if overall != 'fail' else 503
+
+@bp.route('/env', methods=['GET'])
+def which_env():
+    """Which environment this is -- so the front end can show an unmissable
+    TEST COPY banner anywhere that is not production. Production sets no
+    APP_ENV (or 'production') and shows nothing."""
+    import os
+    env = (os.getenv('APP_ENV') or os.getenv('RAILWAY_ENVIRONMENT') or 'production').lower()
+    return jsonify({'success': True, 'env': env, 'test_copy': env != 'production'})

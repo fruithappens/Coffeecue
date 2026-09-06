@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setup Check - Expresso</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+            color: #212529;
+            line-height: 1.6;
+        }
+        .card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #007bff;
+            margin-top: 0;
+        }
+        h2 {
+            color: #495057;
+            margin-top: 20px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        pre {
+            background-color: #f8f9fa;
+            border: 1px solid #eee;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            overflow-x: auto;
+        }
+        .status-good {
+            color: #28a745;
+        }
+        .status-warning {
+            color: #ffc107;
+        }
+        .status-bad {
+            color: #dc3545;
+        }
+        .button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+            margin-top: 10px;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .button:hover {
+            background-color: #0069d9;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Expresso Setup Verification</h1>
+        <p>This page verifies your setup and shows the current state of the application.</p>
+
+        <h2>Current Directory Structure</h2>
+        <div id="directoryStatus">Checking...</div>
+        
+        <h2>Authentication Token Status</h2>
+        <div id="tokenStatus">Checking...</div>
+        
+        <h2>Current Configuration</h2>
+        <div id="configStatus">Checking...</div>
+        
+        <h2>localStorage Items</h2>
+        <div id="localStorageItems">Checking...</div>
+        
+        <div>
+            <a href="/" class="button">Go to Main App</a>
+            <a href="/clean-start.html" class="button">Go to Clean Start</a>
+        </div>
+    </div>
+
+    <script>
+        // Check directory structure
+        const directoryStatus = document.getElementById('directoryStatus');
+        
+        // We can't check the actual directory structure from the browser
+        // but we can list what we know should be there
+        directoryStatus.innerHTML = `
+            <p>Expected files in public directory:</p>
+            <ul>
+                <li>index.html - Main entry point for the React app</li>
+                <li>clean-start.html - Tool to reset application state</li>
+                <li>check-setup.html - This verification page</li>
+                <li>favicon.ico, logo192.png, logo512.png - App icons</li>
+                <li>manifest.json, robots.txt - Standard web files</li>
+                <li>_archive/ directory - Contains all previous fix/debugging files</li>
+            </ul>
+            <p>The _archive folder is a normal directory but might not show up in some editors or file browsers because it starts with an underscore.</p>
+        `;
+        
+        // Check authentication token
+        const tokenStatus = document.getElementById('tokenStatus');
+        const token = localStorage.getItem('coffee_system_token');
+        
+        if (token) {
+            // Parse JWT token
+            try {
+                const parts = token.split('.');
+                if (parts.length === 3) {
+                    // Base64 decode
+                    function base64Decode(str) {
+                        const padding = '='.repeat((4 - str.length % 4) % 4);
+                        const base64 = (str + padding)
+                            .replace(/-/g, '+')
+                            .replace(/_/g, '/');
+                        
+                        return JSON.parse(decodeURIComponent(atob(base64).split('')
+                            .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+                            .join('')));
+                    }
+                    
+                    try {
+                        const header = base64Decode(parts[0]);
+                        const payload = base64Decode(parts[1]);
+                        
+                        const now = Math.floor(Date.now() / 1000);
+                        const isExpired = payload.exp && payload.exp < now;
+                        
+                        let statusClass = isExpired ? 'status-warning' : 'status-good';
+                        
+                        tokenStatus.innerHTML = `
+                            <p class="${statusClass}">Token found: ${isExpired ? 'EXPIRED' : 'VALID'}</p>
+                            <p>Token subject: ${payload.sub || 'Unknown'}</p>
+                            <p>User role: ${payload.role || 'Unknown'}</p>
+                            <p>Issued at: ${payload.iat ? new Date(payload.iat * 1000).toLocaleString() : 'Unknown'}</p>
+                            <p>Expires at: ${payload.exp ? new Date(payload.exp * 1000).toLocaleString() : 'Unknown'}</p>
+                            <details>
+                                <summary>View token details</summary>
+                                <h4>Header:</h4>
+                                <pre>${JSON.stringify(header, null, 2)}</pre>
+                                <h4>Payload:</h4>
+                                <pre>${JSON.stringify(payload, null, 2)}</pre>
+                            </details>
+                        `;
+                    } catch (e) {
+                        tokenStatus.innerHTML = `
+                            <p class="status-warning">Token found but could not be decoded: ${e.message}</p>
+                            <p>Raw token: ${token}</p>
+                        `;
+                    }
+                } else {
+                    tokenStatus.innerHTML = `
+                        <p class="status-warning">Token found but has invalid format (not a proper JWT token)</p>
+                        <p>Raw token: ${token}</p>
+                    `;
+                }
+            } catch (e) {
+                tokenStatus.innerHTML = `
+                    <p class="status-warning">Error processing token: ${e.message}</p>
+                    <p>Raw token: ${token}</p>
+                `;
+            }
+        } else {
+            tokenStatus.innerHTML = `
+                <p class="status-bad">No authentication token found!</p>
+                <p>You should run the token creation script by:</p>
+                <ol>
+                    <li>Going to clean-start.html and clicking "Launch Clean App", OR</li>
+                    <li>Refreshing the main app page which will create a token automatically</li>
+                </ol>
+            `;
+        }
+        
+        // Check configuration
+        const configStatus = document.getElementById('configStatus');
+        const config = localStorage.getItem('coffee_system_config');
+        const fallbackMode = localStorage.getItem('use_fallback_data');
+        
+        if (config) {
+            try {
+                const configObj = JSON.parse(config);
+                
+                configStatus.innerHTML = `
+                    <table>
+                        <tr>
+                            <th>Setting</th>
+                            <th>Value</th>
+                            <th>Status</th>
+                        </tr>
+                        <tr>
+                            <td>API Base URL</td>
+                            <td>${configObj.apiBaseUrl || 'Not set'}</td>
+                            <td class="${configObj.apiBaseUrl && configObj.apiBaseUrl.includes('localhost:5001') ? 'status-good' : 'status-warning'}">
+                                ${configObj.apiBaseUrl && configObj.apiBaseUrl.includes('localhost:5001') ? 'OK' : 'Should be localhost:5001'}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Default Wait Time</td>
+                            <td>${configObj.defaultWaitTime || 'Not set'}</td>
+                            <td class="${configObj.defaultWaitTime ? 'status-good' : 'status-warning'}">
+                                ${configObj.defaultWaitTime ? 'OK' : 'Missing'}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Notification Timeout</td>
+                            <td>${configObj.notificationTimeout || 'Not set'}</td>
+                            <td class="${configObj.notificationTimeout ? 'status-good' : 'status-warning'}">
+                                ${configObj.notificationTimeout ? 'OK' : 'Missing'}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Fallback Mode</td>
+                            <td>${fallbackMode === 'true' ? 'ENABLED' : fallbackMode === 'false' ? 'DISABLED' : 'Not set'}</td>
+                            <td class="${fallbackMode === 'false' ? 'status-good' : 'status-warning'}">
+                                ${fallbackMode === 'false' ? 'OK - Using real API' : fallbackMode === 'true' ? 'Using fallback data - not real API' : 'Unknown status'}
+                            </td>
+                        </tr>
+                    </table>
+                `;
+            } catch (e) {
+                configStatus.innerHTML = `
+                    <p class="status-warning">Error parsing configuration: ${e.message}</p>
+                    <p>Raw config: ${config}</p>
+                `;
+            }
+        } else {
+            configStatus.innerHTML = `
+                <p class="status-warning">No configuration found!</p>
+                <p>You should run the configuration script by:</p>
+                <ol>
+                    <li>Going to clean-start.html and clicking "Launch Clean App", OR</li>
+                    <li>Refreshing the main app page which will create configuration automatically</li>
+                </ol>
+            `;
+        }
+        
+        // List localStorage items
+        const localStorageItems = document.getElementById('localStorageItems');
+        
+        if (localStorage.length > 0) {
+            let tableHtml = `
+                <table>
+                    <tr>
+                        <th>Key</th>
+                        <th>Value (truncated)</th>
+                    </tr>
+            `;
+            
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                let value = localStorage.getItem(key);
+                
+                // Truncate long values
+                if (value && value.length > 100) {
+                    value = value.substring(0, 100) + '...';
+                }
+                
+                tableHtml += `
+                    <tr>
+                        <td>${key}</td>
+                        <td><code>${value}</code></td>
+                    </tr>
+                `;
+            }
+            
+            tableHtml += '</table>';
+            localStorageItems.innerHTML = tableHtml;
+        } else {
+            localStorageItems.innerHTML = `
+                <p class="status-warning">No localStorage items found!</p>
+            `;
+        }
+    </script>
+</body>
+</html>

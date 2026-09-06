@@ -7,8 +7,10 @@ const getApiBaseUrl = () => {
     return '/api';
   }
   
-  // In development, use localhost
-  return 'http://localhost:5001/api';
+  // In development, follow the page's host so a phone on the same Wi-Fi
+  // (http://192.168.x.x:3000) reaches the backend on the same machine.
+  const host = (typeof window !== 'undefined' && window.location && window.location.hostname) || 'localhost';
+  return `http://${host}:5001/api`;
 };
 
 const BASE_URL = getApiBaseUrl();

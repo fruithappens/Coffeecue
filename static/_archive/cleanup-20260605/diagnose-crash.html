@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diagnose Crash</title>
+    <style>
+        body { font-family: monospace; padding: 20px; }
+        .log { margin: 5px 0; padding: 5px; background: #f0f0f0; }
+        .error { background: #ffeeee; color: red; }
+        .success { background: #eeffee; color: green; }
+        button { margin: 10px 5px; padding: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Crash Diagnostics</h1>
+    <button onclick="testProxyLoop()">Test Proxy Loop</button>
+    <button onclick="testMemoryLeak()">Check Memory Usage</button>
+    <button onclick="testWebSocket()">Test WebSocket</button>
+    <button onclick="clearAndReload()">Clear & Reload</button>
+    
+    <div id="logs"></div>
+    
+    <script>
+        const log = (msg, type = '') => {
+            const div = document.createElement('div');
+            div.className = 'log ' + type;
+            div.textContent = new Date().toISOString() + ' - ' + msg;
+            document.getElementById('logs').prepend(div);
+        };
+        
+        // Monitor console errors
+        window.addEventListener('error', (e) => {
+            log('JS Error: ' + e.message + ' at ' + e.filename + ':' + e.lineno, 'error');
+        });
+        
+        async function testProxyLoop() {
+            log('Testing proxy configuration...');
+            
+            // Test direct backend
+            try {
+                const resp1 = await fetch('http://localhost:5001/api/health');
+                const data1 = await resp1.json();
+                log('Direct backend: OK - ' + JSON.stringify(data1), 'success');
+            } catch (e) {
+                log('Direct backend: FAILED - ' + e.message, 'error');
+            }
+            
+            // Test through proxy
+            try {
+                const resp2 = await fetch('/api/health');
+                const data2 = await resp2.json();
+                log('Proxy: OK - ' + JSON.stringify(data2), 'success');
+            } catch (e) {
+                log('Proxy: FAILED - ' + e.message, 'error');
+            }
+            
+            // Test problematic endpoint
+            try {
+                const resp3 = await fetch('/api/orders/pending');
+                log('Orders endpoint: ' + resp3.status + ' ' + resp3.statusText);
+                
+                // Check for redirect
+                if (resp3.redirected) {
+                    log('REDIRECT DETECTED! Final URL: ' + resp3.url, 'error');
+                }
+            } catch (e) {
+                log('Orders endpoint: FAILED - ' + e.message, 'error');
+            }
+        }
+        
+        function testMemoryLeak() {
+            log('Checking memory usage...');
+            
+            if (performance.memory) {
+                const mb = 1024 * 1024;
+                log(`Used JS Heap: ${(performance.memory.usedJSHeapSize / mb).toFixed(2)} MB`);
+                log(`Total JS Heap: ${(performance.memory.totalJSHeapSize / mb).toFixed(2)} MB`);
+                log(`Limit: ${(performance.memory.jsHeapSizeLimit / mb).toFixed(2)} MB`);
+                
+                if (performance.memory.usedJSHeapSize / performance.memory.jsHeapSizeLimit > 0.9) {
+                    log('WARNING: High memory usage!', 'error');
+                }
+            } else {
+                log('Memory API not available in this browser');
+            }
+        }
+        
+        function testWebSocket() {
+            log('Testing WebSocket connections...');
+            
+            // Check React hot reload WS
+            try {
+                const ws1 = new WebSocket('ws://localhost:3000/ws');
+                ws1.onopen = () => {
+                    log('React HMR WebSocket: Connected', 'success');
+                    ws1.close();
+                };
+                ws1.onerror = (e) => {
+                    log('React HMR WebSocket: Error', 'error');
+                };
+            } catch (e) {
+                log('React HMR WebSocket: ' + e.message, 'error');
+            }
+            
+            // Check backend WS
+            try {
+                const ws2 = new WebSocket('ws://localhost:5001/socket.io/');
+                ws2.onopen = () => {
+                    log('Backend WebSocket: Connected', 'success');
+                    ws2.close();
+                };
+                ws2.onerror = (e) => {
+                    log('Backend WebSocket: Error (this is normal if not using Socket.IO)');
+                };
+            } catch (e) {
+                log('Backend WebSocket: ' + e.message);
+            }
+        }
+        
+        function clearAndReload() {
+            log('Clearing all storage and reloading...');
+            localStorage.clear();
+            sessionStorage.clear();
+            setTimeout(() => location.reload(), 1000);
+        }
+        
+        // Auto-run diagnostics
+        log('Page loaded. Starting diagnostics...');
+        testMemoryLeak();
+    </script>
+</body>
+</html>

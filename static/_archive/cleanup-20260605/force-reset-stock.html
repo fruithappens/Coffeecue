@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Force Reset Stock Categories</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; }
+        button { padding: 15px 30px; margin: 10px; background: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; }
+        button:hover { background: #c82333; }
+        .success { color: green; font-weight: bold; margin: 20px 0; }
+        .error { color: red; font-weight: bold; margin: 20px 0; }
+        .info { background: #f0f8ff; padding: 20px; border-radius: 5px; margin: 20px 0; }
+        .warning { background: #fff3cd; padding: 20px; border-radius: 5px; margin: 20px 0; color: #856404; }
+        pre { background: #f5f5f5; padding: 15px; border-radius: 5px; overflow-x: auto; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <h1>Force Reset Stock Categories</h1>
+    
+    <div class="warning">
+        <strong>⚠️ WARNING:</strong> This will completely reset ALL stock data and force the new category structure.
+    </div>
+    
+    <button onclick="forceResetEverything()">🔥 FORCE COMPLETE RESET</button>
+    
+    <div id="output"></div>
+
+    <script>
+        function forceResetEverything() {
+            const output = document.getElementById('output');
+            output.innerHTML = '<h3>Resetting...</h3>';
+            
+            try {
+                // 1. Clear ALL stock-related localStorage
+                const keysToRemove = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key && (
+                        key.includes('stock') || 
+                        key.includes('Stock') ||
+                        key.includes('inventory') ||
+                        key.includes('Inventory') ||
+                        key.includes('coffee_stock') ||
+                        key.includes('station_') ||
+                        key.includes('barista_stock')
+                    )) {
+                        keysToRemove.push(key);
+                    }
+                }
+                
+                console.log('Removing keys:', keysToRemove);
+                keysToRemove.forEach(key => {
+                    localStorage.removeItem(key);
+                });
+                
+                // 2. Create sample stock data with NEW categories
+                const sampleStockData = {
+                    milk: [
+                        { id: 'milk_regular', name: 'Regular Milk', amount: 10, capacity: 20, unit: 'L', status: 'warning', lowThreshold: 5, criticalThreshold: 2 }
+                    ],
+                    coffee: [
+                        { id: 'coffee_house', name: 'House Blend', amount: 3, capacity: 5, unit: 'kg', status: 'good', lowThreshold: 1.5, criticalThreshold: 0.5 }
+                    ],
+                    cups: [
+                        { id: 'cups_medium', name: 'Medium Cups', amount: 100, capacity: 200, unit: 'pcs', status: 'warning', lowThreshold: 50, criticalThreshold: 20 }
+                    ],
+                    syrups: [
+                        { id: 'syrup_vanilla', name: 'Vanilla Syrup', amount: 1, capacity: 2, unit: 'L', status: 'warning', lowThreshold: 0.5, criticalThreshold: 0.2 }
+                    ],
+                    sweeteners: [
+                        { id: 'sugar_white', name: 'White Sugar', amount: 3, capacity: 5, unit: 'kg', status: 'good', lowThreshold: 1, criticalThreshold: 0.5 },
+                        { id: 'sugar_brown', name: 'Brown Sugar', amount: 2, capacity: 3, unit: 'kg', status: 'good', lowThreshold: 0.8, criticalThreshold: 0.3 },
+                        { id: 'honey', name: 'Honey', amount: 1, capacity: 2, unit: 'L', status: 'warning', lowThreshold: 0.5, criticalThreshold: 0.2 }
+                    ],
+                    drinks: [
+                        { id: 'hot_chocolate', name: 'Hot Chocolate Powder', amount: 2, capacity: 3, unit: 'kg', status: 'good', lowThreshold: 0.8, criticalThreshold: 0.3 },
+                        { id: 'chai_mix', name: 'Chai Latte Mix', amount: 1, capacity: 2, unit: 'kg', status: 'warning', lowThreshold: 0.5, criticalThreshold: 0.2 }
+                    ],
+                    other: [
+                        { id: 'napkins', name: 'Napkins', amount: 500, capacity: 1000, unit: 'pcs', status: 'warning', lowThreshold: 200, criticalThreshold: 100 }
+                    ]
+                };
+                
+                // 3. Force set stock for station 1 as example
+                localStorage.setItem('coffee_stock_station_1', JSON.stringify(sampleStockData));
+                
+                // 4. Clear any cached component state
+                localStorage.removeItem('selectedStockCategory');
+                localStorage.removeItem('last_stock_update');
+                
+                // 5. Show results
+                output.innerHTML = `
+                    <div class="success">
+                        <h3>✅ Reset Complete!</h3>
+                        <p>Removed ${keysToRemove.length} old stock entries</p>
+                        <p>Created new stock structure with 7 categories:</p>
+                        <ul>
+                            <li>milk</li>
+                            <li>coffee</li>
+                            <li>cups</li>
+                            <li>syrups</li>
+                            <li><strong>sweeteners</strong> (NEW!)</li>
+                            <li><strong>drinks</strong> (NEW!)</li>
+                            <li>other</li>
+                        </ul>
+                    </div>
+                    <div class="info">
+                        <h4>Next Steps:</h4>
+                        <ol>
+                            <li>Go to the Barista Interface</li>
+                            <li>Do a HARD refresh: Cmd+Shift+R (Mac) or Ctrl+Shift+F5 (Windows)</li>
+                            <li>If needed, clear browser cache: F12 → Application → Clear Storage</li>
+                            <li>Click the Stock tab - you should see 7 categories now</li>
+                        </ol>
+                    </div>
+                    <div class="warning">
+                        <h4>Still not working?</h4>
+                        <p>Try these in browser console (F12):</p>
+                        <pre>
+// Check what categories are available
+const stockData = JSON.parse(localStorage.getItem('coffee_stock_station_1'));
+console.log('Categories:', Object.keys(stockData));
+
+// Force reload without cache
+location.reload(true);
+                        </pre>
+                    </div>
+                `;
+                
+            } catch (error) {
+                output.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+                console.error('Reset error:', error);
+            }
+        }
+    </script>
+</body>
+</html>

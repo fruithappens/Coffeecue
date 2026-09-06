@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Walk-in Inventory</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 1000px; margin: 0 auto; }
+        .container { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
+        button { padding: 10px 15px; margin: 5px; background: #007cba; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #005a87; }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+        .warning { color: #ff9800; font-weight: bold; }
+        .info { background: #f0f8ff; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 5px; overflow-x: auto; font-size: 12px; }
+        table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Debug Walk-in Order Inventory</h1>
+    
+    <div class="info">
+        <strong>This tool helps debug why bean types aren't showing in walk-in orders</strong><br>
+        It compares localStorage stock data with API inventory response.
+    </div>
+    
+    <div class="container">
+        <label>Select Station: </label>
+        <select id="stationSelect">
+            <option value="1">Station 1</option>
+            <option value="2">Station 2</option>
+            <option value="3">Station 3</option>
+        </select>
+        <button onclick="debugInventory()">🔍 Debug Inventory</button>
+        <button onclick="testApiInventory()">🌐 Test API Inventory</button>
+        <button onclick="fixCoffeeInventory()">🔧 Fix Coffee Inventory</button>
+    </div>
+    
+    <div id="output"></div>
+
+    <script>
+        async function debugInventory() {
+            const output = document.getElementById('output');
+            const stationId = document.getElementById('stationSelect').value;
+            
+            output.innerHTML = `<h2>Debugging Station ${stationId} Inventory</h2>`;
+            
+            // 1. Check localStorage stock
+            output.innerHTML += '<h3>1. LocalStorage Stock Data:</h3>';
+            const stockKey = `coffee_stock_station_${stationId}`;
+            const stockData = localStorage.getItem(stockKey);
+            
+            if (stockData) {
+                const stock = JSON.parse(stockData);
+                if (stock.coffee) {
+                    output.innerHTML += `<p class="success">Found ${stock.coffee.length} coffee items in localStorage:</p>`;
+                    output.innerHTML += '<table><tr><th>ID</th><th>Name</th><th>Amount</th><th>Unit</th></tr>';
+                    stock.coffee.forEach(item => {
+                        output.innerHTML += `<tr><td>${item.id}</td><td>${item.name}</td><td>${item.amount}</td><td>${item.unit}</td></tr>`;
+                    });
+                    output.innerHTML += '</table>';
+                } else {
+                    output.innerHTML += '<p class="error">No coffee category in localStorage stock!</p>';
+                }
+            } else {
+                output.innerHTML += '<p class="error">No stock data found in localStorage!</p>';
+            }
+            
+            // 2. Check station inventory config
+            output.innerHTML += '<h3>2. Station Inventory Configuration:</h3>';
+            const configData = localStorage.getItem('stationInventoryConfig');
+            if (configData) {
+                const configs = JSON.parse(configData);
+                const stationConfig = configs[stationId];
+                if (stationConfig && stationConfig.coffee) {
+                    const enabledCoffees = stationConfig.coffee.filter(item => item.enabled);
+                    output.innerHTML += `<p class="success">Found ${enabledCoffees.length} enabled coffee items:</p>`;
+                    output.innerHTML += '<ul>';
+                    enabledCoffees.forEach(item => {
+                        output.innerHTML += `<li>${item.name}</li>`;
+                    });
+                    output.innerHTML += '</ul>';
+                } else {
+                    output.innerHTML += '<p class="error">No coffee configuration for this station!</p>';
+                }
+            }
+            
+            // 3. Show what walk-in dialog would extract
+            output.innerHTML += '<h3>3. Bean Types Extraction (Walk-in Dialog Logic):</h3>';
+            if (stockData) {
+                const stock = JSON.parse(stockData);
+                const beanTypes = [];
+                if (stock.coffee) {
+                    stock.coffee.forEach(coffeeItem => {
+                        if (coffeeItem.amount > 0) {
+                            let beanName = coffeeItem.name
+                                .replace(/\s*(Coffee\s*)?Beans?\s*$/i, '')
+                                .trim();
+                            if (!beanTypes.includes(beanName)) {
+                                beanTypes.push(beanName);
+                            }
+                        }
+                    });
+                }
+                
+                if (beanTypes.length > 0) {
+                    output.innerHTML += `<p class="success">Extracted ${beanTypes.length} bean types:</p>`;
+                    output.innerHTML += '<ul>';
+                    beanTypes.forEach(type => {
+                        output.innerHTML += `<li>${type}</li>`;
+                    });
+                    output.innerHTML += '</ul>';
+                } else {
+                    output.innerHTML += '<p class="error">No bean types could be extracted!</p>';
+                    output.innerHTML += '<p class="warning">Make sure coffee items end with "Beans" or "Coffee Beans"</p>';
+                }
+            }
+        }
+        
+        async function testApiInventory() {
+            const output = document.getElementById('output');
+            const stationId = document.getElementById('stationSelect').value;
+            const token = localStorage.getItem('access_token');
+            
+            if (!token) {
+                output.innerHTML = '<p class="error">No access token found. Please login first.</p>';
+                return;
+            }
+            
+            output.innerHTML = '<h2>Testing API Inventory Response</h2>';
+            
+            try {
+                const response = await fetch(`http://localhost:5001/api/inventory?station_id=${stationId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    output.innerHTML += '<h3>Raw API Response:</h3>';
+                    output.innerHTML += `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                    
+                    if (data.items) {
+                        const coffeeItems = data.items.filter(item => item.category === 'coffee');
+                        output.innerHTML += `<h3>Coffee Items from API (${coffeeItems.length} items):</h3>`;
+                        if (coffeeItems.length > 0) {
+                            output.innerHTML += '<table><tr><th>Name</th><th>Category</th><th>Amount</th><th>Unit</th></tr>';
+                            coffeeItems.forEach(item => {
+                                output.innerHTML += `<tr><td>${item.name}</td><td>${item.category}</td><td>${item.amount}</td><td>${item.unit}</td></tr>`;
+                            });
+                            output.innerHTML += '</table>';
+                        } else {
+                            output.innerHTML += '<p class="error">No coffee items returned by API!</p>';
+                        }
+                    } else {
+                        output.innerHTML += '<p class="error">API response has no items array!</p>';
+                    }
+                } else {
+                    output.innerHTML += `<p class="error">API Error: ${response.status} ${response.statusText}</p>`;
+                }
+            } catch (error) {
+                output.innerHTML += `<p class="error">Network Error: ${error.message}</p>`;
+            }
+        }
+        
+        function fixCoffeeInventory() {
+            const output = document.getElementById('output');
+            const stationId = document.getElementById('stationSelect').value;
+            
+            output.innerHTML = '<h2>Fixing Coffee Inventory...</h2>';
+            
+            try {
+                // Get current stock
+                const stockKey = `coffee_stock_station_${stationId}`;
+                const stockData = JSON.parse(localStorage.getItem(stockKey) || '{}');
+                
+                // Ensure coffee category exists
+                if (!stockData.coffee) {
+                    stockData.coffee = [];
+                }
+                
+                // Add proper bean items if missing
+                const beanItems = [
+                    { id: 'coffee_monjava', name: 'Monjava Beans', amount: 5, capacity: 10, unit: 'kg', status: 'good', lowThreshold: 2, criticalThreshold: 1 },
+                    { id: 'coffee_deep_black', name: 'Deep Black Beans', amount: 5, capacity: 10, unit: 'kg', status: 'good', lowThreshold: 2, criticalThreshold: 1 },
+                    { id: 'coffee_house_blend', name: 'House Blend Beans', amount: 5, capacity: 10, unit: 'kg', status: 'good', lowThreshold: 2, criticalThreshold: 1 }
+                ];
+                
+                beanItems.forEach(newItem => {
+                    if (!stockData.coffee.find(item => item.id === newItem.id)) {
+                        stockData.coffee.push(newItem);
+                        output.innerHTML += `<p class="success">Added ${newItem.name}</p>`;
+                    }
+                });
+                
+                // Save updated stock
+                localStorage.setItem(stockKey, JSON.stringify(stockData));
+                
+                output.innerHTML += '<h3 class="success">✅ Coffee inventory fixed!</h3>';
+                output.innerHTML += '<p>Now try the walk-in order dialog again.</p>';
+                
+            } catch (error) {
+                output.innerHTML += `<p class="error">Error: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

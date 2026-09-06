@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clear Station Configs</title>
+</head>
+<body>
+    <h1>Clearing Station Configs...</h1>
+    <script>
+        // Clear only station configs to start fresh
+        localStorage.removeItem('station_inventory_configs');
+        console.log('Station configs cleared');
+        
+        // Redirect to station inventory
+        setTimeout(() => {
+            window.location.href = '/organiser';
+        }, 1000);
+    </script>
+</body>
+</html>

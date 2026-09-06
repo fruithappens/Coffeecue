@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Coffee Cue Test Results Analyzer</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 1200px; margin: 0 auto; }
+        h1 { color: #2563eb; }
+        .section { background: #f3f4f6; padding: 20px; margin: 20px 0; border-radius: 8px; }
+        .passed { color: #10b981; font-weight: bold; }
+        .failed { color: #ef4444; font-weight: bold; }
+        .warning { color: #f59e0b; }
+        button { background: #3b82f6; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin: 5px; }
+        button:hover { background: #2563eb; }
+        textarea { width: 100%; min-height: 200px; font-family: monospace; font-size: 12px; }
+        .results { background: white; padding: 15px; border-radius: 4px; margin: 10px 0; }
+        .test-item { padding: 10px; margin: 5px 0; border-radius: 4px; }
+        .test-passed { background: #d1fae5; }
+        .test-failed { background: #fee2e2; }
+        pre { background: #1f2937; color: #fff; padding: 15px; border-radius: 4px; overflow-x: auto; }
+        .recommendations { background: #fef3c7; padding: 15px; border-radius: 4px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>📊 Coffee Cue Test Results Analyzer</h1>
+    
+    <div class="section">
+        <h2>Step 1: Get Test Results</h2>
+        <p>Run this in the Coffee Cue console to copy test results:</p>
+        <pre>copy(JSON.stringify(window.CoffeeAutoTest.results, null, 2))</pre>
+        <p>Or if that doesn't work, run:</p>
+        <pre>console.log(JSON.stringify(window.CoffeeAutoTest.results, null, 2))</pre>
+        <button onclick="getStoredResults()">📥 Get Results from LocalStorage</button>
+    </div>
+    
+    <div class="section">
+        <h2>Step 2: Paste Results Here</h2>
+        <textarea id="resultsInput" placeholder="Paste your test results JSON here..."></textarea>
+        <button onclick="analyzeResults()">🔍 Analyze Results</button>
+    </div>
+    
+    <div class="section" id="analysis" style="display: none;">
+        <h2>Analysis Results</h2>
+        <div id="analysisContent"></div>
+    </div>
+    
+    <script>
+        function getStoredResults() {
+            // Try to get results from localStorage
+            try {
+                const stored = localStorage.getItem('coffee_auto_test_results');
+                if (stored) {
+                    const results = JSON.parse(stored);
+                    document.getElementById('resultsInput').value = JSON.stringify(results, null, 2);
+                    alert('Results loaded from localStorage! Click "Analyze Results" to continue.');
+                } else {
+                    alert('No stored results found. Please run the tests first.');
+                }
+            } catch (e) {
+                alert('Error loading results: ' + e.message);
+            }
+        }
+        
+        function analyzeResults() {
+            const input = document.getElementById('resultsInput').value;
+            if (!input) {
+                alert('Please paste test results first');
+                return;
+            }
+            
+            try {
+                const data = JSON.parse(input);
+                let results = data.results || data;
+                
+                // If it's the full test result object
+                if (data.timestamp && data.total !== undefined) {
+                    displayFullAnalysis(data);
+                } else if (Array.isArray(results)) {
+                    // Just the results array
+                    analyzeResultsArray(results);
+                } else {
+                    alert('Invalid results format');
+                }
+                
+                document.getElementById('analysis').style.display = 'block';
+                
+            } catch (e) {
+                alert('Error parsing results: ' + e.message);
+            }
+        }
+        
+        function displayFullAnalysis(data) {
+            const content = document.getElementById('analysisContent');
+            
+            const passRate = ((data.passed / data.total) * 100).toFixed(1);
+            
+            let html = `
+                <div class="results">
+                    <h3>Test Summary</h3>
+                    <p>📅 Run Time: ${new Date(data.timestamp).toLocaleString()}</p>
+                    <p>✅ Passed: <span class="passed">${data.passed}</span></p>
+                    <p>❌ Failed: <span class="failed">${data.failed}</span></p>
+                    <p>📊 Total: ${data.total}</p>
+                    <p>📈 Pass Rate: ${passRate}%</p>
+                </div>
+            `;
+            
+            if (data.results) {
+                html += analyzeResultsArray(data.results, false);
+            }
+            
+            content.innerHTML = html;
+        }
+        
+        function analyzeResultsArray(results, showSummary = true) {
+            let html = '';
+            
+            // Group results by type
+            const testResults = results.filter(r => r.message && r.message.includes(':'));
+            const passed = testResults.filter(r => r.message.includes('✅'));
+            const failed = testResults.filter(r => r.message.includes('❌'));
+            
+            if (showSummary) {
+                html += `
+                    <div class="results">
+                        <h3>Test Summary</h3>
+                        <p>✅ Passed: <span class="passed">${passed.length}</span></p>
+                        <p>❌ Failed: <span class="failed">${failed.length}</span></p>
+                        <p>📊 Total: ${testResults.length}</p>
+                    </div>
+                `;
+            }
+            
+            // Detailed results
+            html += '<div class="results"><h3>Detailed Results</h3>';
+            
+            testResults.forEach(result => {
+                const isPassed = result.message.includes('✅');
+                const testName = result.message.split(':')[0].replace(/[✅❌🧪]/g, '').trim();
+                const testMessage = result.message.split(':').slice(1).join(':').trim();
+                
+                html += `
+                    <div class="test-item ${isPassed ? 'test-passed' : 'test-failed'}">
+                        ${isPassed ? '✅' : '❌'} <strong>${testName}</strong><br>
+                        ${testMessage}
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            
+            // Recommendations
+            html += generateRecommendations(failed);
+            
+            return html;
+        }
+        
+        function generateRecommendations(failedTests) {
+            let recommendations = '<div class="recommendations"><h3>🔧 Recommendations</h3><ul>';
+            
+            const failureTypes = {
+                'Login': 'Check authentication system and login form',
+                'Navigation': 'Verify tab/navigation elements have correct selectors',
+                'Button': 'Review button filtering logic to avoid dangerous actions',
+                'Settings': 'Ensure settings are properly persisted to localStorage',
+                'Audio': 'Verify audio system initialization in index.html',
+                'Display': 'Check Display tab components and QR code generation'
+            };
+            
+            const foundIssues = new Set();
+            
+            failedTests.forEach(test => {
+                const testName = test.message.split(':')[0].replace(/[✅❌🧪]/g, '').trim();
+                for (const [key, recommendation] of Object.entries(failureTypes)) {
+                    if (testName.includes(key) && !foundIssues.has(key)) {
+                        recommendations += `<li>${recommendation}</li>`;
+                        foundIssues.add(key);
+                    }
+                }
+            });
+            
+            if (foundIssues.size === 0) {
+                recommendations += '<li>All tests passed! Consider adding more test coverage.</li>';
+            }
+            
+            recommendations += `
+                <li>Run tests in different states (logged out, different roles, etc.)</li>
+                <li>Check browser console for any JavaScript errors during tests</li>
+            `;
+            
+            recommendations += '</ul></div>';
+            
+            return recommendations;
+        }
+    </script>
+</body>
+</html>

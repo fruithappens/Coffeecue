@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Bean Types</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 1000px; margin: 0 auto; }
+        .container { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
+        button { padding: 10px 15px; margin: 5px; background: #007cba; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #005a87; }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+        .info { background: #f0f8ff; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        .warning { background: #fff3cd; padding: 15px; border-radius: 5px; margin: 10px 0; color: #856404; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 5px; overflow-x: auto; font-size: 12px; }
+        table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <h1>Debug Bean Types Configuration</h1>
+    
+    <div class="info">
+        <strong>This tool helps debug why bean types aren't showing correctly</strong><br>
+        It will check the inventory configuration at all levels to identify the issue.
+    </div>
+    
+    <button onclick="debugBeanTypes()">🔍 Debug Bean Types</button>
+    <button onclick="showInventoryHierarchy()">📊 Show Inventory Hierarchy</button>
+    <button onclick="fixBeanTypes()">🔧 Fix Bean Types</button>
+    
+    <div id="output"></div>
+
+    <script>
+        function log(message, type = 'info') {
+            const output = document.getElementById('output');
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : '';
+            const timestamp = new Date().toLocaleTimeString();
+            output.innerHTML += `<p class="${className}">[${timestamp}] ${message}</p>`;
+        }
+
+        function debugBeanTypes() {
+            const output = document.getElementById('output');
+            output.innerHTML = '<h2>Bean Types Debug Report</h2>';
+            
+            // Check 1: Event-level inventory
+            log('1. Checking Event-level Inventory Configuration...');
+            const eventInventory = localStorage.getItem('eventInventory');
+            if (eventInventory) {
+                const inventory = JSON.parse(eventInventory);
+                if (inventory.coffee) {
+                    log(`Found ${inventory.coffee.length} coffee items in event inventory:`, 'success');
+                    inventory.coffee.forEach(item => {
+                        log(`  - ${item.name} (Enabled: ${item.enabled || false})`, item.enabled ? 'success' : 'error');
+                    });
+                } else {
+                    log('No coffee category in event inventory!', 'error');
+                }
+            } else {
+                log('No event inventory configured!', 'error');
+            }
+            
+            // Check 2: Station inventory configurations
+            log('<br>2. Checking Station Inventory Configurations...');
+            const stationInventoryConfig = localStorage.getItem('stationInventoryConfig');
+            if (stationInventoryConfig) {
+                const configs = JSON.parse(stationInventoryConfig);
+                Object.entries(configs).forEach(([stationId, config]) => {
+                    log(`<br>Station ${stationId}:`);
+                    if (config.coffee) {
+                        const enabledCoffees = config.coffee.filter(item => item.enabled);
+                        log(`  - ${enabledCoffees.length} coffee items enabled:`, enabledCoffees.length > 0 ? 'success' : 'error');
+                        enabledCoffees.forEach(item => {
+                            log(`    • ${item.name}`);
+                        });
+                    } else {
+                        log('  - No coffee configuration for this station', 'error');
+                    }
+                });
+            } else {
+                log('No station inventory configurations found!', 'error');
+            }
+            
+            // Check 3: Current stock data
+            log('<br>3. Checking Current Stock Data...');
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith('coffee_stock_station_')) {
+                    const stationId = key.replace('coffee_stock_station_', '');
+                    const stockData = JSON.parse(localStorage.getItem(key));
+                    log(`<br>Stock for Station ${stationId}:`);
+                    if (stockData.coffee) {
+                        log(`  - ${stockData.coffee.length} coffee items in stock:`, stockData.coffee.length > 0 ? 'success' : 'error');
+                        stockData.coffee.forEach(item => {
+                            log(`    • ${item.name} (Amount: ${item.amount})`);
+                        });
+                    } else {
+                        log('  - No coffee stock data', 'error');
+                    }
+                }
+            }
+            
+            // Check 4: Station defaults
+            log('<br>4. Checking Station Default Settings...');
+            const stationDefaults = localStorage.getItem('stationDefaults');
+            if (stationDefaults) {
+                const defaults = JSON.parse(stationDefaults);
+                Object.entries(defaults).forEach(([stationId, config]) => {
+                    log(`Station ${stationId} default bean type: ${config.beanType || 'NOT SET'}`, 
+                        config.beanType ? 'success' : 'warning');
+                });
+            } else {
+                log('No station defaults configured', 'warning');
+            }
+        }
+
+        function showInventoryHierarchy() {
+            const output = document.getElementById('output');
+            output.innerHTML = '<h2>Inventory Configuration Hierarchy</h2>';
+            
+            output.innerHTML += `
+                <div class="info">
+                    <h3>How Inventory Works:</h3>
+                    <ol>
+                        <li><strong>Event Inventory</strong>: Define all possible items for the event</li>
+                        <li><strong>Station Inventory Config</strong>: Enable/disable specific items per station</li>
+                        <li><strong>Station Stock</strong>: Track actual quantities available</li>
+                    </ol>
+                </div>
+                
+                <h3>Current Configuration:</h3>
+            `;
+            
+            // Show hierarchy as a table
+            const eventInventory = JSON.parse(localStorage.getItem('eventInventory') || '{}');
+            const stationConfigs = JSON.parse(localStorage.getItem('stationInventoryConfig') || '{}');
+            
+            if (eventInventory.coffee) {
+                output.innerHTML += '<h4>Coffee Items Configuration:</h4>';
+                output.innerHTML += '<table><tr><th>Coffee Item</th><th>Event Enabled</th><th>Station 1</th><th>Station 2</th><th>Station 3</th></tr>';
+                
+                eventInventory.coffee.forEach(item => {
+                    let row = `<tr><td>${item.name}</td>`;
+                    row += `<td>${item.enabled ? '✅' : '❌'}</td>`;
+                    
+                    [1, 2, 3].forEach(stationId => {
+                        const stationConfig = stationConfigs[stationId];
+                        if (stationConfig && stationConfig.coffee) {
+                            const stationItem = stationConfig.coffee.find(i => i.id === item.id);
+                            row += `<td>${stationItem && stationItem.enabled ? '✅' : '❌'}</td>`;
+                        } else {
+                            row += '<td>-</td>';
+                        }
+                    });
+                    
+                    row += '</tr>';
+                    output.innerHTML += row;
+                });
+                
+                output.innerHTML += '</table>';
+            }
+        }
+
+        function fixBeanTypes() {
+            const output = document.getElementById('output');
+            output.innerHTML = '<h2>Fixing Bean Types...</h2>';
+            
+            try {
+                // Add sample coffee beans to event inventory
+                const eventInventory = JSON.parse(localStorage.getItem('eventInventory') || '{}');
+                if (!eventInventory.coffee) {
+                    eventInventory.coffee = [];
+                }
+                
+                // Add Monjava and Deep Black if not present
+                const coffeeBeans = [
+                    { id: 'coffee_monjava', name: 'Monjava Beans', enabled: true },
+                    { id: 'coffee_deep_black', name: 'Deep Black Beans', enabled: true },
+                    { id: 'coffee_house_blend', name: 'House Blend Beans', enabled: true }
+                ];
+                
+                coffeeBeans.forEach(bean => {
+                    if (!eventInventory.coffee.find(item => item.id === bean.id)) {
+                        eventInventory.coffee.push(bean);
+                        log(`Added ${bean.name} to event inventory`, 'success');
+                    }
+                });
+                
+                localStorage.setItem('eventInventory', JSON.stringify(eventInventory));
+                
+                // Enable them for all stations
+                const stationConfigs = JSON.parse(localStorage.getItem('stationInventoryConfig') || '{}');
+                [1, 2, 3].forEach(stationId => {
+                    if (!stationConfigs[stationId]) {
+                        stationConfigs[stationId] = {};
+                    }
+                    if (!stationConfigs[stationId].coffee) {
+                        stationConfigs[stationId].coffee = [];
+                    }
+                    
+                    coffeeBeans.forEach(bean => {
+                        const existing = stationConfigs[stationId].coffee.find(item => item.id === bean.id);
+                        if (existing) {
+                            existing.enabled = true;
+                        } else {
+                            stationConfigs[stationId].coffee.push({...bean, enabled: true});
+                        }
+                    });
+                    log(`Enabled coffee beans for Station ${stationId}`, 'success');
+                });
+                
+                localStorage.setItem('stationInventoryConfig', JSON.stringify(stationConfigs));
+                
+                // Add to station stock
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key && key.startsWith('coffee_stock_station_')) {
+                        const stockData = JSON.parse(localStorage.getItem(key));
+                        if (!stockData.coffee) {
+                            stockData.coffee = [];
+                        }
+                        
+                        coffeeBeans.forEach(bean => {
+                            if (!stockData.coffee.find(item => item.name === bean.name)) {
+                                stockData.coffee.push({
+                                    id: bean.id,
+                                    name: bean.name,
+                                    amount: 5,
+                                    capacity: 10,
+                                    unit: 'kg',
+                                    status: 'good',
+                                    lowThreshold: 2,
+                                    criticalThreshold: 1
+                                });
+                            }
+                        });
+                        
+                        localStorage.setItem(key, JSON.stringify(stockData));
+                        log(`Updated stock for ${key}`, 'success');
+                    }
+                }
+                
+                log('<br>✅ Bean types fixed! Refresh the Barista interface to see the changes.', 'success');
+                
+            } catch (error) {
+                log(`Error fixing bean types: ${error.message}`, 'error');
+            }
+        }
+    </script>
+</body>
+</html>

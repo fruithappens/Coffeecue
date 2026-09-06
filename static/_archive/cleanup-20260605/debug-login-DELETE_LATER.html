@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Debug Login Test - DELETE LATER</title>
+  <style>
+    body { font-family: sans-serif; max-width: 800px; margin: 20px auto; padding: 20px; }
+    .error { color: red; background: #ffe6e6; padding: 10px; margin: 5px 0; }
+    .success { color: green; background: #e6ffe6; padding: 10px; margin: 5px 0; }
+    .warning { color: orange; background: #fff3e6; padding: 10px; margin: 5px 0; }
+    .info { color: blue; background: #e6f3ff; padding: 10px; margin: 5px 0; }
+    button { padding: 10px 15px; margin: 5px; background: #007cba; color: white; border: none; cursor: pointer; }
+    input { padding: 8px; margin: 5px; }
+    .debug-section { border: 1px solid #ccc; padding: 15px; margin: 10px 0; }
+    pre { background: #f5f5f5; padding: 10px; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>Debug Login Test</h1>
+  <p><strong>WARNING: DELETE BEFORE DEPLOYMENT</strong></p>
+  
+  <div class="debug-section">
+    <h3>Login Test</h3>
+    <label>Username: <input type="text" id="username" value="barista"></label><br>
+    <label>Password: <input type="password" id="password" value="ExpressoBarista2025"></label><br>
+    <button onclick="testLogin()">Test Login</button>
+    <button onclick="clearLogs()">Clear Logs</button>
+  </div>
+  
+  <div class="debug-section">
+    <h3>Debug Logs</h3>
+    <div id="logs"></div>
+  </div>
+  
+  <script>
+    function log(message, type = 'info') {
+      const logs = document.getElementById('logs');
+      const div = document.createElement('div');
+      div.className = type;
+      div.innerHTML = `<strong>[${new Date().toLocaleTimeString()}]</strong> ${message}`;
+      logs.appendChild(div);
+      console.log(`[${type.toUpperCase()}] ${message}`);
+    }
+    
+    function logObject(obj, label) {
+      const logs = document.getElementById('logs');
+      const div = document.createElement('div');
+      div.className = 'info';
+      div.innerHTML = `<strong>[${new Date().toLocaleTimeString()}] ${label}:</strong><pre>${JSON.stringify(obj, null, 2)}</pre>`;
+      logs.appendChild(div);
+      console.log(label, obj);
+    }
+    
+    function clearLogs() {
+      document.getElementById('logs').innerHTML = '';
+    }
+    
+    async function testLogin() {
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      
+      clearLogs();
+      log(`Testing login with username: ${username}`);
+      
+      // Test 1: Direct fetch to backend
+      log('=== TEST 1: Direct Backend API Call ===');
+      try {
+        const url = 'http://localhost:5001/api/auth/login';
+        log(`Making request to: ${url}`);
+        
+        const requestData = { username, password };
+        logObject(requestData, 'Request Data');
+        
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify(requestData),
+          mode: 'cors'
+        });
+        
+        log(`Response status: ${response.status} ${response.statusText}`);
+        logObject(Object.fromEntries(response.headers.entries()), 'Response Headers');
+        
+        if (response.ok) {
+          const data = await response.json();
+          log('✅ Direct backend login successful!', 'success');
+          logObject(data, 'Response Data');
+          
+          // Store token
+          if (data.token) {
+            localStorage.setItem('coffee_system_token', data.token);
+            localStorage.setItem('coffee_system_user', JSON.stringify(data.user));
+            if (data.refreshToken) {
+              localStorage.setItem('coffee_system_refresh_token', data.refreshToken);
+            }
+            log('Token stored in localStorage', 'success');
+          }
+        } else {
+          const errorText = await response.text();
+          log(`❌ Backend login failed: ${response.status}`, 'error');
+          log(`Error response: ${errorText}`, 'error');
+          
+          try {
+            const errorData = JSON.parse(errorText);
+            logObject(errorData, 'Error Data');
+          } catch (e) {
+            log('Could not parse error response as JSON', 'warning');
+          }
+        }
+      } catch (error) {
+        log(`❌ Network error during direct backend call: ${error.name}: ${error.message}`, 'error');
+        logObject({
+          name: error.name,
+          message: error.message,
+          stack: error.stack
+        }, 'Error Details');
+      }
+      
+      // Test 2: Relative URL (proxy)
+      log('=== TEST 2: Relative URL (Proxy) Call ===');
+      try {
+        const url = '/api/auth/login';
+        log(`Making request to: ${url}`);
+        
+        const requestData = { username, password };
+        
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify(requestData),
+          mode: 'cors'
+        });
+        
+        log(`Response status: ${response.status} ${response.statusText}`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          log('✅ Proxy login successful!', 'success');
+          logObject(data, 'Response Data');
+        } else {
+          const errorText = await response.text();
+          log(`❌ Proxy login failed: ${response.status}`, 'error');
+          log(`Error response: ${errorText}`, 'error');
+        }
+      } catch (error) {
+        log(`❌ Network error during proxy call: ${error.name}: ${error.message}`, 'error');
+        logObject({
+          name: error.name,
+          message: error.message,
+          stack: error.stack
+        }, 'Error Details');
+      }
+      
+      // Test 3: Check what's in localStorage
+      log('=== TEST 3: LocalStorage Check ===');
+      const token = localStorage.getItem('coffee_system_token');
+      const user = localStorage.getItem('coffee_system_user');
+      
+      if (token) {
+        log('✅ Token found in localStorage', 'success');
+        log(`Token length: ${token.length}`);
+        
+        // Try to decode token
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          logObject(payload, 'Token Payload');
+          
+          const expiry = new Date(payload.exp * 1000);
+          log(`Token expires: ${expiry.toLocaleString()}`);
+          
+          if (expiry > new Date()) {
+            log('✅ Token is not expired', 'success');
+          } else {
+            log('❌ Token is expired', 'error');
+          }
+        } catch (e) {
+          log(`❌ Could not decode token: ${e.message}`, 'error');
+        }
+      } else {
+        log('❌ No token in localStorage', 'error');
+      }
+      
+      if (user) {
+        log('✅ User data found in localStorage', 'success');
+        try {
+          const userData = JSON.parse(user);
+          logObject(userData, 'User Data');
+        } catch (e) {
+          log(`❌ Could not parse user data: ${e.message}`, 'error');
+        }
+      } else {
+        log('❌ No user data in localStorage', 'error');
+      }
+      
+      // Test 4: Check current page location and context
+      log('=== TEST 4: Page Context ===');
+      log(`Current URL: ${window.location.href}`);
+      log(`Origin: ${window.location.origin}`);
+      log(`Protocol: ${window.location.protocol}`);
+      log(`Host: ${window.location.host}`);
+      
+      // Test if we can access React app
+      if (window.React) {
+        log('✅ React is available', 'success');
+      } else {
+        log('❌ React not available', 'warning');
+      }
+      
+      // Look for any global services
+      const globalKeys = Object.keys(window).filter(key => 
+        key.toLowerCase().includes('auth') || 
+        key.toLowerCase().includes('service') ||
+        key.toLowerCase().includes('api')
+      );
+      
+      if (globalKeys.length > 0) {
+        log('Global service-related objects found:', 'info');
+        globalKeys.forEach(key => log(`  - window.${key}`));
+      } else {
+        log('No global service objects found', 'warning');
+      }
+      
+      log('=== LOGIN TEST COMPLETE ===');
+    }
+    
+    log('Debug login page loaded');
+  </script>
+</body>
+</html>

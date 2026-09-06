@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Force Production Mode</title>
+</head>
+<body>
+    <h1>Force Production Mode</h1>
+    <button onclick="forceProduction()">Force Production Mode</button>
+    <button onclick="clearAll()">Clear All Storage</button>
+    <button onclick="checkStatus()">Check Current Status</button>
+    <pre id="output"></pre>
+    
+    <script>
+        const output = document.getElementById('output');
+        
+        function forceProduction() {
+            // Clear any demo mode settings
+            localStorage.setItem('coffee_cue_app_mode', 'production');
+            localStorage.setItem('coffeeCueMode', 'production');
+            localStorage.removeItem('coffee_cue_demo_mode');
+            localStorage.removeItem('coffeeCueDemoMode');
+            
+            output.textContent = 'Forced production mode. Refresh the page.';
+        }
+        
+        function clearAll() {
+            // Clear all localStorage
+            localStorage.clear();
+            output.textContent = 'Cleared all localStorage. Please login again.';
+        }
+        
+        function checkStatus() {
+            const status = {
+                app_mode: localStorage.getItem('coffee_cue_app_mode'),
+                coffee_mode: localStorage.getItem('coffeeCueMode'),
+                demo_mode: localStorage.getItem('coffee_cue_demo_mode'),
+                auth_token: localStorage.getItem('authToken') ? 'Present' : 'Missing',
+                all_keys: Object.keys(localStorage)
+            };
+            output.textContent = JSON.stringify(status, null, 2);
+        }
+        
+        // Check status on load
+        checkStatus();
+    </script>
+</body>
+</html>

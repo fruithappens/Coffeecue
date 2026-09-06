@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Comprehensive Frontend Test - DELETE LATER</title>
+  <style>
+    body { font-family: sans-serif; max-width: 1200px; margin: 20px auto; padding: 20px; }
+    .success { color: green; background: #e6ffe6; padding: 10px; margin: 5px 0; border-left: 5px solid green; }
+    .error { color: red; background: #ffe6e6; padding: 10px; margin: 5px 0; border-left: 5px solid red; }
+    .warning { color: orange; background: #fff3e6; padding: 10px; margin: 5px 0; border-left: 5px solid orange; }
+    .info { color: blue; background: #e6f3ff; padding: 10px; margin: 5px 0; border-left: 5px solid blue; }
+    button { padding: 10px 15px; margin: 5px; background: #007cba; color: white; border: none; cursor: pointer; border-radius: 3px; }
+    button:hover { background: #005a86; }
+    .test-section { border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px; }
+    pre { background: #f5f5f5; padding: 10px; overflow-x: auto; white-space: pre-wrap; }
+    .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 10px; margin: 10px 0; }
+    .status-card { padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+    .status-pass { border-color: green; background: #f0fff0; }
+    .status-fail { border-color: red; background: #fff5f5; }
+    .status-pending { border-color: orange; background: #fffaf0; }
+    iframe { width: 100%; height: 600px; border: 1px solid #ddd; margin: 10px 0; }
+    .console-output { background: #000; color: #0f0; padding: 10px; font-family: monospace; height: 200px; overflow-y: scroll; }
+  </style>
+</head>
+<body>
+  <h1>🧪 Comprehensive Frontend Testing Suite</h1>
+  <p><strong>WARNING: DELETE BEFORE DEPLOYMENT</strong></p>
+  
+  <div class="test-section">
+    <h3>Test Controls</h3>
+    <button onclick="runAllTests()">Run All Tests</button>
+    <button onclick="loginAndTest()">Login & Test APIs</button>
+    <button onclick="testBaristaApp()">Test Barista App</button>
+    <button onclick="clearResults()">Clear Results</button>
+    <div id="overall-status"></div>
+  </div>
+  
+  <div class="test-section">
+    <h3>Test Results Dashboard</h3>
+    <div id="test-results" class="status-grid"></div>
+  </div>
+  
+  <div class="test-section">
+    <h3>Detailed Logs</h3>
+    <div id="test-logs"></div>
+  </div>
+  
+  <div class="test-section">
+    <h3>Barista Application Frame</h3>
+    <button onclick="loadBaristaApp()">Load Barista Interface</button>
+    <div id="app-container"></div>
+  </div>
+  
+  <script>
+    let testResults = {};
+    let authToken = null;
+    
+    function log(message, type = 'info') {
+      const logs = document.getElementById('test-logs');
+      const div = document.createElement('div');
+      div.className = type;
+      div.innerHTML = `<strong>[${new Date().toLocaleTimeString()}]</strong> ${message}`;
+      logs.appendChild(div);
+      console.log(`[${type.toUpperCase()}] ${message}`);
+    }
+    
+    function updateTestStatus(testName, status, message = '') {
+      testResults[testName] = { status, message, timestamp: new Date().toLocaleTimeString() };
+      renderTestResults();
+    }
+    
+    function renderTestResults() {
+      const container = document.getElementById('test-results');
+      container.innerHTML = '';
+      
+      let passed = 0, failed = 0, pending = 0;
+      
+      Object.entries(testResults).forEach(([testName, result]) => {
+        const card = document.createElement('div');
+        card.className = `status-card status-${result.status}`;
+        
+        const statusIcon = result.status === 'pass' ? '✅' : 
+                          result.status === 'fail' ? '❌' : '⏳';
+        
+        card.innerHTML = `
+          <strong>${statusIcon} ${testName}</strong><br>
+          <small>${result.message}</small><br>
+          <small>${result.timestamp}</small>
+        `;
+        
+        container.appendChild(card);
+        
+        if (result.status === 'pass') passed++;
+        else if (result.status === 'fail') failed++;
+        else pending++;
+      });
+      
+      // Update overall status
+      const total = Object.keys(testResults).length;
+      const overallStatus = document.getElementById('overall-status');
+      overallStatus.innerHTML = `
+        <div class="${passed === total ? 'success' : failed > passed ? 'error' : 'warning'}">
+          Overall: ${passed}/${total} passed, ${failed} failed, ${pending} pending
+        </div>
+      `;
+    }
+    
+    function clearResults() {
+      testResults = {};
+      document.getElementById('test-results').innerHTML = '';
+      document.getElementById('test-logs').innerHTML = '';
+      document.getElementById('overall-status').innerHTML = '';
+    }
+    
+    async function testAuthentication() {
+      log('Testing authentication...');
+      updateTestStatus('Authentication', 'pending', 'Testing login...');
+      
+      try {
+        const response = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: 'barista', password: 'ExpressoBarista2025' })
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          authToken = data.token;
+          localStorage.setItem('coffee_system_token', authToken);
+          updateTestStatus('Authentication', 'pass', 'Login successful');
+          log('✅ Authentication successful', 'success');
+          return true;
+        } else {
+          updateTestStatus('Authentication', 'fail', `HTTP ${response.status}`);
+          log(`❌ Authentication failed: ${response.status}`, 'error');
+          return false;
+        }
+      } catch (error) {
+        updateTestStatus('Authentication', 'fail', error.message);
+        log(`❌ Authentication error: ${error.message}`, 'error');
+        return false;
+      }
+    }
+    
+    async function testAPIEndpoints() {
+      log('Testing API endpoints...');
+      
+      if (!authToken) {
+        updateTestStatus('API Tests', 'fail', 'No auth token');
+        return false;
+      }
+      
+      const headers = {
+        'Authorization': `Bearer ${authToken}`,
+        'Content-Type': 'application/json'
+      };
+      
+      const endpoints = [
+        { url: '/api/orders', name: 'Orders List' },
+        { url: '/api/orders/pending', name: 'Pending Orders' },
+        { url: '/api/stations', name: 'Stations' },
+        { url: '/api/inventory', name: 'Inventory' },
+        { url: '/api/chat/messages', name: 'Chat Messages' }
+      ];
+      
+      let passedEndpoints = 0;
+      
+      for (const endpoint of endpoints) {
+        try {
+          updateTestStatus(endpoint.name, 'pending', 'Testing...');
+          
+          const response = await fetch(endpoint.url, { headers });
+          
+          if (response.ok) {
+            const data = await response.json();
+            const dataSize = Array.isArray(data) ? data.length : Object.keys(data).length;
+            updateTestStatus(endpoint.name, 'pass', `${dataSize} items`);
+            passedEndpoints++;
+          } else {
+            updateTestStatus(endpoint.name, 'fail', `HTTP ${response.status}`);
+          }
+        } catch (error) {
+          updateTestStatus(endpoint.name, 'fail', error.message);
+        }
+      }
+      
+      const allPassed = passedEndpoints === endpoints.length;
+      updateTestStatus('API Tests', allPassed ? 'pass' : 'fail', 
+                       `${passedEndpoints}/${endpoints.length} endpoints working`);
+      
+      return allPassed;
+    }
+    
+    async function testOrderCreation() {
+      log('Testing order creation...');
+      updateTestStatus('Order Creation', 'pending', 'Creating test order...');
+      
+      if (!authToken) {
+        updateTestStatus('Order Creation', 'fail', 'No auth token');
+        return false;
+      }
+      
+      try {
+        const response = await fetch('/api/orders', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            customer_name: 'Test Customer',
+            coffee_type: 'cappuccino',
+            size: 'medium',
+            milk_type: 'oat',
+            order_type: 'walk-in',
+            payment_method: 'cash'
+          })
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          updateTestStatus('Order Creation', 'pass', `Order ${data.order_number} created`);
+          log(`✅ Order created: ${data.order_number}`, 'success');
+          return data.order_number;
+        } else {
+          updateTestStatus('Order Creation', 'fail', `HTTP ${response.status}`);
+          log(`❌ Order creation failed: ${response.status}`, 'error');
+          return null;
+        }
+      } catch (error) {
+        updateTestStatus('Order Creation', 'fail', error.message);
+        log(`❌ Order creation error: ${error.message}`, 'error');
+        return null;
+      }
+    }
+    
+    async function testOrderActions(orderNumber) {
+      if (!orderNumber) {
+        updateTestStatus('Order Actions', 'fail', 'No order to test');
+        return false;
+      }
+      
+      log('Testing order actions...');
+      updateTestStatus('Order Actions', 'pending', 'Testing start/complete...');
+      
+      const headers = {
+        'Authorization': `Bearer ${authToken}`,
+        'Content-Type': 'application/json'
+      };
+      
+      try {
+        // Test starting order
+        const startResponse = await fetch(`/api/orders/${orderNumber}/start`, {
+          method: 'POST',
+          headers
+        });
+        
+        if (!startResponse.ok) {
+          updateTestStatus('Order Actions', 'fail', 'Start action failed');
+          return false;
+        }
+        
+        // Test completing order
+        const completeResponse = await fetch(`/api/orders/${orderNumber}/complete`, {
+          method: 'POST', 
+          headers
+        });
+        
+        if (completeResponse.ok) {
+          updateTestStatus('Order Actions', 'pass', 'Start & Complete working');
+          log('✅ Order actions working', 'success');
+          return true;
+        } else {
+          updateTestStatus('Order Actions', 'fail', 'Complete action failed');
+          return false;
+        }
+      } catch (error) {
+        updateTestStatus('Order Actions', 'fail', error.message);
+        return false;
+      }
+    }
+    
+    function testLocalStorage() {
+      log('Testing local storage...');
+      updateTestStatus('Local Storage', 'pending', 'Testing...');
+      
+      try {
+        // Test basic localStorage functionality
+        const testKey = 'test_' + Date.now();
+        localStorage.setItem(testKey, 'test_value');
+        const retrieved = localStorage.getItem(testKey);
+        localStorage.removeItem(testKey);
+        
+        if (retrieved === 'test_value') {
+          // Check for coffee system data
+          const hasToken = localStorage.getItem('coffee_system_token') !== null;
+          const hasUser = localStorage.getItem('coffee_system_user') !== null;
+          
+          updateTestStatus('Local Storage', 'pass', 
+                          `Working - Token: ${hasToken}, User: ${hasUser}`);
+          log('✅ Local storage working', 'success');
+          return true;
+        } else {
+          updateTestStatus('Local Storage', 'fail', 'Read/write failed');
+          return false;
+        }
+      } catch (error) {
+        updateTestStatus('Local Storage', 'fail', error.message);
+        return false;
+      }
+    }
+    
+    function testBrowserFeatures() {
+      log('Testing browser features...');
+      updateTestStatus('Browser Features', 'pending', 'Testing...');
+      
+      const features = {
+        'fetch': typeof fetch !== 'undefined',
+        'localStorage': typeof localStorage !== 'undefined',
+        'Promise': typeof Promise !== 'undefined',
+        'JSON': typeof JSON !== 'undefined',
+        'WebSocket': typeof WebSocket !== 'undefined'
+      };
+      
+      const workingFeatures = Object.values(features).filter(f => f).length;
+      const totalFeatures = Object.keys(features).length;
+      
+      if (workingFeatures === totalFeatures) {
+        updateTestStatus('Browser Features', 'pass', 'All features supported');
+        log('✅ All browser features supported', 'success');
+        return true;
+      } else {
+        const missing = Object.entries(features)
+          .filter(([key, value]) => !value)
+          .map(([key]) => key);
+        updateTestStatus('Browser Features', 'fail', `Missing: ${missing.join(', ')}`);
+        return false;
+      }
+    }
+    
+    function testReactApp() {
+      log('Testing React application...');
+      updateTestStatus('React App', 'pending', 'Checking for React...');
+      
+      try {
+        // Check if we're in a React environment
+        const hasReact = typeof React !== 'undefined' || 
+                        document.querySelector('#root') !== null ||
+                        window.location.pathname === '/' && 
+                        (document.querySelector('[data-reactroot]') !== null ||
+                         document.body.innerHTML.includes('react'));
+        
+        if (hasReact) {
+          updateTestStatus('React App', 'pass', 'React detected');
+          log('✅ React application detected', 'success');
+          return true;
+        } else {
+          updateTestStatus('React App', 'fail', 'React not detected');
+          log('❌ React application not detected', 'error');
+          return false;
+        }
+      } catch (error) {
+        updateTestStatus('React App', 'fail', error.message);
+        return false;
+      }
+    }
+    
+    async function runAllTests() {
+      log('=== STARTING COMPREHENSIVE TESTS ===');
+      clearResults();
+      
+      // Test 1: Browser features
+      testBrowserFeatures();
+      
+      // Test 2: Local storage
+      testLocalStorage();
+      
+      // Test 3: React app
+      testReactApp();
+      
+      // Test 4: Authentication
+      const authSuccess = await testAuthentication();
+      
+      if (authSuccess) {
+        // Test 5: API endpoints
+        await testAPIEndpoints();
+        
+        // Test 6: Order creation
+        const orderNumber = await testOrderCreation();
+        
+        // Test 7: Order actions
+        if (orderNumber) {
+          await testOrderActions(orderNumber);
+        }
+      } else {
+        updateTestStatus('API Tests', 'fail', 'No authentication');
+        updateTestStatus('Order Creation', 'fail', 'No authentication');
+        updateTestStatus('Order Actions', 'fail', 'No authentication');
+      }
+      
+      log('=== TESTS COMPLETED ===');
+    }
+    
+    async function loginAndTest() {
+      const authSuccess = await testAuthentication();
+      if (authSuccess) {
+        await testAPIEndpoints();
+      }
+    }
+    
+    function loadBaristaApp() {
+      const container = document.getElementById('app-container');
+      container.innerHTML = '<iframe src="http://localhost:3000" title="Barista Interface"></iframe>';
+      updateTestStatus('App Loading', 'pass', 'Interface loaded in iframe');
+      log('✅ Barista app loaded', 'success');
+    }
+    
+    async function testBaristaApp() {
+      log('Testing connection to Barista app...');
+      updateTestStatus('Barista App Connection', 'pending', 'Testing...');
+      
+      try {
+        const response = await fetch('http://localhost:3000');
+        if (response.ok) {
+          updateTestStatus('Barista App Connection', 'pass', 'App accessible');
+          log('✅ Barista app is accessible', 'success');
+          
+          // Try to load the app
+          loadBaristaApp();
+          return true;
+        } else {
+          updateTestStatus('Barista App Connection', 'fail', `HTTP ${response.status}`);
+          return false;
+        }
+      } catch (error) {
+        updateTestStatus('Barista App Connection', 'fail', error.message);
+        log(`❌ Cannot reach Barista app: ${error.message}`, 'error');
+        return false;
+      }
+    }
+    
+    // Auto-run basic tests on page load
+    window.addEventListener('load', function() {
+      log('Frontend testing suite loaded', 'info');
+      
+      // Check authentication status
+      const token = localStorage.getItem('coffee_system_token');
+      if (token) {
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          const expiry = new Date(payload.exp * 1000);
+          
+          if (expiry > new Date()) {
+            authToken = token;
+            updateTestStatus('Existing Auth', 'pass', 'Valid token found');
+          } else {
+            updateTestStatus('Existing Auth', 'fail', 'Token expired');
+          }
+        } catch (e) {
+          updateTestStatus('Existing Auth', 'fail', 'Invalid token');
+        }
+      }
+      
+      // Run basic tests automatically
+      setTimeout(() => {
+        testBrowserFeatures();
+        testLocalStorage();
+        testReactApp();
+      }, 500);
+    });
+  </script>
+</body>
+</html>

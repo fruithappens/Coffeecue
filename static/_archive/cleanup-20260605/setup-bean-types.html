@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Setup Bean Types</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+        .container { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
+        button { padding: 10px 15px; margin: 5px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #218838; }
+        .success { color: green; font-weight: bold; }
+        .info { background: #f0f8ff; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        input { padding: 8px; margin: 5px; border: 1px solid #ddd; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>Setup Bean Types</h1>
+    
+    <div class="info">
+        <strong>Quick Setup for Coffee Bean Types</strong><br>
+        This will properly configure your coffee beans in the inventory system so they appear in walk-in orders.
+    </div>
+    
+    <div class="container">
+        <h3>Add Coffee Beans to Inventory</h3>
+        <p>Enter bean names (one per line):</p>
+        <textarea id="beanNames" rows="5" style="width: 100%;">Monjava
+Deep Black
+House Blend
+Colombian
+Ethiopian</textarea>
+        <br>
+        <button onclick="setupBeanTypes()">✅ Setup Bean Types</button>
+    </div>
+    
+    <div id="output"></div>
+
+    <script>
+        function setupBeanTypes() {
+            const output = document.getElementById('output');
+            const beanNamesText = document.getElementById('beanNames').value;
+            const beanNames = beanNamesText.split('\n').filter(name => name.trim());
+            
+            output.innerHTML = '<h3>Setting up bean types...</h3>';
+            
+            try {
+                // 1. Add to event inventory
+                const eventInventory = JSON.parse(localStorage.getItem('eventInventory') || '{}');
+                if (!eventInventory.coffee) {
+                    eventInventory.coffee = [];
+                }
+                
+                beanNames.forEach(beanName => {
+                    const beanId = 'coffee_' + beanName.toLowerCase().replace(/\s+/g, '_');
+                    const fullName = beanName + ' Beans';
+                    
+                    // Check if already exists
+                    if (!eventInventory.coffee.find(item => item.id === beanId)) {
+                        eventInventory.coffee.push({
+                            id: beanId,
+                            name: fullName,
+                            enabled: true
+                        });
+                        output.innerHTML += `<p class="success">✅ Added ${fullName} to event inventory</p>`;
+                    }
+                });
+                
+                localStorage.setItem('eventInventory', JSON.stringify(eventInventory));
+                
+                // 2. Enable for all stations
+                const stationConfigs = JSON.parse(localStorage.getItem('stationInventoryConfig') || '{}');
+                const stations = JSON.parse(localStorage.getItem('stations') || '[]');
+                
+                stations.forEach(station => {
+                    const stationId = station.id;
+                    if (!stationConfigs[stationId]) {
+                        stationConfigs[stationId] = {};
+                    }
+                    if (!stationConfigs[stationId].coffee) {
+                        stationConfigs[stationId].coffee = [];
+                    }
+                    
+                    beanNames.forEach(beanName => {
+                        const beanId = 'coffee_' + beanName.toLowerCase().replace(/\s+/g, '_');
+                        const fullName = beanName + ' Beans';
+                        
+                        const existing = stationConfigs[stationId].coffee.find(item => item.id === beanId);
+                        if (!existing) {
+                            stationConfigs[stationId].coffee.push({
+                                id: beanId,
+                                name: fullName,
+                                enabled: true
+                            });
+                        } else {
+                            existing.enabled = true;
+                        }
+                    });
+                    
+                    output.innerHTML += `<p>Enabled beans for Station ${stationId}</p>`;
+                });
+                
+                localStorage.setItem('stationInventoryConfig', JSON.stringify(stationConfigs));
+                
+                // 3. Add to current stock
+                stations.forEach(station => {
+                    const stockKey = `coffee_stock_station_${station.id}`;
+                    const stockData = JSON.parse(localStorage.getItem(stockKey) || '{}');
+                    
+                    if (!stockData.coffee) {
+                        stockData.coffee = [];
+                    }
+                    
+                    beanNames.forEach(beanName => {
+                        const beanId = 'coffee_' + beanName.toLowerCase().replace(/\s+/g, '_');
+                        const fullName = beanName + ' Beans';
+                        
+                        if (!stockData.coffee.find(item => item.id === beanId)) {
+                            stockData.coffee.push({
+                                id: beanId,
+                                name: fullName,
+                                amount: 5,
+                                capacity: 10,
+                                unit: 'kg',
+                                status: 'good',
+                                lowThreshold: 2,
+                                criticalThreshold: 1
+                            });
+                        }
+                    });
+                    
+                    localStorage.setItem(stockKey, JSON.stringify(stockData));
+                });
+                
+                output.innerHTML += '<h3 class="success">✅ Bean types setup complete!</h3>';
+                output.innerHTML += '<p>Now go to:</p>';
+                output.innerHTML += '<ol>';
+                output.innerHTML += '<li>Organiser Interface → Inventory Management → Coffee tab to see/edit the beans</li>';
+                output.innerHTML += '<li>Organiser Interface → Stations → Inventory Config to enable/disable per station</li>';
+                output.innerHTML += '<li>Barista Interface → Walk-in Order to see the bean types in the dropdown</li>';
+                output.innerHTML += '</ol>';
+                
+            } catch (error) {
+                output.innerHTML += `<p class="error">❌ Error: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

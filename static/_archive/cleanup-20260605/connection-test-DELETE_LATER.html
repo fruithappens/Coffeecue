@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Connection Test - DELETE LATER</title>
+  <style>
+    body { font-family: sans-serif; max-width: 800px; margin: 20px auto; padding: 20px; }
+    .error { color: red; background: #ffe6e6; padding: 10px; margin: 5px 0; }
+    .success { color: green; background: #e6ffe6; padding: 10px; margin: 5px 0; }
+    .warning { color: orange; background: #fff3e6; padding: 10px; margin: 5px 0; }
+    .info { color: blue; background: #e6f3ff; padding: 10px; margin: 5px 0; }
+    button { padding: 10px 15px; margin: 5px; background: #007cba; color: white; border: none; cursor: pointer; }
+    pre { background: #f5f5f5; padding: 10px; overflow-x: auto; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>Backend Connection Test</h1>
+  <p><strong>WARNING: DELETE BEFORE DEPLOYMENT</strong></p>
+  
+  <button onclick="testConnections()">Test All Connections</button>
+  <button onclick="clearLogs()">Clear Logs</button>
+  
+  <div id="logs"></div>
+  
+  <script>
+    function log(message, type = 'info') {
+      const logs = document.getElementById('logs');
+      const div = document.createElement('div');
+      div.className = type;
+      div.innerHTML = `<strong>[${new Date().toLocaleTimeString()}]</strong> ${message}`;
+      logs.appendChild(div);
+    }
+    
+    function clearLogs() {
+      document.getElementById('logs').innerHTML = '';
+    }
+    
+    async function testConnections() {
+      clearLogs();
+      log('Starting connection tests...');
+      
+      // Test 1: Basic backend connectivity
+      log('=== TEST 1: Backend Connectivity ===');
+      
+      const endpoints = [
+        'http://localhost:5001/api/test',
+        'http://localhost:5001/api/auth/login',
+        '/api/test',
+        '/api/auth/login'
+      ];
+      
+      for (const endpoint of endpoints) {
+        try {
+          log(`Testing: ${endpoint}`);
+          
+          if (endpoint.includes('login')) {
+            // POST request for login
+            const response = await fetch(endpoint, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+              },
+              body: JSON.stringify({ username: 'test', password: 'test' }),
+              mode: 'cors'
+            });
+            
+            log(`  Status: ${response.status} ${response.statusText}`);
+            
+            if (response.status === 401) {
+              log(`  ✅ Endpoint reachable (expected 401 for invalid credentials)`, 'success');
+            } else if (response.status === 200) {
+              log(`  ✅ Endpoint reachable and working`, 'success');
+            } else {
+              log(`  ⚠️  Unexpected status: ${response.status}`, 'warning');
+            }
+          } else {
+            // GET request for test endpoint
+            const response = await fetch(endpoint, {
+              method: 'GET',
+              mode: 'cors'
+            });
+            
+            log(`  Status: ${response.status} ${response.statusText}`);
+            
+            if (response.ok) {
+              const data = await response.text();
+              log(`  ✅ Endpoint working: ${data.slice(0, 100)}`, 'success');
+            } else {
+              log(`  ❌ Endpoint failed: ${response.status}`, 'error');
+            }
+          }
+        } catch (error) {
+          log(`  ❌ Connection failed: ${error.message}`, 'error');
+        }
+      }
+      
+      // Test 2: Check if there's a proxy configuration
+      log('=== TEST 2: Proxy Configuration Check ===');
+      
+      try {
+        // Check package.json for proxy settings
+        const packageResponse = await fetch('/package.json');
+        if (packageResponse.ok) {
+          const packageData = await packageResponse.json();
+          if (packageData.proxy) {
+            log(`  ✅ Found proxy configuration: ${packageData.proxy}`, 'success');
+          } else {
+            log(`  ⚠️  No proxy in package.json`, 'warning');
+          }
+        }
+      } catch (e) {
+        log(`  ❌ Could not read package.json: ${e.message}`, 'error');
+      }
+      
+      // Check for setupProxy.js
+      try {
+        const proxyResponse = await fetch('/setupProxy.js');
+        if (proxyResponse.ok) {
+          log(`  ✅ Found setupProxy.js configuration`, 'success');
+        } else {
+          log(`  ⚠️  No setupProxy.js found`, 'warning');
+        }
+      } catch (e) {
+        log(`  ⚠️  setupProxy.js not accessible`, 'warning');
+      }
+      
+      // Test 3: Test specific login with correct credentials
+      log('=== TEST 3: Login with Correct Credentials ===');
+      
+      const credentials = [
+        { username: 'barista', password: 'BaristaSecure2024!' },
+        { username: 'coffeecue', password: 'AdminSecure2024!' }
+      ];
+      
+      for (const cred of credentials) {
+        try {
+          log(`Testing login: ${cred.username}`);
+          
+          // Test direct backend
+          const directResponse = await fetch('http://localhost:5001/api/auth/login', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify(cred),
+            mode: 'cors'
+          });
+          
+          log(`  Direct backend: ${directResponse.status}`);
+          
+          if (directResponse.ok) {
+            const data = await directResponse.json();
+            log(`  ✅ Direct login successful for ${cred.username}`, 'success');
+            
+            // Test with the token
+            if (data.token) {
+              const testResponse = await fetch('http://localhost:5001/api/orders', {
+                headers: {
+                  'Authorization': \`Bearer \${data.token}\`
+                }
+              });
+              log(`  Token test: ${testResponse.status} (${testResponse.statusText})`);
+            }
+          } else {
+            const errorData = await directResponse.text();
+            log(`  ❌ Direct login failed: ${errorData}`, 'error');
+          }
+          
+          // Test through proxy
+          const proxyResponse = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify(cred),
+            mode: 'cors'
+          });
+          
+          log(`  Proxy: ${proxyResponse.status}`);
+          
+          if (proxyResponse.ok) {
+            log(`  ✅ Proxy login successful for ${cred.username}`, 'success');
+          } else {
+            const errorData = await proxyResponse.text();
+            log(`  ❌ Proxy login failed: ${errorData}`, 'error');
+          }
+          
+        } catch (error) {
+          log(`  ❌ Login test failed: ${error.message}`, 'error');
+        }
+      }
+      
+      // Test 4: Network and CORS
+      log('=== TEST 4: Network and CORS ===');
+      
+      try {
+        const corsResponse = await fetch('http://localhost:5001/api/test', {
+          method: 'OPTIONS',
+          headers: {
+            'Origin': window.location.origin,
+            'Access-Control-Request-Method': 'POST',
+            'Access-Control-Request-Headers': 'Content-Type'
+          }
+        });
+        
+        log(`  CORS preflight: ${corsResponse.status}`);
+        log(`  CORS headers: ${Array.from(corsResponse.headers.entries()).map(([k,v]) => \`\${k}: \${v}\`).join(', ')}`);
+        
+      } catch (error) {
+        log(`  ❌ CORS test failed: ${error.message}`, 'error');
+      }
+      
+      log('=== CONNECTION TESTS COMPLETE ===');
+    }
+    
+    log('Connection test page loaded');
+  </script>
+</body>
+</html>

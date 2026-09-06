@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug AuthGuard</title>
+</head>
+<body>
+    <h1>Debug AuthGuard Issue</h1>
+    <div id="results"></div>
+
+    <script>
+        const results = document.getElementById('results');
+        
+        async function debugAuth() {
+            results.innerHTML = '<p>Debugging authentication...</p>';
+            
+            try {
+                // Check localStorage first
+                const token = localStorage.getItem('coffee_system_token');
+                const user = localStorage.getItem('coffee_system_user');
+                const tokenExpiry = localStorage.getItem('coffee_system_token_expiry');
+                
+                let html = '<h2>LocalStorage Check:</h2>';
+                html += `<p><strong>Token:</strong> ${token ? 'Found (' + token.substring(0, 50) + '...)' : 'Not found'}</p>`;
+                html += `<p><strong>User:</strong> ${user || 'Not found'}</p>`;
+                html += `<p><strong>Token Expiry:</strong> ${tokenExpiry || 'Not found'}</p>`;
+                
+                if (token) {
+                    // Decode token
+                    try {
+                        const payload = JSON.parse(atob(token.split('.')[1]));
+                        html += '<h2>Token Payload:</h2>';
+                        html += `<pre>${JSON.stringify(payload, null, 2)}</pre>`;
+                        
+                        // Check expiration
+                        const exp = new Date(payload.exp * 1000);
+                        const now = new Date();
+                        const minutesUntilExpiry = Math.round((exp - now) / (1000 * 60));
+                        
+                        html += `<p><strong>Token expires:</strong> ${exp.toLocaleString()}</p>`;
+                        html += `<p><strong>Minutes until expiry:</strong> ${minutesUntilExpiry}</p>`;
+                        
+                        if (minutesUntilExpiry <= 5) {
+                            html += '<p style="color: red;">⚠️ Token expires within 5 minutes - this triggers refresh!</p>';
+                        }
+                        
+                    } catch (e) {
+                        html += `<p style="color: red;">Error decoding token: ${e.message}</p>`;
+                    }
+                }
+                
+                // Test the API with current token
+                if (token) {
+                    html += '<h2>API Test:</h2>';
+                    
+                    try {
+                        // Test the auth status endpoint
+                        const authResponse = await fetch('/api/auth/status', {
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Accept': 'application/json'
+                            }
+                        });
+                        
+                        html += `<p><strong>Auth Status Response:</strong> ${authResponse.status}</p>`;
+                        
+                        if (authResponse.ok) {
+                            const data = await authResponse.json();
+                            html += `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                        } else {
+                            const errorText = await authResponse.text();
+                            html += `<p style="color: red;">Error: ${errorText}</p>`;
+                        }
+                        
+                    } catch (e) {
+                        html += `<p style="color: red;">API test failed: ${e.message}</p>`;
+                    }
+                }
+                
+                // Add fix buttons
+                html += '<h2>Actions:</h2>';
+                html += '<button onclick="fixTokenExpiry()" style="background: blue; color: white; padding: 10px; border: none; border-radius: 4px; margin: 5px;">Extend Token Expiry</button>';
+                html += '<button onclick="bypassRefresh()" style="background: green; color: white; padding: 10px; border: none; border-radius: 4px; margin: 5px;">Bypass Token Refresh</button>';
+                html += '<button onclick="testBarista()" style="background: orange; color: white; padding: 10px; border: none; border-radius: 4px; margin: 5px;">Test Barista Access</button>';
+                
+                results.innerHTML = html;
+                
+            } catch (error) {
+                results.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+            }
+        }
+        
+        window.fixTokenExpiry = () => {
+            // Set token expiry to 24 hours from now
+            const futureDate = new Date();
+            futureDate.setHours(futureDate.getHours() + 24);
+            localStorage.setItem('coffee_system_token_expiry', futureDate.toISOString());
+            alert('Token expiry extended to 24 hours from now');
+            debugAuth();
+        };
+        
+        window.bypassRefresh = () => {
+            // Set a flag to bypass refresh logic
+            localStorage.setItem('bypass_token_refresh', 'true');
+            alert('Token refresh bypass enabled');
+        };
+        
+        window.testBarista = () => {
+            // Open barista page in new tab
+            window.open('/barista', '_blank');
+        };
+        
+        // Run debug on load
+        window.onload = debugAuth;
+    </script>
+</body>
+</html>

@@ -1,0 +1,1474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fix JWT Token Issues - Expresso</title>
+    
+    <!-- Include JWT debugging tools -->
+    <script src="jwt-debug.js"></script>
+    <script src="improved-fetch-with-auth.js"></script>
+    
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 900px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+            color: #212529;
+            line-height: 1.6;
+        }
+        .card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #007bff;
+            margin-top: 0;
+        }
+        h2 {
+            color: #495057;
+            margin-top: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        p {
+            margin-bottom: 20px;
+        }
+        .button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .button:hover {
+            background-color: #0069d9;
+        }
+        .button-success {
+            background-color: #28a745;
+        }
+        .button-success:hover {
+            background-color: #218838;
+        }
+        .button-danger {
+            background-color: #dc3545;
+        }
+        .button-danger:hover {
+            background-color: #c82333;
+        }
+        .button-warning {
+            background-color: #ffc107;
+            color: #212529;
+        }
+        .button-warning:hover {
+            background-color: #e0a800;
+        }
+        .code {
+            font-family: monospace;
+            background-color: #f8f9fa;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-size: 14px;
+        }
+        pre {
+            background-color: #f8f9fa;
+            border: 1px solid #eee;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            overflow-x: auto;
+            font-size: 14px;
+        }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #eee;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            margin-top: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-size: 12px;
+        }
+        .result {
+            background-color: #f0f8ff;
+            border: 1px solid #d1e3ff;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+            display: none;
+        }
+        .result.success {
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+        }
+        .result.error {
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+        }
+        .result.warning {
+            background-color: #fff3cd;
+            border-color: #ffeeba;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .tab {
+            padding: 10px 15px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            border-top-left-radius: 4px;
+            border-top-right-radius: 4px;
+            margin-bottom: -1px;
+        }
+        .tab.active {
+            color: #495057;
+            background-color: #fff;
+            border-color: #dee2e6 #dee2e6 #fff;
+        }
+        .tab:hover:not(.active) {
+            border-color: #e9ecef #e9ecef #dee2e6;
+            background-color: #f8f9fa;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        .form-input {
+            display: block;
+            width: 100%;
+            padding: 8px;
+            font-size: 16px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f8f9fa;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        .status-good {
+            background-color: #28a745;
+        }
+        .status-warning {
+            background-color: #ffc107;
+        }
+        .status-error {
+            background-color: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>JWT Token Debugger & Fixer</h1>
+        <p>This tool diagnoses and fixes "Signature verification failed" errors and other JWT token issues.</p>
+        
+        <div class="tabs">
+            <div class="tab active" data-tab="diagnostics">Diagnostics</div>
+            <div class="tab" data-tab="fixes">Fix Options</div>
+            <div class="tab" data-tab="advanced">Advanced</div>
+            <div class="tab" data-tab="api-test">API Tests</div>
+        </div>
+        
+        <div id="diagnostics-tab" class="tab-content active">
+            <h2>Current Token Status</h2>
+            <button id="checkTokenBtn" class="button">Check Token Status</button>
+            <button id="inspectStorageBtn" class="button">Inspect Token Storage</button>
+            
+            <div id="tokenStatus" class="result">
+                <div id="tokenStatusContent">Checking token status...</div>
+            </div>
+            
+            <h2>Common JWT Issues</h2>
+            <ul>
+                <li><strong>Signature verification failed</strong> - The token's signature doesn't match what the server expects</li>
+                <li><strong>Token format issues</strong> - The token doesn't have the correct structure (3 parts separated by dots)</li>
+                <li><strong>Expired token</strong> - The token's expiration time has passed</li>
+                <li><strong>Subject type error</strong> - The 'sub' claim must be a string, not a number or other type</li>
+                <li><strong>Storage inconsistency</strong> - Different tokens stored in different localStorage keys</li>
+            </ul>
+        </div>
+        
+        <div id="fixes-tab" class="tab-content">
+            <h2>Fix Options</h2>
+            <button id="fixSignatureBtn" class="button button-success">Fix Signature Verification Issues</button>
+            <button id="resetAuthBtn" class="button button-danger">Complete Auth Reset</button>
+            <button id="clearAuthErrorsBtn" class="button">Clear Auth Error Counters</button>
+            
+            <h2>Specific Fixes</h2>
+            <button id="fixExpirationBtn" class="button">Fix Token Expiration</button>
+            <button id="fixSubjectBtn" class="button">Fix Subject Type</button>
+            <button id="fixStorageBtn" class="button">Fix Storage Inconsistency</button>
+            
+            <div id="fixResult" class="result">
+                <div id="fixResultContent">Ready to apply fixes...</div>
+            </div>
+        </div>
+        
+        <div id="advanced-tab" class="tab-content">
+            <h2>Advanced Options</h2>
+            <div class="form-group">
+                <label for="customSubject" class="form-label">Custom Subject (sub)</label>
+                <input type="text" id="customSubject" class="form-input" value="barista_user">
+            </div>
+            <div class="form-group">
+                <label for="customRole" class="form-label">Custom Role</label>
+                <input type="text" id="customRole" class="form-input" value="barista">
+            </div>
+            <div class="form-group">
+                <label for="expirationHours" class="form-label">Expiration (hours)</label>
+                <input type="number" id="expirationHours" class="form-input" value="24" min="1" max="168">
+            </div>
+            
+            <button id="createCustomTokenBtn" class="button">Create Custom Token</button>
+            <button id="enableFallbackBtn" class="button button-warning">Enable Fallback Mode</button>
+            <button id="disableFallbackBtn" class="button">Disable Fallback Mode</button>
+            
+            <div id="advancedResult" class="result">
+                <div id="advancedResultContent">Ready for advanced operations...</div>
+            </div>
+            
+            <h2>Current JWT Token</h2>
+            <pre id="currentToken">No token available</pre>
+        </div>
+        
+        <div id="api-test-tab" class="tab-content">
+            <h2>API Connection Tests</h2>
+            <button id="testApiBtn" class="button button-success">Test API Connection</button>
+            <button id="testAuthEndpointBtn" class="button">Test Auth Endpoint</button>
+            <button id="testNoAuthBtn" class="button">Test Without Auth</button>
+            
+            <h2>API Parameters</h2>
+            <div class="form-group">
+                <label for="apiEndpoint" class="form-label">API Endpoint</label>
+                <input type="text" id="apiEndpoint" class="form-input" value="http://localhost:5001/api/settings">
+            </div>
+            
+            <button id="makeCustomRequestBtn" class="button">Make Custom Request</button>
+            
+            <div id="apiResult" class="result">
+                <div id="apiResultContent">Ready to test API...</div>
+            </div>
+        </div>
+        
+        <h2>Log</h2>
+        <div id="log" class="log">JWT Token Debugger & Fixer tool initialized</div>
+        
+        <div style="margin-top: 20px;">
+            <a href="/" class="button">Return to Main App</a>
+            <a href="/api-diagnostics.html" class="button">Go to API Diagnostics</a>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const log = document.getElementById('log');
+        const tokenStatus = document.getElementById('tokenStatus');
+        const tokenStatusContent = document.getElementById('tokenStatusContent');
+        const fixResult = document.getElementById('fixResult');
+        const fixResultContent = document.getElementById('fixResultContent');
+        const advancedResult = document.getElementById('advancedResult');
+        const advancedResultContent = document.getElementById('advancedResultContent');
+        const apiResult = document.getElementById('apiResult');
+        const apiResultContent = document.getElementById('apiResultContent');
+        const currentToken = document.getElementById('currentToken');
+        
+        // Form elements
+        const customSubject = document.getElementById('customSubject');
+        const customRole = document.getElementById('customRole');
+        const expirationHours = document.getElementById('expirationHours');
+        const apiEndpoint = document.getElementById('apiEndpoint');
+        
+        // Buttons
+        const checkTokenBtn = document.getElementById('checkTokenBtn');
+        const inspectStorageBtn = document.getElementById('inspectStorageBtn');
+        const fixSignatureBtn = document.getElementById('fixSignatureBtn');
+        const resetAuthBtn = document.getElementById('resetAuthBtn');
+        const clearAuthErrorsBtn = document.getElementById('clearAuthErrorsBtn');
+        const fixExpirationBtn = document.getElementById('fixExpirationBtn');
+        const fixSubjectBtn = document.getElementById('fixSubjectBtn');
+        const fixStorageBtn = document.getElementById('fixStorageBtn');
+        const createCustomTokenBtn = document.getElementById('createCustomTokenBtn');
+        const enableFallbackBtn = document.getElementById('enableFallbackBtn');
+        const disableFallbackBtn = document.getElementById('disableFallbackBtn');
+        const testApiBtn = document.getElementById('testApiBtn');
+        const testAuthEndpointBtn = document.getElementById('testAuthEndpointBtn');
+        const testNoAuthBtn = document.getElementById('testNoAuthBtn');
+        const makeCustomRequestBtn = document.getElementById('makeCustomRequestBtn');
+        
+        // Set up tabs
+        const tabs = document.querySelectorAll('.tab');
+        const tabContents = document.querySelectorAll('.tab-content');
+        
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                // Remove active class from all tabs and contents
+                tabs.forEach(t => t.classList.remove('active'));
+                tabContents.forEach(t => t.classList.remove('active'));
+                
+                // Add active class to clicked tab and corresponding content
+                tab.classList.add('active');
+                document.getElementById(`${tab.dataset.tab}-tab`).classList.add('active');
+            });
+        });
+        
+        // Log message to UI
+        function logMessage(message) {
+            const now = new Date().toTimeString().split(' ')[0];
+            log.innerHTML = `[${now}] ${message}\n` + log.innerHTML;
+        }
+        
+        // Show result in one of the result areas
+        function showResult(elementId, message, status = 'info') {
+            const element = document.getElementById(elementId);
+            const content = document.getElementById(`${elementId}Content`);
+            
+            content.innerHTML = message;
+            element.className = `result ${status}`;
+            element.style.display = 'block';
+        }
+        
+        // Helper to update the current token display
+        function updateTokenDisplay() {
+            const token = localStorage.getItem('coffee_system_token');
+            
+            if (token) {
+                currentToken.textContent = token;
+            } else {
+                currentToken.textContent = 'No token available';
+            }
+        }
+        
+        // Check token status
+        async function checkTokenStatus() {
+            try {
+                logMessage('Checking token status...');
+                
+                // Use the JWT debugging tools to inspect token
+                const token = localStorage.getItem('coffee_system_token');
+                
+                if (!token) {
+                    logMessage('No JWT token found');
+                    showResult('tokenStatus', `
+                        <h3 style="color: #dc3545;">No JWT token found</h3>
+                        <p>There is no token stored in localStorage. You need to create a token to authenticate API requests.</p>
+                        <p>Use the "Fix Signature Verification Issues" button on the Fix Options tab to create a new token.</p>
+                    `, 'error');
+                    return;
+                }
+                
+                // Check token format
+                const parts = token.split('.');
+                if (parts.length !== 3) {
+                    logMessage('Invalid token format');
+                    showResult('tokenStatus', `
+                        <h3 style="color: #dc3545;">Invalid Token Format</h3>
+                        <p>The token does not have the correct JWT format (3 parts separated by dots).</p>
+                        <p>Current token: <span class="code">${token}</span></p>
+                        <p>Use the "Fix Signature Verification Issues" button on the Fix Options tab to create a properly formatted token.</p>
+                    `, 'error');
+                    return;
+                }
+                
+                // Try to decode token parts
+                try {
+                    // Function to decode base64url format
+                    function decodeBase64(str) {
+                        const base64 = str.replace(/-/g, '+').replace(/_/g, '/');
+                        const padding = '='.repeat((4 - base64.length % 4) % 4);
+                        return atob(base64 + padding);
+                    }
+                    
+                    // Decode header
+                    const header = JSON.parse(decodeBase64(parts[0]));
+                    
+                    // Decode payload
+                    const payload = JSON.parse(decodeBase64(parts[1]));
+                    
+                    // Check token validity
+                    const issues = [];
+                    
+                    // Check algorithm
+                    if (header.alg !== 'HS256') {
+                        issues.push(`Algorithm is ${header.alg}, expected HS256`);
+                    }
+                    
+                    // Check subject
+                    if (!payload.sub) {
+                        issues.push('Missing subject (sub) claim');
+                    } else if (typeof payload.sub !== 'string') {
+                        issues.push(`Subject is not a string (type: ${typeof payload.sub})`);
+                    }
+                    
+                    // Check expiration
+                    const now = Math.floor(Date.now() / 1000);
+                    if (!payload.exp) {
+                        issues.push('No expiration (exp) claim');
+                    } else if (payload.exp < now) {
+                        issues.push(`Token expired at ${new Date(payload.exp * 1000).toLocaleString()}`);
+                    }
+                    
+                    // Format the token details
+                    let tokenDetails = `
+                        <h3 style="color: ${issues.length > 0 ? '#ffc107' : '#28a745'}">
+                            ${issues.length > 0 ? 'Token has issues' : 'Token appears valid'}
+                        </h3>
+                        
+                        <h4>Header</h4>
+                        <table>
+                            <tr>
+                                <th>Algorithm (alg)</th>
+                                <td>${header.alg || 'Not set'}</td>
+                                <td>
+                                    ${header.alg === 'HS256' 
+                                        ? '<span class="status-indicator status-good"></span>Good' 
+                                        : '<span class="status-indicator status-warning"></span>Should be HS256'}
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Type (typ)</th>
+                                <td>${header.typ || 'Not set'}</td>
+                                <td>
+                                    ${header.typ === 'JWT' 
+                                        ? '<span class="status-indicator status-good"></span>Good' 
+                                        : '<span class="status-indicator status-warning"></span>Should be JWT'}
+                                </td>
+                            </tr>
+                        </table>
+                        
+                        <h4>Payload</h4>
+                        <table>
+                            <tr>
+                                <th>Subject (sub)</th>
+                                <td>${payload.sub || 'Not set'}</td>
+                                <td>
+                                    ${payload.sub 
+                                        ? (typeof payload.sub === 'string' 
+                                            ? '<span class="status-indicator status-good"></span>Good' 
+                                            : '<span class="status-indicator status-error"></span>Must be string')
+                                        : '<span class="status-indicator status-error"></span>Required'}
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Role</th>
+                                <td>${payload.role || 'Not set'}</td>
+                                <td>
+                                    ${payload.role 
+                                        ? '<span class="status-indicator status-good"></span>Good' 
+                                        : '<span class="status-indicator status-warning"></span>Recommended'}
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Issued At (iat)</th>
+                                <td>${payload.iat 
+                                    ? new Date(payload.iat * 1000).toLocaleString() 
+                                    : 'Not set'}</td>
+                                <td>
+                                    ${payload.iat 
+                                        ? '<span class="status-indicator status-good"></span>Good' 
+                                        : '<span class="status-indicator status-warning"></span>Recommended'}
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Expiration (exp)</th>
+                                <td>${payload.exp 
+                                    ? new Date(payload.exp * 1000).toLocaleString() 
+                                    : 'Not set'}</td>
+                                <td>
+                                    ${!payload.exp 
+                                        ? '<span class="status-indicator status-warning"></span>Recommended'
+                                        : (payload.exp < now 
+                                            ? '<span class="status-indicator status-error"></span>Expired' 
+                                            : '<span class="status-indicator status-good"></span>Good')}
+                                </td>
+                            </tr>
+                        </table>
+                    `;
+                    
+                    // Add issues summary if any exist
+                    if (issues.length > 0) {
+                        tokenDetails += `
+                            <h4>Issues Found</h4>
+                            <ul>
+                                ${issues.map(issue => `<li>${issue}</li>`).join('')}
+                            </ul>
+                            <p>Use the "Fix Options" tab to resolve these issues.</p>
+                        `;
+                    } else {
+                        tokenDetails += `
+                            <p>Token appears to be properly formatted, but may still have signature verification issues with the backend.</p>
+                            <p>If you're experiencing "Signature verification failed" errors, use the "Fix Signature Verification Issues" button on the Fix Options tab.</p>
+                        `;
+                    }
+                    
+                    showResult('tokenStatus', tokenDetails, issues.length > 0 ? 'warning' : 'success');
+                    
+                } catch (error) {
+                    logMessage(`Error decoding token: ${error.message}`);
+                    showResult('tokenStatus', `
+                        <h3 style="color: #dc3545;">Error Decoding Token</h3>
+                        <p>The token could not be decoded: ${error.message}</p>
+                        <p>Current token: <span class="code">${token}</span></p>
+                        <p>Use the "Complete Auth Reset" button on the Fix Options tab to create a new token.</p>
+                    `, 'error');
+                }
+                
+                // Update token display
+                updateTokenDisplay();
+                
+            } catch (error) {
+                logMessage(`Error checking token status: ${error.message}`);
+                showResult('tokenStatus', `
+                    <h3 style="color: #dc3545;">Error</h3>
+                    <p>An error occurred while checking token status: ${error.message}</p>
+                `, 'error');
+            }
+        }
+        
+        // Inspect token storage
+        function inspectTokenStorage() {
+            try {
+                logMessage('Inspecting token storage...');
+                
+                const tokenKeys = [
+                    'coffee_system_token', 
+                    'coffee_auth_token',
+                    'auth_token',
+                    'token',
+                    'access_token',
+                    'jwt_token'
+                ];
+                
+                // Check each storage location
+                const tokens = {};
+                let uniqueTokens = 0;
+                let uniqueValues = new Set();
+                
+                tokenKeys.forEach(key => {
+                    const value = localStorage.getItem(key);
+                    tokens[key] = value;
+                    
+                    if (value) {
+                        uniqueValues.add(value);
+                    }
+                });
+                
+                uniqueTokens = uniqueValues.size;
+                
+                // Check for inconsistency
+                const hasInconsistency = uniqueTokens > 1;
+                
+                // Create a report
+                let storageReport = `
+                    <h3 style="color: ${hasInconsistency ? '#dc3545' : '#28a745'}">
+                        ${hasInconsistency 
+                            ? `Storage Inconsistency Detected: ${uniqueTokens} different tokens found` 
+                            : uniqueTokens === 0 
+                                ? 'No tokens found in any storage location' 
+                                : 'Tokens are stored consistently'}
+                    </h3>
+                    
+                    <table>
+                        <tr>
+                            <th>Storage Key</th>
+                            <th>Status</th>
+                            <th>Token Preview</th>
+                        </tr>
+                `;
+                
+                tokenKeys.forEach(key => {
+                    const value = tokens[key];
+                    storageReport += `
+                        <tr>
+                            <td>${key}</td>
+                            <td>
+                                ${value 
+                                    ? '<span class="status-indicator status-good"></span>Present' 
+                                    : '<span class="status-indicator status-error"></span>Missing'}
+                            </td>
+                            <td>${value 
+                                ? `<span class="code">${value.substring(0, 15)}...</span>` 
+                                : 'N/A'}
+                            </td>
+                        </tr>
+                    `;
+                });
+                
+                storageReport += '</table>';
+                
+                // Add recommendation for inconsistency
+                if (hasInconsistency) {
+                    storageReport += `
+                        <p>Your localStorage contains different tokens in different storage keys. This can cause authentication issues.</p>
+                        <p>Use the "Fix Storage Inconsistency" button on the Fix Options tab to ensure all keys have the same token.</p>
+                    `;
+                } else if (uniqueTokens === 0) {
+                    storageReport += `
+                        <p>No authentication tokens found in any storage location.</p>
+                        <p>Use the "Fix Signature Verification Issues" button on the Fix Options tab to create a new token.</p>
+                    `;
+                } else {
+                    storageReport += `
+                        <p>All token storage keys contain the same token. This is good!</p>
+                    `;
+                }
+                
+                // Check auth error counters
+                const authErrorCount = localStorage.getItem('auth_error_count');
+                const authErrorRefreshNeeded = localStorage.getItem('auth_error_refresh_needed');
+                const jwtSignatureError = localStorage.getItem('JWT_SIGNATURE_ERROR');
+                
+                if (authErrorCount || authErrorRefreshNeeded || jwtSignatureError) {
+                    storageReport += `
+                        <h4>Auth Error Counters</h4>
+                        <table>
+                            <tr>
+                                <th>Counter</th>
+                                <th>Value</th>
+                            </tr>
+                            ${authErrorCount ? `
+                                <tr>
+                                    <td>auth_error_count</td>
+                                    <td>${authErrorCount}</td>
+                                </tr>
+                            ` : ''}
+                            ${authErrorRefreshNeeded ? `
+                                <tr>
+                                    <td>auth_error_refresh_needed</td>
+                                    <td>${authErrorRefreshNeeded}</td>
+                                </tr>
+                            ` : ''}
+                            ${jwtSignatureError ? `
+                                <tr>
+                                    <td>JWT_SIGNATURE_ERROR</td>
+                                    <td>${jwtSignatureError}</td>
+                                </tr>
+                            ` : ''}
+                        </table>
+                        <p>Use the "Clear Auth Error Counters" button on the Fix Options tab to reset these counters.</p>
+                    `;
+                }
+                
+                // Check fallback mode
+                const useFallbackData = localStorage.getItem('use_fallback_data');
+                const fallbackDataAvailable = localStorage.getItem('fallback_data_available');
+                
+                if (useFallbackData === 'true' || fallbackDataAvailable === 'true') {
+                    storageReport += `
+                        <h4>Fallback Mode</h4>
+                        <table>
+                            <tr>
+                                <th>Setting</th>
+                                <th>Value</th>
+                            </tr>
+                            <tr>
+                                <td>use_fallback_data</td>
+                                <td>${useFallbackData || 'Not set'}</td>
+                            </tr>
+                            <tr>
+                                <td>fallback_data_available</td>
+                                <td>${fallbackDataAvailable || 'Not set'}</td>
+                            </tr>
+                        </table>
+                        <p>Fallback mode is currently ${useFallbackData === 'true' ? 'ENABLED' : 'disabled'}. 
+                          Use the "${useFallbackData === 'true' ? 'Disable' : 'Enable'} Fallback Mode" 
+                          button on the Advanced tab to change this setting.</p>
+                    `;
+                }
+                
+                showResult('tokenStatus', storageReport, uniqueTokens === 0 ? 'error' : (hasInconsistency ? 'warning' : 'success'));
+                
+            } catch (error) {
+                logMessage(`Error inspecting token storage: ${error.message}`);
+                showResult('tokenStatus', `
+                    <h3 style="color: #dc3545;">Error</h3>
+                    <p>An error occurred while inspecting token storage: ${error.message}</p>
+                `, 'error');
+            }
+        }
+        
+        // Fix signature verification issues
+        function fixSignatureVerification() {
+            try {
+                logMessage('Fixing signature verification issues...');
+                
+                // Create a properly formatted JWT token
+                const token = window.createProperJwt();
+                
+                // Store it in all possible locations
+                window.storeJwtConsistently(token);
+                
+                // Clear error flags
+                localStorage.removeItem('auth_error_count');
+                localStorage.removeItem('auth_error_refresh_needed');
+                localStorage.removeItem('JWT_SIGNATURE_ERROR');
+                localStorage.removeItem('LAST_TOKEN_RESET');
+                localStorage.removeItem('jwt_error_endpoints');
+                
+                logMessage('Created and stored new token with proper format');
+                showResult('fixResult', `
+                    <h3 style="color: #28a745;">Signature Verification Fix Applied</h3>
+                    <p>A new token has been created with proper format and stored consistently across all storage locations.</p>
+                    <p>The new token has:</p>
+                    <ul>
+                        <li>Proper JWT format with header, payload, and signature</li>
+                        <li>HS256 algorithm</li>
+                        <li>String subject (sub) claim</li>
+                        <li>24-hour expiration</li>
+                        <li>Current timestamp for issuance (iat)</li>
+                    </ul>
+                    <p>Additionally, all error counters have been reset.</p>
+                    <p>Use the "API Tests" tab to verify that API requests work with the new token.</p>
+                `, 'success');
+                
+                // Update token display
+                updateTokenDisplay();
+                
+            } catch (error) {
+                logMessage(`Error fixing signature verification: ${error.message}`);
+                showResult('fixResult', `
+                    <h3 style="color: #dc3545;">Error</h3>
+                    <p>An error occurred while fixing signature verification: ${error.message}</p>
+                `, 'error');
+            }
+        }
+        
+        // Complete auth reset
+        function resetAuth() {
+            try {
+                logMessage('Performing complete authentication reset...');
+                
+                // Use resetAuthentication function from jwt-debug.js
+                window.resetAuthentication();
+                
+                logMessage('Authentication completely reset with new token');
+                showResult('fixResult', `
+                    <h3 style="color: #28a745;">Complete Authentication Reset Successful</h3>
+                    <p>All authentication data has been cleared and a new token has been created.</p>
+                    <p>The following items were reset:</p>
+                    <ul>
+                        <li>All token storage locations</li>
+                        <li>User data</li>
+                        <li>Authentication state</li>
+                        <li>Error counters and flags</li>
+                    </ul>
+                    <p>A new token has been created with proper format and stored consistently.</p>
+                    <p>Use the "API Tests" tab to verify that API requests work with the new token.</p>
+                `, 'success');
+                
+                // Update token display
+                updateTokenDisplay();
+                
+            } catch (error) {
+                logMessage(`Error during authentication reset: ${error.message}`);
+                showResult('fixResult', `
+                    <h3 style="color: #dc3545;">Error</h3>
+                    <p>An error occurred during authentication reset: ${error.message}</p>
+                `, 'error');
+            }
+        }
+        
+        // Clear auth error counters
+        function clearAuthErrors() {
+            try {
+                logMessage('Clearing authentication error counters...');
+                
+                // Clear all error counters and flags
+                localStorage.removeItem('auth_error_count');
+                localStorage.removeItem('auth_error_refresh_needed');
+                localStorage.removeItem('JWT_SIGNATURE_ERROR');
+                localStorage.removeItem('LAST_TOKEN_RESET');
+                localStorage.removeItem('jwt_error_endpoints');
+                
+                logMessage('Authentication error counters cleared');
+                showResult('fixResult', `
+                    <h3 style="color: #28a745;">Auth Error Counters Cleared</h3>
+                    <p>All authentication error counters and flags have been cleared. This should prevent automatic fallback mode activation.</p>
+                `, 'success');
+                
+            } catch (error) {
+                logMessage(`Error clearing auth error counters: ${error.message}`);
+                showResult('fixResult', `
+                    <h3 style="color: #dc3545;">Error</h3>
+                    <p>An error occurred while clearing auth error counters: ${error.message}</p>
+                `, 'error');
+            }
+        }
+        
+        // Fix token expiration
+        function fixExpiration() {
+            try {
+                logMessage('Fixing token expiration...');
+                
+                // Check current token
+                const token = localStorage.getItem('coffee_system_token');
+                
+                if (!token) {
+                    logMessage('No token found to fix expiration');
+                    showResult('fixResult', `
+                        <h3 style="color: #dc3545;">No Token Found</h3>
+                        <p>No token found to fix expiration. Use "Fix Signature Verification Issues" to create a new token.</p>
+                    `, 'error');
+                    return;
+                }
+                
+                // Create a new token with extended expiration
+                const newToken = window.createProperJwt();
+                
+                // Store it consistently
+                window.storeJwtConsistently(newToken);
+                
+                logMessage('Token expiration fixed with new token');
+                showResult('fixResult', `
+                    <h3 style="color: #28a745;">Token Expiration Fixed</h3>
+                    <p>A new token has been created with a 24-hour expiration period from now.</p>
+                    <p>The new token has been stored consistently across all storage locations.</p>
+                `, 'success');
+                
+                // Update token display
+                updateTokenDisplay();
+                
+            } catch (error) {
+                logMessage(`Error fixing token expiration: ${error.message}`);
+                showResult('fixResult', `
+                    <h3 style="color: #dc3545;">Error</h3>
+                    <p>An error occurred while fixing token expiration: ${error.message}</p>
+                `, 'error');
+            }
+        }
+        
+        // Fix subject type
+        function fixSubject() {
+            try {
+                logMessage('Fixing token subject type...');
+                
+                // Create a new token with proper subject
+                const newToken = window.createProperJwt('barista_user', 'barista');
+                
+                // Store it consistently
+                window.storeJwtConsistently(newToken);
+                
+                logMessage('Token subject type fixed with new token');
+                showResult('fixResult', `
+                    <h3 style="color: #28a745;">Token Subject Type Fixed</h3>
+                    <p>A new token has been created with a proper string subject: "barista_user"</p>
+                    <p>The new token has been stored consistently across all storage locations.</p>
+                `, 'success');
+                
+                // Update token display
+                updateTokenDisplay();
+                
+            } catch (error) {
+                logMessage(`Error fixing token subject type: ${error.message}`);
+                showResult('fixResult', `
+                    <h3 style="color: #dc3545;">Error</h3>
+                    <p>An error occurred while fixing token subject type: ${error.message}</p>
+                `, 'error');
+            }
+        }
+        
+        // Fix storage inconsistency
+        function fixStorage() {
+            try {
+                logMessage('Fixing token storage inconsistency...');
+                
+                // Check if we have a token
+                const token = localStorage.getItem('coffee_system_token');
+                
+                if (!token) {
+                    logMessage('No token found in primary storage location');
+                    
+                    // Check other locations
+                    const tokenKeys = [
+                        'coffee_auth_token',
+                        'auth_token',
+                        'token',
+                        'access_token',
+                        'jwt_token'
+                    ];
+                    
+                    let foundToken = null;
+                    let sourceKey = null;
+                    
+                    for (const key of tokenKeys) {
+                        const value = localStorage.getItem(key);
+                        if (value) {
+                            foundToken = value;
+                            sourceKey = key;
+                            break;
+                        }
+                    }
+                    
+                    if (foundToken) {
+                        logMessage(`Found token in ${sourceKey}, propagating to all storage locations`);
+                        window.storeJwtConsistently(foundToken);
+                        
+                        showResult('fixResult', `
+                            <h3 style="color: #28a745;">Token Storage Fixed</h3>
+                            <p>Found token in "${sourceKey}" and propagated it to all storage locations.</p>
+                        `, 'success');
+                    } else {
+                        logMessage('No token found in any storage location');
+                        
+                        // Create a new token
+                        const newToken = window.createProperJwt();
+                        window.storeJwtConsistently(newToken);
+                        
+                        showResult('fixResult', `
+                            <h3 style="color: #28a745;">New Token Created</h3>
+                            <p>No token found in any storage location, so a new token has been created and stored consistently.</p>
+                        `, 'success');
+                    }
+                } else {
+                    // Use the primary token and propagate to all locations
+                    window.storeJwtConsistently(token);
+                    
+                    logMessage('Token from primary storage propagated to all locations');
+                    showResult('fixResult', `
+                        <h3 style="color: #28a745;">Token Storage Fixed</h3>
+                        <p>The token from the primary storage location (coffee_system_token) has been propagated to all other storage locations.</p>
+                    `, 'success');
+                }
+                
+                // Update token display
+                updateTokenDisplay();
+                
+            } catch (error) {
+                logMessage(`Error fixing token storage inconsistency: ${error.message}`);
+                showResult('fixResult', `
+                    <h3 style="color: #dc3545;">Error</h3>
+                    <p>An error occurred while fixing token storage inconsistency: ${error.message}</p>
+                `, 'error');
+            }
+        }
+        
+        // Create custom token
+        function createCustomToken() {
+            try {
+                logMessage('Creating custom token...');
+                
+                // Get custom values
+                const subject = customSubject.value || 'barista_user';
+                const role = customRole.value || 'barista';
+                const hours = parseInt(expirationHours.value) || 24;
+                
+                // Create header
+                const header = {
+                    alg: 'HS256',
+                    typ: 'JWT'
+                };
+                
+                // Create payload
+                const now = Math.floor(Date.now() / 1000);
+                const payload = {
+                    sub: subject,
+                    name: 'Custom User',
+                    role: role,
+                    iat: now,
+                    exp: now + (hours * 60 * 60),
+                    iss: 'expresso-client',
+                    aud: 'expresso-api'
+                };
+                
+                // Base64Url encode
+                function base64UrlEncode(str) {
+                    return btoa(str)
+                        .replace(/=/g, '')
+                        .replace(/\+/g, '-')
+                        .replace(/\//g, '_');
+                }
+                
+                const encodedHeader = base64UrlEncode(JSON.stringify(header));
+                const encodedPayload = base64UrlEncode(JSON.stringify(payload));
+                const signature = base64UrlEncode(`custom-sig-${Date.now()}`);
+                
+                // Create token
+                const token = `${encodedHeader}.${encodedPayload}.${signature}`;
+                
+                // Store token
+                window.storeJwtConsistently(token);
+                
+                logMessage('Custom token created and stored');
+                showResult('advancedResult', `
+                    <h3 style="color: #28a745;">Custom Token Created</h3>
+                    <p>A custom token has been created with the following properties:</p>
+                    <ul>
+                        <li>Subject: ${subject}</li>
+                        <li>Role: ${role}</li>
+                        <li>Expiration: ${hours} hours from now</li>
+                    </ul>
+                    <p>The token has been stored consistently across all storage locations.</p>
+                `, 'success');
+                
+                // Update token display
+                updateTokenDisplay();
+                
+            } catch (error) {
+                logMessage(`Error creating custom token: ${error.message}`);
+                showResult('advancedResult', `
+                    <h3 style="color: #dc3545;">Error</h3>
+                    <p>An error occurred while creating custom token: ${error.message}</p>
+                `, 'error');
+            }
+        }
+        
+        // Enable fallback mode
+        function enableFallback() {
+            try {
+                logMessage('Enabling fallback mode...');
+                
+                localStorage.setItem('use_fallback_data', 'true');
+                localStorage.setItem('fallback_data_available', 'true');
+                
+                logMessage('Fallback mode enabled');
+                showResult('advancedResult', `
+                    <h3 style="color: #ffc107;">Fallback Mode Enabled</h3>
+                    <p>Fallback mode has been enabled. The application will use sample data instead of making real API requests.</p>
+                    <p>This can be useful for testing or when the backend is unavailable.</p>
+                    <p>Use the "Disable Fallback Mode" button to return to normal operation.</p>
+                `, 'warning');
+                
+            } catch (error) {
+                logMessage(`Error enabling fallback mode: ${error.message}`);
+                showResult('advancedResult', `
+                    <h3 style="color: #dc3545;">Error</h3>
+                    <p>An error occurred while enabling fallback mode: ${error.message}</p>
+                `, 'error');
+            }
+        }
+        
+        // Disable fallback mode
+        function disableFallback() {
+            try {
+                logMessage('Disabling fallback mode...');
+                
+                localStorage.setItem('use_fallback_data', 'false');
+                localStorage.removeItem('fallback_data_available');
+                localStorage.removeItem('auth_error_refresh_needed');
+                
+                logMessage('Fallback mode disabled');
+                showResult('advancedResult', `
+                    <h3 style="color: #28a745;">Fallback Mode Disabled</h3>
+                    <p>Fallback mode has been disabled. The application will use real API requests instead of sample data.</p>
+                `, 'success');
+                
+            } catch (error) {
+                logMessage(`Error disabling fallback mode: ${error.message}`);
+                showResult('advancedResult', `
+                    <h3 style="color: #dc3545;">Error</h3>
+                    <p>An error occurred while disabling fallback mode: ${error.message}</p>
+                `, 'error');
+            }
+        }
+        
+        // Test API connection
+        async function testApiConnection() {
+            try {
+                logMessage('Testing API connection...');
+                
+                // Get current token
+                const token = localStorage.getItem('coffee_system_token');
+                
+                if (!token) {
+                    logMessage('No token available for API test');
+                    showResult('apiResult', `
+                        <h3 style="color: #dc3545;">No Token Available</h3>
+                        <p>No authentication token found for API test. Use the "Fix Options" tab to create a token first.</p>
+                    `, 'error');
+                    return;
+                }
+                
+                logMessage('Using token from localStorage');
+                
+                // Make API request
+                const response = await fetch('http://localhost:5001/api/settings', {
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    mode: 'cors'
+                });
+                
+                logMessage(`API response status: ${response.status}`);
+                
+                // Handle 422 error specifically
+                if (response.status === 422) {
+                    let errorData;
+                    try {
+                        errorData = await response.json();
+                    } catch (e) {
+                        errorData = { message: await response.text() };
+                    }
+                    
+                    logMessage('Received 422 error - signature verification failed');
+                    showResult('apiResult', `
+                        <h3 style="color: #dc3545;">Signature Verification Failed (422)</h3>
+                        <p>The API returned a 422 error, which typically indicates a JWT signature verification failure.</p>
+                        <p>Error details: ${errorData.msg || errorData.message || 'Unknown error'}</p>
+                        <p>Use the "Fix Signature Verification Issues" button on the Fix Options tab to create a new token.</p>
+                    `, 'error');
+                    return;
+                }
+                
+                // Handle other error statuses
+                if (!response.ok) {
+                    let errorData;
+                    try {
+                        errorData = await response.json();
+                    } catch (e) {
+                        errorData = { message: await response.text() };
+                    }
+                    
+                    logMessage(`API error: ${response.status}`);
+                    showResult('apiResult', `
+                        <h3 style="color: #dc3545;">API Error (${response.status})</h3>
+                        <p>The API returned an error: ${errorData.msg || errorData.message || `HTTP ${response.status}`}</p>
+                    `, 'error');
+                    return;
+                }
+                
+                // Handle successful response
+                const data = await response.json();
+                
+                logMessage('API connection successful');
+                showResult('apiResult', `
+                    <h3 style="color: #28a745;">API Connection Successful</h3>
+                    <p>The API connection was successful. Your token is working properly.</p>
+                    <h4>Response Data:</h4>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `, 'success');
+                
+            } catch (error) {
+                logMessage(`API connection error: ${error.message}`);
+                showResult('apiResult', `
+                    <h3 style="color: #dc3545;">API Connection Error</h3>
+                    <p>An error occurred while connecting to the API: ${error.message}</p>
+                    <p>This might indicate a network issue or that the backend server is not running.</p>
+                `, 'error');
+            }
+        }
+        
+        // Test auth endpoint
+        async function testAuthEndpoint() {
+            try {
+                logMessage('Testing auth endpoint...');
+                
+                // Get current token
+                const token = localStorage.getItem('coffee_system_token');
+                
+                if (!token) {
+                    logMessage('No token available for auth test');
+                    showResult('apiResult', `
+                        <h3 style="color: #dc3545;">No Token Available</h3>
+                        <p>No authentication token found for auth test. Use the "Fix Options" tab to create a token first.</p>
+                    `, 'error');
+                    return;
+                }
+                
+                logMessage('Using token from localStorage');
+                
+                // Make API request to auth/verify endpoint
+                const response = await fetch('http://localhost:5001/api/auth/verify', {
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    mode: 'cors'
+                });
+                
+                logMessage(`Auth endpoint response status: ${response.status}`);
+                
+                // Handle 422 error specifically
+                if (response.status === 422) {
+                    let errorData;
+                    try {
+                        errorData = await response.json();
+                    } catch (e) {
+                        errorData = { message: await response.text() };
+                    }
+                    
+                    logMessage('Received 422 error - signature verification failed');
+                    showResult('apiResult', `
+                        <h3 style="color: #dc3545;">Signature Verification Failed (422)</h3>
+                        <p>The auth endpoint returned a 422 error, which typically indicates a JWT signature verification failure.</p>
+                        <p>Error details: ${errorData.msg || errorData.message || 'Unknown error'}</p>
+                        <p>Use the "Fix Signature Verification Issues" button on the Fix Options tab to create a new token.</p>
+                    `, 'error');
+                    return;
+                }
+                
+                // Handle 404 error (endpoint might not exist)
+                if (response.status === 404) {
+                    logMessage('Auth verification endpoint not found (404)');
+                    showResult('apiResult', `
+                        <h3 style="color: #ffc107;">Auth Endpoint Not Found (404)</h3>
+                        <p>The auth/verify endpoint returned a 404 error, which suggests this endpoint doesn't exist in the backend.</p>
+                        <p>This is not necessarily a problem - some backends don't have a dedicated verification endpoint.</p>
+                        <p>Try using the "Test API Connection" button instead to test general API access.</p>
+                    `, 'warning');
+                    return;
+                }
+                
+                // Handle other error statuses
+                if (!response.ok) {
+                    let errorData;
+                    try {
+                        errorData = await response.json();
+                    } catch (e) {
+                        errorData = { message: await response.text() };
+                    }
+                    
+                    logMessage(`Auth endpoint error: ${response.status}`);
+                    showResult('apiResult', `
+                        <h3 style="color: #dc3545;">Auth Endpoint Error (${response.status})</h3>
+                        <p>The auth endpoint returned an error: ${errorData.msg || errorData.message || `HTTP ${response.status}`}</p>
+                    `, 'error');
+                    return;
+                }
+                
+                // Handle successful response
+                const data = await response.json();
+                
+                logMessage('Auth endpoint test successful');
+                showResult('apiResult', `
+                    <h3 style="color: #28a745;">Auth Endpoint Test Successful</h3>
+                    <p>The auth verification endpoint returned a successful response. Your token is working properly.</p>
+                    <h4>Response Data:</h4>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `, 'success');
+                
+            } catch (error) {
+                logMessage(`Auth endpoint error: ${error.message}`);
+                showResult('apiResult', `
+                    <h3 style="color: #dc3545;">Auth Endpoint Error</h3>
+                    <p>An error occurred while testing the auth endpoint: ${error.message}</p>
+                    <p>This might indicate a network issue or that the backend server is not running.</p>
+                `, 'error');
+            }
+        }
+        
+        // Test without auth
+        async function testWithoutAuth() {
+            try {
+                logMessage('Testing API without authentication...');
+                
+                // Make API request without auth header
+                const response = await fetch('http://localhost:5001/api/settings', {
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    mode: 'cors'
+                });
+                
+                logMessage(`API response status: ${response.status}`);
+                
+                // Handle 401 (expected for protected endpoints)
+                if (response.status === 401) {
+                    logMessage('Received 401 Unauthorized (expected for protected endpoints)');
+                    showResult('apiResult', `
+                        <h3 style="color: #28a745;">API Response as Expected (401)</h3>
+                        <p>The API returned a 401 Unauthorized error, which is expected when accessing a protected endpoint without authentication.</p>
+                        <p>This indicates that the API server is running and properly requiring authentication.</p>
+                    `, 'success');
+                    return;
+                }
+                
+                // Handle successful response (unexpected for protected endpoints)
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    logMessage('API allowed unauthenticated access (unusual)');
+                    showResult('apiResult', `
+                        <h3 style="color: #ffc107;">Unauthenticated Access Allowed (Unusual)</h3>
+                        <p>The API allowed access without authentication, which is unusual for a protected endpoint.</p>
+                        <p>This might indicate that the endpoint is not properly protected or that the backend is in development mode.</p>
+                        <h4>Response Data:</h4>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `, 'warning');
+                    return;
+                }
+                
+                // Handle other error statuses
+                let errorData;
+                try {
+                    errorData = await response.json();
+                } catch (e) {
+                    errorData = { message: await response.text() };
+                }
+                
+                logMessage(`API error: ${response.status}`);
+                showResult('apiResult', `
+                    <h3 style="color: #ffc107;">API Returned ${response.status}</h3>
+                    <p>The API returned an error: ${errorData.msg || errorData.message || `HTTP ${response.status}`}</p>
+                    <p>This response is unusual - typically a protected endpoint would return 401 Unauthorized without authentication.</p>
+                `, 'warning');
+                
+            } catch (error) {
+                logMessage(`API connection error: ${error.message}`);
+                showResult('apiResult', `
+                    <h3 style="color: #dc3545;">API Connection Error</h3>
+                    <p>An error occurred while connecting to the API: ${error.message}</p>
+                    <p>This might indicate a network issue or that the backend server is not running.</p>
+                `, 'error');
+            }
+        }
+        
+        // Make custom request
+        async function makeCustomRequest() {
+            try {
+                logMessage('Making custom API request...');
+                
+                // Get endpoint
+                const endpoint = apiEndpoint.value || 'http://localhost:5001/api/settings';
+                
+                // Get current token
+                const token = localStorage.getItem('coffee_system_token');
+                
+                if (!token) {
+                    logMessage('No token available for API request');
+                    showResult('apiResult', `
+                        <h3 style="color: #dc3545;">No Token Available</h3>
+                        <p>No authentication token found for API request. Use the "Fix Options" tab to create a token first.</p>
+                    `, 'error');
+                    return;
+                }
+                
+                logMessage(`Making request to: ${endpoint}`);
+                
+                // Make API request
+                const response = await fetch(endpoint, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    mode: 'cors'
+                });
+                
+                logMessage(`API response status: ${response.status}`);
+                
+                // Get response text first to safely examine it
+                const responseText = await response.text();
+                
+                // Try to parse as JSON
+                let data;
+                try {
+                    data = JSON.parse(responseText);
+                } catch (e) {
+                    data = { rawText: responseText };
+                }
+                
+                // Handle 422 error specifically
+                if (response.status === 422) {
+                    logMessage('Received 422 error - signature verification failed');
+                    showResult('apiResult', `
+                        <h3 style="color: #dc3545;">Signature Verification Failed (422)</h3>
+                        <p>The API returned a 422 error, which typically indicates a JWT signature verification failure.</p>
+                        <p>Error details: ${data.msg || data.message || 'Unknown error'}</p>
+                        <p>Use the "Fix Signature Verification Issues" button on the Fix Options tab to create a new token.</p>
+                        <h4>Response Data:</h4>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `, 'error');
+                    return;
+                }
+                
+                // Handle other error statuses
+                if (!response.ok) {
+                    logMessage(`API error: ${response.status}`);
+                    showResult('apiResult', `
+                        <h3 style="color: #dc3545;">API Error (${response.status})</h3>
+                        <p>The API returned an error: ${data.msg || data.message || `HTTP ${response.status}`}</p>
+                        <h4>Response Data:</h4>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `, 'error');
+                    return;
+                }
+                
+                // Handle successful response
+                logMessage('API request successful');
+                showResult('apiResult', `
+                    <h3 style="color: #28a745;">API Request Successful</h3>
+                    <p>The custom API request was successful. Your token is working properly.</p>
+                    <h4>Response Data:</h4>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `, 'success');
+                
+            } catch (error) {
+                logMessage(`API request error: ${error.message}`);
+                showResult('apiResult', `
+                    <h3 style="color: #dc3545;">API Request Error</h3>
+                    <p>An error occurred while making the API request: ${error.message}</p>
+                    <p>This might indicate a network issue or that the backend server is not running.</p>
+                `, 'error');
+            }
+        }
+        
+        // Add event listeners
+        checkTokenBtn.addEventListener('click', checkTokenStatus);
+        inspectStorageBtn.addEventListener('click', inspectTokenStorage);
+        fixSignatureBtn.addEventListener('click', fixSignatureVerification);
+        resetAuthBtn.addEventListener('click', resetAuth);
+        clearAuthErrorsBtn.addEventListener('click', clearAuthErrors);
+        fixExpirationBtn.addEventListener('click', fixExpiration);
+        fixSubjectBtn.addEventListener('click', fixSubject);
+        fixStorageBtn.addEventListener('click', fixStorage);
+        createCustomTokenBtn.addEventListener('click', createCustomToken);
+        enableFallbackBtn.addEventListener('click', enableFallback);
+        disableFallbackBtn.addEventListener('click', disableFallback);
+        testApiBtn.addEventListener('click', testApiConnection);
+        testAuthEndpointBtn.addEventListener('click', testAuthEndpoint);
+        testNoAuthBtn.addEventListener('click', testWithoutAuth);
+        makeCustomRequestBtn.addEventListener('click', makeCustomRequest);
+        
+        // Initialize
+        window.addEventListener('DOMContentLoaded', () => {
+            checkTokenStatus();
+            updateTokenDisplay();
+            logMessage('JWT Token Debugger & Fixer tool is ready');
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Expresso Test Runner - DELETE LATER</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f5f5f5;
+      color: #333;
+    }
+    header {
+      background-color: #e74c3c;
+      color: white;
+      padding: 10px 20px;
+      text-align: center;
+      border-radius: 5px;
+      margin-bottom: 20px;
+    }
+    .warning {
+      color: #e74c3c;
+      font-weight: bold;
+    }
+    .container {
+      background-color: white;
+      border-radius: 5px;
+      padding: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    button {
+      background-color: #3498db;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-right: 10px;
+      font-weight: bold;
+    }
+    button:hover {
+      background-color: #2980b9;
+    }
+    button.warning {
+      background-color: #e74c3c;
+      color: white;
+    }
+    button.warning:hover {
+      background-color: #c0392b;
+    }
+    .result {
+      margin-top: 20px;
+      padding: 10px;
+      border-radius: 5px;
+    }
+    .result.success {
+      background-color: #d4edda;
+      color: #155724;
+    }
+    .result.error {
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+    .log-container {
+      margin-top: 20px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      padding: 10px;
+      max-height: 300px;
+      overflow-y: auto;
+      background-color: #f8f8f8;
+      font-family: monospace;
+    }
+    .log-entry {
+      margin-bottom: 5px;
+      padding: 5px;
+    }
+    .log-entry.error {
+      color: #e74c3c;
+    }
+    .log-entry.success {
+      color: #2ecc71;
+    }
+    .log-entry.warning {
+      color: #f39c12;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Expresso Test Runner <span class="warning">- DELETE LATER</span></h1>
+    <p>This tool is for testing the Expresso frontend application - <strong>NOT FOR PRODUCTION USE</strong></p>
+  </header>
+
+  <div class="container">
+    <h2>Test Configuration</h2>
+    <div>
+      <label>
+        <input type="checkbox" id="option-login" checked> Test Login
+      </label>
+    </div>
+    <div>
+      <label>
+        <input type="checkbox" id="option-navigation" checked> Test Navigation
+      </label>
+    </div>
+    <div>
+      <label>
+        <input type="checkbox" id="option-orders" checked> Test Orders
+      </label>
+    </div>
+    <div>
+      <label>
+        <input type="checkbox" id="option-components" checked> Test Components
+      </label>
+    </div>
+    <div>
+      <label>
+        <input type="checkbox" id="option-errors" checked> Test Error Handling
+      </label>
+    </div>
+    <div>
+      <label>
+        <input type="checkbox" id="option-autofix" checked> Enable Auto-Fixes
+      </label>
+    </div>
+    <div>
+      <label>
+        <input type="checkbox" id="option-fallback" checked> Enable Fallback Mode on Errors
+      </label>
+    </div>
+
+    <div style="margin-top: 20px;">
+      <button id="run-tests-btn">Run Tests</button>
+      <button id="launch-tester-btn">Launch Test Utility</button>
+      <button id="fix-mode-btn">Enable Fallback Mode</button>
+      <button id="clear-storage-btn" class="warning">Clear Storage</button>
+    </div>
+
+    <div class="result" id="test-result" style="display: none;"></div>
+
+    <div class="log-container" id="log-container">
+      <div class="log-entry">Test logs will appear here...</div>
+    </div>
+  </div>
+
+  <script>
+    // Loader for auto-tester script
+    function loadAutoTester() {
+      return new Promise((resolve, reject) => {
+        if (window.autoTester) {
+          resolve(window.autoTester);
+          return;
+        }
+
+        const script = document.createElement('script');
+        script.src = '/auto-tester-DELETE_LATER.js';
+        script.onload = () => {
+          if (window.autoTester) {
+            resolve(window.autoTester);
+          } else {
+            reject(new Error('Auto tester script loaded but autoTester object not found'));
+          }
+        };
+        script.onerror = () => {
+          reject(new Error('Failed to load auto tester script'));
+        };
+
+        document.head.appendChild(script);
+      });
+    }
+
+    // Log handler
+    function addLogEntry(message, type = 'info') {
+      const logContainer = document.getElementById('log-container');
+      const logEntry = document.createElement('div');
+      logEntry.className = `log-entry ${type}`;
+      logEntry.textContent = message;
+      logContainer.appendChild(logEntry);
+      logContainer.scrollTop = logContainer.scrollHeight;
+    }
+
+    // Override console methods to capture logs
+    const originalConsole = {
+      log: console.log,
+      error: console.error,
+      warn: console.warn
+    };
+
+    console.log = function(...args) {
+      originalConsole.log(...args);
+      const message = args.join(' ');
+      if (message.includes('[AUTO-TESTER]')) {
+        addLogEntry(message.replace('[AUTO-TESTER] ', ''));
+      } else if (message.includes('[AUTO-TESTER SUCCESS]')) {
+        addLogEntry(message.replace('[AUTO-TESTER SUCCESS] ', ''), 'success');
+      } else if (message.includes('[AUTO-TESTER ERROR]')) {
+        addLogEntry(message.replace('[AUTO-TESTER ERROR] ', ''), 'error');
+      } else if (message.includes('[AUTO-TESTER WARNING]')) {
+        addLogEntry(message.replace('[AUTO-TESTER WARNING] ', ''), 'warning');
+      } else if (message.includes('[AUTO-TESTER FIX]')) {
+        addLogEntry(message.replace('[AUTO-TESTER FIX] ', ''), 'warning');
+      }
+    };
+
+    console.error = function(...args) {
+      originalConsole.error(...args);
+      const message = args.join(' ');
+      if (message.includes('[AUTO-TESTER]')) {
+        addLogEntry(message.replace('[AUTO-TESTER] ', ''), 'error');
+      } else if (message.includes('AUTO-TESTER')) {
+        addLogEntry(message, 'error');
+      }
+    };
+
+    console.warn = function(...args) {
+      originalConsole.warn(...args);
+      const message = args.join(' ');
+      if (message.includes('[AUTO-TESTER]')) {
+        addLogEntry(message.replace('[AUTO-TESTER] ', ''), 'warning');
+      } else if (message.includes('AUTO-TESTER')) {
+        addLogEntry(message, 'warning');
+      }
+    };
+
+    // Run tests button
+    document.getElementById('run-tests-btn').addEventListener('click', async () => {
+      try {
+        addLogEntry('Loading auto tester...');
+        const autoTester = await loadAutoTester();
+
+        // Update configuration based on checkboxes
+        autoTester.config.scenarios.login = document.getElementById('option-login').checked;
+        autoTester.config.scenarios.navigation = document.getElementById('option-navigation').checked;
+        autoTester.config.scenarios.orders = document.getElementById('option-orders').checked;
+        autoTester.config.scenarios.components = document.getElementById('option-components').checked;
+        autoTester.config.scenarios.errorHandling = document.getElementById('option-errors').checked;
+        autoTester.config.autoFix = document.getElementById('option-autofix').checked;
+        autoTester.config.autoEnableFallback = document.getElementById('option-fallback').checked;
+
+        addLogEntry('Starting tests with configuration:', 'info');
+        addLogEntry(`Login: ${autoTester.config.scenarios.login ? 'enabled' : 'disabled'}`);
+        addLogEntry(`Navigation: ${autoTester.config.scenarios.navigation ? 'enabled' : 'disabled'}`);
+        addLogEntry(`Orders: ${autoTester.config.scenarios.orders ? 'enabled' : 'disabled'}`);
+        addLogEntry(`Components: ${autoTester.config.scenarios.components ? 'enabled' : 'disabled'}`);
+        addLogEntry(`Error Handling: ${autoTester.config.scenarios.errorHandling ? 'enabled' : 'disabled'}`);
+        addLogEntry(`Auto-Fixes: ${autoTester.config.autoFix ? 'enabled' : 'disabled'}`);
+        addLogEntry(`Fallback Mode: ${autoTester.config.autoEnableFallback ? 'enabled' : 'disabled'}`);
+
+        // Run the tests
+        const result = await autoTester.runAllTests();
+
+        // Show result
+        const resultElement = document.getElementById('test-result');
+        resultElement.style.display = 'block';
+
+        if (result) {
+          resultElement.className = 'result success';
+          resultElement.textContent = 'Tests completed successfully!';
+        } else {
+          resultElement.className = 'result error';
+          resultElement.textContent = 'Tests completed with failures. See log for details.';
+        }
+      } catch (error) {
+        addLogEntry(`Error loading or running tests: ${error.message}`, 'error');
+
+        const resultElement = document.getElementById('test-result');
+        resultElement.style.display = 'block';
+        resultElement.className = 'result error';
+        resultElement.textContent = `Error: ${error.message}`;
+      }
+    });
+
+    // Launch test utility button
+    document.getElementById('launch-tester-btn').addEventListener('click', () => {
+      window.open('/test-utility-DELETE_LATER.html', '_blank');
+    });
+
+    // Fix mode button
+    document.getElementById('fix-mode-btn').addEventListener('click', async () => {
+      try {
+        const autoTester = await loadAutoTester();
+        autoTester.enableFallbackMode();
+        addLogEntry('Fallback mode enabled', 'success');
+      } catch (error) {
+        addLogEntry(`Error enabling fallback mode: ${error.message}`, 'error');
+      }
+    });
+
+    // Clear storage button
+    document.getElementById('clear-storage-btn').addEventListener('click', () => {
+      // Clear authentication tokens
+      localStorage.removeItem('coffee_system_token');
+      localStorage.removeItem('coffee_system_refresh_token');
+      localStorage.removeItem('coffee_system_token_expiry');
+      localStorage.removeItem('coffee_system_user');
+
+      // Clear fallback mode settings
+      localStorage.removeItem('use_fallback_data');
+      localStorage.removeItem('fallback_data_available');
+      localStorage.removeItem('demo_mode_enabled');
+      localStorage.removeItem('auth_error_count');
+      localStorage.removeItem('auth_error_refresh_needed');
+
+      addLogEntry('Local storage cleared', 'warning');
+    });
+
+    // Initialize
+    addLogEntry('Test runner initialized');
+    addLogEntry('WARNING: This tool is for testing only and should be deleted before deployment!', 'warning');
+  </script>
+</body>
+</html>

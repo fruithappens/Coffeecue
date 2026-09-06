@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Reset Stock Categories</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; }
+        button { padding: 10px 20px; margin: 10px; background: #007cba; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #005a87; }
+        .success { color: green; font-weight: bold; }
+        .info { background: #f0f8ff; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        .warning { background: #fff3cd; padding: 15px; border-radius: 5px; margin: 10px 0; color: #856404; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Reset Stock Categories</h1>
+        
+        <div class="info">
+            <strong>About this tool:</strong><br>
+            This utility will reset all station stock data to use the new category structure with dedicated "sweeteners" and "drinks" tabs.
+        </div>
+        
+        <div class="warning">
+            <strong>Warning:</strong> This will reset all station inventory to default values. Any custom stock levels will be lost.
+        </div>
+        
+        <button onclick="resetStockCategories()">Reset All Station Stock to New Categories</button>
+        <button onclick="listCurrentStock()">Show Current Stock Categories</button>
+        
+        <div id="output"></div>
+    </div>
+
+    <script>
+        function resetStockCategories() {
+            try {
+                // Get all localStorage keys that contain station stock data
+                const keysToReset = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key && key.startsWith('coffee_stock_station_')) {
+                        keysToReset.push(key);
+                    }
+                }
+                
+                // Remove all existing station stock data
+                keysToReset.forEach(key => {
+                    localStorage.removeItem(key);
+                    console.log('Removed:', key);
+                });
+                
+                document.getElementById('output').innerHTML = `
+                    <div class="success">
+                        Successfully reset ${keysToReset.length} station stock entries.<br>
+                        Refresh the Barista interface to see the new categories: Sweeteners and Drinks tabs.
+                    </div>
+                `;
+                
+            } catch (error) {
+                document.getElementById('output').innerHTML = `
+                    <div style="color: red;">
+                        Error resetting stock: ${error.message}
+                    </div>
+                `;
+            }
+        }
+        
+        function listCurrentStock() {
+            try {
+                const stockKeys = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key && key.startsWith('coffee_stock_station_')) {
+                        const data = JSON.parse(localStorage.getItem(key));
+                        stockKeys.push({
+                            key: key,
+                            categories: Object.keys(data)
+                        });
+                    }
+                }
+                
+                let output = '<h3>Current Stock Data:</h3>';
+                if (stockKeys.length === 0) {
+                    output += '<p>No station stock data found.</p>';
+                } else {
+                    stockKeys.forEach(stock => {
+                        output += `<p><strong>${stock.key}:</strong> ${stock.categories.join(', ')}</p>`;
+                    });
+                }
+                
+                document.getElementById('output').innerHTML = output;
+                
+            } catch (error) {
+                document.getElementById('output').innerHTML = `
+                    <div style="color: red;">
+                        Error listing stock: ${error.message}
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Picked Up Orders Fix</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .order {
+            background: #f5f5f5;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 3px;
+        }
+        .success { color: green; }
+        .error { color: red; }
+        .picked-up { background-color: #e8f5e9; }
+        .completed { background-color: #fff3e0; }
+        button {
+            padding: 10px 15px;
+            margin: 5px;
+            cursor: pointer;
+        }
+        pre {
+            background: #eee;
+            padding: 10px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Picked Up Orders Fix</h1>
+    
+    <div class="section">
+        <h2>Step 1: Check API Response for All Orders</h2>
+        <button onclick="fetchAllOrders()">Fetch All Orders</button>
+        <div id="allOrdersResult"></div>
+    </div>
+    
+    <div class="section">
+        <h2>Step 2: Check Completed Orders API</h2>
+        <button onclick="fetchCompletedOrders()">Fetch Completed Orders</button>
+        <div id="completedOrdersResult"></div>
+    </div>
+    
+    <div class="section">
+        <h2>Step 3: Mark an Order as Picked Up</h2>
+        <label>Order ID: <input type="text" id="testOrderId" placeholder="Enter order ID"></label>
+        <button onclick="markAsPickedUp()">Mark as Picked Up</button>
+        <div id="markPickedUpResult"></div>
+    </div>
+    
+    <div class="section">
+        <h2>Step 4: Verify Order Now Has pickedUpAt</h2>
+        <button onclick="verifyPickedUpOrder()">Verify Picked Up Order</button>
+        <div id="verifyResult"></div>
+    </div>
+
+    <script>
+        // Check if user is logged in
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+            document.body.innerHTML = '<h1>Please log in first</h1><p>Go to the main app and log in as a barista.</p>';
+        }
+
+        async function fetchAllOrders() {
+            const output = document.getElementById('allOrdersResult');
+            output.innerHTML = '<p>Fetching all orders...</p>';
+            
+            try {
+                const response = await fetch('http://localhost:5001/api/orders', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                let html = '<h3>All Orders Response</h3>';
+                html += `<p>Status: ${data.status}</p>`;
+                
+                if (data.data) {
+                    const orders = data.data;
+                    
+                    // Check for pickedUpAt field
+                    const ordersWithPickedUp = orders.filter(o => o.pickedUpAt || o.picked_up_at);
+                    const pickedUpStatus = orders.filter(o => o.status === 'picked_up');
+                    
+                    html += `<p>Total orders: ${orders.length}</p>`;
+                    html += `<p>Orders with pickedUpAt field: ${ordersWithPickedUp.length}</p>`;
+                    html += `<p>Orders with picked_up status: ${pickedUpStatus.length}</p>`;
+                    
+                    if (pickedUpStatus.length > 0) {
+                        html += '<h4>Picked Up Orders:</h4>';
+                        pickedUpStatus.forEach(order => {
+                            html += `<div class="order picked-up">`;
+                            html += `<strong>Order #${order.orderNumber}</strong> - ${order.customerName}<br>`;
+                            html += `Status: ${order.status}<br>`;
+                            html += `PickedUpAt: ${order.pickedUpAt || 'Not set'}<br>`;
+                            html += `Updated: ${order.updatedAt || 'Not set'}`;
+                            html += `</div>`;
+                        });
+                    }
+                    
+                    // Show first few orders to check field presence
+                    html += '<h4>Sample Order Structure:</h4>';
+                    if (orders.length > 0) {
+                        html += '<pre>' + JSON.stringify(orders[0], null, 2) + '</pre>';
+                    }
+                }
+                
+                output.innerHTML = html;
+            } catch (error) {
+                output.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+            }
+        }
+        
+        async function fetchCompletedOrders() {
+            const output = document.getElementById('completedOrdersResult');
+            output.innerHTML = '<p>Fetching completed orders...</p>';
+            
+            try {
+                const response = await fetch('http://localhost:5001/api/orders/completed', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const orders = await response.json();
+                
+                let html = '<h3>Completed Orders Response</h3>';
+                html += `<p>Total completed orders: ${orders.length}</p>`;
+                
+                orders.forEach(order => {
+                    const isPicked = order.status === 'picked_up' || order.pickedUpAt;
+                    html += `<div class="order ${isPicked ? 'picked-up' : 'completed'}">`;
+                    html += `<strong>Order #${order.order_number}</strong> - ${order.customer_name}<br>`;
+                    html += `Status: ${order.status || 'completed'}<br>`;
+                    html += `PickedUpAt: ${order.pickedUpAt || order.picked_up_at || 'Not set'}<br>`;
+                    html += `Completed: ${order.completed_at}`;
+                    html += `</div>`;
+                });
+                
+                output.innerHTML = html;
+            } catch (error) {
+                output.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+            }
+        }
+        
+        async function markAsPickedUp() {
+            const orderId = document.getElementById('testOrderId').value;
+            const output = document.getElementById('markPickedUpResult');
+            
+            if (!orderId) {
+                output.innerHTML = '<p class="error">Please enter an order ID</p>';
+                return;
+            }
+            
+            output.innerHTML = '<p>Marking order as picked up...</p>';
+            
+            try {
+                const response = await fetch(`http://localhost:5001/api/orders/${orderId}/status`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ status: 'picked_up' })
+                });
+                
+                const data = await response.json();
+                
+                let html = '<h3>Mark Picked Up Result</h3>';
+                html += `<p>Response status: ${response.status}</p>`;
+                
+                if (data.status === 'success') {
+                    html += '<p class="success">✓ Order marked as picked up successfully</p>';
+                    html += '<h4>Updated Order Data:</h4>';
+                    html += '<pre>' + JSON.stringify(data.data, null, 2) + '</pre>';
+                } else {
+                    html += '<p class="error">✗ Failed to mark order as picked up</p>';
+                    html += '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                }
+                
+                output.innerHTML = html;
+            } catch (error) {
+                output.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+            }
+        }
+        
+        async function verifyPickedUpOrder() {
+            const orderId = document.getElementById('testOrderId').value;
+            const output = document.getElementById('verifyResult');
+            
+            if (!orderId) {
+                output.innerHTML = '<p class="error">Please enter an order ID to verify</p>';
+                return;
+            }
+            
+            output.innerHTML = '<p>Verifying picked up order...</p>';
+            
+            try {
+                // Fetch all orders to find our picked up order
+                const response = await fetch('http://localhost:5001/api/orders', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.data) {
+                    const pickedUpOrder = data.data.find(o => 
+                        o.orderNumber === orderId || o.id === orderId
+                    );
+                    
+                    if (pickedUpOrder) {
+                        let html = '<h3>Verification Result</h3>';
+                        html += `<div class="order ${pickedUpOrder.status === 'picked_up' ? 'picked-up' : ''}">`;
+                        html += `<strong>Order #${pickedUpOrder.orderNumber}</strong><br>`;
+                        html += `Status: ${pickedUpOrder.status}<br>`;
+                        html += `PickedUpAt field present: ${pickedUpOrder.pickedUpAt ? '✓ YES' : '✗ NO'}<br>`;
+                        html += `PickedUpAt value: ${pickedUpOrder.pickedUpAt || 'Not set'}<br>`;
+                        html += `Updated At: ${pickedUpOrder.updatedAt || 'Not set'}`;
+                        html += `</div>`;
+                        
+                        if (pickedUpOrder.pickedUpAt && pickedUpOrder.status === 'picked_up') {
+                            html += '<p class="success">✓ Order correctly has pickedUpAt field and picked_up status!</p>';
+                        } else {
+                            html += '<p class="error">✗ Order is missing pickedUpAt field or incorrect status</p>';
+                        }
+                        
+                        output.innerHTML = html;
+                    } else {
+                        output.innerHTML = `<p class="error">Order ${orderId} not found</p>`;
+                    }
+                }
+            } catch (error) {
+                output.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+            }
+        }
+        
+        // Auto-run analysis on load
+        window.addEventListener('load', () => {
+            if (token) {
+                fetchAllOrders();
+            }
+        });
+    </script>
+</body>
+</html>

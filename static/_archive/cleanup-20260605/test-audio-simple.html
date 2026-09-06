@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple Audio Test</title>
+</head>
+<body>
+    <h1>Simple Audio Test</h1>
+    <p>This page tests if audio files are accessible.</p>
+    
+    <h2>Manual Audio Test</h2>
+    <audio controls>
+        <source src="/audio/notification.mp3" type="audio/mpeg">
+        Your browser does not support the audio element.
+    </audio>
+    
+    <h2>JavaScript Audio Test</h2>
+    <button onclick="testBasicAudio()">Test Basic Audio</button>
+    <button onclick="testCoffeeSounds()">Test Coffee Sounds System</button>
+    
+    <div id="results"></div>
+    
+    <script src="/coffee-sounds.js"></script>
+    <script>
+        function log(message) {
+            const results = document.getElementById('results');
+            results.innerHTML += '<div>' + new Date().toLocaleTimeString() + ': ' + message + '</div>';
+        }
+        
+        function testBasicAudio() {
+            log('Testing basic audio creation...');
+            
+            try {
+                const audio = new Audio('/audio/notification.mp3');
+                audio.volume = 0.3;
+                
+                audio.addEventListener('canplaythrough', () => {
+                    log('✅ Audio file loaded successfully');
+                });
+                
+                audio.addEventListener('error', (e) => {
+                    log('❌ Audio file load error: ' + e.message);
+                });
+                
+                audio.play().then(() => {
+                    log('✅ Audio played successfully');
+                }).catch(error => {
+                    log('❌ Audio play failed: ' + error.name + ' - ' + error.message);
+                });
+                
+            } catch (error) {
+                log('❌ Failed to create audio: ' + error.message);
+            }
+        }
+        
+        function testCoffeeSounds() {
+            log('Testing coffee sounds system...');
+            
+            if (typeof window.coffeeSounds === 'undefined') {
+                log('❌ Coffee sounds system not loaded');
+                return;
+            }
+            
+            log('Coffee sounds system loaded. Available functions:');
+            log('- play: ' + typeof window.coffeeSounds.play);
+            log('- testSounds: ' + typeof window.coffeeSounds.testSounds);
+            log('- diagnose: ' + typeof window.coffeeSounds.diagnose);
+            
+            // Test diagnose function
+            if (typeof window.coffeeSounds.diagnose === 'function') {
+                log('Running diagnose...');
+                window.coffeeSounds.diagnose();
+            }
+            
+            // Test a single sound
+            if (typeof window.coffeeSounds.play === 'function') {
+                log('Testing notification sound...');
+                window.coffeeSounds.play('newOrder');
+            }
+        }
+        
+        // Auto-run tests after page loads
+        window.addEventListener('load', () => {
+            log('Page loaded, coffee sounds system status: ' + (typeof window.coffeeSounds !== 'undefined' ? 'Loaded' : 'Not loaded'));
+        });
+    </script>
+</body>
+</html>

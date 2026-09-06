@@ -27,6 +27,7 @@ import UpdateAvailable from './components/shared/UpdateAvailable';
 import ErrorBoundary from './components/shared/ErrorBoundary';
 import BasicBaristaInterface from './components/fallbacks/BasicBaristaInterface';
 import ConfirmHost from './components/shared/ConfirmDialog';
+import EnvBanner from './components/shared/EnvBanner';
 
 // Renders its children EXCEPT on the screens a customer sees. Those pages
 // are deliberately unauthenticated, so anything that reports "you are not
@@ -802,6 +803,8 @@ function App() {
         <AdminViewSwitcher />
         {/* One in-app confirm dialog for the whole app (askConfirm). */}
         <ConfirmHost />
+        {/* TEST COPY stripe on any non-production environment. */}
+        <EnvBanner />
       </Router>
     </AppProvider>
     </ErrorBoundary>
