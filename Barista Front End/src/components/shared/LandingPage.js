@@ -75,12 +75,12 @@ const LandingPage = () => {
             staff can find their area at a glance (Organiser=blue, Barista=amber,
             Support=teal, Display=purple) instead of four near-identical cards. */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Client/Event Organizer Card */}
+          {/* Client/Event Organiser Card */}
           <div className="bg-white rounded-lg shadow-md p-8 border border-gray-200 border-t-4 border-t-blue-500 hover:shadow-lg transition-shadow flex flex-col items-center text-center">
             <div className="w-16 h-16 flex items-center justify-center bg-blue-100 rounded-full mb-4">
               <LayoutDashboard size={32} className="text-blue-700" />
             </div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">Client/Event Organizer</h2>
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">Client/Event Organiser</h2>
             <p className="text-gray-600">Analytics Dashboard & System Configuration</p>
             <button
               className="mt-6 px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"

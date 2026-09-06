@@ -74,7 +74,7 @@ const OrganiserInterface = () => {
   const userLabel = (currentUser && (currentUser.username || currentUser.full_name)) || 'admin';
   const userInitial = (userLabel[0] || 'A').toUpperCase();
   const handleLogout = () => {
-    if (window.confirm('Log out of Coffee Cue?')) {
+    if (window.confirm('Log out of CupQ?')) {
       AuthService.logout();
     }
   };

@@ -449,7 +449,7 @@ const SMSSettingsPanel = () => {
                     E
                   </div>
                   <div className="ml-2">
-                    <div className="text-white text-xs font-medium">Expresso ☕</div>
+                    <div className="text-white text-xs font-medium">CupQ</div>
                     <div className="text-gray-400 text-xs">Now</div>
                   </div>
                 </div>
