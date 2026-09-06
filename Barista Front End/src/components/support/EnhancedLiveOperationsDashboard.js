@@ -620,7 +620,7 @@ const EnhancedLiveOperationsDashboard = () => {
                   : `Done. ${data?.message || ''}`);
               }).catch(e => window.alert('Broadcast failed: ' + e.message));
             }}
-            className="flex flex-col items-center justify-center p-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all"
+            className="flex flex-col items-center justify-center p-4 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-all"
           >
             <MessageCircle size={24} className="mb-2" />
             <span className="text-sm font-medium">Announce</span>

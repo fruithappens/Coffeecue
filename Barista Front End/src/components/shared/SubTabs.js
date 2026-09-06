@@ -11,7 +11,7 @@ const SubTabs = ({ tabs, active, onChange }) => (
     {tabs.map(({ id, label, Icon }) => (
       <button
         key={id}
-        className={`flex-1 py-2 px-4 rounded-md ${active === id ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+        className={`flex-1 py-2 px-4 rounded-md ${active === id ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
         onClick={() => onChange(id)}
       >
         <Icon size={16} className="inline-block mr-1" />
