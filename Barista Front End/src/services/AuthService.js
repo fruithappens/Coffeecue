@@ -1,5 +1,6 @@
 // services/AuthService.js
 import OrderDataService from './OrderDataService';
+import roleLanding from '../utils/roleLanding';
 import ConfigService from './ConfigService';
 import { persistAccessToken, clearAccessTokens } from '../utils/authMirror';
 
@@ -229,33 +230,12 @@ class AuthService {
    * @param {string} role - User role
    */
   redirectBasedOnRole(role) {
-    let redirectPath = '/';
-    
-    switch(role) {
-      case 'admin':
-        redirectPath = '/admin';
-        break;
-      case 'staff':
-      case 'event_organizer':
-        redirectPath = '/staff';
-        break;
-      case 'barista':
-        redirectPath = '/barista';
-        break;
-      case 'support':
-        redirectPath = '/support';
-        break;
-      case 'display':
-        redirectPath = '/display';
-        break;
-      default:
-        // If role doesn't match, go to the role selection page
-        redirectPath = '/';
-        break;
-    }
-    
-    // In React SPA, if we're already on the page, this won't trigger a reload
-    // So force navigation to make sure components re-render
+    // One mapping for where a role lands (utils/roleLanding), shared with the
+    // login form. This used to send admins to /admin and staff to /staff --
+    // neither exists, so an admin landed on the customer page. barista ->
+    // /barista, support -> /support, display -> /displays, everyone else
+    // (admin / staff / organiser) -> /welcome (the role chooser).
+    const redirectPath = roleLanding(role);
     if (window.location.pathname === redirectPath) {
       window.location.reload();
     } else {

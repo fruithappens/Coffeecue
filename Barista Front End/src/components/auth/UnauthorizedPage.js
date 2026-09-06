@@ -1,5 +1,6 @@
 // components/auth/UnauthorizedPage.js
 import React from 'react';
+import roleLanding from '../../utils/roleLanding';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import AuthService from '../../services/AuthService';
 import LogoutButton from '../shared/LogoutButton';
@@ -28,20 +29,7 @@ const UnauthorizedPage = () => {
   // Determine landing page based on user role
   const getLandingPage = () => {
     if (!currentUser) return '/';
-    
-    switch (currentUser.role) {
-      case 'admin':
-        return '/admin';
-      case 'staff':
-      case 'event_organizer':
-        return '/organiser';
-      case 'barista':
-        return '/barista';
-      case 'support':
-        return '/support';
-      default:
-        return '/';
-    }
+    return roleLanding(currentUser.role);
   };
 
   return (
