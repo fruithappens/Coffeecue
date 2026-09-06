@@ -165,7 +165,7 @@ const EventDataManagement = () => {
         <button
           onClick={handleExport}
           disabled={busy === 'export'}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50"
         >
           {busy === 'export' ? 'Exporting…' : 'Export & download'}
         </button>

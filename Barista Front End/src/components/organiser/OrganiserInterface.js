@@ -407,7 +407,7 @@ const OrganiserInterface = () => {
                   <div className="text-sm text-blue-800">Answer about 12 quick questions (3 minutes) and the event builds itself — stations, milks, sizes, drinks, hours. Everything stays editable afterwards.</div>
                 </div>
                 <button
-                  className="w-full sm:w-auto sm:ml-4 flex-shrink-0 bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700"
+                  className="w-full sm:w-auto sm:ml-4 flex-shrink-0 bg-amber-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-amber-700"
                   onClick={() => setShowSetupWizard(true)}
                 >
                   Start questionnaire
@@ -468,28 +468,28 @@ const OrganiserInterface = () => {
                   one row from small screens up. */}
               <div className="mb-6 bg-white p-2 rounded-lg shadow grid grid-cols-2 gap-2 sm:flex sm:gap-0">
                 <button
-                  className={`flex-1 py-2 px-2 sm:px-4 text-sm sm:text-base rounded-md ${stationTab === 'settings' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                  className={`flex-1 py-2 px-2 sm:px-4 text-sm sm:text-base rounded-md ${stationTab === 'settings' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                   onClick={() => setStationTab('settings')}
                 >
                   <Settings size={16} className="inline-block mr-1" />
                   Station Settings
                 </button>
                 <button
-                  className={`flex-1 py-2 px-2 sm:px-4 text-sm sm:text-base rounded-md ${stationTab === 'inventory' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                  className={`flex-1 py-2 px-2 sm:px-4 text-sm sm:text-base rounded-md ${stationTab === 'inventory' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                   onClick={() => setStationTab('inventory')}
                 >
                   <Package size={16} className="inline-block mr-1" />
                   Event Inventory
                 </button>
                 <button
-                  className={`flex-1 py-2 px-2 sm:px-4 text-sm sm:text-base rounded-md ${stationTab === 'stock' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                  className={`flex-1 py-2 px-2 sm:px-4 text-sm sm:text-base rounded-md ${stationTab === 'stock' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                   onClick={() => setStationTab('stock')}
                 >
                   <Package size={16} className="inline-block mr-1" />
                   Event Stock
                 </button>
                 <button
-                  className={`flex-1 py-2 px-2 sm:px-4 text-sm sm:text-base rounded-md ${stationTab === 'config' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                  className={`flex-1 py-2 px-2 sm:px-4 text-sm sm:text-base rounded-md ${stationTab === 'config' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                   onClick={() => setStationTab('config')}
                 >
                   <Coffee size={16} className="inline-block mr-1" />

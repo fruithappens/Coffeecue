@@ -1349,7 +1349,7 @@ const QuickSetup = () => {
                 type="button"
                 onClick={saveVipCodeOnly}
                 disabled={savingVip}
-                className="px-3 py-1 rounded bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
+                className="px-3 py-1 rounded bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700 disabled:opacity-50"
               >
                 {savingVip ? 'Saving…' : 'Save VIP code'}
               </button>

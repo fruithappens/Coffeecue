@@ -24,7 +24,7 @@ const EventSettings = () => {
         <button
           className={`flex-1 py-2 px-4 rounded-md transition-colors ${
             activeTab === 'branding'
-              ? 'bg-blue-500 text-white'
+              ? 'bg-amber-600 text-white'
               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
           }`}
           onClick={() => setActiveTab('branding')}
@@ -36,7 +36,7 @@ const EventSettings = () => {
         <button
           className={`flex-1 py-2 px-4 rounded-md transition-colors ${
             activeTab === 'colors'
-              ? 'bg-blue-500 text-white'
+              ? 'bg-amber-600 text-white'
               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
           }`}
           onClick={() => setActiveTab('colors')}
