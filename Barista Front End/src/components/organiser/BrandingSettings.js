@@ -6,6 +6,7 @@ import {
 import SettingsService from '../../services/SettingsService';
 import brandingConfig, { updateBranding, resetBranding } from '../../config/brandingConfig';
 import DisplayBackgroundVideo from './DisplayBackgroundVideo';
+import { compressImageFile, compressLogoFile } from '../../utils/imageCompress';
 
 /**
  * Branding Settings Component
@@ -38,11 +39,9 @@ const BrandingSettings = () => {
     bgLandscape: '',
     bgPortrait: '',
 
-    // Sponsor / "free coffee thanks". The display screen and SMS order
-    // confirmations already render these (read by /api/display/config
-    // as showSponsor / sponsorName / sponsorMessage from branding_settings) —
-    // this is the UI to set them. Use case: "Coffees today proudly
-    // sponsored by Acme Corp" on the display + in the ready SMS.
+    // showSponsor / sponsorName / sponsorMessage and labelLogo live in this
+    // blob too but are EDITED on Branding -> Sponsors and Branding -> Labels.
+    // handleSave strips them, so a stale copy here can never overwrite them.
     showSponsor: false,
     sponsorName: '',
     sponsorMessage: '',
@@ -153,7 +152,12 @@ const BrandingSettings = () => {
       // reload read it straight back. Nothing reached the database.
       let serverSaved = false;
       try {
-        const result = await SettingsService.updateBrandingSettings(settings);
+        // Fields owned by other Branding tabs (Sponsors: the thank-you
+        // line; Labels: the sticker logo) are never sent from here. The
+        // server merges, so leaving them out leaves them alone.
+        // eslint-disable-next-line no-unused-vars
+        const { showSponsor, sponsorName, sponsorMessage, labelLogo, ...ownFields } = settings;
+        const result = await SettingsService.updateBrandingSettings(ownFields);
         serverSaved = !!result;
       } catch (err) {
         console.error('Backend branding save failed:', err);
@@ -323,83 +327,6 @@ const BrandingSettings = () => {
 
   const handleLogoUpload = handleLogoUploadFor(
     'clientLogo', 'Logo loaded — click Save to apply it to the display + login.');
-  const handleLabelLogoUpload = handleLogoUploadFor(
-    'labelLogo', 'Sticker logo loaded — click Save to apply it to printed labels.');
-
-  // Downscale + JPEG-compress an image file to a data URI in the browser.
-  // Full-screen backgrounds straight off a phone/camera are multi-MB, which
-  // is too big to store in the settings row (the save silently failed and the
-  // background never reached the Display). A wallpaper only needs ~1920px, and
-  // JPEG at ~0.72 brings it to a few hundred KB — small enough to save and
-  // fast to render. Quality steps down until it's under the target size.
-  const compressImageFile = (file, maxDim = 1920, startQuality = 0.72, targetBytes = 700 * 1024) =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = new Image();
-        img.onload = () => {
-          try {
-            const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
-            const w = Math.max(1, Math.round(img.width * scale));
-            const h = Math.max(1, Math.round(img.height * scale));
-            const canvas = document.createElement('canvas');
-            canvas.width = w; canvas.height = h;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, w, h);
-            let q = startQuality;
-            let dataUrl = canvas.toDataURL('image/jpeg', q);
-            while (dataUrl.length > targetBytes && q > 0.4) {
-              q -= 0.1;
-              dataUrl = canvas.toDataURL('image/jpeg', q);
-            }
-            resolve(dataUrl);
-          } catch (err) { reject(err); }
-        };
-        img.onerror = () => reject(new Error('Could not decode image'));
-        img.src = e.target.result;
-      };
-      reader.onerror = () => reject(new Error('Could not read file'));
-      reader.readAsDataURL(file);
-    });
-
-  // Downscale a LOGO, keeping PNG.
-  //
-  // Deliberately not the JPEG path above. A logo is usually a PNG with a
-  // transparent background, and JPEG has no alpha -- flattening it puts
-  // a white box behind the mark, which is invisible on a white settings
-  // page and obvious the moment it lands on a coloured Display header.
-  // A logo is also small in pixels, so PNG stays a sensible size.
-  const compressLogoFile = (file, maxDim = 900, targetBytes = 380 * 1024) =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = new Image();
-        img.onload = () => {
-          try {
-            let scale = Math.min(1, maxDim / Math.max(img.width, img.height));
-            let dataUrl = '';
-            // Step the size down until it fits. Resizing beats quality
-            // stepping here: PNG has no quality dial, and a logo that is
-            // physically smaller is still a clean logo.
-            for (let i = 0; i < 6; i += 1) {
-              const w = Math.max(1, Math.round(img.width * scale));
-              const h = Math.max(1, Math.round(img.height * scale));
-              const canvas = document.createElement('canvas');
-              canvas.width = w; canvas.height = h;
-              canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-              dataUrl = canvas.toDataURL('image/png');
-              if (dataUrl.length <= targetBytes) break;
-              scale *= 0.75;
-            }
-            resolve(dataUrl);
-          } catch (err) { reject(err); }
-        };
-        img.onerror = () => reject(new Error('Could not decode image'));
-        img.src = e.target.result;
-      };
-      reader.onerror = () => reject(new Error('Could not read file'));
-      reader.readAsDataURL(file);
-    });
 
   // Full-screen Display background upload. `which` is 'bgLandscape' (16:9) or
   // 'bgPortrait' (9:16). Large source files are fine now — they're downscaled
@@ -576,57 +503,9 @@ const BrandingSettings = () => {
                   )}
                   <p className="text-xs text-gray-500">
                     PNG/JPG/SVG under 400KB. Shows on the customer display
-                    screen and the login page. Click Save to apply.
+                    screen and the login page. Click Save to apply. The
+                    sticker logo for printed labels is under Branding → Labels.
                   </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Sticker logo. A separate asset from the screen logo above:
-                this one is printed about 7mm tall in 1-bit black and white
-                on a cup or lid, where fine detail and pale colours vanish. */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Sticker logo (printed on cups and lids)
-              </label>
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                <div className="flex items-center gap-4">
-                  {settings.labelLogo ? (
-                    <img
-                      src={settings.labelLogo}
-                      alt="Sticker logo preview"
-                      className="h-16 w-auto max-w-[160px] object-contain border border-gray-200 rounded bg-white p-1"
-                    />
-                  ) : (
-                    <div className="h-16 w-28 flex items-center justify-center border border-dashed border-gray-300 rounded text-xs text-gray-400 text-center px-1">
-                      Using screen logo
-                    </div>
-                  )}
-                  <div className="flex flex-col gap-2">
-                    <label className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center cursor-pointer text-sm w-fit">
-                      <Upload className="mr-2" size={16} />
-                      {settings.labelLogo ? 'Replace sticker logo' : 'Upload sticker logo'}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleLabelLogoUpload}
-                        className="hidden"
-                      />
-                    </label>
-                    {settings.labelLogo && (
-                      <button
-                        type="button"
-                        onClick={() => setSettings(prev => ({ ...prev, labelLogo: '' }))}
-                        className="text-xs text-red-600 hover:underline w-fit"
-                      >
-                        Remove sticker logo
-                      </button>
-                    )}
-                    <p className="text-xs text-gray-500 max-w-prose">
-                      Optional. Keep it simple and high contrast — fine detail
-                      disappears at 7mm. Leave empty to print the logo above.
-                    </p>
-                  </div>
                 </div>
               </div>
             </div>
@@ -694,60 +573,6 @@ const BrandingSettings = () => {
 
             {/* Full-screen Display background VIDEO — same idea, animated. */}
             <DisplayBackgroundVideo />
-
-            {/* Sponsor / free-coffee thanks. Renders on the customer
-                display screen + in order-ready SMS when enabled. */}
-            <div className="md:col-span-2 border-t pt-4 mt-2">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                Sponsor / free-coffee thanks
-              </p>
-              <label className="flex items-center mb-3">
-                <input
-                  type="checkbox"
-                  checked={!!settings.showSponsor}
-                  onChange={(e) => setSettings({...settings, showSponsor: e.target.checked})}
-                  className="mr-2"
-                />
-                <span className="text-sm font-medium text-gray-700">
-                  Show a sponsor thank-you on the display screen
-                </span>
-              </label>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Sponsor name
-                  </label>
-                  <input
-                    type="text"
-                    value={settings.sponsorName}
-                    onChange={(e) => setSettings({...settings, sponsorName: e.target.value})}
-                    placeholder="Acme Corp"
-                    disabled={!settings.showSponsor}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Sponsor message
-                  </label>
-                  <input
-                    type="text"
-                    value={settings.sponsorMessage}
-                    onChange={(e) => setSettings({...settings, sponsorMessage: e.target.value})}
-                    placeholder="Coffees today proudly sponsored by {sponsor} ☕"
-                    disabled={!settings.showSponsor}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
-                  />
-                </div>
-              </div>
-              <p className="text-xs text-gray-500 mt-1">
-                Shows on the customer-facing /display screen (and in the
-                "your coffee is ready" SMS). Use <code>{'{sponsor}'}</code> in
-                the message to insert the sponsor name. Leave the box
-                unticked to hide it. Tip: change the sponsor between
-                sessions for a "this session sponsored by…" rotation.
-              </p>
-            </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">

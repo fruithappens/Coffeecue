@@ -149,7 +149,7 @@ const MyCoffeePage = () => {
 
   // Sponsor ticker on the waiting beacon (Steve: "a ticker on the bottom
   // of the waiting beacon with the sponsors"). Self-contained public fetch,
-  // polled; hidden until the operator adds logos in Organiser -> Sponsors.
+  // polled; hidden until the operator adds logos in Organiser -> Branding -> Sponsors.
   const [sponsorTicker, setSponsorTicker] = useState({ enabled: false, size: 'small', sponsors: [] });
   useEffect(() => {
     let dead = false;

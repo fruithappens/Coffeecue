@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { UploadCloud, Trash2, ArrowUp, ArrowDown, Save, ExternalLink, Plus, Layers, GripVertical, Columns } from 'lucide-react';
 import SponsorTicker from '../display/SponsorTicker';
 import SponsorWall from '../display/SponsorWall';
+import { fetchBranding, patchBranding } from '../../utils/brandingPatch';
 
 // Sponsors — logos, tiers, the scrolling ticker, and the full-screen wall.
 //
@@ -56,6 +57,12 @@ const SponsorsPanel = () => {
   const [savedAt, setSavedAt] = useState(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  // The thank-you line ("Coffees today proudly sponsored by Acme") shown on
+  // the display and in the ready SMS. Stored in branding_settings (the
+  // server mirrors it to the SMS keys); it used to be edited on the
+  // Branding form, a screen away from the sponsor logos. One Save button
+  // saves it with everything else here.
+  const [thanks, setThanks] = useState({ showSponsor: false, sponsorName: '', sponsorMessage: '' });
   const fileRef = useRef(null);
   // Drag-to-reorder (Steve: arrows are slow). Grip handle is the drag
   // source; each row is a drop target. Arrows stay as a touch fallback
@@ -84,6 +91,10 @@ const SponsorsPanel = () => {
         setTiers(Array.isArray(b.tiers) ? b.tiers : []);
         if (b.wall && typeof b.wall === 'object') setWall((w) => ({ ...w, ...b.wall }));
       } catch (e) { /* start empty */ }
+      try {
+        const br = await fetchBranding();
+        setThanks({ showSponsor: !!br.showSponsor, sponsorName: br.sponsorName || '', sponsorMessage: br.sponsorMessage || '' });
+      } catch (e) { /* leave defaults */ }
       setLoaded(true);
     })();
   }, []);
@@ -135,7 +146,10 @@ const SponsorsPanel = () => {
         method: 'PUT', headers: authHeaders(),
         body: JSON.stringify({ enabled, position, size: tickerSize, sponsors, tiers: cleanTiers, wall }),
       });
-      if (r.ok) setSavedAt(new Date()); else setErr('Save failed — try again.');
+      if (!r.ok) { setErr('Save failed — try again.'); return; }
+      const ok = await patchBranding(thanks);
+      if (!ok) { setErr('Logos saved, but the thank-you line did not — try again.'); return; }
+      setSavedAt(new Date());
     } catch (e) { setErr('Save failed — check your connection.'); }
     finally { setSaving(false); }
   };
@@ -160,9 +174,35 @@ const SponsorsPanel = () => {
         </div>
       </div>
       <p className="text-gray-600 mb-5">
-        Logos, tiers, the scrolling ticker and the full-screen wall — all in one place.
+        Logos, tiers, the scrolling ticker, the full-screen wall and the thank-you line — all in one place.
         Changes reach the screens within about 20 seconds, no reload.
       </p>
+
+      {/* Thank-you line — display + ready SMS */}
+      <div className="bg-white rounded-xl shadow-sm p-4 sm:p-5 mb-4">
+        <label className="flex items-start gap-3 cursor-pointer mb-3">
+          <input type="checkbox" checked={thanks.showSponsor} disabled={!loaded}
+            onChange={(e) => setThanks((t) => ({ ...t, showSponsor: e.target.checked }))} className="mt-1 w-4 h-4" />
+          <span className="text-sm text-gray-700">
+            <strong>Thank-you line</strong>
+            <span className="block text-gray-500">A sentence on the display screen and in the "your coffee is ready" text. Change it between sessions for a "this session sponsored by…" rotation.</span>
+          </span>
+        </label>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block text-sm">
+            <span className="text-gray-600">Sponsor name</span>
+            <input value={thanks.sponsorName} disabled={!loaded || !thanks.showSponsor}
+              onChange={(e) => setThanks((t) => ({ ...t, sponsorName: e.target.value }))}
+              placeholder="Acme Corp" className="mt-1 w-full border border-gray-200 rounded px-2 py-1.5 text-sm disabled:bg-gray-50" />
+          </label>
+          <label className="block text-sm">
+            <span className="text-gray-600">Message — <code>{'{sponsor}'}</code> inserts the name</span>
+            <input value={thanks.sponsorMessage} disabled={!loaded || !thanks.showSponsor}
+              onChange={(e) => setThanks((t) => ({ ...t, sponsorMessage: e.target.value }))}
+              placeholder="Coffees today proudly sponsored by {sponsor}" className="mt-1 w-full border border-gray-200 rounded px-2 py-1.5 text-sm disabled:bg-gray-50" />
+          </label>
+        </div>
+      </div>
 
       {/* Ticker controls */}
       <div className="bg-white rounded-xl shadow-sm p-4 sm:p-5 mb-4 grid gap-4 sm:grid-cols-2">
