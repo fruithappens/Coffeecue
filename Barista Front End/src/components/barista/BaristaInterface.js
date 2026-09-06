@@ -77,6 +77,7 @@ import DynamicStaffAllocation from '../organiser/DynamicStaffAllocation';
 import MultiLevelInventory from '../organiser/MultiLevelInventory';
 import StationCapabilitiesEditor from './StationCapabilitiesEditor';
 import EnhancedStationCapabilities from '../organiser/EnhancedStationCapabilities';
+import { askConfirm } from '../shared/ConfirmDialog';
 
 // True-to-life display preview: the REAL /display page in an iframe,
 // rendered at external-screen size (1280×720, 16:9) and scaled down to
@@ -1410,11 +1411,13 @@ const BaristaInterface = () => {
     if (!selectedStation) return;
     const goingOffline = stationOnline;
     if (goingOffline) {
-      const ok = window.confirm(
-        'Take this station offline?\n\n' +
-        'New SMS and walk-up orders will stop being sent here until you bring ' +
-        'it back online. Orders already in progress are not affected.'
-      );
+      const ok = await askConfirm({
+        title: 'Take this station offline?',
+        message: 'New SMS and walk-up orders will stop being sent here until you bring '
+          + 'it back online. Orders already in progress are not affected.',
+        confirmLabel: 'Take offline',
+        danger: true,
+      });
       if (!ok) return;
     }
     try {
@@ -3766,7 +3769,11 @@ const BaristaInterface = () => {
                           // A batch is paper you cannot get back, so it
                           // asks — unlike every other button on this card,
                           // which costs one label at most.
-                          if (!window.confirm(`Print ${count} branded stickers now?`)) return;
+                          if (!(await askConfirm({
+                            title: `Print ${count} branded stickers now?`,
+                            message: 'A batch is paper you cannot get back.',
+                            confirmLabel: 'Print',
+                          }))) return;
                           try {
                             const r = await printService.printStickers(count, stationPrinter.id);
                             if (r?.success) {
@@ -4792,8 +4799,11 @@ const BaristaInterface = () => {
                 disabled={holdBusy}
                 onClick={async () => {
                   const n = holdState?.will_send ?? 0;
-                  if (n > 0 && !window.confirm(
-                    `Send ${n} held "your coffee is ready" ${n === 1 ? 'message' : 'messages'} now?`)) return;
+                  if (n > 0 && !(await askConfirm({
+                    title: `Send ${n} held "your coffee is ready" ${n === 1 ? 'message' : 'messages'} now?`,
+                    message: 'Every customer whose coffee is already ready gets their text at once.',
+                    confirmLabel: 'Send now',
+                  }))) return;
                   setHoldBusy(true);
                   try {
                     const api = new (await import('../../services/ApiService')).default();
@@ -4835,8 +4845,13 @@ const BaristaInterface = () => {
                 // Confirm: an accidental knock here silently stops EVERY
                 // "your coffee is ready" text until someone notices + releases
                 // (Steve: dangerous buttons need a guard against a mis-tap).
-                if (!window.confirm(
-                  'Hold all "coffee ready" texts?\n\nCustomers will NOT be told their order is ready until you press Release. Use this only for pre-orders or before a session starts.')) return;
+                if (!(await askConfirm({
+                  title: 'Hold all "coffee ready" texts?',
+                  message: 'Customers will NOT be told their order is ready until you press Release. '
+                    + 'Use this only for pre-orders or before a session starts.',
+                  confirmLabel: 'Hold texts',
+                  danger: true,
+                }))) return;
                 setHoldBusy(true);
                 try {
                   const api = new (await import('../../services/ApiService')).default();

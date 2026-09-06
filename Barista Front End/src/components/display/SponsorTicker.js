@@ -15,6 +15,9 @@ import React, { useMemo } from 'react';
 // Three heights (Steve): small = the original strip, medium, and large ≈
 // a fifth of the screen. Large uses vh so it scales with the screen.
 const SIZES = {
+  // xs: the phone ordering overlay -- a full-height strip covered the last
+  // drink card at 390px wide (Claude web audit).
+  xs: { row: '52px', logo: '34px', maxW: '130px', gap: 28, pad: '6px 12px' },
   small: { row: '76px', logo: '52px', maxW: '190px', gap: 40, pad: '8px 18px' },
   medium: { row: '118px', logo: '84px', maxW: '260px', gap: 52, pad: '10px 22px' },
   large: { row: '20vh', logo: '13vh', maxW: '30vw', gap: 64, pad: '1.4vh 2vw' },

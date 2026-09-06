@@ -7,6 +7,7 @@ import InventoryIntegrationService from '../../services/InventoryIntegrationServ
 import EventInventoryService, { normaliseInventory } from '../../services/EventInventoryService';
 import QuickSetupStatusBanner from './QuickSetupStatusBanner';
 import useCatalog from '../../hooks/useCatalog';
+import { askConfirm } from '../shared/ConfirmDialog';
 
 // Inventory categories that map cleanly to a catalog category. When
 // the operator is adding an item in one of these, the name input
@@ -421,8 +422,20 @@ const InventoryManagement = () => {
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
         <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Inventory Management</h2>
         <button
-          onClick={initializeDefaultInventory}
-          className="px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700"
+          onClick={async () => {
+            // One tap used to replace the whole event menu and save it,
+            // with nothing in between (Claude web audit). It asks now.
+            const ok = await askConfirm({
+              title: 'Reset the event menu to the built-in defaults?',
+              message: 'Every drink, milk, size, sweetener and extra you have added or '
+                + 'switched off will be replaced by the standard list and saved straight '
+                + 'away. There is no undo.',
+              confirmLabel: 'Reset menu',
+              danger: true,
+            });
+            if (ok) initializeDefaultInventory();
+          }}
+          className="px-4 py-2 bg-white border border-red-300 text-red-700 rounded-md hover:bg-red-50"
         >
           Reset to Defaults
         </button>

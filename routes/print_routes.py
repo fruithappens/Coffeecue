@@ -1947,6 +1947,42 @@ def update_printer(printer_id):
         return jsonify({"success": False, "message": str(e)}), 500
 
 
+@bp.route("/printers/<int:printer_id>", methods=["DELETE"])
+@jwt_required_with_demo()
+@role_required_with_demo(["admin", "staff"])
+def delete_printer(printer_id):
+    """Remove a printer row (bench/test rows, a retired unit).
+
+    Only a DISABLED printer can be removed, so a live one can't vanish
+    mid-event. Its past jobs keep their history with printer_id cleared;
+    a real unit that polls again simply re-registers itself, disabled.
+    """
+    db = _db()
+    _ensure_tables(db)
+    try:
+        cur = db.cursor()
+        cur.execute("SELECT enabled FROM printers WHERE id = %s", (printer_id,))
+        row = cur.fetchone()
+        if not row:
+            return jsonify({"success": False, "message": "printer not found"}), 404
+        if row[0]:
+            return (
+                jsonify({"success": False, "message": "Disable the printer first, then remove it"}),
+                400,
+            )
+        cur.execute("UPDATE print_jobs SET printer_id = NULL WHERE printer_id = %s", (printer_id,))
+        cur.execute("DELETE FROM printers WHERE id = %s", (printer_id,))
+        db.commit()
+        return jsonify({"success": True})
+    except Exception as e:
+        logger.error(f"delete_printer error: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
 DEFAULT_LABEL_SETTINGS = {
     # Minimum label LENGTH in dots (the cutter cuts at image end, so this
     # is media consumed per cup). 380 = 47.5mm was leaving 14mm blank on

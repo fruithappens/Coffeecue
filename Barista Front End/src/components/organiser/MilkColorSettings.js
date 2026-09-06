@@ -364,7 +364,7 @@ const MilkColorSettings = () => {
       <div className="mb-6 p-4 border border-blue-200 rounded-lg bg-blue-50">
         <p className="text-sm text-blue-800">
           <strong>Note:</strong> Milk types are managed in the{' '}
-          <span className="font-semibold">Organiser → Stations → Event Inventory</span> section. 
+          <span className="font-semibold">Menu → Event Inventory</span> section. 
           Colors you set here will be used throughout the system to identify different milk types visually.
         </p>
       </div>

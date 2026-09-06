@@ -309,7 +309,9 @@ const DisplayScreen = () => {
   // Declared here, BEFORE the derivations that read it, to avoid a TDZ error.
   const [config, setConfig] = useState({
     system_name: 'CupQ',
-    event_name: 'Coffee Event',
+    // Empty until the server answers: attendees saw the placeholder
+    // "Coffee Event" for a second or two on every load.
+    event_name: '',
     sms_number: '',
     sponsor: { enabled: false, name: '', message: '' },
     // CupQ house dark. This initial value matters: a second merge from
@@ -488,6 +490,12 @@ const DisplayScreen = () => {
   const [stations, setStations] = useState([]);
   const [currentStation, setCurrentStation] = useState(null);
   const [connected, setConnected] = useState(false);
+  // True once ANY fetch has answered. Until then "not connected" is not
+  // knowledge, it is the initial state -- the red bar used to show on
+  // every first paint (Claude web audit).
+  const [hadResult, setHadResult] = useState(false);
+  // True once /display/config has answered (with anything).
+  const [configKnown, setConfigKnown] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [smsPhoneNumber, setSmsPhoneNumber] = useState('');
   const [orders, setOrders] = useState({ pending: [], inProgress: [], ready: [] });
@@ -709,6 +717,7 @@ const DisplayScreen = () => {
         const _resp = await fetch('/api/display/config');
         const _body = _resp.ok ? await _resp.json() : null;
         const c = _body && (_body.config || _body);
+        if (!cancelled) setConfigKnown(true);
         // Only apply a config that carries REAL branding. system_name is
         // always present as a default, so keying on it (as before) let a
         // blank/default config — "Coffee Event", no background — overwrite a
@@ -721,7 +730,7 @@ const DisplayScreen = () => {
           setConfig(prev => ({
             ...prev,
             system_name: c.system_name || 'CupQ',
-            event_name: c.event_name || settings?.displaySettings?.eventName || 'Coffee Event',
+            event_name: c.event_name || settings?.displaySettings?.eventName || '',
             sms_number: c.sms_number || '',
             sponsor: c.sponsor || prev.sponsor,
             logo: c.logo || prev.logo,
@@ -882,13 +891,13 @@ const DisplayScreen = () => {
           } else {
             setCurrentStation(list[0]);
           }
-          setConnected(_noteConnected(true));
+          setConnected(_noteConnected(true)); setHadResult(true);
         } else {
           throw new Error('No stations found');
         }
       } catch (e) {
         setError('Failed to load stations: ' + (e.message || 'Unknown'));
-        setConnected(_noteConnected(false));
+        setConnected(_noteConnected(false)); setHadResult(true);
       }
     })();
   }, [stationId]);
@@ -1071,11 +1080,11 @@ const DisplayScreen = () => {
         setOrders(next);
         lastLoadAtRef.current = Date.now();
         setLastUpdated(new Date());
-        setConnected(_noteConnected(true));
+        setConnected(_noteConnected(true)); setHadResult(true);
         setLoading(false);
       } catch (e) {
         setError('Failed to load orders: ' + (e.message || 'Unknown'));
-        setConnected(_noteConnected(false));
+        setConnected(_noteConnected(false)); setHadResult(true);
         setLoading(false);
       }
     };
@@ -1538,7 +1547,7 @@ const DisplayScreen = () => {
           )}
           <div className="min-w-0">
             <h1 className={`${isPortrait ? 'text-4xl' : 'text-5xl'} font-extrabold tracking-tight leading-tight truncate`}>
-              {config.event_name || config.system_name}
+              {config.event_name || (configKnown ? config.system_name : '\u00a0')}
             </h1>
             {/* Station name nearly title-sized (Steve: "much larger, only
                 slightly smaller than Treenet 2026") — it's the thing a
@@ -1548,7 +1557,7 @@ const DisplayScreen = () => {
               <MapPin size={isPortrait ? 22 : 26} className="mr-2 flex-shrink-0" />
               {currentStation
                 ? `${currentStation.name}${currentStation.location ? ` · ${currentStation.location}` : ''}`
-                : 'Loading station…'}
+                : '\u00a0'}
             </div>
             {/* The old "Live · refreshes every 8s" was implementation
                 detail customers don't need (Steve). The operator's
@@ -1889,7 +1898,7 @@ const DisplayScreen = () => {
       </header>
 
       {/* --- Connection warning --- */}
-      {!connected && (
+      {hadResult && !connected && (
         <div className="mx-6 md:mx-10 mb-3 px-4 py-2 rounded-lg bg-red-500/90 text-white text-sm">
           {error || 'Not connected to backend — orders may be stale.'}
         </div>
