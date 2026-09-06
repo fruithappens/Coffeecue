@@ -42,6 +42,19 @@ CHANNELS = {
 # together when the question is "how much did we automate".
 SELF_SERVE = ("kiosk", "web", "app")
 
+# Physical SURFACE the order was placed on -- the device/frame, kept separate
+# from channel (how) and source (which sign). Steve: track the cart kiosk, the
+# EventsAir app frame, a standalone phone (QR), and walk-ins each on their own,
+# so the stats are accurate and each area can be tuned. 'sms' rounds it out so
+# every order lands in a bucket.
+SURFACES = {
+    "kiosk": "Kiosk touchscreen",
+    "ea_app": "EventsAir app",
+    "phone": "Phone (QR / web)",
+    "barista": "Walk-in (barista)",
+    "sms": "SMS text",
+}
+
 _SOURCE_RE = re.compile(r"[^a-z0-9-]+")
 
 
@@ -83,13 +96,35 @@ def normalize_source(value):
     return v[:32]
 
 
-def stamp(order_details, channel, source=None):
+def normalize_surface(value):
+    """A known surface name, or None. Never raises; tolerates the channel-ish
+    spellings a caller might send."""
+    try:
+        v = str(value or "").strip().lower().replace("-", "_")
+    except Exception:
+        return None
+    v = {
+        "phone_qr": "phone", "web": "phone", "qr": "phone", "my": "phone",
+        "app": "ea_app", "ea": "ea_app", "eventsair": "ea_app",
+        "walkin": "barista", "walk_in": "barista", "staff": "barista",
+        "touchscreen": "kiosk", "display": "kiosk",
+    }.get(v, v)
+    return v if v in SURFACES else None
+
+
+def surface_label(surface):
+    """Human label for a report. Unknown values pass through readable."""
+    s = normalize_surface(surface)
+    return SURFACES.get(s) or str(surface or "Unknown")
+
+
+def stamp(order_details, channel, source=None, surface=None):
     """Record provenance on an order's details dict.
 
     Called at the point of INSERT, by the code path that knows how the
     order arrived. Returns the same dict for convenience. An unknown
-    channel is dropped rather than stored, so a bad caller cannot invent
-    a sixth channel and quietly fragment every report.
+    channel/surface is dropped rather than stored, so a bad caller cannot
+    invent a value and quietly fragment every report.
     """
     if not isinstance(order_details, dict):
         return order_details
@@ -99,7 +134,23 @@ def stamp(order_details, channel, source=None):
     src = normalize_source(source)
     if src:
         order_details["source_code"] = src
+    sf = normalize_surface(surface)
+    if sf:
+        order_details["surface"] = sf
     return order_details
+
+
+def infer_surface(order_details):
+    """Best-effort surface for orders written before surface stamping: the
+    explicit stamp if present, otherwise mapped from the channel."""
+    if not isinstance(order_details, dict):
+        return "phone"
+    explicit = normalize_surface(order_details.get("surface"))
+    if explicit:
+        return explicit
+    ch = normalize_channel(order_details.get("channel")) or infer_channel(order_details)
+    return {"kiosk": "kiosk", "barista": "barista", "app": "ea_app",
+            "web": "phone", "sms": "sms"}.get(ch, "phone")
 
 
 def infer_channel(order_details):

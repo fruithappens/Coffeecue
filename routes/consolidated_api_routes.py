@@ -27,9 +27,10 @@ from utils.order_eta import (
     describe as eta_describe, estimate_minutes as eta_estimate_minutes,
     seconds_per_coffee as eta_seconds_per_coffee)
 from utils.order_provenance import (
-    CHANNELS, SELF_SERVE, channel_label, infer_channel,
-    is_estimated as provenance_estimated, normalize_channel,
-    normalize_source, stamp as stamp_provenance)
+    CHANNELS, SELF_SERVE, SURFACES, channel_label, infer_channel,
+    infer_surface, is_estimated as provenance_estimated, normalize_channel,
+    normalize_source, normalize_surface, stamp as stamp_provenance,
+    surface_label)
 
 # Configure logging
 logger = logging.getLogger("expresso.routes.consolidated_api")
@@ -878,6 +879,7 @@ def orders():
                 order_details,
                 normalize_channel(data.get('channel')) or 'barista',
                 data.get('src') or data.get('source_code'),
+                data.get('surface') or 'barista',
             )
             cursor.execute('''
                 INSERT INTO orders (
@@ -5601,7 +5603,7 @@ def create_kiosk_order():
         if not _mk_ok:
             return jsonify({'success': False, 'message': _mk_msg}), 409
 
-        stamp_provenance(order_details, req_channel, req_source)
+        stamp_provenance(order_details, req_channel, req_source, data.get('surface'))
         if ea_contact_id:
             # EA-linked kiosk order: carries the contact id so Phase-2
             # write-back (and future EA notifications) can find them.
@@ -5763,7 +5765,7 @@ def create_kiosk_order_group():
     shared = {k: body.get(k) for k in (
         'phone', 'use_registered_phone', 'ea_contact_id', 'station_id',
         'preferred_station', 'channel', 'src', 'e', 'lookup_phone',
-        'event_password', 'sms_opt_in') if k in body}
+        'event_password', 'sms_opt_in', 'surface') if k in body}
 
     # Letter the round: reserve ONE base (336) and pre-assign 336a/336b/336c
     # so the sequence advances once per round (no gaps) and every surface
@@ -12644,7 +12646,7 @@ def report_channels():
         cur.execute(sql, params)
         rows = cur.fetchall() or []
 
-        by_channel, by_source, by_station = {}, {}, {}
+        by_channel, by_source, by_station, by_surface = {}, {}, {}, {}
         total = served = estimated = 0
         for row in rows:
             raw = row[0] if not isinstance(row, dict) else row.get('order_details')
@@ -12670,6 +12672,11 @@ def report_channels():
             slot['orders'] += 1
             slot['estimated'] += 1 if est else 0
 
+            sf = infer_surface(details)
+            sfslot = by_surface.setdefault(
+                sf, {'surface': sf, 'label': surface_label(sf), 'orders': 0})
+            sfslot['orders'] += 1
+
             src = details.get('source_code')
             if src:
                 sslot = by_source.setdefault(
@@ -12687,6 +12694,9 @@ def report_channels():
         sources = sorted(by_source.values(), key=lambda x: -x['orders'])
         for x in sources:
             x['share_pct'] = pct(x['orders'])
+        surfaces = sorted(by_surface.values(), key=lambda s: -s['orders'])
+        for s in surfaces:
+            s['share_pct'] = pct(s['orders'])
 
         self_serve = sum(c['orders'] for c in channels
                          if c['channel'] in SELF_SERVE)
@@ -12698,6 +12708,7 @@ def report_channels():
             'served': served,
             'by_channel': channels,
             'by_source': sources,
+            'by_surface': surfaces,
             'by_station': by_station,
             'self_service': {'orders': self_serve, 'share_pct': pct(self_serve)},
             'sms': {'orders': sms_orders, 'share_pct': pct(sms_orders)},
@@ -12707,6 +12718,7 @@ def report_channels():
             'estimated_orders': estimated,
             'estimated_pct': pct(estimated),
             'channel_vocabulary': CHANNELS,
+            'surface_vocabulary': SURFACES,
             'start_date': request.args.get('start_date'),
             'end_date': request.args.get('end_date'),
         })

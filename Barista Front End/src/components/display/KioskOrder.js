@@ -703,6 +703,12 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
           || (name.trim() === (eaSuggest?.firstName || '') ? eaSuggest?.cid : undefined)
           || undefined,
         channel,
+        // Which physical SURFACE this is (device/frame), separate from
+        // channel: the cart kiosk, the EventsAir app frame, or a standalone
+        // phone from a QR -- so each area is tracked and tunable on its own.
+        surface: channel === 'kiosk'
+          ? 'kiosk'
+          : ((() => { try { return window.self !== window.top; } catch (e) { return true; } })() ? 'ea_app' : 'phone'),
         // Explicit, so the report can count 'chose texts' without inferring
         // it from whether a number happened to be attached.
         sms_opt_in: !!(smsOptIn && phone.trim()),
