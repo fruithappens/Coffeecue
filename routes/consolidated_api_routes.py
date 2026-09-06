@@ -22,7 +22,8 @@ from utils.event_access import (
     password_required as event_password_required)
 from utils.notification_hold import (
     HOLD_SETTING_KEY, clear_held, is_held, is_holding, mark_held,
-    should_release, summarise as summarise_held)
+    should_release, summarise as summarise_held,
+    HELD_FLAG)
 from utils.order_eta import (
     describe as eta_describe, estimate_minutes as eta_estimate_minutes,
     seconds_per_coffee as eta_seconds_per_coffee)
@@ -12512,6 +12513,48 @@ def _held_rows(db):
         except Exception:
             pass
     return out
+
+
+@bp.route('/notifications/hold/discard', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def discard_held_notifications():
+    """Clear every held "ready" flag WITHOUT sending, and turn the hold off.
+
+    The hold exists for a session that has not started yet. Releasing it
+    days later is never right: on 7 Sep 2026 the hold was found ON after
+    the event, with 23 Treenet customers queued to be told "your coffee is
+    ready" three days late. Release would have sent them; turning the hold
+    off alone leaves the flags in place for a future Release to find. This
+    empties the queue for good. Nothing else changes -- no phone number,
+    order or status is touched.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        cur = db.cursor()
+        # jsonb: drop the key from every row that carries it.
+        cur.execute(
+            "UPDATE orders SET order_details = order_details - %s "
+            "WHERE jsonb_exists(order_details, %s)",
+            (HELD_FLAG, HELD_FLAG))
+        cleared = cur.rowcount
+        _kv_put(db, HOLD_SETTING_KEY, False)
+        db.commit()
+        logger.info(f"Discarded {cleared} held notifications (no texts sent); hold OFF")
+        counts = summarise_held(_held_rows(db))
+        return jsonify({'success': True, 'cleared': cleared, 'holding': False, **counts})
+    except Exception as e:
+        logger.error(f"discard_held_notifications error: {e}")
+        try:
+            coffee_system.db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 
 @bp.route('/notifications/release', methods=['POST'])
