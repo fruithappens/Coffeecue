@@ -12543,6 +12543,11 @@ def discard_held_notifications():
             "WHERE jsonb_exists(order_details, %s)",
             (HELD_FLAG, HELD_FLAG))
         cleared = cur.rowcount
+        # Commit the row update BEFORE touching the KV switch: _kv_put
+        # opens with a defensive rollback, which silently undid the
+        # UPDATE on the first live run (reported cleared=148, queue
+        # unchanged).
+        db.commit()
         _kv_put(db, HOLD_SETTING_KEY, False)
         db.commit()
         logger.info(f"Discarded {cleared} held notifications (no texts sent); hold OFF")
