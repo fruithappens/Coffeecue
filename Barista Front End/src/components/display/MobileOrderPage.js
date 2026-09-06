@@ -14,11 +14,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import CancelOrderButton from './CancelOrderButton';
 import BaristaAskCard from './BaristaAskCard';
 import { remember, recall, forget } from '../../utils/deviceMemory';
-import { useSearchParams } from 'react-router-dom';
-import KioskOrder from './KioskOrder';
-import { fetchEventAccess, urlCodeMatches, normalizeCode,
-         stampUrlWithCode, rememberCodeOk, codeAlreadyOk } from '../../utils/eventGate';
-import BackupBaristaUnlock from './BackupBaristaUnlock';
+import { useSearchParams, Navigate } from 'react-router-dom';
 import useReadyChime, { SoundToggleButton } from './useReadyChime';
 import SponsorTicker from './SponsorTicker';
 import { event as logEvent } from '../../services/logging';
@@ -47,35 +43,6 @@ const MobileOrderPage = () => {
   const [params, setParams] = useSearchParams();
   const stationId = params.get('station');
   const trackNumber = params.get('order');
-  // Event-code gate (only for the ORDERING view — tracking an existing order
-  // is never gated). A scanned/shared link carries ?e= and skips it; a cold
-  // visit to /order is asked for the code once. Dormant until required.
-  const [codeGate, setCodeGate] = useState(false);
-  const [codeInput, setCodeInput] = useState('');
-  const [codeError, setCodeError] = useState('');
-  const [eventCode, setEventCode] = useState('');
-  useEffect(() => {
-    if (trackNumber) return undefined; // tracking view — no gate
-    let cancelled = false;
-    fetchEventAccess().then((a) => {
-      if (cancelled || !a.require || !a.code) return;
-      setEventCode(a.code);
-      if (!urlCodeMatches(a.code) && !codeAlreadyOk()) setCodeGate(true);
-    });
-    return () => { cancelled = true; };
-  }, [trackNumber]);
-  const submitCode = () => {
-    const typed = normalizeCode(codeInput);
-    if (!typed) return;
-    if (typed === eventCode) {
-      rememberCodeOk();
-      stampUrlWithCode(eventCode);
-      setCodeGate(false);
-      setCodeError('');
-    } else {
-      setCodeError("That code doesn't match this event. Check the code on the poster, or scan the QR here.");
-    }
-  };
   useEffect(() => {
     // Refresh the device's memory of ITS OWN live order (written at
     // placement) so a long wait doesn't age it out. Only when it
@@ -464,64 +431,12 @@ const MobileOrderPage = () => {
 
   // Event-code gate: a cold visitor is asked for the code once before the
   // ordering flow. A scan/shared link carries ?e= and never sees this.
-  if (codeGate) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6"
-           style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top))' }}>
-        <div className="w-full max-w-sm text-center">
-          <div className="text-5xl mb-3" aria-hidden>☕</div>
-          <h1 className="text-2xl font-bold mb-1">Event code</h1>
-          <p className="text-gray-600 mb-5">
-            Enter the event code to order — it's on the posters and signage
-            here. Scanned a QR code at the event? You won't need this.
-          </p>
-          <input
-            autoFocus value={codeInput}
-            onChange={(e) => { setCodeInput(e.target.value); setCodeError(''); }}
-            onKeyDown={(e) => { if (e.key === 'Enter') submitCode(); }}
-            placeholder="Event code"
-            autoCapitalize="none" autoCorrect="off" spellCheck={false}
-            className="w-full border-2 rounded-xl px-4 py-4 text-xl text-center"
-          />
-          {codeError && <p className="text-red-600 mt-3">{codeError}</p>}
-          <button
-            className="w-full mt-4 py-4 rounded-xl bg-blue-600 text-white text-lg font-semibold disabled:opacity-40"
-            disabled={!codeInput.trim()}
-            onClick={submitCode}
-          >
-            Continue
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Ordering: reuse the kiosk flow verbatim (same steps, same rules,
-  // same availability logic) but full-screen on the phone. On success
-  // we switch this page into tracking mode via the URL.
-  return (
-    <div className="min-h-screen bg-white">
-      {/* Long-press the bottom-left corner to turn this device into a
-          barista station. Only on the ORDERING view, not the status
-          card: the status card is what a delegate keeps open on their
-          own phone, and this belongs to the cart's iPad. */}
-      <BackupBaristaUnlock />
-      <KioskOrder
-        stationId={stationId}
-        // This page is reached by scanning a QR on a phone, not by
-        // tapping the cart's iPad, so it reports as the delegate's own
-        // device. Without this both would land as 'kiosk' -- the exact
-        // blind spot that made CTN26's channel split unanswerable.
-        channel="web"
-        onClose={() => { /* nothing to close — this IS the page */ }}
-        onOrderPlaced={(orderNumber) => {
-          const next = { order: String(orderNumber) };
-          if (stationId) next.station = stationId;
-          setParams(next);
-        }}
-      />
-    </div>
-  );
+  // Ordering now lives in ONE place -- /my (and /). This page is only the
+  // order-number BEACON above; a bare /order with nothing to track sends the
+  // visitor to that single ordering home, preserving any event code / station
+  // already in the URL. (The old duplicate ordering flow + its own event-code
+  // gate lived here; MyCoffeePage owns ordering and its gate now.)
+  return <Navigate to={`/my${window.location.search || ''}`} replace />;
 };
 
 export default MobileOrderPage;
