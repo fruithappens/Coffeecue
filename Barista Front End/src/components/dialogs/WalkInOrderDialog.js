@@ -246,6 +246,8 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
   // drink — a real footgun in high-volume mode).
   useEffect(() => {
     const onKeyDown = (e) => {
+      // Escape closes the dialog (it used to only know the digit keys).
+      if (e.key === 'Escape') { e.preventDefault(); if (onClose) onClose(); return; }
       // Ignore modified keys (ctrl/cmd/alt) so we don't clobber browser
       // shortcuts. Shift+digit is fine — keeps Caps Lock cases working.
       if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -262,7 +264,7 @@ const WalkInOrderDialog = ({ onSubmit, onClose }) => {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [visibleCoffeeTypes]);
+  }, [visibleCoffeeTypes, onClose]);
 
   // Load station inventory and available options
   useEffect(() => {

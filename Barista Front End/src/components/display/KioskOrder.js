@@ -239,6 +239,8 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
     return () => { dead = true; };
   }, [phoneSurface]);
   const stripOn = phoneSurface && sponsorStrip.enabled && sponsorStrip.sponsors.length > 0;
+  // Narrow phones get the short strip so the last drink card stays clear.
+  const phoneNarrow = typeof window !== 'undefined' && window.innerWidth < 640;
   const [roundName, setRoundName] = useState('');
   const [roundSaved, setRoundSaved] = useState(false);
   const loadRound = (round) => {
@@ -1642,7 +1644,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
       {stripOn && (
         <div className="fixed left-0 right-0 z-[55] shadow-lg"
              style={{ bottom: embeddedInApp ? 'calc(env(safe-area-inset-bottom) + 8.5rem)' : 'env(safe-area-inset-bottom)' }}>
-          <SponsorTicker items={sponsorStrip.sponsors} position="bottom" size="small" />
+          <SponsorTicker items={sponsorStrip.sponsors} position="bottom" size={phoneNarrow ? 'xs' : 'small'} />
         </div>
       )}
     </div>

@@ -802,7 +802,7 @@ const UserManagementTab = () => {
               </div>
             ))}
           </div>
-        ) : (
+        ) : loading ? null : (
           <div className="p-8 text-center text-gray-500">
             <User size={48} className="mx-auto mb-2 text-gray-300" />
             <p>No users found</p>

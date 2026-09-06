@@ -9,6 +9,7 @@ import { Printer, RefreshCw, RotateCcw, XCircle } from 'lucide-react';
 import printService from '../../services/PrintService';
 import ApiServiceClass from '../../services/ApiService';
 import { showToast } from '../shared/Toast';
+import { askConfirm } from '../shared/ConfirmDialog';
 
 const api = new ApiServiceClass();
 
@@ -324,6 +325,32 @@ const PrintersTab = () => {
                       >
                         Test print
                       </button>
+                      {/* Bench and test rows were living in the production
+                          fleet list (Claude web audit). Only a DISABLED
+                          printer can be removed; a live one cannot vanish
+                          mid-event, and a real unit re-registers itself on
+                          its next poll anyway. */}
+                      {!p.enabled && (
+                        <button
+                          className="ml-2 text-xs text-red-600 hover:text-red-800 underline"
+                          title="Remove this printer row"
+                          onClick={async () => {
+                            const ok = await askConfirm({
+                              title: `Remove printer "${p.name || p.mac_address}"?`,
+                              message: 'Its past jobs stay in the history. If it is a real printer and polls again, it will re-register itself (disabled).',
+                              confirmLabel: 'Remove',
+                              danger: true,
+                            });
+                            if (!ok) return;
+                            const r = await printService.deletePrinter(p.id);
+                            showToast(r?.success ? 'Printer removed' : `Remove failed: ${r?.message || 'unknown'}`,
+                              r?.success ? 'success' : 'error');
+                            refresh();
+                          }}
+                        >
+                          Remove
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

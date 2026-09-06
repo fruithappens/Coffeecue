@@ -133,6 +133,11 @@ class PrintService {
     return this._call(`/printers/${printerId}`, 'PATCH', fields);
   }
 
+  /** Remove a DISABLED printer row (bench/test rows, a retired unit). */
+  deletePrinter(printerId) {
+    return this._call(`/printers/${printerId}`, 'DELETE');
+  }
+
   retryJob(jobId) {
     return this._call(`/jobs/${jobId}/retry`, 'POST', {});
   }

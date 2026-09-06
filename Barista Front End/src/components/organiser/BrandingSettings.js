@@ -388,7 +388,7 @@ const BrandingSettings = () => {
             <span className="text-lg font-medium">Enable Custom Branding</span>
           </label>
           <p className="text-sm text-gray-600 mt-1 ml-8">
-            Override default CoffeeCue branding with custom client branding
+            Show the event's own name, logo and colours instead of the CupQ defaults
           </p>
         </div>
         
@@ -402,7 +402,7 @@ const BrandingSettings = () => {
                 type="text"
                 value={settings.clientName}
                 onChange={(e) => setSettings({...settings, clientName: e.target.value})}
-                placeholder="Sydney Convention Centre"
+                placeholder="e.g. National Wine Centre"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
               />
             </div>

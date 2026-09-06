@@ -26,6 +26,7 @@ import UpdateAvailable from './components/shared/UpdateAvailable';
 
 import ErrorBoundary from './components/shared/ErrorBoundary';
 import BasicBaristaInterface from './components/fallbacks/BasicBaristaInterface';
+import ConfirmHost from './components/shared/ConfirmDialog';
 
 // Renders its children EXCEPT on the screens a customer sees. Those pages
 // are deliberately unauthenticated, so anything that reports "you are not
@@ -799,6 +800,8 @@ function App() {
         </Routes>
         {/* Admin-only floating switcher between Barista/Organiser/Support/Display. */}
         <AdminViewSwitcher />
+        {/* One in-app confirm dialog for the whole app (askConfirm). */}
+        <ConfirmHost />
       </Router>
     </AppProvider>
     </ErrorBoundary>

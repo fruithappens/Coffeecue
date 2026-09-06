@@ -30,7 +30,10 @@ ENV DISABLE_ESLINT_PLUGIN=true
 # CRA doesn't treat warnings as errors.
 ENV CI=false
 
-# Build React app
+# Build React app. GENERATE_SOURCEMAP=false: the .map was being served
+# publicly (5.4 MB) alongside the bundle -- the whole front-end source,
+# readable by anyone who fetched it.
+ENV GENERATE_SOURCEMAP=false
 RUN npm run build
 
 # Backend stage

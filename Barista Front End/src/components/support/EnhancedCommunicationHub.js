@@ -100,9 +100,8 @@ const EnhancedCommunicationHub = () => {
   const channels = [
     { id: 'sms', name: 'SMS', icon: Smartphone, color: 'blue', enabled: true },
     { id: 'email', name: 'Email', icon: Mail, color: 'green', enabled: true },
-    { id: 'push', name: 'Push', icon: Bell, color: 'purple', enabled: true },
-    { id: 'voice', name: 'Voice', icon: Phone, color: 'amber', enabled: false },
-    { id: 'whatsapp', name: 'WhatsApp', icon: MessageSquare, color: 'emerald', enabled: false }
+    // Push / Voice / WhatsApp were listed here as channels; none exists.
+    // Only what can actually send is offered.
   ];
   
   // Load data on mount

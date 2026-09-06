@@ -150,11 +150,28 @@ const DashboardTab = () => {
         const r = await api.request('/client-errors?limit=5', { method: 'GET' });
         if (cancelled) return;
         const errs = (r && r.errors) || [];
-        setAlerts(errs.map((e, i) => ({
-          id: e.id || i,
-          type: 'error',
-          message: `${e.component || 'App'}: ${(e.message || 'error').slice(0, 80)}`,
-          time: e.occurred_at ? new Date(e.occurred_at).toLocaleTimeString() : '',
+        // Same message repeated = one row with a count, and an AGE rather
+        // than a bare clock time: five identical week-old crashes used to
+        // read as five live ones (Claude web audit).
+        const ageOf = (iso) => {
+          if (!iso) return '';
+          const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+          if (mins < 1) return 'just now';
+          if (mins < 60) return `${mins} min ago`;
+          const h = Math.round(mins / 60);
+          if (h < 48) return `${h} h ago`;
+          return `${Math.round(h / 24)} days ago`;
+        };
+        const byMsg = new Map();
+        errs.forEach((e, i) => {
+          const message = `${e.component || 'App'}: ${(e.message || 'error').slice(0, 80)}`;
+          const cur = byMsg.get(message);
+          if (cur) { cur.count += 1; return; }
+          byMsg.set(message, { id: e.id || i, type: 'error', message, count: 1, at: e.occurred_at });
+        });
+        setAlerts([...byMsg.values()].map((x) => ({
+          ...x,
+          time: `${ageOf(x.at)}${x.count > 1 ? ` · ${x.count}×` : ''}${x.at ? ` · ${new Date(x.at).toLocaleDateString()}` : ''}`,
         })));
       } catch (_) { /* leave alerts empty on failure */ }
     })();

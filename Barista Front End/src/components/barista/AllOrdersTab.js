@@ -33,71 +33,49 @@ const AllOrdersTab = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const loadAllOrders = () => {
+  // Ask the server. This tab used to merge every `orders_cache_station_*`
+  // key in the browser's localStorage -- so a stale cache showed phantom
+  // copies of an order tagged "Station null" / "_backup" while the database
+  // held exactly one (Claude web audit, 6 Sep 2026). /api/orders caps at 50
+  // rows per status, which is a full day's activity per column.
+  const loadAllOrders = async () => {
     try {
-      const allOrders = {
-        pending: [],
-        inProgress: [],
-        completed: [],
-        previous: []
+      const { default: ApiServiceClass } = await import('../../services/ApiService');
+      const api = new ApiServiceClass();
+      const fetchStatus = async (status) => {
+        try {
+          const r = await api.request(`/orders?status=${encodeURIComponent(status)}`);
+          const rows = (r && (r.data || r.orders)) || [];
+          return Array.isArray(rows) ? rows : [];
+        } catch (e) { return []; }
       };
-
-      // Get all station IDs. We can't easily call the useStations hook
-      // here because this function runs inside a setInterval, so discover
-      // stations by scanning localStorage cache keys instead. Previously
-      // this was hardcoded to ['1','2','3'] which silently dropped orders
-      // for any other station.
-      const cacheKeyPrefix = 'orders_cache_station_';
-      const stations = Object.keys(localStorage)
-        .filter(key => key.startsWith(cacheKeyPrefix))
-        .map(key => key.slice(cacheKeyPrefix.length));
-
-      // Load orders from each station's cache
-      stations.forEach(stationId => {
-        const cacheKey = `orders_cache_station_${stationId}`;
-        const cachedData = localStorage.getItem(cacheKey);
-        
-        if (cachedData) {
-          try {
-            const stationOrders = JSON.parse(cachedData);
-            
-            // Add station info to each order and merge
-            if (stationOrders.pendingOrders) {
-              allOrders.pending.push(...stationOrders.pendingOrders.map(order => ({
-                ...order,
-                assignedStation: stationId
-              })));
-            }
-            if (stationOrders.inProgressOrders) {
-              allOrders.inProgress.push(...stationOrders.inProgressOrders.map(order => ({
-                ...order,
-                assignedStation: stationId
-              })));
-            }
-            if (stationOrders.completedOrders) {
-              allOrders.completed.push(...stationOrders.completedOrders.map(order => ({
-                ...order,
-                assignedStation: stationId
-              })));
-            }
-            if (stationOrders.previousOrders) {
-              allOrders.previous.push(...stationOrders.previousOrders.map(order => ({
-                ...order,
-                assignedStation: stationId
-              })));
-            }
-          } catch (e) {
-            console.error(`Error parsing orders for station ${stationId}:`, e);
-          }
-        }
+      const [pending, inProgress, completed, previous] = await Promise.all([
+        fetchStatus('pending'), fetchStatus('in_progress'), fetchStatus('completed'), fetchStatus('picked_up'),
+      ]);
+      const mins = (a, b) => (a && b ? Math.max(0, Math.round((parseServerDate(b) - parseServerDate(a)) / 60000)) : null);
+      const shape = (o) => ({
+        ...o,
+        id: o.orderNumber || o.order_number || o.id,
+        assignedStation: o.stationId != null ? String(o.stationId) : (o.station_id != null ? String(o.station_id) : undefined),
+        startedAt: o.startedAt || o.started_at || o.updatedAt || o.updated_at,
+        completedAt: o.completedAt || o.completed_at,
+        pickedUpAt: o.pickedUpAt || o.picked_up_at || o.updatedAt || o.updated_at,
+        // For finished orders the wait is created -> completed, not "minutes
+        // since created" (which grows forever on an old order).
+        waitTime: (o.completedAt || o.completed_at)
+          ? (mins(o.createdAt || o.created_at, o.completedAt || o.completed_at) ?? o.waitTime)
+          : o.waitTime,
       });
-
-      // Sort orders by timestamp
+      const allOrders = {
+        pending: pending.map(shape),
+        inProgress: inProgress.map(shape),
+        completed: completed.map(shape),
+        previous: previous.map(shape),
+      };
       allOrders.pending.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       allOrders.inProgress.sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
       allOrders.completed.sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt));
       allOrders.previous.sort((a, b) => new Date(b.pickedUpAt) - new Date(a.pickedUpAt));
-
       setOrders(allOrders);
       calculateStats(allOrders);
       setLoading(false);
