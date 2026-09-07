@@ -8262,6 +8262,14 @@ class CoffeeOrderSystem:
                     or "double" in strength
                 ):
                     shots += 1
+                elif "half" in strength or "weak" in strength or "light" in strength:
+                    # A half-strength drink used a FULL dose in the stock
+                    # maths -- the customer's "half strength" reached the
+                    # barista and the label but never the beans (Steve:
+                    # "the double shot / half strength should also affect
+                    # the stock levels"). Half a dose, not none: a ristretto
+                    # or a lighter pull still grinds.
+                    shots = max(0.5, shots - 0.5)
             # Bean stock is in KILOGRAMS. Dose per extraction is a
             # SETTING (beans_grams_per_shot), default 22g — the top of
             # the Australian standard (20-22g double-basket dose; the
@@ -8278,7 +8286,8 @@ class CoffeeOrderSystem:
                     grams_per_shot = 22.0
             except (TypeError, ValueError):
                 grams_per_shot = 22.0
-            bean_kg = shots * grams_per_shot / 1000.0
+            # shots can now be fractional (half strength = 0.5).
+            bean_kg = float(shots) * grams_per_shot / 1000.0
             # Decrement the BEAN the customer chose, not the drink name.
             # This passed name="flat white": no inventory row is called
             # that, so the category fallback fired and decremented
