@@ -97,8 +97,6 @@ PASSWORD_MIN_LENGTH = int(os.getenv('PASSWORD_MIN_LENGTH', 8))
 PASSWORD_REQUIRE_SPECIAL = os.getenv('PASSWORD_REQUIRE_SPECIAL', 'True').lower() == 'true'
 
 # Payment processing configuration
-STRIPE_API_KEY = os.getenv('STRIPE_API_KEY')
-STRIPE_WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET')
 
 # Default access codes
 DEFAULT_VIP_CODE = os.getenv('DEFAULT_VIP_CODE', ''.join(random.choices('ABCDEFGHJKLMNPQRSTUVWXYZ23456789', k=6)))
