@@ -26,6 +26,8 @@ import { Volume2, VolumeX } from 'lucide-react';
 import KioskOrder from './KioskOrder';
 import { fetchEventAccess, urlCodeMatches, normalizeCode,
          stampUrlWithCode, rememberCodeOk, codeAlreadyOk } from '../../utils/eventGate';
+import useNotices from '../shared/useNotices';
+import NoticeBanner from '../shared/NoticeBanner';
 
 const STORAGE_KEY = 'coffee_cue_my_cid';
 // Which QR/sign this visit came from. Session, not local: a delegate who
@@ -105,6 +107,10 @@ const Choice = ({ label, options, value, onPick }) => (
 
 const MyCoffeePage = () => {
   const [params] = useSearchParams();
+  // Anything the event needs everyone to know -- "out of skim", "cart 2 is
+  // down". Steve: the beacon watchers were the people getting told nothing,
+  // because a phone number is optional at every ordering door.
+  const notices = useNotices('phone');
   // ?cid= wins (a merge field, if the app ever supplies one), then whatever
   // this device remembered from last time.
   // A half-configured EventsAir link sends the merge token LITERALLY --
@@ -1123,6 +1129,7 @@ const MyCoffeePage = () => {
            style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top))',
                     paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
         <div className="w-full max-w-sm text-center">
+          <NoticeBanner notices={notices} className="mb-4 text-left" />
           <div className="text-5xl mb-3" aria-hidden>☕</div>
           <h1 className="text-2xl font-bold mb-1">Your coffee</h1>
           <p className="text-gray-600 mb-6">
@@ -1297,6 +1304,7 @@ const MyCoffeePage = () => {
                     paddingTop: 'max(1.5rem, env(safe-area-inset-top))',
                     paddingBottom: BEACON_PAD_BOTTOM }}>
         <div className="w-full max-w-md">
+          <NoticeBanner notices={notices} className="mb-4 text-left" />
           <div className={`${copy.tone} text-white rounded-2xl p-6 text-center shadow-lg
                            ${ready ? 'animate-pulse' : ''}`}>
             <div className="text-sm uppercase tracking-wide opacity-90">
@@ -1459,6 +1467,7 @@ const MyCoffeePage = () => {
          style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top))',
                   paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
       <div className="w-full max-w-md text-center">
+        <NoticeBanner notices={notices} className="mb-4 text-left" />
         {editingName ? (
           <div className="mb-5 text-left">
             <label className="block text-sm text-gray-600 mb-1">

@@ -78,6 +78,8 @@ import MultiLevelInventory from '../organiser/MultiLevelInventory';
 import StationCapabilitiesEditor from './StationCapabilitiesEditor';
 import EnhancedStationCapabilities from '../organiser/EnhancedStationCapabilities';
 import { askConfirm } from '../shared/ConfirmDialog';
+import useNotices from '../shared/useNotices';
+import NoticeBanner from '../shared/NoticeBanner';
 
 // True-to-life display preview: the REAL /display page in an iframe,
 // rendered at external-screen size (1280×720, 16:9) and scaled down to
@@ -126,6 +128,11 @@ const BaristaInterface = () => {
     updateStationStatus,
     refreshData: refreshStations
   } = useStations();
+
+  // What the room is being told right now (see NoticeComposer). A barista on
+  // cart 4 needs to know cart 2 is down as much as the person waiting does --
+  // they are the one who gets asked about it.
+  const notices = useNotices('screen', selectedStation);
 
   // State for showing station selector dropdown
   const [showStationSelector, setShowStationSelector] = useState(false);
@@ -2351,6 +2358,8 @@ const BaristaInterface = () => {
       {/* Outbound-SMS-down alert — loud + always visible during service, the
           one signal that survives a total outbound outage (see component). */}
       <SmsHealthBanner />
+
+      <NoticeBanner notices={notices} className="px-4 pt-3" />
 
       {/* Header - Connection Banner */}
       {!online && (
