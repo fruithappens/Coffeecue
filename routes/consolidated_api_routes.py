@@ -5579,8 +5579,10 @@ def create_kiosk_order():
             'strength': strength,
             'temp': temp,
             'bean_type': bean_type or None,
-            'order_type': 'kiosk',
-            'created_by': 'kiosk',
+            # The barista's walk-up form posts here too (channel 'walkin' ->
+            # 'barista'); keep the legacy order_type honest for it.
+            'order_type': 'walk-in' if req_channel == 'barista' else 'kiosk',
+            'created_by': 'barista' if req_channel == 'barista' else 'kiosk',
             # Explicit 'chose texts' flag from the kiosk/app/phone flows (None
             # when the caller predates it) -- reportable without inference.
             'sms_opt_in': (bool(data.get('sms_opt_in')) if 'sms_opt_in' in data else None),

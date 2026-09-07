@@ -56,7 +56,7 @@ import SoundNotificationService, {
 import MessageDialog from '../dialogs/MessageDialog';
 import MoveOrderDialog from '../dialogs/MoveOrderDialog';
 import WaitTimeDialog from '../dialogs/WaitTimeDialog';
-import WalkInOrderDialog from '../dialogs/WalkInOrderDialog';
+import KioskOrder from '../display/KioskOrder';
 import EditOrderDialog from '../dialogs/EditOrderDialog';
 import useCustomerQuestions from '../../hooks/useCustomerQuestions';
 import CustomerQuestionsList from './CustomerQuestionsList';
@@ -1446,138 +1446,6 @@ const BaristaInterface = () => {
   };
 
   // Handle walk-in order submission with better error handling
-  const handleWalkInOrder = async (orderDetails, orderType = 'single') => {
-    try {
-      console.log('BaristaInterface.handleWalkInOrder called with:', {
-        orderType,
-        customerName: orderDetails.customer_name || orderDetails.customerName,
-        milkType: orderDetails.milk_type || orderDetails.milkType,
-        milkTypeId: orderDetails.milk_type_id || orderDetails.milkTypeId
-      });
-      
-      // If this is a group order, handle it differently
-      if (orderType === 'group') {
-        console.log('Attempting to add group order:', orderDetails);
-        
-        // Find the actual station info from the stations list
-        const stationInfo = stations.find(s => s.id === selectedStation);
-        
-        // Pass the group order to the service function
-        const result = await OrderDataService.submitGroupOrder(orderDetails);
-        
-        if (result && result.success) {
-          setShowWalkInDialog(false);
-          showToast(`Group order "${orderDetails.groupName}" with ${result.count} coffees added to the queue!`, 'success');
-          // Refresh data to show new orders
-          refreshData();
-        } else {
-          // More detailed error message
-          showToast(`Failed to add group order: ${result?.message || 'Unknown error'}`, 'error', 6000);
-        }
-        
-        return;
-      }
-      
-      // Handle regular individual walk-in order
-      console.log('Attempting to add walk-in order:', orderDetails);
-      
-      // Find the actual station info from the stations list
-      const stationInfo = stations.find(s => s.id === selectedStation);
-      
-      // Add station ID to the order details
-      // If a collection station is specified, the order should be processed there
-      const targetStationId = orderDetails.collectionStation || selectedStation;
-      const targetStation = stations.find(s => s.id === targetStationId);
-      
-      const orderWithStation = {
-        ...orderDetails,
-        // Processing station - where the order will be made
-        stationId: targetStationId,
-        station_id: targetStationId,
-        assignedStation: targetStationId,
-        // Add the station name for better display
-        stationName: targetStation ? targetStation.name : (stationInfo ? stationInfo.name : settings.stationName),
-        // Track where the order was originally created (for reference)
-        createdAtStation: selectedStation,
-        created_at_station: selectedStation
-      };
-      
-      console.log('Adding walk-in order with station information:', orderWithStation);
-      
-      // Add a proper try/catch around the API call
-      const result = await addWalkInOrder(orderWithStation);
-
-      // A REFUSAL (e.g. "this station doesn't stock almond") must never
-      // toast success — Danny's two walk-ins "added successfully" while
-      // the backend had refused both and nothing existed anywhere.
-      // (Now also covers plain server errors — Penny's long black said
-      // "added" while the server had it rejected.)
-      if (result && result.refused) {
-        showToast(`❌ Not added: ${result.message}`, 'error', 8000);
-        return; // keep the dialog open so the barista can adjust
-      }
-
-      // True offline: the order is queued on THIS device only until the
-      // connection returns. Say so — it won't be on other stations or
-      // the customer display yet.
-      if (result && result.offline) {
-        setShowWalkInDialog(false);
-        showToast('⚠ OFFLINE — order saved on this device and will sync when '
-          + 'the connection returns. Not visible to other stations yet.', 'info', 8000);
-        return;
-      }
-
-      if (result) {
-        setShowWalkInDialog(false);
-        
-        // Get customer name or use a default
-        const customerName = orderDetails.customer_name || orderDetails.customerName || 'Walk-in Customer';
-        
-        // Honest, specific toast: the order NUMBER and where it landed,
-        // so a barista viewing a different station knows why it isn't on
-        // their own queue.
-        const newNum = result.order_number || result.orderNumber || result.id;
-        let message = `✅ Order${newNum ? ` #${newNum}` : ''} added`;
-        
-        // Add customer name if available
-        if (customerName && customerName !== 'Walk-in Customer') {
-          message += ` for ${customerName}`;
-        }
-        const landedStation = result.station_id || result.stationId
-          || orderWithStation.stationId;
-        if (landedStation) {
-          message += ` → Station ${landedStation}`;
-          if (String(landedStation) !== String(selectedStation)) {
-            message += ` (not this station's queue)`;
-          }
-        }
-        
-        // Add collection station info if different
-        if (orderDetails.collectionStation && orderDetails.collectionStation !== selectedStation) {
-          const stationName = orderWithStation.stationName || `Station ${orderDetails.collectionStation}`;
-          message += `\n📍 Collection at: ${stationName}`;
-        }
-        
-        // Use toast notification
-        showToast(message.replace(/\n/g, ' '), 'success', 5000);
-        
-        console.log('Walk-in order successfully added and dialog closed');
-      } else {
-        // Don't close dialog on error, let user retry
-        console.error('Failed to add walk-in order - keeping dialog open for retry');
-        showToast('Failed to add walk-in order — the server refused it. Check the details and try again.', 'error', 6000);
-      }
-    } catch (error) {
-      console.error('Error submitting walk-in order:', error);
-      
-      // Show specific error message if available
-      const errorMessage = error?.message || 'Unknown error occurred';
-      showToast(`Error adding walk-in order: ${errorMessage}`, 'error', 6000);
-      
-      // Don't close dialog on error, let user retry or manually close
-      console.error('Walk-in order submission failed - keeping dialog open for retry');
-    }
-  };
 
   // Function to show display screen with station ID
   const openDisplayScreen = () => {
@@ -3938,10 +3806,21 @@ const BaristaInterface = () => {
         />
       )}
       
+      {/* Walk-up order: the customer's own form, pointed at this station,
+          so the drink questions ("dash of water or milk?"), the sizes and
+          "Add another coffee" are exactly what a customer gets. Steve
+          found the old barista-only form had none of that. */}
       {showWalkInDialog && (
-        <WalkInOrderDialog 
-          onSubmit={handleWalkInOrder}
+        <KioskOrder
+          stationId={selectedStation}
+          channel="walkin"
+          headerColor="#B8764A"
           onClose={() => setShowWalkInDialog(false)}
+          onOrderPlaced={(orderNumber) => {
+            setShowWalkInDialog(false);
+            showToast(`Order${orderNumber ? ` #${orderNumber}` : ''} added to the queue`, 'success');
+            refreshData();
+          }}
         />
       )}
       

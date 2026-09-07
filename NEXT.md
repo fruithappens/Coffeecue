@@ -47,6 +47,11 @@ Branch: `next` (never auto-deploys; Railway only deploys `main`). Every screen s
   PIN = the event's kiosk PIN (`settings.kiosk_pin`, 4–6 digits; default 1234 until set). Three tabs:
   Queue · Stock · Tools. Removed from BaristaInterface: the old header, both tab bars, the three-column
   board, the bottom action bar, the old card renderers and the four pending-column files (-1,200 lines).
+  Layout (Steve's call after seeing 8 making / 20 waiting / 5 ready): LANES on a landscape tablet or laptop
+  (`useLanesLayout`: min-width 1024 landscape, or ≥1280) — Making | Up next | Ready side by side, each
+  scrolling inside the screen with pinned headings, no page scroll (root `h-screen` while the Queue tab is
+  open); COLUMN on phones/portrait with a pinned jump bar and a Ready strip fixed to the bottom. Making
+  auto-compacts above 4; the Steam line filters the bench by milk; the rush-mix strip rides inside Up next.
   Checkpoint: the rush drill — 30 orders in 90 s worked through the UI (`scratchpad capture/rush_drill.js`
   headless; Steve on the iPad for real).
 
