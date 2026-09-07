@@ -581,6 +581,33 @@ def _m018_shipped_demo_template(cur):
 # Master list. Append new migrations at the bottom — DO NOT renumber
 # existing ones, and DO NOT change `version`. The runner trusts the
 # version number to determine which migrations to skip.
+def _m019_station_stats_twin_columns(cur):
+    """Bring station_stats' twin columns into line.
+
+    The table carries BOTH name/notes and location/equipment_notes. The
+    stations API (what the Organiser and barista screens use) writes
+    notes/equipment_notes; the public display config, the support views
+    and label printing read name/location -- and on production `name`
+    was never written at all, so /api/display/config said "Station #1"
+    while every operator screen said "Coffee Station 1". Nobody saw it
+    because the public display could not read /api/stations and fell
+    back to a hardcoded "Coffee Station 1 / 2 / 3" that happened to
+    match.
+
+    From now on the model writes both pairs together (Station.update_station,
+    the create route). This one-off copies the written side onto the
+    read side for existing rows. Idempotent: only rows where the pairs
+    differ are touched, and a blank written side never erases a name."""
+    cur.execute("""
+        UPDATE station_stats
+           SET name = COALESCE(NULLIF(notes, ''), name),
+               location = COALESCE(NULLIF(equipment_notes, ''), location)
+         WHERE COALESCE(name, '') <> COALESCE(NULLIF(notes, ''), COALESCE(name, ''))
+            OR COALESCE(location, '') <> COALESCE(NULLIF(equipment_notes, ''), COALESCE(location, ''))
+    """)
+    logger.info("m019: station_stats twin columns aligned (%s rows)", cur.rowcount)
+
+
 MIGRATIONS: list[Migration] = [
     Migration(1, 'station_stats_extras',       _m001_station_stats_extras),
     Migration(2, 'customer_preferences_is_vip', _m002_customer_preferences_is_vip),
@@ -602,6 +629,7 @@ MIGRATIONS: list[Migration] = [
     Migration(16, 'recipes_null_safe_unique',  _m016_recipes_null_safe_unique),
     Migration(17, 'stock_overrides',           _m017_stock_overrides),
     Migration(18, 'shipped_demo_template',     _m018_shipped_demo_template),
+    Migration(19, 'station_stats_twin_columns', _m019_station_stats_twin_columns),
 ]
 
 
