@@ -27,7 +27,7 @@ const AdminViewSwitcher = () => {
   // Don't clutter the public/landing/login or the customer-facing display.
   // Also hidden on /barista — that screen has its own "Switch view" control in
   // the header pill row (the floating one collided with the action bar there).
-  if (['/', '/login', '/auth/login', '/display', '/barista'].includes(location.pathname)) return null;
+  if (['/', '/login', '/auth/login', '/display', '/barista', '/run'].includes(location.pathname)) return null;
 
   return (
     // RIGHT EDGE, vertically centred. It used to float bottom-left, where it

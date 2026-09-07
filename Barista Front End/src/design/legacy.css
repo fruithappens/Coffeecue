@@ -125,3 +125,16 @@
 .cq-legacy .shadow-lg, .shadow-xl, .shadow-2xl { box-shadow: var(--cq-shadow-raised); }
 .cq-legacy input:not([type=checkbox]):not([type=radio]):not([type=range]), select, textarea { border-color: var(--cq-line); background: var(--cq-milk); color: var(--cq-ink); border-radius: var(--cq-r-md); }
 .cq-legacy input:focus, select:focus, textarea:focus { border-color: var(--cq-caramel); outline: none; box-shadow: 0 0 0 3px var(--cq-caramel-wash); }
+
+/* Second pass: colours that only appear on the panels reached through the
+   runner. Amber-family yellows join caramel; the slate/blue-grey buttons
+   join roast. Attention stays green and red. */
+.cq-legacy .bg-yellow-400, .cq-legacy .bg-yellow-500, .cq-legacy .bg-yellow-600, .cq-legacy .bg-yellow-700 { background-color: var(--cq-caramel); color: #fff; }
+.cq-legacy .hover\:bg-yellow-600:hover, .cq-legacy .hover\:bg-yellow-700:hover { background-color: var(--cq-caramel-deep); }
+.cq-legacy .bg-yellow-200 { background-color: var(--cq-caramel-wash); }
+.cq-legacy .text-yellow-500, .cq-legacy .text-yellow-600 { color: var(--cq-caramel-deep); }
+.cq-legacy .border-yellow-500, .cq-legacy .border-yellow-600 { border-color: var(--cq-caramel); }
+.cq-legacy .bg-slate-600, .cq-legacy .bg-slate-700, .cq-legacy .bg-slate-800, .cq-legacy .bg-gray-600, .cq-legacy .bg-gray-700, .cq-legacy .bg-gray-800, .cq-legacy .bg-gray-900 { background-color: var(--cq-roast); color: var(--cq-cream); }
+.cq-legacy .hover\:bg-slate-700:hover, .cq-legacy .hover\:bg-gray-700:hover, .cq-legacy .hover\:bg-gray-800:hover, .cq-legacy .hover\:bg-gray-900:hover { background-color: var(--cq-roast-deep); }
+.cq-legacy .bg-teal-500, .cq-legacy .bg-teal-600, .cq-legacy .bg-cyan-500, .cq-legacy .bg-cyan-600, .cq-legacy .bg-sky-500, .cq-legacy .bg-sky-600 { background-color: var(--cq-caramel); color: #fff; }
+.cq-legacy .bg-teal-50, .cq-legacy .bg-teal-100, .cq-legacy .bg-cyan-50, .cq-legacy .bg-sky-50 { background-color: var(--cq-caramel-wash); }
