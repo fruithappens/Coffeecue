@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
-import LandingPage from './components/shared/LandingPage';
 import BaristaInterface from './components/barista/BaristaInterface';
 import Organiser from './components/organiser/Organiser';
 import DisplayScreen from './components/display/DisplayScreen';
@@ -43,150 +42,6 @@ const PublicScreenGate = ({ children }) => {
 };
 
 // Simple API Test Component
-const ApiTestComponent = ({ apiStatus, onFallbackToggle }) => {
-  const [testResults, setTestResults] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState(
-    apiStatus?.isConnected ? 'connected' : apiStatus?.fallbackEnabled ? 'fallback' : 'unknown'
-  );
-
-  // Test API connection
-  const testApiConnection = async () => {
-    setIsLoading(true);
-    setConnectionStatus('checking');
-    
-    try {
-      const response = await fetch('/api/test');
-      if (response.ok) {
-        const data = await response.json();
-        setTestResults(data);
-        setConnectionStatus('connected');
-      } else if (response.status === 422) {
-        // Likely a JWT signature verification failure
-        setTestResults({ 
-          error: `Failed with status: ${response.status}`,
-          details: 'Token signature verification failed',
-          suggestion: 'Try enabling fallback mode or clearing your authentication token'
-        });
-        setConnectionStatus('auth_error');
-      } else {
-        setTestResults({ error: `Failed with status: ${response.status}` });
-        setConnectionStatus('disconnected');
-      }
-    } catch (error) {
-      setTestResults({ error: error.message });
-      setConnectionStatus('disconnected');
-      
-      // Connection failed — do NOT auto-prompt to enable sample-data
-      // mode (see note on the auth-init path). Just record the status.
-      console.warn('API connection test failed; not auto-enabling fallback.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Test pending orders endpoint
-  const testPendingOrders = async () => {
-    setIsLoading(true);
-    try {
-      const response = await fetch('/api/orders/pending');
-      if (response.ok) {
-        const data = await response.json();
-        setTestResults({ pendingOrders: data });
-      } else if (response.status === 422) {
-        // Likely a JWT signature verification failure
-        setTestResults({ 
-          error: `Failed with status: ${response.status}`,
-          details: 'Token signature verification failed',
-          suggestion: 'Try enabling fallback mode or clearing your authentication token'
-        });
-      } else {
-        setTestResults({ error: `Failed with status: ${response.status}` });
-      }
-    } catch (error) {
-      setTestResults({ 
-        error: error.message,
-        suggestion: 'Try enabling fallback mode to use sample data'
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">API Test Page</h1>
-      
-      <div className="bg-white rounded shadow-md p-4 mb-6">
-        <h2 className="text-lg font-semibold mb-3">Connection Status</h2>
-        <div className="flex items-center mb-4">
-          <div 
-            className={`w-3 h-3 rounded-full mr-2 ${
-              connectionStatus === 'connected' ? 'bg-green-500' : 
-              connectionStatus === 'fallback' ? 'bg-amber-500' :
-              connectionStatus === 'auth_error' ? 'bg-yellow-500' :
-              connectionStatus === 'disconnected' ? 'bg-red-500' : 
-              'bg-gray-500'
-            }`}
-          ></div>
-          <span>
-            {connectionStatus === 'connected' ? 'Connected to API' : 
-             connectionStatus === 'fallback' ? 'Using fallback data' :
-             connectionStatus === 'auth_error' ? 'Authentication error' :
-             connectionStatus === 'disconnected' ? 'Disconnected from API' : 
-             'Status unknown'}
-          </span>
-          
-          {apiStatus && (
-            <span className="ml-3 text-sm text-gray-600">
-              {apiStatus.fallbackEnabled ? '(Fallback mode active)' : ''}
-            </span>
-          )}
-        </div>
-        
-        <div className="flex space-x-3">
-          <button 
-            onClick={testApiConnection}
-            disabled={isLoading}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-          >
-            {isLoading ? 'Testing...' : 'Test API Connection'}
-          </button>
-          
-          <button 
-            onClick={testPendingOrders}
-            disabled={isLoading}
-            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
-          >
-            Test Pending Orders
-          </button>
-          
-          <button 
-            onClick={onFallbackToggle}
-            className={`px-4 py-2 ${apiStatus?.fallbackEnabled ? 'bg-green-600 hover:bg-green-700' : 'bg-amber-600 hover:bg-amber-700'} text-white rounded`}
-          >
-            {apiStatus?.fallbackEnabled ? 'Disable Fallback Mode' : 'Enable Fallback Mode'}
-          </button>
-        </div>
-      </div>
-      
-      {testResults && (
-        <div className="bg-white rounded shadow-md p-4">
-          <h2 className="text-lg font-semibold mb-3">Test Results</h2>
-          {testResults.suggestion && (
-            <div className="bg-amber-100 text-amber-800 p-3 rounded mb-3">
-              <p className="font-bold">Suggestion:</p>
-              <p>{testResults.suggestion}</p>
-            </div>
-          )}
-          <pre className="bg-gray-100 p-4 rounded overflow-x-auto">
-            {JSON.stringify(testResults, null, 2)}
-          </pre>
-        </div>
-      )}
-    </div>
-  );
-};
 
 // One-time sound system bootstrap. Installs window.coffeeSounds and
 // hooks the app:newOrder / order_updated events. Runs once at module
@@ -695,16 +550,13 @@ function App() {
             {/* Public routes */}
             {/* cupq.app now opens straight into ordering -- Steve: "just
                 tell someone got to cupq.app and place your order". Staff go
-                to cupq.app/login. The old landing lives on at /welcome. */}
+                to cupq.app/login. */}
             <Route path="/" element={<MyCoffeePage />} />
-            <Route path="/welcome" element={<LandingPage />} />
           
           {/* Direct login route for clear access */}
-          <Route path="/direct-login" element={<Navigate to="/login" replace />} />
           
           {/* Login routes - handle both paths */}
           <Route path="/login" element={<LoginPage onLoginSuccess={() => setIsAuthenticated(true)} />} />
-          <Route path="/auth/login" element={<LoginPage onLoginSuccess={() => setIsAuthenticated(true)} />} />
           
           {/* Display routes - publicly accessible */}
           <Route path="/display" element={<DisplayScreen />} />
@@ -781,14 +633,6 @@ function App() {
           <Route path="/unauthorized" element={<UnauthorizedPage />} />
           
           {/* API test route */}
-          <Route path="/api-test" element={
-            <ApiTestComponent 
-              apiStatus={apiStatus}
-              onFallbackToggle={apiStatus.fallbackEnabled 
-                ? () => OfflineDataHelper.disableFallbackMode()
-                : () => OfflineDataHelper.enableFallbackMode()
-              }
-            />} 
           />
           
           {/* cupq.app/treenet26 -> order page for that event. Any real

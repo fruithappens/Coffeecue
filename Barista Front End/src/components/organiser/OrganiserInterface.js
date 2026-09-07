@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Coffee, Users, Clock, Calendar, Settings, LogOut, Activity, Brain, Zap,
-  LineChart, Radio, Shield, Package, Boxes, ArrowLeft, CheckCircle, Menu,
+  Coffee, Users, Clock, Calendar, Settings, LogOut, Activity, Zap,
+  Radio, Package, Boxes, CheckCircle, Menu,
   HelpCircle, Image as ImageIcon, Palette, Tag, Droplet, FileText, ListChecks,
 } from 'lucide-react';
 
@@ -9,11 +9,7 @@ import GroupOrdersTab from '../barista/GroupOrdersTab';
 import AllOrdersTab from '../barista/AllOrdersTab';
 import UserManagementTab from './UserManagementTab';
 import EnhancedLiveOperationsDashboard from '../support/EnhancedLiveOperationsDashboard';
-import QueuePsychologyIntelligence from '../support/QueuePsychologyIntelligence';
-import EventLifecycleManagement from './EventLifecycleManagement';
-import AnalyticsDashboard from '../support/AnalyticsDashboard';
 import EnhancedCommunicationHub from '../support/EnhancedCommunicationHub';
-import PredictiveIntelligence from '../support/PredictiveIntelligence';
 import BrandingSettings from './BrandingSettings';
 import MilkColorSettings from './MilkColorSettings';
 import LabelsTab from './LabelsTab';
@@ -24,7 +20,6 @@ import StationSettings from './StationSettings';
 import StationInventoryConfig from './StationInventoryConfig';
 import EnhancedScheduleManagement from './EnhancedScheduleManagement';
 import QuickSetup from './QuickSetup';
-import SetupWizard from './SetupWizard';
 import ReadinessTab from './ReadinessTab';
 import SponsorsPanel from './SponsorsPanel';
 import SubTabs from '../shared/SubTabs';
@@ -63,7 +58,6 @@ const NAV = [
     { id: 'orders',     label: 'Orders',      Icon: Clock },
   ] },
   { heading: 'Review & system', items: [
-    { id: 'insights',   label: 'Insights',    Icon: Brain },
     { id: 'settings',   label: 'Settings',    Icon: Settings },
     { id: 'help',       label: 'Help',        Icon: HelpCircle },
   ] },
@@ -82,10 +76,6 @@ const TABS = {
     { id: 'labels',   label: 'Labels',       Icon: Tag },
     { id: 'milk',     label: 'Milk colours', Icon: Droplet },
   ],
-  schedule: [
-    { id: 'sessions', label: 'Sessions', Icon: Calendar },
-    { id: 'phases',   label: 'Phases',   Icon: Zap },
-  ],
   operations: [
     { id: 'readiness', label: 'Readiness', Icon: CheckCircle },
     { id: 'live',      label: 'Live',      Icon: Activity },
@@ -95,18 +85,13 @@ const TABS = {
     { id: 'all',    label: 'All Orders',   Icon: Clock },
     { id: 'groups', label: 'Group Orders', Icon: FileText },
   ],
-  insights: [
-    { id: 'analytics', label: 'Analytics', Icon: LineChart },
-    { id: 'queue',     label: 'Queue',     Icon: Brain },
-    { id: 'forecast',  label: 'Forecast',  Icon: Shield },
-  ],
 };
 
 // Operations opens on Live so the landing screen is the one you watch
 // during service; everything else opens on its first tab.
 const DEFAULT_TAB = {
-  menu: 'inventory', branding: 'logo', schedule: 'sessions',
-  operations: 'live', orders: 'all', insights: 'analytics',
+  menu: 'inventory', branding: 'logo',
+  operations: 'live', orders: 'all',
 };
 
 const KNOWN_SECTIONS = NAV.flatMap((g) => g.items.map((i) => i.id));
@@ -117,11 +102,10 @@ const TITLES = {
   menu: { inventory: 'Event Inventory', stock: 'Event Stock', stationInventory: 'Station Inventory' },
   stations: 'Stations',
   branding: { logo: 'Logo & look', sponsors: 'Sponsors', labels: 'Labels & stickers', milk: 'Milk colours' },
-  schedule: { sessions: 'Event Schedule', phases: 'Event Phases' },
+  schedule: 'Event Schedule',
   users: 'Users',
   operations: { readiness: 'Event Readiness', live: 'Live Operations', messages: 'Messages' },
   orders: { all: 'All Orders', groups: 'Group Orders' },
-  insights: { analytics: 'Analytics', queue: 'Queue Psychology', forecast: 'Forecast' },
   settings: 'Event Data',
   help: 'How the SMS Bot Works',
 };
@@ -153,7 +137,6 @@ const OrganiserInterface = () => {
   });
   const activeTab = tabBySection[activeSection];
   const setActiveTab = (id) => setTabBySection((t) => ({ ...t, [activeSection]: id }));
-  const [showSetupWizard, setShowSetupWizard] = useState(false);
 
   // Keep the URL hash in step (replace, not push — tabs shouldn't pile up
   // in the back-button history), and follow it when something else
@@ -209,13 +192,6 @@ const OrganiserInterface = () => {
         <div className="p-4 border-b border-gray-200">
           <div className="flex justify-between items-center">
             <div className="flex items-center">
-              <button
-                className="mr-2 p-1 rounded hover:bg-gray-200"
-                onClick={() => { window.location.href = '/welcome'; }}
-                title="Back to Home"
-              >
-                <ArrowLeft size={20} />
-              </button>
               <h1 className={`font-bold text-gray-800 ${sidebarOpen ? 'text-xl' : 'text-sm'}`}>
                 {sidebarOpen ? brandingConfig.adminPanelTitle : brandingConfig.shortName.split(' ').map(word => word[0]).join('')}
               </h1>
@@ -320,31 +296,10 @@ const OrganiserInterface = () => {
             <SubTabs active={activeTab} onChange={setActiveTab} tabs={TABS[activeSection]} />
           )}
 
-          {/* Quick Setup */}
-          {activeSection === 'quickSetup' && (
-            <>
-              {/* Guided questionnaire — the "answer 12 questions, we build
-                  the event" path for operators who don't know the menus
-                  yet. Writes through the same endpoints as the one-page
-                  Quick Setup below. */}
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div>
-                  <div className="font-bold text-amber-900">New here? Try the guided setup</div>
-                  <div className="text-sm text-amber-800">Answer about 12 quick questions (3 minutes) and the event builds itself — stations, milks, sizes, drinks, hours. Everything stays editable afterwards.</div>
-                </div>
-                <button
-                  className="w-full sm:w-auto sm:ml-4 flex-shrink-0 bg-amber-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-amber-700"
-                  onClick={() => setShowSetupWizard(true)}
-                >
-                  Start questionnaire
-                </button>
-              </div>
-              <QuickSetup />
-            </>
-          )}
-          {showSetupWizard && (
-            <SetupWizard onClose={() => setShowSetupWizard(false)} />
-          )}
+          {/* Quick Setup — the one-page event configuration. (The second
+              door, a 12-question wizard modal, was retired in the
+              re-imagining: one way to set up an event.) */}
+          {activeSection === 'quickSetup' && <QuickSetup />}
 
           {/* Menu — what this event offers, how much there is, which
               stations carry what. All three are server-backed; the old
@@ -432,13 +387,10 @@ const OrganiserInterface = () => {
           {activeSection === 'branding' && activeTab === 'labels' && <LabelsTab />}
           {activeSection === 'branding' && activeTab === 'milk' && <MilkColorSettings />}
 
-          {/* Schedule — the real, server-backed session agenda, and the
-              day's phases. NOTE: Phases (SETUP / PRE_EVENT / MORNING_PEAK
-              ...) are hardcoded in EventLifecycleManagement and do NOT
-              read the sessions entered here, so they describe a generic
-              event day rather than this one. */}
-          {activeSection === 'schedule' && activeTab === 'sessions' && <EnhancedScheduleManagement />}
-          {activeSection === 'schedule' && activeTab === 'phases' && <EventLifecycleManagement />}
+          {/* Schedule — the real, server-backed session agenda. (The
+              "Phases" tab described a generic hardcoded day and never read
+              these sessions; retired.) */}
+          {activeSection === 'schedule' && <EnhancedScheduleManagement />}
 
           {/* Users */}
           {activeSection === 'users' && (
@@ -469,14 +421,9 @@ const OrganiserInterface = () => {
             </div>
           )}
 
-          {/* Insights — Analytics, Queue and Forecast. NOTE: Analytics
-              renders sample data, not this event's numbers. Queue and
-              Forecast read live orders but persist NOTHING — their
-              controls are component state only. Real live figures are
-              Operations -> Live. */}
-          {activeSection === 'insights' && activeTab === 'analytics' && <AnalyticsDashboard />}
-          {activeSection === 'insights' && activeTab === 'queue' && <QueuePsychologyIntelligence />}
-          {activeSection === 'insights' && activeTab === 'forecast' && <PredictiveIntelligence />}
+          {/* Insights (Analytics / Queue / Forecast) retired: sample data
+              and controls that persisted nothing. The Report (roadmap
+              phase 7) takes this slot with real numbers. */}
 
           {/* Settings — the per-client Event Data lifecycle (export / wipe /
               re-import). "Configure the installation" rather than "run the

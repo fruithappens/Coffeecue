@@ -4103,17 +4103,6 @@ const BaristaInterface = () => {
               </button>
 
               <div className="mt-4 flex justify-between">
-                {/* Demo mode switches the whole station to FAKE data —
-                    a barista hitting it mid-service would lose the live
-                    queue. Manager-only. */}
-                {isManager && (
-                  <button
-                    className="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700"
-                    onClick={toggleAppMode}
-                  >
-                    Toggle Demo Mode
-                  </button>
-                )}
                 <button 
                   className="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700"
                   onClick={() => {

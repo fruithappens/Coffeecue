@@ -8,8 +8,14 @@ import { ORDER_STATUS, isPending, isInProgress, isCompleted, isPickedUp } from '
  */
 class OrderDataService {
   constructor() {
-    // Get the singleton ApiService instance
-    this.apiService = new ApiService();
+    // ApiService is created LAZILY (see the getter below), not here.
+    // This module sits inside an import cycle -- ApiService -> AuthService
+    // -> OrderDataService -> ApiService -- and `new ApiService()` at module
+    // load throws "Cannot access 'X' before initialization" whenever
+    // webpack happens to evaluate this file before ApiService finishes.
+    // Deleting unrelated files (phase 1 of the re-imagining) flipped that
+    // order and every screen went blank. First use is always after load.
+    this._apiService = null;
     this.debugMode = true;
     
     // Cache configuration
@@ -56,6 +62,13 @@ class OrderDataService {
   /**
    * Setup WebSocket event handlers for real-time updates
    */
+  get apiService() {
+    if (!this._apiService) this._apiService = new ApiService();
+    return this._apiService;
+  }
+
+  set apiService(value) { this._apiService = value; }
+
   setupWebSocketHandlers() {
     // Subscribe to order events via window events (already dispatched by ApiService)
     window.addEventListener('order_created', (event) => {

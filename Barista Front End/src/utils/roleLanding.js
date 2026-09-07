@@ -11,7 +11,7 @@ export const roleLanding = (role) => {
   if (r === 'support') return '/support';
   if (r === 'display' || r === 'screen') return '/displays';
   // admin / staff / organiser / event_organizer / unknown: the chooser.
-  return '/welcome';
+  return '/organiser';
 };
 
 export default roleLanding;

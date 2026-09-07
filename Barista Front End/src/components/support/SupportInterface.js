@@ -120,13 +120,6 @@ const SupportInterface = () => {
         <div className="p-4 border-b border-gray-200">
           <div className="flex justify-between items-center">
             <div className="flex items-center">
-              <button
-                className="mr-2 p-1 rounded hover:bg-gray-200"
-                onClick={() => { window.location.href = '/welcome'; }}
-                title="Back to Home"
-              >
-                <ArrowLeft size={20} />
-              </button>
               <h1 className={`font-bold text-gray-800 ${sidebarOpen ? 'text-xl' : 'text-sm'}`}>
                 {sidebarOpen ? 'Support' : 'S'}
               </h1>

@@ -116,7 +116,7 @@ const DisplaySelector = () => {
 
   // Go back to landing page
   const goBack = () => {
-    navigate('/welcome');
+    navigate('/');
   };
 
   return (

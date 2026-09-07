@@ -37,8 +37,6 @@ from utils.database import get_db_connection, close_connection
 # Import routes
 # from routes.admin_routes import bp as admin_bp  # Disabled - causes template errors
 from routes.admin_redirect import bp as admin_bp  # Simple redirect to avoid errors
-from routes.barista_routes import bp as barista_bp  
-from routes.customer_routes import bp as customer_bp
 from routes.sms_routes import bp as sms_bp
 from routes.inventory_routes import bp as inventory_bp  # Add inventory routes import
 from routes.station_api_routes import bp as station_api_bp  # Add station API routes import
@@ -631,8 +629,6 @@ def create_app():
     # or deep-linking /barista logged the barista out, while /organiser
     # and /support (no such blueprint) worked. Leaving it unregistered
     # lets /barista fall through to the SPA catch_all like the others.
-    # app.register_blueprint(barista_bp)  # disabled: shadowed the SPA /barista route
-    app.register_blueprint(customer_bp)
     app.register_blueprint(sms_bp)
     app.register_blueprint(inventory_bp)  # Register inventory routes
     logger.info("Inventory routes registered")
@@ -1747,25 +1743,6 @@ def create_app():
             }), 500
     
     # Ensure login page is served correctly
-    @app.route('/login.html')
-    def login_page():
-        try:
-            import os
-            static_dir = os.path.join(app.root_path, 'static')
-            login_path = os.path.join(static_dir, 'login.html')
-            
-            if os.path.exists(login_path):
-                with open(login_path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                return content, 200, {'Content-Type': 'text/html; charset=utf-8'}
-            else:
-                return "Login page not found", 404
-                
-        except Exception as e:
-            logger.error(f"Error serving login page: {e}")
-            return f"Error loading login: {str(e)}", 500
-    
-    # Handle React build static files - use a different path to avoid Flask conflicts
     @app.route('/assets/<path:filename>')
     def react_static(filename):
         # Serve static files from the React build
