@@ -70,6 +70,18 @@ Branch: `next` (never auto-deploys; Railway only deploys `main`). Every screen s
   Checkpoint: the rush drill — 30 orders in 90 s worked through the UI (`scratchpad capture/rush_drill.js`
   headless; Steve on the iPad for real).
 
+- **Phase 5** — the runner app at `/run` (72b279c +). One app for the person running the event, replacing
+  the Organiser and the Support interface, which overlapped on Operations, Users and Messages.
+  `components/runner/`: `runnerNav.js` (NAV / TABS / TITLES / ALIASES / readHash) and `RunnerInterface.js`.
+  Map: **Set up** Quick Setup · Menu · Stations · Branding · Schedule · People — **Run the day** Live
+  (Readiness / Board / Metrics) · Orders · Messages (Broadcast / Test / Blocked) · Printers — **Review &
+  system** Report · System (Health / Diagnostics) · EventsAir · Settings · Emergency · Help. Nothing
+  dropped; the duplicate Crashes tab went (Diagnostics lists them). Shell on the design system, panels
+  inside `.cq-legacy` until each is rebuilt. `/organiser` and `/support` redirect to `/run` carrying the
+  hash; old section names aliased; `roleLanding` sends staff/organiser/admin/support to `/run`.
+  Headless: 28/28 destinations render, both old doors land right, phone drawer works.
+  Checkpoint: set up a made-up event from nothing with only the checklist, timed — under 15 minutes.
+
 ## When this copy replaces production (phase 9) — one-off data steps
 
     -- station_stats twin columns: older rows were only ever written on one side.
