@@ -82,11 +82,25 @@ Two of the three names are nicknames, so write it down once:
 | --- | --- |
 | `Station 1 mC-Label3` | mC-Label3 (MCL32CI) — currently disabled |
 | `24v Star738F` | **also an mC-Label3 (MCL32CI)** — the older one. "24v" is Steve's name for it because it runs on 24 V; "738F" is the tail of its MAC address, not a model number |
-| `TSP100IVSK` | TSP100IV SK, the linerless sticky-label model |
+| `TSP100IVSK` | **TSP143IV SK** — the new linerless sticky-label printer (TSP100IV series) |
 
 All three are thermal with CloudPRNT built in — no add-on interface card, no
 impact mechanism. **There is no mechanical reason for any of them to be slow.**
 If one is, it is the polling time.
+
+### The new printer was the slow one, and we measured it
+
+At Treenet the **TSP143IV SK polled every 30 seconds** — its factory setting —
+while the mC-Label3 beside it polled every 5. That alone put about 30 s on every
+label off the new printer, and nothing on screen showed it; the queue said the
+job was offered, because it was.
+
+That measurement is why `POLL_SLOW_AFTER_S = 10` and the readiness row exist.
+**Set the TSP143IV SK to 5 s and it stops being the slow one.**
+
+One upside: the TSP100IV series supports MQTT natively (firmware 2.2+), so the
+newest printer is the one that *could* do CloudPRNT Next push later. The
+mC-Label3s are the ones that would hold that back.
 
 `24v Star738F` also carries a per-printer `offset_dots` correction: it places a
 raw image ~58 dots left of where the label physically is (58 mm stock against
