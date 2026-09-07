@@ -8,10 +8,10 @@
 export const roleLanding = (role) => {
   const r = String(role || '').trim().toLowerCase();
   if (r === 'barista') return '/barista';
-  if (r === 'support') return '/support';
+  if (r === 'support') return '/run';
   if (r === 'display' || r === 'screen') return '/displays';
-  // admin / staff / organiser / event_organizer / unknown: the chooser.
-  return '/organiser';
+  // admin / staff / organiser / event_organizer / unknown: the runner app.
+  return '/run';
 };
 
 export default roleLanding;

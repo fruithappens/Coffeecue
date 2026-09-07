@@ -10,6 +10,18 @@ import MyCoffeePage from './components/display/MyCoffeePage';
 import HowToOrderPage from './components/display/HowToOrderPage';
 import DisplaySelector from './components/display/DisplaySelector';
 import DesignSheet from './components/design/DesignSheet';
+import RunnerInterface from './components/runner/RunnerInterface';
+
+// /organiser and /support were two apps that overlapped; they are one app
+// now. Keep the old doors working -- a bookmark, a printed link, anything
+// in the app still pointing at them -- and carry the hash across so a deep
+// link like #branding/labels still lands where it did.
+const ToRunner = () => {
+  React.useEffect(() => {
+    window.location.replace('/run' + (window.location.hash || ''));
+  }, []);
+  return null;
+};
 import SupportInterface from './components/support/SupportInterface';
 import OpsBoard from './components/support/OpsBoard';
 import LoginPage from './components/auth/LoginPage';
@@ -491,6 +503,7 @@ function App() {
       const protectedPaths = [
         '/barista',
         '/organiser',
+        '/run',
         '/admin',
         '/support'
       ];
@@ -592,33 +605,21 @@ function App() {
             } 
           />
 
-          <Route 
-            path="/organiser" 
-            element={
-              <AuthGuard requiredRoles={['staff', 'admin', 'event_organizer', 'organizer', 'organiser']}>
-                <ErrorBoundary 
-                  componentName="Organiser Interface"
-                  showErrorDetails={true}
-                >
-                  <Organiser />
-                </ErrorBoundary>
-              </AuthGuard>
-            } 
-          />
-
+          {/* The runner app: what the Organiser and the Support interface
+              both used to be. One map, one door. */}
           <Route
-            path="/support"
+            path="/run"
             element={
-              <AuthGuard requiredRoles={['support', 'admin']}>
-                <ErrorBoundary
-                  componentName="Support Interface"
-                  showErrorDetails={true}
-                >
-                  <SupportInterface />
+              <AuthGuard requiredRoles={['staff', 'admin', 'event_organizer', 'organizer', 'organiser', 'support']}>
+                <ErrorBoundary componentName="Runner" showErrorDetails={true}>
+                  <RunnerInterface />
                 </ErrorBoundary>
               </AuthGuard>
             }
           />
+          <Route path="/organiser" element={<ToRunner />} />
+          <Route path="/support" element={<ToRunner />} />
+
 
           {/* Event-day single-screen ops board — leave it open, glance at it. */}
           <Route
