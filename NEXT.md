@@ -29,6 +29,14 @@ Branch: `next` (never auto-deploys; Railway only deploys `main`). Every screen s
   the server, the tablets are swapped, one saves a barista name and the other sees it — nothing stale on
   either device.
 
+- **Phase 3** — the design system, built as code first (f846f3d, 7826073). `src/design/tokens.css` (the caramel
+  family, warm neutrals, one green, one red, 4-pt space, radii, shadows) + `tailwind` `cq-*` utilities; Manrope
+  (OFL) self-hosted at `/fonts/`; nine primitives in `src/design/` (AreaMark, Button, Pill/StatusPill,
+  StationChip, OrderCard, BigNumber, TabBar, SidebarNav, PinPanel); the component sheet at `/design`.
+  Scoped to `.cq` — no live screen changes until Steve approves the sheet. `testbench/design/snapshot.js`
+  turns the sheet into standalone HTML (`design-system/`, untracked) for sharing and for Claude Design
+  (push needs a one-off `/design-login` in an interactive Claude Code session).
+
 ## When this copy replaces production (phase 9) — one-off data steps
 
     -- station_stats twin columns: older rows were only ever written on one side.
