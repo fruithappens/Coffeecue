@@ -465,7 +465,7 @@ def orders():
             base_query = '''
                 SELECT id, order_number, status, station_id, 
                        created_at, phone, order_details, queue_priority,
-                       completed_at, updated_at
+                       completed_at, updated_at, picked_up_at
                 FROM orders
             '''
             
@@ -517,7 +517,8 @@ def orders():
             for order in cursor.fetchall():
                 # Extract order details
                 (order_id, order_number, status, station_id, created_at, phone,
-                 order_details_json, priority, completed_at, updated_at) = order
+                 order_details_json, priority, completed_at, updated_at,
+                 picked_up_at) = order
                 
                 # Parse order details
                 if isinstance(order_details_json, str):
@@ -553,6 +554,11 @@ def orders():
                     'order_number': order_number,
                     'completed_at': _iso(completed_at),
                     'completedAt': _iso(completed_at),
+                    # When it was handed over. This listing never sent it,
+                    # so anything sorting the picked-up list by pickup time
+                    # was comparing Invalid Date against Invalid Date.
+                    'picked_up_at': _iso(picked_up_at),
+                    'pickedUpAt': _iso(picked_up_at),
                     'updated_at': _iso(updated_at),
                     'updatedAt': _iso(updated_at),
                     # Whether a "your coffee is ready" text could have been

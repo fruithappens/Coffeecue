@@ -75,6 +75,30 @@ export default function QueueColumn({
       return t >= (hasPhone(o) ? cutoff : cutoffNoSms) && t <= now + 5 * 60000;
     }).sort((a, b) => parseServerDate(b.completedAt || b.completed_at || 0).getTime() - parseServerDate(a.completedAt || a.completed_at || 0).getTime());
   }, [completedOrders, stationId, hidden, expiryMinutes]);
+  // How the Ready list is ordered. A different question from the queue:
+  // longest-waiting is who to chase, just-made is what was called out, and
+  // by number is how you find #1847 when someone says it at the hatch.
+  const [readySort, setReadySort] = useState(() => { try { return localStorage.getItem('coffee_cue_ready_sort') || 'longest'; } catch (e) { return 'longest'; } });
+  const chooseReadySort = (m) => { setReadySort(m); try { localStorage.setItem('coffee_cue_ready_sort', m); } catch (e) { /* device pref */ } };
+  const readyAt = (o) => parseServerDate(o.completedAt || o.completed_at || o.updatedAt || o.updated_at || 0).getTime() || 0;
+  const readySorted = useMemo(() => {
+    const l = [...ready];
+    if (readySort === 'newest') return l.sort((a, b) => readyAt(b) - readyAt(a));
+    if (readySort === 'number') return l.sort((a, b) => String(orderNumberOf(a)).localeCompare(String(orderNumberOf(b)), undefined, { numeric: true }));
+    return l.sort((a, b) => readyAt(a) - readyAt(b)); // longest waiting first
+  }, [ready, readySort]);
+  const readyControl = ready.length > 1 ? (
+    <div className="flex items-center gap-1.5 text-sm font-semibold overflow-x-auto whitespace-nowrap pb-1" title="How the ready list is ordered on this tablet">
+      <span className="text-cq-ink-3 mr-0.5">Sort</span>
+      {[['longest', 'Waiting'], ['newest', 'Just made'], ['number', 'Number']].map(([m, label]) => (
+        <button key={m} type="button" onClick={() => chooseReadySort(m)} aria-pressed={readySort === m}
+          className={`h-8 px-2.5 rounded-full ${readySort === m ? 'bg-cq-ready text-white' : 'bg-cq-wash text-cq-ink-2 hover:bg-cq-caramel-wash'}`}>
+          {label}
+        </button>
+      ))}
+    </div>
+  ) : null;
+
   const collect = async (o) => {
     const key = o.id || orderNumberOf(o);
     setHidden((p) => new Set(p).add(key));
@@ -225,7 +249,7 @@ export default function QueueColumn({
   const nextBody = upNext.length === 0
     ? (sortMode === 'vip' && pendingOrders.length ? <Empty title="No VIP orders waiting" hint={`${pendingOrders.length} in the queue · sorted by VIP only`} /> : <Empty title="No one waiting" hint="New orders appear here as they come in" />)
     : <div className="space-y-3">{upNext.map(queuedCard)}</div>;
-  const readyBody = ready.length === 0 ? <Empty Icon={Check} title="Nothing to collect" /> : <div className="space-y-2">{ready.map(readyRow)}</div>;
+  const readyBody = ready.length === 0 ? <Empty Icon={Check} title="Nothing to collect" /> : <div className="space-y-2">{readySorted.map(readyRow)}</div>;
 
   // ================= LANES =================
   if (lanes) {
@@ -244,7 +268,7 @@ export default function QueueColumn({
         <div className="flex-1 min-h-0 flex gap-5">
           <Lane title="Making" count={inProgressOrders.length} grow={showReady ? 'basis-[44%]' : 'basis-1/2'} sub={steam}>{makingBody}</Lane>
           <Lane title="Up next" count={upNext.length} grow={showReady ? 'basis-[32%]' : 'basis-1/2'} sub={sortControl}>{rushStrip ? <div className="mb-3">{rushStrip}</div> : null}{nextBody}</Lane>
-          {showReady ? <Lane title="Ready" count={ready.length} tone="ready" grow="basis-[24%]">{readyBody}</Lane> : null}
+          {showReady ? <Lane title="Ready" count={ready.length} tone="ready" grow="basis-[24%]" sub={readyControl}>{readyBody}</Lane> : null}
         </div>
       </div>
     );
@@ -279,7 +303,7 @@ export default function QueueColumn({
         <div className="fixed bottom-0 inset-x-0 z-30 bg-cq-milk border-t-2 border-cq-ready shadow-cq-raised px-3 py-2">
           <div className="flex items-center gap-2 overflow-x-auto">
             <span className="text-xs font-extrabold uppercase tracking-[0.12em] text-cq-ready flex-shrink-0">Ready {ready.length}</span>
-            {ready.map((o) => (
+            {readySorted.map((o) => (
               <button key={o.id} type="button" onClick={() => collect(o)} className="flex-shrink-0 h-12 pl-3 pr-2 rounded-cq-md bg-cq-roast text-cq-cream inline-flex items-center gap-2" title={`${drinkLine(o)} · ${sinceReady(o)}`}>
                 <span className="text-xl font-extrabold tabular-nums">#{orderNumberOf(o)}</span>
                 {o.customerName ? <span className="text-sm font-semibold max-w-[8rem] truncate">{o.customerName}</span> : null}
