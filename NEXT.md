@@ -52,6 +52,10 @@ Branch: `next` (never auto-deploys; Railway only deploys `main`). Every screen s
   scrolling inside the screen with pinned headings, no page scroll (root `h-screen` while the Queue tab is
   open); COLUMN on phones/portrait with a pinned jump bar and a Ready strip fixed to the bottom. Making
   auto-compacts above 4; the Steam line filters the bench by milk; the rush-mix strip rides inside Up next.
+  Walk-up orders (Steve: no 'add another', long black defaulted to milk): the Walk-up button opens the
+  CUSTOMER form (`display/KioskOrder`, `channel='walkin'`, `stationId` = this station) — same drink questions,
+  sizes, "Add another coffee" (group `/api/display/order-group`), "Collect here / Fastest". Stamped
+  channel+surface `barista`, `order_type` walk-in (route tweak). `dialogs/WalkInOrderDialog.js` deleted.
   Checkpoint: the rush drill — 30 orders in 90 s worked through the UI (`scratchpad capture/rush_drill.js`
   headless; Steve on the iPad for real).
 
