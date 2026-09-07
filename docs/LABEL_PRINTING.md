@@ -74,17 +74,23 @@ or later, which the older interface cards may not have.
 It is a real project, not a tweak. **Set polling to 5 s first** — that gets most
 of the benefit for no risk.
 
-### If one printer is still slow after that
+### The printers, and what each one is
 
-Check what it actually is. `24v Star738F` is named after its MAC address, not
-its model.
+Two of the three names are nicknames, so write it down once:
 
-* **SP700** — a dot-matrix *impact* printer. Mechanically slow whatever the
-  network does. Nothing to fix.
-* **TSP700II** — thermal, should be quick once polling is sorted.
+| In the app | What it actually is |
+| --- | --- |
+| `Station 1 mC-Label3` | mC-Label3 (MCL32CI) — currently disabled |
+| `24v Star738F` | **also an mC-Label3 (MCL32CI)** — the older one. "24v" is Steve's name for it because it runs on 24 V; "738F" is the tail of its MAC address, not a model number |
+| `TSP100IVSK` | TSP100IV SK, the linerless sticky-label model |
 
-Both reach CloudPRNT through an add-on **IFBD-HI01X** interface card. The
-TSP100IV SK and mC-Label3 have it built in and are the faster path.
+All three are thermal with CloudPRNT built in — no add-on interface card, no
+impact mechanism. **There is no mechanical reason for any of them to be slow.**
+If one is, it is the polling time.
+
+`24v Star738F` also carries a per-printer `offset_dots` correction: it places a
+raw image ~58 dots left of where the label physically is (58 mm stock against
+our 406-dot render width). That is a position fix, not a speed one.
 
 ---
 
