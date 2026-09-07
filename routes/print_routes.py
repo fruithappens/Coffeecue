@@ -374,7 +374,11 @@ def _snapshot_order(db, order_number, station_id=None):
         modifiers.append(sugar)
     if od.get("strength"):
         modifiers.append(str(od["strength"]))
-    if od.get("decaf"):
+    # Decaf arrives as bean_type='decaf' from the customer flow and as a
+    # `decaf` boolean from older barista paths. The label only ever checked
+    # the boolean, so a decaf ordered on a phone printed a label that did
+    # not say so -- and the cup goes to the person who asked for decaf.
+    if od.get("decaf") or 'decaf' in str(od.get("bean_type") or od.get("beanType") or '').lower():
         modifiers.append("DECAF")
     # Customer's free-text NOTES ("1/4 strength, 3 shots", "no lid", "oat not
     # soy") must print on the cup — they were never added, so the sticker
