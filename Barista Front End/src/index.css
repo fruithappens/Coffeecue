@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Design tokens (phase 3). Scoped to .cq until the sheet is approved. */
+@import './design/tokens.css';
+
 /* Toast animations */
 @keyframes slide-in {
   from {

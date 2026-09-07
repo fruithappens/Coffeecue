@@ -19,3 +19,20 @@ export function customerStatus(status) {
   if (s === 'picked-up') return CUSTOMER_STATUS.picked_up;
   return CUSTOMER_STATUS[s] || null;
 }
+
+// The STAFF words for the same states -- shorter, for a barista's card or a
+// runner's list. Same keys, same order of life: queued, making, ready,
+// collected, cancelled. Tone names map to design tokens (design/tokens.css).
+export const STAFF_STATUS = Object.freeze({
+  pending:       { label: 'Queued',    tone: 'neutral' },
+  'in-progress': { label: 'Making',    tone: 'caramel' },
+  completed:     { label: 'Ready',     tone: 'ready' },
+  picked_up:     { label: 'Collected', tone: 'muted' },
+  cancelled:     { label: 'Cancelled', tone: 'alert' },
+});
+
+export function staffStatus(status) {
+  const s = String(status || '').toLowerCase().trim().replace(/_/g, '-');
+  if (s === 'picked-up') return STAFF_STATUS.picked_up;
+  return STAFF_STATUS[s] || null;
+}

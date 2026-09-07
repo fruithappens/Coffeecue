@@ -1822,6 +1822,16 @@ def create_app():
     @app.route('/display-scaling.css')
     def display_scaling():
         return app.send_static_file('display-scaling.css')
+
+    # Self-hosted fonts (design system, phase 3): Manrope is served from
+    # CupQ itself so a venue with no internet still gets the real face.
+    @app.route('/fonts/<path:filename>')
+    def fonts(filename):
+        from flask import send_from_directory
+        import os
+        resp = send_from_directory(os.path.join(app.root_path, 'static', 'fonts'), filename)
+        resp.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+        return resp
     
     # Catch-all route - serve React app for client-side routing
     @app.route('/<path:path>')
