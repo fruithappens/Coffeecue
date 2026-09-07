@@ -19,24 +19,43 @@ Two things a stranger can do with an open endpoint:
 * Fetching a job **consumes** it, so the real printer never receives it. Labels
   go missing one at a time and it looks exactly like a flaky printer.
 
-**To close it**
+**To close it — printers FIRST, server LAST.** In that order there is no
+downtime at all: while the server has no secret it ignores the one the printers
+send, so they keep printing right through the change. Do it the other way round
+and every printer is locked out until you finish.
 
-1. On the server (Railway → Variables), set:
-
-       CLOUDPRNT_SHARED_SECRET = <a long random string>
-
-2. In each printer's own web config page, change the CloudPRNT server URL from
+1. In **each enabled printer's** web config (see below for how to get in),
+   change the CloudPRNT **Server URL** from
 
        https://cupq.app/cloudprnt
 
    to
 
-       https://cupq.app/cloudprnt?secret=<the same string>
+       https://cupq.app/cloudprnt?secret=<a long random string>
+
+   Same string in both printers. Submit, then Save/Restart.
+
+2. Only once both printers are done: on the server (Railway → Variables) set
+
+       CLOUDPRNT_SHARED_SECRET = <that same string>
 
 3. Check Runner → Live → Readiness. **"Printer endpoint is locked"** turns green.
 
-Do the printers in the same sitting as the server variable: between the two
-steps, every printer is locked out and nothing prints.
+### Getting into a printer's web config
+
+1. **Find its IP.** Open the printer cover, hold **FEED** until the power LED
+   flashes blue, release, close the cover. It prints its settings — the address
+   is under *Current IP Parameters Status*.
+2. Browse to `http://<that address>` on the same network.
+3. Log in: **root** / **public** (the factory password; it will ask you to
+   change it the first time).
+4. Menu → **CloudPRNT**. The two fields that matter are **Server URL** and
+   **Polling time**.
+5. **Submit**, then Menu → **Save** → *Save/Restart device* → **Execute**.
+   Submit alone does not stick — the restart is what saves it.
+
+Ignore the CloudPRNT **User Name / Password** boxes on that page. Our server
+does not ask for them; the secret rides in the URL instead.
 
 ---
 
@@ -52,7 +71,8 @@ The server cannot shorten it. Star's protocol has `GetPollInterval`, which
 web config, and nowhere else.
 
 **Set every printer's CloudPRNT polling time to 5 s.** One field, no code, and
-it is the single biggest thing you can do for label speed.
+it is the single biggest thing you can do for label speed. (5 s is also Star's
+own default when the field is left empty; 1 s is the minimum it will accept.)
 
 Readiness (**"Label printers polling fast"**) measures the real gap between
 polls and warns above 10 s, so you can confirm the change took.
