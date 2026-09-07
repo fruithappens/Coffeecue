@@ -105,6 +105,12 @@ Branch: `next` (never auto-deploys; Railway only deploys `main`). Every screen s
 - **Phase 7** — the Report. Still a placeholder in the runner's Review group.
 - **Phase 8** — load and endurance on the copy (`remote_siege.py`) before any cutover.
 
+## Label printing
+
+`docs/LABEL_PRINTING.md` — locking `/cloudprnt` (it fails OPEN with no secret
+set), why polling time is the whole speed story, and what CloudPRNT Next would
+actually take. Readiness now has a **Printer endpoint is locked** row.
+
 ## When this copy replaces production (phase 9) — one-off data steps
 
     -- station_stats twin columns: older rows were only ever written on one side.
