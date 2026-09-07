@@ -1,7 +1,12 @@
-// ONE column: making, then up next, then what is ready to hand over. The
-// eye reads down the page in the order the work happens; nothing is three
-// columns apart. One primary action per card; the rest behind "...".
-import React, { useMemo, useState, useEffect } from 'react';
+// The queue board. Two layouts, one set of cards:
+//   lanes  -- Making | Up next | Ready side by side, each scrolling on its
+//             own inside the screen, headings pinned. Landscape tablets and
+//             laptops. Nothing on the page scrolls.
+//   column -- Making, then Up next, stacked, with a pinned jump bar; Ready
+//             is a strip pinned to the bottom so Collected is one tap away.
+//             Phones and portrait tablets.
+// One primary action per card (Start / Ready / Collected); the rest behind "...".
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Play, Check, MessageCircle, Printer, ArrowRightLeft, Edit, Clock, Users, Coffee, Plus } from 'lucide-react';
 import { OrderCard, Button, Pill } from '../../../design';
 import MoreMenu from './MoreMenu';
@@ -9,15 +14,16 @@ import GroupBadge from '../GroupBadge';
 import SourceBadge from '../SourceBadge';
 import WorkTypeBadge from '../WorkTypeBadge';
 import AskCustomerControls from '../AskCustomerControls';
-import { summariseMilk } from '../../../utils/currentOrderView';
+import { summariseMilk, filterByMilk } from '../../../utils/currentOrderView';
 import { parseServerDate } from '../../../utils/orderUtils';
 import { orderNumberOf, drinkLine, milkSugarLine, notesOf, messageOf, groupIdOf, isPriority, priceOf, hasPhone, sinceQueued, sinceStarted, sinceReady } from './orderMeta';
 
 const READY_RECENCY_MIN = 30;
 const NO_SMS_EXPIRY_MULTIPLIER = 2;
+const COMPACT_ABOVE = 4; // more than this on the bench -> compact cards
 
-const SectionHead = ({ title, count, tone = 'roast', children }) => (
-  <div className="flex items-center gap-3 mt-6 mb-3 first:mt-0">
+const Heading = ({ title, count, tone = 'roast', pinned = false, children }) => (
+  <div className={`flex items-center gap-3 ${pinned ? 'sticky top-0 z-10 bg-cq-cream pt-1 pb-2' : 'mt-6 mb-3 first:mt-0'}`}>
     <h2 className={`text-2xl font-extrabold leading-none ${tone === 'ready' ? 'text-cq-ready' : 'text-cq-roast'}`}>{title}</h2>
     <span className="text-2xl font-extrabold leading-none text-cq-ink-3 tabular-nums">{count}</span>
     <div className="flex-1 border-t border-cq-line" />
@@ -41,12 +47,13 @@ const toCard = (o) => ({
 
 export default function QueueColumn({
   pendingOrders = [], inProgressOrders = [], completedOrders = [], stationId, expiryMinutes = READY_RECENCY_MIN,
-  teamMode = false, groupInfoByOrderId = {}, stationPrinter = null, compact = false,
+  teamMode = false, groupInfoByOrderId = {}, stationPrinter = null, compact = false, layout = 'column',
   applicableStages, orderStages, toggleStage,
-  onStart, onStartGroup, onComplete, onCollected, onMessage, onPrint, onMove, onEdit, onDelay, onWalkIn, showReady = true, stationMenu = [],
+  onStart, onStartGroup, onComplete, onCollected, onMessage, onPrint, onMove, onEdit, onDelay, onWalkIn, showReady = true, stationMenu = [], rushStrip = null,
 }) {
-  // ---- Ready list: same rules the old Ready column used (station match,
-  // recency window, longer for no-phone orders, optimistic hide on tap).
+  const lanes = layout === 'lanes';
+
+  // ---- Ready: station match, recency window (longer with no phone), optimistic hide.
   const [hidden, setHidden] = useState(() => new Set());
   useEffect(() => {
     setHidden((prev) => {
@@ -75,11 +82,18 @@ export default function QueueColumn({
   };
 
   // ---- Up next: priority first, then the fair queue (oldest first, as served).
-  const upNext = useMemo(() => {
-    const vip = pendingOrders.filter(isPriority); const rest = pendingOrders.filter((o) => !isPriority(o));
-    return [...vip, ...rest];
-  }, [pendingOrders]);
+  const upNext = useMemo(() => [...pendingOrders.filter(isPriority), ...pendingOrders.filter((o) => !isPriority(o))], [pendingOrders]);
+
+  // ---- The bench: steam summary doubles as a milk filter (tap a milk).
+  const [milkFilter, setMilkFilter] = useState('');
   const jugs = useMemo(() => summariseMilk(inProgressOrders), [inProgressOrders]);
+  const bench = useMemo(() => (milkFilter ? filterByMilk(inProgressOrders, milkFilter) : inProgressOrders), [inProgressOrders, milkFilter]);
+  useEffect(() => { if (milkFilter && !jugs.some((j) => j.milk === milkFilter)) setMilkFilter(''); }, [jugs, milkFilter]);
+  const dense = compact || inProgressOrders.length > COMPACT_ABOVE;
+
+  // ---- Column mode: jump targets.
+  const makingRef = useRef(null); const nextRef = useRef(null);
+  const jump = (ref) => ref.current && ref.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   const badgesFor = (o) => (
     <>
@@ -93,112 +107,156 @@ export default function QueueColumn({
   const phoneItem = (o) => ({ label: hasPhone(o) ? 'Message customer' : 'No phone on this order', Icon: MessageCircle, disabled: !hasPhone(o), onClick: () => onMessage && onMessage(o) });
   const printItem = (o) => stationPrinter ? { label: stationPrinter.online ? 'Print label' : 'Print label (printer offline, will queue)', Icon: Printer, onClick: () => onPrint && onPrint(o) } : null;
 
+  const makingCard = (o) => {
+    const stages = teamMode && applicableStages ? applicableStages(o) : [];
+    const done = orderStages ? orderStages(o) : {};
+    const allDone = stages.length > 0 && stages.every((s) => done[s]);
+    return (
+      <OrderCard key={o.id} state="making" compact={dense} order={{ ...toCard(o), since: sinceStarted(o) }} badges={badgesFor(o)}
+        actions={
+          <>
+            {stages.length ? (
+              <div className="w-full flex gap-2">
+                {stages.map((stage) => (
+                  <button key={stage} type="button" onClick={() => toggleStage && toggleStage(o, stage)}
+                    className={`flex-1 h-11 rounded-cq-md font-bold text-sm border-2 ${done[stage] ? 'bg-cq-ready-wash border-cq-ready text-cq-ready' : 'bg-cq-milk border-cq-line text-cq-ink-2'}`}>
+                    {done[stage] ? '✓ ' : ''}{stage === 'shots' ? 'Shots' : 'Milk'}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            <Button variant="ready" Icon={Check} className={`flex-1 ${allDone ? 'cq-breathe' : ''}`} onClick={() => onComplete && onComplete(o.id)}>
+              {allDone ? 'All parts done · Ready' : 'Ready'}
+            </Button>
+            <AskCustomerControls order={o} />
+            <MoreMenu items={[phoneItem(o), printItem(o), { label: 'Move to another station', Icon: ArrowRightLeft, onClick: () => onMove && onMove(o) }, { label: 'Edit order', Icon: Edit, onClick: () => onEdit && onEdit(o) }]} />
+          </>
+        } />
+    );
+  };
+  const queuedCard = (o) => {
+    const gid = groupIdOf(o);
+    const members = gid ? pendingOrders.filter((p) => groupIdOf(p) === gid).length : 0;
+    return (
+      <OrderCard key={o.id} state="queued" compact={dense || lanes} order={{ ...toCard(o), since: sinceQueued(o) }} badges={badgesFor(o)}
+        actions={
+          <>
+            {members > 1
+              ? <Button Icon={Users} className="flex-1" onClick={() => onStartGroup && onStartGroup(o)}>Start group of {members}</Button>
+              : <Button Icon={Play} className="flex-1" onClick={() => onStart && onStart(o)}>Start</Button>}
+            <MoreMenu items={[
+              members > 1 ? { label: 'Start just this one', Icon: Play, onClick: () => onStart && onStart(o) } : null,
+              phoneItem(o), { label: 'Delay', Icon: Clock, onClick: () => onDelay && onDelay(o) },
+              { label: 'Move to another station', Icon: ArrowRightLeft, onClick: () => onMove && onMove(o) },
+              { label: 'Edit order', Icon: Edit, onClick: () => onEdit && onEdit(o) }, printItem(o),
+            ]} />
+          </>
+        } />
+    );
+  };
+  const readyRow = (o) => (
+    <div key={o.id} className="bg-cq-milk rounded-cq-lg shadow-cq-card border-l-[6px] border-l-cq-ready px-3 py-2.5 flex items-center gap-3">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-2 flex-wrap">
+          <span className="text-2xl font-extrabold leading-none text-cq-roast tabular-nums">#{orderNumberOf(o)}</span>
+          {o.customerName ? <span className="text-base font-bold text-cq-ink truncate">{o.customerName}</span> : null}
+        </div>
+        <div className="text-xs text-cq-ink-2 mt-0.5 truncate">{[drinkLine(o), milkSugarLine(o)].filter(Boolean).join(' · ')} <span className="text-cq-ink-3">· {sinceReady(o)}</span></div>
+      </div>
+      <Button variant="dark" size="sm" onClick={() => collect(o)}>Collected</Button>
+    </div>
+  );
+
+  // Its own row under the Making heading (beside it, four milks wrapped
+  // into a tall stack on an iPad and pushed the bench down the lane).
+  const steam = jugs.length ? (
+    <div className="flex items-center gap-1.5 text-sm font-semibold overflow-x-auto whitespace-nowrap pb-1" title="Milk to steam for everything on the bench. Tap a milk to see only those.">
+      <span className="text-cq-ink-3 mr-0.5">Steam</span>
+      {jugs.map((j) => (
+        <button key={j.milk} type="button" onClick={() => setMilkFilter(milkFilter === j.milk ? '' : j.milk)} aria-pressed={milkFilter === j.milk}
+          className={`h-8 px-2.5 rounded-full tabular-nums ${milkFilter === j.milk ? 'bg-cq-roast text-cq-cream' : 'bg-cq-wash text-cq-ink-2 hover:bg-cq-caramel-wash'}`}>
+          {j.litres}L {j.milk}
+        </button>
+      ))}
+      {milkFilter ? <button type="button" onClick={() => setMilkFilter('')} className="text-cq-caramel-deep underline underline-offset-4 ml-1">all</button> : null}
+    </div>
+  ) : null;
+
+  const quickRow = (
+    <div className={`flex items-center gap-2 ${lanes ? 'mb-3' : 'mb-4'}`}>
+      {onWalkIn ? <Button size={lanes ? 'md' : 'lg'} Icon={Plus} onClick={onWalkIn} className="flex-1 sm:flex-none sm:min-w-[16rem]">Walk-up order</Button> : null}
+      <div className="flex-1 hidden sm:block" />
+      <MoreMenu items={stationMenu} label="Station actions" direction="down" triggerClassName={lanes ? '' : '!h-14 !w-14'} />
+    </div>
+  );
+
+  const makingBody = bench.length === 0
+    ? (inProgressOrders.length ? <div className="text-center py-6 text-cq-ink-3">Nothing on the bench with {milkFilter}. <button type="button" className="underline text-cq-caramel-deep" onClick={() => setMilkFilter('')}>Show all {inProgressOrders.length}</button></div> : <Empty title="Nothing on the bench" hint="Start an order from Up next" />)
+    : <div className={dense && lanes ? 'grid grid-cols-1 2xl:grid-cols-2 gap-3' : 'space-y-3'}>{bench.map(makingCard)}</div>;
+  const nextBody = upNext.length === 0 ? <Empty title="No one waiting" hint="New orders appear here as they come in" /> : <div className="space-y-3">{upNext.map(queuedCard)}</div>;
+  const readyBody = ready.length === 0 ? <Empty Icon={Check} title="Nothing to collect" /> : <div className="space-y-2">{ready.map(readyRow)}</div>;
+
+  // ================= LANES =================
+  if (lanes) {
+    const Lane = ({ title, count, tone, sub, children, grow }) => (
+      <section className={`flex flex-col min-h-0 ${grow}`}>
+        <div className="sticky top-0 z-10 bg-cq-cream">
+          <Heading title={title} count={count} tone={tone} pinned />
+          {sub ? <div className="-mt-1 pb-2">{sub}</div> : null}
+        </div>
+        <div className="flex-1 min-h-0 overflow-y-auto pr-1 pb-4">{children}</div>
+      </section>
+    );
+    return (
+      <div className="flex-1 min-h-0 flex flex-col w-full">
+        {quickRow}
+        <div className="flex-1 min-h-0 flex gap-5">
+          <Lane title="Making" count={inProgressOrders.length} grow={showReady ? 'basis-[44%]' : 'basis-1/2'} sub={steam}>{makingBody}</Lane>
+          <Lane title="Up next" count={upNext.length} grow={showReady ? 'basis-[32%]' : 'basis-1/2'}>{rushStrip ? <div className="mb-3">{rushStrip}</div> : null}{nextBody}</Lane>
+          {showReady ? <Lane title="Ready to hand over" count={ready.length} tone="ready" grow="basis-[24%]">{readyBody}</Lane> : null}
+        </div>
+      </div>
+    );
+  }
+
+  // ================= COLUMN =================
   return (
     <div className="max-w-4xl mx-auto w-full">
-      {/* The two things a barista reaches for between coffees: take a
-          walk-up order, and the station-level tools. Big, at the top,
-          never hidden in a section header (Steve could not find it). */}
-      <div className="flex items-center gap-2 mb-5">
-        {onWalkIn ? <Button size="lg" Icon={Plus} onClick={onWalkIn} className="flex-1 sm:flex-none sm:min-w-[16rem]">Walk-up order</Button> : null}
-        <div className="flex-1 hidden sm:block" />
-        <MoreMenu items={stationMenu} label="Station actions" direction="down" triggerClassName="!h-14 !w-14" />
+      {quickRow}
+      {/* Jump bar: pinned under the tabs while the column scrolls. */}
+      <div className="sticky top-0 z-20 -mx-4 px-4 py-2 bg-cq-cream/95 backdrop-blur flex gap-2 mb-3">
+        {[['Making', inProgressOrders.length, makingRef, 'roast'], ['Up next', upNext.length, nextRef, 'roast'], ...(showReady ? [['Ready', ready.length, null, 'ready']] : [])].map(([label, n, ref, tone]) => (
+          <button key={label} type="button" onClick={() => (ref ? jump(ref) : window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }))}
+            className={`h-10 px-3 rounded-full font-bold text-sm inline-flex items-center gap-2 bg-cq-milk border-2 border-cq-line ${tone === 'ready' ? 'text-cq-ready' : 'text-cq-roast'}`}>
+            {label} <span className="text-cq-ink-3 tabular-nums">{n}</span>
+          </button>
+        ))}
       </div>
-
-      {/* ---------------- MAKING ---------------- */}
-      <SectionHead title="Making" count={inProgressOrders.length}>
-        {jugs.length ? (
-          <div className="hidden sm:flex flex-wrap gap-x-3 text-sm font-semibold text-cq-ink-2" title="Milk to steam for everything on the bench">
-            <span className="text-cq-ink-3">Steam</span>
-            {jugs.map((j) => <span key={j.milk} className="tabular-nums">{j.litres}L {j.milk}</span>)}
+      {rushStrip ? <div className="mb-4">{rushStrip}</div> : null}
+      <div ref={makingRef} className="scroll-mt-16">
+        <Heading title="Making" count={inProgressOrders.length} />
+        {steam ? <div className="-mt-1 mb-3">{steam}</div> : null}
+        {makingBody}
+      </div>
+      <div ref={nextRef} className="scroll-mt-16">
+        <Heading title="Up next" count={upNext.length} />
+        {nextBody}
+      </div>
+      {/* Ready strip, pinned to the bottom: Collected is always one tap away. */}
+      {showReady && ready.length > 0 ? (
+        <div className="fixed bottom-0 inset-x-0 z-30 bg-cq-milk border-t-2 border-cq-ready shadow-cq-raised px-3 py-2">
+          <div className="flex items-center gap-2 overflow-x-auto">
+            <span className="text-xs font-extrabold uppercase tracking-[0.12em] text-cq-ready flex-shrink-0">Ready {ready.length}</span>
+            {ready.map((o) => (
+              <button key={o.id} type="button" onClick={() => collect(o)} className="flex-shrink-0 h-12 pl-3 pr-2 rounded-cq-md bg-cq-roast text-cq-cream inline-flex items-center gap-2" title={`${drinkLine(o)} · ${sinceReady(o)}`}>
+                <span className="text-xl font-extrabold tabular-nums">#{orderNumberOf(o)}</span>
+                {o.customerName ? <span className="text-sm font-semibold max-w-[8rem] truncate">{o.customerName}</span> : null}
+                <span className="ml-1 h-8 px-2 rounded-cq-sm bg-white/15 text-xs font-bold inline-flex items-center">Collected</span>
+              </button>
+            ))}
           </div>
-        ) : null}
-      </SectionHead>
-      {inProgressOrders.length === 0 ? <Empty title="Nothing on the bench" hint="Start an order from Up next" /> : (
-        <div className="space-y-3">
-          {inProgressOrders.map((o) => {
-            const stages = teamMode && applicableStages ? applicableStages(o) : [];
-            const done = orderStages ? orderStages(o) : {};
-            const allDone = stages.length > 0 && stages.every((s) => done[s]);
-            return (
-              <OrderCard key={o.id} state="making" compact={compact} order={{ ...toCard(o), since: sinceStarted(o) }} badges={badgesFor(o)}
-                actions={
-                  <>
-                    {stages.length ? (
-                      <div className="w-full flex gap-2">
-                        {stages.map((stage) => (
-                          <button key={stage} type="button" onClick={() => toggleStage && toggleStage(o, stage)}
-                            className={`flex-1 h-11 rounded-cq-md font-bold text-sm border-2 ${done[stage] ? 'bg-cq-ready-wash border-cq-ready text-cq-ready' : 'bg-cq-milk border-cq-line text-cq-ink-2'}`}>
-                            {done[stage] ? '✓ ' : ''}{stage === 'shots' ? 'Shots' : 'Milk'}
-                          </button>
-                        ))}
-                      </div>
-                    ) : null}
-                    <Button variant="ready" Icon={Check} className={`flex-1 ${allDone ? 'cq-breathe' : ''}`} onClick={() => onComplete && onComplete(o.id)}>
-                      {allDone ? 'All parts done · Ready' : 'Ready'}
-                    </Button>
-                    <AskCustomerControls order={o} />
-                    <MoreMenu items={[
-                      phoneItem(o), printItem(o),
-                      { label: 'Move to another station', Icon: ArrowRightLeft, onClick: () => onMove && onMove(o) },
-                      { label: 'Edit order', Icon: Edit, onClick: () => onEdit && onEdit(o) },
-                    ]} />
-                  </>
-                } />
-            );
-          })}
         </div>
-      )}
-
-      {/* ---------------- UP NEXT ---------------- */}
-      <SectionHead title="Up next" count={upNext.length} />
-      {upNext.length === 0 ? <Empty title="No one waiting" hint="New orders appear here as they come in" /> : (
-        <div className="space-y-3">
-          {upNext.map((o) => {
-            const gid = groupIdOf(o);
-            const members = gid ? pendingOrders.filter((p) => groupIdOf(p) === gid).length : 0;
-            return (
-              <OrderCard key={o.id} state="queued" compact={compact} order={{ ...toCard(o), since: sinceQueued(o) }} badges={badgesFor(o)}
-                actions={
-                  <>
-                    {members > 1 ? (
-                      <Button Icon={Users} className="flex-1" onClick={() => onStartGroup && onStartGroup(o)}>Start group of {members}</Button>
-                    ) : (
-                      <Button Icon={Play} className="flex-1" onClick={() => onStart && onStart(o)}>Start</Button>
-                    )}
-                    <MoreMenu items={[
-                      members > 1 ? { label: 'Start just this one', Icon: Play, onClick: () => onStart && onStart(o) } : null,
-                      phoneItem(o),
-                      { label: 'Delay', Icon: Clock, onClick: () => onDelay && onDelay(o) },
-                      { label: 'Move to another station', Icon: ArrowRightLeft, onClick: () => onMove && onMove(o) },
-                      { label: 'Edit order', Icon: Edit, onClick: () => onEdit && onEdit(o) },
-                      printItem(o),
-                    ]} />
-                  </>
-                } />
-            );
-          })}
-        </div>
-      )}
-
-      {/* ---------------- READY ---------------- */}
-      {showReady ? <SectionHead title="Ready to hand over" count={ready.length} tone="ready" /> : null}
-      {!showReady ? null : ready.length === 0 ? <Empty Icon={Check} title="Nothing waiting to be collected" /> : (
-        <div className="space-y-2">
-          {ready.map((o) => (
-            <div key={o.id} className="bg-cq-milk rounded-cq-lg shadow-cq-card border-l-[6px] border-l-cq-ready px-4 py-3 flex items-center gap-4">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-baseline gap-3 flex-wrap">
-                  <span className="text-3xl font-extrabold leading-none text-cq-roast tabular-nums">#{orderNumberOf(o)}</span>
-                  {o.customerName ? <span className="text-lg font-bold text-cq-ink truncate">{o.customerName}</span> : null}
-                </div>
-                <div className="text-sm text-cq-ink-2 mt-0.5">{[drinkLine(o), milkSugarLine(o)].filter(Boolean).join(' · ')} <span className="text-cq-ink-3">· {sinceReady(o)}</span></div>
-              </div>
-              <Button variant="dark" onClick={() => collect(o)}>Collected</Button>
-              <MoreMenu items={[phoneItem(o)]} />
-            </div>
-          ))}
-        </div>
-      )}
+      ) : null}
     </div>
   );
 }

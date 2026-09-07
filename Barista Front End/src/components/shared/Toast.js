@@ -51,6 +51,7 @@ const Toast = ({ message, type = 'info', duration = 3000, onClose, standalone = 
 // uses bottom-center: at top-right the stack sat on the header's lock
 // button, and two toasts at once used to land on the same spot.
 export const ToastManager = ({ position = 'top-right' } = {}) => {
+  // 'bottom-center-high' clears a strip pinned to the bottom of the screen.
   const [toasts, setToasts] = useState([]);
 
   useEffect(() => {
@@ -75,7 +76,7 @@ export const ToastManager = ({ position = 'top-right' } = {}) => {
   };
 
   return (
-    <div className={`fixed z-50 space-y-2 ${position === 'bottom-center' ? 'bottom-6 left-1/2 -translate-x-1/2 w-[min(92vw,40rem)]' : 'top-4 right-4'}`}>
+    <div className={`fixed z-50 space-y-2 ${position === 'bottom-center' ? 'bottom-6 left-1/2 -translate-x-1/2 w-[min(92vw,40rem)]' : position === 'bottom-center-high' ? 'bottom-24 left-1/2 -translate-x-1/2 w-[min(92vw,40rem)]' : 'top-4 right-4'}`}>
       {toasts.map(toast => (
         <Toast
           key={toast.id}

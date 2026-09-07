@@ -13,6 +13,7 @@ import QueueHeader from './queue/QueueHeader';
 import QueueColumn from './queue/QueueColumn';
 import StationPicker from './queue/StationPicker';
 import AdminSheet from './queue/AdminSheet';
+import useLanesLayout from './queue/useLanesLayout';
 import { TabBar } from '../../design';
 import { 
   Coffee, Package, Calendar, Check, Monitor, Settings,
@@ -122,6 +123,9 @@ const BaristaInterface = () => {
     updateStationStatus,
     refreshData: refreshStations
   } = useStations({ autoSelect: false });
+  // Lanes side by side on a landscape tablet or a laptop; one column on a
+  // phone or a portrait tablet (see useLanesLayout).
+  const lanes = useLanesLayout();
 
   // State for showing station selector dropdown
   // Phase 4 (the queue screen): which OTHER stations this tablet watches in
@@ -2189,6 +2193,10 @@ const BaristaInterface = () => {
     { label: isRefreshing ? 'Refreshing…' : 'Refresh', Icon: RefreshCw, disabled: isRefreshing, onClick: refreshAll },
   ];
 
+  // In lanes the queue fills the screen and nothing on the page scrolls;
+  // every other tab scrolls inside the content area as before.
+  const lanesActive = lanes && activeTab === 'orders';
+
   // A tablet must be told which station it is at. Until someone chooses
   // (or if the remembered station no longer exists), ask -- never guess.
   if (!selectedStation) {
@@ -2205,15 +2213,15 @@ const BaristaInterface = () => {
   // Main component render
   return (
     <div
-      className="cq min-h-screen flex flex-col"
+      className={`cq flex flex-col ${lanesActive ? 'h-screen overflow-hidden' : 'min-h-screen'}`}
       // At zoom < 1 a bare min-h-screen (100vh) would render shorter than the
       // real viewport once scaled, leaving a grey strip at the bottom; dividing
       // by the zoom keeps it filling the screen. At zoom > 1 the taller content
       // simply overflows and scrolls, which is what we want.
-      style={uiZoom !== 1 ? { zoom: uiZoom, minHeight: `${100 / uiZoom}vh` } : undefined}
+      style={uiZoom !== 1 ? { zoom: uiZoom, minHeight: `${100 / uiZoom}vh`, ...(lanesActive ? { height: `${100 / uiZoom}vh` } : {}) } : undefined}
     >
       {/* Toast Notifications */}
-      <ToastManager position="bottom-center" />
+      <ToastManager position={lanesActive ? 'bottom-center' : 'bottom-center-high'} />
 
       {/* Outbound-SMS-down alert — loud + always visible during service, the
           one signal that survives a total outbound outage (see component). */}
@@ -2284,7 +2292,7 @@ const BaristaInterface = () => {
           tab bar + sticky action footer don't cover the last items. */}
       {/* Bottom padding so the last card can scroll clear of the sticky
           action bar (the page grows past the viewport). */}
-      <div className="p-4 pb-28 flex-grow overflow-y-auto">
+      <div className={`p-4 flex-grow overflow-y-auto ${lanesActive ? 'pb-4 flex flex-col min-h-0' : 'pb-28'}`}>
         {/* Loading state */}
         {loading && (
           <div className="flex justify-center items-center h-full">
@@ -2345,19 +2353,19 @@ const BaristaInterface = () => {
           <>
           {/* Batch suggestions are a planning aid, not something you read
               mid-rush. */}
-          {!settings.rushMode && (
-          <div className="max-w-4xl mx-auto w-full">
-            <RushMixStrip
-              pendingOrders={pendingOrders}
-              inProgressOrders={inProgressOrders}
-              stationName={currentStationObj?.name || `Station ${selectedStation}`}
-              onStartBatch={handleStartRushBatch}
-              onBatchComplete={handleBatchComplete}
-            />
-          </div>
-          )}
-          {/* ONE column: making, up next, ready. */}
+          {/* Lanes on a landscape tablet or laptop, a column elsewhere. The
+              rush-mix strip (a planning aid, not for mid-rush) rides inside
+              the Up next lane so it costs no screen height. */}
           <QueueColumn
+            rushStrip={!settings.rushMode ? (
+              <RushMixStrip
+                pendingOrders={pendingOrders}
+                inProgressOrders={inProgressOrders}
+                stationName={currentStationObj?.name || `Station ${selectedStation}`}
+                onStartBatch={handleStartRushBatch}
+                onBatchComplete={handleBatchComplete}
+              />
+            ) : null}
             pendingOrders={pendingOrders}
             inProgressOrders={inProgressOrders}
             completedOrders={completedOrders}
@@ -2382,6 +2390,7 @@ const BaristaInterface = () => {
             onDelay={handleDelayOrder}
             onWalkIn={() => setShowWalkInDialog(true)}
             stationMenu={stationMenu}
+            layout={lanes ? 'lanes' : 'column'}
           />
           </>
         )}
