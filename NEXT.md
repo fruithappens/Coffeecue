@@ -8,7 +8,8 @@ the re-imagining. **Production is never touched from here.** It cannot text or e
     ./stop.sh      stop
     ./build.sh     rebuild the front end after changing "Barista Front End/src", then restart
 
-Sign in: coffeecue / adminpassword. Data: `data/load_snapshot.py <export.json>` loads a fresh
+The backend runs with `TZ=UTC` (as on Railway) -- server timestamps are UTC, so the screens'
+UTC parsing matches. Sign in: coffeecue / adminpassword. Data: `data/load_snapshot.py <export.json>` loads a fresh
 production export (Organiser → Settings → Event Data) — all tables, orders included.
 Branch: `next` (never auto-deploys; Railway only deploys `main`). Every screen shows a red
 "TEST COPY" stripe (from `GET /api/env`; production shows nothing).

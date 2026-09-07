@@ -170,7 +170,7 @@ export default function DesignSheet() {
           </div>
         </Section>
 
-        <Section n={11} title="PIN panel" why="A barista opens the station’s settings with four taps, one hand, no keyboard. Try 1234; anything else shakes red.">
+        <Section n={11} title="PIN panel" why="A barista opens the station’s settings with four taps, one hand, no keyboard. Four to six digits, set by the organiser. Try 1234 then the tick; anything else shakes red.">
           <div className="flex flex-wrap gap-6 items-start">
             <PinPanel error={pinErr} onSubmit={(p) => setPinErr(p !== '1234')} />
             <div className="text-cq-ink-2 max-w-[40ch]">

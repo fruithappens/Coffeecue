@@ -9,6 +9,11 @@ import AuthService from '../../services/AuthService';
 import printService from '../../services/PrintService';
 import BroadcastDialog from '../dialogs/BroadcastDialog';
 import StationChooser from './StationChooser';
+import QueueHeader from './queue/QueueHeader';
+import QueueColumn from './queue/QueueColumn';
+import StationPicker from './queue/StationPicker';
+import AdminSheet from './queue/AdminSheet';
+import { TabBar } from '../../design';
 import { 
   Coffee, Package, Calendar, Check, Monitor, Settings,
   MessageCircle, Printer, Plus, Clock,
@@ -130,6 +135,19 @@ const BaristaInterface = () => {
 
   // State for showing station selector dropdown
   const [showStationSelector, setShowStationSelector] = useState(false);
+  // Phase 4 (the queue screen): which OTHER stations this tablet watches in
+  // the header -- a device preference, capped -- plus the station picker and
+  // the PIN-gated admin sheet.
+  const [watchedIds, setWatchedIds] = useState(() => {
+    try { const v = JSON.parse(localStorage.getItem('coffee_cue_watched_stations') || '[]'); return Array.isArray(v) ? v.map(Number).filter(Boolean) : []; } catch (e) { return []; }
+  });
+  const toggleWatch = (id) => setWatchedIds(prev => {
+    const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id].slice(0, 3);
+    try { localStorage.setItem('coffee_cue_watched_stations', JSON.stringify(next)); } catch (e) { /* device pref only */ }
+    return next;
+  });
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
   // Auto-refresh interval picker (header pill) open/closed
   const [showRefreshMenu, setShowRefreshMenu] = useState(false);
   // Admin-only "Switch view" dropdown in the header (replaces the floating
@@ -225,7 +243,12 @@ const BaristaInterface = () => {
     return 'orders';
   };
   
-  const [activeTab, setActiveTabState] = useState(loadActiveTab());
+  // A tab remembered from before phase 4 (Completed, Inventory, Schedule,
+  // Capabilities, Staff...) is no longer on this screen; land on the queue.
+  const [activeTab, setActiveTabState] = useState(() => {
+    const t = loadActiveTab();
+    return ['orders', 'stock', 'tools', 'settings', 'display'].includes(t) ? t : 'orders';
+  });
 
   // Label printer (Star mC-Label3 via CloudPRNT). The list is polled so the
   // header chip tracks online/offline; auto-print is a per-DEVICE choice
@@ -2335,6 +2358,98 @@ const BaristaInterface = () => {
     );
   };
 
+  // Switch this tablet to another station (from the picker or a watched
+  // chip). Same steps the old header dropdown did.
+  const switchStation = (id) => {
+    const station = stations.find(s => s.id === id);
+    if (!station) return;
+    changeSelectedStation(id);
+    const baristaName = getStationBaristaName(id);
+    setSettings(prev => ({ ...prev, stationName: station.name, baristaName }));
+    ChatService.initialize(id, station.name, baristaName);
+    refreshData();
+  };
+  // Rush mode: hide the menus, pack the cards, ask for real fullscreen
+  // (a refusal never stops the toggle).
+  const setRushMode = async (next) => {
+    setSettings(prev => ({ ...prev, rushMode: next }));
+    try {
+      if (next && document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen();
+      else if (!next && document.fullscreenElement && document.exitFullscreen) await document.exitFullscreen();
+    } catch (e) { /* fullscreen is a bonus, not the feature */ }
+  };
+
+  // ---- Station-level actions (were the bottom action bar) ----------------
+  const printQueueNow = async () => {
+    setPrintingQueue(true);
+    try {
+      const r = await printService.printQueue(selectedStation);
+      if (!r?.success) showToast(r?.message || 'Could not print the queue', 'error');
+      else if (r.queued > 0) showToast(`Printing ${r.queued} label${r.queued === 1 ? '' : 's'}` + (r.already_printed ? ` (${r.already_printed} already done)` : '') + (r.truncated ? ' - press again for the rest' : ''), 'success');
+      else if (r.already_printed > 0) showToast('Every waiting order already has a label', 'info');
+      else showToast(r.message || 'Nothing to print', 'info');
+    } catch (e) { showToast('Could not print the queue', 'error'); }
+    finally { setPrintingQueue(false); }
+  };
+  // Make ahead: hold the texts, THEN print the batch (printing first leaves
+  // a window where a fast barista completes one and the customer is pulled
+  // out of a session for a coffee sitting on a table).
+  const makeAhead = async () => {
+    setPrintingQueue(true); setHoldBusy(true);
+    try {
+      const api = new (await import('../../services/ApiService')).default();
+      await api.put('/notifications/hold', { holding: true });
+      const r = await printService.printQueue(selectedStation);
+      const n = r?.queued || 0;
+      showToast(n > 0 ? `Texts held, ${n} label${n === 1 ? '' : 's'} printing. Release when the break starts.` : 'Texts held. Nothing new to print.', n > 0 ? 'success' : 'info');
+    } catch (e) { showToast('Could not start make-ahead', 'error'); }
+    finally { setPrintingQueue(false); setHoldBusy(false); refreshHold(); }
+  };
+  const holdTexts = async () => {
+    if (!(await askConfirm({ title: 'Hold all "coffee ready" texts?', message: 'Customers will NOT be told their order is ready until you press Release. Use this only for pre-orders or before a session starts.', confirmLabel: 'Hold texts', danger: true }))) return;
+    setHoldBusy(true);
+    try { const api = new (await import('../../services/ApiService')).default(); await api.put('/notifications/hold', { holding: true }); }
+    finally { setHoldBusy(false); refreshHold(); }
+  };
+  const releaseTexts = async () => {
+    const n = holdState?.will_send ?? 0;
+    if (n > 0 && !(await askConfirm({ title: `Send ${n} held "your coffee is ready" ${n === 1 ? 'message' : 'messages'} now?`, message: 'Every customer whose coffee is already ready gets their text at once.', confirmLabel: 'Send now' }))) return;
+    setHoldBusy(true);
+    try {
+      const api = new (await import('../../services/ApiService')).default();
+      const r = await api.post('/notifications/release', {});
+      if (r?.success) showToast(`Sent ${r.sent} notification${r.sent === 1 ? '' : 's'}`, 'success');
+    } catch (e) { showToast('Could not release notifications', 'error'); }
+    finally { setHoldBusy(false); refreshHold(); }
+  };
+  const stopHolding = async () => {
+    setHoldBusy(true);
+    try { const api = new (await import('../../services/ApiService')).default(); await api.put('/notifications/hold', { holding: false }); }
+    finally { setHoldBusy(false); refreshHold(); }
+  };
+  const refreshAll = () => { refreshStations(); refreshData(); refreshScheduleData(); };
+  // Name the CATEGORY so "medium" isn't mistaken for a recipe or a milk.
+  const lowStockLabel = (i) => {
+    const n = String(i.name || ''); const c = String(i.category || '').toLowerCase();
+    if (c === 'cups') return `${n} cups`;
+    if (c === 'milk' && !/milk$/i.test(n)) return `${n} milk`;
+    if (c === 'coffee' && !/beans?$/i.test(n)) return `${n} beans`;
+    return n;
+  };
+  const rollNeedsAction = labelRoll && ['low', 'critical', 'empty'].includes(labelRoll.level);
+  const stationMenu = [
+    stationPrinter && pendingOrders.length > 0 && !holdState?.holding ? { label: `Make ahead (${pendingOrders.length})`, Icon: Printer, disabled: printingQueue || holdBusy, onClick: makeAhead, hint: 'Hold the ready texts, then print every waiting label' } : null,
+    stationPrinter && pendingOrders.length > 0 ? { label: printingQueue ? 'Sending…' : `Print queue (${pendingOrders.length})`, Icon: Printer, disabled: printingQueue, onClick: printQueueNow } : null,
+    stationPrinter && rollNeedsAction ? { label: 'Fitted a new label roll', Icon: Printer, onClick: async () => { try { await printService.updateRoll(stationPrinter.id, { reset: true }); showToast('New roll recorded', 'success'); } catch (e) { showToast('Could not record the new roll', 'error'); } finally { refreshRoll(); } } } : null,
+    holdState?.holding
+      ? { label: `Release ${holdState.will_send > 0 ? holdState.will_send + ' ' : ''}held ${holdState.will_send === 1 ? 'text' : 'texts'}`, Icon: Send, disabled: holdBusy, onClick: releaseTexts }
+      : { label: 'Hold the "ready" texts', Icon: Bell, disabled: holdBusy, onClick: holdTexts, hint: 'Finish orders without texting anyone yet' },
+    holdState?.holding ? { label: 'Stop holding (no send)', Icon: Bell, disabled: holdBusy, onClick: stopHolding } : null,
+    { label: 'Tell waiting customers', Icon: MessageCircle, onClick: () => setBroadcastOpen(true), hint: 'A message to everyone watching their phone' },
+    { label: 'Session so far', Icon: Clock, onClick: () => { setShowSessionReport(true); refreshSession(); } },
+    { label: isRefreshing ? 'Refreshing…' : 'Refresh', Icon: RefreshCw, disabled: isRefreshing, onClick: refreshAll },
+  ];
+
   // A tablet must be told which station it is at. Until someone chooses
   // (or if the remembered station no longer exists), ask -- never guess.
   if (!selectedStation) {
@@ -2351,7 +2466,7 @@ const BaristaInterface = () => {
   // Main component render
   return (
     <div
-      className="bg-gray-100 min-h-screen flex flex-col"
+      className="cq min-h-screen flex flex-col"
       // At zoom < 1 a bare min-h-screen (100vh) would render shorter than the
       // real viewport once scaled, leaving a grey strip at the bottom; dividing
       // by the zoom keeps it filling the screen. At zoom > 1 the taller content
@@ -2379,455 +2494,55 @@ const BaristaInterface = () => {
         </div>
       )}
       
-      {/* Main Header */}
-      {/* Header. On mobile it wraps (flex-wrap) instead of overflowing, and
-          the less-critical pills (Display, auto-refresh) are hidden — the
-          barista keeps Station / Online / Queue / Wait / Questions / HELP. */}
-      <header className={`bg-amber-800 text-white flex flex-wrap gap-y-2 justify-between items-center shadow-md ${settings.rushMode ? 'px-3 py-1.5' : 'p-4'}`}>
-        <div className="flex items-center">
-          <button 
-            className="mr-2 p-1 rounded hover:bg-amber-700"
-            onClick={() => { window.location.href = '/welcome'; }}
-            title="Back to Home"
-          >
-            <ArrowLeft size={20} />
-          </button>
-          <div className="text-xl font-bold cursor-pointer" onClick={() => setShowStationSelector(!showStationSelector)}>
-            {stations.find(s => s.id === selectedStation)?.name || 'Select a Station'}
-            <ChevronDown size={16} className="inline ml-1" />
-          </div>
-          
-          {/* Station Selector Dropdown */}
-          {showStationSelector && (
-            <div className="absolute top-16 left-4 bg-white text-gray-800 shadow-lg rounded-md overflow-hidden z-50">
-              {stations.map(station => (
-                <div 
-                  key={station.id}
-                  className={`p-3 hover:bg-gray-100 cursor-pointer ${station.id === selectedStation ? 'bg-amber-100' : ''}`}
-                  onClick={() => {
-                    // Change selected station (this will trigger sync in useOrders)
-                    changeSelectedStation(station.id);
-                    
-                    // Get station-specific barista name for the new station
-                    const stationBaristaName = getStationBaristaName(station.id);
-                    
-                    // Server name; there is no per-device override.
-                    const customStationName = station.name;
-                    
-                    // Update settings with new station info
-                    setSettings(prev => ({
-                      ...prev,
-                      stationName: customStationName, // Use custom name if available
-                      baristaName: stationBaristaName
-                    }));
-                    
-                    // Also initialize ChatService with the correct names
-                    ChatService.initialize(
-                      station.id, 
-                      customStationName,
-                      stationBaristaName
-                    );
-                    
-                    setShowStationSelector(false);
-                    // Refresh data for the new station
-                    refreshData();
-                  }}
-                >
-                  <div className="font-medium">
-                    {station.name}
-                  </div>
-                  <div className="text-xs text-gray-500 flex items-center">
-                    <div className={`w-2 h-2 rounded-full mr-1 ${station.status === 'active' ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                    {station.status === 'active' ? 'Active' : 'Maintenance'}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        
-        <div className="flex flex-wrap gap-2 items-center">
-          {/* Online/Offline — toggles whether THIS station accepts new orders.
-              Tap to take it offline (with confirm) or bring it back. The old
-              Display shortcut was removed (the Display tab still exists). */}
-          <button
-            className={`px-4 py-1 rounded-full flex items-center transition-colors ${stationOnline ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-500 hover:bg-gray-600'}`}
-            onClick={toggleStationOnline}
-            title={stationOnline ? 'Online and taking orders — click to take this station offline' : 'Offline — not receiving new orders. Click to bring it back online'}
-          >
-            <div className={`w-3 h-3 rounded-full ${stationOnline ? 'bg-green-200' : 'bg-gray-300'} mr-2`}></div>
-            {stationOnline ? 'Online' : 'Offline'}
-          </button>
+      {/* The queue header (phase 4): this station, the carts this tablet
+          watches, ONE status line (red only when something is broken), and
+          the lock that opens the admin sheet. */}
+      <QueueHeader
+        station={currentStationObj}
+        stations={stations}
+        watchedIds={watchedIds.filter(id => id !== selectedStation)}
+        rushMode={!!settings.rushMode}
+        net={online}
+        stationOnline={stationOnline}
+        queueCount={queueCount}
+        madeToday={madeToday}
+        waitMin={currentStationObj?.estimatedWait ?? waitTime}
+        printer={stationPrinter}
+        labelRoll={labelRoll}
+        onOpenPicker={() => setPickerOpen(true)}
+        onOpenAdmin={() => setAdminOpen(true)}
+        onTapWait={() => setShowWaitTimeDialog(true)}
+        onTapMade={() => { setShowSessionReport(true); refreshSession(); }}
+        onToggleOnline={toggleStationOnline}
+        onSelectStation={switchStation}
+        holding={holdState?.holding ? holdState : null}
+        lowStock={lowStockItems.map(lowStockLabel)}
+        onTapHold={releaseTexts}
+        onTapLowStock={() => setActiveTab('stock')}
+      />
 
-          {/* Auto-refresh interval picker — tap to choose how often the queue
-              refreshes. Hidden on mobile to declutter. */}
-          <div className="relative hidden md:block">
-            <button
-              className={`px-4 py-1 rounded-full flex items-center ${autoRefreshEnabled ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-500 hover:bg-gray-600'}`}
-              onClick={() => setShowRefreshMenu(v => !v)}
-              title={autoRefreshEnabled ? `Auto-refresh every ${autoRefreshInterval}s — click to change` : 'Auto-refresh off — click to choose an interval'}
-            >
-              <RefreshCw size={14} className={`mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
-              {autoRefreshEnabled ? `${autoRefreshInterval}s` : 'Off'}
-              <ChevronDown size={14} className="ml-1" />
-            </button>
-            {showRefreshMenu && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setShowRefreshMenu(false)}></div>
-                <div className="absolute right-0 mt-1 bg-white text-gray-800 shadow-lg rounded-md overflow-hidden z-50 w-36">
-                  <div className="px-3 py-1.5 text-xs text-gray-500 border-b">Refresh queue every</div>
-                  {[
-                    { label: 'Off', value: 0 },
-                    { label: '5 seconds', value: 5 },
-                    { label: '15 seconds', value: 15 },
-                    { label: '30 seconds', value: 30 },
-                    { label: '60 seconds', value: 60 },
-                  ].map(opt => {
-                    const active = opt.value === 0 ? !autoRefreshEnabled : (autoRefreshEnabled && autoRefreshInterval === opt.value);
-                    return (
-                      <button
-                        key={opt.value}
-                        className={`block w-full text-left px-3 py-2 text-sm hover:bg-gray-100 ${active ? 'bg-amber-100 font-medium text-amber-800' : ''}`}
-                        onClick={() => setRefreshInterval(opt.value)}
-                      >
-                        {opt.label}{opt.value === 5 ? ' (fast)' : ''}
-                      </button>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-          </div>
-
-          <div className="px-4 py-1 rounded-full bg-green-500">
-            Queue: {queueCount}
-          </div>
-
-          {/* Coffees made today at this station. Two jobs: it is the
-              number the baristas were writing down by hand for invoicing,
-              and it is crash insurance -- if the system stalls they can
-              see it stopped at 78 rather than reconstructing it later.
-              Clicking it opens the full session summary. */}
-          {madeToday !== null && (
-            <button
-              className="px-4 py-1 rounded-full bg-amber-900 hover:bg-amber-950 transition-colors"
-              onClick={() => { setShowSessionReport(true); refreshSession(); }}
-              title="Coffees finished at this station today - click for the full summary"
-            >
-              Made: {madeToday}
-            </button>
-          )}
-
-          {/* Wait pill shows the live SMART estimate (backend: per-drink
-              make-time × pending+in-progress ÷ station capacity — the same
-              number SMS customers get). Falls back to the manual value at
-              event start before real data exists. Tap to set the manual
-              starting estimate. */}
-          <button
-            className="px-4 py-1 rounded-full bg-green-500 hover:bg-green-600 flex items-center transition-colors"
-            onClick={() => setShowWaitTimeDialog(true)}
-            title="The walk-up answer: if someone orders RIGHT NOW, this is roughly how long until their coffee — live estimate from the current queue, real make-times and station capacity. With an empty queue it's just the time to make one coffee. Click to set the starting estimate (used until enough real orders complete)."
-          >
-            <Clock size={14} className="mr-1" />
-            Walk-up ~{currentStationObj?.estimatedWait ?? waitTime} min
-          </button>
-
-          {/* Other stations at a glance (e.g. S2: Q5) so a barista can send a
-              walk-up to a quieter station. Green = quiet, amber = busy, red =
-              very busy. Hidden on mobile to keep the condensed header tidy. */}
-          {otherStations.map(s => {
-            const q = s.queueCount ?? 0;
-            // An offline station must NOT look "quiet/green" — that would
-            // invite a barista to send a walk-up to a closed station. Grey it
-            // out and show "off" instead of a queue count.
-            const offline = (s.status || 'active') !== 'active';
-            const tone = offline
-              ? 'bg-gray-500 text-gray-200'
-              : q <= 2 ? 'bg-green-600 text-white'
-              : q <= 5 ? 'bg-yellow-500 text-yellow-900'
-              : 'bg-red-600 text-white';
-            return (
-              <div
-                key={s.id}
-                className={`px-3 py-1 rounded-full text-sm hidden md:flex items-center ${tone}`}
-                title={offline
-                  ? `${s.name}: offline (not taking orders)`
-                  : `${s.name}: ${q} order${q === 1 ? '' : 's'} in queue`}
-              >
-                {shortStationLabel(s.name, s.id)}: {offline ? 'off' : `Q${q}`}
-              </div>
-            );
-          })}
-
-          {/* Label printer chip — only shown when this station has an
-              enabled printer assigned. Green = polled within the last 15s,
-              red = printer has stopped polling (power/WiFi). Desktop only,
-              like the station pills. */}
-          {stationPrinter && (
-            <div
-              className={`px-3 py-1 rounded-full text-sm hidden md:flex items-center ${
-                stationPrinter.online ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}
-              title={stationPrinter.online
-                ? `${stationPrinter.name || 'Label printer'}: online`
-                : `${stationPrinter.name || 'Label printer'}: OFFLINE — check power/WiFi. Labels will queue and print when it reconnects.`}
-            >
-              <Printer size={14} className="mr-1" />
-              {stationPrinter.online ? 'Labels' : 'Labels off'}
-            </div>
-          )}
-
-          {/* Customer questions + station chat now live in the blue Messages
-              bubble (bottom-right); the static HELP button was removed to
-              declutter the header. */}
-
-          {/* Screen size (per-device zoom). Bigger = easier taps on a small
-              tablet (the Start button was the pain point); smaller = more
-              orders on screen. Saved on THIS device only. Tap the % to reset. */}
-          <div
-            className="flex items-center rounded-full bg-amber-900 overflow-hidden mr-2"
-            title="Screen size on this device — bigger for easier taps, smaller to fit more orders. Saved on this tablet only."
-          >
-            <button
-              className="px-3 py-1 text-lg leading-none hover:bg-amber-950 disabled:opacity-40"
-              onClick={() => setZoom(uiZoom - 0.1)}
-              disabled={uiZoom <= ZOOM_MIN}
-              aria-label="Make everything smaller"
-            >
-              &minus;
-            </button>
-            <button
-              className="px-2 py-1 text-sm tabular-nums hover:bg-amber-950"
-              onClick={() => setZoom(1)}
-              title="Reset to 100%"
-            >
-              {Math.round(uiZoom * 100)}%
-            </button>
-            <button
-              className="px-3 py-1 text-lg leading-none hover:bg-amber-950 disabled:opacity-40"
-              onClick={() => setZoom(uiZoom + 0.1)}
-              disabled={uiZoom >= ZOOM_MAX}
-              aria-label="Make everything bigger"
-            >
-              +
-            </button>
-          </div>
-
-          {/* Rush mode. The way in AND the way out -- in rush mode every
-              other menu is gone, so this button must stay visible and
-              obvious, and it says EXIT rather than showing a state. It
-              also asks the browser for real fullscreen, which reclaims
-              the address bar on a tablet; if that is refused (some
-              kiosks block it) the in-page saving still applies. */}
-          <button
-            className={`px-3 py-1 rounded-full flex items-center transition-colors text-sm mr-2 ${
-              settings.rushMode
-                ? 'bg-white text-amber-900 font-bold hover:bg-amber-100'
-                : 'bg-amber-900 hover:bg-amber-950'}`}
-            onClick={async () => {
-              const next = !settings.rushMode;
-              setSettings(prev => ({ ...prev, rushMode: next }));
-              try {
-                if (next && document.documentElement.requestFullscreen) {
-                  await document.documentElement.requestFullscreen();
-                } else if (!next && document.fullscreenElement && document.exitFullscreen) {
-                  await document.exitFullscreen();
-                }
-              } catch (e) {
-                // Fullscreen is a bonus, not the feature. A refusal must
-                // never stop the toggle -- the barista still gets the
-                // hidden menus and the tighter cards.
-              }
-            }}
-            title={settings.rushMode
-              ? 'Show the menus and batch suggestions again'
-              : 'Hide the menus and suggestions, pack the cards, go fullscreen'}
-          >
-            {settings.rushMode
-              ? <><Minimize2 size={14} className="mr-1" /> Exit rush</>
-              : <><Maximize2 size={14} className="mr-1" /> Rush</>}
-          </button>
-
-          {/* Admin-only "Switch view" — jump to another interface from the
-              header (replaces the floating switcher on this screen, which is
-              hidden on /barista). Desktop only. */}
-          {_currentRole === 'admin' && (
-            <div className="relative hidden md:block">
-              <button
-                onClick={() => setShowViewSwitch(v => !v)}
-                className="px-3 py-1 rounded-full bg-amber-900 hover:bg-amber-950 flex items-center transition-colors text-sm"
-                title="Switch to another interface (Organiser / Barista / Support / Display)"
-              >
-                <Shuffle size={14} className="mr-1" /> Switch view
-              </button>
-              {showViewSwitch && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowViewSwitch(false)}></div>
-                  <div className="absolute right-0 mt-2 w-44 bg-white text-gray-800 rounded-lg shadow-lg z-50 overflow-hidden">
-                    <div className="px-3 py-1.5 text-xs text-gray-500 border-b">Switch view</div>
-                    {[
-                      { path: '/organiser', label: 'Organiser' },
-                      { path: '/barista', label: 'Barista' },
-                      { path: '/support', label: 'Support' },
-                      { path: '/displays', label: 'Display' },
-                    ].map(v => (
-                      <button
-                        key={v.path}
-                        onClick={() => { window.location.href = v.path; }}
-                        className="block w-full text-left px-3 py-2 text-sm hover:bg-gray-100"
-                      >
-                        {v.label}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-        </div>
-      </header>
-
-      {/* Navigation Tabs (desktop), grouped. On mobile these are replaced
-          by the fixed bottom tab bar below.
-
-          Groups render only the leaves the current role may see, so a
-          plain barista's "Team" collapses to just Schedule (Staff is
-          manager-only) — and when a group has one visible leaf it is
-          drawn as a plain tab under that leaf's own name, rather than a
-          heading over a single-item sub-bar. */}
-      {/* Both tab bars go away in rush mode -- the slim header keeps the
-          way out, and everything else is a menu the barista is not using
-          while there are ten coffees on the bench. */}
+      {/* Three tabs: Queue, Stock, Tools. The manager tabs live behind the
+          lock (station settings, screens) or in the organiser. Gone in rush
+          mode -- the header keeps the way out. */}
       {!settings.rushMode && (
-      <div className="hidden md:block bg-white border-b shadow-sm">
-        <div className="flex">
-          {BARISTA_GROUPS.map((g) => {
-            const leaves = (g.tabs || [{ id: g.tab, label: g.label, Icon: g.Icon }])
-              .filter((t) => isManager || !MANAGER_ONLY_TABS.includes(t.id));
-            if (leaves.length === 0) return null;
-            const isActive = leaves.some((t) => t.id === activeTab);
-            // One visible leaf: show it under its own name.
-            const single = leaves.length === 1;
-            const label = single ? leaves[0].label : g.label;
-            const Icon = single ? leaves[0].Icon : g.Icon;
-            return (
-              <button
-                key={g.id}
-                className={`py-4 px-6 font-medium flex items-center ${isActive ? 'border-b-2 border-amber-600 bg-white text-amber-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                onClick={() => {
-                  if (isActive) return;
-                  // Return to the leaf last used in this group.
-                  const remembered = groupSubTab[g.id];
-                  const target = leaves.some((t) => t.id === remembered)
-                    ? remembered
-                    : leaves[0].id;
-                  setActiveTab(target);
-                }}
-              >
-                <Icon size={18} className="mr-1" />
-                {label}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Sub-tabs for the active group. Only drawn when the group has
-            more than one leaf this role can see. */}
-        {(() => {
-          const g = BARISTA_GROUPS.find(
-            (grp) => (grp.tabs || []).some((t) => t.id === activeTab)
-          );
-          if (!g) return null;
-          const leaves = g.tabs.filter(
-            (t) => isManager || !MANAGER_ONLY_TABS.includes(t.id)
-          );
-          if (leaves.length < 2) return null;
-          return (
-            <div className="flex bg-white border-t border-gray-100 px-4">
-              {leaves.map(({ id, label, Icon }) => (
-                <button
-                  key={id}
-                  className={`py-2 px-4 text-sm font-medium flex items-center border-b-2 ${activeTab === id ? 'border-amber-500 text-amber-800' : 'border-transparent text-gray-500 hover:text-gray-800'}`}
-                  onClick={() => {
-                    setActiveTab(id);
-                    setGroupSubTab((prev) => ({ ...prev, [g.id]: id }));
-                  }}
-                >
-                  <Icon size={15} className="mr-1" />
-                  {label}
-                </button>
-              ))}
-            </div>
-          );
-        })()}
-      </div>
-      )}
-
-      {/* Mobile bottom tab bar — replaces the overflowing top tab row on
-          phones. Plain baristas get Orders / Stock / Completed; managers
-          also get a "More" sheet with the configuration tabs. Hidden on
-          md+ (desktop keeps the top tab row). */}
-      {!settings.rushMode && (
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 shadow-lg flex">
-        {[
-          { id: 'orders', label: 'Orders', Icon: Coffee },
-          { id: 'stock', label: 'Stock', Icon: Package },
-          { id: 'completed', label: 'Done', Icon: Check },
-          { id: 'tools', label: 'Tools', Icon: Wrench },
-        ].map(({ id, label, Icon }) => (
-          <button
-            key={id}
-            className={`flex-1 flex flex-col items-center justify-center py-2 ${activeTab === id ? 'text-amber-700' : 'text-gray-500'}`}
-            onClick={() => { setActiveTab(id); setShowMobileMore(false); }}
-          >
-            <Icon size={20} />
-            <span className="text-xs mt-0.5">{label}</span>
-          </button>
-        ))}
-        {isManager && (
-          <button
-            className={`flex-1 flex flex-col items-center justify-center py-2 ${showMobileMore || !['orders', 'stock', 'completed'].includes(activeTab) ? 'text-amber-700' : 'text-gray-500'}`}
-            onClick={() => setShowMobileMore(v => !v)}
-          >
-            <MoreHorizontal size={20} />
-            <span className="text-xs mt-0.5">More</span>
-          </button>
-        )}
-      </div>
-      )}
-
-      {/* Mobile "More" sheet — the manager/config tabs, opened from the bar. */}
-      {showMobileMore && isManager && (
-        <div className="md:hidden fixed inset-0 z-40" onClick={() => setShowMobileMore(false)}>
-          <div className="absolute inset-0 bg-black bg-opacity-40"></div>
-          <div className="absolute bottom-14 left-0 right-0 bg-white rounded-t-2xl shadow-xl p-3" onClick={e => e.stopPropagation()}>
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { id: 'inventory', label: 'Inventory', Icon: Package },
-                { id: 'schedule', label: 'Schedule', Icon: Calendar },
-                { id: 'display', label: 'Display', Icon: Monitor },
-                { id: 'queue', label: 'Queue Rules', Icon: Brain },
-                { id: 'balance', label: 'Balance', Icon: Scale },
-                { id: 'capabilities', label: 'Capabilities', Icon: Settings },
-                { id: 'staff', label: 'Staff', Icon: Users },
-                { id: 'settings', label: 'Settings', Icon: Settings },
-              ].map(({ id, label, Icon }) => (
-                <button
-                  key={id}
-                  className={`flex flex-col items-center justify-center py-3 rounded-lg ${activeTab === id ? 'bg-amber-100 text-amber-800' : 'bg-gray-50 text-gray-700'}`}
-                  onClick={() => { setActiveTab(id); setShowMobileMore(false); }}
-                >
-                  <Icon size={20} />
-                  <span className="text-xs mt-1">{label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
+        <div className="px-4 pt-3">
+          <TabBar
+            tabs={[
+              { id: 'orders', label: 'Queue', Icon: Coffee, count: pendingOrders.length + inProgressOrders.length },
+              { id: 'stock', label: 'Stock', Icon: Package },
+              { id: 'tools', label: 'Tools', Icon: Wrench },
+            ]}
+            active={['orders', 'stock', 'tools'].includes(activeTab) ? activeTab : null}
+            onChange={setActiveTab}
+          />
         </div>
       )}
 
       {/* Main Content. Extra bottom padding on mobile so the fixed bottom
           tab bar + sticky action footer don't cover the last items. */}
-      <div className="p-4 flex-grow overflow-y-auto pb-24 md:pb-4">
+      {/* Bottom padding so the last card can scroll clear of the sticky
+          action bar (the page grows past the viewport). */}
+      <div className="p-4 pb-28 flex-grow overflow-y-auto">
         {/* Loading state */}
         {loading && (
           <div className="flex justify-center items-center h-full">
@@ -2887,7 +2602,7 @@ const BaristaInterface = () => {
         {!loading && activeTab === 'orders' && (
           <>
           {/* Batch suggestions are a planning aid, not something you read
-              mid-rush -- and they were costing two rows above the columns. */}
+              mid-rush. */}
           {!settings.rushMode && (
           <RushMixStrip
             pendingOrders={pendingOrders}
@@ -2897,176 +2612,33 @@ const BaristaInterface = () => {
             onBatchComplete={handleBatchComplete}
           />
           )}
-          {/* Column order follows the work: Upcoming, then Current, then
-              Ready. Steve asked for "columb progression" after CTN26,
-              where the middle-of-the-board Current column filled up and
-              the eye had to jump about to follow one order through. The
-              older Current-first layout is still selectable in Settings.
-
-              `board-compact` tightens the cards for a station making
-              8-10 at once -- see styles/boardDensity.css. */}
-          {/* `board-rtl` mirrors the column order for a cart where the
-              queue is on the barista's right and the hatch is on their
-              left, so the board matches the bench instead of fighting it
-              (Steve: "orders comes in on 1 side and goes out on the
-              other"). It flips the grid, not the JSX, so the reading
-              order and the keyboard order stay put. */}
-          <div className={`grid grid-cols-1 ${
-            settings.skipPickedUp ? 'lg:grid-cols-2' : 'lg:grid-cols-3'} gap-4${
-            (settings.compactOrders || settings.rushMode) ? ' board-compact' : ''}${
-            settings.boardColumnOrder === 'progression-rtl' ? ' board-rtl' : ''}`}>
-            {settings.boardColumnOrder !== 'current-first' && (
-              /* Pending Orders */
-              <PendingOrdersSection
-                orders={pendingOrders}
-                teamMode={teamMode}
-                filter={filter}
-                onFilterChange={setFilter}
-                onStartOrder={startOrderWithLabel}
-                onProcessBatch={processBatch}
-                onSendMessage={handleOpenMessageDialog}
-                onDelayOrder={handleDelayOrder}
-                onEditOrder={handleEditOrder}
-                onMoveOrder={handleOpenMoveDialog}
-                groupInfoByOrderId={groupInfoByOrderId}
-                onStartGroup={handleStartGroup}
-              />
-            )}
-
-            {/* Current Order (In Progress) */}
-            <div>
-              <div className="bg-amber-700 text-white p-2 rounded-t-lg flex justify-between items-center flex-wrap gap-y-1">
-                <h2 className="text-xl font-bold">Current Order ({inProgressOrders.length})</h2>
-                {/* Same place and same shape as the Upcoming column's
-                    chips, so the two headers read as one control strip
-                    rather than two different ideas. */}
-                {inProgressOrders.length > 1 && (
-                  <div className="flex flex-wrap gap-1">
-                    <button
-                      className="px-2 py-1 rounded-md text-xs bg-amber-600 hover:bg-amber-800"
-                      onClick={() => setCurrentSort(v => v === 'oldest' ? 'newest' : 'oldest')}
-                      title={currentSort === 'oldest'
-                        ? 'Longest on the bench first — click for newest first'
-                        : 'Newest first — click for longest on the bench first'}
-                    >
-                      {currentSort === 'oldest' ? '↑ Old' : '↓ New'}
-                    </button>
-                    {milkOptions(inProgressOrders, 2).length > 0 && (
-                      <>
-                        <button
-                          className={`px-2 py-1 rounded-md text-xs ${!currentMilkFilter
-                            ? 'bg-white text-amber-700' : 'bg-amber-600 hover:bg-amber-800'}`}
-                          onClick={() => setCurrentMilkFilter('')}
-                        >
-                          All
-                        </button>
-                        {milkOptions(inProgressOrders, 2).map(m => (
-                          <button
-                            key={m.milk}
-                            className={`px-2 py-1 rounded-md text-xs ${currentMilkFilter === m.milk
-                              ? 'bg-white text-amber-700' : 'bg-amber-600 hover:bg-amber-800'}`}
-                            onClick={() => setCurrentMilkFilter(
-                              currentMilkFilter === m.milk ? '' : m.milk)}
-                          >
-                            {/* No count on the chip: the Steam strip
-                                directly below already gives counts and
-                                litres, and the milk names are long enough
-                                that the counts wrapped this header onto a
-                                second row while the other two stayed on
-                                one. */}
-                            {m.milk}
-                          </button>
-                        ))}
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-              <div className="bg-white p-4 rounded-b-lg shadow-md">
-                {(() => {
-                  const jugs = summariseMilk(inProgressOrders);
-                  const shown = sortCurrentOrders(
-                    filterByMilk(inProgressOrders, currentMilkFilter), currentSort);
-                  return (
-                    <>
-                      {/* What to steam, in litres, for everything on the
-                          bench. One trip to the machine instead of four.
-                          Ignores the milk filter on purpose -- you steam
-                          for the whole bench, not for what you filtered. */}
-                      {jugs.length > 0 && (
-                        <div className="mb-3 text-sm bg-amber-50 border border-amber-200 rounded px-2 py-1.5 flex flex-wrap gap-x-3 gap-y-1">
-                          <span className="font-semibold text-amber-900">Steam:</span>
-                          {jugs.map(j => (
-                            <span key={j.milk} className="text-amber-900 whitespace-nowrap">
-                              {j.litres}L {j.milk}
-                              <span className="text-amber-700"> ({j.count})</span>
-                            </span>
-                          ))}
-                        </div>
-                      )}
-
-                      {shown.length > 0 ? (
-                        shown.map(order => renderInProgressOrder(order))
-                      ) : inProgressOrders.length > 0 ? (
-                        <div className="text-center py-6 text-gray-500 text-sm">
-                          <p>Nothing on the bench with {currentMilkFilter} milk</p>
-                          <button className="mt-1 text-amber-700 underline"
-                                  onClick={() => setCurrentMilkFilter('')}>
-                            Show all {inProgressOrders.length}
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="text-center py-8 text-gray-500">
-                          <Coffee size={48} className="mx-auto mb-2 text-gray-400" />
-                          <p>No orders in progress</p>
-                          <p className="text-sm text-gray-400">Start an order from the queue</p>
-                        </div>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
-            </div>
-
-            {settings.boardColumnOrder === 'current-first' && (
-            /* Pending Orders */
-            <PendingOrdersSection
-              orders={pendingOrders}
-              teamMode={teamMode}
-              filter={filter}
-              onFilterChange={setFilter}
-              onStartOrder={startOrderWithLabel}
-              onProcessBatch={processBatch}
-              onSendMessage={handleOpenMessageDialog}
-              onDelayOrder={handleDelayOrder}
-              onEditOrder={handleEditOrder}
-              onMoveOrder={handleOpenMoveDialog}
-              groupInfoByOrderId={groupInfoByOrderId}
-              onStartGroup={handleStartGroup}
-            />
-            )}
-
-            {/* Ready for Pickup — recently-completed orders at this
-                station with a Collected button. Steve wanted this
-                visible on the main Orders tab so the barista doesn't
-                have to switch to the Completed tab to mark orders
-                as collected as customers arrive. Stale orders still
-                live under the full Completed tab.
-
-                Hidden entirely when "Completing an order finishes it"
-                is on: the grid drops to two columns and the barista
-                never taps Collected. The order still shows as ready on
-                the customer display and still ages off there. */}
-            {!settings.skipPickedUp && (
-            <ReadyForPickupColumn
-              completedOrders={completedOrders}
-              stationId={selectedStation}
-              expiryMinutes={settings.readyExpiryMinutes}
-              onMarkPickedUp={markOrderPickedUp}
-              onSendMessage={handleOpenMessageDialog}
-            />
-            )}
-          </div>
+          {/* ONE column: making, up next, ready. */}
+          <QueueColumn
+            pendingOrders={pendingOrders}
+            inProgressOrders={inProgressOrders}
+            completedOrders={completedOrders}
+            showReady={!settings.skipPickedUp}
+            stationId={selectedStation}
+            expiryMinutes={settings.readyExpiryMinutes}
+            teamMode={teamMode}
+            groupInfoByOrderId={groupInfoByOrderId}
+            stationPrinter={stationPrinter}
+            compact={!!(settings.compactOrders || settings.rushMode)}
+            applicableStages={applicableStages}
+            orderStages={orderStages}
+            toggleStage={toggleStage}
+            onStart={startOrderWithLabel}
+            onStartGroup={handleStartGroup}
+            onComplete={handleCompleteOrder}
+            onCollected={markOrderPickedUp}
+            onMessage={handleOpenMessageDialog}
+            onPrint={handlePrintLabel}
+            onMove={handleOpenMoveDialog}
+            onEdit={handleEditOrder}
+            onDelay={handleDelayOrder}
+            onWalkIn={() => setShowWalkInDialog(true)}
+            stationMenu={stationMenu}
+          />
           </>
         )}
 
@@ -4432,130 +4004,9 @@ const BaristaInterface = () => {
         )}
       </div>
 
-      {/* Action Bar. On mobile it sits just above the fixed bottom tab bar
-          (bottom-14 = 56px) and its buttons wrap instead of overflowing. */}
-      <div className="sticky bottom-14 md:bottom-0 bg-white p-3 shadow-lg flex flex-wrap gap-2 justify-between border-t border-gray-200">
-        <div className="flex flex-wrap gap-2">
-          <button 
-            className="px-4 py-2 bg-gray-200 rounded flex items-center hover:bg-gray-300 transition-colors"
-            onClick={() => setShowWalkInDialog(true)}
-          >
-            <Plus size={18} className="mr-1" /> Add Walk-in Order
-          </button>
-          {/* Label roll warning. Only shown when it matters -- a gauge
-              sitting at "ok" all day is noise, and noise is what makes a
-              barista stop reading the top of the screen. */}
-          {labelRoll && (labelRoll.level === 'low' || labelRoll.level === 'critical'
-                         || labelRoll.level === 'empty') && (
-            <div className={`w-full mb-2 px-3 py-2 rounded flex items-center justify-between text-sm ${
-              labelRoll.level === 'low'
-                ? 'bg-amber-50 border border-amber-300 text-amber-900'
-                : 'bg-red-50 border border-red-300 text-red-900'}`}>
-              <span className="flex items-center">
-                <Printer size={16} className="mr-2" />
-                {labelRoll.message}
-              </span>
-              <button
-                className="px-3 py-1 rounded bg-white border border-current text-xs font-semibold hover:bg-gray-50"
-                onClick={async () => {
-                  try {
-                    await printService.updateRoll(stationPrinter.id, { reset: true });
-                    showToast('New roll recorded', 'success');
-                  } catch (e) {
-                    showToast('Could not record the new roll', 'error');
-                  } finally { refreshRoll(); }
-                }}
-                title="I have just fitted a new roll - start counting again"
-              >
-                Fitted a new roll
-              </button>
-            </div>
-          )}
-
-          {/* Make ahead: hold the texts, then print the batch -- in that
-              order, because printing first leaves a window where a fast
-              barista completes one and the customer is pulled out of a
-              session for a coffee that is sitting on a table.
-
-              Both halves existed already (Hold notifications, Print
-              queue) but nothing said they went together, so using them
-              meant remembering two buttons AND the order. Steve asked for
-              "print without notification (for orders being bulk made
-              before a break)" -- this is that, as one tap. */}
-          {stationPrinter && pendingOrders.length > 0 && !holdState?.holding && (
-            <button
-              className="px-4 py-2 bg-amber-100 text-amber-900 rounded flex items-center hover:bg-amber-200 transition-colors disabled:opacity-50"
-              disabled={printingQueue || holdBusy}
-              onClick={async () => {
-                setPrintingQueue(true);
-                setHoldBusy(true);
-                try {
-                  const api = new (await import('../../services/ApiService')).default();
-                  await api.put('/notifications/hold', { holding: true });
-                  const r = await printService.printQueue(selectedStation);
-                  const n = r?.queued || 0;
-                  showToast(
-                    n > 0
-                      ? `Texts held, ${n} label${n === 1 ? '' : 's'} printing. Release when the break starts.`
-                      : 'Texts held. Nothing new to print.',
-                    n > 0 ? 'success' : 'info');
-                } catch (e) {
-                  showToast('Could not start make-ahead', 'error');
-                } finally {
-                  setPrintingQueue(false);
-                  setHoldBusy(false);
-                  refreshHold();
-                }
-              }}
-              title="Hold the ready texts, then print every waiting label — for making a batch before a break"
-            >
-              <Printer size={18} className="mr-1" />
-              Make ahead ({pendingOrders.length})
-            </button>
-          )}
-
-          {/* Print the whole queue. Only offered when this station has a
-              printer and there is something waiting -- a button that does
-              nothing is worse than no button. Steve, watching his own
-              video: "they were hitting print and pulling sticker out,
-              print and sticker". */}
-          {stationPrinter && pendingOrders.length > 0 && (
-            <button
-              className="px-4 py-2 bg-gray-200 rounded flex items-center hover:bg-gray-300 transition-colors disabled:opacity-60"
-              disabled={printingQueue}
-              onClick={async () => {
-                setPrintingQueue(true);
-                try {
-                  const r = await printService.printQueue(selectedStation);
-                  if (!r?.success) {
-                    showToast(r?.message || 'Could not print the queue', 'error');
-                  } else if (r.queued > 0) {
-                    showToast(
-                      `Printing ${r.queued} label${r.queued === 1 ? '' : 's'}` +
-                      (r.already_printed ? ` (${r.already_printed} already done)` : '') +
-                      (r.truncated ? ' - press again for the rest' : ''),
-                      'success');
-                  } else if (r.already_printed > 0) {
-                    showToast('Every waiting order already has a label', 'info');
-                  } else {
-                    showToast(r.message || 'Nothing to print', 'info');
-                  }
-                } catch (e) {
-                  showToast('Could not print the queue', 'error');
-                } finally { setPrintingQueue(false); }
-              }}
-              title="Print a label for every waiting order, oldest first"
-            >
-              <Printer size={18} className="mr-1" />
-              {printingQueue ? 'Sending...' : `Print queue (${pendingOrders.length})`}
-            </button>
-          )}
-
-          {/* Session summary. What the baristas were keeping on paper --
-              how many, what kind, which milks -- so it can be read off
-              at the end of a session for invoicing, and so a stocking
-              decision has numbers behind it. CTN26 carried coconut and
-              sold none of it; that is worth knowing before buying more. */}
+      {/* Session so far -- opened from the status line ("n made") or the
+          admin sheet. The old action bar that housed it is gone: its
+          actions live behind the queue's "..." and on the status line. */}
           {showSessionReport && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
                  onClick={() => setShowSessionReport(false)}>
@@ -4653,154 +4104,12 @@ const BaristaInterface = () => {
             </div>
           )}
 
-          {/* Broadcast to everyone watching their phone. Sits with the
-              other bulk actions because that is what it is -- but it
-              confirms first and names the count, because this reaches
-              real customers and cannot be unsent. */}
-          <button
-            className="px-4 py-2 bg-gray-200 rounded flex items-center hover:bg-gray-300 transition-colors"
-            onClick={() => setBroadcastOpen(true)}
-            title="Tell customers watching their phone that something has gone wrong"
-          >
-            <MessageCircle size={18} className="mr-1" /> Tell waiting customers
-          </button>
-
-          {/* Notification hold. Deliberately loud when ON and quiet when
-              off: a hold left on by accident means customers are never
-              told their coffee is ready, which is a far worse failure
-              than a text arriving at an awkward moment. The count is on
-              the button because pressing "release" without knowing it is
-              87 texts is how an event gets a surprise phone bill. */}
-          {holdState?.holding ? (
-            <div className="flex items-center gap-2">
-              <button
-                className="px-4 py-2 bg-amber-600 text-white rounded flex items-center hover:bg-amber-700 transition-colors font-semibold disabled:opacity-60"
-                disabled={holdBusy}
-                onClick={async () => {
-                  const n = holdState?.will_send ?? 0;
-                  if (n > 0 && !(await askConfirm({
-                    title: `Send ${n} held "your coffee is ready" ${n === 1 ? 'message' : 'messages'} now?`,
-                    message: 'Every customer whose coffee is already ready gets their text at once.',
-                    confirmLabel: 'Send now',
-                  }))) return;
-                  setHoldBusy(true);
-                  try {
-                    const api = new (await import('../../services/ApiService')).default();
-                    const r = await api.post('/notifications/release', {});
-                    if (r?.success) {
-                      showToast(`Sent ${r.sent} notification${r.sent === 1 ? '' : 's'}`, 'success');
-                    }
-                  } catch (e) {
-                    showToast('Could not release notifications', 'error');
-                  } finally { setHoldBusy(false); refreshHold(); }
-                }}
-                title="Send every held notification, and stop holding"
-              >
-                <Send size={16} className="mr-1" />
-                Release {holdState.will_send > 0 ? `${holdState.will_send} ` : ''}
-                {holdState.will_send === 1 ? 'message' : 'messages'}
-              </button>
-              <button
-                className="px-3 py-2 bg-gray-200 rounded text-sm hover:bg-gray-300"
-                disabled={holdBusy}
-                onClick={async () => {
-                  setHoldBusy(true);
-                  try {
-                    const api = new (await import('../../services/ApiService')).default();
-                    await api.put('/notifications/hold', { holding: false });
-                  }
-                  finally { setHoldBusy(false); refreshHold(); }
-                }}
-                title="Go back to texting customers as each order finishes"
-              >
-                Stop holding
-              </button>
-            </div>
-          ) : (
-            <button
-              className="px-4 py-2 bg-gray-200 rounded flex items-center hover:bg-gray-300 transition-colors"
-              disabled={holdBusy}
-              onClick={async () => {
-                // Confirm: an accidental knock here silently stops EVERY
-                // "your coffee is ready" text until someone notices + releases
-                // (Steve: dangerous buttons need a guard against a mis-tap).
-                if (!(await askConfirm({
-                  title: 'Hold all "coffee ready" texts?',
-                  message: 'Customers will NOT be told their order is ready until you press Release. '
-                    + 'Use this only for pre-orders or before a session starts.',
-                  confirmLabel: 'Hold texts',
-                  danger: true,
-                }))) return;
-                setHoldBusy(true);
-                try {
-                  const api = new (await import('../../services/ApiService')).default();
-                  await api.put('/notifications/hold', { holding: true });
-                }
-                finally { setHoldBusy(false); refreshHold(); }
-              }}
-              title="Finish orders without texting anyone yet - for pre-orders made during a session"
-            >
-              <Bell size={18} className="mr-1" /> Hold notifications
-            </button>
-          )}
-          {/* "Adjust Wait Time" moved to the Wait pill in the header. */}
-          <button
-            className="px-4 py-2 bg-gray-200 rounded flex items-center hover:bg-gray-300 transition-colors"
-            onClick={() => {
-              // Refresh stations, orders, and schedule data
-              refreshStations();
-              refreshData();
-              refreshScheduleData();
-            }}
-          >
-            <RefreshCw size={18} className={`mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
-            {isRefreshing ? 'Refreshing...' : 'Refresh'}
-          </button>
-        </div>
-        
-        {/* Low-stock warning, relocated from a full-width top banner to a
-            compact chip on the RIGHT of the action bar (Steve: it "takes
-            up quite a lot of space at the top"). Names which items are
-            low so it's readable at a glance on a touch screen (no hover),
-            carries the full numbers in the tooltip, and one tap jumps to
-            the Stock tab -- which is where the old banner told them to go
-            anyway. */}
-        {lowStockItems.length > 0 && (() => {
-          // Name the CATEGORY so "medium" isn't mistaken for a recipe or a
-          // milk -- Steve: "what does the medium mean? sounds like its
-          // either the cups or a recipe". It was the cups.
-          const label = (i) => {
-            const n = String(i.name || '');
-            const c = String(i.category || '').toLowerCase();
-            if (c === 'cups') return `${n} cups`;
-            if (c === 'milk' && !/milk$/i.test(n)) return `${n} milk`;
-            if (c === 'coffee' && !/beans?$/i.test(n)) return `${n} beans`;
-            return n;
-          };
-          return (
-            <button
-              onClick={() => setActiveTab('stock')}
-              title={lowStockItems.map(i =>
-                `${label(i)}: ${parseFloat(i.amount) || 0}${i.unit ? ` ${i.unit}` : ''} left (min ${parseFloat(i.minimum_threshold) || 0})`
-              ).join(' · ') + ' — restock, or turn the item off in the Stock tab.'}
-              className="px-3 py-2 rounded flex items-center gap-2 bg-red-50 border-2 border-red-500
-                         text-red-700 font-semibold hover:bg-red-100 transition-colors max-w-[45vw]"
-            >
-              <AlertTriangle size={16} className="shrink-0" />
-              <span className="truncate">
-                Low stock: {lowStockItems.map(label).join(', ')}
-              </span>
-            </button>
-          );
-        })()}
-      </div>
-      
       {/* Messages bubble — opens the unified inbox (customer Questions +
           station Chat). Lifted on mobile so it clears the action footer + the
           fixed bottom tab bar. The badge is the REAL count of pending customer
           questions (was a hardcoded fake "2"). */}
       <button
-        className="fixed bottom-40 md:bottom-16 right-4 bg-blue-500 text-white p-3 rounded-full shadow-lg hover:bg-blue-600 z-30"
+        className="fixed bottom-20 right-4 bg-cq-roast text-cq-cream p-3 rounded-full shadow-cq-raised hover:bg-cq-roast-deep z-30"
         title="Messages — customer questions & station chat"
         onClick={() => {
           // When opening, land on Questions if any are pending, else Chat.
@@ -4829,6 +4138,43 @@ const BaristaInterface = () => {
         })()}
       </button>
       
+      {/* Station picker + the PIN-gated admin sheet (phase 4). */}
+      <StationPicker
+        open={pickerOpen}
+        stations={stations}
+        selectedStation={selectedStation}
+        watchedIds={watchedIds.filter(id => id !== selectedStation)}
+        onSelect={(id) => { switchStation(id); setPickerOpen(false); }}
+        onToggleWatch={toggleWatch}
+        onClose={() => setPickerOpen(false)}
+      />
+      <AdminSheet
+        open={adminOpen}
+        onClose={() => setAdminOpen(false)}
+        state={{
+          rushMode: !!settings.rushMode, teamMode, soundEnabled: settings.soundEnabled,
+          zoom: uiZoom, zoomMin: ZOOM_MIN, zoomMax: ZOOM_MAX,
+          refreshSeconds: autoRefreshEnabled ? autoRefreshInterval : 0,
+          stationName: currentStationObj?.name,
+        }}
+        actions={{
+          setRush: setRushMode,
+          setTeam: setTeamMode,
+          setSound: (on) => setSettings(prev => ({ ...prev, soundEnabled: on })),
+          setZoom,
+          setRefresh: setRefreshInterval,
+          openPicker: () => { setAdminOpen(false); setPickerOpen(true); },
+          openStationSettings: () => { setAdminOpen(false); setActiveTab('settings'); },
+          openDisplaySettings: () => { setAdminOpen(false); setActiveTab('display'); },
+          openSession: () => { setAdminOpen(false); setShowSessionReport(true); refreshSession(); },
+          signOut: () => {
+            try { localStorage.removeItem('coffee_cue_selected_station'); localStorage.removeItem('last_used_station_id'); } catch (e) { /* ignore */ }
+            AuthService.logout();
+            window.location.href = '/login';
+          },
+        }}
+      />
+
       {/* Dialogs */}
       {showWaitTimeDialog && (
         <WaitTimeDialog 

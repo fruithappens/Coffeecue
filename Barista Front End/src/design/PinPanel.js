@@ -2,17 +2,21 @@
 // settings (phase 4). Big keys, one hand, no keyboard. The dots fill as you
 // type; a wrong PIN shakes the dots red and clears.
 import React, { useState } from 'react';
-import { Delete, Lock } from 'lucide-react';
+import { Delete, Lock, Check } from 'lucide-react';
 
-export default function PinPanel({ title = 'Station settings', hint = 'Enter the station PIN', length = 4, onSubmit, error = false, className = '' }) {
+// A PIN is 4 to 6 digits (the organiser chooses). Six digits submit on
+// their own; fewer need the tick, so a 4-digit PIN is never cut short.
+export default function PinPanel({ title = 'Station settings', hint = 'Enter the station PIN', minLength = 4, maxLength = 6, onSubmit, error = false, className = '' }) {
   const [pin, setPin] = useState('');
+  const submit = (value) => { if (onSubmit) onSubmit(value); setTimeout(() => setPin(''), 250); };
   const press = (d) => {
-    if (pin.length >= length) return;
+    if (pin.length >= maxLength) return;
     const next = pin + d;
     setPin(next);
-    if (next.length === length && onSubmit) { onSubmit(next); setTimeout(() => setPin(''), 250); }
+    if (next.length === maxLength) submit(next);
   };
-  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'];
+  const length = Math.max(minLength, pin.length);
+  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'ok', '0', 'del'];
   return (
     <div className={`bg-cq-milk rounded-cq-xl shadow-cq-raised p-6 w-full max-w-xs ${className}`}>
       <div className="flex items-center gap-3">
@@ -29,15 +33,19 @@ export default function PinPanel({ title = 'Station settings', hint = 'Enter the
       </div>
       {error ? <div className="mt-2 text-center text-sm font-semibold text-cq-alert">That PIN isn’t right. Try again.</div> : null}
       <div className="mt-5 grid grid-cols-3 gap-2">
-        {keys.map((k, i) => k === '' ? <span key={i} /> : (
+        {keys.map((k, i) => (
           <button
             key={i}
             type="button"
-            onClick={() => (k === 'del' ? setPin(pin.slice(0, -1)) : press(k))}
-            aria-label={k === 'del' ? 'Delete' : k}
-            className={`h-14 rounded-cq-md text-2xl font-extrabold leading-none transition-colors ${k === 'del' ? 'text-cq-ink-2 hover:bg-cq-wash' : 'bg-cq-wash text-cq-roast hover:bg-cq-caramel-wash active:bg-cq-caramel active:text-white'}`}
+            disabled={k === 'ok' && pin.length < minLength}
+            onClick={() => (k === 'del' ? setPin(pin.slice(0, -1)) : k === 'ok' ? submit(pin) : press(k))}
+            aria-label={k === 'del' ? 'Delete' : k === 'ok' ? 'Unlock' : k}
+            className={`h-14 rounded-cq-md text-2xl font-extrabold leading-none transition-colors ${
+              k === 'del' ? 'text-cq-ink-2 hover:bg-cq-wash'
+              : k === 'ok' ? 'bg-cq-caramel text-white hover:bg-cq-caramel-deep disabled:opacity-30'
+              : 'bg-cq-wash text-cq-roast hover:bg-cq-caramel-wash active:bg-cq-caramel active:text-white'}`}
           >
-            {k === 'del' ? <Delete size={22} className="mx-auto" /> : k}
+            {k === 'del' ? <Delete size={22} className="mx-auto" /> : k === 'ok' ? <Check size={24} strokeWidth={3} className="mx-auto" /> : k}
           </button>
         ))}
       </div>

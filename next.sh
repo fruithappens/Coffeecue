@@ -7,7 +7,11 @@ mkdir -p logs
 if ! pg_isready -h localhost -q; then echo "Postgres is not running: brew services start postgresql@15"; exit 1; fi
 if lsof -nP -iTCP:5001 -sTCP:LISTEN >/dev/null 2>&1; then echo "Port 5001 is busy. Already running? ./stop.sh first."; exit 1; fi
 if [ ! -d "Barista Front End/build" ]; then echo "No front-end build yet: run ./build.sh first"; exit 1; fi
-nohup ./venv/bin/python run_server.py > logs/backend.log 2>&1 &
+# Run in UTC like Railway does. The server stamps orders with datetime.now();
+# on a Mac in Adelaide that wrote local time, and every screen that parses
+# server times as UTC (beacon, board, the Ready list) put them 9.5 h in the
+# future -- so "ready" orders vanished. Same code, same clock as production.
+TZ=UTC nohup ./venv/bin/python run_server.py > logs/backend.log 2>&1 &
 echo $! > logs/backend.pid
 IP=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo "this-mac")
 echo "CupQ Next (TEST COPY) starting ..."
