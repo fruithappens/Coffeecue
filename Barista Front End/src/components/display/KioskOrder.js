@@ -1445,6 +1445,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                             : strength === 'weak' ? 'Half strength'
                             : 'Extra strong'}</li>
                     )}
+                    {notes.trim() ? <li>📝 {notes.trim()}</li> : null}
                     {extraHot && <li>🌡️ Extra hot</li>}
                   </ul>
                 </>
