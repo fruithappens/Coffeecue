@@ -81,13 +81,42 @@ export default function QueueColumn({
     try { await onCollected(o.id); } catch (e) { setHidden((p) => { const n = new Set(p); n.delete(key); return n; }); }
   };
 
-  // ---- Up next: priority first, then the fair queue (oldest first, as served).
-  const upNext = useMemo(() => [...pendingOrders.filter(isPriority), ...pendingOrders.filter((o) => !isPriority(o))], [pendingOrders]);
+  // ---- Sort. Oldest first is the fair queue and the default (Steve saw
+  // newest on top and old ones at risk of being missed). Age comes from the
+  // server's waitTime (minutes) so it is right on any clock; createdAt only
+  // breaks ties. A device remembers its choice.
+  const [sortMode, setSortMode] = useState(() => { try { return localStorage.getItem('coffee_cue_queue_sort') || 'oldest'; } catch (e) { return 'oldest'; } });
+  const chooseSort = (m) => { setSortMode(m); try { localStorage.setItem('coffee_cue_queue_sort', m); } catch (e) { /* device pref */ } };
+  const ageOf = (o) => { const w = Number(o.waitTime); if (!Number.isNaN(w) && o.waitTime != null) return w; const t = parseServerDate(o.createdAt || o.created_at || 0).getTime(); return Number.isNaN(t) ? 0 : (Date.now() - t) / 60000; };
+  const created = (o) => parseServerDate(o.createdAt || o.created_at || 0).getTime() || 0;
+  const olderFirst = (a, b) => (ageOf(b) - ageOf(a)) || (created(a) - created(b));
+  const milkOf = (o) => String(o.milkType || o.milk_type || 'no milk').toLowerCase();
+  const orderBy = (list, mode) => {
+    const l = [...list];
+    if (mode === 'newest') return l.sort((a, b) => -olderFirst(a, b));
+    if (mode === 'milk') return l.sort((a, b) => milkOf(a).localeCompare(milkOf(b)) || olderFirst(a, b));
+    if (mode === 'vip') return l.filter(isPriority).sort(olderFirst);
+    // oldest: the fair queue, priority on top
+    return l.sort((a, b) => (Number(isPriority(b)) - Number(isPriority(a))) || olderFirst(a, b));
+  };
+  const upNext = useMemo(() => orderBy(pendingOrders, sortMode), [pendingOrders, sortMode]); // eslint-disable-line react-hooks/exhaustive-deps
+  const SORTS = [['oldest', 'Oldest'], ['newest', 'Newest'], ['milk', 'Milk'], ['vip', 'VIP']];
+  const sortControl = (
+    <div className="flex items-center gap-1.5 text-sm font-semibold overflow-x-auto whitespace-nowrap pb-1" title="How the queue is sorted on this tablet">
+      <span className="text-cq-ink-3 mr-0.5">Sort</span>
+      {SORTS.map(([m, label]) => (
+        <button key={m} type="button" onClick={() => chooseSort(m)} aria-pressed={sortMode === m}
+          className={`h-8 px-2.5 rounded-full ${sortMode === m ? 'bg-cq-roast text-cq-cream' : 'bg-cq-wash text-cq-ink-2 hover:bg-cq-caramel-wash'}`}>
+          {label}
+        </button>
+      ))}
+    </div>
+  );
 
   // ---- The bench: steam summary doubles as a milk filter (tap a milk).
   const [milkFilter, setMilkFilter] = useState('');
   const jugs = useMemo(() => summariseMilk(inProgressOrders), [inProgressOrders]);
-  const bench = useMemo(() => (milkFilter ? filterByMilk(inProgressOrders, milkFilter) : inProgressOrders), [inProgressOrders, milkFilter]);
+  const bench = useMemo(() => orderBy(milkFilter ? filterByMilk(inProgressOrders, milkFilter) : inProgressOrders, sortMode), [inProgressOrders, milkFilter, sortMode]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (milkFilter && !jugs.some((j) => j.milk === milkFilter)) setMilkFilter(''); }, [jugs, milkFilter]);
   const dense = compact || inProgressOrders.length > COMPACT_ABOVE;
 
@@ -193,7 +222,9 @@ export default function QueueColumn({
   const makingBody = bench.length === 0
     ? (inProgressOrders.length ? <div className="text-center py-6 text-cq-ink-3">Nothing on the bench with {milkFilter}. <button type="button" className="underline text-cq-caramel-deep" onClick={() => setMilkFilter('')}>Show all {inProgressOrders.length}</button></div> : <Empty title="Nothing on the bench" hint="Start an order from Up next" />)
     : <div className={dense && lanes ? 'grid grid-cols-1 2xl:grid-cols-2 gap-3' : 'space-y-3'}>{bench.map(makingCard)}</div>;
-  const nextBody = upNext.length === 0 ? <Empty title="No one waiting" hint="New orders appear here as they come in" /> : <div className="space-y-3">{upNext.map(queuedCard)}</div>;
+  const nextBody = upNext.length === 0
+    ? (sortMode === 'vip' && pendingOrders.length ? <Empty title="No VIP orders waiting" hint={`${pendingOrders.length} in the queue · sorted by VIP only`} /> : <Empty title="No one waiting" hint="New orders appear here as they come in" />)
+    : <div className="space-y-3">{upNext.map(queuedCard)}</div>;
   const readyBody = ready.length === 0 ? <Empty Icon={Check} title="Nothing to collect" /> : <div className="space-y-2">{ready.map(readyRow)}</div>;
 
   // ================= LANES =================
@@ -212,7 +243,7 @@ export default function QueueColumn({
         {quickRow}
         <div className="flex-1 min-h-0 flex gap-5">
           <Lane title="Making" count={inProgressOrders.length} grow={showReady ? 'basis-[44%]' : 'basis-1/2'} sub={steam}>{makingBody}</Lane>
-          <Lane title="Up next" count={upNext.length} grow={showReady ? 'basis-[32%]' : 'basis-1/2'}>{rushStrip ? <div className="mb-3">{rushStrip}</div> : null}{nextBody}</Lane>
+          <Lane title="Up next" count={upNext.length} grow={showReady ? 'basis-[32%]' : 'basis-1/2'} sub={sortControl}>{rushStrip ? <div className="mb-3">{rushStrip}</div> : null}{nextBody}</Lane>
           {showReady ? <Lane title="Ready to hand over" count={ready.length} tone="ready" grow="basis-[24%]">{readyBody}</Lane> : null}
         </div>
       </div>
@@ -240,6 +271,7 @@ export default function QueueColumn({
       </div>
       <div ref={nextRef} className="scroll-mt-16">
         <Heading title="Up next" count={upNext.length} />
+        <div className="-mt-1 mb-3">{sortControl}</div>
         {nextBody}
       </div>
       {/* Ready strip, pinned to the bottom: Collected is always one tap away. */}
