@@ -12202,11 +12202,16 @@ def get_today_report():
         # --- UI / client errors --------------------------------------------
         errors = {'count': 0, 'recent': []}
         try:
-            cur.execute("SELECT COUNT(*) FROM client_errors WHERE created_at::date = CURRENT_DATE")
+            # The column is occurred_at (migration 11), not created_at. Both
+            # queries therefore threw, were swallowed by the except below,
+            # and the report has always said ZERO user-facing errors -- a
+            # number that looks like good news and is simply the question
+            # never being asked.
+            cur.execute("SELECT COUNT(*) FROM client_errors WHERE occurred_at::date = CURRENT_DATE")
             r = cur.fetchone()
             errors['count'] = int(r[0]) if r and r[0] is not None else 0
             cur.execute("SELECT message, COUNT(*) AS n FROM client_errors "
-                        "WHERE created_at::date = CURRENT_DATE "
+                        "WHERE occurred_at::date = CURRENT_DATE "
                         "GROUP BY message ORDER BY n DESC LIMIT 5")
             errors['recent'] = [{'message': (row[0] or '')[:160], 'count': int(row[1])}
                                 for row in cur.fetchall()]
