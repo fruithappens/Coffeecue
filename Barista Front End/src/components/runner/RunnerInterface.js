@@ -51,6 +51,7 @@ import EventsAirTab from '../support-tabs/EventsAirTab';
 import EventDataManagement from '../organiser/EventDataManagement';
 import EmergencyTab from '../support-tabs/EmergencyTab';
 import SmsFlowReference from '../organiser/SmsFlowReference';
+import NoticeComposer from './NoticeComposer';
 
 const RunnerInterface = () => {
   const { stations, refreshData } = useStations();
@@ -150,6 +151,7 @@ const RunnerInterface = () => {
         </div>
       )}
 
+      {activeSection === 'messages' && activeTab === 'notice' && <NoticeComposer />}
       {activeSection === 'messages' && activeTab === 'broadcast' && <EnhancedCommunicationHub />}
       {activeSection === 'messages' && activeTab === 'test' && <SMSTestSimulator />}
       {activeSection === 'messages' && activeTab === 'blocked' && <SmsBlocklistTab />}

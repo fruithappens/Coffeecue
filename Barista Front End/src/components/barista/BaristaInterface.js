@@ -76,6 +76,8 @@ import MultiLevelInventory from '../organiser/MultiLevelInventory';
 import StationCapabilitiesEditor from './StationCapabilitiesEditor';
 import EnhancedStationCapabilities from '../organiser/EnhancedStationCapabilities';
 import { askConfirm } from '../shared/ConfirmDialog';
+import useNotices from '../shared/useNotices';
+import NoticeBanner from '../shared/NoticeBanner';
 
 // True-to-life display preview: the REAL /display page in an iframe,
 // rendered at external-screen size (1280×720, 16:9) and scaled down to
@@ -124,6 +126,11 @@ const BaristaInterface = () => {
     updateStationStatus,
     refreshData: refreshStations
   } = useStations({ autoSelect: false });
+
+  // What the room is being told right now (see NoticeComposer). A barista on
+  // cart 4 needs to know cart 2 is down as much as the person waiting does --
+  // they are the one who gets asked about it.
+  const notices = useNotices('screen', selectedStation);
   // Lanes side by side on a landscape tablet or a laptop; one column on a
   // phone or a portrait tablet (see useLanesLayout).
   const lanes = useLanesLayout();
@@ -2149,6 +2156,8 @@ const BaristaInterface = () => {
         onTapLowStock={() => setActiveTab('stock')}
         unlocked={unlocked}
       />
+
+      <NoticeBanner notices={notices} className="px-4 pt-3" />
 
       {/* Three tabs: Queue, Stock, Tools. The manager tabs live behind the
           lock (station settings, screens) or in the organiser. Gone in rush
