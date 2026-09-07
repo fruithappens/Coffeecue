@@ -72,10 +72,26 @@ const AllOrdersTab = () => {
         completed: completed.map(shape),
         previous: previous.map(shape),
       };
-      allOrders.pending.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-      allOrders.inProgress.sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
-      allOrders.completed.sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt));
-      allOrders.previous.sort((a, b) => new Date(b.pickedUpAt) - new Date(a.pickedUpAt));
+      // Newest first, and never on a single field. A missing timestamp makes
+      // `new Date(undefined) - new Date(undefined)` NaN, and a comparator
+      // that returns NaN does not sort -- it leaves the list in whatever
+      // order it arrived in and says nothing. That is exactly what the
+      // picked-up list did: this endpoint has never sent pickedUpAt, so the
+      // sort was dead and the order was only ever the server's.
+      const at = (order, ...fields) => {
+        for (const f of fields) {
+          const v = order && order[f];
+          if (!v) continue;
+          const t = new Date(v).getTime();
+          if (!Number.isNaN(t)) return t;
+        }
+        return 0;
+      };
+      const newestFirst = (...fields) => (a, b) => at(b, ...fields) - at(a, ...fields);
+      allOrders.pending.sort(newestFirst('createdAt', 'created_at'));
+      allOrders.inProgress.sort(newestFirst('startedAt', 'started_at', 'createdAt', 'created_at'));
+      allOrders.completed.sort(newestFirst('completedAt', 'completed_at', 'updatedAt', 'updated_at'));
+      allOrders.previous.sort(newestFirst('pickedUpAt', 'picked_up_at', 'updatedAt', 'updated_at', 'completedAt', 'completed_at'));
       setOrders(allOrders);
       calculateStats(allOrders);
       setLoading(false);
