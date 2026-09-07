@@ -33,6 +33,14 @@ const BrandingSettings = () => {
     event_name: '',
     smsNumber: '',
     clientLogo: brandingConfig.logo || '',
+    // The top of a CUSTOMER screen (the phone page, the beacon, the
+    // ordering form). Steve: some events want just the words in their own
+    // colour, some want the logo beside them, and some need a picture cut
+    // for a phone because the main logo is the wrong shape.
+    //   'logo_name' logo + event name  |  'name' the words only  |  'image'
+    customerHeaderMode: 'logo_name',
+    customerHeaderImage: '',
+    customerHeaderColor: '',
     // Full-screen Display backgrounds, one per orientation (16:9 landscape
     // + 9:16 portrait). Stored as data URIs in branding_settings; the
     // Display picks the right one for the screen's orientation.
@@ -328,6 +336,10 @@ const BrandingSettings = () => {
   const handleLogoUpload = handleLogoUploadFor(
     'clientLogo', 'Logo loaded — click Save to apply it to the display + login.');
 
+  const handleCustomerHeaderUpload = handleLogoUploadFor(
+    'customerHeaderImage',
+    'Picture loaded — click Save to put it at the top of the customer screens.');
+
   // Full-screen Display background upload. `which` is 'bgLandscape' (16:9) or
   // 'bgPortrait' (9:16). Large source files are fine now — they're downscaled
   // + compressed client-side so the stored image is small enough to save.
@@ -508,6 +520,72 @@ const BrandingSettings = () => {
                   </p>
                 </div>
               </div>
+            </div>
+
+            {/* The top of a CUSTOMER screen. The phone page, the waiting
+                beacon and the ordering form all wear the event, not CupQ --
+                this decides how. */}
+            <div className="md:col-span-2 border-t pt-4 mt-2">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                Top of the customer screens
+              </p>
+              <p className="text-xs text-gray-500 mb-3">
+                What a delegate sees above the order on their phone.
+              </p>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {[['logo_name', 'Logo + event name'], ['name', 'Event name only'], ['image', 'A picture I choose']].map(([mode, label]) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setSettings(prev => ({ ...prev, customerHeaderMode: mode }))}
+                    className={`px-3 py-2 rounded-lg text-sm font-semibold border-2 ${
+                      (settings.customerHeaderMode || 'logo_name') === mode
+                        ? 'border-amber-500 bg-amber-50 text-amber-800'
+                        : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex flex-wrap items-center gap-4">
+                <label className="flex items-center gap-2 text-sm text-gray-600">
+                  Text colour
+                  <input
+                    type="color"
+                    value={settings.customerHeaderColor || settings.primaryColor || '#C08552'}
+                    onChange={(e) => setSettings(prev => ({ ...prev, customerHeaderColor: e.target.value }))}
+                    className="h-9 w-14 rounded border border-gray-300"
+                  />
+                  {settings.customerHeaderColor && (
+                    <button type="button" className="text-xs text-gray-500 hover:underline"
+                            onClick={() => setSettings(prev => ({ ...prev, customerHeaderColor: '' }))}>
+                      use the event colour
+                    </button>
+                  )}
+                </label>
+                {(settings.customerHeaderMode || 'logo_name') === 'image' && (
+                  <div className="flex items-center gap-3">
+                    {settings.customerHeaderImage ? (
+                      <img src={settings.customerHeaderImage} alt="" className="h-10 w-auto max-w-[10rem] object-contain border rounded bg-white p-1" />
+                    ) : null}
+                    <label className="px-3 py-2 rounded-lg border-2 border-gray-200 text-sm font-semibold text-gray-600 cursor-pointer hover:border-gray-300">
+                      {settings.customerHeaderImage ? 'Replace picture' : 'Upload picture'}
+                      <input type="file" accept="image/*" className="hidden"
+                             onChange={handleCustomerHeaderUpload} />
+                    </label>
+                    {settings.customerHeaderImage && (
+                      <button type="button" className="text-xs text-red-600 hover:underline"
+                              onClick={() => setSettings(prev => ({ ...prev, customerHeaderImage: '' }))}>
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                A wide, short picture works best here — it sits above the order
+                on a phone. Click Save to apply.
+              </p>
             </div>
 
             {/* Full-screen Display backgrounds — one per orientation so a

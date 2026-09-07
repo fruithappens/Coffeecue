@@ -67,7 +67,6 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
   // Whose event this is -- the operator's logo, name and colour. A delegate
   // ordering at Treenet should see Treenet, with CupQ signing the foot.
   const brand = useEventBrand();
-  const [showGoneMilks, setShowGoneMilks] = useState(false);
 
   // Event code carried with the order. Priority: a code already on the URL
   // (a scanned QR / a code the visitor typed on /my) wins; otherwise the
@@ -794,11 +793,14 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`relative flex flex-col items-center justify-center rounded-2xl p-5 min-h-[120px] text-center transition
+      // Tight sides on a phone: at 390px the old p-5 left 107px for the
+      // label and "Cappuccino" needs about 118, so it wrapped (Steve).
+      // Shorter too -- roomy is right, scrolling past seven drinks is not.
+      className={`relative flex flex-col items-center justify-center rounded-2xl px-2.5 py-4 sm:p-5 min-h-[104px] sm:min-h-[120px] text-center transition
         ${disabled ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-800 hover:shadow-lg active:scale-95 shadow'}`}
       style={active ? { boxShadow: `0 0 0 4px ${headerColor}` } : undefined}
     >
-      <span className="mb-2 flex items-center justify-center h-14" aria-hidden>
+      <span className="mb-1.5 sm:mb-2 flex items-center justify-center h-11 sm:h-14" aria-hidden>
         {icon || <span className="text-5xl">{emoji}</span>}
       </span>
       {/* break-words + full width so a long single-word label ("Cappuccino",
@@ -853,7 +855,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
   })();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 overflow-y-auto"
+    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-2 sm:p-4 overflow-y-auto"
          onPointerDown={resetIdle}
          style={{ background: `linear-gradient(135deg, ${headerColor}ee, #000000cc)`,
                   // The EventsAir app's webview sits UNDER the app's own
@@ -889,7 +891,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
           -- an inner scroll area inside a mis-reported webview viewport
           is how the top and bottom went missing. Kiosks (sm+) keep the
           centred card with its own scroll. */}
-      <div className={`w-full sm:max-h-[92vh] sm:overflow-y-auto rounded-3xl p-6 md:p-8
+      <div className={`w-full sm:max-h-[92vh] sm:overflow-y-auto rounded-3xl p-4 sm:p-6 md:p-8
                        ${step === 'done' ? 'max-w-5xl' : 'max-w-3xl'}`}
            style={{ backgroundColor: '#f8fafc' }}>
 
@@ -990,7 +992,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                   const shown = showAllDrinks ? drinksForTab
                     : drinksForTab.filter(d => d.featured !== false);
                   return (
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
                       {shown.map(d => (
                         <Tile key={d.value} icon={<DrinkIcon name={d.value} />} label={d.name}
                           active={drink?.value === d.value}
@@ -1032,6 +1034,31 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                 })()}
               </>
             )}
+            {/* What this event is NOT carrying. Steve, from the floor at
+                Treenet: the only questions asked all event were "is there
+                hot chocolate?" and "is there decaf?" -- both things that
+                were not on the screen at all. Nobody asked about oat,
+                because oat was right there marked unavailable. Naming what
+                is off the menu answers those questions before they are
+                asked. Small, last, and tappable so the venue learns what
+                people wanted. */}
+            {Array.isArray(menu?.not_today) && menu.not_today.length > 0 && (
+              <div className="mt-6 pt-4 border-t border-gray-200">
+                <div className="text-sm font-semibold text-gray-400 mb-1.5">Not available today</div>
+                <div className="flex flex-wrap gap-x-2 gap-y-1">
+                  {menu.not_today.map((name, i) => (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() => logEvent('UNAVAILABLE_TAP', { kind: 'drink', item: name, station: myStation, channel })}
+                      className="text-base text-gray-400 line-through decoration-gray-300"
+                    >
+                      {name}{i < menu.not_today.length - 1 ? ' ·' : ''}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         )}
 
@@ -1039,13 +1066,16 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
         {step === 'milk' && (
           <>
             <Header title="Milk?" onBack={goBack} />
-            {/* What we HAVE, first and without competition. Half this list
-                could be greyed-out "not available today" tiles -- five of
-                ten at Treenet -- and a customer had to read past all of
-                them to find the milk they can actually have. The rest
-                collapse behind one line, still tappable so the venue keeps
-                learning what people wanted (UNAVAILABLE_TAP). */}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            {/* What we HAVE, as tiles. What we have RUN OUT OF stays on
+                screen underneath -- smaller, and as text.
+                Steve, from the floor: the greyed-out items were doing real
+                work. The only questions asked all event were "is there hot
+                chocolate?" and "is there decaf?" -- things that were not on
+                the screen at all. Nobody asked about oat, because oat was
+                right there marked unavailable. Hiding them behind a tap
+                (my first attempt) throws that away. Smaller and last, but
+                never hidden. */}
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
               {milkOptions.filter((m) => !m.unavailable && compatible(drink, m)).map(m => {
                 const ok = !m.unavailable && compatible(drink, m);
                 // A long black defaults to NO MILK -- the highlighted
@@ -1072,25 +1102,22 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
               const gone = milkOptions.filter((m) => m.unavailable || !compatible(drink, m));
               if (gone.length === 0) return null;
               return (
-                <div className="mt-5">
-                  <button
-                    type="button"
-                    onClick={() => setShowGoneMilks((v) => !v)}
-                    className="w-full py-3 rounded-xl border-2 border-dashed border-gray-300 text-gray-500 font-semibold"
-                  >
-                    {showGoneMilks
-                      ? 'Hide what we have run out of'
-                      : `${gone.length} more not available today`}
-                  </button>
-                  {showGoneMilks && (
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4 opacity-90">
-                      {gone.map((m) => (
-                        <Tile key={m.value} emoji={milkEmoji(m.value)} label={m.name} disabled
-                          onDisabledTap={() => logEvent('UNAVAILABLE_TAP', { kind: 'milk', item: m.value, drink: drink?.value, station: myStation, channel })}
-                          sub={m.unavailable ? 'Not available today' : `Not available with ${drink?.name || 'that drink'}`} />
-                      ))}
-                    </div>
-                  )}
+                <div className="mt-6 pt-4 border-t border-gray-200">
+                  <div className="text-sm font-semibold text-gray-400 mb-1.5">Not available today</div>
+                  <div className="flex flex-wrap gap-x-2 gap-y-1">
+                    {gone.map((m, i) => (
+                      <button
+                        key={m.value}
+                        type="button"
+                        // Still tappable: the venue learns what people
+                        // wanted but could not have (UNAVAILABLE_TAP).
+                        onClick={() => logEvent('UNAVAILABLE_TAP', { kind: 'milk', item: m.value, drink: drink?.value, station: myStation, channel })}
+                        className="text-base text-gray-400 line-through decoration-gray-300"
+                      >
+                        {m.name}{i < gone.length - 1 ? ' ·' : ''}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               );
             })()}

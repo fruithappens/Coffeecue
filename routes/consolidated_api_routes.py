@@ -4822,6 +4822,19 @@ def get_display_config():
                 "header_color": (branding.get('headerColor')
                                  or branding.get('primaryColor') or '#C08552'),
                 "custom_message": disp.get('custom_message') or branding.get('customMessage') or branding.get('footerText') or '',
+                # How the CUSTOMER screens wear the event at the top.
+                # Steve: "might have to have an option -- if it's just text,
+                # and colour of that text, or text and logo at the top, or a
+                # specific logo/image for the top of the iPhone beacon."
+                #   mode  'logo_name' (default) | 'name' | 'image'
+                #   image an image just for the customer header, when the
+                #         event's main logo is the wrong shape for a phone
+                #   color the text colour; falls back to the header colour
+                "customer_header": {
+                    "mode": branding.get('customerHeaderMode') or 'logo_name',
+                    "image": branding.get('customerHeaderImage') or '',
+                    "color": branding.get('customerHeaderColor') or '',
+                },
                 "stations": stations,
                 "app_version": config.get('APP_VERSION', '1.0.0'),
             }
@@ -5223,12 +5236,97 @@ def _kiosk_menu_data(coffee_system):
                                     'stations': [], 'unavailable': True})
     except Exception as e:
         logger.warning(f"kiosk greyed-milk ride-along failed: {e}")
+
+    # And the same for anything a barista has just 86'd.
+    #
+    # Steve: "not sure if the 86 menu achieves the same thing -- if it was a
+    # hard ran out of something for the event the 86 menu hopefully would
+    # show not available today, greyed out but in the list." It did not. An
+    # 86 dropped the item out of this menu entirely, so a customer who
+    # wanted oat saw no oat at all and went to ask -- the exact question the
+    # greyed row exists to prevent. (The ORDER was still refused server-side
+    # with a clear message, so nothing was ever made wrongly; it was the
+    # screen that stayed silent.)
+    try:
+        cur86 = db.cursor()
+        cur86.execute("SELECT category, item_name FROM stock_overrides WHERE state = '86'")
+        have = {e['value'] for e in milks_built}
+        for row in cur86.fetchall():
+            cat, nm = ((row.get('category'), row.get('item_name'))
+                       if isinstance(row, dict) else (row[0], row[1]))
+            if str(cat or '').lower() != 'milk':
+                continue
+            nm = str(nm or '').strip()
+            base = nm[:-5].strip() if nm.lower().endswith(' milk') else nm
+            v = base.lower()
+            if not v:
+                continue
+            for e in milks_built:
+                if e.get('value') == v:
+                    e['unavailable'] = True
+                    break
+            else:
+                milks_built.append({'name': base.title(), 'value': v,
+                                    'stations': [], 'unavailable': True})
+                have.add(v)
+    except Exception as e:
+        logger.warning(f"kiosk 86 ride-along failed: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+    # What this event is NOT carrying today.
+    #
+    # Steve, from the floor at Treenet: the only two questions asked all
+    # event were "is there hot chocolate?" and "is there decaf?" -- and both
+    # are things that were not on the screen AT ALL. Nobody asked about oat,
+    # because oat was right there, marked unavailable. An item you can see
+    # crossed out answers its own question; an item that is simply absent
+    # sends someone to the counter.
+    #
+    # So say what is off the menu as well as what is on it. The catalogue is
+    # the list of drinks the system knows; anything in it that this event
+    # has not enabled is named here, and the customer screens print it small
+    # and last.
+    not_today = []
+    try:
+        offered = {str(c.get('name', c) if isinstance(c, dict) else c).strip().lower()
+                   for c in build('coffee_types')}
+        cur2 = db.cursor()
+        cur2.execute("SELECT display_name FROM catalog_items "
+                     "WHERE category = 'drink' ORDER BY sort_order, display_name")
+        seen_tea = False
+        for row in cur2.fetchall():
+            nm = (row.get('display_name') if isinstance(row, dict) else row[0]) or ''
+            nm = nm.strip()
+            if not nm or nm.lower() in offered:
+                continue
+            # Seven kinds of tea nobody is serving is seven lines of noise
+            # on a phone. If no tea at all is on today, say "Tea" once.
+            if nm.lower().endswith('tea'):
+                if seen_tea:
+                    continue
+                seen_tea = True
+                nm = 'Tea'
+            not_today.append(nm)
+    except Exception as _e:
+        logger.warning(f"kiosk menu: off-menu drink list unavailable: {_e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        not_today = []
+
     return {
         'stations': stations,
         'coffee_types': build('coffee_types'),
         'milks': milks_built,
         'sizes': build('sizes'),
         'beans': beans,
+        # Named so a customer screen can answer "is there hot chocolate?"
+        # without anyone having to ask a barista.
+        'not_today': not_today,
         # Kiosk skips its sugar question when the venue runs
         # help-yourself sugar (baristas never add it).
         'sugar_self_serve': sugar_self_serve,
