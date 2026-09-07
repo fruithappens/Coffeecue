@@ -181,7 +181,7 @@ const OrganiserInterface = () => {
   const title = typeof titleFor === 'string' ? titleFor : ((titleFor && titleFor[activeTab]) || activeSection);
 
   return (
-    <div className="min-h-screen bg-gray-100 flex">
+    <div className="cq cq-legacy min-h-screen bg-gray-100 flex">
       {/* Mobile drawer backdrop — tap to close. */}
       {mobileNavOpen && (
         <div className="md:hidden fixed inset-0 bg-black bg-opacity-40 z-30" onClick={() => setMobileNavOpen(false)}></div>

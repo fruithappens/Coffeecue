@@ -23,13 +23,15 @@ const Toggle = ({ on, onChange, labels = ['Off', 'On'] }) => (
   </button>
 );
 
-export default function AdminSheet({ open, onClose, state = {}, actions = {} }) {
+export default function AdminSheet({ open, onClose, state = {}, actions = {}, unlocked = false, onUnlock, onLock, unlockedMinutes = 0 }) {
   const [stage, setStage] = useState('pin');
   const [pinError, setPinError] = useState(false);
   const [checking, setChecking] = useState(false);
   const [version, setVersion] = useState('');
   const [defaultPin, setDefaultPin] = useState(false);
-  useEffect(() => { if (open) { setStage('pin'); setPinError(false); } }, [open]);
+  // A correct PIN unlocks this tablet for a while (see BaristaInterface):
+  // the sheet then opens straight to the panel until it is locked again.
+  useEffect(() => { if (open) { setStage(unlocked ? 'panel' : 'pin'); setPinError(false); } }, [open, unlocked]);
   useEffect(() => {
     if (stage !== 'panel') return;
     fetch('/api/app-version').then((r) => (r.ok ? r.json() : {})).then((b) => setVersion(b.bundle || '')).catch(() => {});
@@ -41,7 +43,7 @@ export default function AdminSheet({ open, onClose, state = {}, actions = {} }) 
     try {
       const r = await fetch('/api/kiosk/verify-pin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin }) });
       const b = r.ok ? await r.json() : { success: false };
-      if (b.success) { setDefaultPin(!!b.default_pin); setStage('panel'); } else { setPinError(true); setTimeout(() => setPinError(false), 1200); }
+      if (b.success) { setDefaultPin(!!b.default_pin); setStage('panel'); if (onUnlock) onUnlock(); } else { setPinError(true); setTimeout(() => setPinError(false), 1200); }
     } catch (e) { setPinError(true); setTimeout(() => setPinError(false), 1200); }
     finally { setChecking(false); }
   };
@@ -63,6 +65,7 @@ export default function AdminSheet({ open, onClose, state = {}, actions = {} }) 
               <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-cq-ink-3">Station admin</div>
               <h2 className="text-xl font-extrabold text-cq-roast mt-0.5">{stationName || 'This tablet'}</h2>
               {defaultPin ? <div className="text-sm text-cq-alert font-semibold mt-1">The PIN is still the default (1234). Set one in the organiser.</div> : null}
+              {unlocked ? <div className="text-sm text-cq-ink-3 mt-1">Unlocked for {unlockedMinutes} more min · <button type="button" onClick={() => { if (onLock) onLock(); onClose(); }} className="font-bold text-cq-caramel-deep underline underline-offset-4">Lock now</button></div> : null}
             </div>
             <button type="button" onClick={onClose} aria-label="Close" className="h-11 w-11 inline-flex items-center justify-center rounded-cq-md text-cq-ink-2 hover:bg-cq-wash"><X size={22} /></button>
           </div>

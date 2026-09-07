@@ -4,6 +4,7 @@
 
 /* Design tokens (phase 3). Scoped to .cq until the sheet is approved. */
 @import './design/tokens.css';
+@import './design/legacy.css';
 
 /* Toast animations */
 @keyframes slide-in {

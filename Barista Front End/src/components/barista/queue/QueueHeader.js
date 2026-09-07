@@ -2,7 +2,7 @@
 // carts this tablet chose to watch. Right: ONE status line (red only when
 // something is broken) and the lock that opens the admin sheet.
 import React, { useMemo } from 'react';
-import { ChevronDown, Lock, Plus } from 'lucide-react';
+import { ChevronDown, Lock, Unlock, Plus } from 'lucide-react';
 import { AreaMark, StationChip } from '../../../design';
 import { WATCH_CAP } from './StationPicker';
 
@@ -20,7 +20,7 @@ const Status = ({ items }) => (
 export default function QueueHeader({
   station, stations = [], watchedIds = [], rushMode = false,
   net = true, stationOnline = true, queueCount = 0, madeToday = null, waitMin = null, printer = null, labelRoll = null,
-  holding = null, lowStock = [], onTapHold, onTapLowStock,
+  holding = null, lowStock = [], onTapHold, onTapLowStock, unlocked = false,
   onOpenPicker, onOpenAdmin, onTapWait, onTapMade, onToggleOnline, onSelectStation,
 }) {
   const watched = useMemo(() => watchedIds.map((id) => stations.find((s) => s.id === id)).filter(Boolean).slice(0, WATCH_CAP), [watchedIds, stations]);
@@ -64,10 +64,10 @@ export default function QueueHeader({
           type="button"
           onClick={onOpenAdmin}
           aria-label="Station admin"
-          title="Station admin: mode, station, sound, zoom, refresh, sign out"
-          className="h-10 w-10 inline-flex items-center justify-center rounded-cq-md bg-white/10 hover:bg-white/20 flex-shrink-0"
+          title={unlocked ? 'Unlocked: station admin opens without the PIN' : 'Station admin: mode, station, sound, zoom, refresh, sign out'}
+          className={`h-10 px-2.5 inline-flex items-center justify-center gap-1.5 rounded-cq-md flex-shrink-0 ${unlocked ? 'bg-cq-caramel text-white hover:bg-cq-caramel-deep' : 'bg-white/10 hover:bg-white/20'}`}
         >
-          <Lock size={18} />
+          {unlocked ? <><Unlock size={18} /><span className="text-xs font-bold uppercase tracking-wide">Unlocked</span></> : <Lock size={18} />}
         </button>
       </div>
       <div className={`flex flex-wrap items-center gap-x-4 gap-y-2 ${rushMode ? 'mt-1' : 'mt-2'}`}>

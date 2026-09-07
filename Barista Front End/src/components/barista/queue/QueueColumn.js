@@ -99,7 +99,7 @@ export default function QueueColumn({
     // oldest: the fair queue, priority on top
     return l.sort((a, b) => (Number(isPriority(b)) - Number(isPriority(a))) || olderFirst(a, b));
   };
-  const upNext = useMemo(() => orderBy(pendingOrders, sortMode), [pendingOrders, sortMode]); // eslint-disable-line react-hooks/exhaustive-deps
+  const upNext = useMemo(() => orderBy(pendingOrders, sortMode), [pendingOrders, sortMode]);
   const SORTS = [['oldest', 'Oldest'], ['newest', 'Newest'], ['milk', 'Milk'], ['vip', 'VIP']];
   const sortControl = (
     <div className="flex items-center gap-1.5 text-sm font-semibold overflow-x-auto whitespace-nowrap pb-1" title="How the queue is sorted on this tablet">
@@ -116,7 +116,7 @@ export default function QueueColumn({
   // ---- The bench: steam summary doubles as a milk filter (tap a milk).
   const [milkFilter, setMilkFilter] = useState('');
   const jugs = useMemo(() => summariseMilk(inProgressOrders), [inProgressOrders]);
-  const bench = useMemo(() => orderBy(milkFilter ? filterByMilk(inProgressOrders, milkFilter) : inProgressOrders, sortMode), [inProgressOrders, milkFilter, sortMode]); // eslint-disable-line react-hooks/exhaustive-deps
+  const bench = useMemo(() => orderBy(milkFilter ? filterByMilk(inProgressOrders, milkFilter) : inProgressOrders, sortMode), [inProgressOrders, milkFilter, sortMode]);
   useEffect(() => { if (milkFilter && !jugs.some((j) => j.milk === milkFilter)) setMilkFilter(''); }, [jugs, milkFilter]);
   const dense = compact || inProgressOrders.length > COMPACT_ABOVE;
 

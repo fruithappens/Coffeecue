@@ -18,7 +18,8 @@ import { TabBar } from '../../design';
 import { 
   Coffee, Package, Calendar, Check, Monitor, Settings,
   MessageCircle, Printer, Clock,
-  Bell, XCircle, RefreshCw, Send, CheckCircle, Brain, Scale, Users, Wrench, Truck, ArrowRightLeft, } from 'lucide-react';
+  Bell, XCircle, RefreshCw, Send, CheckCircle, Brain, Scale, Users, Wrench, Truck, ArrowRightLeft,   ArrowLeft,
+} from 'lucide-react';
 
 // Import app mode context
 import { useAppMode } from '../../context/AppContext';
@@ -141,6 +142,17 @@ const BaristaInterface = () => {
   });
   const [pickerOpen, setPickerOpen] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
+  // One PIN unlocks this tablet for UNLOCK_MINUTES (or until Lock now /
+  // sign out): moving between the queue and the settings pages must not
+  // ask for it again (Steve). Kept in sessionStorage so a reload keeps it.
+  const UNLOCK_MINUTES = 10;
+  const [unlockedUntil, setUnlockedUntil] = useState(() => { try { return Number(sessionStorage.getItem('coffee_cue_unlocked_until') || 0); } catch (e) { return 0; } });
+  const [nowTick, setNowTick] = useState(Date.now());
+  useEffect(() => { const t = setInterval(() => setNowTick(Date.now()), 30000); return () => clearInterval(t); }, []);
+  const unlocked = unlockedUntil > nowTick;
+  const unlockedMinutes = unlocked ? Math.max(1, Math.ceil((unlockedUntil - nowTick) / 60000)) : 0;
+  const unlockNow = () => { const until = Date.now() + UNLOCK_MINUTES * 60000; setUnlockedUntil(until); setNowTick(Date.now()); try { sessionStorage.setItem('coffee_cue_unlocked_until', String(until)); } catch (e) { /* ignore */ } };
+  const lockNow = () => { setUnlockedUntil(0); try { sessionStorage.removeItem('coffee_cue_unlocked_until'); } catch (e) { /* ignore */ } };
   // Auto-refresh interval picker (header pill) open/closed
   // Admin-only "Switch view" dropdown in the header (replaces the floating
   // cross-interface switcher on this screen).
@@ -420,6 +432,8 @@ const BaristaInterface = () => {
   // manager-only tab (e.g. restored from localStorage), bounce them to
   // Orders so they don't land on a blank/gated view.
   useEffect(() => {
+  // The tabs a plain barista may not open (managers see them behind the lock).
+  const MANAGER_ONLY_TABS = ['display', 'queue', 'balance', 'capabilities', 'staff', 'settings'];
     if (!isManager && MANAGER_ONLY_TABS.includes(activeTab)) {
       setActiveTab('orders');
     }
@@ -1418,7 +1432,6 @@ const BaristaInterface = () => {
       if (!autoRefreshEnabled) toggleAutoRefresh();
       updateAutoRefreshInterval(seconds);
     }
-    setShowRefreshMenu(false);
   };
 
   // Other stations (for the at-a-glance queue pills) — lets a barista point
@@ -2134,12 +2147,13 @@ const BaristaInterface = () => {
         lowStock={lowStockItems.map(lowStockLabel)}
         onTapHold={releaseTexts}
         onTapLowStock={() => setActiveTab('stock')}
+        unlocked={unlocked}
       />
 
       {/* Three tabs: Queue, Stock, Tools. The manager tabs live behind the
           lock (station settings, screens) or in the organiser. Gone in rush
           mode -- the header keeps the way out. */}
-      {!settings.rushMode && (
+      {(!settings.rushMode || activeTab !== 'orders') && (
         <div className="px-4 pt-3">
           <TabBar
             tabs={[
@@ -2160,7 +2174,16 @@ const BaristaInterface = () => {
           tab bar + sticky action footer don't cover the last items. */}
       {/* Bottom padding so the last card can scroll clear of the sticky
           action bar (the page grows past the viewport). */}
-      <div className={`p-4 flex-grow overflow-y-auto ${lanesActive ? 'pb-4 flex flex-col min-h-0' : 'pb-28'}`}>
+      <div className={`p-4 flex-grow overflow-y-auto ${lanesActive ? 'pb-4 flex flex-col min-h-0' : 'pb-28'} ${activeTab === 'orders' ? '' : 'cq-legacy'}`}>
+        {/* Every page that is not the queue: the old markup inside the
+            palette sweep (design/legacy.css) and one obvious way back. */}
+        {!loading && activeTab !== 'orders' && (
+          <div className="mb-3">
+            <button type="button" onClick={() => setActiveTab('orders')} className="inline-flex items-center gap-2 h-11 px-4 rounded-cq-md bg-cq-roast text-cq-cream font-bold hover:bg-cq-roast-deep">
+              <ArrowLeft size={18} /> Back to the queue
+            </button>
+          </div>
+        )}
         {/* Loading state */}
         {loading && (
           <div className="flex justify-center items-center h-full">
@@ -3772,6 +3795,10 @@ const BaristaInterface = () => {
       <AdminSheet
         open={adminOpen}
         onClose={() => setAdminOpen(false)}
+        unlocked={unlocked}
+        unlockedMinutes={unlockedMinutes}
+        onUnlock={unlockNow}
+        onLock={lockNow}
         state={{
           rushMode: !!settings.rushMode, teamMode, soundEnabled: settings.soundEnabled,
           zoom: uiZoom, zoomMin: ZOOM_MIN, zoomMax: ZOOM_MAX,
@@ -3790,6 +3817,7 @@ const BaristaInterface = () => {
           openTab: (id) => { setAdminOpen(false); setActiveTab(id); },
           openSession: () => { setAdminOpen(false); setShowSessionReport(true); refreshSession(); },
           signOut: () => {
+            lockNow();
             try { localStorage.removeItem('coffee_cue_selected_station'); localStorage.removeItem('last_used_station_id'); } catch (e) { /* ignore */ }
             AuthService.logout();
             window.location.href = '/login';
@@ -3980,4 +4008,98 @@ const BaristaInterface = () => {
 //   2. Some old test rows had future-dated completed_at timestamps
 //      that defeated a client-side filter. Backend recency filter
 //      (recent_minutes=30, station_id=X) is reliable.
+const SOUND_EVENT_ROWS = [
+  { key: 'newOrder',      label: 'New Order',      enableField: 'soundNewOrder',      btnColor: 'bg-green-500 hover:bg-green-600' },
+  { key: 'orderComplete', label: 'Order Complete', enableField: 'soundOrderComplete', btnColor: 'bg-blue-500 hover:bg-blue-600' },
+  { key: 'orderPickedUp', label: 'Order Picked Up', enableField: 'soundOrderPickedUp', btnColor: 'bg-purple-500 hover:bg-purple-600' },
+  { key: 'lowStock',      label: 'Low Stock Alert', enableField: 'soundLowStock',     btnColor: 'bg-yellow-500 hover:bg-yellow-600' },
+  { key: 'error',         label: 'Error Alert',     enableField: 'soundError',        btnColor: 'bg-red-500 hover:bg-red-600' },
+];
+
+const SoundChoiceRows = ({ settings, setSettings }) => {
+  const choices = { ...DEFAULT_SOUND_CHOICES, ...(settings.soundChoices || {}) };
+  const volume = (settings.soundVolume ?? 70) / 100;
+
+  const setChoice = (eventKey, presetKey) => {
+    setSettings(prev => ({
+      ...prev,
+      soundChoices: { ...choices, [eventKey]: presetKey },
+    }));
+  };
+
+  const preview = (presetKey) => {
+    try {
+      SoundNotificationService.preview(presetKey, volume);
+    } catch (e) {
+      // Should never happen; the service handles its own errors.
+      console.warn('Sound preview failed:', e);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      {SOUND_EVENT_ROWS.map(row => (
+        <div key={row.key} className="flex items-center gap-2 flex-wrap">
+          <label className="flex items-center space-x-2 min-w-[150px]">
+            <input
+              type="checkbox"
+              checked={settings[row.enableField] !== false}
+              onChange={(e) => setSettings(prev => ({ ...prev, [row.enableField]: e.target.checked }))}
+            />
+            <span className="text-sm">{row.label}</span>
+          </label>
+          <select
+            value={choices[row.key] || DEFAULT_SOUND_CHOICES[row.key]}
+            onChange={(e) => setChoice(row.key, e.target.value)}
+            className="flex-1 min-w-[180px] text-sm px-2 py-1 border border-gray-300 rounded"
+          >
+            {SOUND_PRESETS.map(p => (
+              <option key={p.key} value={p.key}>{p.label}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className={`px-2 py-1 text-white text-xs rounded ${row.btnColor}`}
+            onClick={() => preview(choices[row.key] || DEFAULT_SOUND_CHOICES[row.key])}
+          >
+            Test
+          </button>
+        </div>
+      ))}
+      {/* The two sounds that play on OTHER screens. Saved to the server (not
+          this device) so the display board and every phone pick them up;
+          Test plays the preset here so the operator can hear it. */}
+      <div className="mt-4 pt-3 border-t border-gray-200">
+        <div className="text-sm font-medium text-gray-700 mb-2">On the other screens</div>
+        {[
+          { key: 'displayReadySound', label: 'Display: order ready', def: 'chime_up', btnColor: 'bg-emerald-600 hover:bg-emerald-700' },
+          { key: 'beaconReadySound', label: "Customer's phone: order ready", def: 'cupq_signature', btnColor: 'bg-sky-600 hover:bg-sky-700' },
+        ].map(row => (
+          <div key={row.key} className="flex items-center gap-2 flex-wrap mb-2">
+            <span className="text-sm min-w-[150px]">{row.label}</span>
+            <select
+              value={settings[row.key] || row.def}
+              onChange={(e) => setSettings(prev => ({ ...prev, [row.key]: e.target.value }))}
+              className="flex-1 min-w-[180px] text-sm px-2 py-1 border border-gray-300 rounded"
+            >
+              {SOUND_PRESETS.map(p => (
+                <option key={p.key} value={p.key}>{p.label}</option>
+              ))}
+            </select>
+            <button type="button" className={`px-2 py-1 text-white text-xs rounded ${row.btnColor}`}
+              onClick={() => preview(settings[row.key] || row.def)}>
+              Test
+            </button>
+          </div>
+        ))}
+        <div className="text-xs text-gray-500">Applies to every display and phone within about 30 seconds.</div>
+      </div>
+      <div className="text-xs text-gray-500 mt-2">
+        Sounds are synthesized in-browser — no assets to download, works offline.
+        "No sound" disables that alert without affecting the others.
+      </div>
+    </div>
+  );
+};
+
 export default BaristaInterface;

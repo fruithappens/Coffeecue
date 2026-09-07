@@ -106,7 +106,7 @@ const SupportInterface = () => {
   const ActiveComponent = activeLeaf.component;
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="cq cq-legacy flex h-screen bg-gray-50">
       {/* Toasts (Printers tab and friends dispatch app:toast events). */}
       <ToastManager />
       {/* Mobile drawer backdrop — tap to close. */}
