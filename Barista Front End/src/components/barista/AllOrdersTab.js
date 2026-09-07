@@ -138,11 +138,28 @@ const AllOrdersTab = () => {
     });
   };
 
+  // Which stations actually have orders, in order.
+  const stationOptions = React.useMemo(() => {
+    const seen = new Set();
+    [...orders.pending, ...orders.inProgress, ...orders.completed, ...orders.previous]
+      .forEach((o) => {
+        const sid = o.stationId ?? o.station_id ?? o.assignedStation ?? o.assigned_to_station;
+        if (sid !== undefined && sid !== null && sid !== '') seen.add(String(sid));
+      });
+    return [...seen].sort((a, b) => Number(a) - Number(b));
+  }, [orders]);
+
   const filterOrders = (ordersList) => {
     return ordersList.filter(order => {
-      // Station filter
-      if (stationFilter !== 'all' && order.assignedStation !== stationFilter) {
-        return false;
+      // Station filter. It compared `order.assignedStation` -- a field this
+      // API does not send -- against a STRING from the dropdown, so
+      // undefined !== "1" was true for every order and choosing a station
+      // emptied the list completely. Read the aliases the payload actually
+      // uses, and compare as strings.
+      if (stationFilter !== 'all') {
+        const of = [order.stationId, order.station_id, order.assignedStation, order.assigned_to_station]
+          .filter((v) => v !== undefined && v !== null).map(String);
+        if (!of.includes(String(stationFilter))) return false;
       }
       
       // Search filter
@@ -314,9 +331,12 @@ const AllOrdersTab = () => {
               className="border rounded px-3 py-1"
             >
               <option value="all">All Stations</option>
-              <option value="1">Station 1</option>
-              <option value="2">Station 2</option>
-              <option value="3">Station 3</option>
+              {/* The real stations, from the orders on screen. This was
+                  hardcoded 1/2/3: a station 3 that filtered to nothing,
+                  and no way to pick a fourth. */}
+              {stationOptions.map((sid) => (
+                <option key={sid} value={sid}>Station {sid}</option>
+              ))}
             </select>
           </div>
           
