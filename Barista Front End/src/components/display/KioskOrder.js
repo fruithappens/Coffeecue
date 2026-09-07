@@ -1118,7 +1118,17 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
         {/* ---------- STRENGTH (espresso drinks only) ---------- */}
         {step === 'strength' && (
           <>
-            <Header title="How strong?" onBack={goBack} />
+            {/* This step used to ask one thing. It now also carries extra
+                hot, decaf, the sugar line and a free-text note, so a title
+                that says "How strong?" is describing a third of the page
+                (Steve). Name the step for what it is, and let each control
+                say its own piece. */}
+            <Header title="Anything to add?" onBack={goBack} />
+            <p className="-mt-4 mb-3 text-base text-gray-500">
+              Strength, temperature, decaf or a note for the barista. Skip it and
+              we&rsquo;ll make it the usual way.
+            </p>
+            <div className="text-sm font-semibold text-gray-400 uppercase tracking-wide">How strong?</div>
             <div className="grid grid-cols-3 gap-2 py-4">
               {/* Three, not four. Steve: "think should be normal, double,
                   half, notes 1/4, 1/8, 3x etc". "Extra strong" sat beside
@@ -1198,7 +1208,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
             )}
             <label className="block mb-3">
               <span className="block text-base text-gray-600 mb-1">
-                Anything else? (optional)
+                A note for the barista (optional)
               </span>
               <input
                 type="text"
