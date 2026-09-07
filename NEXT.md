@@ -82,6 +82,29 @@ Branch: `next` (never auto-deploys; Railway only deploys `main`). Every screen s
   Headless: 28/28 destinations render, both old doors land right, phone drawer works.
   Checkpoint: set up a made-up event from nothing with only the checklist, timed — under 15 minutes.
 
+- **Phase 6** — the customer's side (fa4edaa, eff14eb, 1ae269d, c7f4d71, 48a6da9, e97e7b0,
+  4358608, 490a1c2, 7d66713). The event's brand on every customer surface via
+  `design/eventBrand.js` (`EventHeader` in three modes — logo+name, name only, or one
+  image — chosen in Branding, plus a "powered by CupQ" credit that walk-up ordering
+  drops). The board leads with the NAME, number beside it. Unavailable milks stay
+  visible as small crossed-out text at the end ("the only questions asked were is
+  there hot chocolate and is there decaf"); the 86 board greys an item out instead of
+  vanishing it. Drinks not on today's menu are listed as such. "How strong?" became
+  "Anything to add?" with strength as one part of it. Find-my-order now searches by the
+  name it was put under, not just a phone number. Decaf is a bean, visible on the card
+  and printed on the label. Screens rebuilt as a proper chooser (board per cart, sponsor
+  wall, how-to poster, /my, opsboard). Half strength grinds half a dose.
+
+  **Notices** — one message on the board, the ordering screen, the beacon and the
+  barista's queue, text optional. Runner → Messages → Tell everyone. Migration 21.
+
+  **Stock precision** — `inventory_items` numerics widened to NUMERIC(12,4) (migration
+  20). They were kg to two decimals: 10 g steps, so a 22 g dose recorded as 20 g, every
+  cup, always understating use.
+
+- **Phase 7** — the Report. Still a placeholder in the runner's Review group.
+- **Phase 8** — load and endurance on the copy (`remote_siege.py`) before any cutover.
+
 ## When this copy replaces production (phase 9) — one-off data steps
 
     -- station_stats twin columns: older rows were only ever written on one side.
