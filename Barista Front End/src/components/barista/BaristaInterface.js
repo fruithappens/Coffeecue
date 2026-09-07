@@ -8,6 +8,7 @@ import SmsHealthBanner from '../shared/SmsHealthBanner';
 import AuthService from '../../services/AuthService';
 import printService from '../../services/PrintService';
 import BroadcastDialog from '../dialogs/BroadcastDialog';
+import StationChooser from './StationChooser';
 import { 
   Coffee, Package, Calendar, Check, Monitor, Settings,
   MessageCircle, Printer, Plus, Clock,
@@ -125,7 +126,7 @@ const BaristaInterface = () => {
     updateStation,
     updateStationStatus,
     refreshData: refreshStations
-  } = useStations();
+  } = useStations({ autoSelect: false });
 
   // State for showing station selector dropdown
   const [showStationSelector, setShowStationSelector] = useState(false);
@@ -558,29 +559,27 @@ const BaristaInterface = () => {
   useEffect(() => {
     // Skip if nothing has changed or we don't have a valid selection
     if (!selectedStation || !stations.length) return;
-    if (lastSyncedStation.current === selectedStation) return;
+    const station = stations.find(s => s.id === selectedStation);
+    // Re-sync when the station RECORD changes, not just the station id:
+    // the list is polled from the server, so a name or barista saved on
+    // another tablet at this station reaches this one within the poll.
+    // (Keying on the id alone left a stale in-memory copy on screen.)
+    const signature = station
+      ? `${station.id}|${station.name || ''}|${station.location || ''}|${station.baristaName || station.barista || ''}`
+      : String(selectedStation);
+    if (lastSyncedStation.current === signature) return;
     
     console.log(`Syncing settings for station ${selectedStation}`);
     
-    const station = stations.find(s => s.id === selectedStation);
     if (station) {
-      // Update our ref to avoid repeated updates for the same station
-      lastSyncedStation.current = selectedStation;
+      // Remember what we synced so an unchanged poll doesn't re-run this
+      lastSyncedStation.current = signature;
       
       // Get station-specific barista name
       const stationBaristaName = getStationBaristaName(selectedStation);
       
-      // Try to get custom station name from localStorage first
-      let stationName = station.name;
-      try {
-        const customName = localStorage.getItem(`coffee_station_name_${selectedStation}`);
-        if (customName) {
-          console.log(`Using custom name from localStorage for station ${selectedStation}: ${customName}`);
-          stationName = customName;
-        }
-      } catch (e) {
-        console.error(`Error getting custom name for station ${selectedStation}:`, e);
-      }
+      // The station record (server) is the only source of the name.
+      const stationName = station.name;
       
       setSettings(prev => ({
         ...prev,
@@ -725,16 +724,14 @@ const BaristaInterface = () => {
         ? parseInt(stationId, 10) 
         : stationId;
       
-      // Try to get station-specific barista name
-      const stationBaristaName = localStorage.getItem(`coffee_barista_name_station_${numericStationId}`);
-      
-      // Fall back to station name if no barista name is found
+      // The barista's name lives on the station record (server), so every
+      // device at this station sees the same name.
+      const stationObj = stations.find(s => s.id === numericStationId);
+      const stationBaristaName = stationObj ? (stationObj.baristaName || stationObj.barista) : '';
       if (stationBaristaName) {
         return stationBaristaName;
       }
       
-      // Get the station name
-      const stationObj = stations.find(s => s.id === numericStationId);
       const stationName = stationObj ? stationObj.name : `Station ${numericStationId}`;
       
       // Fall back to generic "Barista" name with the station name
@@ -785,9 +782,12 @@ const BaristaInterface = () => {
           soundError: parsed.soundError !== undefined ? parsed.soundError : true,
           soundVolume: parsed.soundVolume || 50, // 0-100
           autoPrintLabels: parsed.autoPrintLabels || false,
-          stationName: parsed.stationName || stations.find(s => s.id === selectedStation)?.name || 'Coffee Station',
-          stationLocation: parsed.stationLocation || stations.find(s => s.id === selectedStation)?.location || '',
-          baristaName: parsed.baristaName || getStationBaristaName(selectedStation),
+          // Station identity is NOT a device setting: it comes from the
+          // station record, never from this blob. (The blob used to win,
+          // so a tablet kept a stale name after the organiser renamed it.)
+          stationName: stations.find(s => s.id === selectedStation)?.name || 'Coffee Station',
+          stationLocation: stations.find(s => s.id === selectedStation)?.location || '',
+          baristaName: getStationBaristaName(selectedStation),
           batchSuggestions: parsed.batchSuggestions !== undefined ? parsed.batchSuggestions : true,
           // Order board layout. 'progression' reads left-to-right the way
           // the work actually flows -- Upcoming, then Current, then Ready
@@ -2335,6 +2335,19 @@ const BaristaInterface = () => {
     );
   };
 
+  // A tablet must be told which station it is at. Until someone chooses
+  // (or if the remembered station no longer exists), ask -- never guess.
+  if (!selectedStation) {
+    return (
+      <StationChooser
+        stations={stations}
+        loading={stationsLoading}
+        onChoose={(id) => changeSelectedStation(id)}
+        onRefresh={() => refreshStations && refreshStations()}
+      />
+    );
+  }
+
   // Main component render
   return (
     <div
@@ -2380,21 +2393,7 @@ const BaristaInterface = () => {
             <ArrowLeft size={20} />
           </button>
           <div className="text-xl font-bold cursor-pointer" onClick={() => setShowStationSelector(!showStationSelector)}>
-            {(() => {
-              // Try to get custom name from localStorage first
-              if (selectedStation) {
-                try {
-                  const customName = localStorage.getItem(`coffee_station_name_${selectedStation}`);
-                  if (customName) {
-                    return customName;
-                  }
-                } catch (e) {
-                  console.error('Error getting custom station name for display:', e);
-                }
-              }
-              // Fall back to station from list if no custom name
-              return stations.find(s => s.id === selectedStation)?.name || 'Select a Station';
-            })()}
+            {stations.find(s => s.id === selectedStation)?.name || 'Select a Station'}
             <ChevronDown size={16} className="inline ml-1" />
           </div>
           
@@ -2412,17 +2411,8 @@ const BaristaInterface = () => {
                     // Get station-specific barista name for the new station
                     const stationBaristaName = getStationBaristaName(station.id);
                     
-                    // Check for custom station name in localStorage
-                    let customStationName = station.name;
-                    try {
-                      const customName = localStorage.getItem(`coffee_station_name_${station.id}`);
-                      if (customName) {
-                        console.log(`Found custom station name in localStorage: ${customName}`);
-                        customStationName = customName;
-                      }
-                    } catch (e) {
-                      console.error('Error getting custom station name from localStorage:', e);
-                    }
+                    // Server name; there is no per-device override.
+                    const customStationName = station.name;
                     
                     // Update settings with new station info
                     setSettings(prev => ({
@@ -2444,14 +2434,7 @@ const BaristaInterface = () => {
                   }}
                 >
                   <div className="font-medium">
-                    {(() => {
-                      try {
-                        const customName = localStorage.getItem(`coffee_station_name_${station.id}`);
-                        return customName || station.name;
-                      } catch (e) {
-                        return station.name;
-                      }
-                    })()}
+                    {station.name}
                   </div>
                   <div className="text-xs text-gray-500 flex items-center">
                     <div className={`w-2 h-2 rounded-full mr-1 ${station.status === 'active' ? 'bg-green-500' : 'bg-red-500'}`}></div>
@@ -3914,15 +3897,9 @@ const BaristaInterface = () => {
                 <button
                   className="mt-4 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 flex items-center"
                   onClick={async () => {
-                    // Cache locally so the fields survive a reload even if
-                    // the network is down. This is a CACHE, not the save --
-                    // it used to be treated as one, which is why a location
-                    // typed here vanished on another device.
-                    try {
-                      localStorage.setItem(`coffee_station_name_${selectedStation}`, settings.stationName);
-                      localStorage.setItem(`coffee_station_location_${selectedStation}`, settings.stationLocation);
-                      localStorage.setItem(`coffee_station_barista_${selectedStation}`, settings.baristaName);
-                    } catch (e) { /* private mode: the server save below still counts */ }
+                    // No local copy of these: the station record on the
+                    // server is the only place a station's name, location
+                    // and barista live, so every device agrees.
 
                     // The signature is updateStation(stationId, data).
                     // This call passed ONE object with the id inside it, so
@@ -3971,15 +3948,7 @@ const BaristaInterface = () => {
                       const newBaristaName = e.target.value;
                       // Update settings state
                       setSettings(prev => ({...prev, baristaName: newBaristaName}));
-                      // Save to localStorage for persistence with station-specific key
-                      try {
-                        const numericStationId = typeof selectedStation === 'string' 
-                          ? parseInt(selectedStation, 10) 
-                          : selectedStation;
-                        localStorage.setItem(`coffee_barista_name_station_${numericStationId}`, newBaristaName);
-                      } catch (error) {
-                        console.error('Failed to save station-specific barista name to localStorage:', error);
-                      }
+                      // Saved to the station record by "Save Station Settings".
                     }}
                     className="w-full p-2 border rounded"
                   />
@@ -4071,23 +4040,7 @@ const BaristaInterface = () => {
               <h2 className="text-xl font-bold mb-4">System Information</h2>
               <div className="text-sm text-gray-600 space-y-2">
                 <div>Version: 1.2.0</div>
-                <div>Station: {
-                  (() => {
-                    // Try to get custom name from localStorage first
-                    if (selectedStation) {
-                      try {
-                        const customName = localStorage.getItem(`coffee_station_name_${selectedStation}`);
-                        if (customName) {
-                          return customName;
-                        }
-                      } catch (e) {
-                        console.error('Error getting custom station name for system info:', e);
-                      }
-                    }
-                    // Fall back to station from list
-                    return stations.find(s => s.id === selectedStation)?.name || 'Unknown';
-                  })()
-                }</div>
+                <div>Station: {stations.find(s => s.id === selectedStation)?.name || 'Unknown'}</div>
                 <div>Last Sync: {new Date().toLocaleString()}</div>
                 <div>API Status: {online ? 'Connected' : 'Offline'}</div>
                 <div>App Mode: {isDemoMode ? 'Demo' : 'Production'}</div>
@@ -4102,73 +4055,10 @@ const BaristaInterface = () => {
                 Restore dismissed info panels
               </button>
 
-              <div className="mt-4 flex justify-between">
-                <button 
-                  className="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700"
-                  onClick={() => {
-                    // Save barista name to localStorage with station-specific key
-                    try {
-                      const numericStationId = typeof selectedStation === 'string' 
-                        ? parseInt(selectedStation, 10) 
-                        : selectedStation;
-                      localStorage.setItem(`coffee_barista_name_station_${numericStationId}`, settings.baristaName);
-                    } catch (error) {
-                      console.error('Failed to save station-specific barista name to localStorage:', error);
-                    }
-                    
-                    // Always save station name to localStorage for resilience
-                    if (selectedStation && settings.stationName) {
-                      try {
-                        // Save custom station name in localStorage keyed by station id
-                        localStorage.setItem(`coffee_station_name_${selectedStation}`, settings.stationName);
-                        console.log(`Saved custom station name to localStorage: ${settings.stationName}`);
-                      } catch (e) {
-                        console.error('Error saving custom station name to localStorage:', e);
-                      }
-
-                      // Also update the station in the stations array in localStorage
-                      try {
-                        const savedStations = localStorage.getItem('coffee_cue_stations');
-                        if (savedStations) {
-                          const stations = JSON.parse(savedStations);
-                          const updatedStations = stations.map(station => 
-                            station.id === selectedStation 
-                              ? { ...station, name: settings.stationName, location: settings.stationLocation }
-                              : station
-                          );
-                          localStorage.setItem('coffee_cue_stations', JSON.stringify(updatedStations));
-                          console.log('Updated station name in cached stations');
-                        }
-                      } catch (cacheError) {
-                        console.error('Error updating station name in cached stations:', cacheError);
-                      }
-                      
-                      // Update station name and location using the updateStation function from useStations hook
-                      updateStation(selectedStation, {
-                        name: settings.stationName,
-                        location: settings.stationLocation
-                      }).then(success => {
-                        if (success) {
-                          // Refresh station data to ensure changes are reflected immediately
-                          refreshStations().then(() => {
-                            showToast('Settings updated successfully!', 'success');
-                          });
-                        } else {
-                          showToast('Server update FAILED — change saved on this device only.', 'error', 6000);
-                        }
-                      }).catch(error => {
-                        console.error('Error updating station:', error);
-                        // Still consider it a success since we saved to localStorage
-                        showToast('Server connection error — change saved on this device only: ' + (error.message || 'Unknown error'), 'error', 6000);
-                      });
-                    } else {
-                      showToast('Settings updated successfully!', 'success');
-                    }
-                  }}
-                >
-                  Save Settings
-                </button>
-              </div>
+              {/* The duplicate "Save Settings" button that lived here
+                  (a second, slightly different station save that also
+                  wrote per-device caches) is gone: "Save Station
+                  Settings" above is the one save. */}
             </div>
           </div>
         )}

@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { XCircle, RefreshCw, AlertTriangle, ChevronDown, Edit, Save, User, AtSign } from 'lucide-react';
 import ChatService from '../../services/ChatService';
+import StationsService from '../../services/StationsService';
 
 // Build a stable @mention token from a station object. We canonicalize
 // to lowercased-with-hyphens so "Coffee Station One" → "@coffee-station-one"
@@ -238,18 +239,10 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
       
       ChatService.initialize(numericStationId, stationName, editedBaristaName.trim());
       
-      // Save to localStorage for persistence with station-specific key
-      try {
-        // Make sure we have a valid numeric station ID for the local storage key
-        const numericStationId = typeof selectedStationId === 'string' 
-          ? parseInt(selectedStationId, 10) 
-          : selectedStationId;
-          
-        // Use station-specific key for barista name
-        localStorage.setItem(`coffee_barista_name_station_${numericStationId}`, editedBaristaName.trim());
-      } catch (error) {
-        console.error('Failed to save station-specific barista name to localStorage:', error);
-      }
+      // The barista's name belongs to the station record on the server
+      // (every device at the station sees it), not to this browser.
+      StationsService.updateStation(numericStationId, { baristaName: editedBaristaName.trim() })
+        .catch((error) => console.error('Failed to save barista name to the station:', error));
     }
     
     // Exit edit mode

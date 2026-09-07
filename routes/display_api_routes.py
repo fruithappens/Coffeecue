@@ -64,11 +64,13 @@ def get_display_config():
         wait_time_result = cursor.fetchone()
         wait_time = wait_time_result[0] if wait_time_result else "8-10"
         
-        # Get active stations
+        # Every station, with its status. The public display screens pick
+        # their own station by id from this list (they cannot call the
+        # authenticated /api/stations), so a cart in maintenance must still
+        # be here or its TV loses its name. Consumers filter on `status`.
         cursor.execute("""
             SELECT station_id, name, location, status, barista_name 
             FROM station_stats 
-            WHERE status = 'active'
             ORDER BY station_id
         """)
         

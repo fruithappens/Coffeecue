@@ -297,21 +297,10 @@ class StationsService {
         stations = response.stations.map(station => {
           const stationId = station.station_id;
           
-          // ALWAYS check localStorage first for a custom name
-          let stationName;
-          try {
-            const customName = localStorage.getItem(`coffee_station_name_${stationId}`);
-            if (customName) {
-              console.log(`Found custom name in localStorage for station ${stationId}: ${customName}`);
-              stationName = customName;
-            } else {
-              // If no custom name, use notes field or default
-              stationName = station.notes || `Coffee Station ${stationId}`;
-            }
-          } catch (e) {
-            console.error(`Error getting custom name for station ${stationId}:`, e);
-            stationName = station.notes || `Coffee Station ${stationId}`;
-          }
+          // The server is the truth for a station's name. A per-device
+          // localStorage override used to win here, which is why two
+          // tablets could show different names for the same station.
+          const stationName = station.notes || `Coffee Station ${stationId}`;
           
           // For debugging
           console.log(`Mapping station ${stationId}: notes=${station.notes}, name=${stationName}`);
@@ -322,6 +311,7 @@ class StationsService {
             location: station.equipment_notes || null,
             status: station.status || 'active',
             barista: station.barista_name,
+            baristaName: station.barista_name || '',
             currentLoad: station.current_load || 0,
             // Live count of orders pending/in-progress at this station
             // (from the backend; used for the header's other-station pills).
@@ -376,15 +366,6 @@ class StationsService {
         { id: 2, name: 'Coffee Station 2', status: 'active' },
         { id: 3, name: 'Coffee Station 3', status: 'active' }
       ];
-      
-      // Save default names to localStorage for consistency
-      try {
-        defaultStations.forEach(station => {
-          localStorage.setItem(`coffee_station_name_${station.id}`, station.name);
-        });
-      } catch (e) {
-        console.error('Error saving default station names to localStorage:', e);
-      }
       
       return defaultStations;
     }
@@ -468,14 +449,6 @@ class StationsService {
       
       console.log('Formatted station data for API:', apiData);
       
-      // IMPORTANT: Save the custom name to localStorage for persistence
-      try {
-        localStorage.setItem(`coffee_station_name_${stationId}`, stationName);
-        console.log(`Saved custom station name to localStorage: ${stationName}`);
-      } catch (e) {
-        console.error(`Error saving custom station name for new station ${stationId}:`, e);
-      }
-      
       // Use direct URL approach
       const response = await this.directFetch('stations', {
         method: 'POST',
@@ -493,6 +466,7 @@ class StationsService {
           location: stationData.location || null,
           status: station.status || 'active',
           barista: station.barista_name,
+          baristaName: station.barista_name || '',
           currentLoad: station.current_load || 0,
           lastUpdated: station.last_updated
         };
@@ -545,6 +519,13 @@ class StationsService {
       // Map 'location' to 'equipment_notes' for the backend
       if (updates.location) {
         apiUpdates.equipment_notes = updates.location;
+      }
+
+      // The barista's name is part of the station record (server), not a
+      // device setting -- so every tablet at this station shows the same
+      // name. '' is a valid value (clear it).
+      if (updates.baristaName !== undefined) {
+        apiUpdates.barista_name = updates.baristaName;
       }
       
       console.log('Mapped updates for API:', apiUpdates);
@@ -603,6 +584,7 @@ class StationsService {
           location: response.station.equipment_notes || null,
           status: response.station.status || 'active',
           barista: response.station.barista_name,
+          baristaName: response.station.barista_name || '',
           currentLoad: response.station.current_load || 0,
           lastUpdated: response.station.last_updated
         };

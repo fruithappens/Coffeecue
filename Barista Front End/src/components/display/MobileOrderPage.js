@@ -18,14 +18,10 @@ import { useSearchParams, Navigate } from 'react-router-dom';
 import useReadyChime, { SoundToggleButton } from './useReadyChime';
 import SponsorTicker from './SponsorTicker';
 import { event as logEvent } from '../../services/logging';
+import { CUSTOMER_STATUS } from '../../constants/customerStatus';
 
-const STATUS_COPY = {
-  pending: { title: 'In the queue', tone: 'bg-blue-600' },
-  'in-progress': { title: 'Being made now', tone: 'bg-amber-500' },
-  completed: { title: 'READY - come and get it', tone: 'bg-green-600' },
-  picked_up: { title: 'Collected - enjoy!', tone: 'bg-gray-500' },
-  cancelled: { title: 'Cancelled', tone: 'bg-red-600' },
-};
+// Customer-facing status words live in ONE place (constants/customerStatus).
+const STATUS_COPY = CUSTOMER_STATUS;
 
 // Embedded in the EventsAir app's webview, or a standalone phone browser?
 // (A cross-origin frame throws on window.top.) The status beacon is what a

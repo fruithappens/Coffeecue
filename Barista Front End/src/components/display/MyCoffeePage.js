@@ -26,6 +26,7 @@ import { Volume2, VolumeX } from 'lucide-react';
 import KioskOrder from './KioskOrder';
 import { fetchEventAccess, urlCodeMatches, normalizeCode,
          stampUrlWithCode, rememberCodeOk, codeAlreadyOk } from '../../utils/eventGate';
+import { CUSTOMER_STATUS } from '../../constants/customerStatus';
 
 const STORAGE_KEY = 'coffee_cue_my_cid';
 // Which QR/sign this visit came from. Session, not local: a delegate who
@@ -51,11 +52,8 @@ const BEACON_PAD_BOTTOM = IS_EMBEDDED
   ? 'calc(env(safe-area-inset-bottom) + 11rem)'
   : 'calc(env(safe-area-inset-bottom) + 2rem)';
 
-const STATUS = {
-  pending: { title: 'In the queue', tone: 'bg-blue-600' },
-  'in-progress': { title: 'Being made now', tone: 'bg-amber-500' },
-  completed: { title: 'READY — come and get it', tone: 'bg-green-600' },
-};
+// Customer-facing status words live in ONE place (constants/customerStatus).
+const STATUS = CUSTOMER_STATUS;
 
 // Sentinel for "a drink that isn't on the list".
 const OTHER = '__other__';

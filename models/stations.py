@@ -304,6 +304,20 @@ class Station:
                 set_clauses.append(f"{db_field} = %s")
                 params.append(value)
 
+            # Twin columns. station_stats has BOTH name/notes and
+            # location/equipment_notes: this API writes notes and
+            # equipment_notes, while the display config, support views and
+            # label printing read name and location. Write both so they can
+            # never disagree (the display board kept showing a station's old
+            # name after an organiser renamed it).
+            mirror = {'notes': 'name', 'equipment_notes': 'location'}
+            for src, dst in mirror.items():
+                if src in seen_columns and dst not in seen_columns:
+                    idx = next(i for i, c in enumerate(set_clauses) if c.startswith(f"{src} ="))
+                    set_clauses.append(f"{dst} = %s")
+                    params.append(params[idx])
+                    seen_columns.add(dst)
+
             if not set_clauses:
                 # Nothing to update — treat as a no-op success rather
                 # than failing the SQL with empty SET clause.

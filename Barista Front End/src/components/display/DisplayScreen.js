@@ -879,7 +879,23 @@ const DisplayScreen = () => {
   useEffect(() => {
     (async () => {
       try {
-        const list = await StationsService.getStations();
+        // PUBLIC screen: the station list must come from a public source.
+        // /api/stations needs a login the TV doesn't have, so the old call
+        // fell back to a hardcoded "Coffee Station 1 / 2 / 3" -- a renamed
+        // or added cart never reached the board (and a deleted one never
+        // left). /api/display/config carries the real list.
+        let list = [];
+        try {
+          const r = await fetch('/api/display/config');
+          const b = r.ok ? await r.json() : null;
+          const c = b && (b.config || b);
+          if (c && Array.isArray(c.stations) && c.stations.length) {
+            list = c.stations.map(s => ({
+              id: s.id, name: s.name, location: s.location, status: s.status, barista: s.barista,
+            }));
+          }
+        } catch (_) { /* fall through to the authenticated path */ }
+        if (!list.length) list = await StationsService.getStations();
         if (list && list.length > 0) {
           setStations(list);
           if (stationId === 'all') {
