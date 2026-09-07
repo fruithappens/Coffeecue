@@ -423,6 +423,24 @@ const MyCoffeePage = () => {
   const [orderNum, setOrderNum] = useState('');
   const [orderNumBusy, setOrderNumBusy] = useState(false);
   const [orderNumError, setOrderNumError] = useState('');
+  // Find it by the NAME it was put under. Steve: someone may have given no
+  // phone and have no badge, and the name is the one thing they always
+  // know. Two Toms are told apart by the drink, the cart and how long ago.
+  const [findName, setFindName] = useState('');
+  const [findBusy, setFindBusy] = useState(false);
+  const [findHits, setFindHits] = useState(null);
+  const findByName = async () => {
+    const q = findName.trim();
+    if (q.length < 2) return;
+    setFindBusy(true);
+    try {
+      const r = await fetch(`/api/orders/find?name=${encodeURIComponent(q)}`);
+      const b = await r.json();
+      setFindHits(Array.isArray(b.orders) ? b.orders : []);
+    } catch (e) {
+      setFindHits([]);
+    } finally { setFindBusy(false); }
+  };
   // Bumping this remounts the coffee-first order flow from its first
   // screen. It is what the X now does there: Steve hit X mid-order and
   // was dumped on the old name-and-number page -- "confusing and out of
@@ -1180,6 +1198,62 @@ const MyCoffeePage = () => {
               </button>
             </div>
             {orderNumError && <p className="text-red-600 mt-2 text-sm">{orderNumError}</p>}
+          </div>
+
+          {/* ...or by the name it was put under. The last resort that always
+              works: no phone, no badge, no order number -- just a name. */}
+          <div className="mt-5 pt-4 border-t border-gray-200">
+            <p className="text-sm text-gray-600 mb-2">Or by the name it was ordered under:</p>
+            <div className="flex gap-2">
+              <input
+                className="flex-1 border-2 rounded-xl px-3 py-3 text-lg"
+                placeholder="First name"
+                value={findName}
+                maxLength={40}
+                onChange={(e) => { setFindName(e.target.value); setFindHits(null); }}
+                onKeyDown={(e) => { if (e.key === 'Enter') findByName(); }}
+              />
+              <button
+                className="px-5 rounded-xl text-white font-semibold disabled:opacity-40"
+                style={{ backgroundColor: brand.accent }}
+                disabled={findName.trim().length < 2 || findBusy}
+                onClick={findByName}
+              >
+                {findBusy ? '…' : 'Find'}
+              </button>
+            </div>
+            {findHits && findHits.length === 0 && (
+              <p className="text-sm text-gray-600 mt-2">
+                Nothing waiting under that name in the last couple of hours. Check the
+                spelling, or just order again below.
+              </p>
+            )}
+            {findHits && findHits.length > 0 && (
+              <div className="mt-3 space-y-2 text-left">
+                <p className="text-xs text-gray-500">
+                  {findHits.length === 1 ? 'Is this you?' : 'Which one is yours?'}
+                </p>
+                {findHits.map((o) => (
+                  <button
+                    key={o.order_number}
+                    onClick={() => { window.location.href = `/order?order=${o.order_number}`; }}
+                    className="w-full border-2 rounded-xl px-3 py-2.5 text-left hover:border-gray-400"
+                  >
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-xl font-extrabold" style={{ color: brand.accent }}>#{o.order_number}</span>
+                      <span className="font-bold text-gray-800">{o.name}</span>
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      {[o.drink, o.milk].filter(Boolean).join(' · ')}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {[o.station_name, o.minutes_ago === 0 ? 'just now' : `${o.minutes_ago} min ago`]
+                        .filter(Boolean).join(' · ')}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <button
             className="w-full mt-3 py-3 text-gray-600 underline"
