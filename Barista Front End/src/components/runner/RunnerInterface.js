@@ -43,6 +43,7 @@ import EnhancedCommunicationHub from '../support/EnhancedCommunicationHub';
 import SMSTestSimulator from '../support/SMSTestSimulator';
 import SmsBlocklistTab from '../support-tabs/SmsBlocklistTab';
 import PrintersTab from '../support-tabs/PrintersTab';
+import DisplaySelector from '../display/DisplaySelector';
 // Review & system
 import SystemHealthTab from '../support-tabs/SystemHealthTab';
 import DiagnosticsTab from '../support-tabs/DiagnosticsTab';
@@ -153,6 +154,8 @@ const RunnerInterface = () => {
       {activeSection === 'messages' && activeTab === 'test' && <SMSTestSimulator />}
       {activeSection === 'messages' && activeTab === 'blocked' && <SmsBlocklistTab />}
 
+      {/* Every screen CupQ can put on a wall, plus where the look is set. */}
+      {activeSection === 'screens' && <div className="cq"><DisplaySelector embedded /></div>}
       {activeSection === 'printers' && <PrintersTab />}
 
       {activeSection === 'report' && (

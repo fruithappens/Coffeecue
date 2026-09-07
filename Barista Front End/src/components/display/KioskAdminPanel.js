@@ -224,9 +224,9 @@ const KioskAdminPanel = ({ stationId, stationName }) => {
             <div className="space-y-2">
               <Action icon={Coffee} label="Switch to Barista"
                 onClick={() => goTo('/barista')} />
-              <Action icon={SettingsIcon} label="Switch to Organiser"
-                onClick={() => goTo('/organiser')} />
-              <Action icon={Monitor} label="Change station / display options"
+              <Action icon={SettingsIcon} label="Switch to Runner"
+                onClick={() => goTo('/run')} />
+              <Action icon={Monitor} label="Screens"
                 onClick={() => goTo('/displays')} />
               <Action icon={RotateCw} label="Rotate screen"
                 onClick={() => {

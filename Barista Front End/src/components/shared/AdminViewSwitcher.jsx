@@ -7,14 +7,17 @@
 // hides itself on the landing/login/display screens.
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Coffee, LayoutDashboard, LifeBuoy, Monitor, Shuffle, X } from 'lucide-react';
+import { Coffee, LayoutDashboard, Monitor, Shuffle, X } from 'lucide-react';
 import AuthService from '../../services/AuthService';
 
 const VIEWS = [
-  { path: '/organiser', label: 'Organiser', Icon: LayoutDashboard, color: '#2563eb' },
-  { path: '/barista',   label: 'Barista',   Icon: Coffee,          color: '#d97706' },
-  { path: '/support',   label: 'Support',   Icon: LifeBuoy,        color: '#0d9488' },
-  { path: '/displays',  label: 'Display',   Icon: Monitor,         color: '#7c3aed' },
+  // THREE roles, not four interfaces. Organiser and Support became the one
+  // runner app; a colour per area was replaced by an icon and a name, so
+  // these all wear the same caramel (Steve: areas are told apart by icon,
+  // name or graphic -- never by each owning a colour).
+  { path: '/barista',  label: 'Barista', Icon: Coffee,          color: '#B8764A' },
+  { path: '/run',      label: 'Runner',  Icon: LayoutDashboard, color: '#B8764A' },
+  { path: '/displays', label: 'Screens', Icon: Monitor,         color: '#B8764A' },
 ];
 
 const AdminViewSwitcher = () => {

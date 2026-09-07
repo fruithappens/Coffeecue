@@ -89,7 +89,7 @@ export default function AdminSheet({ open, onClose, state = {}, actions = {}, un
             <Row Icon={Settings} label="Station settings" hint="Name, location, barista, sounds, board layout"><Button size="sm" variant="secondary" onClick={actions.openStationSettings}>Open</Button></Row>
             <Row Icon={Monitor} label="Screens" hint="Display settings and screen links"><Button size="sm" variant="secondary" onClick={actions.openDisplaySettings}>Open</Button></Row>
             <Row Icon={BarChart3} label="Session so far" hint="What has been made here today"><Button size="sm" variant="secondary" onClick={actions.openSession}>Open</Button></Row>
-            <Row Icon={ExternalLink} label="Organiser tools" hint="Menu, stock, schedule, users, printers"><Button size="sm" variant="secondary" onClick={() => { window.location.href = '/organiser'; }}>Go</Button></Row>
+            <Row Icon={ExternalLink} label="Runner" hint="Menu, stock, schedule, people, printers, the report"><Button size="sm" variant="secondary" onClick={() => { window.location.href = '/run'; }}>Go</Button></Row>
             {/* The manager tabs that used to sit on the barista's tab bar.
                 Nothing is lost: they are here, behind the PIN, until the
                 runner app (phase 5) takes them over. */}

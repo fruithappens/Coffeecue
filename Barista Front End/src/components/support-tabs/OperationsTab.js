@@ -378,7 +378,7 @@ const OperationsTab = () => {
           <p className="text-sm text-gray-600">
             The drinks menu and per-station inventory are managed in the{' '}
             <button
-              onClick={() => { window.location.href = '/organiser'; }}
+              onClick={() => { window.location.href = '/run'; }}
               className="text-blue-600 underline hover:text-blue-800"
             >
               Organiser interface

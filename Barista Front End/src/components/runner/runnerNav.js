@@ -7,7 +7,7 @@ import {
   Zap, Package, Coffee, Palette, Calendar, Users, Activity, Clock, Radio,
   Printer, BarChart3, Heart, CalendarClock, Settings, AlertTriangle, HelpCircle,
   ListChecks, Boxes, Image as ImageIcon, Tag, Droplet, FileText, CheckCircle,
-  Terminal, MessageSquare, Phone, Ban, UserCog,
+  Terminal, MessageSquare, Phone, Ban, UserCog, Monitor,
 } from 'lucide-react';
 
 export const NAV = [
@@ -23,6 +23,7 @@ export const NAV = [
     { id: 'live',     label: 'Live',     Icon: Activity },
     { id: 'orders',   label: 'Orders',   Icon: Clock },
     { id: 'messages', label: 'Messages', Icon: Radio },
+    { id: 'screens',  label: 'Screens',  Icon: Monitor },
     { id: 'printers', label: 'Printers', Icon: Printer },
   ] },
   { heading: 'Review & system', items: [
@@ -84,6 +85,7 @@ export const TITLES = {
   live: 'Live',
   orders: 'Orders',
   messages: 'Messages',
+  screens: 'Screens',
   printers: 'Printers',
   report: 'Report',
   system: 'System',
