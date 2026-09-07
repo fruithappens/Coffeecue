@@ -67,6 +67,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
   // Whose event this is -- the operator's logo, name and colour. A delegate
   // ordering at Treenet should see Treenet, with CupQ signing the foot.
   const brand = useEventBrand();
+  const [showGoneMilks, setShowGoneMilks] = useState(false);
 
   // Event code carried with the order. Priority: a code already on the URL
   // (a scanned QR / a code the visitor typed on /my) wins; otherwise the
@@ -1038,8 +1039,14 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
         {step === 'milk' && (
           <>
             <Header title="Milk?" onBack={goBack} />
+            {/* What we HAVE, first and without competition. Half this list
+                could be greyed-out "not available today" tiles -- five of
+                ten at Treenet -- and a customer had to read past all of
+                them to find the milk they can actually have. The rest
+                collapse behind one line, still tappable so the venue keeps
+                learning what people wanted (UNAVAILABLE_TAP). */}
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {milkOptions.map(m => {
+              {milkOptions.filter((m) => !m.unavailable && compatible(drink, m)).map(m => {
                 const ok = !m.unavailable && compatible(drink, m);
                 // A long black defaults to NO MILK -- the highlighted
                 // tile says so before a single tap (Steve). Tapping any
@@ -1061,6 +1068,32 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                 );
               })}
             </div>
+            {(() => {
+              const gone = milkOptions.filter((m) => m.unavailable || !compatible(drink, m));
+              if (gone.length === 0) return null;
+              return (
+                <div className="mt-5">
+                  <button
+                    type="button"
+                    onClick={() => setShowGoneMilks((v) => !v)}
+                    className="w-full py-3 rounded-xl border-2 border-dashed border-gray-300 text-gray-500 font-semibold"
+                  >
+                    {showGoneMilks
+                      ? 'Hide what we have run out of'
+                      : `${gone.length} more not available today`}
+                  </button>
+                  {showGoneMilks && (
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4 opacity-90">
+                      {gone.map((m) => (
+                        <Tile key={m.value} emoji={milkEmoji(m.value)} label={m.name} disabled
+                          onDisabledTap={() => logEvent('UNAVAILABLE_TAP', { kind: 'milk', item: m.value, drink: drink?.value, station: myStation, channel })}
+                          sub={m.unavailable ? 'Not available today' : `Not available with ${drink?.name || 'that drink'}`} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </>
         )}
 

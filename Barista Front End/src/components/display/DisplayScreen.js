@@ -189,13 +189,25 @@ const OrderCard = ({ order, variant, fonts, theme, showCustomerName, showDetails
               instead of being a caption under it. flex-wrap so a long
               name drops to its own line on a narrow screen rather than
               squeezing the number. */}
+          {/* The NAME leads, in the biggest type on the board.
+              A customer crossing a room is looking for themselves, not for
+              a number they may never have read -- the number is what the
+              barista calls and what the label carries, so it stays, one
+              size down and beside the name. With names turned off (a
+              privacy setting) the number takes the big slot back. */}
           <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1 min-w-0">
-            <div className={`${fonts.num} font-extrabold leading-none tracking-tight ${theme.text} flex-shrink-0`}>
-              #{order.order_number}
-            </div>
-            {showCustomerName && (
-              <div className={`${fonts.name} font-semibold leading-none ${theme.text} truncate min-w-0`}>
-                {formatCustomerLine(order)}
+            {showCustomerName ? (
+              <>
+                <div className={`${fonts.num} font-extrabold leading-none tracking-tight ${theme.text} truncate min-w-0`}>
+                  {formatCustomerLine(order)}
+                </div>
+                <div className={`${fonts.name} font-semibold leading-none ${theme.subtext} flex-shrink-0`}>
+                  #{order.order_number}
+                </div>
+              </>
+            ) : (
+              <div className={`${fonts.num} font-extrabold leading-none tracking-tight ${theme.text} flex-shrink-0`}>
+                #{order.order_number}
               </div>
             )}
           </div>
