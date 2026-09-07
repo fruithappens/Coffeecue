@@ -38,6 +38,18 @@ Branch: `next` (never auto-deploys; Railway only deploys `main`). Every screen s
   turns the sheet into standalone HTML (`design-system/`, untracked) for sharing and for Claude Design
   (push needs a one-off `/design-login` in an interactive Claude Code session).
 
+- **Phase 4** — the barista queue screen on the design system (5756f01 +). `components/barista/queue/`:
+  QueueHeader (area mark, this station, the watched carts — capped at 3, chosen in StationPicker — one
+  status line that is red only when something is broken, the lock), QueueColumn (ONE column: Making →
+  Up next → Ready to hand over; one primary action per card, the rest behind "…"; the station-level
+  tools behind the Up next "…"), AdminSheet (PIN-gated: rush/team mode, station, sound, zoom, refresh,
+  station settings, screens, session, organiser tools, iPad escape hatch, reload + version, sign out).
+  PIN = the event's kiosk PIN (`settings.kiosk_pin`, 4–6 digits; default 1234 until set). Three tabs:
+  Queue · Stock · Tools. Removed from BaristaInterface: the old header, both tab bars, the three-column
+  board, the bottom action bar, the old card renderers and the four pending-column files (-1,200 lines).
+  Checkpoint: the rush drill — 30 orders in 90 s worked through the UI (`scratchpad capture/rush_drill.js`
+  headless; Steve on the iPad for real).
+
 ## When this copy replaces production (phase 9) — one-off data steps
 
     -- station_stats twin columns: older rows were only ever written on one side.

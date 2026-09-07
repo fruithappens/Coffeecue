@@ -16,11 +16,8 @@ import AdminSheet from './queue/AdminSheet';
 import { TabBar } from '../../design';
 import { 
   Coffee, Package, Calendar, Check, Monitor, Settings,
-  MessageCircle, Printer, Plus, Clock,
-  Bell, XCircle, RefreshCw, Edit, ArrowLeft, ChevronDown,
-  Send, CheckCircle, Brain, Scale, Users, MoreHorizontal, Wrench, Shuffle,
-  Truck, Maximize2, Minimize2, ArrowRightLeft, AlertTriangle,
-} from 'lucide-react';
+  MessageCircle, Printer, Clock,
+  Bell, XCircle, RefreshCw, Send, CheckCircle, Brain, Scale, Users, Wrench, Truck, ArrowRightLeft, } from 'lucide-react';
 
 // Import app mode context
 import { useAppMode } from '../../context/AppContext';
@@ -34,10 +31,7 @@ import useStationChatUnread from '../../hooks/useStationChatUnread';
 import AskCustomerControls from './AskCustomerControls';
 import useSchedule from '../../hooks/useSchedule';
 import {
-  getOrderBackgroundColor,
   getTimeRatioColor,
-  formatTimeSince,
-  formatBatchName,
   calculateMinutesDiff,
   buildGroupInfo,
   applicableStages,
@@ -69,11 +63,7 @@ import ToolsTab from '../barista-tabs/ToolsTab';
 // Using inline help dialog instead of importing external component
 import StationChat from '../support/StationChat';
 import OrderNotificationHandler from '../shared/OrderNotificationHandler';
-import PendingOrdersSection from './PendingOrdersSection';
 import '../../styles/boardDensity.css';
-import {
-  filterByMilk, milkOptions, sortCurrentOrders, summariseMilk,
-} from '../../utils/currentOrderView';
 import GroupBadge from './GroupBadge';
 import SourceBadge from './SourceBadge';
 import RushMixStrip from './RushMixStrip';
@@ -134,7 +124,6 @@ const BaristaInterface = () => {
   } = useStations({ autoSelect: false });
 
   // State for showing station selector dropdown
-  const [showStationSelector, setShowStationSelector] = useState(false);
   // Phase 4 (the queue screen): which OTHER stations this tablet watches in
   // the header -- a device preference, capped -- plus the station picker and
   // the PIN-gated admin sheet.
@@ -149,10 +138,8 @@ const BaristaInterface = () => {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
   // Auto-refresh interval picker (header pill) open/closed
-  const [showRefreshMenu, setShowRefreshMenu] = useState(false);
   // Admin-only "Switch view" dropdown in the header (replaces the floating
   // cross-interface switcher on this screen).
-  const [showViewSwitch, setShowViewSwitch] = useState(false);
 
   // Per-device screen zoom for the whole barista interface. Two problems from
   // the event floor (Steve): on a SMALL tablet the Start button was a hard tap
@@ -260,8 +247,6 @@ const BaristaInterface = () => {
   // "what am I looking at right now" rather than a preference, and a
   // barista who filters to oat should not find it still filtered
   // tomorrow morning.
-  const [currentSort, setCurrentSort] = useState('oldest');
-  const [currentMilkFilter, setCurrentMilkFilter] = useState('');
   // Notification hold: while it is on, completed orders do not text the
   // customer -- they queue up and go out together when released.
   const [holdState, setHoldState] = useState(null);
@@ -415,41 +400,6 @@ const BaristaInterface = () => {
   // Accept every organiser-role spelling/variant so a user created as
   // 'event_organizer' gets the manager tabs too (was missing it).
   const isManager = ['admin', 'staff', 'organizer', 'organiser', 'event_organizer'].includes(_currentRole);
-  const MANAGER_ONLY_TABS = ['display', 'queue', 'balance', 'capabilities', 'staff', 'settings'];
-
-  // Desktop tab bar, grouped by the job being done. Twelve tabs in one
-  // row had become a wall of similar-looking words — Stock next to
-  // Inventory, Queue Rules next to Balance, Staff next to Schedule —
-  // where the difference between neighbours was not obvious from the
-  // label.
-  //
-  // activeTab still holds the LEAF id, so every `activeTab === 'stock'`
-  // content block below is untouched, and the mobile bottom bar (which
-  // sets leaf ids directly) keeps working as it is.
-  const BARISTA_GROUPS = [
-    { id: 'orders',    label: 'Orders',    Icon: Coffee, tab: 'orders' },
-    { id: 'completed', label: 'Completed', Icon: Check,  tab: 'completed' },
-    { id: 'stockGrp',  label: 'Stock',     Icon: Package, tabs: [
-        // Same subject, different scope: what this station has in front
-        // of it, versus every station plus forecasting.
-        { id: 'stock',     label: 'This Station', Icon: Package },
-        { id: 'inventory', label: 'All Stations', Icon: Truck },
-      ] },
-    { id: 'queueGrp',  label: 'Queue',     Icon: Brain, tabs: [
-        { id: 'queue',   label: 'Rules',   Icon: Brain },
-        { id: 'balance', label: 'Balance', Icon: Scale },
-      ] },
-    { id: 'teamGrp',   label: 'Team',      Icon: Users, tabs: [
-        { id: 'staff',    label: 'Staff',    Icon: Users },
-        { id: 'schedule', label: 'Schedule', Icon: Calendar },
-      ] },
-    { id: 'stationGrp', label: 'Station',  Icon: Settings, tabs: [
-        { id: 'capabilities', label: 'Capabilities', Icon: Settings },
-        { id: 'display',      label: 'Display',      Icon: Monitor },
-        { id: 'settings',     label: 'Settings',     Icon: Settings },
-      ] },
-    { id: 'tools',     label: 'Tools',     Icon: Wrench, tab: 'tools' },
-  ];
 
   // Wrapper function to persist active tab when it changes
   const setActiveTab = (tab) => {
@@ -475,7 +425,6 @@ const BaristaInterface = () => {
   // Remembers which leaf each group was last on, so leaving a group and
   // coming back returns to the screen you were using rather than the
   // first one.
-  const [groupSubTab, setGroupSubTab] = useState({});
   // Text the operator is typing into the refresh-interval box. Separate from
   // autoRefreshInterval so a half-typed number is not fought by the setter.
   const [refreshDraft, setRefreshDraft] = useState('');
@@ -573,7 +522,6 @@ const BaristaInterface = () => {
   // Live pending customer-questions — count drives the Messages badge (replaces
   // the old hardcoded `unreadMessages = 2` that always showed a fake "2").
   const cq = useCustomerQuestions();
-  const [filter, setFilter] = useState('all');
   
   // Effect to ensure settings are synced with selected station
   // Use useRef to track if we've already synced this station to avoid unnecessary updates
@@ -643,7 +591,6 @@ const BaristaInterface = () => {
   const [editSaving, setEditSaving] = useState(false);
   const [currentMessageOrder, setCurrentMessageOrder] = useState(null);
   // Mobile-only: the bottom tab bar's "More" sheet (manager tabs).
-  const [showMobileMore, setShowMobileMore] = useState(false);
 
   // NEW: Message status tracking
   const [messageStatus, setMessageStatus] = useState({});
@@ -1472,21 +1419,6 @@ const BaristaInterface = () => {
 
   // Other stations (for the at-a-glance queue pills) — lets a barista point
   // a walk-up at a quieter station. Colour-coded by how busy each one is.
-  const otherStations = stations.filter(s => s.id !== selectedStation);
-  // Compact ≤4-char tag for the other-station pills so a long custom name
-  // ("East Wing", "Main Foyer Coffee") doesn't blow the header out. Full name
-  // is still shown on hover (title attr) and in the station dropdown/title.
-  //   "Coffee Station 2" → "S2"  (trailing number wins)
-  //   "East Wing"        → "EW"  (initials of each word)
-  //   "Lobby"            → "Lobb" (first 4 of a single word)
-  const shortStationLabel = (name, id) => {
-    if (!name) return `S${id}`;
-    const trailing = String(name).match(/(\d+)\s*$/);
-    if (trailing) return `S${trailing[1]}`.slice(0, 4);
-    const words = String(name).trim().split(/\s+/).filter(Boolean);
-    if (words.length >= 2) return words.map(w => w[0]).join('').toUpperCase().slice(0, 4);
-    return (words[0] || `S${id}`).slice(0, 4);
-  };
 
   // Batch order handling
   const toggleBatchMode = () => {
@@ -1647,199 +1579,6 @@ const BaristaInterface = () => {
   const openDisplayScreen = () => {
     // Pass the station ID in the URL to customize the display
     window.open(`/display?station=${selectedStation}`, '_blank');
-  };
-
-  // Function to render in-progress order
-  const renderInProgressOrder = (order) => {
-    const hasSentMessage = messageStatus[order.id]?.status === 'sent';
-    
-    return (
-      <div key={order.id} className="bg-white rounded-lg shadow-md p-4 mb-4">
-        <div className="flex justify-between">
-          <div>
-            <div className="text-sm text-gray-500">Order #{order.id}</div>
-            <div className="text-xl font-bold mt-1 flex items-center">
-              {order.customerName}
-              {hasSentMessage && (
-                <span className="ml-1 text-green-500" title="Message sent">
-                  <CheckCircle size={16} />
-                </span>
-              )}
-            </div>
-            <div className="text-gray-700">{order.phoneNumber}</div>
-          </div>
-          <div className="flex flex-col items-end">
-            {/* Group badge — still part of a group while being made, so the
-                barista knows to hold it for collection with its siblings. */}
-            <GroupBadge info={groupInfoByOrderId[order.id]} />
-            <SourceBadge order={order} />
-            {order.priority && (
-              <div className="mt-1 bg-red-100 text-red-700 px-2 py-1 rounded text-sm font-medium">
-                PRIORITY
-              </div>
-            )}
-            <div className="mt-2 flex space-x-2">
-              {/* Move mid-make. The backend has allowed reassigning an
-                  in-progress order all along -- its own comment names
-                  this exact case ("barista realises mid-pour they're
-                  out of milk") -- but only the PENDING card ever grew
-                  the button. Steve, mid-service: "cant transfer station
-                  once started ... worked out ran out of that milk or a
-                  error fault". */}
-              <button
-                className="text-gray-500 hover:text-amber-600"
-                onClick={() => handleOpenMoveDialog(order)}
-                title="Move to another station"
-              >
-                <ArrowRightLeft size={16} />
-              </button>
-              <button
-                className="text-gray-500 hover:text-gray-700"
-                onClick={() => handleEditOrder(order)}
-                title="Edit order"
-              >
-                <Edit size={16} />
-              </button>
-            </div>
-          </div>
-        </div>
-        
-        <div className="mt-2 bg-gray-100 p-2 rounded-lg">
-          <div className="text-lg font-bold leading-snug">{order.size ? `${order.size} ` : ''}{order.coffeeType || 'Coffee'}</div>
-          <div className="text-sm text-gray-700">
-            {order.milkType || 'Regular milk'}, {order.sugar || 'No sugar'}
-            {order.extraHot ? ', Extra hot' : ''}
-          </div>
-          {order.alternativeMilk && (
-            <span className="inline-block bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded mt-1">
-              Alternative Milk
-            </span>
-          )}
-        </div>
-
-        {/* Notes + customer message MUST follow the drink onto the in-progress
-            card — they were only on the pending card, so a "1/4 strength / no
-            lid / make it decaf" instruction vanished the moment the barista
-            hit Start (Asher, live). Same fields the pending card reads. */}
-        {(order.notes || order.specialInstructions) && (
-          <div className="mt-2 text-sm text-amber-900 bg-amber-50 border border-amber-300 rounded px-2 py-1 flex items-start gap-1">
-            <span aria-hidden="true">📝</span>
-            <span className="font-semibold">{order.notes || order.specialInstructions}</span>
-          </div>
-        )}
-        {(order.customerMessage || order.customer_message) && (
-          <div className="mt-2 px-2 py-1 bg-amber-50 border border-amber-300 text-amber-900 text-sm rounded flex items-start gap-1">
-            <span aria-hidden="true">💬</span>
-            <span className="italic">{order.customerMessage || order.customer_message}</span>
-          </div>
-        )}
-
-        {/* Team mode stage chips: two-plus baristas sharing this iPad
-            tick their part (shots / milk). COMPLETE stays the explicit
-            final tap — it lights up when every part is ticked but never
-            fires itself (an accidental complete would SMS the customer). */}
-        {teamMode && (() => {
-          const stages = applicableStages(order);
-          if (stages.length === 0) return null;
-          const done = orderStages(order);
-          return (
-            <div className="mt-2 flex space-x-2">
-              {stages.map(stage => (
-                <button
-                  key={stage}
-                  className={`flex-1 py-2 rounded-lg font-semibold text-sm border-2 ${
-                    done[stage]
-                      ? 'bg-green-100 border-green-500 text-green-800'
-                      : 'bg-white border-gray-300 text-gray-600 hover:border-gray-400'}`}
-                  onClick={() => toggleStage(order, stage)}
-                  title={done[stage]
-                    ? `${stage} done - tap to undo`
-                    : `Tap when the ${stage} ${stage === 'shots' ? 'are' : 'is'} done`}
-                >
-                  {done[stage] ? '✓ ' : ''}{stage === 'shots' ? '☕ Shots' : '🥛 Milk'}
-                </button>
-              ))}
-            </div>
-          );
-        })()}
-
-        {/* One compact action row: big COMPLETE, small icon-only message
-            button (Steve: the card ate too much vertical space). Messaging
-            is disabled when the order has no phone number — it used to
-            open the dialog and let you type a message that could never
-            send. */}
-        {(() => {
-          const _ph = String(order.phoneNumber || '').trim().toLowerCase();
-          const hasPhone = !!_ph && _ph !== 'walk-in' && _ph !== 'na' && _ph !== 'n/a';
-          const _stages = teamMode ? applicableStages(order) : [];
-          const _done = orderStages(order);
-          const allStagesDone = _stages.length > 0 && _stages.every(s => _done[s]);
-          return (
-            <div className="mt-2 flex flex-wrap gap-2">
-              <button
-                className={`flex-1 text-white py-2 rounded-lg font-bold ${
-                  allStagesDone
-                    ? 'bg-green-600 hover:bg-green-700 ring-2 ring-green-300 animate-pulse'
-                    : 'bg-green-500 hover:bg-green-600'}`}
-                onClick={() => handleCompleteOrder(order.id)}
-              >
-                {allStagesDone ? 'ALL PARTS DONE - COMPLETE' : 'COMPLETE ORDER'}
-              </button>
-              <button
-                className={`px-3 rounded-lg flex items-center justify-center ${hasPhone
-                  ? 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                  : 'bg-gray-100 text-gray-300 cursor-not-allowed'}`}
-                onClick={() => hasPhone && handleOpenMessageDialog(order)}
-                disabled={!hasPhone}
-                title={hasPhone
-                  ? 'Message customer'
-                  : 'No phone number on this order — add one via Edit (pencil) to enable SMS'}
-              >
-                <MessageCircle size={18} />
-              </button>
-              {stationPrinter && (
-                <button
-                  className="px-3 rounded-lg flex items-center justify-center bg-gray-200 hover:bg-gray-300 text-gray-700"
-                  onClick={() => handlePrintLabel(order)}
-                  title={stationPrinter.online
-                    ? 'Print cup label'
-                    : 'Print cup label (printer looks offline — job will queue)'}
-                >
-                  <Printer size={18} />
-                </button>
-              )}
-              {/* Ask THIS customer (out-of-oat etc.) -- an icon in the action
-                  row (works with any phone or none). Collapsed it's just an
-                  icon so the card stays compact; it expands to a full-width
-                  panel that wraps below (Steve: drop the wording, keep the
-                  icon, fit more orders). */}
-              <AskCustomerControls order={order} />
-            </div>
-          );
-        })()}
-
-        {/* Time-into-order bar. Fills as the order ages against a 5-minute
-            make target (or promisedTime when the API sends one). It used
-            to divide by a promisedTime the /orders listing never provided,
-            so it sat at 0% forever. */}
-        {(() => {
-          const target = order.promisedTime > 0 ? order.promisedTime : 5;
-          const pct = Math.floor(Math.min(((order.waitTime || 0) / target) * 100, 100));
-          return (
-            <div className="mt-2 flex items-center space-x-2 text-xs text-gray-500">
-              <span className="whitespace-nowrap">{order.waitTime || 0} min</span>
-              <div className="flex-grow bg-gray-200 h-1.5 rounded-full overflow-hidden">
-                <div
-                  className={`h-1.5 ${getTimeRatioColor(order.waitTime || 0, target)}`}
-                  style={{ width: `${pct}%` }}
-                ></div>
-              </div>
-              <span className="whitespace-nowrap">target {target} min</span>
-            </div>
-          );
-        })()}
-      </div>
-    );
   };
 
   // Function to render completed order card
@@ -4347,295 +4086,4 @@ const BaristaInterface = () => {
 //   2. Some old test rows had future-dated completed_at timestamps
 //      that defeated a client-side filter. Backend recency filter
 //      (recent_minutes=30, station_id=X) is reliable.
-const READY_RECENCY_MIN = 30;
-
-// An order whose customer was TEXTED can age off on the normal timer --
-// they know it is waiting and will come. An order with no phone number
-// never got a message, so the only thing telling anyone it exists is
-// this card and the barista calling the name. Those stay twice as long
-// (Steve: "maybe its more the ones that are not getting a SMS").
-const NO_SMS_EXPIRY_MULTIPLIER = 2;
-
-const ReadyForPickupColumn = ({
-  completedOrders, stationId, onMarkPickedUp, onSendMessage,
-  expiryMinutes = READY_RECENCY_MIN,
-}) => {
-  // Switched May 2026: instead of fetching its own list this column
-  // now derives from the same `completedOrders` that the Completed
-  // tab uses. Steve reported the column showing 0 while the
-  // Completed tab showed real orders — proving the data was in the
-  // hook, we just had a broken parallel fetch path.
-  //
-  // We still apply two client-side filters:
-  //   1. station_id matches the selected station (so a barista
-  //      doesn't see other stations' ready orders)
-  //   2. completed within the last READY_RECENCY_MIN minutes (so
-  //      ancient picked-up rows don't squat here forever)
-  const [hiddenIds, setHiddenIds] = React.useState(() => new Set());
-
-  const list = React.useMemo(() => {
-    if (!Array.isArray(completedOrders)) return [];
-    const baseMin = Number(expiryMinutes) > 0
-      ? Number(expiryMinutes) : READY_RECENCY_MIN;
-    const now = Date.now();
-    const cutoff = now - baseMin * 60 * 1000;
-    const cutoffNoSms = now - baseMin * NO_SMS_EXPIRY_MULTIPLIER * 60 * 1000;
-    const sidStr = stationId != null ? String(stationId) : null;
-
-    return completedOrders
-      .filter(o => {
-        // Optimistic-remove: once Collected is tapped, hide
-        // immediately even before the backend confirms.
-        const oid = o.id || o.order_number || o.orderNumber;
-        if (hiddenIds.has(oid)) return false;
-        // Skip already-picked-up
-        const status = (o.status || '').toLowerCase();
-        if (status === 'picked_up' || status === 'picked-up') return false;
-        // Match station — check every alias the data ships under,
-        // tolerate string/number type mismatch.
-        if (sidStr) {
-          const candidates = [
-            o.stationId, o.station_id,
-            o.assignedStation, o.assigned_to_station,
-          ].filter(v => v != null).map(String);
-          if (candidates.length > 0 && !candidates.includes(sidStr)) {
-            return false;
-          }
-        }
-        // Recency
-        const ts = o.completedAt || o.completed_at
-                || o.updatedAt   || o.updated_at;
-        if (!ts) return true;
-        // parseServerDate, NOT new Date(): the backend sends naive UTC
-        // (no 'Z'), which new Date() reads as LOCAL. On UTC+9:30 (Adelaide)
-        // that put every just-completed order ~9.5h in the past, so it was
-        // instantly older than this recency window and the column showed
-        // "Nothing ready yet" while the customer Display (which already uses
-        // parseServerDate) showed it. THIS was the barista-vs-display split.
-        const t = parseServerDate(ts).getTime();
-        if (Number.isNaN(t)) return true;
-        // No phone means no "your coffee is ready" text was ever sent,
-        // so this card is the only trace of it -- give it longer.
-        // hasPhone is a boolean from the API; the number itself is
-        // deliberately not in this listing.
-        const hasPhone = o.hasPhone !== undefined
-          ? !!o.hasPhone
-          : !!String(o.phoneNumber || o.phone_number || o.phone || '').trim();
-        const floor = hasPhone ? cutoff : cutoffNoSms;
-        // Tolerate clock skew up to 5 min in either direction.
-        return t >= floor && t <= now + 5 * 60 * 1000;
-      })
-      .sort((a, b) => {
-        const ta = parseServerDate(a.completedAt || a.completed_at || a.updatedAt || a.updated_at || 0).getTime();
-        const tb = parseServerDate(b.completedAt || b.completed_at || b.updatedAt || b.updated_at || 0).getTime();
-        return tb - ta;
-      });
-  }, [completedOrders, stationId, hiddenIds, expiryMinutes]);
-
-  // Reset the hidden set when the underlying completedOrders changes
-  // significantly — prevents stale ids from accumulating.
-  React.useEffect(() => {
-    if (!Array.isArray(completedOrders)) return;
-    setHiddenIds(prev => {
-      const live = new Set(completedOrders.map(o => o.id || o.order_number || o.orderNumber));
-      const next = new Set([...prev].filter(id => live.has(id)));
-      return next.size === prev.size ? prev : next;
-    });
-  }, [completedOrders]);
-
-  const handleCollected = async (oid) => {
-    setHiddenIds(prev => {
-      const next = new Set(prev);
-      next.add(oid);
-      return next;
-    });
-    try { await onMarkPickedUp(oid); } catch (e) {
-      // If backend failed, unhide so the operator can retry.
-      setHiddenIds(prev => {
-        const next = new Set(prev);
-        next.delete(oid);
-        return next;
-      });
-    }
-  };
-
-  if (process.env.NODE_ENV !== 'production') {
-    console.log(`[ReadyForPickup] showing ${list.length} of ${completedOrders?.length || 0} completedOrders for station ${stationId}`);
-  }
-
-  return (
-    <div>
-      <div className="bg-green-600 text-white p-2 rounded-t-lg flex justify-between items-center">
-        <h2 className="text-xl font-bold">Ready for Pickup</h2>
-        <span className="text-sm">
-          {list.length}
-          {stationId != null && (
-            <span className="ml-2 opacity-75 text-xs">@ Station {stationId}</span>
-          )}
-        </span>
-      </div>
-      <div className="bg-white p-4 rounded-b-lg shadow-md min-h-[120px]">
-        {list.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            <Coffee size={48} className="mx-auto mb-2 text-gray-400" />
-            <p>Nothing ready yet</p>
-            <p className="text-sm text-gray-400">Completed orders appear here</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {list.map(order => {
-              const oid = order.id || order.order_number || order.orderNumber;
-              const orderNum = order.orderNumber || order.order_number || oid;
-              const name = order.customerName || order.customer_name || 'Customer';
-              const coffee = order.coffeeType || order.coffee_type || 'Coffee';
-              const milk = order.milkType || order.milk_type || '';
-              const price = order.priceFormatted || order.price_formatted;
-              return (
-                <div key={oid} className="border rounded-lg p-3 hover:border-green-400">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1 min-w-0">
-                      <div className="font-bold text-lg">#{orderNum}</div>
-                      <div className="text-sm text-gray-700 truncate">{name}</div>
-                      <div className="text-xs text-gray-500 truncate">
-                        {[coffee, milk].filter(Boolean).join(' · ')}
-                      </div>
-                    </div>
-                    {price && (
-                      <span className="inline-block bg-green-100 text-green-800 text-sm font-bold px-2 py-1 rounded whitespace-nowrap">
-                        {price}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex gap-2 mt-3">
-                    <button
-                      type="button"
-                      className="flex-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm rounded font-medium"
-                      onClick={() => handleCollected(oid)}
-                    >
-                      ✓ Collected
-                    </button>
-                    {onSendMessage && (
-                      <button
-                        type="button"
-                        className="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm rounded"
-                        title="Send reminder SMS"
-                        onClick={() => onSendMessage(order)}
-                      >
-                        SMS
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-// ---- SoundChoiceRows -----------------------------------------------------
-// Renders the per-event sound chooser inside the Settings tab. Five rows,
-// one per alert type: each has an enable checkbox, a dropdown for picking
-// which sound to play, and a Test button that previews it.
-//
-// State lives in `settings.soundChoices` ({eventKey: soundPresetKey}) and
-// `settings.sound<EventName>` booleans (legacy on/off per event, kept for
-// back-compat with any code that reads them). All persisted via the
-// existing setSettings flow → coffee_cue_settings localStorage.
-const SOUND_EVENT_ROWS = [
-  { key: 'newOrder',      label: 'New Order',      enableField: 'soundNewOrder',      btnColor: 'bg-green-500 hover:bg-green-600' },
-  { key: 'orderComplete', label: 'Order Complete', enableField: 'soundOrderComplete', btnColor: 'bg-blue-500 hover:bg-blue-600' },
-  { key: 'orderPickedUp', label: 'Order Picked Up', enableField: 'soundOrderPickedUp', btnColor: 'bg-purple-500 hover:bg-purple-600' },
-  { key: 'lowStock',      label: 'Low Stock Alert', enableField: 'soundLowStock',     btnColor: 'bg-yellow-500 hover:bg-yellow-600' },
-  { key: 'error',         label: 'Error Alert',     enableField: 'soundError',        btnColor: 'bg-red-500 hover:bg-red-600' },
-];
-
-const SoundChoiceRows = ({ settings, setSettings }) => {
-  const choices = { ...DEFAULT_SOUND_CHOICES, ...(settings.soundChoices || {}) };
-  const volume = (settings.soundVolume ?? 70) / 100;
-
-  const setChoice = (eventKey, presetKey) => {
-    setSettings(prev => ({
-      ...prev,
-      soundChoices: { ...choices, [eventKey]: presetKey },
-    }));
-  };
-
-  const preview = (presetKey) => {
-    try {
-      SoundNotificationService.preview(presetKey, volume);
-    } catch (e) {
-      // Should never happen; the service handles its own errors.
-      console.warn('Sound preview failed:', e);
-    }
-  };
-
-  return (
-    <div className="space-y-2">
-      {SOUND_EVENT_ROWS.map(row => (
-        <div key={row.key} className="flex items-center gap-2 flex-wrap">
-          <label className="flex items-center space-x-2 min-w-[150px]">
-            <input
-              type="checkbox"
-              checked={settings[row.enableField] !== false}
-              onChange={(e) => setSettings(prev => ({ ...prev, [row.enableField]: e.target.checked }))}
-            />
-            <span className="text-sm">{row.label}</span>
-          </label>
-          <select
-            value={choices[row.key] || DEFAULT_SOUND_CHOICES[row.key]}
-            onChange={(e) => setChoice(row.key, e.target.value)}
-            className="flex-1 min-w-[180px] text-sm px-2 py-1 border border-gray-300 rounded"
-          >
-            {SOUND_PRESETS.map(p => (
-              <option key={p.key} value={p.key}>{p.label}</option>
-            ))}
-          </select>
-          <button
-            type="button"
-            className={`px-2 py-1 text-white text-xs rounded ${row.btnColor}`}
-            onClick={() => preview(choices[row.key] || DEFAULT_SOUND_CHOICES[row.key])}
-          >
-            Test
-          </button>
-        </div>
-      ))}
-      {/* The two sounds that play on OTHER screens. Saved to the server (not
-          this device) so the display board and every phone pick them up;
-          Test plays the preset here so the operator can hear it. */}
-      <div className="mt-4 pt-3 border-t border-gray-200">
-        <div className="text-sm font-medium text-gray-700 mb-2">On the other screens</div>
-        {[
-          { key: 'displayReadySound', label: 'Display: order ready', def: 'chime_up', btnColor: 'bg-emerald-600 hover:bg-emerald-700' },
-          { key: 'beaconReadySound', label: "Customer's phone: order ready", def: 'cupq_signature', btnColor: 'bg-sky-600 hover:bg-sky-700' },
-        ].map(row => (
-          <div key={row.key} className="flex items-center gap-2 flex-wrap mb-2">
-            <span className="text-sm min-w-[150px]">{row.label}</span>
-            <select
-              value={settings[row.key] || row.def}
-              onChange={(e) => setSettings(prev => ({ ...prev, [row.key]: e.target.value }))}
-              className="flex-1 min-w-[180px] text-sm px-2 py-1 border border-gray-300 rounded"
-            >
-              {SOUND_PRESETS.map(p => (
-                <option key={p.key} value={p.key}>{p.label}</option>
-              ))}
-            </select>
-            <button type="button" className={`px-2 py-1 text-white text-xs rounded ${row.btnColor}`}
-              onClick={() => preview(settings[row.key] || row.def)}>
-              Test
-            </button>
-          </div>
-        ))}
-        <div className="text-xs text-gray-500">Applies to every display and phone within about 30 seconds.</div>
-      </div>
-      <div className="text-xs text-gray-500 mt-2">
-        Sounds are synthesized in-browser — no assets to download, works offline.
-        "No sound" disables that alert without affecting the others.
-      </div>
-    </div>
-  );
-};
-
 export default BaristaInterface;
