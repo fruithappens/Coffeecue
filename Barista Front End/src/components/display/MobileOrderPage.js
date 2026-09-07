@@ -19,6 +19,7 @@ import useReadyChime, { SoundToggleButton } from './useReadyChime';
 import SponsorTicker from './SponsorTicker';
 import { event as logEvent } from '../../services/logging';
 import { CUSTOMER_STATUS } from '../../constants/customerStatus';
+import { useEventBrand, EventHeader, PoweredBy } from '../../design/eventBrand';
 
 // Customer-facing status words live in ONE place (constants/customerStatus).
 const STATUS_COPY = CUSTOMER_STATUS;
@@ -36,6 +37,9 @@ const BEACON_PAD_BOTTOM = IS_EMBEDDED
   : 'calc(env(safe-area-inset-bottom) + 2rem)';
 
 const MobileOrderPage = () => {
+  // Whose event this is. The beacon is the screen a delegate stares at
+  // while they wait, so it should say Treenet, not CupQ.
+  const brand = useEventBrand();
   const [params, setParams] = useSearchParams();
   const stationId = params.get('station');
   const trackNumber = params.get('order');
@@ -220,6 +224,7 @@ const MobileOrderPage = () => {
                     // Room for the sponsor strip when it is on.
                     paddingBottom: tickerOn ? `calc(${BEACON_PAD_BOTTOM} + 84px)` : BEACON_PAD_BOTTOM }}>
         <div className="w-full max-w-md" ref={colRef} style={fit !== 1 ? { zoom: fit } : undefined}>
+          <EventHeader brand={brand} className="mb-4" />
           {/* Incident notice. Above the order card on purpose: if the
               system is in trouble, that outranks the queue position the
               customer came here to read.
@@ -411,6 +416,8 @@ const MobileOrderPage = () => {
           >
             Order another coffee
           </button>
+          <PoweredBy brand={brand} className="mt-8 text-center" />
+
         </div>
         {/* Sponsor strip, pinned above the phone toolbar / the events-app
             nav so it is seen without scrolling -- the display's ticker,

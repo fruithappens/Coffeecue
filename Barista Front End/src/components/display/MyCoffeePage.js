@@ -27,6 +27,7 @@ import KioskOrder from './KioskOrder';
 import { fetchEventAccess, urlCodeMatches, normalizeCode,
          stampUrlWithCode, rememberCodeOk, codeAlreadyOk } from '../../utils/eventGate';
 import { CUSTOMER_STATUS } from '../../constants/customerStatus';
+import { useEventBrand, EventHeader, PoweredBy } from '../../design/eventBrand';
 
 const STORAGE_KEY = 'coffee_cue_my_cid';
 // Which QR/sign this visit came from. Session, not local: a delegate who
@@ -427,6 +428,9 @@ const MyCoffeePage = () => {
   // was dumped on the old name-and-number page -- "confusing and out of
   // order... like a legacy menu system". X means start over, not
   // time-travel to the retired front door.
+  // Whose event this is: the operator's logo, name and colour, from the
+  // public config. A delegate is at Treenet, not at CupQ.
+  const brand = useEventBrand();
   const [orderEpoch, setOrderEpoch] = useState(0);
   // When one mobile belongs to several attendees (a delegate who booked
   // for their team), we ask instead of guessing.
@@ -1057,6 +1061,7 @@ const MyCoffeePage = () => {
       <div className="min-h-screen bg-white">
         <KioskOrder
           key={orderEpoch}
+          headerColor={brand.accent}
           // Own phone via the events app (cid) or a plain web visit. Without
           // this every order from /my landed as 'kiosk' -- the exact app-vs-
           // touchscreen ambiguity the Treenet report had to work around.
@@ -1103,6 +1108,7 @@ const MyCoffeePage = () => {
            style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top))',
                     paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
         <div className="w-full max-w-sm text-center">
+          <EventHeader brand={brand} className="mb-4" />
           <div className="text-5xl mb-3" aria-hidden>☕</div>
           <h1 className="text-2xl font-bold mb-1">Your coffee</h1>
           <p className="text-gray-600 mb-6">
@@ -1221,6 +1227,7 @@ const MyCoffeePage = () => {
                     paddingTop: 'max(1.5rem, env(safe-area-inset-top))',
                     paddingBottom: BEACON_PAD_BOTTOM }}>
         <div className="w-full max-w-md">
+          <EventHeader brand={brand} className="mb-4" />
           <div className={`${copy.tone} text-white rounded-2xl p-6 text-center shadow-lg
                            ${ready ? 'animate-pulse' : ''}`}>
             <div className="text-sm uppercase tracking-wide opacity-90">
@@ -1362,11 +1369,13 @@ const MyCoffeePage = () => {
               </div>
             </div>
           )}
+          <PoweredBy brand={brand} className="mt-8 text-center" />
         </div>
         {fullOrder && (
           <div className="fixed inset-0 bg-white z-50 overflow-auto">
             <KioskOrder
               eaCid={cid}
+              headerColor={brand.accent}
               channel={cid ? 'app' : 'web'}
               onClose={() => { setFullOrder(false); load(cid); }}
               onOrderPlaced={() => { setFullOrder(false); load(cid); }}
@@ -1382,7 +1391,8 @@ const MyCoffeePage = () => {
     <div className="min-h-screen bg-gray-50 flex flex-col items-center p-6"
          style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top))',
                   paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
-      <div className="w-full max-w-md text-center">
+      <div className="w-full max-w-md text-center pb-2">
+        <EventHeader brand={brand} className="mb-5" />
         {editingName ? (
           <div className="mb-5 text-left">
             <label className="block text-sm text-gray-600 mb-1">
@@ -1468,6 +1478,8 @@ const MyCoffeePage = () => {
         <button className="mt-8 text-xs text-gray-400 underline" onClick={forget}>
           Not {me.first_name}? Start again
         </button>
+        <PoweredBy brand={brand} className="mt-10" />
+
       </div>
 
       {fullOrder && (

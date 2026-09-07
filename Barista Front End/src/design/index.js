@@ -8,3 +8,4 @@ export { default as BigNumber } from './BigNumber';
 export { default as TabBar } from './TabBar';
 export { default as SidebarNav } from './SidebarNav';
 export { default as PinPanel } from './PinPanel';
+export { default as useEventBrand, EventHeader, PoweredBy, loadEventBrand } from './eventBrand';

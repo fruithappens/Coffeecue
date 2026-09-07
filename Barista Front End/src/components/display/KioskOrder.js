@@ -23,6 +23,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { getSavedRounds, saveRound } from '../../utils/savedRounds';
 import DrinkIcon from './DrinkIcon';
 import SponsorTicker from './SponsorTicker';
+import { useEventBrand, EventHeader, PoweredBy } from '../../design/eventBrand';
 import { remember, recall } from '../../utils/deviceMemory';
 import { event as logEvent } from '../../services/logging';
 import { X, ArrowLeft, Plus, Minus, Check, Loader, MapPin, Zap } from 'lucide-react';
@@ -63,6 +64,10 @@ export const milkEmoji = (name) => {
 const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced,
                       eaCid, channel = 'kiosk', onPick , onCheckExisting,
                       eventCode = '' }) => {
+  // Whose event this is -- the operator's logo, name and colour. A delegate
+  // ordering at Treenet should see Treenet, with CupQ signing the foot.
+  const brand = useEventBrand();
+
   // Event code carried with the order. Priority: a code already on the URL
   // (a scanned QR / a code the visitor typed on /my) wins; otherwise the
   // `eventCode` a trusted on-site surface (the board) passed in. Lets the
@@ -911,6 +916,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
         {/* ---------- DRINK (first screen) ---------- */}
         {step === 'drink' && (
           <>
+            <EventHeader brand={brand} className="mb-4" />
             <Header title={eaIdentity
               ? `Hi ${eaIdentity.firstName}! Pick a drink ☕`
               : 'Order here ☕'} />
@@ -1525,6 +1531,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
             hardware -- the person waiting behind does not have to wait
             for the screen. Deliberately small and low-contrast: it must
             never compete with the step the current customer is on. */}
+        {channel !== 'walkin' && <PoweredBy brand={brand} className="mt-6 text-center" />}
         {step !== 'done' && channel !== 'walkin' && (
           <div className="mt-6 pt-4 border-t border-gray-200 flex items-center justify-center gap-4 opacity-80">
             <img

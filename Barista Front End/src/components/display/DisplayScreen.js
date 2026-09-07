@@ -1879,10 +1879,16 @@ const DisplayScreen = () => {
               speak): say so, loudly, instead of failing silently. Any tap or key
               press anywhere on the page arms it and replays what was held. */}
           {readySound !== 'off' && soundNeedsTap && (
-            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 px-6 py-4 rounded-2xl bg-amber-500 text-black font-bold text-xl shadow-2xl animate-pulse cursor-pointer text-center"
-                 onClick={(e) => e.stopPropagation()}>
-              Tap once anywhere to enable sound
-            </div>
+            // Beside the speaker it belongs to, not across the middle of the
+            // board. This was a banner pinned dead centre of a screen people
+            // read from four metres away -- it sat on top of the orders,
+            // which are the entire point of the board. A tap anywhere still
+            // arms the sound; this only has to be noticed.
+            <span className="px-3 py-1.5 rounded-full text-sm font-bold animate-pulse whitespace-nowrap cursor-pointer"
+                  style={{ backgroundColor: bannerChip, color: bannerInk }}
+                  onClick={(e) => e.stopPropagation()}>
+              tap for sound
+            </span>
           )}
           <button
             onClick={(e) => { e.stopPropagation(); setOrientation(orientation === 'portrait' ? 'landscape' : 'portrait'); }}
