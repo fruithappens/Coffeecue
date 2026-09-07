@@ -10,6 +10,11 @@ export const messageOf = (o) => o.customerMessage || o.customer_message || '';
 export const groupIdOf = (o) => o.groupId || o.group_id || null;
 export const isPriority = (o) => !!(o.vip || o.priority);
 export const priceOf = (o) => o.priceFormatted || o.price_formatted || null;
+// DECAF is a bean, not a note. A customer who asks for it is often asking
+// for a reason -- it must be impossible to miss on the card, and it was
+// missing entirely: the order carried beanType 'decaf' and nothing on the
+// barista's screen said so.
+export const isDecaf = (o) => /decaf/i.test(String(o.beanType || o.bean_type || ''));
 
 export const hasPhone = (o) => {
   if (o.hasPhone !== undefined) return !!o.hasPhone;

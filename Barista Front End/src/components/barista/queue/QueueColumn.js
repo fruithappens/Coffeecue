@@ -16,7 +16,7 @@ import WorkTypeBadge from '../WorkTypeBadge';
 import AskCustomerControls from '../AskCustomerControls';
 import { summariseMilk, filterByMilk } from '../../../utils/currentOrderView';
 import { parseServerDate } from '../../../utils/orderUtils';
-import { orderNumberOf, drinkLine, milkSugarLine, notesOf, messageOf, groupIdOf, isPriority, priceOf, hasPhone, sinceQueued, sinceStarted, sinceReady } from './orderMeta';
+import { orderNumberOf, drinkLine, milkSugarLine, notesOf, messageOf, groupIdOf, isPriority, priceOf, hasPhone, isDecaf, sinceQueued, sinceStarted, sinceReady } from './orderMeta';
 
 const READY_RECENCY_MIN = 30;
 const NO_SMS_EXPIRY_MULTIPLIER = 2;
@@ -40,7 +40,10 @@ const Empty = ({ Icon = Coffee, title, hint }) => (
 );
 
 const toCard = (o) => ({
-  number: orderNumberOf(o), name: o.customerName || o.customer_name || '', drink: drinkLine(o),
+  number: orderNumberOf(o), name: o.customerName || o.customer_name || '',
+  // Decaf leads the drink line as well as wearing a badge: on the bench you
+  // read the drink, not the badges.
+  drink: `${isDecaf(o) ? 'DECAF ' : ''}${drinkLine(o)}`,
   milk: o.milkType || o.milk_type || null, sugar: [o.sugar || null, o.extraHot ? 'Extra hot' : null].filter(Boolean).join(' · ') || null,
   notes: notesOf(o), message: messageOf(o),
 });
@@ -150,6 +153,7 @@ export default function QueueColumn({
 
   const badgesFor = (o) => (
     <>
+      {isDecaf(o) ? <Pill tone="alert" size="sm">Decaf</Pill> : null}
       {isPriority(o) ? <Pill tone="roast" size="sm">Priority</Pill> : null}
       <GroupBadge info={groupInfoByOrderId[o.id]} />
       <SourceBadge order={o} />
