@@ -136,7 +136,14 @@ def add_security_headers(response):
         # personal data — the staff screens, which do, keep
         # frame-ancestors 'none' and X-Frame-Options: DENY.
         None if embeddable else "frame-ancestors 'none'",
-        "upgrade-insecure-requests"
+        # Only over https. The local test copy is served over plain http on
+        # a LAN address; asking the browser to upgrade every request to
+        # https there breaks the bundle (ERR_SSL_PROTOCOL_ERROR on
+        # 192.168.x.x). Production is always https behind Cloudflare, so
+        # nothing changes there.
+        "upgrade-insecure-requests" if (
+            request.is_secure or request.headers.get('X-Forwarded-Proto', '').lower() == 'https'
+        ) else None,
     ]
     response.headers['Content-Security-Policy'] = "; ".join(
         d for d in csp_directives if d)
