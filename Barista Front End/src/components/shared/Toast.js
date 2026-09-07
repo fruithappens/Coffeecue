@@ -30,7 +30,11 @@ const Toast = ({ message, type = 'info', duration = 3000, onClose }) => {
   };
 
   return (
-    <div className={`fixed top-4 right-4 ${colors[type]} text-white px-4 py-3 rounded-lg shadow-lg flex items-center space-x-3 z-50 animate-slide-in`}>
+    // `relative`, NOT `fixed`. ToastManager already positions the stack and
+    // spaces it; every toast being fixed to the same corner meant two at once
+    // landed exactly on top of each other, so only the last one could be read
+    // -- and a low-stock warning could bury the message you needed.
+    <div className={`relative ${colors[type]} text-white px-4 py-3 rounded-lg shadow-lg flex items-center space-x-3 animate-slide-in`}>
       {icons[type]}
       <span className="flex-1">{message}</span>
       <button
