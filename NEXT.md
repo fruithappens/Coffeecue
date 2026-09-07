@@ -56,6 +56,8 @@ Branch: `next` (never auto-deploys; Railway only deploys `main`). Every screen s
   CUSTOMER form (`display/KioskOrder`, `channel='walkin'`, `stationId` = this station) — same drink questions,
   sizes, "Add another coffee" (group `/api/display/order-group`), "Collect here / Fastest". Stamped
   channel+surface `barista`, `order_type` walk-in (route tweak). `dialogs/WalkInOrderDialog.js` deleted.
+  Sort (Steve: newest was on top, old ones at risk): Oldest (default, fair queue, priority on top) · Newest · Milk ·
+  VIP only; age = server waitTime; per-device (`coffee_cue_queue_sort`); the bench follows the same sort.
   Checkpoint: the rush drill — 30 orders in 90 s worked through the UI (`scratchpad capture/rush_drill.js`
   headless; Steve on the iPad for real).
 

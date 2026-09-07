@@ -244,7 +244,7 @@ export default function QueueColumn({
         <div className="flex-1 min-h-0 flex gap-5">
           <Lane title="Making" count={inProgressOrders.length} grow={showReady ? 'basis-[44%]' : 'basis-1/2'} sub={steam}>{makingBody}</Lane>
           <Lane title="Up next" count={upNext.length} grow={showReady ? 'basis-[32%]' : 'basis-1/2'} sub={sortControl}>{rushStrip ? <div className="mb-3">{rushStrip}</div> : null}{nextBody}</Lane>
-          {showReady ? <Lane title="Ready to hand over" count={ready.length} tone="ready" grow="basis-[24%]">{readyBody}</Lane> : null}
+          {showReady ? <Lane title="Ready" count={ready.length} tone="ready" grow="basis-[24%]">{readyBody}</Lane> : null}
         </div>
       </div>
     );
