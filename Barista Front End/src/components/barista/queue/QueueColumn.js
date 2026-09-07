@@ -94,7 +94,16 @@ export default function QueueColumn({
   const printItem = (o) => stationPrinter ? { label: stationPrinter.online ? 'Print label' : 'Print label (printer offline, will queue)', Icon: Printer, onClick: () => onPrint && onPrint(o) } : null;
 
   return (
-    <div className="max-w-3xl mx-auto w-full">
+    <div className="max-w-4xl mx-auto w-full">
+      {/* The two things a barista reaches for between coffees: take a
+          walk-up order, and the station-level tools. Big, at the top,
+          never hidden in a section header (Steve could not find it). */}
+      <div className="flex items-center gap-2 mb-5">
+        {onWalkIn ? <Button size="lg" Icon={Plus} onClick={onWalkIn} className="flex-1 sm:flex-none sm:min-w-[16rem]">Walk-up order</Button> : null}
+        <div className="flex-1 hidden sm:block" />
+        <MoreMenu items={stationMenu} label="Station actions" direction="down" triggerClassName="!h-14 !w-14" />
+      </div>
+
       {/* ---------------- MAKING ---------------- */}
       <SectionHead title="Making" count={inProgressOrders.length}>
         {jugs.length ? (
@@ -141,13 +150,7 @@ export default function QueueColumn({
       )}
 
       {/* ---------------- UP NEXT ---------------- */}
-      <SectionHead title="Up next" count={upNext.length}>
-        {onWalkIn ? <Button size="sm" variant="secondary" Icon={Plus} onClick={onWalkIn}>Walk-in</Button> : null}
-        {/* Everything a station does to its WHOLE queue -- print it, make
-            ahead, hold the texts, tell waiting customers, refresh -- lives
-            behind this one button instead of a bar across the bottom. */}
-        <MoreMenu items={stationMenu} label="Station actions" direction="down" triggerClassName="!h-9 !w-9" />
-      </SectionHead>
+      <SectionHead title="Up next" count={upNext.length} />
       {upNext.length === 0 ? <Empty title="No one waiting" hint="New orders appear here as they come in" /> : (
         <div className="space-y-3">
           {upNext.map((o) => {

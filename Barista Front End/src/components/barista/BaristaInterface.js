@@ -2213,7 +2213,7 @@ const BaristaInterface = () => {
       style={uiZoom !== 1 ? { zoom: uiZoom, minHeight: `${100 / uiZoom}vh` } : undefined}
     >
       {/* Toast Notifications */}
-      <ToastManager />
+      <ToastManager position="bottom-center" />
 
       {/* Outbound-SMS-down alert — loud + always visible during service, the
           one signal that survives a total outbound outage (see component). */}
@@ -2270,8 +2270,11 @@ const BaristaInterface = () => {
               { id: 'orders', label: 'Queue', Icon: Coffee, count: pendingOrders.length + inProgressOrders.length },
               { id: 'stock', label: 'Stock', Icon: Package },
               { id: 'tools', label: 'Tools', Icon: Wrench },
+              // A manager tab opened from the lock appears as a fourth tab
+              // while it is open, so the way back is visible.
+              ...(['orders', 'stock', 'tools'].includes(activeTab) ? [] : [{ id: activeTab, label: ({ completed: 'Completed', inventory: 'Inventory', schedule: 'Schedule', capabilities: 'Capabilities', staff: 'Staff', queue: 'Queue rules', balance: 'Balance', settings: 'Station settings', display: 'Screens' })[activeTab] || 'More', Icon: Settings }]),
             ]}
-            active={['orders', 'stock', 'tools'].includes(activeTab) ? activeTab : null}
+            active={activeTab}
             onChange={setActiveTab}
           />
         </div>
@@ -2343,13 +2346,15 @@ const BaristaInterface = () => {
           {/* Batch suggestions are a planning aid, not something you read
               mid-rush. */}
           {!settings.rushMode && (
-          <RushMixStrip
-            pendingOrders={pendingOrders}
-            inProgressOrders={inProgressOrders}
-            stationName={currentStationObj?.name || `Station ${selectedStation}`}
-            onStartBatch={handleStartRushBatch}
-            onBatchComplete={handleBatchComplete}
-          />
+          <div className="max-w-4xl mx-auto w-full">
+            <RushMixStrip
+              pendingOrders={pendingOrders}
+              inProgressOrders={inProgressOrders}
+              stationName={currentStationObj?.name || `Station ${selectedStation}`}
+              onStartBatch={handleStartRushBatch}
+              onBatchComplete={handleBatchComplete}
+            />
+          </div>
           )}
           {/* ONE column: making, up next, ready. */}
           <QueueColumn
@@ -3905,6 +3910,7 @@ const BaristaInterface = () => {
           openPicker: () => { setAdminOpen(false); setPickerOpen(true); },
           openStationSettings: () => { setAdminOpen(false); setActiveTab('settings'); },
           openDisplaySettings: () => { setAdminOpen(false); setActiveTab('display'); },
+          openTab: (id) => { setAdminOpen(false); setActiveTab(id); },
           openSession: () => { setAdminOpen(false); setShowSessionReport(true); refreshSession(); },
           signOut: () => {
             try { localStorage.removeItem('coffee_cue_selected_station'); localStorage.removeItem('last_used_station_id'); } catch (e) { /* ignore */ }

@@ -2,7 +2,7 @@
 // zoom, refresh, version, sign out -- and the way out of an iPad's
 // standalone mode. Device things live here; menu things live in the runner.
 import React, { useEffect, useState } from 'react';
-import { X, Zap, Users, Volume2, VolumeX, ZoomIn, ZoomOut, RefreshCw, LogOut, Radio, Settings, Monitor, BarChart3, ExternalLink, Maximize2, Minimize2 } from 'lucide-react';
+import { X, Zap, Users, Volume2, VolumeX, ZoomIn, ZoomOut, RefreshCw, LogOut, Radio, Settings, Monitor, BarChart3, ExternalLink, Maximize2, Minimize2, Check, Package, Calendar, Brain, Scale, UserCog } from 'lucide-react';
 import { PinPanel, Button } from '../../../design';
 
 const Row = ({ Icon, label, hint, children }) => (
@@ -87,6 +87,25 @@ export default function AdminSheet({ open, onClose, state = {}, actions = {} }) 
             <Row Icon={Monitor} label="Screens" hint="Display settings and screen links"><Button size="sm" variant="secondary" onClick={actions.openDisplaySettings}>Open</Button></Row>
             <Row Icon={BarChart3} label="Session so far" hint="What has been made here today"><Button size="sm" variant="secondary" onClick={actions.openSession}>Open</Button></Row>
             <Row Icon={ExternalLink} label="Organiser tools" hint="Menu, stock, schedule, users, printers"><Button size="sm" variant="secondary" onClick={() => { window.location.href = '/organiser'; }}>Go</Button></Row>
+            {/* The manager tabs that used to sit on the barista's tab bar.
+                Nothing is lost: they are here, behind the PIN, until the
+                runner app (phase 5) takes them over. */}
+            {actions.openTab ? (
+              <div className="py-3 border-b border-cq-line">
+                <div className="font-bold text-cq-roast leading-tight">Manager tools on this tablet</div>
+                <div className="text-sm text-cq-ink-3">Moving to the runner app; here until then</div>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  {[
+                    ['completed', 'Completed orders', Check], ['inventory', 'Inventory', Package], ['schedule', 'Schedule', Calendar],
+                    ['capabilities', 'Capabilities', Settings], ['staff', 'Staff', UserCog], ['queue', 'Queue rules', Brain], ['balance', 'Balance', Scale],
+                  ].map(([id, label, Icon]) => (
+                    <button key={id} type="button" onClick={() => actions.openTab(id)} className="h-11 px-3 rounded-cq-md bg-cq-wash text-cq-roast font-semibold text-sm inline-flex items-center gap-2 hover:bg-cq-caramel-wash">
+                      <Icon size={16} strokeWidth={2.25} /><span className="truncate">{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             {(isStandalone || document.fullscreenElement) ? (
               <Row Icon={document.fullscreenElement ? Minimize2 : Maximize2} label={document.fullscreenElement ? 'Exit fullscreen' : 'Open in the browser'} hint="The way out of an iPad's home-screen app">
                 <Button size="sm" variant="secondary" onClick={() => { if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen(); else window.open(window.location.href, '_blank'); }}>Go</Button>
