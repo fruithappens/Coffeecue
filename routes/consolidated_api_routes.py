@@ -1471,6 +1471,115 @@ def heartbeat():
     return jsonify({'status': 'ok', 'service': 'expresso'})
 
 
+@bp.route('/orders/find', methods=['GET'])
+def find_my_order_public():
+    """Find MY order, from the customer's own phone, by the name it was put
+    under. No login: the person holding the phone has no account.
+
+    Steve: "they might not have entered a phone number, might not have a
+    badge number... worth it searching for the name people put it under and
+    the coffee order. Yes there is a chance another Tom ordered within 30
+    minutes at the same station and possibly the same coffee, but for someone
+    looking up a beacon that chance is minimal." So: match the name, then let
+    them pick from what came back -- the drink, the cart and how long ago are
+    what tell two Toms apart.
+
+    Deliberately narrow, because it is public:
+      * ACTIVE orders only (waiting, being made, or ready) -- history is not
+        searchable, so this cannot be used to trawl the event.
+      * the last two hours only.
+      * a name of two characters or more, matched from the START of the name,
+        so "t" does not return the room.
+      * at most eight, newest first.
+      * it returns exactly what the pickup board already shows in public --
+        first name, drink, cart, how long ago. NEVER a phone number.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        if not coffee_system or not getattr(coffee_system, 'db', None):
+            return jsonify({'success': False, 'orders': []}), 503
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+        name = (request.args.get('name') or '').strip()
+        if len(name) < 2:
+            return jsonify({'success': True, 'orders': [],
+                            'message': 'Type at least two letters of the name.'})
+
+        cur = db.cursor()
+        cur.execute(
+            """
+            SELECT order_number, status, station_id, created_at, order_details
+              FROM orders
+             WHERE status IN ('pending', 'in-progress', 'in_progress', 'completed')
+               -- created_at is naive UTC (the app stamps datetime.now()
+               -- on a UTC server); NOW() is the DATABASE's local clock, and
+               -- on a machine set to Adelaide that made every order look
+               -- 9.5 hours old and this search return nothing. Compare
+               -- like with like.
+               AND created_at > (NOW() AT TIME ZONE 'UTC') - INTERVAL '2 hours'
+             ORDER BY created_at DESC
+             LIMIT 200
+            """)
+        wanted = name.lower()
+        out = []
+        for row in cur.fetchall():
+            (num, status, station_id, created_at, details) = (
+                (row.get('order_number'), row.get('status'), row.get('station_id'),
+                 row.get('created_at'), row.get('order_details'))
+                if isinstance(row, dict) else row)
+            try:
+                d = json.loads(details) if isinstance(details, str) else (details or {})
+            except Exception:
+                d = {}
+            who = str(d.get('name') or '').strip()
+            if not who or not who.lower().startswith(wanted):
+                continue
+            mins = 0
+            try:
+                mins = max(0, int((datetime.utcnow() - created_at).total_seconds() // 60))
+            except Exception:
+                pass
+            drink = ' '.join(str(x) for x in (d.get('size'), d.get('type')) if x).strip()
+            milk = str(d.get('milk') or '').strip()
+            out.append({
+                'order_number': num,
+                'name': who,
+                'drink': drink or 'Coffee',
+                'milk': milk,
+                'status': status,
+                'station_id': station_id,
+                'minutes_ago': mins,
+            })
+            if len(out) >= 8:
+                break
+
+        # Name the cart, so two Toms with the same drink are still telling.
+        try:
+            from utils.station_label import station_label
+            labels = {}
+            for o in out:
+                sid = o.get('station_id')
+                if sid is not None and sid not in labels:
+                    labels[sid] = station_label(db, sid) or f'Station {sid}'
+                o['station_name'] = labels.get(sid, '')
+        except Exception:
+            for o in out:
+                o['station_name'] = f"Station {o.get('station_id')}" if o.get('station_id') else ''
+
+        return jsonify({'success': True, 'orders': out})
+    except Exception as e:
+        logger.error(f"find_my_order_public error: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'orders': []}), 200
+
+
 @bp.route('/orders/search', methods=['GET'])
 @jwt_required_with_demo()
 def search_orders():
