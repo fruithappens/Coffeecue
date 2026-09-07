@@ -474,7 +474,42 @@ def orders():
                 query += " ORDER BY queue_priority, created_at ASC"
                 cursor.execute(query, query_params)
             else:
-                query = base_query + " ORDER BY created_at DESC LIMIT 50"
+                # The unfiltered listing is what the BARISTA BOARD polls, and
+                # it had two faults that cost real orders.
+                #
+                # 1. It ordered newest first, so the board read backwards:
+                #    a fresh order sat above someone who had waited 25 minutes,
+                #    and the longest wait sank down the screen.
+                # 2. `LIMIT 50` counted EVERY status. At a busy event most
+                #    recent rows are picked-up and cancelled history -- on the
+                #    Treenet data, 40 of any 50 -- so a pending order older
+                #    than that window simply stopped being returned. It was
+                #    still pending in the database, its customer had been told
+                #    it was coming, and no barista could see it. 96 completed
+                #    orders awaiting collection were outside the window too.
+                #
+                # So: the WORK is never truncated. Every pending and
+                # in-progress order comes back, however old. Completed orders
+                # (the "ready to hand over" column) keep a generous cap, and
+                # picked-up / cancelled rows are history and keep the small
+                # one. Oldest first -- the same fair order the filtered branch
+                # above has always used.
+                #
+                # (routes/api_routes.py has a twin of this endpoint with the
+                # same fault; it is shadowed -- consolidated_api_bp registers
+                # first -- so it is dead code, left alone deliberately.)
+                _ACTIVE = "('pending', 'in-progress', 'in_progress')"
+                query = (
+                    "(" + base_query + " WHERE status IN " + _ACTIVE + ")"
+                    " UNION ALL "
+                    "(" + base_query + " WHERE status = 'completed'"
+                    " ORDER BY created_at DESC LIMIT 200)"
+                    " UNION ALL "
+                    "(" + base_query + " WHERE status NOT IN " + _ACTIVE +
+                    " AND status <> 'completed'"
+                    " ORDER BY created_at DESC LIMIT 50)"
+                    " ORDER BY queue_priority, created_at ASC"
+                )
                 cursor.execute(query)
             
             # Process orders

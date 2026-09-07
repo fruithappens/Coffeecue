@@ -58,6 +58,15 @@ Branch: `next` (never auto-deploys; Railway only deploys `main`). Every screen s
   channel+surface `barista`, `order_type` walk-in (route tweak). `dialogs/WalkInOrderDialog.js` deleted.
   Sort (Steve: newest was on top, old ones at risk): Oldest (default, fair queue, priority on top) · Newest · Milk ·
   VIP only; age = server waitTime; per-device (`coffee_cue_queue_sort`); the bench follows the same sort.
+  Unlock window: a correct PIN unlocks the tablet for 10 min (sessionStorage `coffee_cue_unlocked_until`;
+  header lock shows UNLOCKED; "Lock now" in the sheet; sign out relocks). Every non-queue page shows the tab
+  bar (even in rush mode) and a "Back to the queue" button.
+  The sweep: `src/design/legacy.css` re-points the old Tailwind colour classes at the palette inside
+  `.cq-legacy` (grey→warm ink/cream, amber→caramel/roast, blue→caramel, green/red stay attention). Applied
+  to the barista's non-queue tabs, `/organiser` and `/support`. Each page is still rebuilt properly in its
+  own phase; this makes them one family meanwhile. build.sh runs eslint `no-undef` + `react/jsx-no-undef`
+  on the barista screen + design system before building (a cleanup once cut `SoundChoiceRows`, which
+  compiled fine and crashed the settings tab into the error boundary).
   Checkpoint: the rush drill — 30 orders in 90 s worked through the UI (`scratchpad capture/rush_drill.js`
   headless; Steve on the iPad for real).
 
