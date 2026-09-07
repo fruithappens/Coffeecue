@@ -266,17 +266,20 @@ def create_station():
         equipment_notes = data.get('equipment_notes') or data.get('location')
         now = datetime.now()
 
+        # notes/equipment_notes are what this API reads back as name and
+        # location; name/location are the twin columns other readers use.
+        # Write both at birth so they never disagree.
         cursor.execute("""
             INSERT INTO station_stats
             (station_id, status, current_load, total_orders,
              avg_completion_time, barista_name, last_updated,
-             notes, equipment_notes)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+             notes, equipment_notes, name, location)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING *
         """, (
             station_id, status, current_load, total_orders,
             avg_completion_time, barista_name, now,
-            notes, equipment_notes,
+            notes, equipment_notes, notes, equipment_notes,
         ))
 
         db.commit()
