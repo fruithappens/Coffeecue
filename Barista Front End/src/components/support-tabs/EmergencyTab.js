@@ -35,7 +35,7 @@ const EmergencyTab = () => {
 
   // Read the real state on mount. Both switches live in the settings
   // table, so a page refresh (or a second support laptop) used to show
-  // "Stop All Operations" while operations were already stopped — the
+  // "Stop everything" while operations were already stopped — the
   // buttons reflected React's initial state, not the system's.
   useEffect(() => {
     let cancelled = false;
@@ -105,7 +105,7 @@ const EmergencyTab = () => {
 
   // Emergency Actions
   const stopAllOperations = () => {
-    requireConfirmation('Stop All Operations', async () => {
+    requireConfirmation('Stop everything', async () => {
       await ApiService.post('/emergency/stop-all');
       setEmergencyMode(true);
     });
@@ -125,7 +125,7 @@ const EmergencyTab = () => {
   };
 
   const resetAllStations = () => {
-    requireConfirmation('Reset All Stations', async () => {
+    requireConfirmation('Reset all stations', async () => {
       await ApiService.post('/emergency/reset-stations');
     });
   };
@@ -149,7 +149,7 @@ const EmergencyTab = () => {
       setBackupStatus('creating');
       const response = await ApiService.post('/emergency/backup');
       setBackupStatus('completed');
-      logAction('Create Backup', 'success', response.data.filename);
+      logAction('Create a backup', 'success', response.data.filename);
       
       // Download backup
       const blob = new Blob([JSON.stringify(response.data.backup)], { 
@@ -162,7 +162,7 @@ const EmergencyTab = () => {
       a.click();
     } catch (error) {
       setBackupStatus('failed');
-      logAction('Create Backup', 'failed', error.message);
+      logAction('Create a backup', 'failed', error.message);
     }
   };
 
@@ -198,12 +198,12 @@ const EmergencyTab = () => {
   return (
     <div className="space-y-6">
       {/* Emergency Status */}
-      <Card className={emergencyMode ? 'border-red-500' : ''}>
+      <Card className={emergencyMode ? 'border-cq-alert' : ''}>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <span className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-red-500" />
-              Emergency Controls
+              <AlertTriangle className="h-5 w-5 text-cq-alert" />
+              Emergency controls
             </span>
             <div className="flex items-center gap-2">
               {emergencyMode && (
@@ -220,8 +220,8 @@ const EmergencyTab = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-            <p className="text-sm text-red-800">
+          <div className="bg-cq-alert-wash rounded-lg p-4 mb-4">
+            <p className="text-sm text-cq-alert">
               <strong>WARNING:</strong> These controls can significantly impact system operations. 
               Use only in emergency situations. All actions are logged and require confirmation.
             </p>
@@ -232,7 +232,7 @@ const EmergencyTab = () => {
       {/* Quick Actions */}
       <Card>
         <CardHeader>
-          <CardTitle>Quick Emergency Actions</CardTitle>
+          <CardTitle>Quick actions</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -250,7 +250,7 @@ const EmergencyTab = () => {
               ) : (
                 <>
                   <StopCircle className="h-6 w-6 mr-2" />
-                  Stop All Operations
+                  Stop everything
                 </>
               )}
             </Button>
@@ -272,7 +272,7 @@ const EmergencyTab = () => {
               ) : (
                 <>
                   <Lock className="h-6 w-6 mr-2" />
-                  Stop Taking New Orders
+                  Stop taking new orders
                 </>
               )}
             </Button>
@@ -280,27 +280,27 @@ const EmergencyTab = () => {
         </CardContent>
       </Card>
 
-      {/* System Reset Options */}
+      {/* Reset */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <RefreshCw className="h-5 w-5" />
-            System Reset Options
+            Reset
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
             <Button
               variant="outline"
-              className="w-full justify-start text-red-600"
+              className="w-full justify-start text-cq-alert"
               onClick={clearAllQueues}
               disabled={Object.keys(confirmations).length > 0}
             >
               <Coffee className="h-4 w-4 mr-2" />
-              Clear All Order Queues
+              Clear every queue
             </Button>
 
-            {/* Reset All Stations / Purge Old Data / RESET ENTIRE
+            {/* Reset all stations / Purge Old Data / RESET ENTIRE
                 DATABASE are hidden — their backend endpoints don't
                 exist yet (see audit batch F). Leaving them visible
                 would silently 404 in an actual emergency, which is
@@ -309,12 +309,12 @@ const EmergencyTab = () => {
         </CardContent>
       </Card>
 
-      {/* Backup & Restore */}
+      {/* Backup */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Database className="h-5 w-5" />
-            Backup & Restore
+            Backup
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -325,17 +325,17 @@ const EmergencyTab = () => {
                 disabled={backupStatus === 'creating'}
               >
                 <Download className="h-4 w-4 mr-2" />
-                {backupStatus === 'creating' ? 'Creating...' : 'Create Backup'}
+                {backupStatus === 'creating' ? 'Creating...' : 'Create a backup'}
               </Button>
               {/* Restore from Backup is hidden — /api/emergency/restore
                   doesn't exist on the backend. */}
             </div>
             
             {backupStatus === 'completed' && (
-              <p className="text-sm text-green-600">Backup created successfully</p>
+              <p className="text-sm text-cq-ready">Backup created successfully</p>
             )}
             {backupStatus === 'failed' && (
-              <p className="text-sm text-red-600">Backup failed</p>
+              <p className="text-sm text-cq-alert">Backup failed</p>
             )}
           </div>
         </CardContent>
@@ -343,9 +343,9 @@ const EmergencyTab = () => {
 
       {/* Confirmations */}
       {Object.entries(confirmations).map(([key, confirm]) => (
-        <Card key={key} className="border-yellow-500">
+        <Card key={key} className="border-cq-warn">
           <CardHeader>
-            <CardTitle className="text-yellow-700">Confirm Action</CardTitle>
+            <CardTitle className="text-cq-warn">Are you sure?</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="mb-4">
@@ -380,16 +380,16 @@ const EmergencyTab = () => {
           did not need to exist. */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-gray-500">
+          <CardTitle className="flex items-center gap-2 text-cq-ink-3">
             <AlertCircle className="h-5 w-5" />
             Not on this tab
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-gray-600 mb-2">
+          <p className="text-sm text-cq-ink-2 mb-2">
             These live elsewhere, and the versions there are safer:
           </p>
-          <ul className="text-sm text-gray-600 space-y-1 list-disc list-inside">
+          <ul className="text-sm text-cq-ink-2 space-y-1 list-disc list-inside">
             <li>
               <strong>Restore from a backup</strong> — Organiser &rarr; Settings
               &rarr; Event Data &rarr; Import
@@ -400,10 +400,10 @@ const EmergencyTab = () => {
               inventory and users; asks you to type WIPE first.
             </li>
           </ul>
-          <p className="text-sm text-gray-600 mt-3 mb-1">Still to build:</p>
-          <ul className="text-sm text-gray-600 space-y-1 list-disc list-inside">
+          <p className="text-sm text-cq-ink-2 mt-3 mb-1">Still to build:</p>
+          <ul className="text-sm text-cq-ink-2 space-y-1 list-disc list-inside">
             <li>
-              <strong>Reset All Stations</strong> — a bulk version of taking
+              <strong>Reset all stations</strong> — a bulk version of taking
               stations offline one at a time in Station Settings.
             </li>
           </ul>
@@ -415,13 +415,13 @@ const EmergencyTab = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Shield className="h-5 w-5" />
-            Emergency Action Log
+            What has been done
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="max-h-64 overflow-y-auto">
             {actionLog.length === 0 ? (
-              <p className="text-sm text-gray-500">No emergency actions taken</p>
+              <p className="text-sm text-cq-ink-3">Nothing has been done here.</p>
             ) : (
               <div className="space-y-2">
                 {actionLog.map((entry, index) => (
@@ -432,7 +432,7 @@ const EmergencyTab = () => {
                         {entry.status}
                       </Badge>
                     </div>
-                    <div className="text-sm text-gray-600">
+                    <div className="text-sm text-cq-ink-2">
                       <p>{new Date(entry.timestamp).toLocaleString()}</p>
                       <p>By: {entry.user}</p>
                       {entry.details && <p>Details: {entry.details}</p>}

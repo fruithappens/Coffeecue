@@ -125,11 +125,11 @@
     "label": "People · Roles & access",
     "file": "users-access.png",
     "selects": 1,
-    "inputs": 1,
+    "inputs": 0,
     "grey": 0,
-    "legacy": 14,
-    "cq": 34,
-    "old": 5
+    "legacy": 6,
+    "cq": 45,
+    "old": 2
   },
   {
     "hash": "live/readiness",
@@ -148,10 +148,10 @@
     "file": "live-board.png",
     "selects": 0,
     "inputs": 0,
-    "grey": 13,
-    "legacy": 46,
+    "grey": 15,
+    "legacy": 54,
     "cq": 35,
-    "old": 17
+    "old": 20
   },
   {
     "hash": "live/metrics",
@@ -170,10 +170,10 @@
     "file": "orders-all.png",
     "selects": 2,
     "inputs": 1,
-    "grey": 106,
-    "legacy": 321,
+    "grey": 108,
+    "legacy": 325,
     "cq": 34,
-    "old": 136
+    "old": 138
   },
   {
     "hash": "orders/groups",
@@ -224,11 +224,11 @@
     "label": "Messages · Blocked numbers",
     "file": "messages-blocked.png",
     "selects": 0,
-    "inputs": 1,
+    "inputs": 0,
     "grey": 0,
-    "legacy": 5,
-    "cq": 36,
-    "old": 2
+    "legacy": 0,
+    "cq": 43,
+    "old": 0
   },
   {
     "hash": "screens",
@@ -281,9 +281,9 @@
     "selects": 1,
     "inputs": 0,
     "grey": 20,
-    "legacy": 63,
-    "cq": 34,
-    "old": 26
+    "legacy": 53,
+    "cq": 48,
+    "old": 24
   },
   {
     "hash": "eventsair",
@@ -301,11 +301,11 @@
     "label": "Settings",
     "file": "settings.png",
     "selects": 0,
-    "inputs": 4,
+    "inputs": 0,
     "grey": 0,
-    "legacy": 15,
-    "cq": 31,
-    "old": 7
+    "legacy": 0,
+    "cq": 64,
+    "old": 0
   },
   {
     "hash": "emergency",
@@ -313,10 +313,10 @@
     "file": "emergency.png",
     "selects": 0,
     "inputs": 0,
-    "grey": 1,
-    "legacy": 12,
-    "cq": 31,
-    "old": 3
+    "grey": 0,
+    "legacy": 0,
+    "cq": 49,
+    "old": 0
   },
   {
     "hash": "help",

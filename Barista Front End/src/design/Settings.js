@@ -121,7 +121,7 @@ export function SelectRow({ value, options, onChange, ariaLabel }) {
 // on purpose, so typing does not fire a PUT per keystroke. Anything else --
 // disabled, maxLength, inputMode -- passes straight through.
 export function TextField({ value, onChange, placeholder, type = 'text',
-                            width = 'w-full max-w-xs', ...rest }) {
+                            width = 'w-full max-w-xs', className = '', ...rest }) {
   const controlled = value !== undefined && typeof onChange === 'function';
   return (
     <input
@@ -130,7 +130,7 @@ export function TextField({ value, onChange, placeholder, type = 'text',
       {...rest}
       className={`${width} h-10 rounded-cq-md border-2 border-cq-line bg-cq-milk px-3
                   text-cq-roast placeholder:text-cq-ink-3
-                  focus:border-cq-caramel focus:outline-none disabled:opacity-50`}
+                  focus:border-cq-caramel focus:outline-none disabled:opacity-50 ${className}`}
     />
   );
 }

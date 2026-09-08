@@ -22,11 +22,11 @@ setting is wrong or the paragraph belongs in Help.
 A converted screen reads **legacy 0**. Nothing here is a judgement call — the
 numbers come from the live DOM, swept by `scratchpad/capture/ui_sweep.js`.
 
-Last swept: 2026-09-09 · **4 of 30 done**
+Last swept: 2026-09-09 · **7 of 30 done**
 
 ---
 
-## Done (4)
+## Done (7)
 
 ### Branding · Labels
 
@@ -36,6 +36,10 @@ Last swept: 2026-09-09 · **4 of 30 done**
 
 ![Messages · Tell everyone](messages-notice.png)
 
+### Messages · Blocked numbers
+
+![Messages · Blocked numbers](messages-blocked.png)
+
 ### Screens
 
 ![Screens](screens.png)
@@ -44,24 +48,32 @@ Last swept: 2026-09-09 · **4 of 30 done**
 
 ![Report](report.png)
 
+### Settings
+
+![Settings](settings.png)
+
+### Emergency
+
+![Emergency](emergency.png)
+
 ---
 
-## Still to do (26), worst first
+## Still to do (23), worst first
 
 | Screen | legacy | cq | selects | inputs |
 | --- | ---: | ---: | ---: | ---: |
-| [Orders · All](orders-all.png) | 321 | 34 | 2 | 1 |
+| [Orders · All](orders-all.png) | 325 | 34 | 2 | 1 |
 | [Branding · Sponsors](branding-sponsors.png) | 213 | 36 | 16 | 35 |
 | [Menu · Event Stock](menu-stock.png) | 130 | 35 | 0 | 14 |
 | [Branding · Logo & look](branding-logo.png) | 97 | 36 | 1 | 24 |
 | [Menu · Event Inventory](menu-inventory.png) | 78 | 35 | 0 | 10 |
 | [Quick Setup](quickSetup.png) | 72 | 31 | 4 | 43 |
-| [System · Diagnostics](system-diagnostics.png) | 63 | 34 | 1 | 0 |
 | [Live · Readiness](live-readiness.png) | 55 | 35 | 1 | 6 |
 | [Branding · Milk colours](branding-milk.png) | 54 | 36 | 0 | 9 |
+| [Live · Board](live-board.png) | 54 | 35 | 0 | 0 |
+| [System · Diagnostics](system-diagnostics.png) | 53 | 48 | 1 | 0 |
 | [System · Health](system-health.png) | 52 | 34 | 0 | 1 |
 | [Messages · Text blast](messages-broadcast.png) | 48 | 36 | 1 | 7 |
-| [Live · Board](live-board.png) | 46 | 35 | 0 | 0 |
 | [Live · Metrics](live-metrics.png) | 42 | 35 | 0 | 0 |
 | [EventsAir](eventsair.png) | 35 | 31 | 0 | 7 |
 | [Schedule](schedule.png) | 32 | 31 | 0 | 1 |
@@ -69,12 +81,9 @@ Last swept: 2026-09-09 · **4 of 30 done**
 | [Printers](printers.png) | 26 | 31 | 10 | 9 |
 | [Stations](stations.png) | 18 | 31 | 0 | 0 |
 | [Orders · Groups](orders-groups.png) | 15 | 34 | 4 | 5 |
-| [Settings](settings.png) | 15 | 31 | 0 | 4 |
-| [People · Roles & access](users-access.png) | 14 | 34 | 1 | 1 |
-| [Emergency](emergency.png) | 12 | 31 | 0 | 0 |
 | [Menu · Station Inventory](menu-stationInventory.png) | 9 | 35 | 0 | 0 |
 | [Help](help.png) | 9 | 31 | 0 | 0 |
 | [People](users-people.png) | 7 | 34 | 1 | 1 |
-| [Messages · Blocked numbers](messages-blocked.png) | 5 | 36 | 0 | 1 |
+| [People · Roles & access](users-access.png) | 6 | 45 | 1 | 0 |
 
 Shots of these are in this folder too — they are the *before*.
