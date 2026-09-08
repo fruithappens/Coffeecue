@@ -12612,6 +12612,122 @@ def get_today_report():
                            'hint': 'See the App errors section — a barista screen may have glitched.'})
 
 
+        # --- WHAT WE COULD NOT SERVE ---------------------------------
+        # Steve: "requests that could not be met". The report counted what we
+        # sold and was silent about what we turned away, which is the half a
+        # publican would actually act on.
+        #
+        # The ordering screen has been logging UNAVAILABLE_TAP all along --
+        # someone tapping a drink or milk that is switched off, with the item
+        # and, for a milk, the drink they were building. Nobody ever looked at
+        # it. That tap IS the question people were asking at the cart ("is
+        # there decaf?", "do you have oat?"), already counted.
+        unmet = {'taps': [], 'tap_total': 0, 'questions_unanswered': 0,
+                 'cancelled': 0}
+        try:
+            _ex("""
+                SELECT COALESCE(payload->>'kind', 'item') AS kind,
+                       COALESCE(payload->>'item', '?')    AS item,
+                       COUNT(*)                           AS n
+                FROM client_events
+                WHERE code = 'UNAVAILABLE_TAP'
+                  AND occurred_at >= %(d0)s AND occurred_at < %(d1)s
+                GROUP BY 1, 2
+                ORDER BY n DESC
+                LIMIT 12
+            """)
+            unmet['taps'] = [{'kind': r[0], 'item': r[1], 'count': int(r[2])}
+                             for r in cur.fetchall()]
+            unmet['tap_total'] = sum(t['count'] for t in unmet['taps'])
+        except Exception as e:
+            logger.warning(f"report unavailable taps failed: {e}")
+        try:
+            _ex("""
+                SELECT COUNT(*) FROM customer_questions
+                WHERE created_at >= %(d0)s AND created_at < %(d1)s
+                  AND (response IS NULL OR response = '')
+            """)
+            r = cur.fetchone()
+            unmet['questions_unanswered'] = int(r[0]) if r else 0
+        except Exception as e:
+            logger.warning(f"report unanswered questions failed: {e}")
+        unmet['cancelled'] = int(status_counts.get('cancelled', 0))
+
+        # --- TIMES ----------------------------------------------------
+        # "Average wait" alone hides the tail: a 13 minute mean with a 40
+        # minute worst case is a very different day from a flat 13, and the
+        # person who waited 40 is the one who remembers it.
+        times = {'first': None, 'last': None, 'span_hours': None, 'days': 0,
+                 'wait_median': None, 'wait_p90': None, 'wait_worst': None,
+                 'per_day': []}
+        try:
+            # Per LOCAL day, then summed. Taking MIN and MAX across the whole
+            # window gave a two-day event a 32.7 hour "service span", which is
+            # the wall clock from the first coffee on Thursday to the last on
+            # Friday -- including the night. Hours actually serving is the
+            # number that means something.
+            _ex("""
+                SELECT d, MIN(t) AS first_t, MAX(t) AS last_t
+                FROM (
+                    SELECT (created_at AT TIME ZONE 'UTC'
+                            AT TIME ZONE %(tz)s) AS t,
+                           (created_at AT TIME ZONE 'UTC'
+                            AT TIME ZONE %(tz)s)::date AS d
+                    FROM orders
+                    WHERE created_at >= %(d0)s AND created_at < %(d1)s
+                ) q
+                GROUP BY d ORDER BY d
+            """)
+            rows = cur.fetchall()
+            if rows:
+                times['first'] = rows[0][1].strftime('%H:%M')
+                times['last'] = rows[-1][2].strftime('%H:%M')
+                times['span_hours'] = round(sum(
+                    (r[2] - r[1]).total_seconds() / 3600.0 for r in rows), 1)
+                times['days'] = len(rows)
+                # Per day as well as summed: Treenet's day one ran 06:35 to
+                # 22:50 on the back of four stragglers after 6pm, and a single
+                # "24.4 hours serving" hides that completely.
+                times['per_day'] = [
+                    {'date': r[0].isoformat(),
+                     'first': r[1].strftime('%H:%M'),
+                     'last': r[2].strftime('%H:%M')} for r in rows]
+            _ex("""
+                SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY w),
+                       percentile_cont(0.9) WITHIN GROUP (ORDER BY w),
+                       MAX(w)
+                FROM (
+                    SELECT EXTRACT(EPOCH FROM (updated_at - created_at))/60.0 AS w
+                    FROM orders
+                    WHERE created_at >= %(d0)s AND created_at < %(d1)s
+                      AND status IN ('completed', 'picked_up')
+                      AND updated_at IS NOT NULL
+                ) q
+            """)
+            r = cur.fetchone()
+            if r and r[0] is not None:
+                times['wait_median'] = round(float(r[0]), 1)
+                times['wait_p90'] = round(float(r[1]), 1)
+                times['wait_worst'] = round(float(r[2]), 1)
+        except Exception as e:
+            logger.warning(f"report times failed: {e}")
+
+        # --- HOW THEY ORDERED -----------------------------------------
+        # Worth knowing before deciding whether the text line earns its cost.
+        channels = []
+        try:
+            _ex("""
+                SELECT COALESCE(order_details::jsonb->>'channel', 'unknown') AS ch,
+                       COUNT(*) AS n
+                FROM orders
+                WHERE created_at >= %(d0)s AND created_at < %(d1)s
+                GROUP BY 1 ORDER BY n DESC
+            """)
+            channels = [{'channel': r[0], 'orders': int(r[1])}
+                        for r in cur.fetchall()]
+        except Exception as e:
+            logger.warning(f"report channels failed: {e}")
+
         # --- BEANS ---------------------------------------------------
         # The report described the milk in detail and never once mentioned
         # coffee, which is the thing you actually have to order more of.
@@ -12705,6 +12821,9 @@ def get_today_report():
             'window': window_label,
             'timezone': tzname,
             'beans': beans,
+            'unmet': unmet,
+            'times': times,
+            'channels': channels,
             'date': datetime.now().date().isoformat(),
             'total_orders': total,
             'status_breakdown': status_counts,

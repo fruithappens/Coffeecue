@@ -10,7 +10,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   BarChart3, Clock, Coffee, Printer, Mail, AlertTriangle, Info, Milk, Users,
-  Package,
+  Package, Ban, Timer, Smartphone,
 } from 'lucide-react';
 import AuthService from '../../services/AuthService';
 
@@ -307,6 +307,94 @@ export default function ReportTab() {
                   ? ` ${d.beans.no_recipe} order(s) had no recipe and are not counted.`
                   : ''}
               </p>
+            </Card>
+          )}
+
+          <div className="grid gap-5 lg:grid-cols-2">
+            <Card title="Times" Icon={Timer}>
+              <div className="space-y-1.5 text-sm">
+                {(d.times?.per_day || []).map((x) => (
+                  <div key={x.date} className="flex justify-between gap-3">
+                    <span className="text-cq-ink-3">{fmtDay(x.date)}</span>
+                    <span className="font-semibold text-cq-roast tabular-nums">
+                      {x.first} – {x.last}
+                    </span>
+                  </div>
+                ))}
+                {d.times?.span_hours != null && (
+                  <div className="flex justify-between gap-3 pt-1.5 border-t border-cq-line">
+                    <span className="text-cq-ink-3">Serving, all up</span>
+                    <span className="font-semibold text-cq-roast tabular-nums">
+                      {d.times.span_hours} hours
+                    </span>
+                  </div>
+                )}
+              </div>
+              {d.times?.wait_median != null && (
+                <div className="mt-4 pt-3 border-t border-cq-line text-sm space-y-1.5">
+                  <div className="flex justify-between">
+                    <span className="text-cq-ink-3">Half waited under</span>
+                    <span className="font-semibold text-cq-roast tabular-nums">
+                      {d.times.wait_median} min
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-cq-ink-3">9 in 10 waited under</span>
+                    <span className="font-semibold text-cq-roast tabular-nums">
+                      {d.times.wait_p90} min
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-cq-ink-3">The longest anyone waited</span>
+                    <span className="font-semibold text-cq-alert tabular-nums">
+                      {d.times.wait_worst} min
+                    </span>
+                  </div>
+                </div>
+              )}
+            </Card>
+
+            <Card title="Couldn't be served" Icon={Ban}>
+              {(d.unmet?.taps || []).length > 0 ? (
+                <>
+                  <p className="text-sm text-cq-ink-2 mb-2">
+                    Tapped on the ordering screen while switched off — the
+                    questions people were about to ask you:
+                  </p>
+                  {(d.unmet.taps || []).map((t) => (
+                    <Bar key={`${t.kind}-${t.item}`} label={`${t.item} (${t.kind})`}
+                         n={t.count}
+                         max={Math.max(...d.unmet.taps.map((x) => x.count))} />
+                  ))}
+                </>
+              ) : (
+                <p className="text-sm text-cq-ink-3">
+                  Nobody tapped anything that was switched off.
+                </p>
+              )}
+              <div className="mt-4 pt-3 border-t border-cq-line text-sm space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-cq-ink-3">Orders cancelled</span>
+                  <span className="font-semibold text-cq-roast tabular-nums">
+                    {d.unmet?.cancelled ?? 0}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-cq-ink-3">Questions nobody answered</span>
+                  <span className="font-semibold text-cq-roast tabular-nums">
+                    {d.unmet?.questions_unanswered ?? 0}
+                  </span>
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          {(d.channels || []).length > 0 && (
+            <Card title="How they ordered" Icon={Smartphone}>
+              {d.channels.map((c) => (
+                <Bar key={c.channel} label={c.channel} n={c.orders}
+                     max={Math.max(...d.channels.map((x) => x.orders))} />
+              ))}
             </Card>
           )}
 
