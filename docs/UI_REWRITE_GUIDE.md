@@ -6,6 +6,8 @@ already worked out, and without breaking a live ordering business.
 
 Read all of it before you touch a file. It is short.
 
+**Starting a session?** `docs/UI_REWRITE_PROMPT.md` has the prompt to paste in.
+
 ---
 
 ## 1. What the job actually is
