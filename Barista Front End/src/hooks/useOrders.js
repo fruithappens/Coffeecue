@@ -1789,14 +1789,25 @@ export default function useOrders(stationId = null) {
     }
     
     try {
-      // Check if this is a local order from our localStorage system
-      const orderToPickUp = completedOrders.find(o => o.id === orderId);
-      
-      if (!orderToPickUp) {
-        throw new Error(`Order with ID ${orderId} not found in completed orders`);
-      }
-      
-      const isLocalOrder = orderToPickUp.isLocalOrder || 
+      // Look it up for the optimistic update -- but do NOT require it.
+      //
+      // This used to throw when the order was not in `completedOrders`, BEFORE
+      // any call to the server. Steve, on the Treenet queue: "sometimes it
+      // seemed like it was stuck and could not select collected despite picked
+      // up." That is this. The moment the order left the local list -- a
+      // double tap, a second device, a refresh landing mid-action -- every
+      // further tap threw locally, the card un-hid itself, and the server
+      // never heard a thing. The button looked dead because it was.
+      //
+      // Ids are compared as strings: the API has handed back both numbers and
+      // strings over the years, and === between 42 and "42" is a silently dead
+      // button.
+      const sameId = (a, b) => String(a) === String(b);
+      const orderToPickUp = completedOrders.find(o => sameId(o.id, orderId))
+                         || previousOrders.find(o => sameId(o.id, orderId))
+                         || { id: orderId };
+
+      const isLocalOrder = orderToPickUp.isLocalOrder ||
                           orderId.toString().startsWith('local_order_');
       
       if (isLocalOrder) {
@@ -1836,13 +1847,18 @@ export default function useOrders(stationId = null) {
       // For regular orders, proceed with API call
       const result = await OrderDataService.markOrderPickedUp(orderId);
       
-      if (!result || !result.success) {
+      // "Already picked up" is the goal, not a failure. Two baristas tapping
+      // the same card must both end up with it gone, not with one of them
+      // staring at an error and a card that will not clear.
+      const already = /already|not found|picked ?up/i.test(
+        String(result?.message || ''));
+      if (!result || (!result.success && !already)) {
         const errorMessage = result?.message || 'Unknown error';
         throw new Error(`Failed to mark order as picked up: ${errorMessage}`);
       }
       
       // Optimistically update UI state
-      setCompletedOrders(prev => prev.filter(o => o.id !== orderId));
+      setCompletedOrders(prev => prev.filter(o => !sameId(o.id, orderId)));
       
       const pickedUpOrder = {
         ...orderToPickUp,
