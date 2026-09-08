@@ -229,6 +229,24 @@ it is more mechanical than it looks. Good second-day work.
 
 ---
 
+## 6b. Check what a screen is BUILT from, first
+
+Four support screens (Emergency, Diagnostics, Operations, Roles & access) are
+built on a **third** component set: `components/ui/*` — a shadcn-style layer of
+card / button / badge / input / select / switch / textarea. Its primitives were
+blue-and-grey Tailwind, which is why those screens never looked like the app
+however often the screens themselves were tidied.
+
+Restyling those seven small files onto the palette — same API, same variant
+names, only the colours — moved three screens nobody had opened:
+
+    Roles & access   14 -> 6
+    Diagnostics      63 -> 53
+    Emergency        12 -> 9
+
+**Restyling a shared primitive can be worth more than converting a screen.**
+Look at the imports before you start.
+
 ## 7. Traps
 
 - **Ids are strings.** `/api/orders` returns `id: '435'`. Comparing with

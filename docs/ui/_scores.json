@@ -168,12 +168,12 @@
     "hash": "orders/all",
     "label": "Orders · All",
     "file": "orders-all.png",
-    "selects": 2,
-    "inputs": 1,
-    "grey": 108,
-    "legacy": 325,
-    "cq": 34,
-    "old": 138
+    "selects": 0,
+    "inputs": 0,
+    "grey": 0,
+    "legacy": 0,
+    "cq": 717,
+    "old": 0
   },
   {
     "hash": "orders/groups",
