@@ -1,7 +1,13 @@
 // The PIN panel: a barista taps four digits to open the station's admin
-// settings (phase 4). Big keys, one hand, no keyboard. The dots fill as you
-// type; a wrong PIN shakes the dots red and clears.
-import React, { useState } from 'react';
+// settings (phase 4). Big keys, one hand. The dots fill as you type; a wrong
+// PIN shakes the dots red and clears.
+//
+// The keys were touch-only at first -- built for a tablet on a bench, where
+// there is no keyboard to type on. Steve, opening it on a laptop: "pin in
+// settings is only touchscreen or mouse no keypad, would be good to have
+// keypad as well." Fair. The on-screen keys stay exactly as they are; a real
+// keyboard now works too.
+import React, { useState, useEffect } from 'react';
 import { Delete, Lock, Check } from 'lucide-react';
 
 // A PIN is 4 to 6 digits (the organiser chooses). Six digits submit on
@@ -15,6 +21,28 @@ export default function PinPanel({ title = 'Station settings', hint = 'Enter the
     setPin(next);
     if (next.length === maxLength) submit(next);
   };
+  // A real keyboard, for anyone not on a tablet: digits type, Backspace
+  // deletes, Enter submits once there are enough digits. Bound to the window
+  // rather than an input, because the panel has no text field to focus -- the
+  // dots are the display.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key >= '0' && e.key <= '9') {
+        e.preventDefault();
+        press(e.key);
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        setPin((p) => p.slice(0, -1));
+      } else if (e.key === 'Enter' && pin.length >= minLength) {
+        e.preventDefault();
+        submit(pin);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
   const length = Math.max(minLength, pin.length);
   const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'ok', '0', 'del'];
   return (
@@ -24,6 +52,7 @@ export default function PinPanel({ title = 'Station settings', hint = 'Enter the
         <div>
           <div className="font-extrabold text-lg text-cq-roast leading-tight">{title}</div>
           <div className="text-sm text-cq-ink-3">{hint}</div>
+          <div className="text-xs text-cq-ink-3 mt-0.5">Tap the keys, or just type.</div>
         </div>
       </div>
       <div className={`mt-5 flex justify-center gap-3 ${error ? 'animate-pulse' : ''}`} aria-label={`${pin.length} of ${length} digits`}>

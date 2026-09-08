@@ -37,16 +37,30 @@ export default function QueueHeader({
     holding ? { text: `TEXTS HELD${holding.will_send ? ` · ${holding.will_send}` : ''}`, tone: 'alert', onClick: onTapHold, title: 'Customers are not being told their coffee is ready. Tap to release.' } : null,
     lowStock && lowStock.length ? { text: `LOW STOCK · ${lowStock.join(', ')}`, tone: 'alert', onClick: onTapLowStock, title: 'Restock, or turn the item off in Stock' } : null,
   ];
+  // Rush mode strips the header to buy screen space, and it used to take the
+  // watched-cart chips with it. Steve, watching a station and seeing nothing:
+  // "watching a station turn on but I can't see what it's watching, doesn't
+  // look like a pill turns on" -- then, working it out himself: "I was in rush
+  // mode, it was working, just hidden."
+  //
+  // Hiding it was the wrong half to cut. A watched chip carries another cart's
+  // queue count, which is worth MORE during a rush, not less. What is not
+  // worth the space mid-rush is the button for adding one -- that is a setup
+  // action, and the station name beside it still opens the picker.
   const chips = (
     <>
       {watched.map((s) => (
         <StationChip key={s.id} compact name={s.name} queue={s.queueCount ?? 0} status={s.status} onClick={() => onSelectStation && onSelectStation(s.id)} className="!bg-white/10 !border-white/20 !text-cq-cream" />
       ))}
-      <button type="button" onClick={onOpenPicker} className="h-9 px-3 rounded-full border-2 border-white/25 text-sm font-bold text-cq-cream/85 hover:bg-white/10 inline-flex items-center gap-1" title="Watch another station">
-        <Plus size={14} strokeWidth={3} />{watched.length ? '' : 'Watch'}
-      </button>
+      {!rushMode ? (
+        <button type="button" onClick={onOpenPicker} className="h-9 px-3 rounded-full border-2 border-white/25 text-sm font-bold text-cq-cream/85 hover:bg-white/10 inline-flex items-center gap-1" title="Watch another station">
+          <Plus size={14} strokeWidth={3} />{watched.length ? '' : 'Watch'}
+        </button>
+      ) : null}
     </>
   );
+  // In rush mode only the chips survive, and only if there are any.
+  const showChips = !rushMode || watched.length > 0;
   return (
     <header className={`bg-cq-roast text-cq-cream ${rushMode ? 'px-3 py-2' : 'px-4 py-3'}`}>
       {/* Row 1: this station, the watched carts, the lock. Row 2: the
@@ -58,7 +72,7 @@ export default function QueueHeader({
           <span className={`font-extrabold truncate ${rushMode ? 'text-lg' : 'text-2xl'}`}>{station?.name || 'Choose a station'}</span>
           <ChevronDown size={18} className="flex-shrink-0 opacity-80" />
         </button>
-        {!rushMode ? <div className="hidden sm:flex items-center gap-2 flex-wrap">{chips}</div> : null}
+        {showChips ? <div className="hidden sm:flex items-center gap-2 flex-wrap">{chips}</div> : null}
         <div className="flex-1" />
         <button
           type="button"
@@ -71,7 +85,7 @@ export default function QueueHeader({
         </button>
       </div>
       <div className={`flex flex-wrap items-center gap-x-4 gap-y-2 ${rushMode ? 'mt-1' : 'mt-2'}`}>
-        {!rushMode ? <div className="flex sm:hidden items-center gap-2 flex-wrap">{chips}</div> : null}
+        {showChips ? <div className="flex sm:hidden items-center gap-2 flex-wrap">{chips}</div> : null}
         <Status items={status} />
       </div>
     </header>
