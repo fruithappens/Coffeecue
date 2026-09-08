@@ -14,12 +14,8 @@ import QueueColumn from './queue/QueueColumn';
 import StationPicker from './queue/StationPicker';
 import AdminSheet from './queue/AdminSheet';
 import useLanesLayout from './queue/useLanesLayout';
-import { TabBar } from '../../design';
-import { 
-  Coffee, Package, Calendar, Check, Monitor, Settings,
-  MessageCircle, Printer, Clock,
-  Bell, XCircle, RefreshCw, Send, CheckCircle, Brain, Scale, Users, Wrench, Truck, ArrowRightLeft,   ArrowLeft,
-} from 'lucide-react';
+import { TabBar, SettingGroup, SettingRow, Toggle as CqToggle, Segmented, SelectRow, SettingNote } from '../../design';
+import { ArrowLeft, ArrowRightLeft, Bell, Brain, Calendar, Check, CheckCircle, Clock, Coffee, Eye, Grid, Hand, Layers, MessageCircle, Monitor, Package, Printer, RefreshCw, RotateCw, Scale, Send, Settings, Timer, Truck, Users, Wrench, XCircle } from 'lucide-react';
 
 // Import app mode context
 import { useAppMode } from '../../context/AppContext';
@@ -3493,156 +3489,111 @@ const BaristaInterface = () => {
               </div>
             </div>
             
-            <div className="bg-white rounded-lg shadow-md p-4 mb-4">
-              <h2 className="text-xl font-bold mb-4">Display Configuration</h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Layout
-                  </label>
-                  <select
-                    value={settings.displayMode}
-                    onChange={(e) => setSettings(prev => ({...prev, displayMode: e.target.value}))}
-                    className="w-full p-2 border rounded"
-                  >
-                    <option value="auto">Auto — match screen shape</option>
-                    <option value="landscape">Landscape (16:9) — 3 columns side-by-side</option>
-                    <option value="portrait">Portrait (9:16) — stacked, Ready on top</option>
-                    <option value="portrait-columns">Portrait (9:16) — side by side (Ready | Brewing)</option>
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">
-                    How the customer Display arranges the board. <strong>Landscape</strong> =
-                    columns across a wide screen. <strong>Portrait — stacked</strong> = Ready
-                    above Brewing on a tall screen. <strong>Portrait — side by side</strong> =
-                    Ready and Brewing as two columns across the top of a tall screen, freeing
-                    the lower half for the background image/video (great on a big vertical LCD).
-                    "Auto" picks stacked or landscape from the screen's shape.
-                  </p>
-                </div>
+            {/* Display Configuration, rebuilt on the settings vocabulary
+                (design/Settings.js). Steve, holding this page next to the
+                Station Admin sheet: "simple clean, branded UI vs cluttered
+                complicated, non branded UI." It was six raw <select>s, each
+                with a paragraph of grey text under it. Same settings, same
+                behaviour, one row each. The explanations that earned their
+                place moved to the bottom of the group; the rest were saying
+                what the control already says. */}
+            <SettingGroup title="The customer display">
+              <SettingRow Icon={Monitor} label="Layout"
+                          hint="How the board is arranged on screen">
+                <SelectRow
+                  ariaLabel="Layout"
+                  value={settings.displayMode}
+                  onChange={(v) => setSettings(prev => ({ ...prev, displayMode: v }))}
+                  options={[
+                    { value: 'auto', label: 'Auto — match screen shape' },
+                    { value: 'landscape', label: 'Landscape — 3 columns' },
+                    { value: 'portrait', label: 'Portrait — stacked' },
+                    { value: 'portrait-columns', label: 'Portrait — side by side' },
+                  ]}
+                />
+              </SettingRow>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Rotate output
-                  </label>
-                  <select
-                    value={settings.displayRotation ?? 0}
-                    onChange={(e) => setSettings(prev => ({...prev, displayRotation: parseInt(e.target.value, 10)}))}
-                    className="w-full p-2 border rounded"
-                  >
-                    <option value={0}>None (recommended)</option>
-                    <option value={90}>90° clockwise</option>
-                    <option value={180}>180°</option>
-                    <option value={270}>270° (90° counter-clockwise)</option>
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">
-                    For a TV mounted sideways when the OS / display can't rotate the image
-                    itself. Prefer OS-level rotation (Mac System Settings → Displays, Windows
-                    → Display orientation, iPad Control Center) when possible — it's sharper.
-                    Use this as an escape hatch.
-                  </p>
-                </div>
+              <SettingRow Icon={RotateCw} label="Rotate output"
+                          hint="Only for a TV mounted sideways">
+                <Segmented
+                  size="sm"
+                  value={settings.displayRotation ?? 0}
+                  onChange={(v) => setSettings(prev => ({ ...prev, displayRotation: parseInt(v, 10) }))}
+                  options={[
+                    { value: 0, label: 'None' }, { value: 90, label: '90°' },
+                    { value: 180, label: '180°' }, { value: 270, label: '270°' },
+                  ]}
+                />
+              </SettingRow>
 
-                {/* Board overflow controls — how the Display handles more
-                    orders than fit on screen (Steve's ask). */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      When orders overflow
-                    </label>
-                    <select
-                      value={settings.displayOverflowMode || 'flip'}
-                      onChange={(e) => setSettings(prev => ({...prev, displayOverflowMode: e.target.value}))}
-                      className="w-full p-2 border rounded"
-                    >
-                      <option value="flip">Page flip (with countdown)</option>
-                      <option value="scroll">Continuous scroll loop</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Seconds per page
-                    </label>
-                    <select
-                      value={settings.displayFlipSeconds ?? 10}
-                      onChange={(e) => setSettings(prev => ({...prev, displayFlipSeconds: parseInt(e.target.value, 10)}))}
-                      className="w-full p-2 border rounded"
-                      disabled={(settings.displayOverflowMode || 'flip') !== 'flip'}
-                    >
-                      <option value={5}>5 seconds</option>
-                      <option value={8}>8 seconds</option>
-                      <option value={10}>10 seconds</option>
-                      <option value={15}>15 seconds</option>
-                      <option value={20}>20 seconds</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Orders per page
-                    </label>
-                    <select
-                      value={settings.displayCardsPerPage ?? 0}
-                      onChange={(e) => setSettings(prev => ({...prev, displayCardsPerPage: parseInt(e.target.value, 10)}))}
-                      className="w-full p-2 border rounded"
-                    >
-                      <option value={0}>Auto — fit to screen</option>
-                      {[3, 4, 5, 6, 7, 8].map(n => (
-                        <option key={n} value={n}>{n}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <p className="text-xs text-gray-500 -mt-2">
-                  Choosing more orders per page than naturally fit scales the cards down
-                  (3 minimum, 8 maximum). Auto measures the screen and never cuts cards off.
-                </p>
+              <SettingRow Icon={Layers} label="When orders overflow"
+                          hint="More orders than fit on the screen">
+                <Segmented
+                  size="sm"
+                  value={settings.displayOverflowMode || 'flip'}
+                  onChange={(v) => setSettings(prev => ({ ...prev, displayOverflowMode: v }))}
+                  options={[{ value: 'flip', label: 'Page flip' }, { value: 'scroll', label: 'Scroll' }]}
+                />
+              </SettingRow>
 
-                <div className="flex items-start">
-                  <input
-                    type="checkbox"
-                    id="displayTouchOrdering"
-                    checked={settings.displayTouchOrdering !== false}
-                    onChange={(e) => setSettings(prev => ({...prev, displayTouchOrdering: e.target.checked}))}
-                    className="mr-2 mt-1"
+              {(settings.displayOverflowMode || 'flip') === 'flip' ? (
+                <SettingRow Icon={Clock} label="Seconds per page"
+                            hint="How long each page stays up">
+                  <Segmented
+                    size="sm"
+                    value={settings.displayFlipSeconds ?? 10}
+                    onChange={(v) => setSettings(prev => ({ ...prev, displayFlipSeconds: parseInt(v, 10) }))}
+                    options={[5, 8, 10, 15, 20]}
                   />
-                  <label htmlFor="displayTouchOrdering" className="text-sm font-medium text-gray-700">
-                    This display is a touchscreen — customers can tap to order
-                    <span className="block text-xs text-gray-500 font-normal">
-                      Ticked: the display shows a "👆 Order here" tap-to-order button.
-                      Unticked (wall TV nobody can reach): SMS becomes the main call to
-                      action — "Order by SMS … we'll text you when it's ready".
-                    </span>
-                  </label>
-                </div>
+                </SettingRow>
+              ) : null}
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Display Timeout (minutes)
-                  </label>
-                  <input 
-                    type="number" 
-                    min="1" 
-                    max="60"
-                    value={settings.displayTimeout}
-                    onChange={(e) => setSettings(prev => ({...prev, displayTimeout: parseInt(e.target.value)}))}
-                    className="w-full p-2 border rounded"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">How long to show completed orders before removing them</p>
-                </div>
-                
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="showNameOnDisplay"
-                    checked={settings.showNameOnDisplay}
-                    onChange={(e) => setSettings(prev => ({...prev, showNameOnDisplay: e.target.checked}))}
-                    className="mr-2"
-                  />
-                  <label htmlFor="showNameOnDisplay" className="text-sm font-medium text-gray-700">
-                    Show customer names on display (uncheck for privacy)
-                  </label>
-                </div>
-              </div>
-            </div>
+              <SettingRow Icon={Grid} label="Orders per page"
+                          hint="Auto measures the screen and never cuts a card off">
+                <SelectRow
+                  ariaLabel="Orders per page"
+                  value={settings.displayCardsPerPage ?? 0}
+                  onChange={(v) => setSettings(prev => ({ ...prev, displayCardsPerPage: parseInt(v, 10) }))}
+                  options={[{ value: 0, label: 'Auto — fit to screen' },
+                            ...[3, 4, 5, 6, 7, 8].map(n => ({ value: n, label: String(n) }))]}
+                />
+              </SettingRow>
+
+              <SettingRow Icon={Hand} label="Customers can tap to order"
+                          hint="Off for a wall TV nobody can reach">
+                <CqToggle
+                  on={settings.displayTouchOrdering !== false}
+                  onChange={(v) => setSettings(prev => ({ ...prev, displayTouchOrdering: v }))}
+                />
+              </SettingRow>
+
+              <SettingRow Icon={Eye} label="Show customer names"
+                          hint="Turn off for privacy — numbers only">
+                <CqToggle
+                  on={!!settings.showNameOnDisplay}
+                  onChange={(v) => setSettings(prev => ({ ...prev, showNameOnDisplay: v }))}
+                />
+              </SettingRow>
+
+              <SettingRow Icon={Timer} label="Keep finished orders up for"
+                          hint="Then they leave the board">
+                <Segmented
+                  size="sm"
+                  value={settings.displayTimeout}
+                  onChange={(v) => setSettings(prev => ({ ...prev, displayTimeout: parseInt(v, 10) }))}
+                  options={[{ value: 2, label: '2 min' }, { value: 5, label: '5 min' },
+                            { value: 10, label: '10 min' }, { value: 20, label: '20 min' }]}
+                />
+              </SettingRow>
+            </SettingGroup>
+
+            <SettingNote>
+              Rotating here is a last resort — the OS does it more sharply
+              (Mac System Settings → Displays, Windows → Display orientation,
+              iPad Control Centre). Asking for more orders per page than fit
+              scales the cards down, three minimum and eight maximum.
+            </SettingNote>
+
             
             <div className="bg-white rounded-lg shadow-md p-4">
               <h2 className="text-xl font-bold mb-1">Preview — live 16:9</h2>
