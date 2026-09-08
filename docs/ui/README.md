@@ -1,5 +1,9 @@
 # The tidy-up: every screen, before and after
 
+> **Doing the work?** Read [`../UI_REWRITE_GUIDE.md`](../UI_REWRITE_GUIDE.md)
+> first — the vocabulary, the rules, the order to take the screens in, and the
+> traps. This file is the running score; that one is how to play.
+
 > Steve, holding two screenshots side by side: *"simple clean, branded UI vs
 > cluttered complicated, non branded UI ... they often look similar to this."*
 
