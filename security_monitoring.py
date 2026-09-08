@@ -33,6 +33,29 @@ api_logger.setLevel(logging.INFO)
 # Ensure logs directory exists
 os.makedirs('logs', exist_ok=True)
 
+
+# Query-string names whose VALUE must never reach the log. A secret in a URL
+# gets logged on every single request that carries it -- the CloudPRNT printer
+# secret rides in the query string (a printer cannot send an auth header), so
+# without this it would be written to the log stream several times a minute,
+# forever, exactly the way the database password was on 2026-09-08.
+_SECRET_QUERY_KEYS = (
+    'secret', 'token', 'key', 'api_key', 'apikey', 'password', 'passwd',
+    'pwd', 'auth', 'access_token', 'refresh_token', 'sig', 'signature',
+)
+
+
+def _safe_query_params(args):
+    """dict(request.args) with any secret-looking VALUE replaced by ***."""
+    out = {}
+    try:
+        for k, v in args.items():
+            out[k] = '***' if any(w in k.lower() for w in _SECRET_QUERY_KEYS) else v
+    except Exception:
+        return {}
+    return out
+
+
 class SecurityAuditLogger:
     """Security event logging and monitoring"""
     
@@ -154,7 +177,7 @@ class APIRequestLogger:
             'timestamp': datetime.utcnow().isoformat(),
             'method': request.method,
             'path': request.path,
-            'query_params': dict(request.args),
+            'query_params': _safe_query_params(request.args),
             'user_id': user_id,
             'ip_address': request.remote_addr,
             'user_agent': request.headers.get('User-Agent', 'Unknown')[:200],
