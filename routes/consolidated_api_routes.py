@@ -12611,10 +12611,100 @@ def get_today_report():
                            'title': f"{errors['count']} app error(s) logged on devices",
                            'hint': 'See the App errors section — a barista screen may have glitched.'})
 
+
+        # --- BEANS ---------------------------------------------------
+        # The report described the milk in detail and never once mentioned
+        # coffee, which is the thing you actually have to order more of.
+        #
+        # SHOTS are the honest unit: two shots is two shots whatever the
+        # grinder is set to, and it is the number that captures "standard vs
+        # double" without arguing about dose. Kilograms then follow from the
+        # CURRENT beans_grams_per_shot setting, which is stated on the report
+        # so nobody has to guess which dose produced the figure.
+        #
+        # Deliberately RE-RESOLVED rather than summed from each order's
+        # _resolved_lines stamp. The stamp is what the ledger moved on the
+        # day, and on Treenet that was computed at 22 g per shot -- double the
+        # real dose -- so summing the stamps would faithfully reproduce a
+        # number we now know was wrong. Re-resolving answers the question
+        # actually being asked: how much coffee does an event like this one
+        # take, at the dose I use now.
+        beans = {'shots': 0.0, 'kg': 0.0, 'by_bean': {}, 'grams_per_shot': None,
+                 'strength_mix': {'as_recipe': 0, 'extra': 0, 'lighter': 0},
+                 'kg_per_100': None, 'orders_counted': 0, 'no_recipe': 0}
+        try:
+            from services.recipes import resolve_order as _resolve_for_report
+            gps = float(coffee_system._get_setting('beans_grams_per_shot', '22') or 22)
+            beans['grams_per_shot'] = gps
+            _ex("""
+                SELECT order_details FROM orders
+                WHERE created_at >= %(d0)s AND created_at < %(d1)s
+                  AND status <> 'cancelled'
+            """)
+            for r in cur.fetchall():
+                od = r[0] if not isinstance(r, dict) else r.get('order_details')
+                if isinstance(od, str):
+                    try:
+                        od = json.loads(od)
+                    except (ValueError, TypeError):
+                        continue
+                if not isinstance(od, dict):
+                    continue
+                try:
+                    lines, _m = _resolve_for_report(
+                        db, od, coffee_system._get_setting,
+                        requested_bean=coffee_system._requested_bean(od))
+                except Exception:
+                    lines = None
+                if not lines:
+                    beans['no_recipe'] += 1
+                    continue
+                grams = sum(float(ln['qty']) for ln in lines
+                            if ln.get('category') == 'coffee')
+                if grams <= 0:
+                    continue          # tea, hot chocolate: no beans, not a miss
+                beans['orders_counted'] += 1
+                shots = grams / gps if gps else 0
+                beans['shots'] += shots
+                for ln in lines:
+                    if ln.get('category') == 'coffee':
+                        nm = str(ln.get('name') or 'house blend')
+                        beans['by_bean'][nm] = round(
+                            beans['by_bean'].get(nm, 0.0) + float(ln['qty']) / 1000.0, 4)
+                # Measured against what THIS drink's own recipe gives at plain
+                # strength -- a large IS a double, so counting "2 shots" as
+                # extra would be wrong. Called 'lighter' rather than 'half'
+                # because 14 of Treenet's orders carried an explicit shot
+                # count below their recipe: genuinely less coffee, but nobody
+                # asked for a half strength.
+                try:
+                    base_lines, _bm = _resolve_for_report(
+                        db, {**od, 'strength': '', 'shots': None},
+                        coffee_system._get_setting,
+                        requested_bean=coffee_system._requested_bean(od))
+                    base_g = sum(float(ln['qty']) for ln in (base_lines or [])
+                                 if ln.get('category') == 'coffee') or grams
+                except Exception:
+                    base_g = grams
+                if grams > base_g + 0.01:
+                    beans['strength_mix']['extra'] += 1
+                elif grams < base_g - 0.01:
+                    beans['strength_mix']['lighter'] += 1
+                else:
+                    beans['strength_mix']['as_recipe'] += 1
+            beans['shots'] = round(beans['shots'], 1)
+            beans['kg'] = round(sum(beans['by_bean'].values()), 3)
+            if beans['orders_counted']:
+                beans['kg_per_100'] = round(
+                    beans['kg'] / beans['orders_counted'] * 100, 2)
+        except Exception as _be:
+            logger.warning(f"report bean maths failed: {_be}")
+
         return jsonify({
             'success': True,
             'window': window_label,
             'timezone': tzname,
+            'beans': beans,
             'date': datetime.now().date().isoformat(),
             'total_orders': total,
             'status_breakdown': status_counts,

@@ -10,6 +10,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   BarChart3, Clock, Coffee, Printer, Mail, AlertTriangle, Info, Milk, Users,
+  Package,
 } from 'lucide-react';
 import AuthService from '../../services/AuthService';
 
@@ -249,6 +250,65 @@ export default function ReportTab() {
               )}
             </Card>
           </div>
+
+          {d.beans && d.beans.orders_counted > 0 && (
+            <Card title="Coffee used" Icon={Package}
+                  right={`at ${d.beans.grams_per_shot} g a shot`}>
+              <div className="grid gap-4 sm:grid-cols-3 mb-4">
+                <div>
+                  <div className="text-3xl font-extrabold text-cq-roast tabular-nums">
+                    {d.beans.kg} kg
+                  </div>
+                  <div className="text-xs text-cq-ink-3">
+                    across {d.beans.orders_counted} coffees
+                  </div>
+                </div>
+                <div>
+                  <div className="text-3xl font-extrabold text-cq-roast tabular-nums">
+                    {d.beans.shots}
+                  </div>
+                  <div className="text-xs text-cq-ink-3">shots pulled</div>
+                </div>
+                <div>
+                  <div className="text-3xl font-extrabold text-cq-roast tabular-nums">
+                    {d.beans.kg_per_100} kg
+                  </div>
+                  <div className="text-xs text-cq-ink-3">per 100 coffees — order by this</div>
+                </div>
+              </div>
+
+              {Object.keys(d.beans.by_bean || {}).length > 1 && (
+                <div className="mb-4">
+                  {Object.entries(d.beans.by_bean).map(([name, kg]) => (
+                    <Bar key={name} label={name} n={kg}
+                         max={Math.max(...Object.values(d.beans.by_bean))} suffix=" kg" />
+                  ))}
+                </div>
+              )}
+
+              <div className="text-sm text-cq-ink-2 border-t border-cq-line pt-3">
+                <span className="font-semibold text-cq-roast">
+                  {d.beans.strength_mix.as_recipe}
+                </span> as the recipe
+                {' · '}
+                <span className="font-semibold text-cq-roast">
+                  {d.beans.strength_mix.extra}
+                </span> with an extra shot
+                {' · '}
+                <span className="font-semibold text-cq-roast">
+                  {d.beans.strength_mix.lighter}
+                </span> lighter
+              </div>
+              <p className="text-xs text-cq-ink-3 mt-2">
+                Worked out from the recipe cards at today's dose, so it answers
+                "how much would this event take now" rather than what the ledger
+                happened to record on the day.
+                {d.beans.no_recipe
+                  ? ` ${d.beans.no_recipe} order(s) had no recipe and are not counted.`
+                  : ''}
+              </p>
+            </Card>
+          )}
 
           <Card title="How each station went" Icon={Users}>
             {stations.length ? (
