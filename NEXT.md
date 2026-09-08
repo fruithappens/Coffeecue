@@ -128,6 +128,34 @@ Branch: `next` (never auto-deploys; Railway only deploys `main`). Every screen s
   the existing HTML builder rather than growing a second one.
 - **Phase 8** — load and endurance on the copy (`remote_siege.py`) before any cutover.
 
+## How much coffee a drink uses
+
+Steve, from watching his own bench: "I know for sure that baristas didn't put
+44 g of coffee in a double shot -- I saw them. Split shot for standard and full
+shot 22 g for a double."
+
+So the model is **split-basket**:
+
+| | grams |
+| --- | --- |
+| standard drink (any cup) | 11 g -- half a split 22 g basket |
+| double shot | 22 g -- the whole basket |
+| half strength | 5.5 g |
+
+The cup size changes the MILK, not the coffee. Every standard drink is one
+shot at small and medium; asking for a double is what buys the second. Magic
+stays two shots because it is a double ristretto by definition, not a standard
+drink with an extra.
+
+`beans_grams_per_shot` = **11** (grams per shot, not per drink). Base shots are
+editable per drink and size in Menu > Event Stock -- that is the part that
+varies cafe to cafe.
+
+I got this wrong first time: I read "a 12 oz medium is a double" from Australian
+cafe guidance and pushed the mediums to 2 shots, which made a standard medium
+22 g and a double 33 g. General practice lost to the person who watched the
+bench. Treenet re-reads as 8.5 kg, not 14.4.
+
 ## Label printing
 
 `docs/LABEL_PRINTING.md` — locking `/cloudprnt` (it fails OPEN with no secret
