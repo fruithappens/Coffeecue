@@ -12361,11 +12361,10 @@ def get_today_report():
 
         # Average wait (created → completed) for completed/picked_up orders today
         _ex("""
-            SELECT AVG(EXTRACT(EPOCH FROM (updated_at - created_at)) / 60.0)
+            SELECT AVG(EXTRACT(EPOCH FROM (completed_at - created_at)) / 60.0)
             FROM orders
             WHERE created_at >= %(d0)s AND created_at < %(d1)s
-              AND status IN ('completed', 'picked_up')
-              AND updated_at IS NOT NULL
+              AND completed_at IS NOT NULL
               AND created_at IS NOT NULL
         """)
         row = cur.fetchone()
@@ -12387,9 +12386,8 @@ def get_today_report():
         # baseline ("expected throughput") for the next event.
         _ex("""
             SELECT station_id, COUNT(*) AS n,
-                   AVG(EXTRACT(EPOCH FROM (updated_at - created_at)) / 60.0)
-                     FILTER (WHERE status IN ('completed', 'picked_up')
-                             AND updated_at IS NOT NULL) AS avg_min,
+                   AVG(EXTRACT(EPOCH FROM (completed_at - created_at)) / 60.0)
+                     FILTER (WHERE completed_at IS NOT NULL) AS avg_min,
                    COUNT(*) FILTER (WHERE status IN ('completed', 'picked_up')) AS done,
                    EXTRACT(EPOCH FROM (MAX(updated_at) - MIN(created_at))) / 3600.0 AS span_hours
             FROM orders
@@ -12590,12 +12588,16 @@ def get_today_report():
             issues.append({'key': 'orders_on_closed_station', 'severity': 'danger', 'count': n,
                            'title': f"{n} active order(s) on a closed/maintenance station",
                            'hint': 'These may never be made — reassign them to an open station.'})
+        # TIME TO MAKE, not time until someone tapped "collected". Measured
+        # on updated_at this said 136 orders at Treenet; measured on
+        # completed_at it is 7. The other 129 were made in minutes and then
+        # sat on the shelf, which is a different problem with a different fix.
         n = _count("SELECT COUNT(*) FROM orders WHERE created_at >= %(d0)s AND created_at < %(d1)s "
-                   "AND status IN ('completed','picked_up') AND updated_at IS NOT NULL "
-                   "AND EXTRACT(EPOCH FROM (updated_at - created_at))/60.0 > 20")
+                   "AND completed_at IS NOT NULL "
+                   "AND EXTRACT(EPOCH FROM (completed_at - created_at))/60.0 > 20")
         if n:
             issues.append({'key': 'long_waits', 'severity': 'warning', 'count': n,
-                           'title': f"{n} order(s) took over 20 minutes",
+                           'title': f"{n} order(s) took over 20 minutes to make",
                            'hint': 'Long waits hurt satisfaction — consider more staff at peak.'})
         n = _count("SELECT COUNT(*) FROM orders WHERE created_at >= %(d0)s AND created_at < %(d1)s AND status = 'cancelled'")
         if n:
@@ -12659,6 +12661,7 @@ def get_today_report():
         # person who waited 40 is the one who remembers it.
         times = {'first': None, 'last': None, 'span_hours': None, 'days': 0,
                  'wait_median': None, 'wait_p90': None, 'wait_worst': None,
+                 'shelf_median': None, 'shelf_worst': None,
                  'per_day': []}
         try:
             # Per LOCAL day, then summed. Taking MIN and MAX across the whole
@@ -12697,11 +12700,10 @@ def get_today_report():
                        percentile_cont(0.9) WITHIN GROUP (ORDER BY w),
                        MAX(w)
                 FROM (
-                    SELECT EXTRACT(EPOCH FROM (updated_at - created_at))/60.0 AS w
+                    SELECT EXTRACT(EPOCH FROM (completed_at - created_at))/60.0 AS w
                     FROM orders
                     WHERE created_at >= %(d0)s AND created_at < %(d1)s
-                      AND status IN ('completed', 'picked_up')
-                      AND updated_at IS NOT NULL
+                      AND completed_at IS NOT NULL
                 ) q
             """)
             r = cur.fetchone()
@@ -12709,6 +12711,27 @@ def get_today_report():
                 times['wait_median'] = round(float(r[0]), 1)
                 times['wait_p90'] = round(float(r[1]), 1)
                 times['wait_worst'] = round(float(r[2]), 1)
+            # TIME ON THE SHELF is its own measurement, not part of the wait.
+            # Steve, on a 138 minute figure: "I think they would not have
+            # stayed for 2 hours, may have been a test or just an error, maybe
+            # just take out the outlier." It was neither, and nothing needed
+            # removing: that coffee was MADE in 5 minutes and then sat for 133.
+            # Deleting the row would have hidden a real signal -- whether people
+            # are hearing that their coffee is ready -- behind a tidier average.
+            _ex("""
+                SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY s),
+                       MAX(s)
+                FROM (
+                    SELECT EXTRACT(EPOCH FROM (picked_up_at - completed_at))/60.0 AS s
+                    FROM orders
+                    WHERE created_at >= %(d0)s AND created_at < %(d1)s
+                      AND picked_up_at IS NOT NULL AND completed_at IS NOT NULL
+                ) q
+            """)
+            r = cur.fetchone()
+            if r and r[0] is not None:
+                times['shelf_median'] = round(float(r[0]), 1)
+                times['shelf_worst'] = round(float(r[1]), 1)
         except Exception as e:
             logger.warning(f"report times failed: {e}")
 
