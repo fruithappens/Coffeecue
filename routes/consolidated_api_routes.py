@@ -428,6 +428,27 @@ def _drink_display_name(order_details, default='Coffee'):
     return ' '.join(bits + [str(t)]) if bits else t
 
 
+# WHY /orders HAS NO ETag, THOUGH IT IS THE BIGGEST PAYLOAD WE SERVE
+#
+# It is ~200 KB and every barista screen re-polls it several times a second,
+# so revalidation looks like the obvious win -- and it is what
+# _revalidating_json was written for. I shipped it, then measured it against
+# production: three consecutive polls, with no order placed, produced three
+# DIFFERENT tags. The 304 can never fire.
+#
+# The reason is waitTime / wait_time: minutes-since-created, recomputed on the
+# server for every open order on every request. They tick, so the bytes change,
+# so the hash changes -- permanently, for as long as anything is in the queue,
+# which is exactly when the load matters.
+#
+# Hashing the payload with those fields stripped would make it fire, but the
+# client really uses them (RushMixStrip promotes on waitTime >= 10,
+# AllOrdersTab prints "Waiting N min"), and a 304 would freeze both mid-rush.
+#
+# The real fix is that elapsed time is a CLIENT concern: send createdAt and
+# let the screen count. That is a UI change with real consequences and belongs
+# in the load work, not in a one-line swap here.
+
 @bp.route('/orders', methods=['GET', 'POST'])
 @jwt_required_with_demo()
 def orders():
@@ -644,19 +665,8 @@ def orders():
                     'groupLabel': order_details.get('group_label'),
                 })
 
-            # 206 KB, re-sent in full several times a second to every barista
-            # screen. _revalidating_json hashes the payload and answers an
-            # unchanged one with a 304 and no body -- the same treatment the
-            # display config got after Treenet's egress peaks.
-            #
-            # The tag is computed from the SERIALISED payload, so it cannot go
-            # stale: if anything about any order changed, the bytes change and
-            # the tag changes with them. That does mean the query still runs;
-            # this saves the bandwidth, not the database round trip. Cutting
-            # the query as well needs a cheap change-stamp to test first, and
-            # that is only safe once every write path is known to touch
-            # updated_at -- worth doing, not worth guessing at.
-            return _revalidating_json({
+            # NO ETag here, deliberately -- see the note above the route.
+            return jsonify({
                 'status': 'success',
                 'data': orders,
                 'message': f'Retrieved {len(orders)} orders'
