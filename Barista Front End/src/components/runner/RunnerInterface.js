@@ -52,6 +52,7 @@ import EventDataManagement from '../organiser/EventDataManagement';
 import EmergencyTab from '../support-tabs/EmergencyTab';
 import SmsFlowReference from '../organiser/SmsFlowReference';
 import NoticeComposer from './NoticeComposer';
+import ReportTab from './ReportTab';
 
 const RunnerInterface = () => {
   const { stations, refreshData } = useStations();
@@ -160,17 +161,7 @@ const RunnerInterface = () => {
       {activeSection === 'screens' && <div className="cq"><DisplaySelector embedded /></div>}
       {activeSection === 'printers' && <PrintersTab />}
 
-      {activeSection === 'report' && (
-        <div className="cq bg-cq-milk rounded-cq-lg shadow-cq-card p-8 max-w-2xl">
-          <h2 className="text-2xl font-extrabold text-cq-roast">The event report</h2>
-          <p className="mt-2 text-cq-ink-2 max-w-[60ch]">
-            One report built from the orders themselves, to replace the hand-built one.
-            It arrives in its own phase; until then the numbers you need during the day
-            are on <button type="button" className="font-bold text-cq-caramel-deep underline underline-offset-4" onClick={() => go('live')}>Live</button> and
-            in <button type="button" className="font-bold text-cq-caramel-deep underline underline-offset-4" onClick={() => go('orders')}>Orders</button>.
-          </p>
-        </div>
-      )}
+      {activeSection === 'report' && <ReportTab />}
 
       {activeSection === 'system' && activeTab === 'health' && <SystemHealthTab />}
       {/* Diagnostics already lists the frontend crashes; a separate

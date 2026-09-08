@@ -102,7 +102,30 @@ Branch: `next` (never auto-deploys; Railway only deploys `main`). Every screen s
   20). They were kg to two decimals: 10 g steps, so a 22 g dose recorded as 20 g, every
   cup, always understating use.
 
-- **Phase 7** — the Report. Still a placeholder in the runner's Review group.
+- **Phase 7** — the Report (the runner's Review group is now real). Two bugs came out of
+  building it, both of which had been quietly wrong on production:
+
+  **It could only ever describe TODAY.** `CURRENT_DATE` appeared in sixteen queries, so
+  the report for the event you just ran was only readable on the day you ran it. Now the
+  window is a parameter: `?date=`, or `?from=&to=` for an event that runs over days.
+  `/api/reports/days` lists the days that have orders with their counts. It deliberately
+  does NOT guess where an event starts and stops -- I tried chaining consecutive days,
+  and a handful of test orders on the quiet days bridged every gap and swallowed a 2-day
+  event into a 14-day block. A human recognises 314 orders on the 3rd instantly; a
+  heuristic cannot.
+
+  **It grouped by the UTC day.** The server runs `TZ=UTC` to match Railway, and Adelaide
+  is UTC+9:30, so a 7am start is 21:30 UTC the previous day. On Treenet that filed 144 of
+  the first morning's orders under the 2nd and reported the event as 463 orders instead
+  of **577**, with a "busiest hour" of 1am. Windows are now built from local dates via a
+  new `event_timezone` setting (default Australia/Adelaide, because a default of UTC is
+  the bug), and the hour-of-day is converted before it is grouped -- the busiest hour
+  reads 8:00, which is what a coffee cart looks like.
+
+  `components/runner/ReportTab.js`: pick a day from the chips (or a range), headline
+  numbers, what they drank, milk split with what was stocked but never poured, per-station
+  table, texts, and the issues the report already knew how to find. Print and email reuse
+  the existing HTML builder rather than growing a second one.
 - **Phase 8** — load and endurance on the copy (`remote_siege.py`) before any cutover.
 
 ## Label printing

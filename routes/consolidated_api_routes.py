@@ -12195,6 +12195,124 @@ def cup_reconciliation():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+def _event_timezone():
+    """Where the event actually is, as an IANA zone.
+
+    The server stores UTC (it runs TZ=UTC to match Railway) and every report
+    grouped by the UTC date, which for an Australian coffee cart is simply the
+    wrong day. Adelaide is UTC+9:30, so a 7am start is 21:30 UTC the PREVIOUS
+    day: on the Treenet event that put 144 of the first morning's orders on
+    the 2nd, and the two-day total read 463 instead of 577. A quarter of the
+    event, filed under a day it did not happen on.
+
+    Settable per event; defaults to Steve's own zone rather than UTC, because
+    a default of UTC is the bug.
+    """
+    tz = ''
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        if coffee_system:
+            tz = coffee_system._get_setting('event_timezone', '') or ''
+    except Exception:
+        tz = ''
+    tz = (tz or '').strip() or 'Australia/Adelaide'
+    try:
+        from zoneinfo import ZoneInfo
+        ZoneInfo(tz)
+        return tz
+    except Exception:
+        logger.warning("event_timezone %r is not a known zone; using Australia/Adelaide", tz)
+        return 'Australia/Adelaide'
+
+
+def _report_window():
+    """The window a report covers, as UTC instants. Returns (start, end, label,
+    tz) where end is EXCLUSIVE.
+
+    The dates in the URL are LOCAL dates -- the day the event happened, as the
+    person who was there would name it -- and they are converted to the UTC
+    instants that bracket that local day. The SQL then stays a plain range over
+    created_at, which is both simple and index-friendly.
+
+    ?date=YYYY-MM-DD   one local day
+    ?from=&to=         a range, both ends inclusive (an event runs over days)
+    nothing            today, where the event is
+
+    Bad dates fall back to today rather than erroring: a mistyped URL should
+    show today's numbers, not a stack trace.
+    """
+    from datetime import date as _date, datetime as _dt, timedelta as _td
+    from zoneinfo import ZoneInfo
+
+    tz = _event_timezone()
+    zone = ZoneInfo(tz)
+
+    def _parse(v):
+        try:
+            return _date.fromisoformat(str(v).strip()[:10])
+        except (ValueError, TypeError):
+            return None
+
+    def _utc(d):
+        """Local midnight on `d`, as a naive UTC timestamp for the DB."""
+        return (_dt(d.year, d.month, d.day, tzinfo=zone)
+                .astimezone(ZoneInfo('UTC')).replace(tzinfo=None))
+
+    today = _dt.now(zone).date()
+    one = _parse(request.args.get('date'))
+    a = _parse(request.args.get('from'))
+    b = _parse(request.args.get('to'))
+    if one:
+        a = b = one
+    elif a and b:
+        if b < a:
+            a, b = b, a
+    elif a:
+        b = a
+    else:
+        a = b = today
+    label = a.isoformat() if a == b else f'{a.isoformat()} to {b.isoformat()}'
+    return _utc(a), _utc(b + _td(days=1)), label, tz
+
+
+@bp.route('/reports/days', methods=['GET'])
+@role_required_with_demo(['admin', 'staff'])
+def report_days():
+    """Which days have orders, newest first, with the count on each.
+
+    Deliberately NOT grouped into "events". I tried: chain consecutive days
+    into one run. On real data it swallowed a 2-day event into a 14-day block,
+    because a handful of test orders on the quiet days in between bridged every
+    gap. There is no honest way to tell a 6-order test afternoon from a small
+    event, so the report does not pretend to -- it shows the days and their
+    volumes, and the person who was there picks. 314 orders on the 3rd is
+    obvious to a human and unguessable to a heuristic.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        cur = db.cursor()
+        cur.execute("""
+            SELECT (created_at AT TIME ZONE 'UTC'
+                    AT TIME ZONE %(tz)s)::date AS d, COUNT(*) AS n
+            FROM orders
+            GROUP BY 1
+            ORDER BY 1 DESC
+            LIMIT 120
+        """, {'tz': _event_timezone()})
+        days = [{'date': r[0].isoformat(), 'orders': int(r[1])}
+                for r in cur.fetchall()]
+        cur.close()
+        return jsonify({'success': True, 'days': days})
+    except Exception as e:
+        logger.error(f"report_days error: {e}")
+        return jsonify({'success': False, 'error': str(e), 'days': []}), 500
+
+
 @bp.route('/reports/today', methods=['GET'])
 @jwt_required_with_demo()
 def get_today_report():
@@ -12214,21 +12332,38 @@ def get_today_report():
             pass
         cur = db.cursor()
 
+        # WHICH DAY. The whole report used to say CURRENT_DATE in sixteen
+        # places, so it could only ever describe today. Steve's Treenet event
+        # ran on the 3rd and 4th; asking for its report on the 5th returned a
+        # page of zeros, and the only way to see the event you had just run
+        # was to have run it today. A report you cannot open after the event
+        # is not a report.
+        #
+        # ?date=YYYY-MM-DD for one day, or ?from=&?to= for a whole event
+        # (inclusive of both ends). No arguments still means today, so every
+        # existing caller keeps working untouched.
+        d0, d1, window_label, tzname = _report_window()
+        W = {'d0': d0, 'd1': d1, 'tz': tzname}
+
+        def _ex(sql, extra=None):
+            """Every query in this report is bound to the same window."""
+            cur.execute(sql, {**W, **(extra or {})})
+
         # Status breakdown for today
-        cur.execute("""
+        _ex("""
             SELECT status, COUNT(*) AS n
             FROM orders
-            WHERE created_at::date = CURRENT_DATE
+            WHERE created_at >= %(d0)s AND created_at < %(d1)s
             GROUP BY status
         """)
         status_counts = {row[0]: int(row[1]) for row in cur.fetchall()}
         total = sum(status_counts.values())
 
         # Average wait (created → completed) for completed/picked_up orders today
-        cur.execute("""
+        _ex("""
             SELECT AVG(EXTRACT(EPOCH FROM (updated_at - created_at)) / 60.0)
             FROM orders
-            WHERE created_at::date = CURRENT_DATE
+            WHERE created_at >= %(d0)s AND created_at < %(d1)s
               AND status IN ('completed', 'picked_up')
               AND updated_at IS NOT NULL
               AND created_at IS NOT NULL
@@ -12238,10 +12373,10 @@ def get_today_report():
 
         # Revenue from stamped prices (works when pricing was enabled
         # when the order was confirmed — see ARCHITECTURE.md §11).
-        cur.execute("""
+        _ex("""
             SELECT COALESCE(SUM((order_details->>'price')::numeric), 0)
             FROM orders
-            WHERE created_at::date = CURRENT_DATE
+            WHERE created_at >= %(d0)s AND created_at < %(d1)s
               AND order_details ? 'price'
         """)
         row = cur.fetchone()
@@ -12250,7 +12385,7 @@ def get_today_report():
         # Per-station breakdown. `done` + the active time span give a MEASURED
         # orders/hour — the real throughput, which the team can use as the
         # baseline ("expected throughput") for the next event.
-        cur.execute("""
+        _ex("""
             SELECT station_id, COUNT(*) AS n,
                    AVG(EXTRACT(EPOCH FROM (updated_at - created_at)) / 60.0)
                      FILTER (WHERE status IN ('completed', 'picked_up')
@@ -12258,7 +12393,7 @@ def get_today_report():
                    COUNT(*) FILTER (WHERE status IN ('completed', 'picked_up')) AS done,
                    EXTRACT(EPOCH FROM (MAX(updated_at) - MIN(created_at))) / 3600.0 AS span_hours
             FROM orders
-            WHERE created_at::date = CURRENT_DATE
+            WHERE created_at >= %(d0)s AND created_at < %(d1)s
             GROUP BY station_id
             ORDER BY station_id
         """)
@@ -12279,10 +12414,10 @@ def get_today_report():
             })
 
         # Top 5 drinks today
-        cur.execute("""
+        _ex("""
             SELECT LOWER(order_details->>'type') AS drink, COUNT(*) AS n
             FROM orders
-            WHERE created_at::date = CURRENT_DATE
+            WHERE created_at >= %(d0)s AND created_at < %(d1)s
               AND order_details ? 'type'
             GROUP BY drink
             ORDER BY n DESC
@@ -12299,13 +12434,13 @@ def get_today_report():
         # lower-cased with a trailing " milk" stripped -- because the
         # database genuinely holds both "Oat Milk" and "oat" for the same
         # drink and counting them apart understates every alternative.
-        cur.execute("""
+        _ex("""
             SELECT COALESCE(NULLIF(regexp_replace(
                        lower(trim(order_details->>'milk')), '\\s*milk$', ''), ''),
                    'no milk') AS m,
                    COUNT(*) AS n
             FROM orders
-            WHERE created_at::date = CURRENT_DATE
+            WHERE created_at >= %(d0)s AND created_at < %(d1)s
             GROUP BY m
             ORDER BY n DESC
         """)
@@ -12340,10 +12475,11 @@ def get_today_report():
         # Peak hour — which hour of the day had the most orders. The
         # post-event summary leans on this ("you handled 47 orders in
         # the 10am hour"), and it's a one-liner aggregate.
-        cur.execute("""
-            SELECT EXTRACT(HOUR FROM created_at)::int AS hour, COUNT(*) AS n
+        _ex("""
+            SELECT EXTRACT(HOUR FROM (created_at AT TIME ZONE 'UTC'
+                                      AT TIME ZONE %(tz)s))::int AS hour, COUNT(*) AS n
             FROM orders
-            WHERE created_at::date = CURRENT_DATE
+            WHERE created_at >= %(d0)s AND created_at < %(d1)s
             GROUP BY hour
             ORDER BY n DESC
             LIMIT 1
@@ -12379,14 +12515,14 @@ def get_today_report():
         sms = {'outbound': 0, 'outbound_with_provider_id': 0,
                'inbound': 0, 'inbound_unanswered': 0, 'est_segments': 0}
         try:
-            cur.execute("SELECT COUNT(*), COUNT(message_sid) FROM order_messages "
-                        "WHERE sent_at::date = CURRENT_DATE")
+            _ex("SELECT COUNT(*), COUNT(message_sid) FROM order_messages "
+                        "WHERE sent_at >= %(d0)s AND sent_at < %(d1)s")
             r = cur.fetchone()
             if r:
                 sms['outbound'] = int(r[0] or 0)
                 sms['outbound_with_provider_id'] = int(r[1] or 0)
-            cur.execute("SELECT COALESCE(SUM(CEIL(GREATEST(LENGTH(message),1)/160.0)),0) "
-                        "FROM order_messages WHERE sent_at::date = CURRENT_DATE")
+            _ex("SELECT COALESCE(SUM(CEIL(GREATEST(LENGTH(message),1)/160.0)),0) "
+                        "FROM order_messages WHERE sent_at >= %(d0)s AND sent_at < %(d1)s")
             r = cur.fetchone()
             sms['est_segments'] = int(r[0]) if r and r[0] is not None else sms['outbound']
         except Exception as _e:
@@ -12394,9 +12530,9 @@ def get_today_report():
             try: db.rollback()
             except Exception: pass
         try:
-            cur.execute("SELECT COUNT(*), "
+            _ex("SELECT COUNT(*), "
                         "COUNT(*) FILTER (WHERE response_sent IS NULL OR response_sent = '') "
-                        "FROM sms_messages WHERE received_at::date = CURRENT_DATE")
+                        "FROM sms_messages WHERE received_at >= %(d0)s AND received_at < %(d1)s")
             r = cur.fetchone()
             if r:
                 sms['inbound'] = int(r[0] or 0)
@@ -12412,11 +12548,11 @@ def get_today_report():
             # The column is occurred_at (migration 11), not created_at, so
             # both queries threw, were swallowed, and the report always said
             # ZERO user-facing errors.
-            cur.execute("SELECT COUNT(*) FROM client_errors WHERE occurred_at::date = CURRENT_DATE")
+            _ex("SELECT COUNT(*) FROM client_errors WHERE occurred_at >= %(d0)s AND occurred_at < %(d1)s")
             r = cur.fetchone()
             errors['count'] = int(r[0]) if r and r[0] is not None else 0
-            cur.execute("SELECT message, COUNT(*) AS n FROM client_errors "
-                        "WHERE occurred_at::date = CURRENT_DATE "
+            _ex("SELECT message, COUNT(*) AS n FROM client_errors "
+                        "WHERE occurred_at >= %(d0)s AND occurred_at < %(d1)s "
                         "GROUP BY message ORDER BY n DESC LIMIT 5")
             errors['recent'] = [{'message': (row[0] or '')[:160], 'count': int(row[1])}
                                 for row in cur.fetchall()]
@@ -12432,7 +12568,7 @@ def get_today_report():
 
         def _count(sql):
             try:
-                cur.execute(sql)
+                _ex(sql)
                 r = cur.fetchone()
                 return int(r[0]) if r and r[0] is not None else 0
             except Exception as _e:
@@ -12441,27 +12577,27 @@ def get_today_report():
                 except Exception: pass
                 return 0
 
-        n = _count("SELECT COUNT(*) FROM orders WHERE created_at::date = CURRENT_DATE "
+        n = _count("SELECT COUNT(*) FROM orders WHERE created_at >= %(d0)s AND created_at < %(d1)s "
                    "AND status = 'pending' AND created_at < NOW() - INTERVAL '15 minutes'")
         if n:
             issues.append({'key': 'stuck_pending', 'severity': 'warning', 'count': n,
                            'title': f"{n} order(s) stuck pending over 15 min",
                            'hint': 'Were these missed, or was a station under-staffed at peak?'})
         n = _count("SELECT COUNT(*) FROM orders o JOIN station_stats s ON o.station_id = s.station_id "
-                   "WHERE o.created_at::date = CURRENT_DATE AND COALESCE(s.status,'active') <> 'active' "
+                   "WHERE o.created_at >= %(d0)s AND o.created_at < %(d1)s AND COALESCE(s.status,'active') <> 'active' "
                    "AND o.status IN ('pending','in-progress','in_progress')")
         if n:
             issues.append({'key': 'orders_on_closed_station', 'severity': 'danger', 'count': n,
                            'title': f"{n} active order(s) on a closed/maintenance station",
                            'hint': 'These may never be made — reassign them to an open station.'})
-        n = _count("SELECT COUNT(*) FROM orders WHERE created_at::date = CURRENT_DATE "
+        n = _count("SELECT COUNT(*) FROM orders WHERE created_at >= %(d0)s AND created_at < %(d1)s "
                    "AND status IN ('completed','picked_up') AND updated_at IS NOT NULL "
                    "AND EXTRACT(EPOCH FROM (updated_at - created_at))/60.0 > 20")
         if n:
             issues.append({'key': 'long_waits', 'severity': 'warning', 'count': n,
                            'title': f"{n} order(s) took over 20 minutes",
                            'hint': 'Long waits hurt satisfaction — consider more staff at peak.'})
-        n = _count("SELECT COUNT(*) FROM orders WHERE created_at::date = CURRENT_DATE AND status = 'cancelled'")
+        n = _count("SELECT COUNT(*) FROM orders WHERE created_at >= %(d0)s AND created_at < %(d1)s AND status = 'cancelled'")
         if n:
             issues.append({'key': 'cancellations', 'severity': 'info', 'count': n,
                            'title': f"{n} order(s) cancelled",
@@ -12477,6 +12613,8 @@ def get_today_report():
 
         return jsonify({
             'success': True,
+            'window': window_label,
+            'timezone': tzname,
             'date': datetime.now().date().isoformat(),
             'total_orders': total,
             'status_breakdown': status_counts,
