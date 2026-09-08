@@ -1,0 +1,6 @@
+{
+  "name": "cupq-harnesses",
+  "private": true,
+  "description": "Headless checks for the CupQ copy. Run from THIS directory so playwright-core resolves.",
+  "dependencies": { "playwright-core": "^1.47.0" }
+}

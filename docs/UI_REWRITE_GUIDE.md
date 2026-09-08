@@ -109,7 +109,9 @@ cd ~/cupq-next
 ./stop.sh && ./next.sh      # restart on http://localhost:5001
 ```
 
-Then, from `scratchpad/capture/`:
+Then, from `scratchpad/capture/` (first time in a fresh checkout: `npm install`
+there — it needs `playwright-core`, and it drives the Chrome already on the
+Mac, so there is nothing to download):
 
 ```bash
 node ui_sweep.js            # walks all 30 screens, shoots + scores each
@@ -128,7 +130,9 @@ Sign in is `coffeecue` / `adminpassword`. Screens are addressable as
 
 ### Before you commit
 
-Run the harnesses in `scratchpad/capture/`:
+Run the harnesses, **from `scratchpad/capture/`** — `require('playwright-core')`
+resolves from the script's own directory, so running them from the repo root
+fails with MODULE_NOT_FOUND:
 
 ```
 smoke_phase4.js      18 checks — the barista queue
@@ -228,6 +232,10 @@ it is more mechanical than it looks. Good second-day work.
 - **`legacy.css`.** `src/design/legacy.css` re-points old Tailwind colour
   classes at the palette inside `.cq-legacy`. It makes old screens *less* ugly;
   it does not make them converted. Do not count on it.
+- **Inline hex hides from the sweep.** The score counts Tailwind colour
+  classes in the DOM. A control built with `style={{ background: '#1f2937' }}`
+  scores clean and still looks foreign — `AdminViewSwitcher` was exactly this.
+  Grep for `#[0-9a-fA-F]{6}` in any file you touch and convert those too.
 - **Test your assumption, not your code.** A change that looks right on the
   copy can do nothing in production. (An ETag on `/api/orders` was shipped and
   reverted the same night: `waitTime` ticks every minute, so the payload never
