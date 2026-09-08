@@ -32,7 +32,18 @@ async function score(p) {
       .filter(e => /\b(bg|text|border)-(blue|green|gray|red|yellow|indigo|purple)-\d00\b/.test(e.className || '')).length;
     const cq = [...document.querySelectorAll('*')]
       .filter(e => /\bcq-/.test(e.className || '')).length;
-    return { selects: q('select'), inputs: q('input'), grey, legacy, cq };
+    // Count only RAW controls -- ones not wearing the design system. SelectRow
+    // and TextField render a real <select>/<input> on purpose, so counting
+    // every one of them marked a correctly converted screen as unfinished.
+    // (Found by following our own prompt: Labels reached legacy 0 and still
+    // reported "1 select, 5 inputs", all of them ours.)
+    // ...and skip the invisible ones. A file picker behind a styled label is
+    // <input type="file" class="hidden"> -- there is nothing to restyle.
+    const raw = (sel) => [...document.querySelectorAll(sel)]
+      .filter(e => !/\bcq-/.test(e.className || ''))
+      .filter(e => e.type !== 'file' && e.type !== 'hidden'
+                   && !/\bhidden\b/.test(e.className || '')).length;
+    return { selects: raw('select'), inputs: raw('input'), grey, legacy, cq };
   });
 }
 

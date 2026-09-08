@@ -5,6 +5,11 @@
 // printer hardware stays with Support. Presentation options apply at
 // render time, so even already-queued jobs pick up a change.
 import React, { useState, useEffect, useCallback } from 'react';
+import {
+  AlignLeft, Clock, Globe, Image as ImageIcon, Maximize2, MessageSquare,
+  Minus, Printer, Receipt, Ruler, Tag, User,
+} from 'lucide-react';
+import { SettingGroup, SettingRow, Toggle, Segmented, SelectRow, TextField, SettingNote } from '../../design';
 import printService from '../../services/PrintService';
 import ApiServiceClass from '../../services/ApiService';
 import { showToast } from './Toast';
@@ -87,157 +92,161 @@ const LabelDesignCard = ({ printers = [], onPrinted }) => {
     }
   };
 
-  const toggle = (key, label, hint) => (
-    <label className="flex items-center space-x-2 text-sm py-1">
-      <input
-        type="checkbox"
+  // One row per switch. Was a bare checkbox with the hint trailing off the
+  // end of the line in grey; now it reads like every other setting in the app.
+  const toggle = (key, label, hint, Icon) => (
+    <SettingRow Icon={Icon} label={label} hint={hint}>
+      <Toggle
+        on={!!settings?.[key]}
         disabled={busy || !settings}
-        checked={!!settings?.[key]}
-        onChange={(e) => save({ [key]: e.target.checked })}
+        onChange={(v) => save({ [key]: v })}
       />
-      <span>{label}</span>
-      {hint && <span className="text-xs text-gray-400">{hint}</span>}
-    </label>
+    </SettingRow>
   );
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-4">
-      <h2 className="text-xl font-bold mb-1">Label design</h2>
-      <p className="text-sm text-gray-500 mb-3">
-        Exactly what the printer will produce — preview any roll width
-        below (each printer carries its own in the table). The label cuts
-        at the image height, so "keep text big" makes long text use more
-        sticker instead of shrinking. Order number, name and drink always
-        print; the rest is yours:
+    <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-5">
+      <h2 className="text-lg font-bold text-cq-roast mb-1">Label design</h2>
+      <p className="text-sm text-cq-ink-3 mb-4 max-w-[62ch]">
+        Exactly what the printer will produce. Order number, name and drink
+        always print; the rest is yours.
       </p>
       <div className="flex flex-col md:flex-row gap-6">
         <div className="flex-1 min-w-[16rem]">
-          {toggle('show_event_name', 'Event name',
-            settings?.event_name_effective ? `("${settings.event_name_effective}")` : '')}
-          {toggle('show_logo', 'Logo',
-            settings?.logo_available ? '(the sticker logo above, or the screen logo if none)' : '(no logo yet — add one above)')}
-          {toggle('show_name', 'Customer name', '(off = number-only cups)')}
-          {toggle('show_station_time', 'Station + time line')}
-          {/* WHEN the coffee label prints. One control, three answers.
-              This used to be a per-device checkbox on a different screen
-              (barista > Display), which meant swapping the tablet silently
-              stopped auto-printing and the organiser could not set it at
-              all. Now it is per event and lives with the rest of the
-              label settings. */}
-          <div className="text-sm text-gray-600 mt-1 mb-1">Printing the coffee label</div>
-          <label className="flex items-center space-x-2 text-sm py-1">
-            <span>Print automatically</span>
-            <select
-              className="border rounded px-2 py-1"
-              disabled={busy || !settings}
-              value={settings?.auto_print_mode || 'off'}
-              onChange={(e) => save({ auto_print_mode: e.target.value })}
-            >
-              <option value="off">Never — I'll press print</option>
-              <option value="arrival">When the order arrives</option>
-              <option value="start">When a barista starts it</option>
-            </select>
-          </label>
-          <p className="text-xs text-gray-500 mb-2 ml-1">
+          <SettingGroup title="What prints on it">
+            {toggle('show_event_name', 'Event name',
+              settings?.event_name_effective ? `Currently "${settings.event_name_effective}"` : 'No event name set',
+              Tag)}
+            {toggle('show_logo', 'Logo',
+              settings?.logo_available ? 'The sticker logo, or the screen one if none' : 'No logo yet — add one above',
+              ImageIcon)}
+            {toggle('show_name', 'Customer name', 'Off gives number-only cups', User)}
+            {toggle('show_station_time', 'Station and time', 'A line at the foot of the label', Clock)}
+          </SettingGroup>
+
+          <SettingGroup title="Printing">
+            <SettingRow Icon={Printer} label="Print automatically"
+                        hint="When the coffee label comes out">
+              <Segmented
+                size="sm"
+                value={settings?.auto_print_mode || 'off'}
+                onChange={(v) => save({ auto_print_mode: v })}
+                options={[
+                  { value: 'off', label: 'Never' },
+                  { value: 'arrival', label: 'On arrival' },
+                  { value: 'start', label: 'On start' },
+                ]}
+              />
+            </SettingRow>
+            <SettingRow Icon={AlignLeft} label="Text alignment">
+              <Segmented
+                size="sm"
+                value={settings?.align || 'left'}
+                onChange={(v) => save({ align: v })}
+                options={[{ value: 'left', label: 'Left' }, { value: 'center', label: 'Centred' }]}
+              />
+            </SettingRow>
+            <SettingRow Icon={Maximize2} label="Label size"
+                        hint="The label cuts at the image height">
+              <Segmented
+                size="sm"
+                value={settings?.label_scale_mode || 'compact'}
+                onChange={(v) => save({ label_scale_mode: v })}
+                options={[
+                  { value: 'compact', label: 'Shrink text' },
+                  { value: 'grow', label: 'Keep text big' },
+                  { value: 'lid', label: 'Lid (40mm)' },
+                ]}
+              />
+            </SettingRow>
+            <SettingRow Icon={Ruler} label="Preview roll"
+                        hint="Each printer carries its own width">
+              <Segmented
+                size="sm"
+                value={String(previewWidth)}
+                onChange={(v) => setPreviewWidth(parseInt(v, 10))}
+                options={[
+                  { value: '320', label: '40mm' }, { value: '406', label: '58mm' },
+                  { value: '576', label: '72mm' }, { value: '640', label: '80mm' },
+                ]}
+              />
+            </SettingRow>
+          </SettingGroup>
+
+          {/* The one explanation that carries real information: what each
+              auto-print mode actually does to the queue. One note under the
+              group it belongs to, not a paragraph under every field. */}
+          <SettingNote>
             {settings?.auto_print_mode === 'arrival'
-              ? 'Every order prints as it comes in, so the labels queue up ready to make — good for working ahead of a break. Nobody is texted until the drink is completed.'
+              ? 'Every order prints as it comes in, so labels queue up ready to make — good for working ahead of a break. Nobody is texted until the drink is finished.'
               : settings?.auto_print_mode === 'start'
                 ? 'One label at a time, as each barista picks the order up.'
                 : 'Use the Print queue button on the barista screen when you want a batch.'}
-          </p>
+          </SettingNote>
 
-          <label className="flex items-center space-x-2 text-sm py-1">
-            <span>Text alignment</span>
-            <select
-              className="border rounded px-2 py-1"
-              disabled={busy || !settings}
-              value={settings?.align || 'left'}
-              onChange={(e) => save({ align: e.target.value })}
-            >
-              <option value="left">Left</option>
-              <option value="center">Centred</option>
-            </select>
-          </label>
-          <label className="flex items-center space-x-2 text-sm py-1">
-            <span>Label size</span>
-            <select
-              className="border rounded px-2 py-1"
-              disabled={busy || !settings}
-              value={settings?.label_scale_mode || 'compact'}
-              onChange={(e) => save({ label_scale_mode: e.target.value })}
-            >
-              <option value="compact">Shrink text (short label)</option>
-              <option value="grow">Keep text big (longer label)</option>
-              <option value="lid">Half height — for a cup lid (~40mm)</option>
-            </select>
-          </label>
-          <label className="flex items-center space-x-2 text-sm py-1">
-            <span>Preview roll</span>
-            <select
-              className="border rounded px-2 py-1"
-              value={String(previewWidth)}
-              onChange={(e) => setPreviewWidth(parseInt(e.target.value, 10))}
-            >
-              <option value="320">40mm</option>
-              <option value="406">58mm</option>
-              <option value="576">72mm</option>
-              <option value="640">80mm</option>
-            </select>
-          </label>
-          <div className="text-sm text-gray-600 mt-2 mb-1">Divider lines</div>
-          {toggle('rule_below_logo', 'Below logo')}
-          {toggle('rule_below_number', 'Below order number')}
-          {toggle('rule_below_drink', 'Below drink details')}
-          {toggle('rule_above_station', 'Above station + time')}
-          {toggle('rule_above_footer', 'Above instructions/footer')}
-          {toggle('rule_between_footer_lines', 'Between instructions and footer')}
-          <div className="text-sm text-gray-600 mt-2 mb-1">Customer ticket stubs</div>
-          {toggle('ticket_on_walkup', 'Also print a number stub the CUSTOMER takes away',
-            '(the deli-counter slip, right preview — not the coffee label)')}
-          <label className="block text-sm mt-2">
-            <span className="text-gray-600">Ordering instructions line</span>
-            <input
-              className="mt-1 w-full border rounded px-2 py-1.5"
-              defaultValue={settings?.instructions_text || ''}
-              placeholder="e.g. Order: SMS 0489 263 333 or the event app"
-              disabled={busy || !settings}
-              onBlur={(e) => {
-                if ((settings?.instructions_text || '') !== e.target.value.trim()) {
-                  save({ instructions_text: e.target.value.trim() });
-                }
-              }}
-            />
-          </label>
-          <label className="block text-sm mt-2">
-            <span className="text-gray-600">Footer line (website / sponsor)</span>
-            <input
-              className="mt-1 w-full border rounded px-2 py-1.5"
-              defaultValue={settings?.footer_text || ''}
-              placeholder="e.g. CoffeeCue - coffeecue.com  or  Wallfly - wallfly.com.au"
-              disabled={busy || !settings}
-              onBlur={(e) => {
-                if ((settings?.footer_text || '') !== e.target.value.trim()) {
-                  save({ footer_text: e.target.value.trim() });
-                }
-              }}
-            />
-          </label>
-          <label className="block text-sm mt-2">
-            <span className="text-gray-600">Event name override (blank = use the event's name)</span>
-            <input
-              className="mt-1 w-full border rounded px-2 py-1.5"
-              defaultValue={settings?.event_name || ''}
-              placeholder={settings?.event_name_effective || ''}
-              disabled={busy || !settings}
-              onBlur={(e) => {
-                if ((settings?.event_name || '') !== e.target.value.trim()) {
-                  save({ event_name: e.target.value.trim() });
-                }
-              }}
-            />
-          </label>
+          <SettingGroup title="Divider lines" className="mt-5">
+            {toggle('rule_below_logo', 'Below the logo', null, Minus)}
+            {toggle('rule_below_number', 'Below the order number', null, Minus)}
+            {toggle('rule_below_drink', 'Below the drink', null, Minus)}
+            {toggle('rule_above_station', 'Above station and time', null, Minus)}
+            {toggle('rule_above_footer', 'Above the footer', null, Minus)}
+            {toggle('rule_between_footer_lines', 'Between instructions and footer', null, Minus)}
+          </SettingGroup>
+
+          <SettingGroup title="Customer ticket stub">
+            {toggle('ticket_on_walkup', 'Print a stub the customer takes',
+              'The deli-counter slip on the right — not the coffee label', Receipt)}
+          </SettingGroup>
+
+          {/* Uncontrolled on purpose: these commit on blur so typing does not
+              fire a PUT per keystroke. Same behaviour as before, styled. */}
+          <SettingGroup title="Lines of text">
+            <SettingRow Icon={MessageSquare} label="Ordering instructions"
+                        hint="Printed under the drink" stack>
+              <TextField
+                width="w-full"
+                placeholder="e.g. Order: SMS 0489 263 333 or the event app"
+                defaultValue={settings?.instructions_text || ''}
+                disabled={busy || !settings}
+                onBlur={(e) => {
+                  if ((settings?.instructions_text || '') !== e.target.value.trim()) {
+                    save({ instructions_text: e.target.value.trim() });
+                  }
+                }}
+              />
+            </SettingRow>
+            <SettingRow Icon={Globe} label="Footer line"
+                        hint="Website or sponsor, at the very bottom" stack>
+              <TextField
+                width="w-full"
+                placeholder="e.g. CupQ - cupq.app  or  Wallfly - wallfly.com.au"
+                defaultValue={settings?.footer_text || ''}
+                disabled={busy || !settings}
+                onBlur={(e) => {
+                  if ((settings?.footer_text || '') !== e.target.value.trim()) {
+                    save({ footer_text: e.target.value.trim() });
+                  }
+                }}
+              />
+            </SettingRow>
+            <SettingRow Icon={Tag} label="Event name override"
+                        hint="Leave blank to use the event's own name" stack>
+              <TextField
+                width="w-full"
+                placeholder={settings?.event_name_effective || ''}
+                defaultValue={settings?.event_name || ''}
+                disabled={busy || !settings}
+                onBlur={(e) => {
+                  if ((settings?.event_name || '') !== e.target.value.trim()) {
+                    save({ event_name: e.target.value.trim() });
+                  }
+                }}
+              />
+            </SettingRow>
+          </SettingGroup>
+
           <button
-            className="mt-3 bg-gray-200 text-gray-700 px-3 py-1.5 rounded text-sm hover:bg-gray-300"
+            className="mt-3 px-4 py-2 rounded-cq-md bg-cq-wash text-cq-roast font-semibold text-sm hover:bg-cq-caramel-wash"
             onClick={refreshPreview}
           >
             Refresh preview
@@ -245,28 +254,35 @@ const LabelDesignCard = ({ printers = [], onPrinted }) => {
           {/* Sideways banner: preview it here, print it to any enabled
               printer. Stock width (40-80mm per printer) = banner height,
               length up to ~30cm. */}
-          <div className="mt-4 pt-3 border-t">
-            <div className="text-sm text-gray-600 mb-1">Sideways banner (roll signage)</div>
-            <div className="flex gap-2">
-              <input
-                className="flex-1 border rounded px-2 py-1.5 text-sm"
+          {/* A sideways strip printed down the roll -- 'FLAT WHITE' to stand
+              beside the jug. Was a row of five bare controls jammed together;
+              now it reads as one job with a name. */}
+          <div className="mt-6 pt-4 border-t border-cq-line">
+            <div className="text-xs font-extrabold uppercase tracking-wider text-cq-ink-3 mb-2">
+              Sideways banner
+            </div>
+            <p className="text-sm text-cq-ink-3 mb-3 max-w-[52ch]">
+              A strip printed down the roll — a drink name to stand beside the
+              jug. The roll width is its height.
+            </p>
+            <div className="flex gap-2 flex-wrap items-center">
+              <TextField
+                width="flex-1 min-w-[12rem]"
                 value={bannerText}
                 maxLength={60}
                 placeholder="e.g. FLAT WHITE"
-                onChange={(e) => setBannerText(e.target.value)}
+                onChange={setBannerText}
               />
-              <select
-                className="border rounded px-2 py-1 text-sm"
-                disabled={busy || !settings}
+              <Segmented
+                size="sm"
                 value={settings?.banner_scale_mode || 'grow'}
-                onChange={(e) => save({ banner_scale_mode: e.target.value })}
-                title="Grow: keep the letters big and run the strip longer. Compact: shrink to a short strip."
-              >
-                <option value="grow">Big letters</option>
-                <option value="compact">Short strip</option>
-              </select>
+                onChange={(v) => save({ banner_scale_mode: v })}
+                options={[{ value: 'grow', label: 'Big letters' },
+                          { value: 'compact', label: 'Short strip' }]}
+              />
               <button
-                className="bg-gray-200 text-gray-700 px-3 py-1.5 rounded text-sm hover:bg-gray-300"
+                type="button"
+                className="h-10 px-4 rounded-cq-md bg-cq-wash text-cq-roast font-semibold text-sm hover:bg-cq-caramel-wash"
                 onClick={refreshBannerPreview}
               >
                 Preview
@@ -274,19 +290,16 @@ const LabelDesignCard = ({ printers = [], onPrinted }) => {
               {/* The endpoint existed from the start but nothing called it,
                   so banners could only ever be previewed. Target defaults to
                   the first enabled printer; with several, pick one. */}
-              <select
-                className="border rounded px-2 py-1 text-sm"
+              <SelectRow
+                ariaLabel="Which printer to print the banner on"
                 value={bannerPrinterId || ''}
-                onChange={(e) => setBannerPrinterId(e.target.value)}
-                title="Which printer to print the banner on"
-              >
-                {enabledPrinters.length === 0 && <option value="">No enabled printer</option>}
-                {enabledPrinters.map((pr) => (
-                  <option key={pr.id} value={pr.id}>{pr.name}</option>
-                ))}
-              </select>
+                onChange={setBannerPrinterId}
+                options={enabledPrinters.length === 0
+                  ? [{ value: '', label: 'No printer on' }]
+                  : enabledPrinters.map((pr) => ({ value: pr.id, label: pr.name }))}
+              />
               <button
-                className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700 disabled:opacity-40"
+                className="h-10 px-4 rounded-cq-md bg-cq-roast text-cq-cream font-semibold text-sm hover:bg-cq-caramel-deep disabled:opacity-40"
                 disabled={!bannerText.trim() || enabledPrinters.length === 0}
                 onClick={async () => {
                   const target = bannerPrinterId || enabledPrinters[0]?.id;
@@ -305,7 +318,7 @@ const LabelDesignCard = ({ printers = [], onPrinted }) => {
               </button>
             </div>
             {bannerPreviewUrl && (
-              <div className="mt-2 overflow-x-auto border rounded bg-gray-50 p-2">
+              <div className="mt-2 overflow-x-auto border border-cq-line rounded-cq-md bg-cq-wash p-2">
                 {/* Shown rotated back to horizontal so it reads like the
                     physical banner will when peeled off. */}
                 <img
@@ -340,15 +353,15 @@ const LabelDesignCard = ({ printers = [], onPrinted }) => {
               <img
                 src={previewUrl}
                 alt="Cup label preview"
-                className="border rounded shadow-sm mx-auto"
+                className="border border-cq-line rounded-cq-md shadow-sm mx-auto bg-white"
                 style={{ width: '203px', imageRendering: 'pixelated' }}
               />
             ) : (
-              <div className="w-[203px] h-48 border rounded flex items-center justify-center text-gray-400 text-sm">
+              <div className="w-[203px] h-48 border border-cq-line rounded-cq-md flex items-center justify-center text-cq-ink-3 text-sm">
                 Loading preview…
               </div>
             )}
-            <div className="text-xs text-gray-400 mt-1">cup label · 50% · 58mm</div>
+            <div className="text-xs text-cq-ink-3 mt-1">cup label · 50% · 58mm</div>
           </div>
           {settings?.ticket_on_walkup && (
             <div className="text-center">
@@ -356,15 +369,15 @@ const LabelDesignCard = ({ printers = [], onPrinted }) => {
                 <img
                   src={ticketPreviewUrl}
                   alt="Ticket stub preview"
-                  className="border rounded shadow-sm mx-auto"
+                  className="border border-cq-line rounded-cq-md shadow-sm mx-auto bg-white"
                   style={{ width: '203px', imageRendering: 'pixelated' }}
                 />
               ) : (
-                <div className="w-[203px] h-40 border rounded flex items-center justify-center text-gray-400 text-sm">
+                <div className="w-[203px] h-40 border border-cq-line rounded-cq-md flex items-center justify-center text-cq-ink-3 text-sm">
                   Loading…
                 </div>
               )}
-              <div className="text-xs text-gray-400 mt-1">customer ticket · 50%</div>
+              <div className="text-xs text-cq-ink-3 mt-1">customer ticket · 50%</div>
             </div>
           )}
         </div>

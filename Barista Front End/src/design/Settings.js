@@ -116,14 +116,21 @@ export function SelectRow({ value, options, onChange, ariaLabel }) {
   );
 }
 
-export function TextField({ value, onChange, placeholder, type = 'text', width = 'w-full max-w-xs' }) {
+// Controlled (`value` + `onChange`) or uncontrolled (`defaultValue` +
+// `onBlur`). The uncontrolled form matters: several fields here save on blur
+// on purpose, so typing does not fire a PUT per keystroke. Anything else --
+// disabled, maxLength, inputMode -- passes straight through.
+export function TextField({ value, onChange, placeholder, type = 'text',
+                            width = 'w-full max-w-xs', ...rest }) {
+  const controlled = value !== undefined && typeof onChange === 'function';
   return (
     <input
-      type={type} value={value} placeholder={placeholder}
-      onChange={(e) => onChange && onChange(e.target.value)}
+      type={type} placeholder={placeholder}
+      {...(controlled ? { value, onChange: (e) => onChange(e.target.value) } : {})}
+      {...rest}
       className={`${width} h-10 rounded-cq-md border-2 border-cq-line bg-cq-milk px-3
                   text-cq-roast placeholder:text-cq-ink-3
-                  focus:border-cq-caramel focus:outline-none`}
+                  focus:border-cq-caramel focus:outline-none disabled:opacity-50`}
     />
   );
 }

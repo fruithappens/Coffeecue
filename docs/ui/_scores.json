@@ -59,33 +59,33 @@
     "label": "Branding · Logo & look",
     "file": "branding-logo.png",
     "selects": 1,
-    "inputs": 30,
+    "inputs": 24,
     "grey": 15,
     "legacy": 97,
     "cq": 36,
-    "old": 62
+    "old": 56
   },
   {
     "hash": "branding/sponsors",
     "label": "Branding · Sponsors",
     "file": "branding-sponsors.png",
     "selects": 16,
-    "inputs": 36,
+    "inputs": 35,
     "grey": 21,
     "legacy": 213,
     "cq": 36,
-    "old": 115
+    "old": 114
   },
   {
     "hash": "branding/labels",
     "label": "Branding · Labels",
     "file": "branding-labels.png",
-    "selects": 6,
-    "inputs": 16,
-    "grey": 8,
-    "legacy": 23,
-    "cq": 36,
-    "old": 31
+    "selects": 0,
+    "inputs": 0,
+    "grey": 0,
+    "legacy": 0,
+    "cq": 169,
+    "old": 0
   },
   {
     "hash": "branding/milk",
@@ -148,10 +148,10 @@
     "file": "live-board.png",
     "selects": 0,
     "inputs": 0,
-    "grey": 12,
-    "legacy": 41,
+    "grey": 13,
+    "legacy": 46,
     "cq": 35,
-    "old": 16
+    "old": 17
   },
   {
     "hash": "live/metrics",
@@ -170,10 +170,10 @@
     "file": "orders-all.png",
     "selects": 2,
     "inputs": 1,
-    "grey": 105,
-    "legacy": 319,
+    "grey": 106,
+    "legacy": 321,
     "cq": 34,
-    "old": 134
+    "old": 136
   },
   {
     "hash": "orders/groups",
@@ -257,11 +257,11 @@
     "label": "Report",
     "file": "report.png",
     "selects": 0,
-    "inputs": 2,
+    "inputs": 0,
     "grey": 0,
     "legacy": 0,
     "cq": 194,
-    "old": 2
+    "old": 0
   },
   {
     "hash": "system/health",
@@ -301,11 +301,11 @@
     "label": "Settings",
     "file": "settings.png",
     "selects": 0,
-    "inputs": 5,
+    "inputs": 4,
     "grey": 0,
     "legacy": 15,
     "cq": 31,
-    "old": 8
+    "old": 7
   },
   {
     "hash": "emergency",

@@ -125,7 +125,13 @@ elements still carry old Tailwind colours (`legacy`), how many are on the
 design system (`cq`), how many bare `select`/`input` remain. No judgement
 calls.
 
-**Definition of done for a screen: `legacy: 0` and `selects: 0`.**
+**Definition of done for a screen: `legacy: 0`, `selects: 0`, `inputs: 0`.**
+
+The counts are of **raw** controls only — ones not wearing a `cq-` class, and
+not invisible. `SelectRow` and `TextField` render a real `<select>`/`<input>`
+on purpose, so they do not count against you, and neither does the hidden
+`<input type="file">` behind a styled upload button. (The scorer did not know
+that at first, and marked a finished screen as unfinished.)
 
 Sign in is `coffeecue` / `adminpassword`. Screens are addressable as
 `http://localhost:5001/run#<section>/<tab>`.
