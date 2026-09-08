@@ -11,6 +11,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Monitor, Hand, Eye, Copy, Check, QrCode, ExternalLink, Sparkles, Smartphone, Image as ImageIcon, HelpCircle, Activity, Sliders } from 'lucide-react';
 import { AreaMark, Button, Pill, useEventBrand, EventHeader } from '../../design';
 import useStations from '../../hooks/useStations';
+import AdminViewSwitcher from '../shared/AdminViewSwitcher';
 
 const origin = () => (typeof window !== 'undefined' ? window.location.origin : '');
 
@@ -193,6 +194,8 @@ export default function DisplaySelector({ embedded = false }) {
         <AreaMark area="display" inverse />
         <div className="flex-1" />
         <EventHeader brand={brand} className="hidden sm:flex" />
+        {/* In the header, not floating over the corner (Steve). */}
+        <AdminViewSwitcher embedded />
       </header>
       <main className="flex-1 overflow-y-auto p-4">{body}</main>
     </div>
