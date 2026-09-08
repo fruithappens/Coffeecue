@@ -7,6 +7,7 @@ import sys
 from datetime import datetime
 import sqlite3
 import getpass
+import threading
 
 # Try to import PostgreSQL modules, but provide SQLite fallback if not available
 try:
@@ -38,6 +39,28 @@ def _testing_mode_enabled():
     """
     return os.environ.get('TESTING_MODE', 'False').lower() == 'true'
 
+def _redact_db_url(url):
+    """postgresql://user:SECRET@host/db -> postgresql://user:***@host/db"""
+    try:
+        text = str(url or "")
+        if "://" not in text or "@" not in text:
+            return text
+        scheme, rest = text.split("://", 1)
+        creds, host = rest.split("@", 1)
+        if ":" in creds:
+            creds = creds.split(":", 1)[0] + ":***"
+        return f"{scheme}://{creds}@{host}"
+    except Exception:
+        return "<url>"
+
+
+# One rebuild at a time. Without this, every concurrent request that finds an
+# exhausted pool builds its OWN replacement -- eight of them did on
+# 2026-09-08, each one orphaning the connections still checked out of the
+# pool it replaced.
+_pool_rebuild_lock = threading.Lock()
+
+
 def init_db_pool(db_url=None):
     """Initialize the database connection pool"""
     global connection_pool
@@ -49,7 +72,10 @@ def init_db_pool(db_url=None):
     if not db_url:
         db_url = os.environ.get('DATABASE_URL', f'postgresql://{system_username}@localhost/expresso')
     
-    logger.info(f"Initializing database with connection: {db_url}")
+    # NEVER log the URL as given: it carries the password, and this line
+    # runs on every pool init -- during the 2026-09-08 outage it printed the
+    # production Postgres password into Railway's log stream dozens of times.
+    logger.info("Initializing database with connection: %s", _redact_db_url(db_url))
     
     try:
         # Parse connection parameters from URL
@@ -220,6 +246,12 @@ def get_db_connection(db_url=None):
 
     try:
         conn = connection_pool.getconn()
+        # Tag it with the pool that owns it. If the pool is later replaced,
+        # close_connection still knows where this one has to go back to.
+        try:
+            conn._cupq_pool = connection_pool
+        except Exception:
+            pass
         return conn
     except Exception as e:
         logger.error(f"Error getting database connection: {str(e)}")
@@ -236,10 +268,33 @@ def get_db_connection(db_url=None):
         # to Postgres. That exact split-brain was observed under load
         # (2026-06-12). SQLite is only ever used when psycopg2 itself
         # isn't installed (handled above), the genuine no-Postgres case.
+        #
+        # REBUILD AT MOST ONCE, UNDER A LOCK. This block used to run
+        # unguarded, and on 2026-09-08 that turned a moment of saturation
+        # into a two-hour outage: eight concurrent requests each called
+        # init_db_pool(), each replaced the global pool, and every
+        # connection still checked out of a replaced pool became
+        # unreturnable ("trying to put unkeyed connection"). Those
+        # connections were never given back and never closed, so Postgres
+        # held them open until the idle-in-transaction timeout killed them
+        # two minutes later -- by which time the new pool had been exhausted
+        # and replaced too. The recovery path was the outage.
+        stale = connection_pool
         try:
-            logger.warning("Re-initialising the connection pool after getconn failure")
-            init_db_pool(db_url)
-            return connection_pool.getconn()
+            with _pool_rebuild_lock:
+                if connection_pool is not stale:
+                    # Somebody rebuilt it while we waited for the lock. Use
+                    # theirs rather than making a third one.
+                    conn = connection_pool.getconn()
+                else:
+                    logger.warning("Re-initialising the connection pool after getconn failure")
+                    init_db_pool(db_url)
+                    conn = connection_pool.getconn()
+            try:
+                conn._cupq_pool = connection_pool
+            except Exception:
+                pass
+            return conn
         except Exception as e2:
             logger.error(f"Pool re-init + retry also failed: {e2}")
             raise
@@ -280,8 +335,22 @@ def close_connection(conn):
                 conn.rollback()
             except Exception as e:
                 logger.warning(f"rollback before putconn failed (continuing): {e}")
-            # Return PostgreSQL connection to the pool
-            connection_pool.putconn(conn)
+            # Back to the pool it CAME from, not whatever is global now.
+            owner = getattr(conn, "_cupq_pool", None) or connection_pool
+            try:
+                owner.putconn(conn)
+            except Exception as put_err:
+                # "trying to put unkeyed connection" means the pool was
+                # swapped under us. Dropping the connection here is what
+                # leaked it: it stayed open, inside a transaction, until
+                # Postgres timed it out. Close it instead -- one closed
+                # connection is a reconnect; one leaked connection is the
+                # start of the spiral.
+                logger.warning(f"putconn failed ({put_err}); closing the connection instead")
+                try:
+                    conn.close()
+                except Exception:
+                    pass
     except Exception as e:
         logger.error(f"Error closing connection: {str(e)}")
 
