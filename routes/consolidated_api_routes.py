@@ -642,7 +642,19 @@ def orders():
                     'groupLabel': order_details.get('group_label'),
                 })
 
-            return jsonify({
+            # 206 KB, re-sent in full several times a second to every barista
+            # screen. _revalidating_json hashes the payload and answers an
+            # unchanged one with a 304 and no body -- the same treatment the
+            # display config got after Treenet's egress peaks.
+            #
+            # The tag is computed from the SERIALISED payload, so it cannot go
+            # stale: if anything about any order changed, the bytes change and
+            # the tag changes with them. That does mean the query still runs;
+            # this saves the bandwidth, not the database round trip. Cutting
+            # the query as well needs a cheap change-stamp to test first, and
+            # that is only safe once every write path is known to touch
+            # updated_at -- worth doing, not worth guessing at.
+            return _revalidating_json({
                 'status': 'success',
                 'data': orders,
                 'message': f'Retrieved {len(orders)} orders'
