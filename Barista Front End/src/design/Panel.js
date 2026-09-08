@@ -67,6 +67,22 @@ export function Cell({ children, strong = false, right = false, dim = false, cla
   );
 }
 
+// A three-state status dot + label. Health, stock, printers and stations are
+// all fine / watch this / broken, and each screen had its own greens and
+// yellows. One component, one meaning.
+export function Status({ state = 'ok', children, className = '' }) {
+  const tone = { ok: 'text-cq-ready', warn: 'text-cq-warn', bad: 'text-cq-alert' }[state]
+    || 'text-cq-ink-3';
+  const dot = { ok: 'bg-cq-ready', warn: 'bg-cq-warn', bad: 'bg-cq-alert' }[state]
+    || 'bg-cq-ink-3';
+  return (
+    <span className={`inline-flex items-center gap-2 font-semibold ${tone} ${className}`}>
+      <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${dot}`} />
+      {children}
+    </span>
+  );
+}
+
 // Nothing here yet -- said once, in the right voice, instead of a grey
 // "No data available." in every table.
 export function Empty({ children }) {

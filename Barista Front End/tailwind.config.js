@@ -23,6 +23,7 @@ module.exports = {
           tan: '#C9A67A', cream: '#F6F1EA', milk: '#FFFFFF',
           ink: '#2A1F17', 'ink-2': '#5C4A3D', 'ink-3': '#8C7B6E', line: '#E6DCD0', wash: '#EFE7DC',
           ready: '#1F8A4C', 'ready-wash': '#DDF3E4', alert: '#C8372D', 'alert-wash': '#FBE3E0',
+          warn: '#B07D10', 'warn-wash': '#FBF1D6',
         },
         amber: {
           50: '#fffbeb',
