@@ -12017,13 +12017,23 @@ def get_today_report():
         status_counts = {row[0]: int(row[1]) for row in cur.fetchall()}
         total = sum(status_counts.values())
 
-        # Average wait (created → completed) for completed/picked_up orders today
+        # TIME TO MAKE: created_at -> completed_at.
+        #
+        # This used to measure created_at -> updated_at, which is not the wait
+        # at all -- it is the time until somebody tapped Collected. Steve, on a
+        # 138 minute figure in the Treenet report: "I think they would not have
+        # stayed for 2 hours." They did not. That coffee was MADE in 5 minutes
+        # and then sat on the shelf for 133. Steve again, once he saw the
+        # split: "the real time needs to be from order received and complete,
+        # not necessarily picked up as that is out of baristas control and
+        # person may not even come back."
+        #
+        # Measured properly, Treenet reads 5.6 min average instead of 13.3.
         cur.execute("""
-            SELECT AVG(EXTRACT(EPOCH FROM (updated_at - created_at)) / 60.0)
+            SELECT AVG(EXTRACT(EPOCH FROM (completed_at - created_at)) / 60.0)
             FROM orders
             WHERE created_at::date = CURRENT_DATE
-              AND status IN ('completed', 'picked_up')
-              AND updated_at IS NOT NULL
+              AND completed_at IS NOT NULL
               AND created_at IS NOT NULL
         """)
         row = cur.fetchone()
@@ -12045,9 +12055,8 @@ def get_today_report():
         # baseline ("expected throughput") for the next event.
         cur.execute("""
             SELECT station_id, COUNT(*) AS n,
-                   AVG(EXTRACT(EPOCH FROM (updated_at - created_at)) / 60.0)
-                     FILTER (WHERE status IN ('completed', 'picked_up')
-                             AND updated_at IS NOT NULL) AS avg_min,
+                   AVG(EXTRACT(EPOCH FROM (completed_at - created_at)) / 60.0)
+                     FILTER (WHERE completed_at IS NOT NULL) AS avg_min,
                    COUNT(*) FILTER (WHERE status IN ('completed', 'picked_up')) AS done,
                    EXTRACT(EPOCH FROM (MAX(updated_at) - MIN(created_at))) / 3600.0 AS span_hours
             FROM orders
@@ -12249,12 +12258,18 @@ def get_today_report():
             issues.append({'key': 'orders_on_closed_station', 'severity': 'danger', 'count': n,
                            'title': f"{n} active order(s) on a closed/maintenance station",
                            'hint': 'These may never be made — reassign them to an open station.'})
+        # Counted on completed_at, not updated_at. On the Treenet data the old
+        # measure reported 136 orders over 20 minutes; the real number is 7.
+        # The other 129 were made in minutes and then sat waiting to be
+        # collected -- a different problem with a different fix, and this
+        # warning was sending the team looking for a staffing shortage that
+        # was not there.
         n = _count("SELECT COUNT(*) FROM orders WHERE created_at::date = CURRENT_DATE "
-                   "AND status IN ('completed','picked_up') AND updated_at IS NOT NULL "
-                   "AND EXTRACT(EPOCH FROM (updated_at - created_at))/60.0 > 20")
+                   "AND completed_at IS NOT NULL "
+                   "AND EXTRACT(EPOCH FROM (completed_at - created_at))/60.0 > 20")
         if n:
             issues.append({'key': 'long_waits', 'severity': 'warning', 'count': n,
-                           'title': f"{n} order(s) took over 20 minutes",
+                           'title': f"{n} order(s) took over 20 minutes to make",
                            'hint': 'Long waits hurt satisfaction — consider more staff at peak.'})
         n = _count("SELECT COUNT(*) FROM orders WHERE created_at::date = CURRENT_DATE AND status = 'cancelled'")
         if n:
