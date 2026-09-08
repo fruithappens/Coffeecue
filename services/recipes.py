@@ -419,18 +419,39 @@ def resolve_order(db, order_details, get_setting, requested_bean=""):
                 if od.get("shots"):
                     shots = float(od["shots"])
                 elif shots is not None:
-                    # SMS stores strength words, not a shot count -- and
-                    # "double shot" never reached the bean math (matrix
-                    # S7: a double decremented one shot). Words that mean
-                    # a shot count become one here; anything else keeps
-                    # the recipe's default.
+                    # SMS stores strength words, not a shot count.
+                    #
+                    # These used to be ABSOLUTE -- "double" meant max(n, 2).
+                    # On a drink whose recipe is already 2 shots (a medium
+                    # flat white, any large) that is a floor it is already
+                    # standing on, so asking for a double shot changed
+                    # nothing: the barista pulled an extra one and the ledger
+                    # recorded a plain drink. "extra" and "quad" were not in
+                    # the list at all and did nothing anywhere.
+                    #
+                    # An extra shot is an ADDITION in every Australian cafe --
+                    # a large latte is a double, and asking for an extra one
+                    # makes it three. Steve: "go with what Australian baristas
+                    # do." The legacy path below has always added; this is the
+                    # newer recipe path being brought back in line with it,
+                    # so the two agree on the same order.
+                    #
+                    # What varies cafe to cafe is the BASE shots per size, and
+                    # that is already editable per drink and size in Menu >
+                    # Event Stock. This rule is not the part that varies.
                     st = str(od.get("strength") or "").lower()
-                    if any(w in st for w in ("triple", "3x", "3 shot")):
-                        shots = 3.0
-                    elif any(w in st for w in ("double", "2 shot", "strong")):
-                        shots = max(shots, 2.0)
-                    elif any(w in st for w in ("half", "weak")):
-                        shots = shots * 0.5
+                    if "quad" in st:
+                        shots += 3
+                    elif any(w in st for w in ("triple", "3x", "3 shot")):
+                        shots += 2
+                    elif any(w in st for w in ("double", "2 shot", "strong",
+                                               "extra")):
+                        shots += 1
+                    elif any(w in st for w in ("half", "weak", "light")):
+                        # Half a dose, not none -- a ristretto or a lighter
+                        # pull still grinds. Matches the legacy path's
+                        # max(0.5, n - 0.5) for the 1-shot case.
+                        shots = max(0.5, shots * 0.5)
             except (TypeError, ValueError):
                 pass
             if shots is not None:
