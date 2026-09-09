@@ -218,7 +218,9 @@ is in the prompt; this is the evidence for why.
 
 ## 12. Quick Setup is the last screen and the least like the others
 
-**Status:** open. Deliberately left until last.
+**Status:** DONE (9 Sep). 72 -> 0, and the pricing layout bug with it --
+it was structural: an inline-flex label with an inline-block button after
+it and nothing between them when pricing was off.
 
 2,274 lines, and the screen an operator uses when they are already stressed.
 Looking at it beside the converted screens:
@@ -269,7 +271,8 @@ concurrent events become routine rather than occasional.
 
 ## 14. The sweep scored 30 screens; the app has far more than 30 surfaces
 
-**Status:** open — the real remaining work, and bigger than "2 screens to go".
+**Status:** DONE (9 Sep). Every group below converted; see finding 15 for
+what the audit turned up on the way.
 
 Steve asked whether everything is consistent or something escaped. Audited
 it properly instead of trusting the scoreboard. 29 of the 30 scored screens
@@ -308,6 +311,40 @@ on the page as loaded", not "done".
 per hour), barista panels (11), customer surfaces (4), Quick Setup alone —
 plus deleting the dead Organiser branch, plus teaching the sweep to open
 modals or it will keep reporting green.
+
+---
+
+## 15. A class can contain `cq-` and still be nothing
+
+**Status:** DONE (9 Sep) — but the lesson outlives the fix.
+
+Validating every design-system utility in the source against the **built
+stylesheet** found seven that Tailwind never emitted. Earlier conversion
+passes had done substring replacement:
+
+| Written | Meant | What rendered |
+| --- | --- | --- |
+| `bg-cq-alert-wash0` | `bg-red-500` | a solid button with no background |
+| `bg-cq-ready-wash0` | `bg-green-500` | same |
+| `bg-cq-warn-wash0` | `bg-yellow-500` | same |
+| `bg-cq-milk-cq-md` / `-l` / `-md` | `bg-cq-milk` | 17 inputs, no background |
+| `shadow-cq-card-lg` / `-xl` | a shadow | cards with none |
+
+Every one **scored as converted**, because the scorer counts any class
+containing `cq-`. The same blind spot as finding 11, one level down.
+
+**The check that finds them** (worth re-running after any bulk edit):
+extract every `*-cq-*` class from the source, and assert each appears as a
+selector in `build/static/css/*.css`. Watch for false positives from
+variants — `hover:bg-cq-tan` is emitted as `.hover\:bg-cq-tan:hover`.
+
+**Related trap, same session:** a regex adding a class to every checkbox
+matched the first `>` in the tag, which inside `onChange={(e) => ...}` is
+the arrow — 31 broken arrow functions across 11 files. `build.sh` refused
+to copy, so nothing reached the server. Two rules came out of it: never
+append to a JSX tag by regex, only rewrite an existing `className="..."`;
+and when the change is "one property on every instance of a control",
+write one CSS rule instead of touching 35 tags.
 
 ---
 
