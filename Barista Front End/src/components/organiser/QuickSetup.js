@@ -1111,11 +1111,9 @@ const QuickSetup = () => {
           screen header. Empty = preserve existing setting (so re-running
           Quick Setup doesn't wipe the name). */}
       <div className="bg-cq-milk rounded-cq-md shadow-sm p-6 mb-4">
-        <h3 className="font-semibold text-lg mb-1">Event identity</h3>
+        <h3 className="text-lg font-bold text-cq-roast mb-1">Event identity</h3>
         <p className="text-sm text-cq-ink-3 mb-3">
-          The name of this event. Shows up in welcome SMS ("Welcome to
-          {' '}<em>Hills Baptist 2026</em>"), the Display screen header,
-          and the Organiser sidebar. Leave blank to keep the existing name.
+          On welcome texts, the board and the sidebar. Blank keeps the current name.
         </p>
         <input
           type="text"
@@ -1136,11 +1134,9 @@ const QuickSetup = () => {
           with the same slug returns "already exists" rather than
           erroring, so this is safe to re-run. */}
       <div className="bg-cq-milk rounded-cq-md shadow-sm p-6 mb-4">
-        <h3 className="font-semibold text-lg mb-1">Event accounts</h3>
+        <h3 className="text-lg font-bold text-cq-roast mb-1">Event accounts</h3>
         <p className="text-sm text-cq-ink-3 mb-3">
-          Create one admin + N barista logins for this event in one go.
-          They all share the same password (simpler for a single event;
-          rotate after). Leave the slug or password blank to skip.
+          One admin plus the baristas, all on one password. Blank skips this.
         </p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <label className="text-sm">
@@ -1200,14 +1196,14 @@ const QuickSetup = () => {
               ))}
             </ul>
             <div className="text-xs text-cq-ink-3 mt-2">
-              All accounts use the same password. Already-existing usernames are skipped (safe to re-run).
+              Existing usernames are skipped.
             </div>
           </div>
         )}
       </div>
 
       <div className="bg-cq-milk rounded-cq-md shadow-sm p-6 mb-4">
-        <h3 className="font-semibold text-lg mb-3">Milks</h3>
+        <h3 className="text-lg font-bold text-cq-roast mb-3">Milks</h3>
         <div>
           {MILK_OPTIONS.map(m => (
             <Checkbox key={m}
@@ -1220,7 +1216,7 @@ const QuickSetup = () => {
       </div>
 
       <div className="bg-cq-milk rounded-cq-md shadow-sm p-6 mb-4">
-        <h3 className="font-semibold text-lg mb-3">Cup sizes</h3>
+        <h3 className="text-lg font-bold text-cq-roast mb-3">Cup sizes</h3>
         <div>
           {SIZE_OPTIONS.map(s => (
             <Checkbox key={s}
@@ -1233,7 +1229,7 @@ const QuickSetup = () => {
       </div>
 
       <div className="bg-cq-milk rounded-cq-md shadow-sm p-6 mb-4">
-        <h3 className="font-semibold text-lg mb-3">Sweeteners</h3>
+        <h3 className="text-lg font-bold text-cq-roast mb-3">Sweeteners</h3>
         <div>
           {SWEETENER_OPTIONS.map(s => (
             <Checkbox key={s}
@@ -1246,11 +1242,9 @@ const QuickSetup = () => {
       </div>
 
       <div className="bg-cq-milk rounded-cq-md shadow-sm p-6 mb-4">
-        <h3 className="font-semibold text-lg mb-1">Drink categories</h3>
+        <h3 className="text-lg font-bold text-cq-roast mb-1">Drink categories</h3>
         <p className="text-sm text-cq-ink-3 mb-3">
-          Espresso drinks (latte, cappuccino, flat white, etc.) are always
-          enabled when coffee beans are stocked. Tick anything else you want
-          on offer.
+          Espresso drinks are always on. Tick anything extra.
         </p>
         <div>
           {EXTRA_DRINK_OPTIONS.map(d => (
@@ -1264,11 +1258,9 @@ const QuickSetup = () => {
       </div>
 
       <div className="bg-cq-milk rounded-cq-md shadow-sm p-6 mb-4">
-        <h3 className="font-semibold text-lg mb-1">Teas</h3>
+        <h3 className="text-lg font-bold text-cq-roast mb-1">Teas</h3>
         <p className="text-sm text-cq-ink-3 mb-3">
-          Tick each tea flavor you want on the menu. Walk-in orders for
-          tea will show strength (weak / standard / strong) and a
-          double-cup option (tea is hot — most baristas double-cup).
+          Tea orders ask for strength and offer a double cup.
         </p>
         <div>
           {TEA_OPTIONS.map(t => (
@@ -1290,10 +1282,6 @@ const QuickSetup = () => {
             placeholder="e.g. Pu'er, Oolong, House Special Blend"
             className="w-full px-3 py-2 border border-cq-line rounded focus:outline-none focus:ring-2 focus:ring-cq-caramel"
           />
-          <p className="text-xs text-cq-ink-3 mt-1">
-            Each name becomes a row in Inventory Management → Non-Coffee
-            Drinks. "Tea" is appended automatically if you don't include it.
-          </p>
         </div>
       </div>
 
@@ -1302,7 +1290,7 @@ const QuickSetup = () => {
       <WalkinDefaultsSection />
 
       <div className="bg-cq-milk rounded-cq-md shadow-sm p-6 mb-6">
-        <h3 className="font-semibold text-lg mb-3">Event-wide options</h3>
+        <h3 className="text-lg font-bold text-cq-roast mb-3">Event-wide options</h3>
         <Checkbox
           checked={config.unlimited_stock}
           onChange={() => setConfig(c => ({ ...c, unlimited_stock: !c.unlimited_stock }))}
@@ -1355,9 +1343,7 @@ const QuickSetup = () => {
               </button>
             </div>
             <span className="block text-xs text-cq-ink-3 mt-1">
-              <strong>Save VIP code</strong> changes ONLY the VIP code — safe to use
-              mid-event, it doesn't touch inventory, stations or anything else.
-              (The big Apply at the bottom rebuilds the whole event.)
+              Changes only the code — safe mid-event.
             </span>
           </label>
         </div>
@@ -1401,7 +1387,7 @@ const QuickSetup = () => {
             ))}
           </div>
           <span className="block text-xs text-cq-ink-3 mt-1">
-            Order confirmation and "ready for pickup" SMS always fire — this only controls the "your barista just started your X" one.
+            Confirmation and ready texts always send.
           </span>
         </div>
       </div>
@@ -1420,7 +1406,7 @@ const QuickSetup = () => {
         <button
           onClick={resetDefaults}
           disabled={applying}
-          className="px-4 py-3 bg-cq-wash hover:bg-cq-line rounded-cq-md text-cq-ink-2"
+          className="h-12 px-5 rounded-cq-md bg-cq-milk border-2 border-cq-line text-cq-roast font-bold hover:border-cq-caramel"
         >
           Reset to café defaults
         </button>
@@ -1607,17 +1593,17 @@ const QuickSetupPreviewModal = ({ loading, preview, error, onConfirm, onCancel }
         <div className="p-4 border-t bg-cq-wash flex items-center justify-end gap-2 sticky bottom-0">
           <button
             onClick={onCancel}
-            className="px-4 py-2 rounded bg-cq-milk border border-cq-line hover:bg-cq-wash text-cq-ink-2"
+            className="h-12 px-5 rounded-cq-md bg-cq-milk border-2 border-cq-line text-cq-roast font-bold hover:border-cq-caramel"
           >
             Cancel
           </button>
           <button
             onClick={onConfirm}
             disabled={loading || !!error}
-            className={`px-5 py-2 rounded text-white font-semibold disabled:opacity-50 ${
+            className={`h-12 px-5 rounded-cq-md text-white font-bold disabled:opacity-40 ${
               destructive
-                ? 'bg-cq-caramel hover:bg-cq-caramel-deep'
-                : 'bg-cq-ready hover:bg-cq-ready'
+                ? 'bg-cq-alert hover:brightness-95'
+                : 'bg-cq-caramel hover:bg-cq-caramel-deep'
             }`}
           >
             {destructive ? 'Apply (destructive)' : 'Apply changes'}
@@ -1709,12 +1695,7 @@ const EventTemplatesSection = ({ config, setConfig }) => {
 
   return (
     <div className="bg-cq-milk rounded-cq-md shadow-sm p-6 mb-4">
-      <h3 className="font-semibold text-lg mb-1">Templates</h3>
-      <p className="text-sm text-cq-ink-3 mb-3">
-        Save the current selections as a reusable template, or load one
-        you saved earlier. Templates omit per-event details (name,
-        accounts) so they apply cleanly to new events.
-      </p>
+      <h3 className="text-lg font-bold text-cq-roast mb-1">Templates</h3>
       <div className="flex flex-wrap gap-2 items-center">
         <select
           value={selected}
@@ -1732,7 +1713,7 @@ const EventTemplatesSection = ({ config, setConfig }) => {
           type="button"
           onClick={handleLoad}
           disabled={!selected}
-          className="px-3 py-2 bg-cq-wash hover:bg-cq-line rounded text-sm disabled:opacity-50"
+          className="h-10 px-4 rounded-cq-md bg-cq-milk border-2 border-cq-line text-cq-roast text-sm font-bold hover:border-cq-caramel disabled:opacity-40"
         >
           Load into form
         </button>
@@ -1740,7 +1721,7 @@ const EventTemplatesSection = ({ config, setConfig }) => {
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="px-3 py-2 bg-cq-caramel-wash hover:bg-cq-tan text-cq-caramel-deep rounded text-sm disabled:opacity-50"
+          className="h-10 px-4 rounded-cq-md bg-cq-milk border-2 border-cq-line text-cq-roast text-sm font-bold hover:border-cq-caramel disabled:opacity-40"
         >
           {saving ? 'Saving…' : 'Save current as template'}
         </button>
@@ -1831,11 +1812,9 @@ const PricingSection = () => {
 
   return (
     <div className="bg-cq-milk rounded-cq-md shadow-sm p-6 mb-4">
-      <h3 className="font-semibold text-lg mb-1">Pricing (honor system)</h3>
+      <h3 className="text-lg font-bold text-cq-roast mb-1">Pricing</h3>
       <p className="text-sm text-cq-ink-3 mb-3">
-        When enabled, the SMS confirmation tells the customer the total
-        and asks them to pay at the counter at collection time. No card
-        processing — just embeds the price in the conversation.
+        The customer's text says the total and asks them to pay at the counter.
       </p>
 
       <label className="flex w-fit items-center mb-4 cursor-pointer select-none">
@@ -2091,11 +2070,7 @@ const WalkinDefaultsSection = () => {
 
   return (
     <div className="bg-cq-milk rounded-cq-md shadow-sm p-6 mb-4">
-      <h3 className="font-semibold text-lg mb-1">Walk-in defaults</h3>
-      <p className="text-sm text-cq-ink-3 mb-3">
-        What the walk-in dialog pre-fills before the operator confirms
-        and submits. Set these to your most common values to cut clicks.
-      </p>
+      <h3 className="text-lg font-bold text-cq-roast mb-1">Walk-in defaults</h3>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         <label className="text-sm">
@@ -2155,9 +2130,7 @@ const WalkinDefaultsSection = () => {
             className="w-full px-2 py-1 border border-cq-line rounded"
           />
           <span className="block text-xs text-cq-ink-3 mt-1">
-            Comma-separated, in order of preference. The dialog picks the
-            first one stocked at the station. Anything not in this list
-            is only chosen if nothing in the list is available.
+            In order of preference. The first one in stock wins.
           </span>
         </label>
       </div>
@@ -2165,7 +2138,7 @@ const WalkinDefaultsSection = () => {
       <button
         onClick={save}
         disabled={saving || !loaded}
-        className="px-4 py-2 bg-cq-caramel hover:bg-cq-caramel-deep text-white rounded disabled:opacity-50"
+        className="h-12 px-5 rounded-cq-md bg-cq-caramel hover:bg-cq-caramel-deep text-white font-bold disabled:opacity-40"
       >
         {saving ? 'Saving…' : 'Save walk-in defaults'}
       </button>

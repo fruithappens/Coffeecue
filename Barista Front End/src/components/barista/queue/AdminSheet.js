@@ -96,11 +96,14 @@ export default function AdminSheet({ open, onClose, state = {}, actions = {}, un
             {actions.openTab ? (
               <div className="py-3 border-b border-cq-line">
                 <div className="font-bold text-cq-roast leading-tight">Manager tools on this tablet</div>
-                <div className="text-sm text-cq-ink-3">Moving to the runner app; here until then</div>
+                {/* Was seven. Completed orders, Inventory, Schedule, Capabilities
+                    and Staff now live in the runner app (Orders, Menu, Schedule,
+                    Stations, People), so a barista's tablet no longer carries a
+                    second copy of each. The two left have no runner home yet. */}
+                <div className="text-sm text-cq-ink-3">Everything else is in the runner app</div>
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   {[
-                    ['completed', 'Completed orders', Check], ['inventory', 'Inventory', Package], ['schedule', 'Schedule', Calendar],
-                    ['capabilities', 'Capabilities', Settings], ['staff', 'Staff', UserCog], ['queue', 'Queue rules', Brain], ['balance', 'Balance', Scale],
+                    ['queue', 'Queue rules', Brain], ['balance', 'Balance', Scale],
                   ].map(([id, label, Icon]) => (
                     <button key={id} type="button" onClick={() => actions.openTab(id)} className="h-11 px-3 rounded-cq-md bg-cq-wash text-cq-roast font-semibold text-sm inline-flex items-center gap-2 hover:bg-cq-caramel-wash">
                       <Icon size={16} strokeWidth={2.25} /><span className="truncate">{label}</span>

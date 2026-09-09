@@ -296,7 +296,7 @@ const StationLoadBalancer = () => {
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold flex items-center">
             <Zap className="mr-2 text-cq-warn" />
-            Load Balancing Configuration
+            When to even things out
           </h3>
           <div className="flex items-center space-x-4">
             <label className="flex items-center space-x-2">
@@ -309,15 +309,15 @@ const StationLoadBalancer = () => {
                 })}
                 className="rounded border-cq-line"
               />
-              <span className="text-sm font-medium">Auto-Balance</span>
+              <span className="text-sm font-medium">Move orders automatically</span>
             </label>
             <button
               onClick={() => setTransferSuggestions(transferSuggestionsData)}
               disabled={balancingActive}
-              className="px-4 py-2 bg-cq-roast text-white rounded-cq-md hover:bg-cq-caramel-deep disabled:opacity-50 flex items-center space-x-2"
+              className="h-10 px-4 rounded-cq-md bg-cq-milk border-2 border-cq-line text-cq-roast font-bold hover:border-cq-caramel disabled:opacity-40 flex items-center space-x-2"
             >
               <RefreshCw size={16} className={balancingActive ? 'animate-spin' : ''} />
-              <span>Analyze</span>
+              <span>Check now</span>
             </button>
           </div>
         </div>
@@ -325,7 +325,7 @@ const StationLoadBalancer = () => {
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-cq-ink-2 mb-1">
-              Balance Threshold (%)
+              Busy above
             </label>
             <input
               type="range"
@@ -336,13 +336,13 @@ const StationLoadBalancer = () => {
                 ...balancingRules,
                 balanceThreshold: parseInt(e.target.value)
               })}
-              className="w-full"
+              className="w-full accent-cq-caramel"
             />
             <div className="text-xs text-cq-ink-3">{balancingRules.balanceThreshold}%</div>
           </div>
           <div>
             <label className="block text-sm font-medium text-cq-ink-2 mb-1">
-              Max Transfers
+              Move at most
             </label>
             <select
               value={balancingRules.maxTransfers}
@@ -350,7 +350,7 @@ const StationLoadBalancer = () => {
                 ...balancingRules,
                 maxTransfers: parseInt(e.target.value)
               })}
-              className="w-full p-2 border rounded"
+              className="w-full h-10 px-3 rounded-cq-md border-2 border-cq-line bg-cq-milk text-cq-roast focus:border-cq-caramel focus:outline-none"
             >
               <option value={1}>1</option>
               <option value={3}>3</option>
@@ -368,7 +368,7 @@ const StationLoadBalancer = () => {
                 })}
                 className="rounded border-cq-line"
               />
-              <span className="text-sm font-medium">Check Capabilities</span>
+              <span className="text-sm font-medium">Only to a station that can make it</span>
             </label>
           </div>
         </div>
@@ -378,7 +378,7 @@ const StationLoadBalancer = () => {
       <div className="bg-cq-milk p-6 rounded-cq-md shadow-sm">
         <h3 className="text-lg font-semibold mb-4 flex items-center">
           <Users className="mr-2 text-cq-caramel-deep" />
-          Station Workload Distribution
+          How busy each station is
         </h3>
         
         <div className="space-y-4">
@@ -422,14 +422,14 @@ const StationLoadBalancer = () => {
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold flex items-center">
               <ArrowRightLeft className="mr-2 text-cq-caramel-deep" />
-              Recommended Transfers ({transferSuggestions.length})
+              Orders worth moving ({transferSuggestions.length})
             </h3>
             <button
               onClick={executeAllTransfers}
               disabled={balancingActive}
-              className="px-4 py-2 bg-cq-roast text-white rounded-cq-md hover:bg-cq-roast disabled:opacity-50"
+              className="h-10 px-4 rounded-cq-md bg-cq-caramel text-white font-bold hover:bg-cq-caramel-deep disabled:opacity-40"
             >
-              Execute All Transfers
+              Move all
             </button>
           </div>
           
@@ -459,17 +459,15 @@ const StationLoadBalancer = () => {
                   </div>
                   
                   <div className="text-center">
-                    <div className="text-sm font-bold text-cq-ready">-{suggestion.waitTimeReduction}m</div>
-                    <div className="text-xs text-cq-ink-3">time saved</div>
+                    <div className="text-sm font-bold text-cq-ready">{Math.abs(suggestion.waitTimeReduction)}m</div>
+                    <div className="text-xs text-cq-ink-3">quicker</div>
                   </div>
                   
                   <button
                     onClick={() => executeTransfer(suggestion)}
                     disabled={balancingActive}
                     className="px-3 py-1 bg-cq-roast text-white text-xs rounded hover:bg-cq-roast disabled:opacity-50"
-                  >
-                    Transfer
-                  </button>
+                  >Move</button>
                 </div>
               </div>
             ))}
@@ -477,29 +475,6 @@ const StationLoadBalancer = () => {
         </div>
       )}
 
-      {/* Balance Status */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-cq-milk p-4 rounded-cq-md shadow-sm text-center">
-          <div className={`text-2xl font-bold ${workloadData.needsBalancing ? 'text-cq-alert' : 'text-cq-ready'}`}>
-            {workloadData.needsBalancing ? <AlertTriangle size={24} className="mx-auto" /> : <CheckCircle size={24} className="mx-auto" />}
-          </div>
-          <div className="text-sm text-cq-ink-2 mt-1">
-            {workloadData.needsBalancing ? 'Needs Balancing' : 'Well Balanced'}
-          </div>
-        </div>
-        <div className="bg-cq-milk p-4 rounded-cq-md shadow-sm text-center">
-          <div className="text-2xl font-bold text-cq-caramel-deep">{balancingMetrics.workloadVariance || 0}</div>
-          <div className="text-sm text-cq-ink-2">Workload Variance</div>
-        </div>
-        <div className="bg-cq-milk p-4 rounded-cq-md shadow-sm text-center">
-          <div className="text-2xl font-bold text-cq-ready">{balancingMetrics.avgWaitTime || 0}m</div>
-          <div className="text-sm text-cq-ink-2">Avg Wait Time</div>
-        </div>
-        <div className="bg-cq-milk p-4 rounded-cq-md shadow-sm text-center">
-          <div className="text-2xl font-bold text-cq-caramel-deep">{Math.round(balancingMetrics.efficiencyGain || 0)}m</div>
-          <div className="text-sm text-cq-ink-2">Time Saved Today</div>
-        </div>
-      </div>
     </div>
   );
 };

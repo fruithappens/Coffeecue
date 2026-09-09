@@ -348,6 +348,28 @@ write one CSS rule instead of touching 35 tags.
 
 ---
 
+## 16. The manager tools behind the barista PIN duplicated the runner
+
+**Status:** DONE (10 Sep), two left deliberately.
+
+The lock sheet said it itself: *"Manager tools on this tablet — moving to
+the runner app; here until then."* The runner exists. Five of the seven had
+a runner home already (Orders · All, Menu · Inventory, Schedule, Stations,
+People), so a barista's tablet carried a second copy of each, each on its
+own styling. Removed from the sheet. **Queue rules** and **Balance** stay
+because nothing in the runner does what they do — and both were rewritten
+into plain English (they read like a different product: "Execute All
+Transfers", "Workload Variance", a `_assign_station` code mention on a
+barista screen, and a summary row that could say "Well balanced" under two
+stations marked overloaded).
+
+**Left for the cleanup pass:** the render branches for the five removed
+tabs are still in `BaristaInterface.js` (`activeTab === 'inventory'` etc.)
+and nothing can set them any more. Delete in a commit of their own, per
+the guide's rule about not refactoring and converting together.
+
+---
+
 ## Still on Steve
 
 Not findings — decisions and config that only he can make.

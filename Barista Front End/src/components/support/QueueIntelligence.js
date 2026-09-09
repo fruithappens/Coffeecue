@@ -340,22 +340,21 @@ const QueueIntelligence = () => {
         <h3 className="text-lg font-semibold mb-4 flex items-center justify-between">
           <span className="flex items-center">
             <Zap className="mr-2 text-cq-warn" />
-            Routing Configuration
+            How a station is chosen
           </span>
           <span className={`text-xs px-2 py-1 rounded font-medium ${
               serverSyncStatus === 'synced'  ? 'bg-cq-ready-wash text-cq-ready' :
               serverSyncStatus === 'syncing' ? 'bg-cq-caramel-wash text-cq-caramel-deep animate-pulse' :
               serverSyncStatus === 'error'   ? 'bg-cq-alert-wash text-cq-alert' :
               'bg-cq-wash text-cq-ink-2'}`}>
-            {serverSyncStatus === 'synced'  ? '● Live — affecting routing'
+            {serverSyncStatus === 'synced'  ? '● Live'
              : serverSyncStatus === 'syncing' ? 'Syncing…'
              : serverSyncStatus === 'error' ? 'Saved locally only — backend offline'
              : 'Not yet synced'}
           </span>
         </h3>
-        <p className="text-xs text-cq-ink-3 mb-4">
-          These toggles now drive the backend's <code className="bg-cq-wash px-1 rounded">_assign_station</code> algorithm
-          directly. Changes apply to the next order placed.
+        <p className="text-sm text-cq-ink-3 mb-4">
+          Applies from the next order placed.
         </p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {Object.entries(routingRules).map(([key, value]) => (
@@ -370,7 +369,11 @@ const QueueIntelligence = () => {
                 className="rounded border-cq-line"
               />
               <span className="text-sm font-medium">
-                {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
+                {({ prioritizeEfficiency: 'Quickest station first',
+                    balanceWorkload: 'Share the load evenly',
+                    considerCapabilities: 'Only a station that can make it',
+                    emergencyMode: 'Emergency: any open station' })[key]
+                  || key.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase())}
               </span>
             </label>
           ))}
@@ -391,19 +394,19 @@ const QueueIntelligence = () => {
             
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span>Current Load:</span>
+                <span>Making now</span>
                 <span>{station.currentLoad}/{station.maxCapacity}</span>
               </div>
               <div className="flex justify-between">
-                <span>Workload:</span>
+                <span>Busy</span>
                 <span>{Math.round(station.workloadPercentage)}%</span>
               </div>
               <div className="flex justify-between">
-                <span>Est. Wait:</span>
+                <span>Wait</span>
                 <span>{station.estimatedWaitTime}m</span>
               </div>
               <div className="flex justify-between">
-                <span>Orders/Hour:</span>
+                <span>Per hour</span>
                 <span>{station.ordersPerHour}</span>
               </div>
             </div>
@@ -430,7 +433,7 @@ const QueueIntelligence = () => {
         <div className="bg-cq-milk p-6 rounded-cq-md shadow-sm">
           <h3 className="text-lg font-semibold mb-4 flex items-center">
             <BarChart3 className="mr-2 text-cq-caramel-deep" />
-            Intelligent Routing Suggestions ({routingSuggestions.length})
+            Orders that could move ({routingSuggestions.length})
           </h3>
           <div className="space-y-3">
             {routingSuggestions.slice(0, 5).map(({ order, suggested, currentStation }) => (
@@ -454,12 +457,12 @@ const QueueIntelligence = () => {
                   <div className="text-center">
                     <div className="text-sm font-medium text-cq-caramel-deep">{suggested.station.name}</div>
                     <div className="text-xs text-cq-ink-3">
-                      Score: {Math.round(suggested.score)} | Wait: {suggested.station.estimatedWaitTime}m
+                      {suggested.station.estimatedWaitTime}m wait
                     </div>
                   </div>
                   
-                  <button className="px-3 py-1 bg-cq-roast text-white text-xs rounded hover:bg-cq-caramel-deep">
-                    Route
+                  <button className="h-9 px-3 rounded-cq-sm bg-cq-caramel text-white text-sm font-bold hover:bg-cq-caramel-deep">
+                    Move
                   </button>
                 </div>
               </div>
@@ -468,25 +471,6 @@ const QueueIntelligence = () => {
         </div>
       )}
 
-      {/* Metrics Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-cq-milk p-4 rounded-cq-md shadow-sm text-center">
-          <div className="text-2xl font-bold text-cq-caramel-deep">{routingMetrics.totalOrdersRouted || 0}</div>
-          <div className="text-sm text-cq-ink-2">Active Orders</div>
-        </div>
-        <div className="bg-cq-milk p-4 rounded-cq-md shadow-sm text-center">
-          <div className="text-2xl font-bold text-cq-ready">{routingMetrics.avgWaitTime || 0}m</div>
-          <div className="text-sm text-cq-ink-2">Avg Wait (busy stations)</div>
-        </div>
-        <div className="bg-cq-milk p-4 rounded-cq-md shadow-sm text-center">
-          <div className="text-2xl font-bold text-cq-caramel-deep">{routingMetrics.stationsAvailable}/{routingMetrics.stationsTotal}</div>
-          <div className="text-sm text-cq-ink-2">Stations Available</div>
-        </div>
-        <div className="bg-cq-milk p-4 rounded-cq-md shadow-sm text-center">
-          <div className="text-2xl font-bold text-cq-caramel-deep">{routingMetrics.workloadBalance || 0}%</div>
-          <div className="text-sm text-cq-ink-2">Workload Balance</div>
-        </div>
-      </div>
     </div>
   );
 };
