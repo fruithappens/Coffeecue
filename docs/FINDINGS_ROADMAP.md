@@ -189,6 +189,53 @@ no test, because it is trusted.
 
 ---
 
+## 11. `legacy: 0` is not the same as "looks like the app"
+
+**Status:** found by looking at screenshots, not by any score. Two screens
+fixed; no audit.
+
+The sweep counts old Tailwind colour classes. A screen can reach **zero and
+still not belong**, because the score cannot see:
+
+- **Table headers** in plain grey rather than the small-caps caramel the report
+  and blocked-numbers tables use
+- **Title Case** where the rest of the app is sentence case
+- **Raw numbers where words belong.** Printers showed `61142s ago` for a
+  printer that last spoke seventeen hours earlier. The operator should not have
+  to divide.
+- **A column running off the right edge** of a table that does not scroll in
+  its own box
+- **Dead paths in the words**, not the links — see finding 5, which has now
+  turned up three times
+
+Printers was the example: `legacy: 0`, and every one of the above.
+
+**Fixed looks like:** the score stays the gate, but a screen is not finished
+until somebody has *looked* at it beside `docs/ui/report.png`. That instruction
+is in the prompt; this is the evidence for why.
+
+---
+
+## 12. Quick Setup is the last screen and the least like the others
+
+**Status:** open. Deliberately left until last.
+
+2,274 lines, and the screen an operator uses when they are already stressed.
+Looking at it beside the converted screens:
+
+- Bare checkbox grids instead of setting rows — no icons, no consistent spacing
+- Every section carries two or three lines of grey explanation, which is
+  exactly what the conversion strips everywhere else
+- **"Save pricing" overlaps the "Enable pricing" checkbox** — a real layout bug
+- Buttons in three different styles on one page
+- The event name field shows `coffeecue`, which is the *system* name leaking
+  into the event's
+
+**Fixed looks like:** its own session, with the layout bug fixed first because
+that one is not cosmetic.
+
+---
+
 ## Still on Steve
 
 Not findings — decisions and config that only he can make.

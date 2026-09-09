@@ -21,6 +21,18 @@ const STATUS_TONES = {
   cancelled: 'bg-cq-wash text-cq-ink-2',
 };
 
+// '61142s ago' is a number, not an answer. A printer that last spoke seventeen
+// hours ago is off; one that spoke four seconds ago is fine, and the operator
+// should not have to divide.
+const sinceWords = (sec) => {
+  const n = Number(sec);
+  if (!Number.isFinite(n)) return 'never';
+  if (n < 90) return `${Math.round(n)}s ago`;
+  if (n < 5400) return `${Math.round(n / 60)} min ago`;
+  if (n < 172800) return `${Math.round(n / 3600)} hours ago`;
+  return `${Math.round(n / 86400)} days ago`;
+};
+
 const PrintersTab = () => {
   const [printers, setPrinters] = useState([]);
   const [jobs, setJobs] = useState([]);
@@ -88,7 +100,7 @@ const PrintersTab = () => {
           queue. */}
       <div className="bg-cq-caramel-wash border border-cq-caramel rounded-cq-md px-4 py-3 text-sm text-cq-caramel-deep">
         Label design — logo, what prints on the sticker, auto-print — is in{' '}
-        <a href="/organiser#branding/labels" className="font-semibold underline">Organiser → Branding → Labels</a>.
+        <a href="/organiser#branding/labels" className="font-semibold underline">Branding → Labels</a>.
         This page is the printers themselves: connection, roll width, offset and the print queue.
       </div>
 
@@ -96,7 +108,7 @@ const PrintersTab = () => {
       <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-xl font-bold flex items-center">
-            <Printer size={20} className="mr-2 w-[18px] h-[18px] rounded-cq-sm border-2 border-cq-line accent-cq-caramel cursor-pointer" /> Label Printers
+            <Printer size={20} className="mr-2 w-[18px] h-[18px] rounded-cq-sm border-2 border-cq-line accent-cq-caramel cursor-pointer" /> Label printers
           </h2>
           <button
             className="text-cq-ink-3 hover:text-cq-ink-2 flex items-center text-sm"
@@ -116,26 +128,26 @@ const PrintersTab = () => {
             and it will appear here on its first poll (within ~10 seconds).
           </p>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto -mx-1 px-1">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-cq-ink-3 border-b">
-                  <th className="py-2 pr-3">Status</th>
-                  <th className="py-2 pr-3">Name</th>
-                  <th className="py-2 pr-3">MAC</th>
-                  <th className="py-2 pr-3">Station</th>
-                  <th className="py-2 pr-3">Width</th>
-                  <th className="py-2 pr-3">Offset</th>
-                  <th className="py-2 pr-3">Driver</th>
-                  <th className="py-2 pr-3">Enabled</th>
-                  <th className="py-2 pr-3">Last poll</th>
+                <tr className="text-left border-b border-cq-line">
+                  <th className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">Status</th>
+                  <th className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">Name</th>
+                  <th className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">MAC</th>
+                  <th className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">Station</th>
+                  <th className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">Width</th>
+                  <th className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">Offset</th>
+                  <th className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">Driver</th>
+                  <th className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">Enabled</th>
+                  <th className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">Last poll</th>
                   <th className="py-2"></th>
                 </tr>
               </thead>
               <tbody>
                 {printers.map(p => (
                   <tr key={p.id} className="border-b last:border-0">
-                    <td className="py-2 pr-3">
+                    <td className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                         p.online ? 'bg-cq-ready-wash text-cq-ready' : 'bg-cq-alert-wash text-cq-alert'}`}>
                         {p.online ? 'online' : 'offline'}
@@ -147,7 +159,7 @@ const PrintersTab = () => {
                         </div>
                       )}
                     </td>
-                    <td className="py-2 pr-3">
+                    <td className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">
                       <input
                         className="border-2 border-cq-line rounded-cq-md bg-cq-milk px-2 py-1 w-40"
                         value={nameDrafts[p.id] !== undefined ? nameDrafts[p.id] : (p.name || '')}
@@ -162,7 +174,7 @@ const PrintersTab = () => {
                       />
                     </td>
                     <td className="py-2 pr-3 font-mono text-xs">{p.mac_address || '—'}</td>
-                    <td className="py-2 pr-3">
+                    <td className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">
                       <select
                         className="border-2 border-cq-line rounded-cq-md bg-cq-milk px-2 py-1"
                         value={p.station_id ?? ''}
@@ -178,7 +190,7 @@ const PrintersTab = () => {
                         ))}
                       </select>
                     </td>
-                    <td className="py-2 pr-3">
+                    <td className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">
                       {/* Printable dots across the roll — drives labels,
                           tickets AND banner height. 203dpi ≈ 8 dots/mm:
                           40mm stock ≈ 320, 58mm ≈ 406 (50.8mm printable),
@@ -197,7 +209,7 @@ const PrintersTab = () => {
                         <option value="640">80mm (640)</option>
                       </select>
                     </td>
-                    <td className="py-2 pr-3">
+                    <td className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">
                       {/* LEFT OFFSET, per printer.
                           Every printer needs its own. An 80mm head
                           printing onto 58mm stock held right-aligned by
@@ -256,7 +268,7 @@ const PrintersTab = () => {
                         left offset (dots)
                       </div>
                     </td>
-                    <td className="py-2 pr-3">
+                    <td className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">
                       {/* Per-printer driver. The distinction that actually
                           matters operationally is WHO POLLS WHOM: with
                           CloudPRNT the printer calls us and needs nothing
@@ -284,7 +296,7 @@ const PrintersTab = () => {
                         describes the connection; doesn't change it
                       </div>
                     </td>
-                    <td className="py-2 pr-3">
+                    <td className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">
                       <label className="inline-flex items-center">
                         <input
                           type="checkbox" className="w-[18px] h-[18px] rounded-cq-sm border-2 border-cq-line accent-cq-caramel cursor-pointer"
@@ -298,7 +310,7 @@ const PrintersTab = () => {
                       </label>
                     </td>
                     <td className="py-2 pr-3 text-cq-ink-3">
-                      {p.seconds_since_poll == null ? 'never' : `${p.seconds_since_poll}s ago`}
+                      {p.seconds_since_poll == null ? 'never' : sinceWords(p.seconds_since_poll)}
                     </td>
                     <td className="py-2">
                       <button
@@ -404,18 +416,18 @@ const PrintersTab = () => {
         {jobs.length === 0 ? (
           <p className="text-cq-ink-3 text-sm">No print jobs yet.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto -mx-1 px-1">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-cq-ink-3 border-b">
-                  <th className="py-2 pr-3">Created</th>
-                  <th className="py-2 pr-3">Order</th>
-                  <th className="py-2 pr-3">Type</th>
-                  <th className="py-2 pr-3">Station</th>
-                  <th className="py-2 pr-3">Printer</th>
-                  <th className="py-2 pr-3">Status</th>
-                  <th className="py-2 pr-3">Attempts</th>
-                  <th className="py-2 pr-3">Error</th>
+                <tr className="text-left border-b border-cq-line">
+                  <th className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">Created</th>
+                  <th className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">Order</th>
+                  <th className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">Type</th>
+                  <th className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">Station</th>
+                  <th className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">Printer</th>
+                  <th className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">Status</th>
+                  <th className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">Attempts</th>
+                  <th className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">Error</th>
                   <th className="py-2"></th>
                 </tr>
               </thead>
@@ -425,19 +437,19 @@ const PrintersTab = () => {
                     <td className="py-2 pr-3 text-cq-ink-3 whitespace-nowrap">
                       {j.created_at ? new Date(j.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
                     </td>
-                    <td className="py-2 pr-3">{j.order_id ? `#${j.order_id}` : '—'}</td>
-                    <td className="py-2 pr-3">{j.type}</td>
+                    <td className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">{j.order_id ? `#${j.order_id}` : '—'}</td>
+                    <td className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">{j.type}</td>
                     <td className="py-2 pr-3 whitespace-nowrap font-medium">
                       {stationName(j.station_id)}
                     </td>
-                    <td className="py-2 pr-3">{j.printer_name || stationName(j.station_id)}</td>
-                    <td className="py-2 pr-3">
+                    <td className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">{j.printer_name || stationName(j.station_id)}</td>
+                    <td className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">
                       <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
                         STATUS_TONES[j.status] || 'bg-cq-wash text-cq-ink-2'}`}>
                         {j.status}
                       </span>
                     </td>
-                    <td className="py-2 pr-3">{j.attempts}</td>
+                    <td className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">{j.attempts}</td>
                     <td className="py-2 pr-3 text-cq-alert text-xs max-w-[16rem] truncate" title={j.error || ''}>
                       {j.error || ''}
                     </td>

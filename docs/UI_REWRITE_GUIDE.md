@@ -129,7 +129,13 @@ elements still carry old Tailwind colours (`legacy`), how many are on the
 design system (`cq`), how many bare `select`/`input` remain. No judgement
 calls.
 
-**Definition of done for a screen: `legacy: 0`, `selects: 0`, `inputs: 0`.**
+**Definition of done for a screen: `legacy: 0`, `selects: 0`, `inputs: 0` —
+AND somebody has looked at it.**
+
+The score is the gate, not the finish line. Printers reached zero while still
+showing grey table headers, Title Case, a column running off the edge, and
+`61142s ago` where a person needs "17 hours ago". None of that is a colour
+class. See finding 11 in `FINDINGS_ROADMAP.md`.
 
 The counts are of **raw** controls only — ones not wearing a `cq-` class, and
 not invisible. `SelectRow` and `TextField` render a real `<select>`/`<input>`
