@@ -17,7 +17,7 @@ export default function StationChip({ name, queue = 0, selected = false, status 
     >
       <span className={`w-2.5 h-2.5 rounded-full ${off ? 'bg-cq-alert' : 'bg-cq-ready'}`} aria-hidden />
       <span className="truncate max-w-[10rem]">{name}</span>
-      <span className={`inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 rounded-full text-sm ${selected ? 'bg-white/15' : 'bg-cq-wash text-cq-ink-2'}`}>{queue}</span>
+      <span className={`inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 rounded-full text-sm ${selected ? 'bg-cq-milk/15' : 'bg-cq-wash text-cq-ink-2'}`}>{queue}</span>
     </button>
   );
 }

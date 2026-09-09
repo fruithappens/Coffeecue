@@ -344,7 +344,7 @@ const MilkGuide = ({ stationId = null }) => {
         <label className="flex items-start gap-2 cursor-pointer">
           <input
             type="checkbox"
-            className="mt-1"
+            className="mt-1 h-4 w-4 accent-cq-caramel"
             checked={symbols}
             disabled={busy}
             onChange={(e) => toggle(e.target.checked)}

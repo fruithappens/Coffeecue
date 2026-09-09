@@ -53,7 +53,7 @@ const ScreenRow = ({ Icon, title, what, path, badge, extra }) => {
       </div>
       {qr ? (
         <div className="mt-3 flex items-center gap-3">
-          <img src={`/api/qr?size=6&data=${encodeURIComponent(url)}`} alt="" className="w-28 h-28 rounded bg-white p-1 border border-cq-line" />
+          <img src={`/api/qr?size=6&data=${encodeURIComponent(url)}`} alt="" className="w-28 h-28 rounded bg-cq-milk p-1 border border-cq-line" />
           <p className="text-sm text-cq-ink-2 max-w-[24ch]">Point another device&rsquo;s camera at this to open the screen there.</p>
         </div>
       ) : null}

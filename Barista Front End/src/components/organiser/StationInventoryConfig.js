@@ -488,7 +488,7 @@ const StationInventoryConfig = ({ stations }) => {
   };
 
   return (
-    <div className="bg-cq-milk rounded-cq-lg shadow-cq-card-lg p-4 sm:p-6">
+    <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4 sm:p-6">
       <QuickSetupStatusBanner section="station_inventory" />
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl sm:text-2xl font-bold text-cq-roast">Station Inventory Configuration</h2>
@@ -660,7 +660,7 @@ const StationInventoryConfig = ({ stations }) => {
                     ).length;
 
                     return (
-                      <div key={categoryKey} className="flex items-center justify-between p-2 bg-white rounded border">
+                      <div key={categoryKey} className="flex items-center justify-between p-2 bg-cq-milk rounded border">
                         <span className="text-sm font-medium">{category.name}</span>
                         <div className="flex space-x-1">
                           <span className="text-xs text-cq-ink-3">
@@ -668,13 +668,13 @@ const StationInventoryConfig = ({ stations }) => {
                           </span>
                           <button
                             onClick={() => setAllItemsInCategory(selectedStation.id, categoryKey, true)}
-                            className="px-2 py-1 text-xs bg-cq-ready-wash0 text-white rounded hover:bg-cq-ready"
+                            className="px-2 py-1 text-xs bg-cq-ready text-white rounded hover:bg-cq-ready"
                           >
                             All
                           </button>
                           <button
                             onClick={() => setAllItemsInCategory(selectedStation.id, categoryKey, false)}
-                            className="px-2 py-1 text-xs bg-cq-alert-wash0 text-white rounded hover:bg-cq-alert"
+                            className="px-2 py-1 text-xs bg-cq-alert text-white rounded hover:bg-cq-alert"
                           >
                             None
                           </button>
@@ -797,7 +797,7 @@ const StationInventoryConfig = ({ stations }) => {
                           </button>
                         )}
                         <div className={`w-3 h-3 rounded-full ${
-                          isAvailable ? 'bg-cq-ready-wash0' : 'bg-cq-line'
+                          isAvailable ? 'bg-cq-ready' : 'bg-cq-line'
                         }`} />
                       </div>
                     </div>

@@ -512,7 +512,7 @@ const EnhancedLiveOperationsDashboard = () => {
             return (
               <div 
                 key={station.id}
-                className={`p-4 rounded-cq-md border-2 cursor-pointer transition-all hover:shadow-lg ${getStationCardStyle(station)}`}
+                className={`p-4 rounded-cq-md border-2 cursor-pointer transition-all hover:shadow-cq-card ${getStationCardStyle(station)}`}
                 onClick={() => setSelectedStation(station)}
               >
                 <div className="flex justify-between items-start mb-3">
@@ -724,7 +724,7 @@ const EnhancedLiveOperationsDashboard = () => {
       {/* Emergency Alert Dialog */}
       {showEmergencyDialog && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-cq-md p-6 max-w-md w-full mx-4">
+          <div className="bg-cq-milk rounded-cq-md p-6 max-w-md w-full mx-4">
             <div className="flex items-center mb-4">
               <AlertTriangle className="text-cq-alert mr-3" size={24} />
               <h3 className="text-xl font-bold">Send Emergency Alert</h3>
@@ -736,7 +736,7 @@ const EnhancedLiveOperationsDashboard = () => {
               value={emergencyMessage}
               onChange={(e) => setEmergencyMessage(e.target.value)}
               placeholder="Enter your emergency message..."
-              className="w-full border-2 border-cq-line rounded-cq-md bg-cq-milk-cq-md p-3 mb-4 focus:outline-none focus:ring-2 focus:ring-red-500"
+              className="w-full border-2 border-cq-line rounded-cq-md bg-cq-milk p-3 mb-4 focus:outline-none focus:ring-2 focus:ring-cq-alert"
               rows={4}
               autoFocus
             />

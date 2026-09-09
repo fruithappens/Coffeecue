@@ -75,8 +75,8 @@ const withSrc = (url, station) => {
 // Visual theme presets. Each provides bg, panel, text, accent.
 const THEMES = {
   light:   { bg: 'bg-cq-wash',    panel: 'bg-cq-milk',         text: 'text-cq-roast', subtext: 'text-cq-ink-3', border: 'border-cq-line' },
-  dark:    { bg: 'bg-cq-roast',   panel: 'bg-cq-roast',      text: 'text-gray-50',  subtext: 'text-cq-ink-3', border: 'border-cq-ink-3' },
-  coffee:  { bg: 'bg-cq-caramel-wash',   panel: 'bg-cq-caramel-wash/40',  text: 'text-amber-950', subtext: 'text-cq-caramel-deep', border: 'border-amber-200' },
+  dark:    { bg: 'bg-cq-roast',   panel: 'bg-cq-roast',      text: 'text-cq-cream',  subtext: 'text-cq-ink-3', border: 'border-cq-ink-3' },
+  coffee:  { bg: 'bg-cq-caramel-wash',   panel: 'bg-cq-caramel-wash/40',  text: 'text-cq-roast', subtext: 'text-cq-caramel-deep', border: 'border-cq-line' },
   minimal: { bg: 'bg-cq-milk',      panel: 'bg-cq-milk',         text: 'text-cq-roast', subtext: 'text-cq-ink-3', border: 'border-cq-line' },
 };
 
@@ -169,7 +169,7 @@ const OrderCard = ({ order, variant, fonts, theme, showCustomerName, showDetails
     : 'ring-[6px] ring-cq-caramel';
   const badgeClass = variant === 'ready'
     ? 'bg-cq-ready text-white'
-    : 'bg-amber-400 text-amber-950';
+    : 'bg-cq-caramel-wash text-cq-roast';
 
   return (
     <div className={`relative isolate rounded-cq-xl ${theme.panel} ${ringClass} shadow-cq-card
@@ -336,7 +336,7 @@ const DisplayScreen = () => {
     // CupQ house dark. This initial value matters: a second merge from
     // the local settings hook runs after the API one, so a blue left
     // here beat the colour the server actually sent.
-    header_color: '#C08552',
+    header_color: '#B8764A',
     custom_message: '',
     logo: '',
     background_landscape: '',
@@ -1358,15 +1358,15 @@ const DisplayScreen = () => {
   // shadow and text. Steve: "think the black backgound should be the
   // coffee colour". A near-black band reads as chrome; the tan reads as
   // the brand.
-  const CUPQ_DARK = '#1F2A37';
-  const CUPQ_COFFEE = '#C08552';
+  const CUPQ_DARK = '#3B2314';
+  const CUPQ_COFFEE = '#B8764A';
   const headerColor = config.header_color || CUPQ_COFFEE;
   const _hx = (headerColor || '').replace('#', '');
   const _r = parseInt(_hx.substring(0, 2) || '1e', 16);
   const _g = parseInt(_hx.substring(2, 4) || '40', 16);
   const _b = parseInt(_hx.substring(4, 6) || 'af', 16);
   const _lum = (0.299 * _r + 0.587 * _g + 0.114 * _b) / 255;
-  const onHeader = _lum > 0.6 ? '#111827' : '#ffffff';
+  const onHeader = _lum > 0.6 ? '#3B2314' : '#FFFFFF';
   const onHeaderDim = _lum > 0.6 ? 'rgba(17,24,39,0.72)' : 'rgba(255,255,255,0.82)';
 
   // The banner is a WHITE CARD with a coffee keyline, not a coloured
@@ -1408,7 +1408,7 @@ const DisplayScreen = () => {
        + 0.587 * parseInt(_ax.slice(2, 4), 16)
        + 0.114 * parseInt(_ax.slice(4, 6), 16)) / 255
     : 0.5;
-  const onAccent = _alum > 0.6 ? '#1F2A37' : '#FFFFFF';
+  const onAccent = _alum > 0.6 ? '#3B2314' : '#FFFFFF';
   // A light accent on a white card has no edge of its own, so give it
   // one. Without this a cream button simply vanishes into the banner.
   const accentNeedsOutline = _alum > 0.75;
@@ -1547,10 +1547,10 @@ const DisplayScreen = () => {
             className="block rounded-full"
             style={{
               width: 9, height: 9,
-              backgroundColor: health.level === 'green' ? '#22c55e'
-                             : health.level === 'orange' ? '#f59e0b' : '#ef4444',
+              backgroundColor: health.level === 'green' ? '#1F8A4C'
+                             : health.level === 'orange' ? '#B07D10' : '#C8372D',
               opacity: health.level === 'green' ? 0.55 : 0.95,
-              boxShadow: health.level === 'red' ? '0 0 6px #ef4444' : 'none',
+              boxShadow: health.level === 'red' ? '0 0 6px #C8372D' : 'none',
             }}
           />
           {holdProgress > 0 && (
@@ -1896,7 +1896,7 @@ const DisplayScreen = () => {
           <button
             onClick={(e) => { e.stopPropagation(); toggleAnnouncements(); }}
             className="p-2 rounded-full hover:opacity-80"
-            style={{ backgroundColor: readySound === 'off' ? bannerChip : (soundNeedsTap ? '#f59e0b' : '#16a34a'),
+            style={{ backgroundColor: readySound === 'off' ? bannerChip : (soundNeedsTap ? '#B07D10' : '#1F8A4C'),
                      color: readySound === 'off' ? onHeader : '#ffffff' }}
             title={readySound === 'off'
               ? 'Sound OFF - tap for a chime on every fresh completion'
@@ -2207,7 +2207,7 @@ const DisplayScreen = () => {
         /* Fresh-completion background flash: green ~8 times over 12 s, then
            rests transparent so only the ring remains. */
         @keyframes cupqReadyFlash { 0%, 100% { opacity: 0; } 50% { opacity: 0.55; } }
-        .cupq-ready-flash { background: #22c55e; opacity: 0; animation: cupqReadyFlash 1.5s ease-in-out 0s 8; }
+        .cupq-ready-flash { background: #1F8A4C; opacity: 0; animation: cupqReadyFlash 1.5s ease-in-out 0s 8; }
         .ready-breathe {
           animation: readyBreathe 2.6s ease-in-out infinite;
         }
@@ -2412,7 +2412,7 @@ const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
   // for, and on a light board the dark block is what the eye lands on
   // first -- the job green used to do by convention, done here by
   // contrast instead.
-  const headerBg = isReady ? (ink || '#1F2A37') : (accent || '#C08552');
+  const headerBg = isReady ? (ink || '#3B2314') : (accent || '#B8764A');
   const icon = isReady ? <Check size={28} className="mr-2" /> : <Clock size={28} className="mr-2" />;
   // Upper case, as in the concept: two words in caps read as a LABEL for
   // the column beneath, where title case reads as a heading you might be

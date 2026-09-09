@@ -30,7 +30,7 @@ const LogoutButton = ({
   return (
     <button
       onClick={handleLogout}
-      className={`flex items-center px-3 py-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded ${className}`}
+      className={`flex items-center px-3 py-2 text-cq-alert hover:text-cq-alert hover:bg-cq-alert-wash rounded ${className}`}
       title="Log out"
     >
       {showIcon && <LogOut size={18} className="mr-1" />}

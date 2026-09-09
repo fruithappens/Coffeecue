@@ -185,7 +185,7 @@ const OperationsTab = () => {
               variant="outline" 
               size="sm"
               onClick={clearAllQueues}
-              className="text-red-600"
+              className="text-cq-alert"
             >
               Clear All Queues
             </Button>
@@ -194,7 +194,7 @@ const OperationsTab = () => {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {stations.map(station => (
-              <div key={station.id} className="border rounded-lg p-4">
+              <div key={station.id} className="border rounded-cq-md p-4">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="font-medium">{station.name}</h3>
                   <Badge variant={station.status === 'active' ? 'success' : 'secondary'}>
@@ -202,7 +202,7 @@ const OperationsTab = () => {
                   </Badge>
                 </div>
 
-                <div className="text-sm text-gray-600 mb-3">
+                <div className="text-sm text-cq-ink-2 mb-3">
                   <p>Queue: {station.queueCount || 0} orders</p>
                   <p>Current: {station.current_order || 'None'}</p>
                   <p>Barista: {station.barista || 'Unassigned'}</p>
@@ -231,7 +231,7 @@ const OperationsTab = () => {
                     variant="outline"
                     onClick={() => handleStationAction(station.id, 'clear')}
                     disabled={loading}
-                    className="text-red-600"
+                    className="text-cq-alert"
                   >
                     Clear
                   </Button>
@@ -375,7 +375,7 @@ const OperationsTab = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-cq-ink-2">
             The drinks menu and per-station inventory are managed in the{' '}
             <button
               onClick={() => { window.location.href = '/run'; }}

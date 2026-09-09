@@ -126,7 +126,7 @@ const ClientCrashesPanel = () => {
           <button
             onClick={handleRefresh}
             disabled={refreshing}
-            className="p-1 rounded hover:bg-white/40 disabled:opacity-50"
+            className="p-1 rounded hover:bg-cq-milk/40 disabled:opacity-50"
             title="Refresh"
           >
             <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
@@ -142,7 +142,7 @@ const ClientCrashesPanel = () => {
         <div className="px-4 py-3 text-sm text-cq-ready">
           No React Error Boundary catches recorded. When a component crashes,
           it'll appear here automatically — phoned home via
-          <code className="mx-1 px-1 bg-white/60 rounded">/api/client-errors</code>.
+          <code className="mx-1 px-1 bg-cq-milk/60 rounded">/api/client-errors</code>.
         </div>
       )}
 
@@ -167,12 +167,12 @@ const ClientCrashesPanel = () => {
                         {formatWhen(err.occurred_at)}
                       </span>
                       {err.user_id && (
-                        <span className="text-xs px-1.5 py-0.5 bg-white/60 rounded">
+                        <span className="text-xs px-1.5 py-0.5 bg-cq-milk/60 rounded">
                           {err.user_id}
                         </span>
                       )}
                       {err.retry_count > 0 && (
-                        <span className="text-xs px-1.5 py-0.5 bg-white/60 rounded">
+                        <span className="text-xs px-1.5 py-0.5 bg-cq-milk/60 rounded">
                           {err.retry_count}× retry
                         </span>
                       )}
@@ -196,7 +196,7 @@ const ClientCrashesPanel = () => {
                         endpoint — for now we just show the summary. */}
                     <div className="text-cq-ink-3 italic">
                       Full stack + component stack are in Postgres
-                      (<code className="font-mono bg-white/60 px-1 rounded">client_errors.id={err.id}</code>) — query directly when fixing.
+                      (<code className="font-mono bg-cq-milk/60 px-1 rounded">client_errors.id={err.id}</code>) — query directly when fixing.
                     </div>
                   </div>
                 )}

@@ -377,7 +377,7 @@ const EnhancedScheduleManagement = () => {
   };
   
   return (
-    <div className="bg-cq-milk rounded-cq-lg shadow-cq-card-lg">
+    <div className="bg-cq-milk rounded-cq-lg shadow-cq-card">
       <div className="px-6 pt-6">
         <QuickSetupStatusBanner section="schedule" />
       </div>
@@ -435,7 +435,7 @@ const EnhancedScheduleManagement = () => {
                     activateEmergencyOverride();
                   }
                 }}
-                className="px-4 py-2 bg-cq-alert-wash0 hover:bg-cq-alert text-white rounded-cq-md flex items-center"
+                className="px-4 py-2 bg-cq-alert hover:bg-cq-alert text-white rounded-cq-md flex items-center"
               >
                 <Shield size={20} className="mr-2" />
                 Emergency Override
@@ -503,10 +503,10 @@ const EnhancedScheduleManagement = () => {
                 
                 {/* Current time indicator */}
                 <div
-                  className="absolute top-8 bottom-0 w-0.5 bg-cq-alert-wash0 z-20"
+                  className="absolute top-8 bottom-0 w-0.5 bg-cq-alert z-20"
                   style={{ left: `${getTimelinePosition(`${currentTime.getHours()}:${currentTime.getMinutes()}`)}px` }}
                 >
-                  <div className="absolute -top-2 -left-3 w-6 h-6 bg-cq-alert-wash0 rounded-full flex items-center justify-center">
+                  <div className="absolute -top-2 -left-3 w-6 h-6 bg-cq-alert rounded-full flex items-center justify-center">
                     <Clock size={12} className="text-white" />
                   </div>
                 </div>
@@ -626,7 +626,7 @@ const EnhancedScheduleManagement = () => {
                       <button
                         onClick={() => toggleStationLock(station.id)}
                         className={`p-2 rounded-cq-md ${
-                          isLocked ? 'bg-cq-alert-wash0 hover:bg-cq-alert text-white' : 'bg-cq-ready-wash0 hover:bg-cq-ready text-white'
+                          isLocked ? 'bg-cq-alert hover:bg-cq-alert text-white' : 'bg-cq-ready hover:bg-cq-ready text-white'
                         }`}
                       >
                         {isLocked ? <Lock size={20} /> : <Unlock size={20} />}
@@ -668,7 +668,7 @@ const EnhancedScheduleManagement = () => {
                     setStationLocks(locked);
                     localStorage.setItem('station_locks', JSON.stringify(locked));
                   }}
-                  className="px-4 py-2 bg-cq-alert-wash0 hover:bg-cq-alert text-white rounded-cq-md"
+                  className="px-4 py-2 bg-cq-alert hover:bg-cq-alert text-white rounded-cq-md"
                 >
                   Lock All Stations
                 </button>
@@ -679,7 +679,7 @@ const EnhancedScheduleManagement = () => {
                     setStationLocks(unlocked);
                     localStorage.setItem('station_locks', JSON.stringify(unlocked));
                   }}
-                  className="px-4 py-2 bg-cq-ready-wash0 hover:bg-cq-ready text-white rounded-cq-md"
+                  className="px-4 py-2 bg-cq-ready hover:bg-cq-ready text-white rounded-cq-md"
                 >
                   Unlock All Stations
                 </button>
@@ -756,7 +756,7 @@ const EnhancedScheduleManagement = () => {
                           {!isActive && !isPaused && !isRunningLate && (
                             <button
                               onClick={() => updateSessionStatus(session.id, 'active')}
-                              className="px-3 py-1 bg-cq-ready-wash0 hover:bg-cq-ready text-white rounded-cq-md flex items-center text-sm"
+                              className="px-3 py-1 bg-cq-ready hover:bg-cq-ready text-white rounded-cq-md flex items-center text-sm"
                             >
                               <PlayCircle size={16} className="mr-1" />
                               Start
@@ -767,14 +767,14 @@ const EnhancedScheduleManagement = () => {
                             <>
                               <button
                                 onClick={() => updateSessionStatus(session.id, 'paused')}
-                                className="px-3 py-1 bg-cq-warn-wash0 hover:bg-cq-warn text-white rounded-cq-md flex items-center text-sm"
+                                className="px-3 py-1 bg-cq-warn hover:bg-cq-warn text-white rounded-cq-md flex items-center text-sm"
                               >
                                 <PauseCircle size={16} className="mr-1" />
                                 Pause
                               </button>
                               <button
                                 onClick={() => updateSessionStatus(session.id, 'running_late')}
-                                className="px-3 py-1 bg-cq-alert-wash0 hover:bg-cq-alert text-white rounded-cq-md flex items-center text-sm"
+                                className="px-3 py-1 bg-cq-alert hover:bg-cq-alert text-white rounded-cq-md flex items-center text-sm"
                               >
                                 <AlertCircle size={16} className="mr-1" />
                                 Running Late
@@ -785,7 +785,7 @@ const EnhancedScheduleManagement = () => {
                           {(isPaused || isRunningLate) && (
                             <button
                               onClick={() => updateSessionStatus(session.id, 'active')}
-                              className="px-3 py-1 bg-cq-ready-wash0 hover:bg-cq-ready text-white rounded-cq-md flex items-center text-sm"
+                              className="px-3 py-1 bg-cq-ready hover:bg-cq-ready text-white rounded-cq-md flex items-center text-sm"
                             >
                               <PlayCircle size={16} className="mr-1" />
                               Resume
@@ -835,7 +835,7 @@ const EnhancedScheduleManagement = () => {
                         </button>
                         <button
                           onClick={() => deleteSession(session.id)}
-                          className="p-2 bg-cq-alert-wash0 hover:bg-cq-alert text-white rounded-cq-md"
+                          className="p-2 bg-cq-alert hover:bg-cq-alert text-white rounded-cq-md"
                           title="Delete session"
                         >
                           <Trash2 size={20} />
@@ -856,7 +856,7 @@ const EnhancedScheduleManagement = () => {
                             }}
                             className={`px-3 py-1 rounded-cq-md text-sm ${
                               preOrderWindows[session.id] ? 
-                              'bg-cq-ready-wash0 text-white' : 
+                              'bg-cq-ready text-white' : 
                               'bg-cq-line text-cq-ink-2'
                             }`}
                           >
@@ -881,7 +881,7 @@ const EnhancedScheduleManagement = () => {
             </div>
             
             {/* Communication panel */}
-            <div className="mt-6 p-4 bg-cq-caramel-wash border border-purple-200 rounded-cq-md">
+            <div className="mt-6 p-4 bg-cq-caramel-wash border border-cq-line rounded-cq-md">
               <h4 className="font-semibold text-cq-caramel-deep mb-3 flex items-center">
                 <MessageSquare size={20} className="mr-2" />
                 Quick Communication
@@ -1025,7 +1025,7 @@ const EnhancedScheduleManagement = () => {
       {/* Add Session Modal */}
       {showAddSession && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-cq-md p-6 w-full max-w-md">
+          <div className="bg-cq-milk rounded-cq-md p-6 w-full max-w-md">
             <h3 className="text-lg font-semibold mb-4">Add New Session</h3>
             
             <form
@@ -1152,7 +1152,7 @@ const EnhancedScheduleManagement = () => {
       {/* Assign Barista Modal */}
       {showAssignBarista && selectedSession && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-cq-md p-6 w-full max-w-md">
+          <div className="bg-cq-milk rounded-cq-md p-6 w-full max-w-md">
             <h3 className="text-lg font-semibold mb-4">
               Assign Barista to {selectedSession.name}
             </h3>
@@ -1245,7 +1245,7 @@ const EnhancedScheduleManagement = () => {
           onClick={() => setSelectedSession(null)}
         >
           <div 
-            className="bg-white rounded-cq-md p-6 w-full max-w-2xl"
+            className="bg-cq-milk rounded-cq-md p-6 w-full max-w-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
@@ -1316,7 +1316,7 @@ const EnhancedScheduleManagement = () => {
                 </button>
                 <button
                   onClick={() => deleteSession(selectedSession.id)}
-                  className="px-4 py-2 bg-cq-alert-wash0 text-white rounded-md hover:bg-cq-alert"
+                  className="px-4 py-2 bg-cq-alert text-white rounded-md hover:bg-cq-alert"
                 >
                   Delete Session
                 </button>

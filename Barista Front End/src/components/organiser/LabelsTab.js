@@ -68,10 +68,10 @@ const StickerLogoCard = ({ onChanged }) => {
       </p>
       <div className="flex items-center gap-4 flex-wrap">
         {logo ? (
-          <img src={logo} alt="Sticker logo" className="h-16 w-auto max-w-[160px] object-contain border border-cq-line rounded-cq-md bg-white p-1" />
+          <img src={logo} alt="Sticker logo" className="h-16 w-auto max-w-[160px] object-contain border border-cq-line rounded-cq-md bg-cq-milk p-1" />
         ) : screenLogo ? (
           <div className="flex items-center gap-2">
-            <img src={screenLogo} alt="Screen logo" className="h-16 w-auto max-w-[160px] object-contain border border-dashed border-cq-line rounded-cq-md bg-white p-1 opacity-60" />
+            <img src={screenLogo} alt="Screen logo" className="h-16 w-auto max-w-[160px] object-contain border border-dashed border-cq-line rounded-cq-md bg-cq-milk p-1 opacity-60" />
             <span className="text-xs text-cq-ink-3">screen logo<br />used until you add one</span>
           </div>
         ) : (

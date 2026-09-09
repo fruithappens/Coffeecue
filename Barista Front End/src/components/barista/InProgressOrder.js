@@ -111,7 +111,7 @@ const InProgressOrder = ({
   // Get milk color style
   const milkColorStyle = order.milkType && order.milkType !== 'No Milk' 
     ? getMilkColorStyle(order.milkType, order.milkTypeId)
-    : { borderLeftWidth: '8px', borderLeftStyle: 'solid', borderLeftColor: '#D1D5DB' };
+    : { borderLeftWidth: '8px', borderLeftStyle: 'solid', borderLeftColor: '#E6DCD0' };
 
   return (
     <div 
@@ -229,7 +229,7 @@ const InProgressOrder = ({
           <button 
             className={`group w-full py-3 rounded-cq-md font-bold text-lg flex items-center justify-center space-x-2
                       ${isCompleting || showCompletionSuccess 
-                        ? 'bg-gray-400 text-gray-100 cursor-not-allowed' 
+                        ? 'bg-cq-ink-3 text-cq-cream cursor-not-allowed' 
                         : 'bg-cq-ready text-white hover:bg-cq-ready'}`}
             onClick={handleComplete}
             disabled={isCompleting || showCompletionSuccess}
@@ -243,7 +243,7 @@ const InProgressOrder = ({
               <>
                 <CheckCircle size={20} />
                 <span>COMPLETE ORDER</span>
-                <Info size={16} className="text-green-300 group-hover:text-white ml-1" />
+                <Info size={16} className="text-cq-ready group-hover:text-white ml-1" />
               </>
             )}
           </button>

@@ -8,22 +8,22 @@ const NotificationContext = createContext();
 // Define notification types and their colors
 const NOTIFICATION_TYPES = {
   SUCCESS: {
-    bgColor: 'bg-green-100',
-    textColor: 'text-green-800',
-    borderColor: 'border-green-500',
-    icon: <Check className="text-green-500" size={20} />
+    bgColor: 'bg-cq-ready-wash',
+    textColor: 'text-cq-ready',
+    borderColor: 'border-cq-ready',
+    icon: <Check className="text-cq-ready" size={20} />
   },
   ERROR: {
-    bgColor: 'bg-red-100',
-    textColor: 'text-red-800',
-    borderColor: 'border-red-500',
-    icon: <AlertCircle className="text-red-500" size={20} />
+    bgColor: 'bg-cq-alert-wash',
+    textColor: 'text-cq-alert',
+    borderColor: 'border-cq-alert',
+    icon: <AlertCircle className="text-cq-alert" size={20} />
   },
   WARNING: {
-    bgColor: 'bg-yellow-100',
-    textColor: 'text-yellow-800',
-    borderColor: 'border-yellow-500',
-    icon: <AlertTriangle className="text-yellow-500" size={20} />
+    bgColor: 'bg-cq-warn-wash',
+    textColor: 'text-cq-warn',
+    borderColor: 'border-cq-warn',
+    icon: <AlertTriangle className="text-cq-warn" size={20} />
   },
   INFO: {
     bgColor: 'bg-cq-caramel-wash',
@@ -151,7 +151,7 @@ const Notification = ({ notification, onClose }) => {
 
   return (
     <div 
-      className={`${bgColor} ${textColor} p-4 rounded-lg border-l-4 ${borderColor} shadow-md flex items-start
+      className={`${bgColor} ${textColor} p-4 rounded-cq-md border-l-4 ${borderColor} shadow-cq-card flex items-start
                   transition-all duration-300 ease-in-out transform ${isVisible ? 'translate-x-0 opacity-100' : 'translate-x-4 opacity-0'}`}
       role="alert"
     >
@@ -163,7 +163,7 @@ const Notification = ({ notification, onClose }) => {
       </div>
       <button 
         onClick={onClose}
-        className="ml-3 text-gray-400 hover:text-gray-800 focus:outline-none"
+        className="ml-3 text-cq-ink-3 hover:text-cq-roast focus:outline-none"
         aria-label="Close notification"
       >
         <X size={16} />

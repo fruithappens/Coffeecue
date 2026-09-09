@@ -88,8 +88,8 @@ export function EventHeader({ brand, className = '', align = 'center' }) {
 export function PoweredBy({ brand, className = '' }) {
   const b = brand || FALLBACK;
   return (
-    <div className={`text-xs text-gray-400 ${className}`}>
-      powered by <span className="font-semibold text-gray-500">{b.systemName || 'CupQ'}</span>
+    <div className={`text-xs text-cq-ink-3 ${className}`}>
+      powered by <span className="font-semibold text-cq-ink-3">{b.systemName || 'CupQ'}</span>
       <span className="mx-1.5">·</span>
       <span className="italic">Cue the cups.</span>
     </div>

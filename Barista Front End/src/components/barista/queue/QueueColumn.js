@@ -311,7 +311,7 @@ export default function QueueColumn({
               <button key={o.id} type="button" onClick={() => collect(o)} className="flex-shrink-0 h-12 pl-3 pr-2 rounded-cq-md bg-cq-roast text-cq-cream inline-flex items-center gap-2" title={`${drinkLine(o)} · ${sinceReady(o)}`}>
                 <span className="text-xl font-extrabold tabular-nums">#{orderNumberOf(o)}</span>
                 {o.customerName ? <span className="text-sm font-semibold max-w-[8rem] truncate">{o.customerName}</span> : null}
-                <span className="ml-1 h-8 px-2 rounded-cq-sm bg-white/15 text-xs font-bold inline-flex items-center">Collected</span>
+                <span className="ml-1 h-8 px-2 rounded-cq-sm bg-cq-milk/15 text-xs font-bold inline-flex items-center">Collected</span>
               </button>
             ))}
           </div>

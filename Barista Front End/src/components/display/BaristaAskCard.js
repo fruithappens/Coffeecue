@@ -8,7 +8,7 @@ import React, { useEffect, useRef, useState } from 'react';
 // sends the answer straight back, by tap or by typing. Self-contained:
 // give it an order number (and optionally the ask if the parent already
 // polls /track) and it handles the rest.
-export default function BaristaAskCard({ orderNumber, ask: askProp, headerColor = '#0f766e' }) {
+export default function BaristaAskCard({ orderNumber, ask: askProp, headerColor = '#B8764A' }) {
   const [ask, setAsk] = useState(askProp || null);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
@@ -62,7 +62,7 @@ export default function BaristaAskCard({ orderNumber, ask: askProp, headerColor 
   if (!ask || !ask.message) return null;
 
   return (
-    <div className="rounded-cq-xl border-2 p-4" style={{ borderColor: headerColor, background: '#fffdf7' }}>
+    <div className="rounded-cq-xl border-2 p-4" style={{ borderColor: headerColor, background: 'var(--cq-milk, #FFFFFF)' }}>
       <div className="text-xs font-bold uppercase tracking-wide text-cq-caramel-deep mb-1">
         A message from the barista
       </div>

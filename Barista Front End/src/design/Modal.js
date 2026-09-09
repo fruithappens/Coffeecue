@@ -144,7 +144,7 @@ export function Notice({ tone = 'info', children, className = '' }) {
 
 // A quiet card summarising the thing being acted on -- the order you are
 // about to move, the person you are about to text. Every dialog had one and
-// every one of them was `bg-gray-100 p-3 rounded`.
+// every one of them was `bg-cq-wash p-3 rounded`.
 export function Subject({ title, children }) {
   return (
     <div className="bg-cq-wash rounded-cq-md p-3 mb-4">

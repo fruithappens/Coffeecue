@@ -50,10 +50,10 @@ export default function QueueHeader({
   const chips = (
     <>
       {watched.map((s) => (
-        <StationChip key={s.id} compact name={s.name} queue={s.queueCount ?? 0} status={s.status} onClick={() => onSelectStation && onSelectStation(s.id)} className="!bg-white/10 !border-white/20 !text-cq-cream" />
+        <StationChip key={s.id} compact name={s.name} queue={s.queueCount ?? 0} status={s.status} onClick={() => onSelectStation && onSelectStation(s.id)} className="!bg-cq-milk/10 !border-white/20 !text-cq-cream" />
       ))}
       {!rushMode ? (
-        <button type="button" onClick={onOpenPicker} className="h-9 px-3 rounded-full border-2 border-white/25 text-sm font-bold text-cq-cream/85 hover:bg-white/10 inline-flex items-center gap-1" title="Watch another station">
+        <button type="button" onClick={onOpenPicker} className="h-9 px-3 rounded-full border-2 border-white/25 text-sm font-bold text-cq-cream/85 hover:bg-cq-milk/10 inline-flex items-center gap-1" title="Watch another station">
           <Plus size={14} strokeWidth={3} />{watched.length ? '' : 'Watch'}
         </button>
       ) : null}
@@ -67,7 +67,7 @@ export default function QueueHeader({
           status line. On a phone the chips drop to row 2 so the lock stays
           top-right where a thumb expects it. */}
       <div className="flex items-center gap-x-4 gap-y-2">
-        <button type="button" onClick={onOpenPicker} className="flex items-center gap-2 min-w-0 text-left rounded-cq-md hover:bg-white/10 px-1 -mx-1" title="Change station or choose which others to watch">
+        <button type="button" onClick={onOpenPicker} className="flex items-center gap-2 min-w-0 text-left rounded-cq-md hover:bg-cq-milk/10 px-1 -mx-1" title="Change station or choose which others to watch">
           <AreaMark area="barista" inverse label={null} size={rushMode ? 'sm' : 'md'} />
           <span className={`font-extrabold truncate ${rushMode ? 'text-lg' : 'text-2xl'}`}>{station?.name || 'Choose a station'}</span>
           <ChevronDown size={18} className="flex-shrink-0 opacity-80" />
@@ -79,7 +79,7 @@ export default function QueueHeader({
           onClick={onOpenAdmin}
           aria-label="Station admin"
           title={unlocked ? 'Unlocked: station admin opens without the PIN' : 'Station admin: mode, station, sound, zoom, refresh, sign out'}
-          className={`h-10 px-2.5 inline-flex items-center justify-center gap-1.5 rounded-cq-md flex-shrink-0 ${unlocked ? 'bg-cq-caramel text-white hover:bg-cq-caramel-deep' : 'bg-white/10 hover:bg-white/20'}`}
+          className={`h-10 px-2.5 inline-flex items-center justify-center gap-1.5 rounded-cq-md flex-shrink-0 ${unlocked ? 'bg-cq-caramel text-white hover:bg-cq-caramel-deep' : 'bg-cq-milk/10 hover:bg-cq-milk/20'}`}
         >
           {unlocked ? <><Unlock size={18} /><span className="text-xs font-bold uppercase tracking-wide">Unlocked</span></> : <Lock size={18} />}
         </button>

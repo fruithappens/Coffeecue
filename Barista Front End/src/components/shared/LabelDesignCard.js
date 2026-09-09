@@ -353,7 +353,7 @@ const LabelDesignCard = ({ printers = [], onPrinted }) => {
               <img
                 src={previewUrl}
                 alt="Cup label preview"
-                className="border border-cq-line rounded-cq-md shadow-sm mx-auto bg-white"
+                className="border border-cq-line rounded-cq-md shadow-sm mx-auto bg-cq-milk"
                 style={{ width: '203px', imageRendering: 'pixelated' }}
               />
             ) : (
@@ -369,7 +369,7 @@ const LabelDesignCard = ({ printers = [], onPrinted }) => {
                 <img
                   src={ticketPreviewUrl}
                   alt="Ticket stub preview"
-                  className="border border-cq-line rounded-cq-md shadow-sm mx-auto bg-white"
+                  className="border border-cq-line rounded-cq-md shadow-sm mx-auto bg-cq-milk"
                   style={{ width: '203px', imageRendering: 'pixelated' }}
                 />
               ) : (

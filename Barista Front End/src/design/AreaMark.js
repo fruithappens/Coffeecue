@@ -19,7 +19,7 @@ export default function AreaMark({ area = 'barista', size = 'md', label, inverse
   const Icon = a.Icon;
   return (
     <span className={`inline-flex items-center gap-2 font-bold ${s.text} ${inverse ? 'text-cq-cream' : 'text-cq-roast'} ${className}`}>
-      <span className={`inline-flex items-center justify-center rounded-cq-md ${inverse ? 'bg-white/15' : 'bg-cq-caramel-wash'}`} style={{ width: s.icon + 12, height: s.icon + 12 }}>
+      <span className={`inline-flex items-center justify-center rounded-cq-md ${inverse ? 'bg-cq-milk/15' : 'bg-cq-caramel-wash'}`} style={{ width: s.icon + 12, height: s.icon + 12 }}>
         <Icon size={s.icon} strokeWidth={2.25} />
       </span>
       {label !== null && <span>{label || a.label}</span>}

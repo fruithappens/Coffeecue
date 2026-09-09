@@ -436,7 +436,7 @@ const EnhancedCommunicationHub = () => {
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="Search messages..."
-                  className="w-full pl-10 pr-4 py-2 border-2 border-cq-line rounded-cq-md bg-cq-milk-cq-md focus:outline-none focus:ring-2 focus:border-cq-caramel"
+                  className="w-full pl-10 pr-4 py-2 border-2 border-cq-line rounded-cq-md bg-cq-milk focus:outline-none focus:ring-2 focus:border-cq-caramel"
                 />
               </div>
               
@@ -444,7 +444,7 @@ const EnhancedCommunicationHub = () => {
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
-                className="px-3 py-2 border-2 border-cq-line rounded-cq-md bg-cq-milk-cq-md focus:outline-none focus:ring-2 focus:border-cq-caramel"
+                className="px-3 py-2 border-2 border-cq-line rounded-cq-md bg-cq-milk focus:outline-none focus:ring-2 focus:border-cq-caramel"
               >
                 <option value="all">All Status</option>
                 <option value="delivered">Delivered</option>
@@ -537,7 +537,7 @@ const EnhancedCommunicationHub = () => {
                           }
                         }}
                         placeholder="Type a message..."
-                        className="flex-1 px-4 py-2 border-2 border-cq-line rounded-cq-md bg-cq-milk-cq-md focus:outline-none focus:ring-2 focus:border-cq-caramel"
+                        className="flex-1 px-4 py-2 border-2 border-cq-line rounded-cq-md bg-cq-milk focus:outline-none focus:ring-2 focus:border-cq-caramel"
                       />
                       <button
                         onClick={() => {
@@ -577,7 +577,7 @@ const EnhancedCommunicationHub = () => {
                 .map(template => (
                   <div 
                     key={template.id}
-                    className="border-2 border-cq-line rounded-cq-md bg-cq-milk-cq-md p-3 hover:bg-cq-wash cursor-pointer"
+                    className="border-2 border-cq-line rounded-cq-md bg-cq-milk p-3 hover:bg-cq-wash cursor-pointer"
                     onClick={() => applyTemplate(template)}
                   >
                     <div className="flex justify-between items-start mb-1">
@@ -617,7 +617,7 @@ const EnhancedCommunicationHub = () => {
             )}
             <div className="space-y-3">
               {broadcasts.slice(0, 3).map(broadcast => (
-                <div key={broadcast.id} className="border-2 border-cq-line rounded-cq-md bg-cq-milk-cq-md p-3">
+                <div key={broadcast.id} className="border-2 border-cq-line rounded-cq-md bg-cq-milk p-3">
                   <h4 className="font-medium text-sm mb-1">{broadcast.name}</h4>
                   <p className="text-xs text-cq-ink-2 mb-2">{broadcast.message}</p>
                   
@@ -690,7 +690,7 @@ const EnhancedCommunicationHub = () => {
           POST /api/support/broadcast/customers (server caps at 500). */}
       {showBroadcastModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-cq-milk rounded-cq-lg shadow-cq-card-xl max-w-md w-full p-5">
+          <div className="bg-cq-milk rounded-cq-lg shadow-cq-raised max-w-md w-full p-5">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-semibold flex items-center">
                 <Radio className="mr-2 text-cq-caramel" size={20} /> New broadcast

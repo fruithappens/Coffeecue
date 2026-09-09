@@ -135,7 +135,7 @@ const RunnerInterface = () => {
       {activeSection === 'schedule' && <EnhancedScheduleManagement />}
 
       {activeSection === 'users' && activeTab === 'people' && (
-        <div className="bg-white rounded-lg shadow p-6"><UserManagementTab /></div>
+        <div className="bg-cq-milk rounded-cq-md shadow p-6"><UserManagementTab /></div>
       )}
       {activeSection === 'users' && activeTab === 'access' && <UsersAccessTab />}
 
@@ -144,10 +144,10 @@ const RunnerInterface = () => {
       {activeSection === 'live' && activeTab === 'metrics' && <DashboardTab />}
 
       {activeSection === 'orders' && activeTab === 'all' && (
-        <div className="bg-white rounded-lg shadow p-6"><AllOrdersTab /></div>
+        <div className="bg-cq-milk rounded-cq-md shadow p-6"><AllOrdersTab /></div>
       )}
       {activeSection === 'orders' && activeTab === 'groups' && (
-        <div className="bg-white rounded-lg shadow">
+        <div className="bg-cq-milk rounded-cq-md shadow">
           <GroupOrdersTab onSubmitGroupOrders={(g) => OrderDataService.submitGroupOrder(g)} />
         </div>
       )}
@@ -227,13 +227,13 @@ const RunnerInterface = () => {
 
       <div className="flex-1 min-w-0 flex flex-col">
         <header className="bg-cq-roast text-cq-cream px-4 py-3 flex items-center gap-3">
-          <button type="button" className="md:hidden h-10 w-10 inline-flex items-center justify-center rounded-cq-md hover:bg-white/10"
+          <button type="button" className="md:hidden h-10 w-10 inline-flex items-center justify-center rounded-cq-md hover:bg-cq-milk/10"
             onClick={() => setMobileNavOpen(true)} aria-label="Open the menu"><Menu size={22} /></button>
           <h1 className="text-2xl font-extrabold truncate">{title}</h1>
           <div className="flex-1" />
           <div className="relative">
             <button type="button" onClick={() => setAccountOpen((v) => !v)}
-              className="h-10 px-3 inline-flex items-center gap-2 rounded-cq-md bg-white/10 hover:bg-white/20 font-bold text-sm">
+              className="h-10 px-3 inline-flex items-center gap-2 rounded-cq-md bg-cq-milk/10 hover:bg-cq-milk/20 font-bold text-sm">
               <Shuffle size={16} /> <span className="hidden sm:inline">Switch view</span>
             </button>
             {accountOpen && (

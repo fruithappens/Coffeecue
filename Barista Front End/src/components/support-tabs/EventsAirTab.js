@@ -342,10 +342,10 @@ const EventsAirTab = () => {
   // but not verified (checking / token failing), red = no credentials, grey
   // = still loading. Reflects the real probe above.
   const ea = status?.ea || {};
-  const light = !status ? { c: '#94a3b8', t: 'Checking…' }
-    : (ea.stub || ea.configured === false) ? { c: '#ef4444', t: 'Not connected' }
-    : ea.token_ok ? { c: '#22c55e', t: 'Connected' }
-    : { c: '#f59e0b', t: 'Configured (unverified)' };
+  const light = !status ? { c: '#8C7B6E', t: 'Checking…' }
+    : (ea.stub || ea.configured === false) ? { c: '#C8372D', t: 'Not connected' }
+    : ea.token_ok ? { c: '#1F8A4C', t: 'Connected' }
+    : { c: '#B07D10', t: 'Configured (unverified)' };
 
   return (
     <div className="p-4 space-y-6 max-w-4xl">

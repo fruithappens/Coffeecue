@@ -29,10 +29,10 @@ const BasicBaristaInterface = ({ error, onRetry }) => {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6">
+    <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-6">
       <div className="flex items-center mb-4">
-        <AlertTriangle className="text-amber-500 mr-2" size={24} />
-        <h2 className="text-xl font-bold text-gray-800">Emergency Barista Mode</h2>
+        <AlertTriangle className="text-cq-caramel-deep mr-2" size={24} />
+        <h2 className="text-xl font-bold text-cq-roast">Emergency Barista Mode</h2>
         <button
           onClick={onRetry}
           className="ml-auto bg-cq-caramel text-white px-3 py-1 rounded text-sm hover:bg-cq-roast"
@@ -41,8 +41,8 @@ const BasicBaristaInterface = ({ error, onRetry }) => {
         </button>
       </div>
       
-      <div className="bg-amber-50 border border-amber-200 rounded p-3 mb-6">
-        <p className="text-amber-800 text-sm">
+      <div className="bg-cq-caramel-wash border border-cq-line rounded p-3 mb-6">
+        <p className="text-cq-caramel-deep text-sm">
           The main barista interface is temporarily unavailable. 
           Use this basic interface to continue taking orders manually.
         </p>
@@ -50,7 +50,7 @@ const BasicBaristaInterface = ({ error, onRetry }) => {
 
       {/* Simple Order Form */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-gray-50 p-4 rounded-lg">
+        <div className="bg-cq-wash p-4 rounded-cq-md">
           <h3 className="font-semibold mb-3 flex items-center">
             <User size={18} className="mr-2" />
             New Order
@@ -85,7 +85,7 @@ const BasicBaristaInterface = ({ error, onRetry }) => {
             />
             <button
               onClick={addOrder}
-              className="w-full bg-green-600 text-white p-2 rounded hover:bg-green-700"
+              className="w-full bg-cq-ready text-white p-2 rounded hover:bg-cq-ready"
             >
               Add to Queue
             </button>
@@ -93,25 +93,25 @@ const BasicBaristaInterface = ({ error, onRetry }) => {
         </div>
 
         {/* Order Queue */}
-        <div className="bg-gray-50 p-4 rounded-lg">
+        <div className="bg-cq-wash p-4 rounded-cq-md">
           <h3 className="font-semibold mb-3 flex items-center">
             <Clock size={18} className="mr-2" />
             Order Queue ({orders.length})
           </h3>
           {orders.length === 0 ? (
-            <p className="text-gray-500 text-center py-4">No pending orders</p>
+            <p className="text-cq-ink-3 text-center py-4">No pending orders</p>
           ) : (
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {orders.map(order => (
-                <div key={order.id} className="bg-white p-3 rounded border">
+                <div key={order.id} className="bg-cq-milk p-3 rounded border">
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
                       <h4 className="font-medium">{order.customer}</h4>
-                      <p className="text-sm text-gray-600">{order.coffee}</p>
+                      <p className="text-sm text-cq-ink-2">{order.coffee}</p>
                       {order.notes && (
-                        <p className="text-xs text-gray-500 mt-1">{order.notes}</p>
+                        <p className="text-xs text-cq-ink-3 mt-1">{order.notes}</p>
                       )}
-                      <p className="text-xs text-gray-400 mt-1">{order.timestamp}</p>
+                      <p className="text-xs text-cq-ink-3 mt-1">{order.timestamp}</p>
                     </div>
                     <button
                       onClick={() => completeOrder(order.id)}

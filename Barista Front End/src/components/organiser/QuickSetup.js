@@ -1072,24 +1072,24 @@ const QuickSetup = () => {
         type="checkbox"
         checked={checked}
         onChange={onChange}
-        className="mr-2 h-4 w-4 accent-amber-600"
+        className="mr-2 h-4 w-4 accent-cq-caramel"
       />
-      <span className={checked ? 'text-gray-900' : 'text-gray-500'}>{label}</span>
+      <span className={checked ? 'text-cq-roast' : 'text-cq-ink-3'}>{label}</span>
     </label>
   );
 
   return (
     <div className="p-0 sm:p-6 max-w-4xl">
-      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6 flex items-start">
-        <Zap className="w-6 h-6 text-amber-600 mr-3 mt-0.5 flex-shrink-0" />
+      <div className="bg-cq-caramel-wash border border-cq-line rounded-cq-md p-4 mb-6 flex items-start">
+        <Zap className="w-6 h-6 text-cq-caramel-deep mr-3 mt-0.5 flex-shrink-0" />
         <div>
-          <h2 className="text-xl font-bold text-amber-800">Quick Setup</h2>
-          <p className="text-amber-700 text-sm mt-1">
+          <h2 className="text-xl font-bold text-cq-caramel-deep">Quick Setup</h2>
+          <p className="text-cq-caramel-deep text-sm mt-1">
             One click to fill in sensible defaults across inventory, station
             configs, stock amounts, menu, schedule, and VIP code — enough
             to demo the whole app or get a fresh event ready to take orders.
           </p>
-          <p className="text-amber-700 text-sm mt-2">
+          <p className="text-cq-caramel-deep text-sm mt-2">
             <strong>Safe to re-run.</strong> Quick Setup seeds — it doesn't
             override. Existing stock amounts, custom items you added in
             Inventory Management, and per-station tweaks all survive.
@@ -1110,9 +1110,9 @@ const QuickSetup = () => {
           new operator types and it drives SMS welcome copy + display
           screen header. Empty = preserve existing setting (so re-running
           Quick Setup doesn't wipe the name). */}
-      <div className="bg-white rounded-lg shadow-sm p-6 mb-4">
+      <div className="bg-cq-milk rounded-cq-md shadow-sm p-6 mb-4">
         <h3 className="font-semibold text-lg mb-1">Event identity</h3>
-        <p className="text-sm text-gray-500 mb-3">
+        <p className="text-sm text-cq-ink-3 mb-3">
           The name of this event. Shows up in welcome SMS ("Welcome to
           {' '}<em>Hills Baptist 2026</em>"), the Display screen header,
           and the Organiser sidebar. Leave blank to keep the existing name.
@@ -1122,7 +1122,7 @@ const QuickSetup = () => {
           value={config.event_name || ''}
           onChange={(e) => setConfig(c => ({ ...c, event_name: e.target.value }))}
           placeholder="e.g. Hills Baptist 2026, Treenet Conference"
-          className="w-full max-w-md px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-amber-500"
+          className="w-full max-w-md px-3 py-2 border border-cq-line rounded focus:outline-none focus:ring-2 focus:ring-cq-caramel"
           maxLength={80}
         />
       </div>
@@ -1135,16 +1135,16 @@ const QuickSetup = () => {
           password is blank. Idempotent on the backend — re-applying
           with the same slug returns "already exists" rather than
           erroring, so this is safe to re-run. */}
-      <div className="bg-white rounded-lg shadow-sm p-6 mb-4">
+      <div className="bg-cq-milk rounded-cq-md shadow-sm p-6 mb-4">
         <h3 className="font-semibold text-lg mb-1">Event accounts</h3>
-        <p className="text-sm text-gray-500 mb-3">
+        <p className="text-sm text-cq-ink-3 mb-3">
           Create one admin + N barista logins for this event in one go.
           They all share the same password (simpler for a single event;
           rotate after). Leave the slug or password blank to skip.
         </p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <label className="text-sm">
-            <span className="block text-gray-600 mb-1">Event slug</span>
+            <span className="block text-cq-ink-2 mb-1">Event slug</span>
             <input
               type="text"
               value={config.event_slug || ''}
@@ -1158,23 +1158,23 @@ const QuickSetup = () => {
                   .slice(0, 20),
               }))}
               placeholder="treenet"
-              className="w-full px-2 py-1 border border-gray-300 rounded font-mono"
+              className="w-full px-2 py-1 border border-cq-line rounded font-mono"
               maxLength={20}
             />
           </label>
           <label className="text-sm">
-            <span className="block text-gray-600 mb-1">Shared password</span>
+            <span className="block text-cq-ink-2 mb-1">Shared password</span>
             <input
               type="text"
               value={config.event_password || ''}
               onChange={(e) => setConfig(c => ({ ...c, event_password: e.target.value }))}
               placeholder="Tree2026"
-              className="w-full px-2 py-1 border border-gray-300 rounded font-mono"
+              className="w-full px-2 py-1 border border-cq-line rounded font-mono"
               maxLength={64}
             />
           </label>
           <label className="text-sm">
-            <span className="block text-gray-600 mb-1">Barista accounts</span>
+            <span className="block text-cq-ink-2 mb-1">Barista accounts</span>
             <input
               type="number"
               min={1}
@@ -1184,29 +1184,29 @@ const QuickSetup = () => {
                 ...c,
                 num_event_baristas: Math.max(1, Math.min(30, parseInt(e.target.value, 10) || 1)),
               }))}
-              className="w-full px-2 py-1 border border-gray-300 rounded font-mono"
+              className="w-full px-2 py-1 border border-cq-line rounded font-mono"
             />
           </label>
         </div>
         {config.event_slug && config.event_password && (
-          <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded text-sm">
-            <div className="font-medium text-gray-700 mb-1">Will create:</div>
-            <ul className="text-gray-600 font-mono text-xs space-y-0.5">
-              <li>{config.event_slug}admin <span className="text-gray-400">— full control (stock, setup, etc.)</span></li>
+          <div className="mt-3 p-3 bg-cq-wash border border-cq-line rounded text-sm">
+            <div className="font-medium text-cq-ink-2 mb-1">Will create:</div>
+            <ul className="text-cq-ink-2 font-mono text-xs space-y-0.5">
+              <li>{config.event_slug}admin <span className="text-cq-ink-3">— full control (stock, setup, etc.)</span></li>
               {Array.from({ length: config.num_event_baristas || 3 }, (_, i) => (
                 <li key={i}>
-                  {config.event_slug}{i + 1} <span className="text-gray-400">— barista (take orders only)</span>
+                  {config.event_slug}{i + 1} <span className="text-cq-ink-3">— barista (take orders only)</span>
                 </li>
               ))}
             </ul>
-            <div className="text-xs text-gray-500 mt-2">
+            <div className="text-xs text-cq-ink-3 mt-2">
               All accounts use the same password. Already-existing usernames are skipped (safe to re-run).
             </div>
           </div>
         )}
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm p-6 mb-4">
+      <div className="bg-cq-milk rounded-cq-md shadow-sm p-6 mb-4">
         <h3 className="font-semibold text-lg mb-3">Milks</h3>
         <div>
           {MILK_OPTIONS.map(m => (
@@ -1219,7 +1219,7 @@ const QuickSetup = () => {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm p-6 mb-4">
+      <div className="bg-cq-milk rounded-cq-md shadow-sm p-6 mb-4">
         <h3 className="font-semibold text-lg mb-3">Cup sizes</h3>
         <div>
           {SIZE_OPTIONS.map(s => (
@@ -1232,7 +1232,7 @@ const QuickSetup = () => {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm p-6 mb-4">
+      <div className="bg-cq-milk rounded-cq-md shadow-sm p-6 mb-4">
         <h3 className="font-semibold text-lg mb-3">Sweeteners</h3>
         <div>
           {SWEETENER_OPTIONS.map(s => (
@@ -1245,9 +1245,9 @@ const QuickSetup = () => {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm p-6 mb-4">
+      <div className="bg-cq-milk rounded-cq-md shadow-sm p-6 mb-4">
         <h3 className="font-semibold text-lg mb-1">Drink categories</h3>
-        <p className="text-sm text-gray-500 mb-3">
+        <p className="text-sm text-cq-ink-3 mb-3">
           Espresso drinks (latte, cappuccino, flat white, etc.) are always
           enabled when coffee beans are stocked. Tick anything else you want
           on offer.
@@ -1263,9 +1263,9 @@ const QuickSetup = () => {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm p-6 mb-4">
+      <div className="bg-cq-milk rounded-cq-md shadow-sm p-6 mb-4">
         <h3 className="font-semibold text-lg mb-1">Teas</h3>
-        <p className="text-sm text-gray-500 mb-3">
+        <p className="text-sm text-cq-ink-3 mb-3">
           Tick each tea flavor you want on the menu. Walk-in orders for
           tea will show strength (weak / standard / strong) and a
           double-cup option (tea is hot — most baristas double-cup).
@@ -1280,7 +1280,7 @@ const QuickSetup = () => {
           ))}
         </div>
         <div className="mt-3">
-          <label className="block text-sm text-gray-700 mb-1">
+          <label className="block text-sm text-cq-ink-2 mb-1">
             Other tea blends (comma-separated)
           </label>
           <input
@@ -1288,9 +1288,9 @@ const QuickSetup = () => {
             value={config.custom_teas || ''}
             onChange={(e) => setCustomTeas(e.target.value)}
             placeholder="e.g. Pu'er, Oolong, House Special Blend"
-            className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-amber-500"
+            className="w-full px-3 py-2 border border-cq-line rounded focus:outline-none focus:ring-2 focus:ring-cq-caramel"
           />
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-xs text-cq-ink-3 mt-1">
             Each name becomes a row in Inventory Management → Non-Coffee
             Drinks. "Tea" is appended automatically if you don't include it.
           </p>
@@ -1301,7 +1301,7 @@ const QuickSetup = () => {
 
       <WalkinDefaultsSection />
 
-      <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+      <div className="bg-cq-milk rounded-cq-md shadow-sm p-6 mb-6">
         <h3 className="font-semibold text-lg mb-3">Event-wide options</h3>
         <Checkbox
           checked={config.unlimited_stock}
@@ -1333,7 +1333,7 @@ const QuickSetup = () => {
             (preserves any existing saved code). */}
         <div className="mt-4">
           <label className="text-sm">
-            <span className="block text-gray-600 mb-1">
+            <span className="block text-cq-ink-2 mb-1">
               VIP code (SMS customers texting this become VIP)
             </span>
             <div className="flex items-center gap-2">
@@ -1342,19 +1342,19 @@ const QuickSetup = () => {
                 value={config.vip_code || ''}
                 onChange={(e) => setConfig(c => ({ ...c, vip_code: e.target.value }))}
                 placeholder="VIP"
-                className="w-48 px-2 py-1 border border-gray-300 rounded font-mono"
+                className="w-48 px-2 py-1 border border-cq-line rounded font-mono"
                 maxLength={20}
               />
               <button
                 type="button"
                 onClick={saveVipCodeOnly}
                 disabled={savingVip}
-                className="px-3 py-1 rounded bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700 disabled:opacity-50"
+                className="px-3 py-1 rounded bg-cq-caramel text-white text-sm font-semibold hover:bg-cq-caramel-deep disabled:opacity-50"
               >
                 {savingVip ? 'Saving…' : 'Save VIP code'}
               </button>
             </div>
-            <span className="block text-xs text-gray-500 mt-1">
+            <span className="block text-xs text-cq-ink-3 mt-1">
               <strong>Save VIP code</strong> changes ONLY the VIP code — safe to use
               mid-event, it doesn't touch inventory, stations or anything else.
               (The big Apply at the bottom rebuilds the whole event.)
@@ -1370,7 +1370,7 @@ const QuickSetup = () => {
             entirely. See _should_send_started_sms in
             routes/consolidated_api_routes.py. */}
         <div className="mt-4">
-          <span className="block text-gray-600 mb-1 text-sm">
+          <span className="block text-cq-ink-2 mb-1 text-sm">
             "Started" SMS policy
           </span>
           <div className="flex flex-wrap gap-3">
@@ -1381,10 +1381,10 @@ const QuickSetup = () => {
             ].map(opt => (
               <label
                 key={opt.value}
-                className={`px-3 py-2 border rounded-lg cursor-pointer text-sm ${
+                className={`px-3 py-2 border rounded-cq-md cursor-pointer text-sm ${
                   (config.started_sms_policy || 'queue_only') === opt.value
-                    ? 'border-amber-500 bg-amber-50'
-                    : 'border-gray-300 hover:border-gray-400'
+                    ? 'border-cq-caramel bg-cq-caramel-wash'
+                    : 'border-cq-line hover:border-cq-ink-3'
                 }`}
               >
                 <input
@@ -1393,14 +1393,14 @@ const QuickSetup = () => {
                   value={opt.value}
                   checked={(config.started_sms_policy || 'queue_only') === opt.value}
                   onChange={() => setConfig(c => ({ ...c, started_sms_policy: opt.value }))}
-                  className="mr-2"
+                  className="mr-2 h-4 w-4 accent-cq-caramel"
                 />
                 <span className="font-medium">{opt.label}</span>
-                <span className="block text-xs text-gray-500 ml-5">{opt.sub}</span>
+                <span className="block text-xs text-cq-ink-3 ml-5">{opt.sub}</span>
               </label>
             ))}
           </div>
-          <span className="block text-xs text-gray-500 mt-1">
+          <span className="block text-xs text-cq-ink-3 mt-1">
             Order confirmation and "ready for pickup" SMS always fire — this only controls the "your barista just started your X" one.
           </span>
         </div>
@@ -1410,7 +1410,7 @@ const QuickSetup = () => {
         <button
           onClick={apply}
           disabled={applying}
-          className="px-6 py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-semibold disabled:opacity-50 flex items-center"
+          className="px-6 py-3 bg-cq-caramel hover:bg-cq-caramel-deep text-white rounded-cq-md font-semibold disabled:opacity-50 flex items-center"
         >
           {applying
             ? (<><RefreshCw className="w-5 h-5 mr-2 animate-spin" /> Applying…</>)
@@ -1420,23 +1420,23 @@ const QuickSetup = () => {
         <button
           onClick={resetDefaults}
           disabled={applying}
-          className="px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700"
+          className="px-4 py-3 bg-cq-wash hover:bg-cq-line rounded-cq-md text-cq-ink-2"
         >
           Reset to café defaults
         </button>
       </div>
 
       {result && result.success && (
-        <div className="mt-4 p-4 border-l-4 border-green-500 bg-green-50 rounded">
+        <div className="mt-4 p-4 border-l-4 border-cq-ready bg-cq-ready-wash rounded">
           <div className="flex items-start">
-            <Check className="w-5 h-5 text-green-700 mr-2 mt-0.5" />
+            <Check className="w-5 h-5 text-cq-ready mr-2 mt-0.5" />
             <div>
-              <p className="font-semibold text-green-800">Applied successfully</p>
-              <p className="text-sm text-green-700 mt-1">{result.summary}</p>
+              <p className="font-semibold text-cq-ready">Applied successfully</p>
+              <p className="text-sm text-cq-ready mt-1">{result.summary}</p>
               {/* Partial failures. The setup worked, but something in it
                   did not — say so here rather than in the console. */}
               {!!(result.warnings || []).length && (
-                <ul className="mt-2 text-sm text-amber-800 list-disc list-inside">
+                <ul className="mt-2 text-sm text-cq-caramel-deep list-disc list-inside">
                   {result.warnings.map((w, i) => <li key={i}>{w}</li>)}
                 </ul>
               )}
@@ -1445,12 +1445,12 @@ const QuickSetup = () => {
         </div>
       )}
       {result && !result.success && (
-        <div className="mt-4 p-4 border-l-4 border-red-500 bg-red-50 rounded">
+        <div className="mt-4 p-4 border-l-4 border-cq-alert bg-cq-alert-wash rounded">
           <div className="flex items-start">
-            <AlertTriangle className="w-5 h-5 text-red-700 mr-2 mt-0.5" />
+            <AlertTriangle className="w-5 h-5 text-cq-alert mr-2 mt-0.5" />
             <div>
-              <p className="font-semibold text-red-800">Quick Setup failed</p>
-              <p className="text-sm text-red-700 mt-1">{result.error || 'Unknown error'}</p>
+              <p className="font-semibold text-cq-alert">Quick Setup failed</p>
+              <p className="text-sm text-cq-alert mt-1">{result.error || 'Unknown error'}</p>
             </div>
           </div>
         </div>
@@ -1481,21 +1481,21 @@ const QuickSetupPreviewModal = ({ loading, preview, error, onConfirm, onCancel }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white rounded-lg max-w-3xl w-full max-h-[85vh] overflow-y-auto shadow-xl">
-        <div className="p-5 border-b sticky top-0 bg-white">
+      <div className="bg-cq-milk rounded-cq-md max-w-3xl w-full max-h-[85vh] overflow-y-auto shadow-cq-raised">
+        <div className="p-5 border-b sticky top-0 bg-cq-milk">
           <h3 className="text-lg font-semibold">Review changes before applying</h3>
-          <p className="text-sm text-gray-600 mt-1">
+          <p className="text-sm text-cq-ink-2 mt-1">
             Nothing has been written yet. This is what an Apply would do.
           </p>
         </div>
         <div className="p-5 space-y-4">
           {loading && (
-            <div className="flex items-center text-gray-600">
+            <div className="flex items-center text-cq-ink-2">
               <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Computing diff…
             </div>
           )}
           {error && (
-            <div className="p-3 border-l-4 border-red-500 bg-red-50 text-sm text-red-800">
+            <div className="p-3 border-l-4 border-cq-alert bg-cq-alert-wash text-sm text-cq-alert">
               {error}
             </div>
           )}
@@ -1505,48 +1505,48 @@ const QuickSetupPreviewModal = ({ loading, preview, error, onConfirm, onCancel }
               <h4 className="font-semibold text-sm mb-2 flex items-center">
                 Inventory items
                 {destructive && (
-                  <span className="ml-2 text-xs px-2 py-0.5 bg-amber-100 text-amber-800 rounded">
+                  <span className="ml-2 text-xs px-2 py-0.5 bg-cq-caramel-wash text-cq-caramel-deep rounded">
                     destructive — rebuilds the inventory_items table
                   </span>
                 )}
               </h4>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                 <div>
-                  <div className="font-medium text-green-700 mb-1">
+                  <div className="font-medium text-cq-ready mb-1">
                     Adding ({inv.added.length})
                   </div>
-                  <div className="border rounded bg-green-50 p-2 max-h-48 overflow-y-auto">
+                  <div className="border rounded bg-cq-ready-wash p-2 max-h-48 overflow-y-auto">
                     {inv.added.length === 0
-                      ? <span className="text-gray-400">none</span>
+                      ? <span className="text-cq-ink-3">none</span>
                       : inv.added.map((r, i) => (
                           <div key={i}>{r.category}: {r.name}</div>
                         ))}
                   </div>
                 </div>
                 <div>
-                  <div className="font-medium text-red-700 mb-1">
+                  <div className="font-medium text-cq-alert mb-1">
                     Removing ({inv.removed.length})
                   </div>
-                  <div className="border rounded bg-red-50 p-2 max-h-48 overflow-y-auto">
+                  <div className="border rounded bg-cq-alert-wash p-2 max-h-48 overflow-y-auto">
                     {inv.removed.length === 0
-                      ? <span className="text-gray-400">none</span>
+                      ? <span className="text-cq-ink-3">none</span>
                       : inv.removed.map((r, i) => (
                           <div key={i}>
                             {r.category}: {r.name}
                             {r.amount != null && (
-                              <span className="text-gray-500"> ({r.amount}{r.unit ? ' ' + r.unit : ''})</span>
+                              <span className="text-cq-ink-3"> ({r.amount}{r.unit ? ' ' + r.unit : ''})</span>
                             )}
                           </div>
                         ))}
                   </div>
                 </div>
                 <div>
-                  <div className="font-medium text-gray-700 mb-1">
+                  <div className="font-medium text-cq-ink-2 mb-1">
                     Unchanged ({inv.unchanged.length})
                   </div>
-                  <div className="border rounded bg-gray-50 p-2 max-h-48 overflow-y-auto">
+                  <div className="border rounded bg-cq-wash p-2 max-h-48 overflow-y-auto">
                     {inv.unchanged.length === 0
-                      ? <span className="text-gray-400">none</span>
+                      ? <span className="text-cq-ink-3">none</span>
                       : inv.unchanged.map((r, i) => (
                           <div key={i}>{r.category}: {r.name}</div>
                         ))}
@@ -1561,7 +1561,7 @@ const QuickSetupPreviewModal = ({ loading, preview, error, onConfirm, onCancel }
               <h4 className="font-semibold text-sm mb-2">
                 Station capabilities — {caps.stations.length} station(s) will be overwritten
               </h4>
-              <div className="text-xs text-gray-600 border rounded p-2 bg-amber-50">
+              <div className="text-xs text-cq-ink-2 border rounded p-2 bg-cq-caramel-wash">
                 All stations will be given identical capabilities (same milks,
                 espresso drinks, sizes). Per-station capability tweaks will be lost.
               </div>
@@ -1574,29 +1574,29 @@ const QuickSetupPreviewModal = ({ loading, preview, error, onConfirm, onCancel }
               <ul className="text-sm space-y-1">
                 {settings.vip_code?.changed && (
                   <li>
-                    <span className="text-gray-600">VIP code:</span>{' '}
-                    <span className="line-through text-red-700">
+                    <span className="text-cq-ink-2">VIP code:</span>{' '}
+                    <span className="line-through text-cq-alert">
                       {settings.vip_code.current || '(unset)'}
                     </span>{' '}→{' '}
-                    <span className="text-green-700">{settings.vip_code.proposed}</span>
+                    <span className="text-cq-ready">{settings.vip_code.proposed}</span>
                   </li>
                 )}
                 {settings.unlimited_stock?.changed && (
                   <li>
-                    <span className="text-gray-600">Unlimited stock:</span>{' '}
+                    <span className="text-cq-ink-2">Unlimited stock:</span>{' '}
                     {settings.unlimited_stock.current ? 'ON' : 'OFF'} →{' '}
                     <strong>{settings.unlimited_stock.proposed ? 'ON' : 'OFF'}</strong>
                   </li>
                 )}
                 {settings.activate_all_stations?.will_activate > 0 && (
                   <li>
-                    <span className="text-gray-600">Stations to activate:</span>{' '}
+                    <span className="text-cq-ink-2">Stations to activate:</span>{' '}
                     <strong>{settings.activate_all_stations.will_activate}</strong>
                   </li>
                 )}
                 {settings.always_open_schedule?.breaks_to_delete > 0 && (
                   <li>
-                    <span className="text-gray-600">Scheduled breaks to delete:</span>{' '}
+                    <span className="text-cq-ink-2">Scheduled breaks to delete:</span>{' '}
                     <strong>{settings.always_open_schedule.breaks_to_delete}</strong>
                   </li>
                 )}
@@ -1604,10 +1604,10 @@ const QuickSetupPreviewModal = ({ loading, preview, error, onConfirm, onCancel }
             </div>
           )}
         </div>
-        <div className="p-4 border-t bg-gray-50 flex items-center justify-end gap-2 sticky bottom-0">
+        <div className="p-4 border-t bg-cq-wash flex items-center justify-end gap-2 sticky bottom-0">
           <button
             onClick={onCancel}
-            className="px-4 py-2 rounded bg-white border border-gray-300 hover:bg-gray-100 text-gray-700"
+            className="px-4 py-2 rounded bg-cq-milk border border-cq-line hover:bg-cq-wash text-cq-ink-2"
           >
             Cancel
           </button>
@@ -1616,8 +1616,8 @@ const QuickSetupPreviewModal = ({ loading, preview, error, onConfirm, onCancel }
             disabled={loading || !!error}
             className={`px-5 py-2 rounded text-white font-semibold disabled:opacity-50 ${
               destructive
-                ? 'bg-amber-600 hover:bg-amber-700'
-                : 'bg-green-600 hover:bg-green-700'
+                ? 'bg-cq-caramel hover:bg-cq-caramel-deep'
+                : 'bg-cq-ready hover:bg-cq-ready'
             }`}
           >
             {destructive ? 'Apply (destructive)' : 'Apply changes'}
@@ -1708,9 +1708,9 @@ const EventTemplatesSection = ({ config, setConfig }) => {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm p-6 mb-4">
+    <div className="bg-cq-milk rounded-cq-md shadow-sm p-6 mb-4">
       <h3 className="font-semibold text-lg mb-1">Templates</h3>
-      <p className="text-sm text-gray-500 mb-3">
+      <p className="text-sm text-cq-ink-3 mb-3">
         Save the current selections as a reusable template, or load one
         you saved earlier. Templates omit per-event details (name,
         accounts) so they apply cleanly to new events.
@@ -1719,7 +1719,7 @@ const EventTemplatesSection = ({ config, setConfig }) => {
         <select
           value={selected}
           onChange={e => setSelected(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded min-w-[220px]"
+          className="px-3 py-2 border border-cq-line rounded min-w-[220px]"
         >
           <option value="">
             {loading ? 'Loading…' : (templates.length ? '— choose a template —' : '— no templates yet —')}
@@ -1732,7 +1732,7 @@ const EventTemplatesSection = ({ config, setConfig }) => {
           type="button"
           onClick={handleLoad}
           disabled={!selected}
-          className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded text-sm disabled:opacity-50"
+          className="px-3 py-2 bg-cq-wash hover:bg-cq-line rounded text-sm disabled:opacity-50"
         >
           Load into form
         </button>
@@ -1740,13 +1740,13 @@ const EventTemplatesSection = ({ config, setConfig }) => {
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="px-3 py-2 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded text-sm disabled:opacity-50"
+          className="px-3 py-2 bg-cq-caramel-wash hover:bg-cq-tan text-cq-caramel-deep rounded text-sm disabled:opacity-50"
         >
           {saving ? 'Saving…' : 'Save current as template'}
         </button>
       </div>
       {status && (
-        <div className={`text-sm mt-3 ${status.ok ? 'text-green-700' : 'text-red-700'}`}>
+        <div className={`text-sm mt-3 ${status.ok ? 'text-cq-ready' : 'text-cq-alert'}`}>
           {status.ok ? '✓ ' : '✗ '}{status.msg}
         </div>
       )}
@@ -1809,7 +1809,7 @@ const PricingSection = () => {
       step="0.10"
       value={val ?? 0}
       onChange={(e) => setter(parseFloat(e.target.value) || 0)}
-      className="w-24 px-2 py-1 border border-gray-300 rounded text-right"
+      className="w-24 px-2 py-1 border border-cq-line rounded text-right"
     />
   );
 
@@ -1830,20 +1830,20 @@ const PricingSection = () => {
   });
 
   return (
-    <div className="bg-white rounded-lg shadow-sm p-6 mb-4">
+    <div className="bg-cq-milk rounded-cq-md shadow-sm p-6 mb-4">
       <h3 className="font-semibold text-lg mb-1">Pricing (honor system)</h3>
-      <p className="text-sm text-gray-500 mb-3">
+      <p className="text-sm text-cq-ink-3 mb-3">
         When enabled, the SMS confirmation tells the customer the total
         and asks them to pay at the counter at collection time. No card
         processing — just embeds the price in the conversation.
       </p>
 
-      <label className="inline-flex items-center mb-4 cursor-pointer select-none">
+      <label className="flex w-fit items-center mb-4 cursor-pointer select-none">
         <input
           type="checkbox"
           checked={!!pricing.enabled}
           onChange={(e) => setPricing(p => ({ ...p, enabled: e.target.checked }))}
-          className="mr-2 h-4 w-4 accent-amber-600"
+          className="mr-2 h-4 w-4 accent-cq-caramel"
         />
         <span className="font-medium">Enable pricing</span>
       </label>
@@ -1855,13 +1855,13 @@ const PricingSection = () => {
               price per cup size (small $2 / medium $2.50). The common
               event case; edit + Save any time. When on, per-drink prices
               and surcharges below are ignored. */}
-          <div className="bg-amber-50 border border-amber-200 rounded p-3 mb-4">
+          <div className="bg-cq-caramel-wash border border-cq-line rounded p-3 mb-4">
             <label className="flex items-center cursor-pointer select-none mb-2">
               <input
                 type="checkbox"
                 checked={flatOn}
                 onChange={(e) => setFlatMode(e.target.checked ? 'single' : 'off')}
-                className="mr-2 h-4 w-4 accent-amber-600"
+                className="mr-2 h-4 w-4 accent-cq-caramel"
               />
               <span className="font-medium">Flat fee — same price regardless of drink / milk</span>
             </label>
@@ -1870,12 +1870,12 @@ const PricingSection = () => {
               <div className="ml-6 space-y-2">
                 <div className="flex gap-4 text-sm">
                   <label className="flex items-center cursor-pointer">
-                    <input type="radio" name="flatmode" className="mr-1 accent-amber-600"
+                    <input type="radio" name="flatmode" className="mr-1 accent-cq-caramel"
                       checked={!perSizeMode} onChange={() => setFlatMode('single')} />
                     One price for everything
                   </label>
                   <label className="flex items-center cursor-pointer">
-                    <input type="radio" name="flatmode" className="mr-1 accent-amber-600"
+                    <input type="radio" name="flatmode" className="mr-1 accent-cq-caramel"
                       checked={perSizeMode} onChange={() => setFlatMode('persize')} />
                     Price per cup size
                   </label>
@@ -1883,10 +1883,10 @@ const PricingSection = () => {
 
                 {!perSizeMode && (
                   <div className="flex items-center gap-1">
-                    <span className="text-gray-600">{pricing.symbol || '$'}</span>
+                    <span className="text-cq-ink-2">{pricing.symbol || '$'}</span>
                     {numericInput(pricing.flat_price,
                       v => setPricing(p => ({ ...p, flat_price: v })))}
-                    <span className="text-sm text-gray-600 ml-1">— every drink, any size</span>
+                    <span className="text-sm text-cq-ink-2 ml-1">— every drink, any size</span>
                   </div>
                 )}
 
@@ -1895,7 +1895,7 @@ const PricingSection = () => {
                     {['small', 'medium', 'large'].map(sz => (
                       <label key={sz} className="flex items-center gap-1 text-sm">
                         <span className="capitalize w-16">{sz}</span>
-                        <span className="text-gray-600">{pricing.symbol || '$'}</span>
+                        <span className="text-cq-ink-2">{pricing.symbol || '$'}</span>
                         {numericInput(flatBySize[sz],
                           v => setPricing(p => ({
                             ...p,
@@ -1903,7 +1903,7 @@ const PricingSection = () => {
                           })))}
                       </label>
                     ))}
-                    <p className="w-full text-xs text-amber-700">
+                    <p className="w-full text-xs text-cq-caramel-deep">
                       Set a price for the sizes you offer; leave others as-is. Alt milks are free in flat-fee mode.
                     </p>
                   </div>
@@ -1914,21 +1914,21 @@ const PricingSection = () => {
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
             <label className="text-sm">
-              <span className="block text-gray-600">Currency symbol</span>
+              <span className="block text-cq-ink-2">Currency symbol</span>
               <input
                 type="text" maxLength={3}
                 value={pricing.symbol || '$'}
                 onChange={(e) => setPricing(p => ({ ...p, symbol: e.target.value }))}
-                className="w-full px-2 py-1 border border-gray-300 rounded"
+                className="w-full px-2 py-1 border border-cq-line rounded"
               />
             </label>
             <label className="text-sm">
-              <span className="block text-gray-600">Unknown drink fallback</span>
+              <span className="block text-cq-ink-2">Unknown drink fallback</span>
               {numericInput(pricing.unknown_drink_price,
                 v => setPricing(p => ({ ...p, unknown_drink_price: v })))}
             </label>
             <label className="text-sm">
-              <span className="block text-gray-600">Sugar per sachet</span>
+              <span className="block text-cq-ink-2">Sugar per sachet</span>
               {numericInput(pricing.sugar_surcharge_per_sachet,
                 v => setPricing(p => ({ ...p, sugar_surcharge_per_sachet: v })))}
             </label>
@@ -2005,7 +2005,7 @@ const PricingSection = () => {
               />
               <span>
                 VIP orders are free
-                <span className="block text-xs text-gray-500 ml-0">
+                <span className="block text-xs text-cq-ink-3 ml-0">
                   Staff get this too — give them the VIP code.
                 </span>
               </span>
@@ -2014,14 +2014,21 @@ const PricingSection = () => {
         </>
       )}
 
-      <button
-        onClick={save}
-        disabled={saving || !loaded}
-        className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded disabled:opacity-50"
-      >
-        {saving ? 'Saving…' : 'Save pricing'}
-      </button>
-      {savedMsg && <span className="ml-3 text-sm text-green-700">{savedMsg}</span>}
+      {/* Its own block row. This button used to sit directly after an
+          inline-flex label, and with pricing switched off there was nothing
+          between them -- two inline boxes on one line, the button landing
+          on top of "Enable pricing". */}
+      <div className="flex items-center gap-3 pt-1">
+        <button
+          onClick={save}
+          disabled={saving || !loaded}
+          className="h-12 px-5 rounded-cq-md bg-cq-caramel hover:bg-cq-caramel-deep
+                     text-white font-bold disabled:opacity-40"
+        >
+          {saving ? 'Saving…' : 'Save pricing'}
+        </button>
+        {savedMsg && <span className="text-sm font-semibold text-cq-ready">{savedMsg}</span>}
+      </div>
     </div>
   );
 };
@@ -2083,16 +2090,16 @@ const WalkinDefaultsSection = () => {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm p-6 mb-4">
+    <div className="bg-cq-milk rounded-cq-md shadow-sm p-6 mb-4">
       <h3 className="font-semibold text-lg mb-1">Walk-in defaults</h3>
-      <p className="text-sm text-gray-500 mb-3">
+      <p className="text-sm text-cq-ink-3 mb-3">
         What the walk-in dialog pre-fills before the operator confirms
         and submits. Set these to your most common values to cut clicks.
       </p>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         <label className="text-sm">
-          <span className="block text-gray-600">Default drink</span>
+          <span className="block text-cq-ink-2">Default drink</span>
           {/* Drinks are loaded from /api/catalog/drink — the single
               source of truth that capability editor, walk-in dialog
               etc. also read. To add a new drink, POST to the catalog
@@ -2103,7 +2110,7 @@ const WalkinDefaultsSection = () => {
           />
         </label>
         <label className="text-sm">
-          <span className="block text-gray-600">Default size</span>
+          <span className="block text-cq-ink-2">Default size</span>
           <CatalogSimpleSelect
             category="size"
             value={defaults.default_size}
@@ -2112,11 +2119,11 @@ const WalkinDefaultsSection = () => {
           />
         </label>
         <label className="text-sm">
-          <span className="block text-gray-600">Default shots</span>
+          <span className="block text-cq-ink-2">Default shots</span>
           <select
             value={defaults.default_shots || '1'}
             onChange={(e) => setDefaults(d => ({ ...d, default_shots: e.target.value }))}
-            className="w-full px-2 py-1 border border-gray-300 rounded"
+            className="w-full px-2 py-1 border border-cq-line rounded"
           >
             <option value="0.5">1/2 shot</option>
             <option value="1">1 (single)</option>
@@ -2125,29 +2132,29 @@ const WalkinDefaultsSection = () => {
           </select>
         </label>
         <label className="text-sm">
-          <span className="block text-gray-600">Default sugar qty</span>
+          <span className="block text-cq-ink-2">Default sugar qty</span>
           <input
             type="number"
             min="0"
             max="6"
             value={defaults.default_sweetener_qty ?? 0}
             onChange={(e) => setDefaults(d => ({ ...d, default_sweetener_qty: parseInt(e.target.value) || 0 }))}
-            className="w-full px-2 py-1 border border-gray-300 rounded"
+            className="w-full px-2 py-1 border border-cq-line rounded"
           />
         </label>
       </div>
 
       <div className="mb-4">
         <label className="text-sm">
-          <span className="block text-gray-600">Milk preference order</span>
+          <span className="block text-cq-ink-2">Milk preference order</span>
           <input
             type="text"
             value={milkPrefAsString}
             onChange={(e) => setMilkPrefFromString(e.target.value)}
             placeholder="full cream, whole milk, dairy, skim, oat"
-            className="w-full px-2 py-1 border border-gray-300 rounded"
+            className="w-full px-2 py-1 border border-cq-line rounded"
           />
-          <span className="block text-xs text-gray-500 mt-1">
+          <span className="block text-xs text-cq-ink-3 mt-1">
             Comma-separated, in order of preference. The dialog picks the
             first one stocked at the station. Anything not in this list
             is only chosen if nothing in the list is available.
@@ -2158,11 +2165,11 @@ const WalkinDefaultsSection = () => {
       <button
         onClick={save}
         disabled={saving || !loaded}
-        className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded disabled:opacity-50"
+        className="px-4 py-2 bg-cq-caramel hover:bg-cq-caramel-deep text-white rounded disabled:opacity-50"
       >
         {saving ? 'Saving…' : 'Save walk-in defaults'}
       </button>
-      {savedMsg && <span className="ml-3 text-sm text-green-700">{savedMsg}</span>}
+      {savedMsg && <span className="ml-3 text-sm text-cq-ready">{savedMsg}</span>}
     </div>
   );
 };
@@ -2177,7 +2184,7 @@ const CatalogSimpleSelect = ({ category, value, onChange, fallback }) => {
 
   if (loading && items.length === 0) {
     return (
-      <select disabled className="w-full px-2 py-1 border border-gray-300 rounded bg-gray-50">
+      <select disabled className="w-full px-2 py-1 border border-cq-line rounded bg-cq-wash">
         <option>Loading…</option>
       </select>
     );
@@ -2191,7 +2198,7 @@ const CatalogSimpleSelect = ({ category, value, onChange, fallback }) => {
         type="text"
         value={value || fallback || ''}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full px-2 py-1 border border-amber-300 rounded"
+        className="w-full px-2 py-1 border border-cq-caramel rounded"
         title={`Catalog unavailable (${error}) — typing freely`}
       />
     );
@@ -2204,7 +2211,7 @@ const CatalogSimpleSelect = ({ category, value, onChange, fallback }) => {
     <select
       value={displayValue}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full px-2 py-1 border border-gray-300 rounded"
+      className="w-full px-2 py-1 border border-cq-line rounded"
     >
       {items.map(i => (
         <option key={i.id} value={i.name}>{i.name}</option>
@@ -2219,7 +2226,7 @@ const CatalogDrinkSelect = ({ value, onChange }) => {
 
   if (loading && items.length === 0) {
     return (
-      <select disabled className="w-full px-2 py-1 border border-gray-300 rounded bg-gray-50">
+      <select disabled className="w-full px-2 py-1 border border-cq-line rounded bg-cq-wash">
         <option>Loading…</option>
       </select>
     );
@@ -2231,7 +2238,7 @@ const CatalogDrinkSelect = ({ value, onChange }) => {
         type="text"
         value={value || 'Flat White'}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full px-2 py-1 border border-amber-300 rounded"
+        className="w-full px-2 py-1 border border-cq-caramel rounded"
         title={`Catalog unavailable (${error}) — typing freely`}
       />
     );
@@ -2258,7 +2265,7 @@ const CatalogDrinkSelect = ({ value, onChange }) => {
     <select
       value={displayValue}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full px-2 py-1 border border-gray-300 rounded"
+      className="w-full px-2 py-1 border border-cq-line rounded"
     >
       {groupOrder.filter(g => groups[g]?.length).map(sub => (
         <optgroup key={sub} label={subLabels[sub] || sub}>

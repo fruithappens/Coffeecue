@@ -424,7 +424,7 @@ const InventoryManagement = () => {
   };
 
   return (
-    <div className="bg-cq-milk rounded-cq-lg shadow-cq-card-lg p-4 sm:p-6">
+    <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4 sm:p-6">
       <QuickSetupStatusBanner section="event_inventory" />
       {saveError && (
         <div className="mb-4 p-3 rounded-md bg-cq-alert-wash border border-cq-alert text-cq-alert text-sm">
@@ -447,7 +447,7 @@ const InventoryManagement = () => {
             });
             if (ok) initializeDefaultInventory();
           }}
-          className="px-4 py-2 bg-white border border-cq-alert text-cq-alert rounded-md hover:bg-cq-alert-wash"
+          className="px-4 py-2 bg-cq-milk border border-cq-alert text-cq-alert rounded-md hover:bg-cq-alert-wash"
         >
           Reset to Defaults
         </button>
@@ -501,7 +501,7 @@ const InventoryManagement = () => {
             </div>
             <button
               onClick={() => setShowAddForm(true)}
-              className="flex items-center px-4 py-2 bg-cq-ready-wash0 text-white rounded-md hover:bg-cq-ready"
+              className="flex items-center px-4 py-2 bg-cq-ready text-white rounded-md hover:bg-cq-ready"
             >
               <Plus size={16} className="mr-2" />
               Add Item
@@ -597,7 +597,7 @@ const InventoryManagement = () => {
                 </button>
                 <button
                   onClick={addItem}
-                  className="px-4 py-2 bg-cq-ready-wash0 text-white rounded-md hover:bg-cq-ready"
+                  className="px-4 py-2 bg-cq-ready text-white rounded-md hover:bg-cq-ready"
                 >
                   Add Item
                 </button>
@@ -612,7 +612,7 @@ const InventoryManagement = () => {
                 key={item.id}
                 className={`p-4 rounded-md border ${
                   item.enabled 
-                    ? 'border-cq-line bg-white' 
+                    ? 'border-cq-line bg-cq-milk' 
                     : 'border-cq-line bg-cq-wash opacity-60'
                 }`}
               >

@@ -30,7 +30,7 @@ const Toast = ({ message, type = 'info', duration = 3000, onClose, standalone = 
   };
 
   return (
-    <div className={`${standalone ? 'fixed top-4 right-4 z-50' : 'relative'} ${colors[type]} text-white px-4 py-3 rounded-cq-md shadow-lg flex items-center space-x-3 animate-slide-in`}>
+    <div className={`${standalone ? 'fixed top-4 right-4 z-50' : 'relative'} ${colors[type]} text-white px-4 py-3 rounded-cq-md shadow-cq-card flex items-center space-x-3 animate-slide-in`}>
       {icons[type]}
       <span className="flex-1">{message}</span>
       <button

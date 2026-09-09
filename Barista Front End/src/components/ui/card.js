@@ -1,7 +1,7 @@
 import React from 'react';
 
 export const Card = ({ className = '', children, ...props }) => (
-  <div className={`bg-cq-milk rounded-lg shadow-sm border ${className}`} {...props}>
+  <div className={`bg-cq-milk rounded-cq-md shadow-sm border ${className}`} {...props}>
     {children}
   </div>
 );

@@ -92,7 +92,7 @@ const ScaledDisplayPreview = ({ url }) => {
   }, []);
   return (
     <div ref={wrapRef}
-         className="relative w-full overflow-hidden rounded-lg border bg-gray-900"
+         className="relative w-full overflow-hidden rounded-cq-md border bg-cq-roast"
          style={{ aspectRatio: '16 / 9' }}>
       <iframe
         title={`Display preview ${url}`}
@@ -1476,30 +1476,30 @@ const BaristaInterface = () => {
     
     const milkColorStyle = order.milkType && order.milkType !== 'No Milk' 
       ? getMilkColorStyle(order.milkType, order.milkTypeId)
-      : { borderLeftWidth: '4px', borderLeftStyle: 'solid', borderLeftColor: '#10B981' };
+      : { borderLeftWidth: '4px', borderLeftStyle: 'solid', borderLeftColor: 'var(--cq-ready, #1F8A4C)' };
     
     return (
-      <div key={order.id} className="bg-white rounded-lg shadow-sm p-3 mb-2" style={milkColorStyle}>
+      <div key={order.id} className="bg-cq-milk rounded-cq-md shadow-sm p-3 mb-2" style={milkColorStyle}>
         <div className="flex justify-between items-center">
           <div className="font-bold flex items-center">
             Order #{order.id}
             {hasSentMessage && (
-              <span className="ml-1 text-green-500" title="Message sent">
+              <span className="ml-1 text-cq-ready" title="Message sent">
                 <CheckCircle size={14} />
               </span>
             )}
           </div>
-          <div className="text-sm text-gray-500">Completed {minutesWaiting} minutes ago</div>
+          <div className="text-sm text-cq-ink-3">Completed {minutesWaiting} minutes ago</div>
         </div>
         <div className="mt-2">
-          <div className="text-gray-700 flex items-center">
+          <div className="text-cq-ink-2 flex items-center">
             {order.milkType && order.milkType !== 'No Milk' && (
               <span style={getMilkDotStyle(order.milkType, order.milkTypeId)}></span>
             )}
             {order.coffeeType || 'Coffee'}, {order.milkType || 'Regular milk'}
           </div>
           <div className="font-medium">{order.customerName}</div>
-          <div className="text-sm text-gray-600">{order.phoneNumber}</div>
+          <div className="text-sm text-cq-ink-2">{order.phoneNumber}</div>
           {order.alternativeMilk && (
             <div className="mt-1">
               <span className="inline-block bg-cq-caramel-wash text-cq-caramel-deep text-xs px-2 py-0.5 rounded">
@@ -1510,20 +1510,20 @@ const BaristaInterface = () => {
         </div>
         <div className="mt-3 flex space-x-2">
           <button
-            className="flex-1 bg-amber-600 text-white py-1 rounded text-sm hover:bg-amber-700"
+            className="flex-1 bg-cq-caramel text-white py-1 rounded text-sm hover:bg-cq-caramel-deep"
             onClick={() => handleSendReminder(order)}
           >
             Remind
           </button>
           <button
-            className="flex-1 bg-green-500 text-white py-1 rounded text-sm hover:bg-green-600"
+            className="flex-1 bg-cq-ready text-white py-1 rounded text-sm hover:bg-cq-ready"
             onClick={() => markOrderPickedUp(order.id)}
           >
             Picked Up
           </button>
           {stationPrinter && (
             <button
-              className="px-2 bg-gray-200 text-gray-700 py-1 rounded text-sm hover:bg-gray-300 flex items-center"
+              className="px-2 bg-cq-line text-cq-ink-2 py-1 rounded text-sm hover:bg-cq-line flex items-center"
               onClick={() => handlePrintLabel(order, { reprint: true })}
               title="Reprint label (uses the original order details)"
             >
@@ -1539,47 +1539,47 @@ const BaristaInterface = () => {
   const renderPreviousOrder = (order) => {
     const milkColorStyle = order.milkType && order.milkType !== 'No Milk' 
       ? getMilkColorStyle(order.milkType, order.milkTypeId)
-      : { borderLeftWidth: '4px', borderLeftStyle: 'solid', borderLeftColor: '#10B981' };
+      : { borderLeftWidth: '4px', borderLeftStyle: 'solid', borderLeftColor: 'var(--cq-ready, #1F8A4C)' };
     
     return (
-      <div key={order.id} className="bg-white rounded-lg shadow-sm p-3 mb-2" style={milkColorStyle}>
+      <div key={order.id} className="bg-cq-milk rounded-cq-md shadow-sm p-3 mb-2" style={milkColorStyle}>
         <div className="flex justify-between items-center">
           <div className="font-bold">Order #{order.id}</div>
           <button 
-            className="text-sm text-gray-600 bg-gray-200 px-2 py-1 rounded hover:bg-gray-300"
+            className="text-sm text-cq-ink-2 bg-cq-line px-2 py-1 rounded hover:bg-cq-line"
             onClick={() => openOrderDetails(order.id)}
           >
             {expandedOrderId === order.id ? 'Hide Details' : 'View Details'}
           </button>
         </div>
         {expandedOrderId === order.id && (
-          <div className="mt-2 pt-2 border-t border-gray-100 text-sm text-gray-700">
+          <div className="mt-2 pt-2 border-t border-cq-line text-sm text-cq-ink-2">
             {expandedOrderData[order.id] === 'loading' ? (
-              <span className="text-gray-400">Loading…</span>
+              <span className="text-cq-ink-3">Loading…</span>
             ) : expandedOrderData[order.id] === 'error' || !expandedOrderData[order.id] ? (
-              <span className="text-gray-500">Couldn't load the full details — the summary above is what we have.</span>
+              <span className="text-cq-ink-3">Couldn't load the full details — the summary above is what we have.</span>
             ) : (() => {
               const d = expandedOrderData[order.id];
               return (
                 <div className="space-y-0.5">
-                  {d.drink_full && <div><span className="text-gray-500">Order:</span> {d.drink_full}</div>}
-                  {d.station_name && <div><span className="text-gray-500">Station:</span> {d.station_name}{d.station_location ? ` · ${d.station_location}` : ''}</div>}
-                  {d.notice && <div className="text-amber-700">{d.notice}</div>}
-                  <div><span className="text-gray-500">Status:</span> {d.status === 'picked_up' ? 'Picked up' : d.status}</div>
+                  {d.drink_full && <div><span className="text-cq-ink-3">Order:</span> {d.drink_full}</div>}
+                  {d.station_name && <div><span className="text-cq-ink-3">Station:</span> {d.station_name}{d.station_location ? ` · ${d.station_location}` : ''}</div>}
+                  {d.notice && <div className="text-cq-caramel-deep">{d.notice}</div>}
+                  <div><span className="text-cq-ink-3">Status:</span> {d.status === 'picked_up' ? 'Picked up' : d.status}</div>
                 </div>
               );
             })()}
           </div>
         )}
         <div className="mt-2">
-          <div className="text-gray-700 flex items-center">
+          <div className="text-cq-ink-2 flex items-center">
             {order.milkType && order.milkType !== 'No Milk' && (
               <span style={getMilkDotStyle(order.milkType, order.milkTypeId)}></span>
             )}
             {order.coffeeType || 'Coffee'}, {order.milkType || 'Regular milk'} {order.sugar ? `, ${order.sugar}` : ''}
           </div>
           <div className="font-medium">{order.customerName}</div>
-          <div className="text-sm text-gray-600">Picked up at {order.pickedUpAt ? new Date(order.pickedUpAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'unknown'}</div>
+          <div className="text-sm text-cq-ink-2">Picked up at {order.pickedUpAt ? new Date(order.pickedUpAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'unknown'}</div>
         </div>
       </div>
     );
@@ -1597,12 +1597,25 @@ const BaristaInterface = () => {
     const getStatusColor = (status) => {
       switch(status) {
         case 'danger':
-          return 'bg-red-400';
+          return 'bg-cq-alert';
         case 'warning':
-          return 'bg-yellow-400';
+          return 'bg-cq-warn';
         case 'good':
         default:
-          return 'bg-green-400';
+          return 'bg-cq-ready';
+      }
+    };
+
+    // The same three states as a CSS colour. The stock slider below builds a
+    // linear-gradient() out of this, and a Tailwind CLASS NAME inside a
+    // gradient is not a colour -- the whole declaration was invalid, so the
+    // bar has been drawing its track with no fill at all, whatever the level.
+    const getStatusCss = (status) => {
+      switch(status) {
+        case 'danger':  return 'var(--cq-alert, #C8372D)';
+        case 'warning': return 'var(--cq-warn, #B07D10)';
+        case 'good':
+        default:        return 'var(--cq-ready, #1F8A4C)';
       }
     };
     
@@ -1671,11 +1684,11 @@ const BaristaInterface = () => {
     };
     
     return (
-      <div className="flex flex-col mb-6 pb-4 border-b border-gray-200">
+      <div className="flex flex-col mb-6 pb-4 border-b border-cq-line">
         <div className="flex items-center justify-between mb-2">
           <div className="w-1/4">
             <div className="font-medium">{item.name}</div>
-            <div className="text-sm text-gray-500 flex items-center">
+            <div className="text-sm text-cq-ink-3 flex items-center">
               <span className="mr-2">Available: {item.amount} {item.unit}</span>
               <button 
                 className="text-cq-caramel-deep text-xs underline"
@@ -1698,7 +1711,7 @@ const BaristaInterface = () => {
                   className="w-24 p-1 border rounded mr-2"
                 />
                 <button
-                  className="bg-green-500 text-white px-2 py-1 rounded text-xs"
+                  className="bg-cq-ready text-white px-2 py-1 rounded text-xs"
                   onClick={applyNumericInput}
                 >
                   Apply
@@ -1729,7 +1742,7 @@ const BaristaInterface = () => {
                   className="w-24 p-1 border rounded mr-2"
                 />
                 <button
-                  className="bg-green-500 text-white px-2 py-1 rounded text-xs"
+                  className="bg-cq-ready text-white px-2 py-1 rounded text-xs"
                   onClick={handleCapacityChange}
                 >
                   Update
@@ -1740,7 +1753,7 @@ const BaristaInterface = () => {
           
           <div className="w-1/4 flex justify-end space-x-2">
             <button 
-              className="w-10 h-10 bg-gray-200 rounded-md flex items-center justify-center hover:bg-gray-300"
+              className="w-10 h-10 bg-cq-line rounded-md flex items-center justify-center hover:bg-cq-line"
               onClick={() => {
                 if (item.amount > 0) {
                   // Decrease stock using the hook
@@ -1753,7 +1766,7 @@ const BaristaInterface = () => {
               -
             </button>
             <button 
-              className="w-10 h-10 bg-gray-200 rounded-md flex items-center justify-center hover:bg-gray-300"
+              className="w-10 h-10 bg-cq-line rounded-md flex items-center justify-center hover:bg-cq-line"
               onClick={() => {
                 // Increase stock using the hook
                 const newAmount = Math.min(item.capacity, item.amount + changeAmount);
@@ -1776,9 +1789,9 @@ const BaristaInterface = () => {
               step={item.unit === 'pcs' ? 1 : 0.1}
               value={item.amount}
               onChange={handleSliderChange}
-              className="w-full h-5 appearance-none bg-gray-200 rounded-full focus:outline-none"
+              className="w-full h-5 appearance-none bg-cq-line rounded-full focus:outline-none"
               style={{
-                background: `linear-gradient(to right, ${getStatusColor(item.status)} 0%, ${getStatusColor(item.status)} ${percentage}%, #e5e7eb ${percentage}%, #e5e7eb 100%)`
+                background: `linear-gradient(to right, ${getStatusCss(item.status)} 0%, ${getStatusCss(item.status)} ${percentage}%, var(--cq-line, #E6DCD0) ${percentage}%, var(--cq-line, #E6DCD0) 100%)`
               }}
             />
           </div>
@@ -1787,11 +1800,11 @@ const BaristaInterface = () => {
           <div className="relative w-full h-6">
             {/* Low threshold indicator */}
             <div 
-              className="absolute top-0 w-0.5 h-2 bg-yellow-500" 
+              className="absolute top-0 w-0.5 h-2 bg-cq-warn" 
               style={{ left: `${(item.lowThreshold / item.capacity) * 100}%` }}
             ></div>
             <div 
-              className="absolute top-3 text-xs text-yellow-600" 
+              className="absolute top-3 text-xs text-cq-warn" 
               style={{ left: `${(item.lowThreshold / item.capacity) * 100}%`, transform: 'translateX(-50%)' }}
             >
               Low
@@ -1799,11 +1812,11 @@ const BaristaInterface = () => {
             
             {/* Critical threshold indicator */}
             <div 
-              className="absolute top-0 w-0.5 h-2 bg-red-500" 
+              className="absolute top-0 w-0.5 h-2 bg-cq-alert" 
               style={{ left: `${(item.criticalThreshold / item.capacity) * 100}%` }}
             ></div>
             <div 
-              className="absolute top-3 text-xs text-red-600" 
+              className="absolute top-3 text-xs text-cq-alert" 
               style={{ left: `${(item.criticalThreshold / item.capacity) * 100}%`, transform: 'translateX(-50%)' }}
             >
               Critical
@@ -1819,38 +1832,38 @@ const BaristaInterface = () => {
     const getStatusClass = (status) => {
       switch(status) {
         case 'active':
-          return 'bg-green-100 border-green-500 text-green-700';
+          return 'bg-cq-ready-wash border-cq-ready text-cq-ready';
         case 'upcoming':
           return 'bg-cq-caramel-wash border-cq-caramel text-cq-caramel-deep';
         case 'completed':
-          return 'bg-gray-100 border-gray-500 text-gray-700';
+          return 'bg-cq-wash border-cq-ink-3 text-cq-ink-2';
         default:
-          return 'bg-gray-100 border-gray-500 text-gray-700';
+          return 'bg-cq-wash border-cq-ink-3 text-cq-ink-2';
       }
     };
     
     return (
       <div 
         key={`${type}-${item.id}`}
-        className={`mb-2 p-3 rounded-lg border-l-4 ${getStatusClass(item.status)} shadow-sm`}
+        className={`mb-2 p-3 rounded-cq-md border-l-4 ${getStatusClass(item.status)} shadow-sm`}
       >
         <div className="flex justify-between items-center">
           <div className="font-bold">{item.start} - {item.end}</div>
           {type === 'shift' && (
-            <div className="text-sm bg-amber-100 text-amber-800 px-2 py-1 rounded">
+            <div className="text-sm bg-cq-caramel-wash text-cq-caramel-deep px-2 py-1 rounded">
               {item.barista}
             </div>
           )}
           {type === 'rush' && (
-            <div className="text-sm bg-red-100 text-red-800 px-2 py-1 rounded">
+            <div className="text-sm bg-cq-alert-wash text-cq-alert px-2 py-1 rounded">
               Rush Period
             </div>
           )}
         </div>
         <div className="mt-2">
-          {type === 'shift' && <div className="text-gray-700">Barista Shift</div>}
-          {type === 'break' && <div className="text-gray-700">Break Time for {item.barista}</div>}
-          {type === 'rush' && <div className="text-gray-700">{item.reason}</div>}
+          {type === 'shift' && <div className="text-cq-ink-2">Barista Shift</div>}
+          {type === 'break' && <div className="text-cq-ink-2">Break Time for {item.barista}</div>}
+          {type === 'rush' && <div className="text-cq-ink-2">{item.reason}</div>}
         </div>
       </div>
     );
@@ -1888,7 +1901,7 @@ const BaristaInterface = () => {
         
         {/* Close button */}
         <button 
-          className="absolute top-1 right-1 text-gray-500 hover:text-gray-800 bg-white rounded-full p-1 shadow-sm"
+          className="absolute top-1 right-1 text-cq-ink-3 hover:text-cq-roast bg-cq-milk rounded-full p-1 shadow-sm"
           onClick={() => onDismiss(id)}
           aria-label="Dismiss message"
           title="Dismiss this message"
@@ -1931,7 +1944,7 @@ const BaristaInterface = () => {
     };
     
     return (
-      <div className="p-4 border rounded shadow-lg bg-white">
+      <div className="p-4 border rounded shadow-cq-card bg-cq-milk">
         <h3 className="text-lg font-bold mb-4">Notification Settings</h3>
         <div className="space-y-4">
           <div>
@@ -1986,7 +1999,7 @@ const BaristaInterface = () => {
         
         <div className="mt-4 flex justify-end">
           <button 
-            className="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700"
+            className="px-4 py-2 bg-cq-caramel text-white rounded hover:bg-cq-caramel-deep"
             onClick={saveSettings}
           >
             Save Settings
@@ -2124,14 +2137,14 @@ const BaristaInterface = () => {
 
       {/* Header - Connection Banner */}
       {!online && (
-        <div className="bg-red-500 text-white p-2 text-center">
+        <div className="bg-cq-alert text-white p-2 text-center">
           Could not connect to backend service. Using sample data instead.
         </div>
       )}
       
       {/* Demo Mode Indicator */}
       {isDemoMode && (
-        <div className="bg-amber-500 text-white p-2 text-center">
+        <div className="bg-cq-caramel text-white p-2 text-center">
           Demo Mode Active - Using simulated data
         </div>
       )}
@@ -2203,13 +2216,13 @@ const BaristaInterface = () => {
         {/* Loading state */}
         {loading && (
           <div className="flex justify-center items-center h-full">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-amber-600"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-cq-caramel"></div>
           </div>
         )}
         
         {/* Error state */}
         {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4">
+          <div className="bg-cq-alert-wash border border-cq-alert text-cq-alert px-4 py-3 rounded relative mb-4">
             <strong className="font-bold">Error!</strong>
             <span className="block sm:inline"> {error}</span>
             <button 
@@ -2223,11 +2236,11 @@ const BaristaInterface = () => {
         
         {/* Last Updated indicator */}
         {!loading && !error && !settings.rushMode && (
-          <div className="text-xs text-gray-500 mb-2 flex items-center">
+          <div className="text-xs text-cq-ink-3 mb-2 flex items-center">
             <Clock size={12} className="mr-1" />
             Last updated: {new Date(lastUpdated).toLocaleTimeString()}
             {isRefreshing && (
-              <span className="ml-2 flex items-center text-amber-600">
+              <span className="ml-2 flex items-center text-cq-caramel-deep">
                 <RefreshCw size={12} className="animate-spin mr-1" />
                 Refreshing...
               </span>
@@ -2243,7 +2256,7 @@ const BaristaInterface = () => {
             A stuck queue with no explanation sends someone to debug the
             server; "Out of paper" sends them to the roll. */}
         {stationPrinter?.fault && (
-          <div className="mb-3 rounded-lg border-l-4 border-red-600 bg-red-50 px-4 py-3 text-red-800">
+          <div className="mb-3 rounded-cq-md border-l-4 border-cq-alert bg-cq-alert-wash px-4 py-3 text-cq-alert">
             <div className="font-bold flex items-center">
               <Printer size={18} className="mr-2" />
               Printer: {stationPrinter.fault}
@@ -2312,14 +2325,14 @@ const BaristaInterface = () => {
             {/* This tab now reads the LIVE inventory table -- the same
                 figures the recipes deplete and the low-stock alerts read.
                 No more "tab says 5 L, warning says 0.19 L". */}
-            <div className="mb-4 rounded-lg border-l-4 border-green-500 bg-green-50 px-4 py-3 text-sm text-green-800">
+            <div className="mb-4 rounded-cq-md border-l-4 border-cq-ready bg-cq-ready-wash px-4 py-3 text-sm text-cq-ready">
               <span className="font-semibold">Live station stock.</span> These
               are the real figures orders draw down and the low-stock alert
               watches — edits here take effect immediately, everywhere.
               {(live.criticalCount > 0 || live.lowCount > 0) && (
                 <span className="block mt-1 font-medium">
-                  {live.criticalCount > 0 && <span className="text-red-600 mr-2">Critical: {live.criticalCount}</span>}
-                  {live.lowCount > 0 && <span className="text-amber-700">Low: {live.lowCount}</span>}
+                  {live.criticalCount > 0 && <span className="text-cq-alert mr-2">Critical: {live.criticalCount}</span>}
+                  {live.lowCount > 0 && <span className="text-cq-caramel-deep">Low: {live.lowCount}</span>}
                 </span>
               )}
             </div>
@@ -2329,7 +2342,7 @@ const BaristaInterface = () => {
               {(live.categories.length ? live.categories : ['milk']).map(category => (
                 <button
                   key={category}
-                  className={`px-4 py-2 rounded-full ${liveStockCat === category ? 'bg-green-500 text-white' : 'bg-gray-200'}`}
+                  className={`px-4 py-2 rounded-full ${liveStockCat === category ? 'bg-cq-ready text-white' : 'bg-cq-line'}`}
                   onClick={() => setLiveStockCat(category)}
                 >
                   {category.charAt(0).toUpperCase() + category.slice(1)}
@@ -2339,7 +2352,7 @@ const BaristaInterface = () => {
 
             <h2 className="text-xl font-bold mb-3 flex items-center justify-between">
               <span>{liveStockCat.charAt(0).toUpperCase() + liveStockCat.slice(1)}</span>
-              <button onClick={live.reload} className="text-sm text-gray-400 hover:text-gray-700 font-normal">
+              <button onClick={live.reload} className="text-sm text-cq-ink-3 hover:text-cq-ink-2 font-normal">
                 Refresh
               </button>
             </h2>
@@ -2347,7 +2360,7 @@ const BaristaInterface = () => {
             <div className="space-y-3">
               {live.loading ? (
                 <div className="flex justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-500"></div>
+                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cq-ready"></div>
                 </div>
               ) : (live.byCategory[liveStockCat] || []).length > 0 ? (
                 (live.byCategory[liveStockCat] || []).map(item => {
@@ -2358,17 +2371,17 @@ const BaristaInterface = () => {
                   const scope = item.station_id ? 'this station' : 'event pool';
                   return (
                     <div key={item.id}
-                      className={`bg-white rounded-lg shadow-sm p-4 flex items-center justify-between gap-3 border-l-4 ${
-                        lvl === 'critical' ? 'border-red-500'
-                        : lvl === 'low' ? 'border-amber-400' : 'border-transparent'}`}>
+                      className={`bg-cq-milk rounded-cq-md shadow-sm p-4 flex items-center justify-between gap-3 border-l-4 ${
+                        lvl === 'critical' ? 'border-cq-alert'
+                        : lvl === 'low' ? 'border-cq-caramel' : 'border-transparent'}`}>
                       <div className="min-w-0">
                         <div className="font-semibold capitalize truncate">{item.name}</div>
-                        <div className="text-sm text-gray-500">
+                        <div className="text-sm text-cq-ink-3">
                           {amt}{item.unit ? ` ${item.unit}` : ''} left
                           {cap ? ` of ${cap}` : ''} · min {min}
-                          <span className="ml-2 text-xs uppercase tracking-wide text-gray-400">{scope}</span>
+                          <span className="ml-2 text-xs uppercase tracking-wide text-cq-ink-3">{scope}</span>
                           {lvl !== 'ok' && (
-                            <span className={`ml-2 text-xs font-bold ${lvl === 'critical' ? 'text-red-600' : 'text-amber-700'}`}>
+                            <span className={`ml-2 text-xs font-bold ${lvl === 'critical' ? 'text-cq-alert' : 'text-cq-caramel-deep'}`}>
                               {lvl === 'critical' ? 'CRITICAL' : 'LOW'}
                             </span>
                           )}
@@ -2377,14 +2390,14 @@ const BaristaInterface = () => {
                       <div className="flex items-center gap-2 shrink-0">
                         <input
                           type="number" min="0" defaultValue={amt} key={`${item.id}-${amt}`}
-                          className="w-20 border-2 border-gray-200 rounded-lg px-2 py-1.5 text-right"
+                          className="w-20 border-2 border-cq-line rounded-cq-md px-2 py-1.5 text-right"
                           onKeyDown={(e) => { if (e.key === 'Enter') live.setAmount(item.id, e.target.value); }}
                           onBlur={(e) => { if ((parseFloat(e.target.value) || 0) !== amt) live.setAmount(item.id, e.target.value); }}
                         />
                         {cap > 0 && (
                           <button
                             onClick={() => live.setAmount(item.id, cap)}
-                            className="px-3 py-1.5 rounded-lg bg-green-500 text-white text-sm font-semibold hover:bg-green-600"
+                            className="px-3 py-1.5 rounded-cq-md bg-cq-ready text-white text-sm font-semibold hover:bg-cq-ready"
                             title={`Restock to full (${cap})`}
                           >
                             Full
@@ -2395,17 +2408,17 @@ const BaristaInterface = () => {
                   );
                 })
               ) : (
-                <div className="text-center py-8 text-gray-500 bg-white rounded-lg shadow-sm">
-                  <Package size={48} className="mx-auto mb-2 text-gray-400" />
+                <div className="text-center py-8 text-cq-ink-3 bg-cq-milk rounded-cq-md shadow-sm">
+                  <Package size={48} className="mx-auto mb-2 text-cq-ink-3" />
                   <p>No {liveStockCat} items in inventory</p>
-                  <p className="text-sm text-gray-400">Add stock in Organiser → Event Stock</p>
+                  <p className="text-sm text-cq-ink-3">Add stock in Organiser → Event Stock</p>
                 </div>
               )}
             </div>
 
             {(live.byCategory[liveStockCat] || []).length > 0 && (
               <button
-                className="w-full mt-4 py-3 bg-green-500 text-white rounded-md font-medium hover:bg-green-600"
+                className="w-full mt-4 py-3 bg-cq-ready text-white rounded-md font-medium hover:bg-cq-ready"
                 onClick={() => {
                   const rows = live.byCategory[liveStockCat] || [];
                   if (window.prompt(`Type 'yes' to restock all ${liveStockCat} to full:`) === 'yes') {
@@ -2420,7 +2433,7 @@ const BaristaInterface = () => {
               </button>
             )}
 
-            <p className="text-xs text-gray-400 mt-3">
+            <p className="text-xs text-cq-ink-3 mt-3">
               Structural changes (adding items, capacities, minimums) live in
               Organiser → Event Stock. This tab is for adjusting what's on hand.
             </p>
@@ -2447,13 +2460,13 @@ const BaristaInterface = () => {
             />
           
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-white rounded-lg shadow-md p-4">
+              <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4">
                 <h2 className="text-xl font-bold mb-4">Today's Schedule</h2>
                 <div className="space-y-2">
                   {scheduleLoading ? (
                     <div className="text-center py-6">
-                      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-amber-600 mx-auto"></div>
-                      <p className="mt-2 text-gray-500">Loading schedule data...</p>
+                      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-cq-caramel mx-auto"></div>
+                      <p className="mt-2 text-cq-ink-3">Loading schedule data...</p>
                     </div>
                   ) : scheduleData.shifts && scheduleData.shifts.length > 0 ? (
                     scheduleData.shifts.map(item => {
@@ -2468,47 +2481,47 @@ const BaristaInterface = () => {
                       return renderScheduleItem(formattedItem, 'shift');
                     })
                   ) : (
-                    <div className="text-center py-6 text-gray-500">
+                    <div className="text-center py-6 text-cq-ink-3">
                       <p>No schedule data available for this station</p>
-                      <p className="text-sm text-gray-400">Create schedules in the Organiser interface</p>
+                      <p className="text-sm text-cq-ink-3">Create schedules in the Organiser interface</p>
                     </div>
                   )}
                 </div>
               </div>
               
-              <div className="bg-white rounded-lg shadow-md p-4">
+              <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4">
                 <h2 className="text-xl font-bold mb-4">Breaks</h2>
                 <div className="space-y-2">
                   {scheduleLoading ? (
                     <div className="text-center py-6">
-                      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-amber-600 mx-auto"></div>
-                      <p className="mt-2 text-gray-500">Loading break data...</p>
+                      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-cq-caramel mx-auto"></div>
+                      <p className="mt-2 text-cq-ink-3">Loading break data...</p>
                     </div>
                   ) : scheduleData.breaks && scheduleData.breaks.length > 0 ? (
                     scheduleData.breaks.map(item => renderScheduleItem(item, 'break'))
                   ) : (
-                    <div className="text-center py-6 text-gray-500">
+                    <div className="text-center py-6 text-cq-ink-3">
                       <p>No break data available</p>
-                      <p className="text-sm text-gray-400">Break scheduling will be added soon</p>
+                      <p className="text-sm text-cq-ink-3">Break scheduling will be added soon</p>
                     </div>
                   )}
                 </div>
               </div>
               
-              <div className="bg-white rounded-lg shadow-md p-4 md:col-span-2">
+              <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4 md:col-span-2">
                 <h2 className="text-xl font-bold mb-4">Predicted Rush Periods</h2>
                 <div className="space-y-2">
                   {scheduleLoading ? (
                     <div className="text-center py-6">
-                      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-amber-600 mx-auto"></div>
-                      <p className="mt-2 text-gray-500">Loading rush period data...</p>
+                      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-cq-caramel mx-auto"></div>
+                      <p className="mt-2 text-cq-ink-3">Loading rush period data...</p>
                     </div>
                   ) : scheduleData.rushPeriods && scheduleData.rushPeriods.length > 0 ? (
                     scheduleData.rushPeriods.map(item => renderScheduleItem(item, 'rush'))
                   ) : (
-                    <div className="text-center py-6 text-gray-500">
+                    <div className="text-center py-6 text-cq-ink-3">
                       <p>No rush period data available</p>
-                      <p className="text-sm text-gray-400">Rush period analytics will be added soon</p>
+                      <p className="text-sm text-cq-ink-3">Rush period analytics will be added soon</p>
                     </div>
                   )}
                 </div>
@@ -2520,17 +2533,17 @@ const BaristaInterface = () => {
         {/* Completed Orders Tab */}
         {!loading && activeTab === 'completed' && (
           <div>
-            <div className="bg-white rounded-lg shadow-md p-4 mb-4">
+            <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4 mb-4">
               <h2 className="text-xl font-bold mb-3">Completed Orders</h2>
               <div className="flex space-x-2 mb-4">
                 <button 
-                  className={`${historyTab === 'completed' ? 'bg-amber-600 text-white' : 'bg-gray-200 hover:bg-gray-300'} px-6 py-2 rounded-full`}
+                  className={`${historyTab === 'completed' ? 'bg-cq-caramel text-white' : 'bg-cq-line hover:bg-cq-line'} px-6 py-2 rounded-full`}
                   onClick={() => setHistoryTab('completed')}
                 >
                   Today
                 </button>
                 <button 
-                  className={`${historyTab === 'yesterday' ? 'bg-amber-600 text-white' : 'bg-gray-200 hover:bg-gray-300'} px-6 py-2 rounded-full`}
+                  className={`${historyTab === 'yesterday' ? 'bg-cq-caramel text-white' : 'bg-cq-line hover:bg-cq-line'} px-6 py-2 rounded-full`}
                   onClick={() => {
                     setHistoryTab('yesterday');
                     fetchYesterdayOrders();
@@ -2539,7 +2552,7 @@ const BaristaInterface = () => {
                   Yesterday
                 </button>
                 <button 
-                  className={`${historyTab === 'thisWeek' ? 'bg-amber-600 text-white' : 'bg-gray-200 hover:bg-gray-300'} px-6 py-2 rounded-full`}
+                  className={`${historyTab === 'thisWeek' ? 'bg-cq-caramel text-white' : 'bg-cq-line hover:bg-cq-line'} px-6 py-2 rounded-full`}
                   onClick={() => {
                     setHistoryTab('thisWeek');
                     fetchThisWeekOrders();
@@ -2548,7 +2561,7 @@ const BaristaInterface = () => {
                   This Week
                 </button>
                 <button 
-                  className={`${historyTab === 'search' ? 'bg-amber-600 text-white' : 'bg-gray-200 hover:bg-gray-300'} px-6 py-2 rounded-full ml-auto`}
+                  className={`${historyTab === 'search' ? 'bg-cq-caramel text-white' : 'bg-cq-line hover:bg-cq-line'} px-6 py-2 rounded-full ml-auto`}
                   onClick={() => setHistoryTab('search')}
                 >
                   Search Orders
@@ -2567,7 +2580,7 @@ const BaristaInterface = () => {
                       className="flex-1 p-2 border rounded-l-md"
                     />
                     <button
-                      className="bg-amber-600 text-white px-4 py-2 rounded-r-md"
+                      className="bg-cq-caramel text-white px-4 py-2 rounded-r-md"
                       onClick={() => searchOrders(searchTerm)}
                     >
                       Search
@@ -2585,7 +2598,7 @@ const BaristaInterface = () => {
                   {completedOrders.length > 0 ? (
                     completedOrders.map(order => renderCompletedOrder(order))
                   ) : (
-                    <div className="text-center py-6 bg-white rounded-lg shadow-sm text-gray-500">
+                    <div className="text-center py-6 bg-cq-milk rounded-cq-md shadow-sm text-cq-ink-3">
                       <p>No orders ready for pickup</p>
                     </div>
                   )}
@@ -2596,7 +2609,7 @@ const BaristaInterface = () => {
                   {previousOrders.length > 0 ? (
                     previousOrders.map(order => renderPreviousOrder(order))
                   ) : (
-                    <div className="text-center py-6 bg-white rounded-lg shadow-sm text-gray-500">
+                    <div className="text-center py-6 bg-cq-milk rounded-cq-md shadow-sm text-cq-ink-3">
                       <p>No previous orders to display</p>
                     </div>
                   )}
@@ -2609,14 +2622,14 @@ const BaristaInterface = () => {
                 <h3 className="text-xl font-bold mb-3 ml-2">Yesterday's Orders</h3>
                 <div className="space-y-2">
                   {loading ? (
-                    <div className="text-center py-6 bg-white rounded-lg shadow-sm">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600 mx-auto mb-2"></div>
-                      <p className="text-gray-500">Loading yesterday's orders...</p>
+                    <div className="text-center py-6 bg-cq-milk rounded-cq-md shadow-sm">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cq-caramel mx-auto mb-2"></div>
+                      <p className="text-cq-ink-3">Loading yesterday's orders...</p>
                     </div>
                   ) : yesterdayOrders.length > 0 ? (
                     yesterdayOrders.map(order => renderPreviousOrder(order))
                   ) : (
-                    <div className="text-center py-6 bg-white rounded-lg shadow-sm text-gray-500">
+                    <div className="text-center py-6 bg-cq-milk rounded-cq-md shadow-sm text-cq-ink-3">
                       <p>No orders from yesterday</p>
                     </div>
                   )}
@@ -2629,14 +2642,14 @@ const BaristaInterface = () => {
                 <h3 className="text-xl font-bold mb-3 ml-2">This Week's Orders</h3>
                 <div className="space-y-2">
                   {loading ? (
-                    <div className="text-center py-6 bg-white rounded-lg shadow-sm">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600 mx-auto mb-2"></div>
-                      <p className="text-gray-500">Loading this week's orders...</p>
+                    <div className="text-center py-6 bg-cq-milk rounded-cq-md shadow-sm">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cq-caramel mx-auto mb-2"></div>
+                      <p className="text-cq-ink-3">Loading this week's orders...</p>
                     </div>
                   ) : thisWeekOrders.length > 0 ? (
                     thisWeekOrders.map(order => renderPreviousOrder(order))
                   ) : (
-                    <div className="text-center py-6 bg-white rounded-lg shadow-sm text-gray-500">
+                    <div className="text-center py-6 bg-cq-milk rounded-cq-md shadow-sm text-cq-ink-3">
                       <p>No orders from this week</p>
                     </div>
                   )}
@@ -2649,20 +2662,20 @@ const BaristaInterface = () => {
                 <h3 className="text-xl font-bold mb-3 ml-2">Search Results</h3>
                 <div className="space-y-2">
                   {loading ? (
-                    <div className="text-center py-6 bg-white rounded-lg shadow-sm">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600 mx-auto mb-2"></div>
-                      <p className="text-gray-500">Searching orders...</p>
+                    <div className="text-center py-6 bg-cq-milk rounded-cq-md shadow-sm">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cq-caramel mx-auto mb-2"></div>
+                      <p className="text-cq-ink-3">Searching orders...</p>
                     </div>
                   ) : searchTerm ? (
                     searchResults.length > 0 ? (
                       searchResults.map(order => renderPreviousOrder(order))
                     ) : (
-                      <div className="text-center py-6 bg-white rounded-lg shadow-sm text-gray-500">
+                      <div className="text-center py-6 bg-cq-milk rounded-cq-md shadow-sm text-cq-ink-3">
                         <p>No orders match your search</p>
                       </div>
                     )
                   ) : (
-                    <div className="text-center py-6 bg-white rounded-lg shadow-sm text-gray-500">
+                    <div className="text-center py-6 bg-cq-milk rounded-cq-md shadow-sm text-cq-ink-3">
                       <p>Enter a search term to find orders</p>
                     </div>
                   )}
@@ -2700,15 +2713,15 @@ const BaristaInterface = () => {
           <div className="p-4 space-y-6">
             <div>
               <h2 className="text-xl font-bold mb-3">Station Capabilities</h2>
-              <p className="text-sm text-gray-600 mb-3">
+              <p className="text-sm text-cq-ink-2 mb-3">
                 What each station can serve. Drives where the SMS bot
                 routes incoming orders.
               </p>
               <StationCapabilitiesEditor />
             </div>
-            <div className="border-t border-gray-200 pt-6">
+            <div className="border-t border-cq-line pt-6">
               <h2 className="text-xl font-bold mb-3">Barista Skill Profiles</h2>
-              <p className="text-sm text-gray-600 mb-3">
+              <p className="text-sm text-cq-ink-2 mb-3">
                 Optional skill-level tracking per barista. Read-only
                 analytics for now.
               </p>
@@ -2731,14 +2744,14 @@ const BaristaInterface = () => {
         {!loading && activeTab === 'settings' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
             {/* Notification Settings — promoted to the top */}
-            <div className="bg-white rounded-lg shadow-md p-4">
+            <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4">
               <h2 className="text-xl font-bold mb-4">Notification Settings</h2>
               <NotificationSettings />
             </div>
             {/* Team mode — stage chips for multiple baristas sharing this
                 station's iPad. Per-device, default OFF: solo baristas
                 never see the extra chips. */}
-            <div className="bg-white rounded-lg shadow-md p-4">
+            <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4">
               <h2 className="text-xl font-bold mb-4">Team Mode</h2>
               <label className="flex items-center space-x-2">
                 <input
@@ -2756,7 +2769,7 @@ const BaristaInterface = () => {
             {/* Order board — how the three columns are arranged and how
                 tightly the cards pack. Per device, because it depends on
                 the screen in front of this barista, not on the event. */}
-            <div className="bg-white rounded-lg shadow-md p-4">
+            <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4">
               <h2 className="text-xl font-bold mb-4">Order board</h2>
               <div className="space-y-4">
                 <div>
@@ -2770,7 +2783,7 @@ const BaristaInterface = () => {
                     <option value="progression-rtl">Ready &larr; Current &larr; Upcoming (right to left)</option>
                     <option value="current-first">Current &rarr; Upcoming &rarr; Ready (original)</option>
                   </select>
-                  <p className="text-sm text-gray-500 mt-1">
+                  <p className="text-sm text-cq-ink-3 mt-1">
                     In the order a coffee actually moves, so your eye follows one
                     order across the screen. Pick the direction that matches your
                     bench &mdash; if the queue is on your right and you hand out on
@@ -2780,13 +2793,13 @@ const BaristaInterface = () => {
                 <label className="flex items-start space-x-2">
                   <input
                     type="checkbox"
-                    className="mt-1"
+                    className="mt-1 h-4 w-4 accent-cq-caramel"
                     checked={!!settings.skipPickedUp}
                     onChange={(e) => setSettings(prev => ({ ...prev, skipPickedUp: e.target.checked }))}
                   />
                   <span>
                     <span className="font-medium">Completing an order finishes it</span>
-                    <span className="block text-sm text-gray-500">
+                    <span className="block text-sm text-cq-ink-3">
                       Hides the Ready for Pickup column so nobody has to tap
                       Collected. The order still shows as ready on the customer
                       display. Use this when someone is calling names out rather
@@ -2820,9 +2833,9 @@ const BaristaInterface = () => {
                           }));
                         }}
                       />
-                      <span className="text-gray-600">minutes</span>
+                      <span className="text-cq-ink-2">minutes</span>
                     </div>
-                    <p className="text-sm text-gray-500 mt-1">
+                    <p className="text-sm text-cq-ink-3 mt-1">
                       Orders with no phone number stay twice as long &mdash; nobody
                       texted them, so the card is the only reminder to call the name.
                     </p>
@@ -2831,13 +2844,13 @@ const BaristaInterface = () => {
                 <label className="flex items-start space-x-2">
                   <input
                     type="checkbox"
-                    className="mt-1"
+                    className="mt-1 h-4 w-4 accent-cq-caramel"
                     checked={!!settings.compactOrders}
                     onChange={(e) => setSettings(prev => ({ ...prev, compactOrders: e.target.checked }))}
                   />
                   <span>
                     <span className="font-medium">Compact cards</span>
-                    <span className="block text-sm text-gray-500">
+                    <span className="block text-sm text-cq-ink-3">
                       Fits about a third more orders on screen. Turn this on when
                       you are making 8&ndash;10 at once or working on a smaller
                       screen. Order numbers, names and buttons stay full size.
@@ -2849,14 +2862,14 @@ const BaristaInterface = () => {
             {/* Label Printing — per-device auto-print toggle. Deliberately
                 OFF by default: the operator opts each station's tablet in
                 once the printer is confirmed working. */}
-            <div className="bg-white rounded-lg shadow-md p-4">
+            <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4">
               <h2 className="text-xl font-bold mb-4">Label Printing</h2>
               {stationPrinter ? (
                 <div className="space-y-3">
-                  <div className="text-sm text-gray-600 flex items-center">
+                  <div className="text-sm text-cq-ink-2 flex items-center">
                     <Printer size={16} className="mr-2" />
                     {stationPrinter.name || 'Label printer'} —{' '}
-                    <span className={stationPrinter.online ? 'text-green-600 font-medium ml-1' : 'text-red-600 font-medium ml-1'}>
+                    <span className={stationPrinter.online ? 'text-cq-ready font-medium ml-1' : 'text-cq-alert font-medium ml-1'}>
                       {stationPrinter.online ? 'online' : 'offline'}
                     </span>
                   </div>
@@ -2876,7 +2889,7 @@ const BaristaInterface = () => {
                     stationPrinter={stationPrinter}
                   />
                   <button
-                    className="bg-gray-200 text-gray-700 px-3 py-1.5 rounded text-sm hover:bg-gray-300"
+                    className="bg-cq-line text-cq-ink-2 px-3 py-1.5 rounded text-sm hover:bg-cq-line"
                     onClick={async () => {
                       const r = await printService.testPrint(stationPrinter.id);
                       showToast(r?.success ? 'Test label queued' : `Test failed: ${r?.message || 'unknown'}`,
@@ -2897,7 +2910,7 @@ const BaristaInterface = () => {
                       maxLength={60}
                     />
                     <button
-                      className="bg-gray-700 text-white px-3 py-1.5 rounded text-sm hover:bg-gray-800"
+                      className="bg-cq-roast text-white px-3 py-1.5 rounded text-sm hover:bg-cq-roast"
                       onClick={async () => {
                         const el = document.getElementById('bannerTextInput');
                         const text = (el?.value || '').trim();
@@ -2930,7 +2943,7 @@ const BaristaInterface = () => {
                       service — which is why it asks for a count rather
                       than printing one at a time. */}
                   <div className="pt-2 border-t mt-2">
-                    <div className="text-sm text-gray-600 mb-1.5">
+                    <div className="text-sm text-cq-ink-2 mb-1.5">
                       Pre-stickered cups &mdash; branded stickers for plain cups
                     </div>
                     <div className="flex gap-2 items-center">
@@ -2971,7 +2984,7 @@ const BaristaInterface = () => {
                         See one first
                       </button>
                       <button
-                        className="bg-gray-700 text-white px-3 py-1.5 rounded text-sm hover:bg-gray-800 ml-auto"
+                        className="bg-cq-roast text-white px-3 py-1.5 rounded text-sm hover:bg-cq-roast ml-auto"
                         onClick={async () => {
                           const el = document.getElementById('stickerCountInput');
                           const count = parseInt(el?.value, 10);
@@ -3008,14 +3021,14 @@ const BaristaInterface = () => {
                   </div>
                 </div>
               ) : (
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-cq-ink-3">
                   No label printer is assigned to this station. Printers are set
                   up in Support → Printers (they appear there automatically the
                   first time they connect).
                 </p>
               )}
             </div>
-            <div className="bg-white rounded-lg shadow-md p-4">
+            <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4">
               <h2 className="text-xl font-bold mb-4">Auto-Refresh Settings</h2>
               <div className="space-y-4">
                 <div>
@@ -3023,15 +3036,14 @@ const BaristaInterface = () => {
                     <input 
                       type="checkbox" 
                       checked={autoRefreshEnabled}
-                      onChange={toggleAutoRefresh}
-                    />
+                      onChange={toggleAutoRefresh} className="h-4 w-4 accent-cq-caramel" />
                     <span>Enable automatic refreshing of order data</span>
                   </label>
                 </div>
                 
                 {autoRefreshEnabled && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                       Refresh interval (seconds)
                     </label>
                     {/* Draft state, not the live value.
@@ -3066,7 +3078,7 @@ const BaristaInterface = () => {
                         }}
                         className="w-20 p-2 border rounded mr-2"
                       />
-                      <span className="text-sm text-gray-500">
+                      <span className="text-sm text-cq-ink-3">
                         {autoRefreshInterval <= 5 ? '(fast — good during service)' : ''}
                       </span>
                     </div>
@@ -3075,7 +3087,7 @@ const BaristaInterface = () => {
                 
                 <div className="mt-4">
                   <button 
-                    className="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700 flex items-center"
+                    className="px-4 py-2 bg-cq-caramel text-white rounded hover:bg-cq-caramel-deep flex items-center"
                     onClick={() => {
                       // Make sure we preserve the current station when refreshing
                       const currentStation = stations.find(s => s.id === selectedStation);
@@ -3096,11 +3108,11 @@ const BaristaInterface = () => {
               </div>
             </div>
             
-            <div className="bg-white rounded-lg shadow-md p-4">
+            <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4">
               <h2 className="text-xl font-bold mb-4">Station Settings</h2>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                     Station Name
                   </label>
                   <input 
@@ -3112,7 +3124,7 @@ const BaristaInterface = () => {
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                     Station Location
                   </label>
                   <input 
@@ -3125,7 +3137,7 @@ const BaristaInterface = () => {
                 </div>
                 
                 <button
-                  className="mt-4 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 flex items-center"
+                  className="mt-4 px-4 py-2 bg-cq-ready text-white rounded hover:bg-cq-ready flex items-center"
                   onClick={async () => {
                     // No local copy of these: the station record on the
                     // server is the only place a station's name, location
@@ -3168,7 +3180,7 @@ const BaristaInterface = () => {
                 </button>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                     Barista Name
                   </label>
                   <input 
@@ -3266,9 +3278,9 @@ const BaristaInterface = () => {
               </div>
             </div>
             
-            <div className="bg-white rounded-lg shadow-md p-4">
+            <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4">
               <h2 className="text-xl font-bold mb-4">System Information</h2>
-              <div className="text-sm text-gray-600 space-y-2">
+              <div className="text-sm text-cq-ink-2 space-y-2">
                 <div>Version: 1.2.0</div>
                 <div>Station: {stations.find(s => s.id === selectedStation)?.name || 'Unknown'}</div>
                 <div>Last Sync: {new Date().toLocaleString()}</div>
@@ -3301,7 +3313,7 @@ const BaristaInterface = () => {
                 IS connected to real orders now (rewritten May 2026).
                 Steve flagged the stale popup as confusing — leaving it
                 only on a non-dismissible info panel below. */}
-            <div className="mb-4 rounded-lg p-3 bg-green-50 border-l-4 border-green-500 text-sm text-green-900">
+            <div className="mb-4 rounded-cq-md p-3 bg-cq-ready-wash border-l-4 border-cq-ready text-sm text-cq-ready">
               The display screen shows <strong>live order data</strong>.
               Open it on a tablet or external monitor; portrait /
               landscape now flips automatically based on viewport.
@@ -3310,9 +3322,9 @@ const BaristaInterface = () => {
             {/* Screen links — every display URL findable in one place,
                 copyable, QR-scannable to another device, with short
                 paths a human can type into a TV browser (Steve's ask). */}
-            <div className="bg-white rounded-lg shadow-md p-4 mb-4">
+            <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4 mb-4">
               <h2 className="text-xl font-bold mb-1">Screen links</h2>
-              <p className="text-sm text-gray-600 mb-3">
+              <p className="text-sm text-cq-ink-2 mb-3">
                 Open these on any TV, tablet or phone — <b>no login needed</b>. Short paths are
                 easy to type into a TV browser; Copy puts the full link on the clipboard;
                 QR lets another device scan it straight off this screen.
@@ -3328,7 +3340,7 @@ const BaristaInterface = () => {
                 return (
                   <>
                     <div className="flex items-center gap-2 mb-2">
-                      <label className="text-sm font-medium text-gray-700">Links for:</label>
+                      <label className="text-sm font-medium text-cq-ink-2">Links for:</label>
                       <select
                         value={chosen}
                         onChange={(e) => setLinkStation(e.target.value)}
@@ -3353,8 +3365,8 @@ const BaristaInterface = () => {
                         const shortPath = v.key === 'sponsors' ? '/sponsors' : `/${v.key}${chosen}`;
                         const url = `${window.location.origin}${shortPath}`;
                         return (
-                          <div key={v.key} className="flex items-center gap-2 bg-gray-50 rounded px-2 py-1">
-                            <span className="text-xs text-gray-500">{v.label}</span>
+                          <div key={v.key} className="flex items-center gap-2 bg-cq-wash rounded px-2 py-1">
+                            <span className="text-xs text-cq-ink-3">{v.label}</span>
                             <code className="text-sm font-bold">{shortPath}</code>
                             <button
                               className="text-cq-caramel-deep text-xs underline"
@@ -3395,17 +3407,17 @@ const BaristaInterface = () => {
             {screenLinkPreview && (
               <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
                    onClick={() => setScreenLinkPreview(null)}>
-                <div className="bg-white rounded-xl p-4 shadow-xl w-full max-w-3xl"
+                <div className="bg-cq-milk rounded-cq-lg p-4 shadow-cq-raised w-full max-w-3xl"
                      onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center justify-between mb-2">
                     <div className="font-bold">{screenLinkPreview.label}</div>
-                    <button className="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300 text-sm"
+                    <button className="px-3 py-1 bg-cq-line rounded hover:bg-cq-line text-sm"
                             onClick={() => setScreenLinkPreview(null)}>
                       Close
                     </button>
                   </div>
                   <ScaledDisplayPreview url={screenLinkPreview.url} />
-                  <div className="mt-2 text-sm text-gray-600 break-all">{screenLinkPreview.url}</div>
+                  <div className="mt-2 text-sm text-cq-ink-2 break-all">{screenLinkPreview.url}</div>
                 </div>
               </div>
             )}
@@ -3416,7 +3428,7 @@ const BaristaInterface = () => {
             {screenLinkQr && (
               <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
                    onClick={() => setScreenLinkQr(null)}>
-                <div className="bg-white rounded-xl p-6 text-center shadow-xl"
+                <div className="bg-cq-milk rounded-cq-lg p-6 text-center shadow-cq-raised"
                      onClick={(e) => e.stopPropagation()}>
                   <div className="font-bold mb-3">{screenLinkQr.label}</div>
                   <img
@@ -3425,9 +3437,9 @@ const BaristaInterface = () => {
                     height={220}
                     src={`/api/qr?size=8&data=${encodeURIComponent(screenLinkQr.url)}`}
                   />
-                  <div className="mt-3 text-sm text-gray-600 break-all max-w-[260px]">{screenLinkQr.url}</div>
+                  <div className="mt-3 text-sm text-cq-ink-2 break-all max-w-[260px]">{screenLinkQr.url}</div>
                   <button
-                    className="mt-4 px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
+                    className="mt-4 px-4 py-2 bg-cq-line rounded hover:bg-cq-line"
                     onClick={() => setScreenLinkQr(null)}
                   >
                     Close
@@ -3436,7 +3448,7 @@ const BaristaInterface = () => {
               </div>
             )}
 
-            <div className="bg-white rounded-lg shadow-md p-4 mb-4">
+            <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4 mb-4">
               <h2 className="text-xl font-bold mb-4">Display Screen Settings</h2>
               <p className="mb-4">Control what appears on the customer-facing display screen.</p>
 
@@ -3454,7 +3466,7 @@ const BaristaInterface = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                     Display Header
                   </label>
                   <input
@@ -3466,7 +3478,7 @@ const BaristaInterface = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                     Custom Message
                   </label>
                   {/* Was a dead input — no value, no onChange, saved
@@ -3604,9 +3616,9 @@ const BaristaInterface = () => {
             </SettingNote>
 
             
-            <div className="bg-white rounded-lg shadow-md p-4">
+            <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4">
               <h2 className="text-xl font-bold mb-1">Preview — live 16:9</h2>
-              <p className="text-sm text-gray-600 mb-3">
+              <p className="text-sm text-cq-ink-2 mb-3">
                 This is the REAL customer display, scaled down — exactly what the
                 external screen shows, live orders, page flips and all. (The old
                 preview was a hand-drawn mock that looked nothing like the screen.)
@@ -3624,9 +3636,9 @@ const BaristaInterface = () => {
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
                  onClick={() => setShowSessionReport(false)}>
               <div className="absolute inset-0 bg-black bg-opacity-50"></div>
-              <div className="relative bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto"
+              <div className="relative bg-cq-milk rounded-cq-lg shadow-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto"
                    onClick={e => e.stopPropagation()}>
-                <div className="bg-amber-800 text-white p-4 rounded-t-xl flex justify-between items-center">
+                <div className="bg-cq-caramel-deep text-white p-4 rounded-t-xl flex justify-between items-center">
                   <h2 className="text-xl font-bold">Session so far</h2>
                   <button className="text-white opacity-80 hover:opacity-100"
                           onClick={() => setShowSessionReport(false)}>
@@ -3635,28 +3647,28 @@ const BaristaInterface = () => {
                 </div>
                 <div className="p-4 space-y-4">
                   <div className="grid grid-cols-3 gap-3 text-center">
-                    <div className="bg-gray-50 rounded-lg p-3">
+                    <div className="bg-cq-wash rounded-cq-md p-3">
                       <div className="text-3xl font-bold">{madeToday ?? 0}</div>
-                      <div className="text-xs text-gray-500 mt-1">made here</div>
+                      <div className="text-xs text-cq-ink-3 mt-1">made here</div>
                     </div>
-                    <div className="bg-gray-50 rounded-lg p-3">
+                    <div className="bg-cq-wash rounded-cq-md p-3">
                       <div className="text-3xl font-bold">{sessionStats?.total_orders ?? 0}</div>
-                      <div className="text-xs text-gray-500 mt-1">orders, all stations</div>
+                      <div className="text-xs text-cq-ink-3 mt-1">orders, all stations</div>
                     </div>
-                    <div className="bg-gray-50 rounded-lg p-3">
+                    <div className="bg-cq-wash rounded-cq-md p-3">
                       <div className="text-3xl font-bold">
                         {sessionStats?.avg_wait_min != null
                           ? Math.round(sessionStats.avg_wait_min) : '-'}
                         <span className="text-base">m</span>
                       </div>
-                      <div className="text-xs text-gray-500 mt-1">average wait</div>
+                      <div className="text-xs text-cq-ink-3 mt-1">average wait</div>
                     </div>
                   </div>
 
                   {sessionStats?.milk?.by_milk?.length > 0 && (
                     <div>
                       <h3 className="font-semibold mb-1">Milk</h3>
-                      <div className="text-sm text-gray-600 mb-2">
+                      <div className="text-sm text-cq-ink-2 mb-2">
                         {sessionStats.milk.dairy} full cream &middot;{' '}
                         {sessionStats.milk.alternative} alternative &middot;{' '}
                         {sessionStats.milk.none} no milk
@@ -3675,10 +3687,10 @@ const BaristaInterface = () => {
                   )}
 
                   {sessionStats?.unused_milks?.length > 0 && (
-                    <div className="bg-amber-50 border border-amber-200 rounded p-2 text-sm">
-                      <span className="font-semibold text-amber-900">Not ordered today: </span>
-                      <span className="text-amber-900">{sessionStats.unused_milks.join(', ')}</span>
-                      <div className="text-amber-700 text-xs mt-1">
+                    <div className="bg-cq-caramel-wash border border-cq-line rounded-cq-sm p-2 text-sm">
+                      <span className="font-semibold text-cq-caramel-deep">Not ordered today: </span>
+                      <span className="text-cq-caramel-deep">{sessionStats.unused_milks.join(', ')}</span>
+                      <div className="text-cq-caramel-deep text-xs mt-1">
                         Stocked but unused &mdash; worth reviewing before the next event.
                       </div>
                     </div>
@@ -3701,13 +3713,13 @@ const BaristaInterface = () => {
                   )}
 
                   {sessionStats?.peak_hour?.orders > 0 && (
-                    <div className="text-sm text-gray-600">
+                    <div className="text-sm text-cq-ink-2">
                       Busiest hour: {String(sessionStats.peak_hour.hour).padStart(2, '0')}:00
                       {' '}&mdash; {sessionStats.peak_hour.orders} orders
                     </div>
                   )}
 
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-cq-ink-3">
                     Counts today, from the server. If the screen ever stops
                     updating, the last number you saw here is still what had
                     been made.
@@ -3744,7 +3756,7 @@ const BaristaInterface = () => {
             .filter(o => String(o.customerMessage || o.customer_message || '').trim()).length;
           const total = cq.count + chatUnread.unread + orderMsgs;
           return total > 0 ? (
-            <span className="absolute -top-2 -right-2 bg-red-600 text-white text-sm font-extrabold min-w-6 h-6 px-1.5 flex items-center justify-center rounded-full ring-2 ring-white animate-pulse">
+            <span className="absolute -top-2 -right-2 bg-cq-alert text-white text-sm font-extrabold min-w-6 h-6 px-1.5 flex items-center justify-center rounded-full ring-2 ring-white animate-pulse">
               {total}
             </span>
           ) : null;
@@ -3887,25 +3899,25 @@ const BaristaInterface = () => {
           docked panel. Replaces the separate Questions header button, the
           chat-only panel, and the removed HELP dialog. */}
       {chatOpen && (
-        <div className="fixed bottom-0 right-0 w-full md:w-[440px] max-w-[100vw] h-[28rem] bg-white shadow-lg border rounded-t-lg overflow-hidden z-40 flex flex-col">
-          <div className="bg-gray-100 border-b px-2 py-1.5 flex items-center justify-between flex-shrink-0">
+        <div className="fixed bottom-0 right-0 w-full md:w-[440px] max-w-[100vw] h-[28rem] bg-cq-milk shadow-cq-card border rounded-t-lg overflow-hidden z-40 flex flex-col">
+          <div className="bg-cq-wash border-b px-2 py-1.5 flex items-center justify-between flex-shrink-0">
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setMessagesTab('questions')}
-                className={`px-3 py-1 rounded text-sm font-medium ${messagesTab === 'questions' ? 'bg-white shadow text-cq-caramel-deep' : 'text-gray-600 hover:bg-gray-200'}`}
+                className={`px-3 py-1 rounded text-sm font-medium ${messagesTab === 'questions' ? 'bg-cq-milk shadow text-cq-caramel-deep' : 'text-cq-ink-2 hover:bg-cq-line'}`}
               >
                 Questions{cq.count > 0 ? ` (${cq.count})` : ''}
               </button>
               <button
                 onClick={() => { setMessagesTab('chat'); chatUnread.markRead(); }}
-                className={`px-3 py-1 rounded text-sm font-medium ${messagesTab === 'chat' ? 'bg-white shadow text-cq-caramel-deep' : 'text-gray-600 hover:bg-gray-200'}`}
+                className={`px-3 py-1 rounded text-sm font-medium ${messagesTab === 'chat' ? 'bg-cq-milk shadow text-cq-caramel-deep' : 'text-cq-ink-2 hover:bg-cq-line'}`}
               >
                 Station chat{chatUnread.unread > 0 ? ` (${chatUnread.unread})` : ''}
               </button>
             </div>
             <button
               onClick={() => setChatOpen(false)}
-              className="p-1 text-gray-500 hover:text-gray-800 rounded"
+              className="p-1 text-cq-ink-3 hover:text-cq-roast rounded"
               title="Close"
             >
               <XCircle size={20} />
@@ -3978,11 +3990,11 @@ const BaristaInterface = () => {
 //      that defeated a client-side filter. Backend recency filter
 //      (recent_minutes=30, station_id=X) is reliable.
 const SOUND_EVENT_ROWS = [
-  { key: 'newOrder',      label: 'New Order',      enableField: 'soundNewOrder',      btnColor: 'bg-green-500 hover:bg-green-600' },
+  { key: 'newOrder',      label: 'New Order',      enableField: 'soundNewOrder',      btnColor: 'bg-cq-ready hover:bg-cq-ready' },
   { key: 'orderComplete', label: 'Order Complete', enableField: 'soundOrderComplete', btnColor: 'bg-cq-caramel hover:bg-cq-roast' },
   { key: 'orderPickedUp', label: 'Order Picked Up', enableField: 'soundOrderPickedUp', btnColor: 'bg-cq-caramel hover:bg-cq-roast' },
-  { key: 'lowStock',      label: 'Low Stock Alert', enableField: 'soundLowStock',     btnColor: 'bg-yellow-500 hover:bg-yellow-600' },
-  { key: 'error',         label: 'Error Alert',     enableField: 'soundError',        btnColor: 'bg-red-500 hover:bg-red-600' },
+  { key: 'lowStock',      label: 'Low Stock Alert', enableField: 'soundLowStock',     btnColor: 'bg-cq-warn hover:bg-cq-warn' },
+  { key: 'error',         label: 'Error Alert',     enableField: 'soundError',        btnColor: 'bg-cq-alert hover:bg-cq-alert' },
 ];
 
 const SoundChoiceRows = ({ settings, setSettings }) => {
@@ -4020,7 +4032,7 @@ const SoundChoiceRows = ({ settings, setSettings }) => {
           <select
             value={choices[row.key] || DEFAULT_SOUND_CHOICES[row.key]}
             onChange={(e) => setChoice(row.key, e.target.value)}
-            className="flex-1 min-w-[180px] text-sm px-2 py-1 border border-gray-300 rounded"
+            className="flex-1 min-w-[180px] text-sm px-2 py-1 border border-cq-line rounded"
           >
             {SOUND_PRESETS.map(p => (
               <option key={p.key} value={p.key}>{p.label}</option>
@@ -4038,10 +4050,10 @@ const SoundChoiceRows = ({ settings, setSettings }) => {
       {/* The two sounds that play on OTHER screens. Saved to the server (not
           this device) so the display board and every phone pick them up;
           Test plays the preset here so the operator can hear it. */}
-      <div className="mt-4 pt-3 border-t border-gray-200">
-        <div className="text-sm font-medium text-gray-700 mb-2">On the other screens</div>
+      <div className="mt-4 pt-3 border-t border-cq-line">
+        <div className="text-sm font-medium text-cq-ink-2 mb-2">On the other screens</div>
         {[
-          { key: 'displayReadySound', label: 'Display: order ready', def: 'chime_up', btnColor: 'bg-emerald-600 hover:bg-emerald-700' },
+          { key: 'displayReadySound', label: 'Display: order ready', def: 'chime_up', btnColor: 'bg-cq-ready hover:bg-cq-ready' },
           { key: 'beaconReadySound', label: "Customer's phone: order ready", def: 'cupq_signature', btnColor: 'bg-sky-600 hover:bg-sky-700' },
         ].map(row => (
           <div key={row.key} className="flex items-center gap-2 flex-wrap mb-2">
@@ -4049,7 +4061,7 @@ const SoundChoiceRows = ({ settings, setSettings }) => {
             <select
               value={settings[row.key] || row.def}
               onChange={(e) => setSettings(prev => ({ ...prev, [row.key]: e.target.value }))}
-              className="flex-1 min-w-[180px] text-sm px-2 py-1 border border-gray-300 rounded"
+              className="flex-1 min-w-[180px] text-sm px-2 py-1 border border-cq-line rounded"
             >
               {SOUND_PRESETS.map(p => (
                 <option key={p.key} value={p.key}>{p.label}</option>
@@ -4061,9 +4073,9 @@ const SoundChoiceRows = ({ settings, setSettings }) => {
             </button>
           </div>
         ))}
-        <div className="text-xs text-gray-500">Applies to every display and phone within about 30 seconds.</div>
+        <div className="text-xs text-cq-ink-3">Applies to every display and phone within about 30 seconds.</div>
       </div>
-      <div className="text-xs text-gray-500 mt-2">
+      <div className="text-xs text-cq-ink-3 mt-2">
         Sounds are synthesized in-browser — no assets to download, works offline.
         "No sound" disables that alert without affecting the others.
       </div>

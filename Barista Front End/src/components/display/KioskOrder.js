@@ -63,7 +63,7 @@ export const milkEmoji = (name) => {
 // delegate lands on after scanning a QR (mounted by MobileOrderPage at
 // /order). They are different channels for reporting and only the caller
 // knows which one it is, so it is a prop, not a guess.
-const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced,
+const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced,
                       eaCid, channel = 'kiosk', onPick , onCheckExisting,
                       eventCode = '' }) => {
   // Anything the event needs everyone to know, before they order.

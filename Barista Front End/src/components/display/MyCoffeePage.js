@@ -1300,7 +1300,7 @@ const MyCoffeePage = () => {
     const waitingMinutes = typeof active.seconds_in_status === 'number'
       ? Math.floor(active.seconds_in_status / 60)
       : null;
-    const copy = STATUS[active.status] || { title: 'One moment…', tone: 'bg-gray-400' };
+    const copy = STATUS[active.status] || { title: 'One moment…', tone: 'bg-cq-ink-3' };
     const ready = active.status === 'completed';
     return (
       <div className="min-h-screen bg-cq-wash flex flex-col items-center p-6"

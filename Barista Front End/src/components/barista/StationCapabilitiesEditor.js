@@ -220,7 +220,7 @@ const StationCapabilityCard = ({ station, choices, onSaved }) => {
               type="checkbox"
               checked={selected.has(item)}
               onChange={() => toggleListItem(fieldKey, item)}
-              className="mr-1.5 h-4 w-4 accent-amber-600"
+              className="mr-1.5 h-4 w-4 accent-cq-caramel"
             />
             <span className="capitalize">{item}</span>
           </label>
@@ -299,7 +299,7 @@ const StationCapabilityCard = ({ station, choices, onSaved }) => {
               type="checkbox"
               checked={!!current.alt_milk}
               onChange={(e) => setField('alt_milk', e.target.checked)}
-              className="mr-1.5 h-4 w-4 accent-amber-600"
+              className="mr-1.5 h-4 w-4 accent-cq-caramel"
             />
             <span>Alt milk available</span>
             <span className="ml-1 text-cq-ink-3" title="Label only — order routing follows the ticked milk list above, not this box.">ⓘ</span>
@@ -316,7 +316,7 @@ const StationCapabilityCard = ({ station, choices, onSaved }) => {
               type="checkbox"
               checked={!!current.high_volume}
               onChange={(e) => setField('high_volume', e.target.checked)}
-              className="mr-1.5 h-4 w-4 accent-amber-600"
+              className="mr-1.5 h-4 w-4 accent-cq-caramel"
             />
             <span>High volume</span>
           </label>
@@ -325,7 +325,7 @@ const StationCapabilityCard = ({ station, choices, onSaved }) => {
               type="checkbox"
               checked={!!current.vip_service}
               onChange={(e) => setField('vip_service', e.target.checked)}
-              className="mr-1.5 h-4 w-4 accent-amber-600"
+              className="mr-1.5 h-4 w-4 accent-cq-caramel"
             />
             <span>VIP service</span>
           </label>

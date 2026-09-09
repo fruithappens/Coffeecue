@@ -3,12 +3,13 @@
     "hash": "quickSetup",
     "label": "Quick Setup",
     "file": "quickSetup.png",
-    "selects": 4,
-    "inputs": 43,
-    "grey": 14,
-    "legacy": 72,
-    "cq": 31,
-    "old": 72
+    "selects": 0,
+    "inputs": 0,
+    "grey": 0,
+    "legacy": 0,
+    "cq": 159,
+    "names": [],
+    "old": 0
   },
   {
     "hash": "menu/inventory",
@@ -19,6 +20,7 @@
     "grey": 0,
     "legacy": 0,
     "cq": 117,
+    "names": [],
     "old": 0
   },
   {
@@ -30,6 +32,7 @@
     "grey": 0,
     "legacy": 0,
     "cq": 217,
+    "names": [],
     "old": 0
   },
   {
@@ -41,6 +44,7 @@
     "grey": 0,
     "legacy": 0,
     "cq": 45,
+    "names": [],
     "old": 0
   },
   {
@@ -52,6 +56,7 @@
     "grey": 0,
     "legacy": 0,
     "cq": 50,
+    "names": [],
     "old": 0
   },
   {
@@ -63,6 +68,7 @@
     "grey": 0,
     "legacy": 0,
     "cq": 140,
+    "names": [],
     "old": 0
   },
   {
@@ -73,7 +79,8 @@
     "inputs": 0,
     "grey": 0,
     "legacy": 0,
-    "cq": 284,
+    "cq": 285,
+    "names": [],
     "old": 0
   },
   {
@@ -85,6 +92,7 @@
     "grey": 0,
     "legacy": 0,
     "cq": 169,
+    "names": [],
     "old": 0
   },
   {
@@ -96,6 +104,7 @@
     "grey": 0,
     "legacy": 0,
     "cq": 105,
+    "names": [],
     "old": 0
   },
   {
@@ -107,6 +116,7 @@
     "grey": 0,
     "legacy": 0,
     "cq": 67,
+    "names": [],
     "old": 0
   },
   {
@@ -117,7 +127,8 @@
     "inputs": 0,
     "grey": 0,
     "legacy": 0,
-    "cq": 47,
+    "cq": 48,
+    "names": [],
     "old": 0
   },
   {
@@ -129,6 +140,7 @@
     "grey": 0,
     "legacy": 0,
     "cq": 56,
+    "names": [],
     "old": 0
   },
   {
@@ -140,6 +152,7 @@
     "grey": 0,
     "legacy": 0,
     "cq": 117,
+    "names": [],
     "old": 0
   },
   {
@@ -150,7 +163,8 @@
     "inputs": 0,
     "grey": 0,
     "legacy": 0,
-    "cq": 96,
+    "cq": 108,
+    "names": [],
     "old": 0
   },
   {
@@ -162,6 +176,7 @@
     "grey": 0,
     "legacy": 0,
     "cq": 103,
+    "names": [],
     "old": 0
   },
   {
@@ -172,7 +187,8 @@
     "inputs": 0,
     "grey": 0,
     "legacy": 0,
-    "cq": 693,
+    "cq": 736,
+    "names": [],
     "old": 0
   },
   {
@@ -183,7 +199,8 @@
     "inputs": 0,
     "grey": 0,
     "legacy": 0,
-    "cq": 61,
+    "cq": 62,
+    "names": [],
     "old": 0
   },
   {
@@ -195,6 +212,7 @@
     "grey": 0,
     "legacy": 0,
     "cq": 72,
+    "names": [],
     "old": 0
   },
   {
@@ -202,11 +220,12 @@
     "label": "Messages · Text blast",
     "file": "messages-broadcast.png",
     "selects": 0,
-    "inputs": 1,
+    "inputs": 0,
     "grey": 0,
     "legacy": 0,
-    "cq": 104,
-    "old": 1
+    "cq": 105,
+    "names": [],
+    "old": 0
   },
   {
     "hash": "messages/test",
@@ -217,6 +236,7 @@
     "grey": 0,
     "legacy": 0,
     "cq": 73,
+    "names": [],
     "old": 0
   },
   {
@@ -228,6 +248,7 @@
     "grey": 0,
     "legacy": 0,
     "cq": 43,
+    "names": [],
     "old": 0
   },
   {
@@ -239,6 +260,7 @@
     "grey": 0,
     "legacy": 0,
     "cq": 121,
+    "names": [],
     "old": 0
   },
   {
@@ -250,6 +272,7 @@
     "grey": 0,
     "legacy": 0,
     "cq": 108,
+    "names": [],
     "old": 0
   },
   {
@@ -261,6 +284,7 @@
     "grey": 0,
     "legacy": 0,
     "cq": 194,
+    "names": [],
     "old": 0
   },
   {
@@ -272,6 +296,7 @@
     "grey": 0,
     "legacy": 0,
     "cq": 92,
+    "names": [],
     "old": 0
   },
   {
@@ -282,7 +307,8 @@
     "inputs": 0,
     "grey": 0,
     "legacy": 0,
-    "cq": 110,
+    "cq": 138,
+    "names": [],
     "old": 0
   },
   {
@@ -294,6 +320,7 @@
     "grey": 0,
     "legacy": 0,
     "cq": 81,
+    "names": [],
     "old": 0
   },
   {
@@ -305,6 +332,7 @@
     "grey": 0,
     "legacy": 0,
     "cq": 64,
+    "names": [],
     "old": 0
   },
   {
@@ -316,6 +344,7 @@
     "grey": 0,
     "legacy": 0,
     "cq": 49,
+    "names": [],
     "old": 0
   },
   {
@@ -327,6 +356,7 @@
     "grey": 0,
     "legacy": 0,
     "cq": 44,
+    "names": [],
     "old": 0
   }
 ]

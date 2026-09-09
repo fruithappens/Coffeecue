@@ -24,7 +24,7 @@ export default function NoticeBanner({ notices, big = false, className = '' }) {
           <div
             key={n.id}
             role="status"
-            className={`flex items-start gap-3 rounded-xl shadow-lg ${
+            className={`flex items-start gap-3 rounded-cq-lg shadow-cq-card ${
               big ? 'px-6 py-5' : 'px-4 py-3'}`}
             style={{ backgroundColor: tone.bg, color: tone.ink }}
           >

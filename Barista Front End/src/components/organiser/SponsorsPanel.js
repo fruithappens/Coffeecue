@@ -239,7 +239,7 @@ const SponsorsPanel = () => {
             <div key={t.id || i}
               onDragOver={(e) => { e.preventDefault(); setDragOverTr(i); }}
               onDrop={(e) => { e.preventDefault(); setTiers((prev) => reorder(prev, dragTr.current, i)); dragTr.current = null; setDragOverTr(null); }}
-              className={`flex items-center gap-2 rounded px-1 py-0.5 ${dragOverTr === i ? 'bg-cq-caramel-wash ring-1 ring-amber-300' : ''}`}>
+              className={`flex items-center gap-2 rounded px-1 py-0.5 ${dragOverTr === i ? 'bg-cq-caramel-wash ring-1 ring-cq-caramel' : ''}`}>
               <span draggable onDragStart={() => { dragTr.current = i; }} onDragEnd={() => { dragTr.current = null; setDragOverTr(null); }}
                 className="cursor-grab active:cursor-grabbing text-cq-line hover:text-cq-ink-3 flex-shrink-0" title="Drag to reorder">
                 <GripVertical size={16} />
@@ -286,12 +286,12 @@ const SponsorsPanel = () => {
         {sponsors.length === 0 ? (
           <p className="text-center text-cq-ink-3 py-6 text-sm">No logos yet — upload some above.</p>
         ) : (
-          <ul className="divide-y divide-gray-100">
+          <ul className="divide-y divide-cq-line">
             {sponsors.map((s, i) => (
               <li key={s.id || i}
                 onDragOver={(e) => { e.preventDefault(); setDragOverSp(i); }}
                 onDrop={(e) => { e.preventDefault(); setSponsors((prev) => reorder(prev, dragSp.current, i)); dragSp.current = null; setDragOverSp(null); }}
-                className={`flex items-center gap-2 py-2.5 px-1 rounded ${dragOverSp === i ? 'bg-cq-caramel-wash ring-1 ring-amber-300' : ''}`}>
+                className={`flex items-center gap-2 py-2.5 px-1 rounded ${dragOverSp === i ? 'bg-cq-caramel-wash ring-1 ring-cq-caramel' : ''}`}>
                 <span draggable onDragStart={() => { dragSp.current = i; }} onDragEnd={() => { dragSp.current = null; setDragOverSp(null); }}
                   className="cursor-grab active:cursor-grabbing text-cq-line hover:text-cq-ink-3 flex-shrink-0" title="Drag to reorder">
                   <GripVertical size={18} />
@@ -302,7 +302,7 @@ const SponsorsPanel = () => {
                 <input value={s.name || ''} onChange={(e) => patchSponsor(i, { name: e.target.value })} placeholder="Name (optional)"
                   className="flex-1 min-w-0 border-2 border-cq-line rounded-cq-md px-2 py-1.5 text-sm" />
                 <select value={s.tier || ''} onChange={(e) => patchSponsor(i, { tier: e.target.value })}
-                  className="border-2 border-cq-line rounded-cq-md px-2 py-1.5 text-sm bg-white flex-shrink-0" title="Tier">
+                  className="border-2 border-cq-line rounded-cq-md px-2 py-1.5 text-sm bg-cq-milk flex-shrink-0" title="Tier">
                   <option value="">— tier —</option>
                   {tiers.filter((t) => (t.name || '').trim()).map((t) => (<option key={t.id} value={t.id}>{t.name}</option>))}
                 </select>
@@ -327,7 +327,7 @@ const SponsorsPanel = () => {
             <div className="inline-flex rounded-cq-md border border-cq-line overflow-hidden">
               {[['scroll', 'Scroll'], ['grid', 'Grid']].map(([v, label]) => (
                 <button key={v} type="button" onClick={() => setWall((w) => ({ ...w, layout: v }))}
-                  className={`px-4 py-2 text-sm font-semibold ${wall.layout === v ? 'bg-cq-caramel text-white' : 'bg-white text-cq-ink-2 hover:bg-cq-wash'}`}>{label}</button>
+                  className={`px-4 py-2 text-sm font-semibold ${wall.layout === v ? 'bg-cq-caramel text-white' : 'bg-cq-milk text-cq-ink-2 hover:bg-cq-wash'}`}>{label}</button>
               ))}
             </div>
             <p className="text-xs text-cq-ink-3 mt-1.5">{wall.layout === 'grid' ? 'All logos at once, grouped by tier (Platinum on top).' : 'One tier at a time, lingering by each tier’s dwell time.'}</p>
@@ -341,7 +341,7 @@ const SponsorsPanel = () => {
               <div className="inline-flex rounded-cq-md border border-cq-line overflow-hidden">
                 {[['small', 'Small'], ['medium', 'Medium'], ['large', 'Large']].map(([v, label]) => (
                   <button key={v} type="button" onClick={() => setWall((w) => ({ ...w, gridSize: v }))}
-                    className={`px-3 py-2 text-sm font-semibold ${(wall.gridSize || 'medium') === v ? 'bg-cq-caramel text-white' : 'bg-white text-cq-ink-2 hover:bg-cq-wash'}`}>{label}</button>
+                    className={`px-3 py-2 text-sm font-semibold ${(wall.gridSize || 'medium') === v ? 'bg-cq-caramel text-white' : 'bg-cq-milk text-cq-ink-2 hover:bg-cq-wash'}`}>{label}</button>
                 ))}
               </div>
               <p className="text-xs text-cq-ink-3 mt-1.5">Small = more logos per row (wider); Large = fewer, bigger logos.</p>
@@ -352,7 +352,7 @@ const SponsorsPanel = () => {
             <div className="inline-flex rounded-cq-md border border-cq-line overflow-hidden">
               {[['tint', 'Soft tint'], ['white', 'White'], ['branded', 'Event-branded']].map(([v, label]) => (
                 <button key={v} type="button" onClick={() => setWall((w) => ({ ...w, background: v }))}
-                  className={`px-3 py-2 text-sm font-semibold ${wall.background === v ? 'bg-cq-caramel text-white' : 'bg-white text-cq-ink-2 hover:bg-cq-wash'}`}>{label}</button>
+                  className={`px-3 py-2 text-sm font-semibold ${wall.background === v ? 'bg-cq-caramel text-white' : 'bg-cq-milk text-cq-ink-2 hover:bg-cq-wash'}`}>{label}</button>
               ))}
             </div>
             <p className="text-xs text-cq-ink-3 mt-1.5">“Event-branded” reuses your uploaded display background image (falls back to the tint if none is set).</p>

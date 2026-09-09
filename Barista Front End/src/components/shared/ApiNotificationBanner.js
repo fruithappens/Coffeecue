@@ -139,16 +139,16 @@ const ApiNotificationBanner = () => {
     message = 'Could not connect to backend service. Using sample data instead.';
     buttonText = 'Reconnect';
     colorScheme = {
-      container: 'bg-red-600 text-white',
-      button: 'bg-white text-red-600 hover:bg-red-100'
+      container: 'bg-cq-alert text-white',
+      button: 'bg-cq-milk text-cq-alert hover:bg-cq-alert-wash'
     };
   } else if (status.useFallbackData) {
     title = 'Fallback Mode Active';
     message = 'Using sample data. Could not connect to backend service.';
     buttonText = 'Try Reconnect';
     colorScheme = {
-      container: 'bg-yellow-500 text-white',
-      button: 'bg-white text-yellow-700 hover:bg-yellow-100'
+      container: 'bg-cq-warn text-white',
+      button: 'bg-cq-milk text-cq-warn hover:bg-cq-warn-wash'
     };
   } else if (status.connectionStatus === 'offline') {
     title = 'Connection Issue';
@@ -156,7 +156,7 @@ const ApiNotificationBanner = () => {
     buttonText = 'Refresh';
     colorScheme = {
       container: 'bg-cq-caramel text-white',
-      button: 'bg-white text-cq-caramel-deep hover:bg-cq-caramel-wash'
+      button: 'bg-cq-milk text-cq-caramel-deep hover:bg-cq-caramel-wash'
     };
   }
   
@@ -168,7 +168,7 @@ const ApiNotificationBanner = () => {
 
   return (
     <div className={`fixed top-0 left-0 right-0 ${colorScheme.container} ${
-      compact ? 'px-3 py-1.5' : 'p-3'} z-50 shadow-md`}>
+      compact ? 'px-3 py-1.5' : 'p-3'} z-50 shadow-cq-card`}>
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         {compact ? (
           <p className="text-sm font-medium truncate mr-3">

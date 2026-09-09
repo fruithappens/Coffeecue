@@ -65,7 +65,7 @@ const AdminViewSwitcher = ({ embedded = false }) => {
           aria-expanded={open}
           aria-label={open ? 'Close view switcher' : 'Switch view'}
           className="h-9 px-3 rounded-full border-2 border-white/25 text-sm font-bold
-                     text-cq-cream/90 hover:bg-white/10 inline-flex items-center gap-1.5"
+                     text-cq-cream/90 hover:bg-cq-milk/10 inline-flex items-center gap-1.5"
         >
           {open ? <X size={15} /> : <Shuffle size={15} />}
           <span className="hidden sm:inline">{open ? 'Close' : 'Switch view'}</span>
@@ -124,7 +124,7 @@ const AdminViewSwitcher = ({ embedded = false }) => {
           aria-label={open ? 'Close view switcher' : 'Switch view'}
           style={{
             display: 'flex', alignItems: 'center', gap: 8,
-            background: '#1f2937', color: '#fff', border: 'none',
+            background: '#3B2314', color: '#fff', border: 'none',
             borderRadius: 9999, padding: '10px 16px',
             boxShadow: '0 6px 18px rgba(0,0,0,0.3)', cursor: 'pointer',
             fontWeight: 600, fontSize: 14,
@@ -142,8 +142,8 @@ const AdminViewSwitcher = ({ embedded = false }) => {
                   onClick={() => { setOpen(false); navigate(v.path); }}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 10, minWidth: 150,
-                    background: '#fff', color: '#1f2937',
-                    border: active ? `2px solid ${v.color}` : '1px solid #e5e7eb',
+                    background: '#fff', color: '#3B2314',
+                    border: active ? `2px solid ${v.color}` : '1px solid #E6DCD0',
                     borderRadius: 10, padding: '9px 14px',
                     boxShadow: '0 4px 12px rgba(0,0,0,0.15)', cursor: 'pointer',
                     fontWeight: 500, fontSize: 14,

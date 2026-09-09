@@ -220,7 +220,7 @@ const EmergencyTab = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="bg-cq-alert-wash rounded-lg p-4 mb-4">
+          <div className="bg-cq-alert-wash rounded-cq-md p-4 mb-4">
             <p className="text-sm text-cq-alert">
               <strong>WARNING:</strong> These controls can significantly impact system operations. 
               Use only in emergency situations. All actions are logged and require confirmation.

@@ -371,7 +371,7 @@ const DashboardTab = () => {
         <h3 className="font-semibold text-lg mb-4">Station Status</h3>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {stations?.map(station => (
-            <div key={station.id} className="border-2 border-cq-line rounded-cq-md bg-cq-milk-cq-md p-3">
+            <div key={station.id} className="border-2 border-cq-line rounded-cq-md bg-cq-milk p-3">
               <div className="flex items-center justify-between mb-2">
                 <span className="font-medium">Station {station.id}</span>
                 <div className={`w-2 h-2 rounded-full ${

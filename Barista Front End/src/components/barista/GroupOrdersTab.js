@@ -180,7 +180,7 @@ const GroupOrdersTab = ({ onSubmitGroupOrders }) => {
                   type="text" 
                   value={groupCode}
                   onChange={(e) => setGroupCode(e.target.value)}
-                  className="w-full p-2 border-2 border-cq-line rounded-cq-md bg-cq-milk-l"
+                  className="w-full p-2 border-2 border-cq-line rounded-cq-md bg-cq-milk"
                   placeholder="Code will be generated"
                   readOnly
                 />
@@ -401,7 +401,7 @@ const GroupOrdersTab = ({ onSubmitGroupOrders }) => {
           ) : (
             <div className="grid grid-cols-1 gap-4">
               {savedGroups.map(group => (
-                <div key={group.id} className="border-2 border-cq-line rounded-cq-md bg-cq-milk-cq-md p-4 hover:shadow-md transition-shadow">
+                <div key={group.id} className="border-2 border-cq-line rounded-cq-md bg-cq-milk p-4 hover:shadow-cq-card transition-shadow">
                   <div className="flex justify-between items-start mb-2">
                     <div>
                       <h4 className="text-lg font-medium">{group.groupName}</h4>

@@ -486,7 +486,7 @@ const BrandingSettings = () => {
                   <img
                     src={settings.clientLogo}
                     alt="Logo preview"
-                    className="h-16 w-auto max-w-[160px] object-contain border border-cq-line rounded bg-white p-1"
+                    className="h-16 w-auto max-w-[160px] object-contain border border-cq-line rounded bg-cq-milk p-1"
                   />
                 ) : (
                   <div className="h-16 w-28 flex items-center justify-center border border-dashed border-cq-line rounded text-xs text-cq-ink-3">
@@ -552,7 +552,7 @@ const BrandingSettings = () => {
                   Text colour
                   <input
                     type="color"
-                    value={settings.customerHeaderColor || settings.primaryColor || '#C08552'}
+                    value={settings.customerHeaderColor || settings.primaryColor || '#B8764A'}
                     onChange={(e) => setSettings(prev => ({ ...prev, customerHeaderColor: e.target.value }))}
                     className="h-9 w-14 rounded border border-cq-line"
                   />
@@ -566,7 +566,7 @@ const BrandingSettings = () => {
                 {(settings.customerHeaderMode || 'logo_name') === 'image' && (
                   <div className="flex items-center gap-3">
                     {settings.customerHeaderImage ? (
-                      <img src={settings.customerHeaderImage} alt="" className="h-10 w-auto max-w-[10rem] object-contain border-2 border-cq-line rounded-cq-md bg-cq-milk bg-white p-1" />
+                      <img src={settings.customerHeaderImage} alt="" className="h-10 w-auto max-w-[10rem] object-contain border-2 border-cq-line rounded-cq-md bg-cq-milk bg-cq-milk p-1" />
                     ) : null}
                     <label className="px-3 py-2 rounded-cq-md border-2 border-cq-line text-sm font-semibold text-cq-ink-2 cursor-pointer hover:border-cq-line">
                       {settings.customerHeaderImage ? 'Replace picture' : 'Upload picture'}
@@ -615,7 +615,7 @@ const BrandingSettings = () => {
                         <img
                           src={settings[key]}
                           alt={`${label} preview`}
-                          className={`${box} object-cover border border-cq-line rounded bg-white`}
+                          className={`${box} object-cover border border-cq-line rounded bg-cq-milk`}
                         />
                       ) : (
                         <div className={`${box} flex items-center justify-center border border-dashed border-cq-line rounded text-xs text-cq-ink-3 text-center`}>
@@ -792,7 +792,7 @@ const BrandingSettings = () => {
               <button
                 key={key}
                 onClick={() => applyTheme(theme)}
-                className="p-3 border-2 border-cq-line rounded-cq-md bg-cq-milk-cq-md hover:border-cq-caramel transition-colors"
+                className="p-3 border-2 border-cq-line rounded-cq-md bg-cq-milk hover:border-cq-caramel transition-colors"
                 style={{
                   borderColor: theme.primaryColor,
                   backgroundColor: theme.backgroundColor
@@ -1003,7 +1003,7 @@ const BrandingSettings = () => {
       {/* Preview */}
       {previewMode && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-cq-md max-w-md w-full p-6">
+          <div className="bg-cq-milk rounded-cq-md max-w-md w-full p-6">
             <div 
               className="p-4 rounded-cq-md mb-4"
               style={{

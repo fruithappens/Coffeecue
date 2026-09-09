@@ -227,7 +227,7 @@ const ReadinessTab = () => {
         <button
           onClick={handleRefresh}
           disabled={refreshing || loading}
-          className="px-4 py-2 bg-white border border-cq-line rounded-md hover:bg-cq-wash disabled:opacity-50 flex items-center gap-2"
+          className="px-4 py-2 bg-cq-milk border border-cq-line rounded-md hover:bg-cq-wash disabled:opacity-50 flex items-center gap-2"
         >
           <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
           Re-check
@@ -258,7 +258,7 @@ const ReadinessTab = () => {
           single most common demo-killer and one-click verification
           beats "did the customer get the welcome SMS? Check the
           customer's phone." */}
-      <div className="rounded-cq-md border border-cq-line bg-white p-5">
+      <div className="rounded-cq-md border border-cq-line bg-cq-milk p-5">
         <div className="flex items-center gap-2 mb-1">
           <Phone className="text-cq-caramel" size={20} />
           <h3 className="font-semibold text-lg">Send a test SMS</h3>
@@ -329,7 +329,7 @@ const ReadinessTab = () => {
           station assignment, stock decrement, WebSocket broadcast to
           the Barista screen, customer record creation. If the order
           shows up in Pending, the system is healthy end-to-end. */}
-      <div className="rounded-cq-md border border-cq-line bg-white p-5 mt-4">
+      <div className="rounded-cq-md border border-cq-line bg-cq-milk p-5 mt-4">
         <div className="flex items-center gap-2 mb-1">
           <Zap className="text-cq-caramel" size={20} />
           <h3 className="font-semibold text-lg">Send a test order</h3>
@@ -360,7 +360,7 @@ const ReadinessTab = () => {
 
       {/* Admin alerts — get texted when something breaks, without being
           spammed. Severity threshold + per-issue cooldown. */}
-      <div className="rounded-cq-md border border-cq-line bg-white p-5 mt-4">
+      <div className="rounded-cq-md border border-cq-line bg-cq-milk p-5 mt-4">
         <div className="flex items-center gap-2 mb-1">
           <Phone className="text-cq-caramel" size={20} />
           <h3 className="font-semibold text-lg">Admin alerts</h3>
@@ -441,7 +441,7 @@ const ReadinessTab = () => {
               type="button"
               onClick={testAlert}
               disabled={!alertCfg.enabled || !alertCfg.phone}
-              className="px-4 py-2 bg-white border border-cq-line hover:bg-cq-wash rounded-md disabled:opacity-50 text-cq-ink-2"
+              className="px-4 py-2 bg-cq-milk border border-cq-line hover:bg-cq-wash rounded-md disabled:opacity-50 text-cq-ink-2"
             >
               Send test alert
             </button>

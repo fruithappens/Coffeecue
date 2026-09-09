@@ -82,7 +82,7 @@ const EventAccessCard = () => {
               <img
                 src={`/api/qr?size=4&data=${encodeURIComponent(`${origin}/${cleanCode}`)}`}
                 alt="Event ordering QR"
-                className="w-16 h-16 rounded bg-white border p-1"
+                className="w-16 h-16 rounded bg-cq-milk border p-1"
               />
               <div className="text-sm">
                 <div className="text-cq-ink-3">Share this:</div>

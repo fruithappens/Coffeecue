@@ -270,7 +270,7 @@ const DiagnosticsTab = () => {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {Object.entries(diagnostics).map(([service, info]) => (
-              <div key={service} className="border-2 border-cq-line rounded-cq-md bg-cq-milk-cq-md p-4">
+              <div key={service} className="border-2 border-cq-line rounded-cq-md bg-cq-milk p-4">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     {service === 'api' && <Server className="h-4 w-4" />}
@@ -337,7 +337,7 @@ const DiagnosticsTab = () => {
               <select
                 value={selectedTest}
                 onChange={(e) => setSelectedTest(e.target.value)}
-                className="px-3 py-2 border-2 border-cq-line rounded-cq-md bg-cq-milk-md"
+                className="px-3 py-2 border-2 border-cq-line rounded-cq-md bg-cq-milk"
                 disabled={runningTest}
               >
                 <option value="all">All Tests</option>
@@ -357,7 +357,7 @@ const DiagnosticsTab = () => {
             </div>
 
             {testResults.length > 0 && (
-              <div className="border-2 border-cq-line rounded-cq-md bg-cq-milk-cq-md p-4 max-h-96 overflow-y-auto">
+              <div className="border-2 border-cq-line rounded-cq-md bg-cq-milk p-4 max-h-96 overflow-y-auto">
                 <h3 className="font-medium mb-2">Test Results</h3>
                 <div className="space-y-2">
                   {testResults.map((result, index) => (

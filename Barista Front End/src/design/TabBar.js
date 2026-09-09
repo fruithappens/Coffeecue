@@ -20,7 +20,7 @@ export default function TabBar({ tabs = [], active, onChange, className = '' }) 
           >
             {Icon ? <Icon size={18} strokeWidth={2.5} /> : null}
             <span className="truncate">{label}</span>
-            {count != null ? <span className={`ml-1 min-w-[1.4rem] h-6 px-1.5 inline-flex items-center justify-center rounded-full text-xs ${on ? 'bg-white/20' : 'bg-cq-wash text-cq-ink-2'}`}>{count}</span> : null}
+            {count != null ? <span className={`ml-1 min-w-[1.4rem] h-6 px-1.5 inline-flex items-center justify-center rounded-full text-xs ${on ? 'bg-cq-milk/20' : 'bg-cq-wash text-cq-ink-2'}`}>{count}</span> : null}
           </button>
         );
       })}

@@ -44,7 +44,7 @@ const Toggle = ({ on, onClick, Icon, title, note }) => (
     onClick={onClick}
     aria-pressed={on}
     className={`flex-1 min-w-[150px] text-left rounded-cq-md border-2 px-4 py-3 transition ${
-      on ? 'border-cq-caramel bg-cq-caramel/10' : 'border-cq-line bg-white hover:border-cq-caramel/50'
+      on ? 'border-cq-caramel bg-cq-caramel/10' : 'border-cq-line bg-cq-milk hover:border-cq-caramel/50'
     }`}
   >
     <div className="flex items-center gap-2">

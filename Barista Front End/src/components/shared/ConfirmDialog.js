@@ -53,7 +53,7 @@ export default function ConfirmHost() {
       aria-modal="true"
       aria-label={title || 'Confirm'}
     >
-      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-cq-milk rounded-cq-xl shadow-2xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
         {title && <h3 className="text-lg font-bold text-cq-roast mb-2">{title}</h3>}
         {message && <p className="text-cq-ink-2 whitespace-pre-line">{message}</p>}
         <div className="mt-5 flex justify-end gap-2">

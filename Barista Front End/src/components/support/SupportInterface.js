@@ -203,7 +203,7 @@ const SupportInterface = () => {
             <div className="relative">
               <button
                 onClick={() => setAccountOpen(o => !o)}
-                className="h-9 w-9 rounded-full bg-amber-200 flex items-center justify-center hover:bg-amber-300 focus:outline-none focus:ring-2 focus:ring-cq-caramel"
+                className="h-9 w-9 rounded-full bg-cq-caramel-wash flex items-center justify-center hover:bg-cq-caramel-wash focus:outline-none focus:ring-2 focus:ring-cq-caramel"
                 title={`Signed in as ${userLabel}`}
               >
                 <span className="text-cq-caramel-deep font-medium">{userInitial}</span>

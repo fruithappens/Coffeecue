@@ -130,7 +130,7 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
   };
 
   return (
-    <div className="bg-cq-milk rounded-cq-lg shadow-cq-card-lg p-4 sm:p-6">
+    <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4 sm:p-6">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
         <h2 className="text-xl sm:text-2xl font-bold text-cq-roast flex flex-wrap items-center gap-x-2 gap-y-1">
           <Settings className="shrink-0" />
@@ -414,7 +414,7 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
       {/* Add Station Form */}
       {showAddForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-cq-md p-6 w-full max-w-md">
+          <div className="bg-cq-milk rounded-cq-md p-6 w-full max-w-md">
             <h3 className="text-xl font-semibold mb-4">Add New Station</h3>
             
             <div className="space-y-4">

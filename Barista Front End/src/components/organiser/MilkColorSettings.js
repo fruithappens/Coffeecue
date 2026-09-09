@@ -174,7 +174,7 @@ const MilkColorSettings = () => {
               {standardMilks.map(([milkType, color]) => {
                 const milk = inventoryMilks.find(m => m.name === milkType);
                 return (
-                  <div key={milkType} className="flex items-center space-x-2 p-3 border-2 border-cq-line rounded-cq-md bg-cq-milk-cq-md hover:bg-cq-wash">
+                  <div key={milkType} className="flex items-center space-x-2 p-3 border-2 border-cq-line rounded-cq-md bg-cq-milk hover:bg-cq-wash">
                     <div 
                       className="w-8 h-8 rounded-full border-2 border-cq-line" 
                       style={{ backgroundColor: color }}
@@ -206,7 +206,7 @@ const MilkColorSettings = () => {
               {alternativeMilks.map(([milkType, color]) => {
                 const milk = inventoryMilks.find(m => m.name === milkType);
                 return (
-                  <div key={milkType} className="flex items-center space-x-2 p-3 border-2 border-cq-line rounded-cq-md bg-cq-milk-cq-md hover:bg-cq-wash">
+                  <div key={milkType} className="flex items-center space-x-2 p-3 border-2 border-cq-line rounded-cq-md bg-cq-milk hover:bg-cq-wash">
                     <div 
                       className="w-8 h-8 rounded-full border-2 border-cq-line" 
                       style={{ backgroundColor: color }}
@@ -276,19 +276,19 @@ const MilkColorSettings = () => {
         <div className="mb-6 p-4 border-2 border-cq-line rounded-cq-md bg-cq-milk bg-cq-wash">
           <h4 className="font-medium mb-3">Color Legend</h4>
           <div className="flex flex-wrap gap-3">
-            <div className="flex items-center bg-white p-2 border-2 border-cq-line rounded-cq-md bg-cq-milk">
+            <div className="flex items-center bg-cq-milk p-2 border-2 border-cq-line rounded-cq-md bg-cq-milk">
               <div className="milk-indicator-dot soy-milk"></div>
               <span className="text-sm">Soy Milk - Yellow</span>
             </div>
-            <div className="flex items-center bg-white p-2 border-2 border-cq-line rounded-cq-md bg-cq-milk">
+            <div className="flex items-center bg-cq-milk p-2 border-2 border-cq-line rounded-cq-md bg-cq-milk">
               <div className="milk-indicator-dot oat-milk"></div>
               <span className="text-sm">Oat Milk - Red</span>
             </div>
-            <div className="flex items-center bg-white p-2 border-2 border-cq-line rounded-cq-md bg-cq-milk">
+            <div className="flex items-center bg-cq-milk p-2 border-2 border-cq-line rounded-cq-md bg-cq-milk">
               <div className="milk-indicator-dot almond-milk"></div>
               <span className="text-sm">Almond Milk - Blue</span>
             </div>
-            <div className="flex items-center bg-white p-2 border-2 border-cq-line rounded-cq-md bg-cq-milk">
+            <div className="flex items-center bg-cq-milk p-2 border-2 border-cq-line rounded-cq-md bg-cq-milk">
               <div className="milk-indicator-dot lactose-free-milk"></div>
               <span className="text-sm">Lactose-Free - Dashed</span>
             </div>
@@ -344,7 +344,7 @@ const MilkColorSettings = () => {
   }
 
   return (
-    <div className="bg-white shadow-md rounded-cq-md p-6">
+    <div className="bg-cq-milk shadow-cq-card rounded-cq-md p-6">
       <h2 className="text-xl font-bold mb-6">Milk Color Settings</h2>
       
       {/* Message display */}

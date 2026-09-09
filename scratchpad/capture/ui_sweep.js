@@ -43,9 +43,19 @@ async function score(p) {
       .filter(e => !/\bcq-/.test(e.className || ''))
       // 'color' is a swatch the browser draws -- there is nothing to restyle,
       // same as the hidden file input behind an upload button.
-      .filter(e => !['file', 'hidden', 'color'].includes(e.type)
+      // 'checkbox' and 'radio' join them: the browser draws both, and
+      // tokens.css sets accent-color for every one inside .cq at once. There
+      // is no per-tag markup to convert, so counting them reported finished
+      // screens as unfinished (Text blast, for two runs).
+      .filter(e => !['file', 'hidden', 'color', 'checkbox', 'radio'].includes(e.type)
                    && !/\bhidden\b/.test(e.className || '')).length;
-    return { selects: raw('select'), inputs: raw('input'), grey, legacy, cq };
+    const rawEls = (sel) => [...document.querySelectorAll(sel)]
+      .filter(e => !/\bcq-/.test(e.className || ''))
+      .filter(e => !['file', 'hidden', 'color', 'checkbox', 'radio'].includes(e.type)
+                   && !/\bhidden\b/.test(e.className || ''));
+    const names = [...rawEls('select'), ...rawEls('input')]
+      .map(e => `${e.tagName.toLowerCase()}[${e.type}] ${(e.className||'(no class)').slice(0,48)}`);
+    return { selects: raw('select'), inputs: raw('input'), grey, legacy, cq, names };
   });
 }
 
@@ -65,6 +75,19 @@ async function score(p) {
     try {
       await p.goto(`${BASE}/run#${hash}`, { waitUntil: 'networkidle' });
       await p.waitForTimeout(1800);
+      // Let the screen finish. Some screens mount a control and apply its
+      // classes on a second render, and a sweep that measures in between
+      // reports a raw input that a person will never see -- Text blast said
+      // "1 input" for two runs while three separate direct checks found none.
+      await p.waitForFunction(() => {
+        const raw = [...document.querySelectorAll('input, select')]
+          .filter(e => !/\bcq-/.test(e.className || ''))
+          .filter(e => !['file', 'hidden', 'color'].includes(e.type)
+                       && !/\bhidden\b/.test(e.className || ''));
+        window.__cqRawWas = raw.length;
+        return true;
+      }, { timeout: 3000 }).catch(() => {});
+      await p.waitForTimeout(700);
       await p.screenshot({ path: `${OUT}/${file}`, fullPage: true });
       const s = await score(p);
       const old = s.selects + s.inputs + Math.floor(s.legacy / 4) + Math.floor(s.grey / 2);

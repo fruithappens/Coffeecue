@@ -234,7 +234,7 @@ const UsersAccessTab = () => {
             <select
               value={filterRole}
               onChange={(e) => setFilterRole(e.target.value)}
-              className="px-3 py-2 border-2 border-cq-line rounded-cq-md bg-cq-milk-md"
+              className="px-3 py-2 border-2 border-cq-line rounded-cq-md bg-cq-milk"
             >
               <option value="all">All Roles</option>
               {roles.map(role => (
@@ -449,7 +449,7 @@ const UsersAccessTab = () => {
                 <select
                   value={newUser.role}
                   onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
-                  className="w-full px-3 py-2 border-2 border-cq-line rounded-cq-md bg-cq-milk-md"
+                  className="w-full px-3 py-2 border-2 border-cq-line rounded-cq-md bg-cq-milk"
                 >
                   {roles.map(role => (
                     <option key={role} value={role}>
@@ -489,7 +489,7 @@ const UsersAccessTab = () => {
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {roles.map(role => (
-                <div key={role} className="border-2 border-cq-line rounded-cq-md bg-cq-milk-cq-md p-4">
+                <div key={role} className="border-2 border-cq-line rounded-cq-md bg-cq-milk p-4">
                   <h3 className="font-medium mb-2 capitalize">{role}</h3>
                   <div className="space-y-1 text-sm text-cq-ink-2">
                     <p>Active Users: {users.filter(u => u.role === role && u.is_active).length}</p>

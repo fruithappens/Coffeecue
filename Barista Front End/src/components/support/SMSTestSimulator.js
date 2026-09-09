@@ -409,7 +409,7 @@ const SMSTestSimulator = () => {
   };
   
   return (
-    <div className="bg-cq-milk rounded-cq-lg shadow-cq-card-lg p-6">
+    <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-6">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-cq-roast flex items-center">
           <MessageSquare className="mr-3 text-cq-caramel-deep" />
@@ -794,7 +794,7 @@ const SMSTestSimulator = () => {
                           <p className="text-sm text-cq-ink-2 mt-1">{stage.details}</p>
                         ) : (
                           <div className="text-sm text-cq-ink-2 mt-1">
-                            <pre className="whitespace-pre-wrap font-mono text-xs bg-white bg-opacity-50 p-2 rounded mt-1">
+                            <pre className="whitespace-pre-wrap font-mono text-xs bg-cq-milk bg-opacity-50 p-2 rounded mt-1">
                               {JSON.stringify(stage.details, null, 2)}
                             </pre>
                           </div>

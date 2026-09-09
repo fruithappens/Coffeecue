@@ -20,7 +20,7 @@ import React from 'react';
  * dark brand bar the cup is white, which is why it is a prop and not a
  * constant -- the artwork's near-black would disappear there.
  */
-export const CupMark = ({ size = 28, cup = '#FFFFFF', accent = '#C08552',
+export const CupMark = ({ size = 28, cup = '#FFFFFF', accent = '#B8764A',
                           className = '' }) => (
   <svg viewBox="0 0 64 82" width={(size * 64) / 82} height={size}
        className={className} role="img" aria-label="CupQ">
@@ -61,7 +61,7 @@ export const CupMark = ({ size = 28, cup = '#FFFFFF', accent = '#C08552',
  * the logo loses the half that makes it a logo.
  */
 export const CupQWordmark = ({ height = 24, word = '#FFFFFF',
-                               accent = '#C08552', className = '' }) => (
+                               accent = '#B8764A', className = '' }) => (
   <svg viewBox="0 0 260 66" height={height} width={(height * 260) / 66}
        className={className} role="img" aria-label="CupQ">
     {/* Woosh: a dot then three tapering strokes, shortest at the top, so

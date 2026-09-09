@@ -32,10 +32,10 @@ const ageLabel = (m) => (m == null ? '' : m < 1 ? 'just now' : m < 60 ? `${m}m` 
 
 // Status colour system (control-room traffic light).
 const TONE = {
-  green: { dot: '#22c55e', text: 'text-emerald-300', ring: 'ring-cq-ready/30', bg: 'bg-cq-ready/10', bar: 'bg-cq-ready' },
-  amber: { dot: '#f59e0b', text: 'text-amber-300', ring: 'ring-cq-caramel/30', bg: 'bg-cq-caramel/10', bar: 'bg-cq-caramel' },
-  red: { dot: '#ef4444', text: 'text-red-300', ring: 'ring-cq-alert/40', bg: 'bg-cq-alert/10', bar: 'bg-cq-alert' },
-  idle: { dot: '#64748b', text: 'text-cq-ink-3', ring: 'ring-cq-ink-3', bg: 'bg-cq-roast/40', bar: 'bg-slate-600' },
+  green: { dot: '#1F8A4C', text: 'text-cq-ready', ring: 'ring-cq-ready/30', bg: 'bg-cq-ready/10', bar: 'bg-cq-ready' },
+  amber: { dot: '#B07D10', text: 'text-cq-tan', ring: 'ring-cq-caramel/30', bg: 'bg-cq-caramel/10', bar: 'bg-cq-caramel' },
+  red: { dot: '#C8372D', text: 'text-cq-alert', ring: 'ring-cq-alert/40', bg: 'bg-cq-alert/10', bar: 'bg-cq-alert' },
+  idle: { dot: '#8C7B6E', text: 'text-cq-ink-3', ring: 'ring-cq-ink-3', bg: 'bg-cq-roast/40', bar: 'bg-cq-ink-3' },
 };
 const worst = (levels) => (levels.includes('red') ? 'red' : levels.includes('amber') ? 'amber' : 'green');
 
@@ -224,7 +224,7 @@ export default function OpsBoard() {
   const t = TONE[m.level] || TONE.idle;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans p-3 md:p-5"
+    <div className="min-h-screen bg-cq-roast-deep text-cq-cream font-sans p-3 md:p-5"
          style={{ fontVariantNumeric: 'tabular-nums' }}>
       {/* ---- composite status banner ---- */}
       <div className={`rounded-cq-xl ring-1 ${t.ring} ${t.bg} px-5 py-4 mb-4 flex flex-wrap items-center gap-x-6 gap-y-2`}>
@@ -243,10 +243,10 @@ export default function OpsBoard() {
             <div className="text-xs uppercase tracking-widest text-cq-ink-3">Live</div>
             <div className="text-sm text-cq-ink-3">
               {okAge == null ? 'connecting…' : okAge <= 15 ? `updated ${okAge}s ago` :
-                <span className="text-amber-400">stale — {okAge}s ago</span>}
+                <span className="text-cq-tan">stale — {okAge}s ago</span>}
             </div>
           </div>
-          <div className="tabular-nums text-2xl font-bold text-slate-200">{fmtClock(now)}</div>
+          <div className="tabular-nums text-2xl font-bold text-cq-cream">{fmtClock(now)}</div>
         </div>
       </div>
 
@@ -289,7 +289,7 @@ export default function OpsBoard() {
                     <Stat k="Brewing" v={l.brewing} />
                   </div>
                   <div className="mt-3 flex items-center justify-between text-xs">
-                    <span className={l.barista ? 'text-cq-ink-3' : 'text-amber-400 font-semibold'}>
+                    <span className={l.barista ? 'text-cq-ink-3' : 'text-cq-tan font-semibold'}>
                       {l.barista ? `👤 ${l.barista}` : '⚠ no barista signed in'}
                     </span>
                     <span className="text-cq-ink-3">
@@ -305,13 +305,13 @@ export default function OpsBoard() {
           <SectionTitle>Watch list</SectionTitle>
           <div className="rounded-cq-lg ring-1 ring-cq-ink-3 bg-cq-roast p-3">
             {m.warns.length === 0 ? (
-              <div className="text-emerald-300 text-sm py-2 px-1">✓ No warnings — all leading indicators clear.</div>
+              <div className="text-cq-ready text-sm py-2 px-1">✓ No warnings — all leading indicators clear.</div>
             ) : (
               <ul className="space-y-1.5">
                 {m.warns.map((w, i) => (
                   <li key={i} className="flex items-center gap-2 text-sm">
                     <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: TONE[w.level].dot }} />
-                    <span className="text-slate-200">{w.t}</span>
+                    <span className="text-cq-cream">{w.t}</span>
                   </li>
                 ))}
               </ul>
@@ -343,7 +343,7 @@ export default function OpsBoard() {
                     <div>Last sent: {m.smsSentMin == null ? 'never since restart' : `${ageLabel(m.smsSentMin)} ago`}</div>
                     <div>Sent / failed since boot: {num(m.smsH?.outbound?.sent_since_boot)} / {num(m.smsH?.outbound?.failed_since_boot)}</div>
                     {!m.smsProven && !testing && !rejecting &&
-                      <div className="text-amber-400 pt-1">Send one real text to flip this to proven.</div>}
+                      <div className="text-cq-tan pt-1">Send one real text to flip this to proven.</div>}
                   </div>
                 </div>
               );
@@ -358,8 +358,8 @@ export default function OpsBoard() {
                 <ul className="divide-y divide-cq-ink-3/70">
                   {m.feed.map(({ o, t: ts }) => {
                     const s = o.status || '';
-                    const dot = s === 'completed' ? '#22c55e' : s === 'in-progress' ? '#f59e0b'
-                      : s === 'picked_up' ? '#38bdf8' : s === 'cancelled' ? '#ef4444' : '#64748b';
+                    const dot = s === 'completed' ? '#1F8A4C' : s === 'in-progress' ? '#B07D10'
+                      : s === 'picked_up' ? '#B8764A' : s === 'cancelled' ? '#C8372D' : '#8C7B6E';
                     const label = s === 'in-progress' ? 'brewing' : s === 'picked_up' ? 'collected' : s || 'new';
                     return (
                       <li key={o.id || o.orderNumber || o.order_number} className="flex items-center gap-2 py-1.5 px-1 text-sm">
@@ -398,7 +398,7 @@ export default function OpsBoard() {
               <div className="mt-2 rounded-cq-md bg-cq-roast ring-1 ring-cq-ink-3 p-2">
                 <textarea value={bcMsg} onChange={(e) => setBcMsg(e.target.value.slice(0, 300))}
                   rows={2} placeholder="Message to today's customers (plain text — SMS cost applies)"
-                  className="w-full bg-slate-950 rounded px-2 py-1.5 text-sm text-slate-100 outline-none ring-1 ring-cq-ink-3" />
+                  className="w-full bg-cq-roast-deep rounded px-2 py-1.5 text-sm text-cq-cream outline-none ring-1 ring-cq-ink-3" />
                 <div className="flex items-center gap-2 mt-1">
                   <button onClick={sendBroadcast} disabled={!bcMsg.trim() || busy === 'broadcast'}
                     className="rounded bg-sky-600 hover:bg-sky-500 px-3 py-1.5 text-sm font-semibold disabled:opacity-40">
@@ -408,7 +408,7 @@ export default function OpsBoard() {
                 </div>
               </div>
             )}
-            {note && <div className="mt-2 text-sm text-emerald-300">{note}</div>}
+            {note && <div className="mt-2 text-sm text-cq-ready">{note}</div>}
           </div>
 
           {/* server footer — deliberately small */}
@@ -422,7 +422,7 @@ export default function OpsBoard() {
         </div>
       </div>
 
-      {loading && <div className="fixed inset-0 flex items-center justify-center bg-slate-950/80 text-cq-ink-3">Loading the board…</div>}
+      {loading && <div className="fixed inset-0 flex items-center justify-center bg-cq-roast-deep/80 text-cq-ink-3">Loading the board…</div>}
     </div>
   );
 }
@@ -434,7 +434,7 @@ function Kpi({ label, value, sub, trend, trendGoodDown, tone = 'idle' }) {
   if (typeof trend === 'number' && Math.abs(trend) >= 0.5) {
     const up = trend > 0;
     const bad = trendGoodDown ? up : !up;
-    arrow = <span className={bad ? 'text-red-400' : 'text-emerald-400'}>{up ? '▲' : '▼'}</span>;
+    arrow = <span className={bad ? 'text-cq-alert' : 'text-cq-ready'}>{up ? '▲' : '▼'}</span>;
   }
   return (
     <div className={`rounded-cq-lg ring-1 ${t.ring} bg-cq-roast p-3`}>
@@ -447,7 +447,7 @@ function Kpi({ label, value, sub, trend, trendGoodDown, tone = 'idle' }) {
   );
 }
 const Stat = ({ k, v }) => (
-  <div className="text-center rounded-cq-md bg-slate-950/60 py-1.5">
+  <div className="text-center rounded-cq-md bg-cq-roast-deep/60 py-1.5">
     <div className="text-lg font-bold leading-none">{v}</div>
     <div className="text-[10px] uppercase tracking-wide text-cq-ink-3 mt-0.5">{k}</div>
   </div>
