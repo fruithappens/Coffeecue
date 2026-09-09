@@ -236,6 +236,37 @@ that one is not cosmetic.
 
 ---
 
+## 13. The system holds exactly one event at a time
+
+**Status:** open — a decision for Steve, not a bug.
+
+Steve asked whether two events running at once could be separated by the door
+and the event code, or whether they need separate instances. Checked the
+schema rather than guessed:
+
+- **The event code is a lock, not a router.** One value in one settings row.
+  It answers "are you at this event" — yes or no. There is no second code to
+  compare against and it has no connection to stations.
+- **No table has an event column.** All 35 of them. `orders` is scoped by
+  `station_id` only; `settings` has `key` as its whole primary key, so
+  branding, menu, event name, SMS wording and the access code each exist
+  exactly once. (`event_id` in the code is EventsAir's ID for pulling
+  attendee data — unrelated.)
+- **One Twilio number per instance.** `TWILIO_PHONE_NUMBER` is a single env
+  var and the inbound webhook never reads which number was texted.
+
+Two events on one instance today would share menu, stock, branding, station
+list, order numbers and the report. Making one instance multi-event means an
+event column on ~10 tables, a composite key on `settings`, and a scoping
+clause on **358 queries across 29 files** — where a single miss puts one
+event's order on the other event's screen.
+
+**Fixed looks like:** a second Railway service + Postgres + Twilio number +
+subdomain. Config, not code, and the isolation is total. Revisit only if
+concurrent events become routine rather than occasional.
+
+---
+
 ## Still on Steve
 
 Not findings — decisions and config that only he can make.
