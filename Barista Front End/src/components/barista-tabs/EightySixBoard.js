@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Ban, RefreshCw } from 'lucide-react';
+import { Panel } from '../../design';
 
 /**
  * The 86 board — one tap between reality and the menu.
@@ -25,10 +26,10 @@ const Chip = ({ label, dead, onToggle, busy }) => (
   <button
     onClick={onToggle}
     disabled={busy}
-    className={`px-3 py-2 rounded-xl border-2 text-sm font-semibold capitalize
-                transition-colors ${dead
-                  ? 'bg-red-600 border-red-600 text-white line-through'
-                  : 'bg-white border-gray-300 text-gray-800 hover:border-red-400'}`}
+    className={`px-3 py-2 rounded-cq-md border-2 text-sm font-semibold capitalize
+                transition-colors disabled:opacity-40 ${dead
+                  ? 'bg-cq-alert border-cq-alert text-white line-through'
+                  : 'bg-cq-milk border-cq-line text-cq-roast hover:border-cq-alert'}`}
     title={dead ? `86'd — tap to bring back` : 'Tap to 86 (mark sold out everywhere)'}
   >
     {label}
@@ -99,7 +100,7 @@ const EightySixBoard = () => {
   const Row = ({ title, cat, items }) => (
     items.length > 0 && (
       <div className="mt-2">
-        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
+        <div className="text-xs font-extrabold uppercase tracking-wider text-cq-ink-3 mb-1.5">
           {title}
         </div>
         <div className="flex flex-wrap gap-2">
@@ -115,21 +116,19 @@ const EightySixBoard = () => {
   );
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-4 mb-4 border-l-4 border-red-500">
-      <div className="flex items-center gap-2">
-        <Ban size={18} className="text-red-600" />
-        <h3 className="font-bold text-gray-800">86 board</h3>
-        <span className="text-xs text-gray-500">
-          tap = sold out everywhere, instantly · tap again = back on
-        </span>
-        <button onClick={load} className="ml-auto text-gray-400 hover:text-gray-700" title="Refresh">
-          <RefreshCw size={15} />
-        </button>
-      </div>
+    <Panel
+      title="86 board"
+      Icon={Ban}
+      right={<button onClick={load} className="text-cq-ink-3 hover:text-cq-roast"
+                     title="Refresh"><RefreshCw size={15} /></button>}
+    >
+      <p className="text-sm text-cq-ink-3 -mt-1 mb-1">
+        Tap to mark sold out everywhere, instantly. Tap again to bring it back.
+      </p>
       <Row title="Drinks" cat="drink" items={menu.drinks} />
       <Row title="Milks" cat="milk" items={menu.milks} />
       <Row title="Beans" cat="coffee" items={menu.beans} />
-    </div>
+    </Panel>
   );
 };
 

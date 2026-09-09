@@ -11,3 +11,4 @@ export { default as PinPanel } from './PinPanel';
 export { default as useEventBrand, EventHeader, PoweredBy, loadEventBrand } from './eventBrand';
 export { SettingGroup, SettingRow, Toggle, Segmented, SelectRow, TextField, Checkbox, SettingNote } from './Settings';
 export { Panel, DataTable, Row as TableRow, Cell, Empty, Status } from './Panel';
+export { Modal, Notice, Subject, PickRow } from './Modal';

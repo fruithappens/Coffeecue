@@ -60,8 +60,8 @@ const EnhancedStationCapabilities = () => {
   const skillLevels = {
     novice: {
       label: 'Novice',
-      color: 'bg-gray-100 text-gray-700',
-      borderColor: 'border-gray-300',
+      color: 'bg-cq-wash text-cq-ink-2',
+      borderColor: 'border-cq-line',
       allowedDrinks: ['espresso', 'long_black', 'cappuccino'],
       maxConcurrentOrders: 3,
       complexityLimit: 'simple',
@@ -81,7 +81,7 @@ const EnhancedStationCapabilities = () => {
     expert: {
       label: 'Expert',
       color: 'bg-cq-caramel-wash text-cq-caramel-deep',
-      borderColor: 'border-purple-300',
+      borderColor: 'border-cq-caramel',
       allowedDrinks: ['all_drinks'],
       maxConcurrentOrders: 8,
       complexityLimit: 'complex',
@@ -91,8 +91,8 @@ const EnhancedStationCapabilities = () => {
     },
     specialist: {
       label: 'Specialist',
-      color: 'bg-green-100 text-green-700',
-      borderColor: 'border-green-300',
+      color: 'bg-cq-ready-wash text-cq-ready',
+      borderColor: 'border-cq-ready',
       allowedDrinks: ['all_drinks'],
       maxConcurrentOrders: 6,
       complexityLimit: 'complex',
@@ -263,7 +263,7 @@ const EnhancedStationCapabilities = () => {
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-900">Enhanced Station Capabilities</h2>
+        <h2 className="text-2xl font-bold text-cq-roast">Enhanced Station Capabilities</h2>
         <label className="flex items-center space-x-2">
           <input
             type="checkbox"
@@ -276,15 +276,15 @@ const EnhancedStationCapabilities = () => {
       </div>
 
       {/* Skill Level Legend */}
-      <div className="bg-white rounded-lg shadow p-4">
+      <div className="bg-cq-milk rounded-cq-md shadow p-4">
         <h3 className="text-lg font-semibold mb-3">Barista Skill Levels</h3>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {Object.entries(skillLevels).map(([level, config]) => (
-            <div key={level} className={`p-3 rounded-lg border ${config.borderColor}`}>
+            <div key={level} className={`p-3 rounded-cq-md border ${config.borderColor}`}>
               <div className={`inline-block px-2 py-1 rounded text-sm font-medium ${config.color} mb-2`}>
                 {config.label}
               </div>
-              <p className="text-xs text-gray-600">{config.description}</p>
+              <p className="text-xs text-cq-ink-2">{config.description}</p>
               <div className="mt-2 text-xs">
                 <span className="font-medium">Max Orders:</span> {config.maxConcurrentOrders}
               </div>
@@ -303,17 +303,17 @@ const EnhancedStationCapabilities = () => {
           const isExpanded = expandedStation === station.id;
           
           return (
-            <div key={station.id} className="bg-white rounded-lg shadow">
+            <div key={station.id} className="bg-cq-milk rounded-cq-md shadow">
               <div className="p-6">
                 {/* Station Header */}
                 <div className="flex justify-between items-start mb-4">
                   <div>
-                    <h3 className="text-xl font-bold text-gray-900">{station.name}</h3>
-                    <p className="text-sm text-gray-500">Station #{station.id}</p>
+                    <h3 className="text-xl font-bold text-cq-roast">{station.name}</h3>
+                    <p className="text-sm text-cq-ink-3">Station #{station.id}</p>
                   </div>
                   <button
                     onClick={() => toggleStationExpanded(station.id)}
-                    className="text-gray-500 hover:text-gray-700"
+                    className="text-cq-ink-3 hover:text-cq-ink-2"
                   >
                     {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
                   </button>
@@ -322,7 +322,7 @@ const EnhancedStationCapabilities = () => {
                 {/* Barista Assignment */}
                 <div className="mb-4">
                   <div className="flex items-center space-x-4">
-                    <User size={20} className="text-gray-400" />
+                    <User size={20} className="text-cq-ink-3" />
                     <div className="flex-1">
                       <input
                         type="text"
@@ -350,10 +350,10 @@ const EnhancedStationCapabilities = () => {
                       <span className={`px-2 py-1 rounded ${skillConfig?.color}`}>
                         {skillConfig?.label}
                       </span>
-                      <span className="text-gray-500">
+                      <span className="text-cq-ink-3">
                         Efficiency: {(efficiency * 100).toFixed(0)}%
                       </span>
-                      <span className="text-gray-500">
+                      <span className="text-cq-ink-3">
                         Max Orders: {skillConfig?.maxConcurrentOrders}
                       </span>
                     </div>
@@ -363,25 +363,25 @@ const EnhancedStationCapabilities = () => {
                 {/* Station Capabilities */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                   <div className="flex items-center space-x-2">
-                    <Coffee size={16} className="text-gray-400" />
+                    <Coffee size={16} className="text-cq-ink-3" />
                     <span className="text-sm">
                       {station.capabilities?.standard_coffee ? 'Standard Coffee' : 'No Coffee'}
                     </span>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <Coffee size={16} className="text-gray-400" />
+                    <Coffee size={16} className="text-cq-ink-3" />
                     <span className="text-sm">
                       {station.capabilities?.alternative_milk ? 'Alt Milk' : 'No Alt Milk'}
                     </span>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <Award size={16} className="text-gray-400" />
+                    <Award size={16} className="text-cq-ink-3" />
                     <span className="text-sm">
                       {station.capabilities?.high_volume ? 'High Volume' : 'Normal Volume'}
                     </span>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <Clock size={16} className="text-gray-400" />
+                    <Clock size={16} className="text-cq-ink-3" />
                     <span className="text-sm">
                       {station.status || 'Active'}
                     </span>
@@ -391,12 +391,12 @@ const EnhancedStationCapabilities = () => {
                 {/* Skill-Based Order Recommendations */}
                 {skillRoutingEnabled && recommendedOrders.length > 0 && (
                   <div className="border-t pt-4">
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">
+                    <h4 className="text-sm font-medium text-cq-ink-2 mb-2">
                       Recommended Orders (based on skill level)
                     </h4>
                     <div className="space-y-2">
                       {recommendedOrders.slice(0, 3).map(order => (
-                        <div key={order.id} className="flex items-center justify-between text-sm bg-gray-50 p-2 rounded">
+                        <div key={order.id} className="flex items-center justify-between text-sm bg-cq-wash p-2 rounded">
                           <div>
                             <span className="font-medium">#{order.orderNumber}</span> - 
                             {order.coffeeType}, {order.milkType}
@@ -404,11 +404,11 @@ const EnhancedStationCapabilities = () => {
                               <span className="ml-2 text-xs bg-cq-caramel-wash text-cq-caramel-deep px-1 rounded">Alt Milk</span>
                             )}
                             {(order.vip || order.priority) && (
-                              <span className="ml-2 text-xs bg-red-100 text-red-700 px-1 rounded">VIP</span>
+                              <span className="ml-2 text-xs bg-cq-alert-wash text-cq-alert px-1 rounded">VIP</span>
                             )}
                           </div>
                           <button
-                            className="text-xs bg-gray-300 text-gray-600 px-2 py-1 rounded cursor-not-allowed"
+                            className="text-xs bg-cq-line text-cq-ink-2 px-2 py-1 rounded cursor-not-allowed"
                             title="Reassignment from this panel isn't wired up. Use Insights → Queue to influence routing, or change a station's capabilities to redirect new orders."
                             disabled
                           >
@@ -426,26 +426,26 @@ const EnhancedStationCapabilities = () => {
                     {/* Barista Statistics */}
                     {barista && (
                       <div>
-                        <h4 className="text-sm font-medium text-gray-700 mb-2">Barista Performance</h4>
+                        <h4 className="text-sm font-medium text-cq-ink-2 mb-2">Barista Performance</h4>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                          <div className="bg-gray-50 p-3 rounded">
-                            <div className="text-xs text-gray-500">Total Orders</div>
+                          <div className="bg-cq-wash p-3 rounded">
+                            <div className="text-xs text-cq-ink-3">Total Orders</div>
                             <div className="text-lg font-bold">{barista.statistics?.totalOrders || 0}</div>
                           </div>
-                          <div className="bg-gray-50 p-3 rounded">
-                            <div className="text-xs text-gray-500">Avg Time</div>
+                          <div className="bg-cq-wash p-3 rounded">
+                            <div className="text-xs text-cq-ink-3">Avg Time</div>
                             <div className="text-lg font-bold">
                               {barista.statistics?.avgCompletionTime || 0}m
                             </div>
                           </div>
-                          <div className="bg-gray-50 p-3 rounded">
-                            <div className="text-xs text-gray-500">Error Rate</div>
+                          <div className="bg-cq-wash p-3 rounded">
+                            <div className="text-xs text-cq-ink-3">Error Rate</div>
                             <div className="text-lg font-bold">
                               {barista.statistics?.errorRate || 0}%
                             </div>
                           </div>
-                          <div className="bg-gray-50 p-3 rounded">
-                            <div className="text-xs text-gray-500">Rating</div>
+                          <div className="bg-cq-wash p-3 rounded">
+                            <div className="text-xs text-cq-ink-3">Rating</div>
                             <div className="text-lg font-bold">
                               {barista.statistics?.customerRating || 'N/A'}
                             </div>
@@ -457,20 +457,20 @@ const EnhancedStationCapabilities = () => {
                     {/* Specializations */}
                     {barista && (
                       <div>
-                        <h4 className="text-sm font-medium text-gray-700 mb-2">Specializations</h4>
+                        <h4 className="text-sm font-medium text-cq-ink-2 mb-2">Specializations</h4>
                         <div className="flex flex-wrap gap-2">
                           {skillLevels[barista.skillLevel]?.specializations?.map(spec => (
-                            <span key={spec} className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+                            <span key={spec} className="text-xs bg-cq-ready-wash text-cq-ready px-2 py-1 rounded">
                               {spec.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                             </span>
-                          )) || <span className="text-xs text-gray-500">No specializations</span>}
+                          )) || <span className="text-xs text-cq-ink-3">No specializations</span>}
                         </div>
                       </div>
                     )}
 
                     {/* Advanced Settings */}
                     <div>
-                      <h4 className="text-sm font-medium text-gray-700 mb-2">Advanced Settings</h4>
+                      <h4 className="text-sm font-medium text-cq-ink-2 mb-2">Advanced Settings</h4>
                       <div className="space-y-2">
                         <label className="flex items-center space-x-2">
                           <input
@@ -502,10 +502,10 @@ const EnhancedStationCapabilities = () => {
 
       {/* Skill Routing Dashboard */}
       {skillRoutingEnabled && (
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-cq-milk rounded-cq-md shadow p-6">
           <h3 className="text-xl font-semibold mb-4">Skill-Based Routing Overview</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="border rounded-lg p-4">
+            <div className="border rounded-cq-md p-4">
               <h4 className="font-medium mb-2">Order Distribution</h4>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
@@ -529,7 +529,7 @@ const EnhancedStationCapabilities = () => {
               </div>
             </div>
             
-            <div className="border rounded-lg p-4">
+            <div className="border rounded-cq-md p-4">
               <h4 className="font-medium mb-2">Barista Availability</h4>
               <div className="space-y-2 text-sm">
                 {Object.entries(skillLevels).map(([level, config]) => {
@@ -544,13 +544,13 @@ const EnhancedStationCapabilities = () => {
               </div>
             </div>
             
-            <div className="border rounded-lg p-4">
+            <div className="border rounded-cq-md p-4">
               <h4 className="font-medium mb-2">Routing Efficiency</h4>
               <div className="text-center">
-                <div className="text-3xl font-bold text-green-600">
+                <div className="text-3xl font-bold text-cq-ready">
                   {((stations.reduce((sum, s) => sum + calculateStationEfficiency(s), 0) / stations.length) * 100).toFixed(0)}%
                 </div>
-                <div className="text-sm text-gray-500 mt-1">Average Station Efficiency</div>
+                <div className="text-sm text-cq-ink-3 mt-1">Average Station Efficiency</div>
               </div>
             </div>
           </div>

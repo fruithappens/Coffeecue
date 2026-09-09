@@ -254,8 +254,8 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
     // (title + station picker + refresh + close) and footer (input +
     // @ + type + send) don't overflow. Mobile keeps full-width.
     <div className={embedded
-      ? "h-full w-full bg-white overflow-hidden flex flex-col"
-      : "fixed bottom-0 right-0 w-full md:w-[440px] max-w-[100vw] h-[28rem] bg-white shadow-lg border rounded-t-lg overflow-hidden z-40 flex flex-col"}>
+      ? "h-full w-full bg-cq-milk overflow-hidden flex flex-col"
+      : "fixed bottom-0 right-0 w-full md:w-[440px] max-w-[100vw] h-[28rem] bg-cq-milk shadow-cq-card border rounded-t-lg overflow-hidden z-40 flex flex-col"}>
       <div className="bg-cq-caramel text-white p-2 flex justify-between items-center flex-shrink-0">
         <div className="flex items-center min-w-0">
           <h3 className="font-medium mr-1 whitespace-nowrap">Chat</h3>
@@ -271,11 +271,11 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
             
             {/* Station selector dropdown */}
             {showStationSelector && stations && stations.length > 0 && (
-              <div className="absolute top-full left-0 bg-white text-gray-800 shadow-lg rounded-md overflow-y-auto max-h-40 w-48 z-50">
+              <div className="absolute top-full left-0 bg-cq-milk text-cq-roast shadow-cq-card rounded-md overflow-y-auto max-h-40 w-48 z-50">
                 {stations.map(station => (
                   <div 
                     key={station.id}
-                    className={`p-2 hover:bg-gray-100 cursor-pointer ${station.id === selectedStationId ? 'bg-cq-caramel-wash' : ''}`}
+                    className={`p-2 hover:bg-cq-wash cursor-pointer ${station.id === selectedStationId ? 'bg-cq-caramel-wash' : ''}`}
                     onClick={() => {
                       // Set the selected station ID
                       setSelectedStationId(station.id);
@@ -296,8 +296,8 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
                     }}
                   >
                     <div className="font-medium text-sm">{station.name}</div>
-                    <div className="text-xs text-gray-500 flex items-center">
-                      <div className={`w-2 h-2 rounded-full mr-1 ${station.status === 'active' ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                    <div className="text-xs text-cq-ink-3 flex items-center">
+                      <div className={`w-2 h-2 rounded-full mr-1 ${station.status === 'active' ? 'bg-cq-ready' : 'bg-cq-alert'}`}></div>
                       {station.status}
                     </div>
                   </div>
@@ -329,7 +329,7 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
         </div>
       </div>
       {error && (
-        <div className="bg-red-100 text-red-700 p-2 text-sm flex items-center">
+        <div className="bg-cq-alert-wash text-cq-alert p-2 text-sm flex items-center">
           <AlertTriangle size={16} className="mr-1" />
           {error}
         </div>
@@ -370,14 +370,14 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
         </button>
       </div>
       
-      <div className="flex-1 overflow-y-auto p-3 bg-gray-50">
+      <div className="flex-1 overflow-y-auto p-3 bg-cq-wash">
         {loading && messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cq-caramel"></div>
-            <p className="mt-2 text-gray-500 text-sm">Loading messages...</p>
+            <p className="mt-2 text-cq-ink-3 text-sm">Loading messages...</p>
           </div>
         ) : messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-gray-500">
+          <div className="flex flex-col items-center justify-center h-full text-cq-ink-3">
             <p>No messages yet</p>
             <p className="text-sm">Send a message to start the conversation!</p>
           </div>
@@ -398,15 +398,15 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
               key={message.id}
               className={`p-2 mb-2 rounded ${
                 message.is_urgent
-                  ? 'bg-red-50 border-l-2 border-red-500'
+                  ? 'bg-cq-alert-wash border-l-2 border-cq-alert'
                   : mentionsMe
-                    ? 'bg-amber-50 border-l-2 border-amber-500'
+                    ? 'bg-cq-caramel-wash border-l-2 border-cq-caramel'
                     : fromMe
                       ? 'bg-cq-caramel-wash'
-                      : 'bg-gray-100'
+                      : 'bg-cq-wash'
               }`}
             >
-              <div className="text-xs text-gray-500 mb-1 flex justify-between">
+              <div className="text-xs text-cq-ink-3 mb-1 flex justify-between">
                 <span>
                   {/* Format sender name to show correct station */}
                   {message.sender}
@@ -446,15 +446,15 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
           <button
             type="button"
             onClick={() => setShowMentionPicker((v) => !v)}
-            className="border rounded-l p-2 bg-gray-50 hover:bg-gray-100 text-gray-700 flex items-center"
+            className="border rounded-l p-2 bg-cq-wash hover:bg-cq-wash text-cq-ink-2 flex items-center"
             title="Mention a station — addresses your message to that station"
             disabled={sending}
           >
             <AtSign size={16} />
           </button>
           {showMentionPicker && stations && stations.length > 0 && (
-            <div className="absolute bottom-full left-0 mb-1 bg-white shadow-lg rounded-md border overflow-y-auto max-h-48 w-56 z-50">
-              <div className="text-xs text-gray-500 px-2 py-1 border-b bg-gray-50">
+            <div className="absolute bottom-full left-0 mb-1 bg-cq-milk shadow-cq-card rounded-md border overflow-y-auto max-h-48 w-56 z-50">
+              <div className="text-xs text-cq-ink-3 px-2 py-1 border-b bg-cq-wash">
                 Mention a station:
               </div>
               {stations.map((station) => (
@@ -462,11 +462,11 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
                   key={station.id}
                   type="button"
                   onClick={() => insertMention(station)}
-                  className="w-full text-left p-2 hover:bg-gray-100 border-b last:border-b-0"
+                  className="w-full text-left p-2 hover:bg-cq-wash border-b last:border-b-0"
                 >
                   <div className="font-medium text-sm">@{_mentionToken(station)}</div>
-                  <div className="text-xs text-gray-500 flex items-center">
-                    <div className={`w-2 h-2 rounded-full mr-1 ${station.status === 'active' ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                  <div className="text-xs text-cq-ink-3 flex items-center">
+                    <div className={`w-2 h-2 rounded-full mr-1 ${station.status === 'active' ? 'bg-cq-ready' : 'bg-cq-alert'}`}></div>
                     {station.status}
                   </div>
                 </button>

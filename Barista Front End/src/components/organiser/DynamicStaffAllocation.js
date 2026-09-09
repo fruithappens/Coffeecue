@@ -230,31 +230,31 @@ const DynamicStaffAllocation = () => {
 
   const getPriorityColor = (priority) => {
     switch (priority) {
-      case 'high': return 'text-red-600 bg-red-50';
-      case 'medium': return 'text-yellow-600 bg-yellow-50';
-      case 'low': return 'text-green-600 bg-green-50';
-      default: return 'text-gray-600 bg-gray-50';
+      case 'high': return 'text-cq-alert bg-cq-alert-wash';
+      case 'medium': return 'text-cq-warn bg-cq-warn-wash';
+      case 'low': return 'text-cq-ready bg-cq-ready-wash';
+      default: return 'text-cq-ink-2 bg-cq-wash';
     }
   };
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'active': return 'text-green-600 bg-green-100';
-      case 'break': return 'text-yellow-600 bg-yellow-100';
-      case 'offline': return 'text-red-600 bg-red-100';
-      default: return 'text-gray-600 bg-gray-100';
+      case 'active': return 'text-cq-ready bg-cq-ready-wash';
+      case 'break': return 'text-cq-warn bg-cq-warn-wash';
+      case 'offline': return 'text-cq-alert bg-cq-alert-wash';
+      default: return 'text-cq-ink-2 bg-cq-wash';
     }
   };
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-900">Dynamic Staff Allocation</h2>
+        <h2 className="text-2xl font-bold text-cq-roast">Dynamic Staff Allocation</h2>
         <div className="flex space-x-4">
           <select 
             value={timeframe} 
             onChange={(e) => setTimeframe(e.target.value)}
-            className="border rounded-lg px-3 py-2"
+            className="border rounded-cq-md px-3 py-2"
           >
             <option value="1h">Last Hour</option>
             <option value="4h">Last 4 Hours</option>
@@ -263,7 +263,7 @@ const DynamicStaffAllocation = () => {
           </select>
           <button
             onClick={() => setShowAdvanced(!showAdvanced)}
-            className="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700"
+            className="bg-cq-caramel text-white px-4 py-2 rounded-cq-md hover:bg-cq-caramel-deep"
           >
             {showAdvanced ? 'Hide' : 'Show'} Advanced
           </button>
@@ -272,32 +272,32 @@ const DynamicStaffAllocation = () => {
 
       {/* Performance Overview */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-cq-milk rounded-cq-md shadow p-6">
           <h3 className="text-lg font-semibold mb-4">Top Performers</h3>
           <div className="space-y-3">
             {topPerformers.map((performer, index) => (
               <div key={performer.stationName} className="flex items-center justify-between">
                 <div>
                   <div className="font-medium">{performer.baristaName}</div>
-                  <div className="text-sm text-gray-500">{performer.stationName}</div>
+                  <div className="text-sm text-cq-ink-3">{performer.stationName}</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-lg font-bold text-green-600">{performer.efficiencyScore}</div>
-                  <div className="text-xs text-gray-500">efficiency score</div>
+                  <div className="text-lg font-bold text-cq-ready">{performer.efficiencyScore}</div>
+                  <div className="text-xs text-cq-ink-3">efficiency score</div>
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-cq-milk rounded-cq-md shadow p-6">
           <h3 className="text-lg font-semibold mb-4">Current Workload</h3>
           <div className="space-y-3">
             {Object.values(performanceMetrics).map(station => (
               <div key={station.stationName} className="flex items-center justify-between">
                 <div>
                   <div className="font-medium">{station.stationName}</div>
-                  <div className="text-sm text-gray-500">{station.baristaName}</div>
+                  <div className="text-sm text-cq-ink-3">{station.baristaName}</div>
                 </div>
                 <div className="flex items-center space-x-2">
                   <span className="text-lg font-bold">{station.currentWorkload}</span>
@@ -310,11 +310,11 @@ const DynamicStaffAllocation = () => {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-cq-milk rounded-cq-md shadow p-6">
           <h3 className="text-lg font-semibold mb-4">Allocation Suggestions</h3>
           <div className="space-y-3">
             {allocationSuggestions.slice(0, 3).map((suggestion, index) => (
-              <div key={index} className={`p-3 rounded-lg ${getPriorityColor(suggestion.priority)}`}>
+              <div key={index} className={`p-3 rounded-cq-md ${getPriorityColor(suggestion.priority)}`}>
                 <div className="font-medium text-sm">
                   {suggestion.type === 'redistribute' && `Move orders: ${suggestion.from} → ${suggestion.to}`}
                   {suggestion.type === 'break' && `Break suggested: ${suggestion.station}`}
@@ -328,59 +328,59 @@ const DynamicStaffAllocation = () => {
       </div>
 
       {/* Detailed Performance Metrics */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200">
+      <div className="bg-cq-milk rounded-cq-md shadow overflow-hidden">
+        <div className="px-6 py-4 border-b border-cq-line">
           <h3 className="text-lg font-semibold">Station Performance Metrics</h3>
         </div>
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full divide-y divide-cq-line">
+            <thead className="bg-cq-wash">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Station</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Barista</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Orders/Hr</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg Time</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Efficiency</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Error Rate</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Load</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-cq-ink-3 uppercase tracking-wider">Station</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-cq-ink-3 uppercase tracking-wider">Barista</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-cq-ink-3 uppercase tracking-wider">Orders/Hr</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-cq-ink-3 uppercase tracking-wider">Avg Time</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-cq-ink-3 uppercase tracking-wider">Efficiency</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-cq-ink-3 uppercase tracking-wider">Error Rate</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-cq-ink-3 uppercase tracking-wider">Current Load</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-cq-ink-3 uppercase tracking-wider">Status</th>
                 {showAdvanced && (
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-cq-ink-3 uppercase tracking-wider">Actions</th>
                 )}
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-cq-milk divide-y divide-cq-line">
               {Object.values(performanceMetrics).map(station => (
                 <tr key={station.stationName}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-cq-roast">
                     {station.stationName}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-cq-ink-3">
                     {station.baristaName}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-cq-roast">
                     {station.ordersPerHour}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-cq-roast">
                     {station.avgCompletionTime}m
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-cq-roast">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      station.efficiencyScore > 2 ? 'bg-green-100 text-green-800' :
-                      station.efficiencyScore > 1 ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-red-100 text-red-800'
+                      station.efficiencyScore > 2 ? 'bg-cq-ready-wash text-cq-ready' :
+                      station.efficiencyScore > 1 ? 'bg-cq-warn-wash text-cq-warn' :
+                      'bg-cq-alert-wash text-cq-alert'
                     }`}>
                       {station.efficiencyScore}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-cq-roast">
                     {station.errorRate}%
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-cq-roast">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      station.currentWorkload > 3 ? 'bg-red-100 text-red-800' :
-                      station.currentWorkload > 1 ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-green-100 text-green-800'
+                      station.currentWorkload > 3 ? 'bg-cq-alert-wash text-cq-alert' :
+                      station.currentWorkload > 1 ? 'bg-cq-warn-wash text-cq-warn' :
+                      'bg-cq-ready-wash text-cq-ready'
                     }`}>
                       {station.currentWorkload}
                     </span>
@@ -391,7 +391,7 @@ const DynamicStaffAllocation = () => {
                     </span>
                   </td>
                   {showAdvanced && (
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-cq-ink-3">
                       <select
                         value={station.status}
                         onChange={(e) => {
@@ -422,26 +422,26 @@ const DynamicStaffAllocation = () => {
 
       {/* Detailed Allocation Suggestions */}
       {allocationSuggestions.length > 0 && (
-        <div className="bg-white rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-gray-200">
+        <div className="bg-cq-milk rounded-cq-md shadow">
+          <div className="px-6 py-4 border-b border-cq-line">
             <h3 className="text-lg font-semibold">Detailed Allocation Recommendations</h3>
           </div>
           <div className="p-6 space-y-4">
             {allocationSuggestions.map((suggestion, index) => (
-              <div key={index} className={`p-4 rounded-lg border-l-4 ${
-                suggestion.priority === 'high' ? 'border-red-400 bg-red-50' :
-                suggestion.priority === 'medium' ? 'border-yellow-400 bg-yellow-50' :
-                'border-green-400 bg-green-50'
+              <div key={index} className={`p-4 rounded-cq-md border-l-4 ${
+                suggestion.priority === 'high' ? 'border-cq-alert bg-cq-alert-wash' :
+                suggestion.priority === 'medium' ? 'border-cq-warn bg-cq-warn-wash' :
+                'border-cq-ready bg-cq-ready-wash'
               }`}>
                 <div className="flex justify-between items-start">
                   <div>
-                    <h4 className="font-semibold text-gray-900">
+                    <h4 className="font-semibold text-cq-roast">
                       {suggestion.type === 'redistribute' && 'Redistribute Orders'}
                       {suggestion.type === 'break' && 'Break Recommendation'}
                       {suggestion.type === 'additional_staff' && 'Additional Staff Needed'}
                     </h4>
-                    <p className="text-gray-700 mt-1">{suggestion.reason}</p>
-                    <p className="text-sm text-gray-600 mt-2">Expected Impact: {suggestion.impact}</p>
+                    <p className="text-cq-ink-2 mt-1">{suggestion.reason}</p>
+                    <p className="text-sm text-cq-ink-2 mt-2">Expected Impact: {suggestion.impact}</p>
                   </div>
                   <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getPriorityColor(suggestion.priority)}`}>
                     {suggestion.priority}

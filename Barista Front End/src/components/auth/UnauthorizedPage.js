@@ -1,91 +1,70 @@
 // components/auth/UnauthorizedPage.js
+//
+// Where a person lands when their role does not reach the page they asked
+// for. It is a dead end by definition, so the whole job is telling them who
+// they are signed in as and giving them a way out that works.
 import React from 'react';
+import { ShieldAlert } from 'lucide-react';
 import roleLanding from '../../utils/roleLanding';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import AuthService from '../../services/AuthService';
 import LogoutButton from '../shared/LogoutButton';
+import { Button, Pill } from '../../design';
 
-/**
- * Unauthorized access page displayed when a user doesn't have the required role
- */
 const UnauthorizedPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const currentUser = AuthService.getCurrentUser();
-  
-  // Get required roles from location state, if available
-  const requiredRoles = location.state?.requiredRoles || [];
-  
-  // Handle logout
-  const handleLogout = () => {
-    AuthService.logout();
-  };
-  
-  // Handle going back
-  const handleGoBack = () => {
-    navigate(-1);
-  };
 
-  // Determine landing page based on user role
+  const requiredRoles = location.state?.requiredRoles || [];
+
+  const handleGoBack = () => navigate(-1);
+
   const getLandingPage = () => {
     if (!currentUser) return '/';
     return roleLanding(currentUser.role);
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-      <div className="bg-white p-8 rounded-lg shadow-md max-w-md w-full">
+    <div className="cq min-h-screen bg-cq-cream flex items-center justify-center p-4">
+      <div className="bg-cq-milk p-8 rounded-cq-lg shadow-cq-card max-w-md w-full">
         <div className="text-center mb-6">
-          <div className="bg-red-100 text-red-600 p-3 rounded-full inline-flex items-center justify-center w-16 h-16 mb-4">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
+          <div className="bg-cq-alert-wash text-cq-alert rounded-full inline-flex
+                          items-center justify-center w-16 h-16 mb-4">
+            <ShieldAlert size={32} strokeWidth={2.5} />
           </div>
-          <h1 className="text-2xl font-bold text-gray-800">Access Denied</h1>
-          <p className="text-gray-600 mt-2">
-            You don't have permission to access this page.
+          <h1 className="text-2xl font-bold text-cq-roast">That page is not yours</h1>
+          <p className="text-cq-ink-2 mt-2">
+            Your sign-in does not reach this part of the app.
           </p>
         </div>
-        
+
         {requiredRoles.length > 0 && (
-          <div className="bg-gray-50 p-4 rounded-lg mb-6">
-            <p className="text-sm text-gray-700 mb-2">Required roles:</p>
+          <div className="bg-cq-wash p-4 rounded-cq-md mb-6">
+            <p className="text-xs font-extrabold uppercase tracking-wider text-cq-ink-3 mb-2">
+              It needs one of these
+            </p>
             <div className="flex flex-wrap gap-2">
-              {requiredRoles.map(role => (
-                <span key={role} className="bg-gray-200 text-gray-700 px-3 py-1 rounded-full text-sm">
-                  {role}
-                </span>
-              ))}
+              {requiredRoles.map(role => <Pill key={role}>{role}</Pill>)}
             </div>
           </div>
         )}
-        
+
         {currentUser && (
-          <div className="text-center text-gray-700 mb-6">
-            <p>You are signed in as:</p>
-            <p className="font-medium">{currentUser.username}</p>
-            <p className="text-sm">Role: {currentUser.role}</p>
-          </div>
+          <p className="text-center text-cq-ink-2 mb-6">
+            Signed in as <strong className="text-cq-roast">{currentUser.username}</strong>
+            {' — '}{currentUser.role}
+          </p>
         )}
-        
-        <div className="flex flex-col space-y-3">
-          <Link 
-            to={getLandingPage()} 
-            className="bg-amber-600 text-white py-2 px-4 rounded hover:bg-amber-700 text-center"
-          >
-            Go to Dashboard
+
+        <div className="flex flex-col gap-3">
+          <Link to={getLandingPage()} className="contents">
+            <Button variant="primary" block>Go to your home screen</Button>
           </Link>
-          
-          <button 
-            onClick={handleGoBack}
-            className="bg-gray-200 text-gray-800 py-2 px-4 rounded hover:bg-gray-300"
-          >
-            Go Back
-          </button>
-          
-          <LogoutButton 
-            showIcon={true} 
-            showText={true}
+          <Button variant="secondary" block onClick={handleGoBack}>Go back</Button>
+          <LogoutButton
+            showIcon
+            showText
             className="justify-center py-2 px-4 w-full"
             confirmLogout={false}
           />

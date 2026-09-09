@@ -270,8 +270,8 @@ const StationDefaults = ({ stationId = null }) => {
     return (
       <div className="p-3 sm:p-6">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-500 mx-auto"></div>
-          <p className="mt-2 text-gray-600">Loading station defaults...</p>
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cq-ready mx-auto"></div>
+          <p className="mt-2 text-cq-ink-2">Loading station defaults...</p>
         </div>
       </div>
     );
@@ -281,18 +281,18 @@ const StationDefaults = ({ stationId = null }) => {
     <div className={embedded ? '' : 'p-6 max-w-4xl mx-auto'}>
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center">
-          <Settings size={24} className="text-green-600 mr-2" />
+          <Settings size={24} className="text-cq-ready mr-2" />
           {embedded ? (
-            <h4 className="text-lg font-medium text-gray-800">Walk-in defaults</h4>
+            <h4 className="text-lg font-medium text-cq-roast">Walk-in defaults</h4>
           ) : (
-            <h2 className="text-2xl font-bold text-gray-800">Station Default Settings</h2>
+            <h2 className="text-2xl font-bold text-cq-roast">Station Default Settings</h2>
           )}
         </div>
         <button
           onClick={saveDefaults}
           disabled={saving}
           className={`flex items-center px-4 py-2 rounded-md text-white ${
-            saving ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700'
+            saving ? 'bg-cq-ink-3' : 'bg-cq-ready hover:brightness-95'
           }`}
         >
           <Save size={16} className="mr-2" />
@@ -302,14 +302,14 @@ const StationDefaults = ({ stationId = null }) => {
       
       {saveMessage && (
         <div className={`mb-4 p-3 rounded-md ${
-          saveMessage.includes('Error') ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+          saveMessage.includes('Error') ? 'bg-cq-alert-wash text-cq-alert' : 'bg-cq-ready-wash text-cq-ready'
         }`}>
           {saveMessage}
         </div>
       )}
       
       {!embedded && (
-      <div className="bg-cq-caramel-wash border border-cq-line rounded-lg p-4 mb-6">
+      <div className="bg-cq-caramel-wash border border-cq-line rounded-cq-md p-4 mb-6">
         <div className="flex items-start">
           <AlertTriangle size={20} className="text-cq-caramel-deep mr-2 mt-0.5" />
           <div>
@@ -328,7 +328,7 @@ const StationDefaults = ({ stationId = null }) => {
           which already has a picker */}
       {!embedded && (
       <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-cq-ink-2 mb-2">
           Select Station to Configure
         </label>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -336,17 +336,17 @@ const StationDefaults = ({ stationId = null }) => {
             <button
               key={station.id}
               onClick={() => setSelectedStation(station.id)}
-              className={`p-3 rounded-lg border-2 text-left transition-colors ${
+              className={`p-3 rounded-cq-md border-2 text-left transition-colors ${
                 selectedStation === station.id
-                  ? 'border-green-500 bg-green-50 text-green-800'
-                  : 'border-gray-200 bg-white hover:border-gray-300'
+                  ? 'border-cq-ready bg-cq-ready-wash text-cq-ready'
+                  : 'border-cq-line bg-cq-milk hover:border-cq-line'
               }`}
             >
               <div className="flex items-center">
                 <Coffee size={16} className="mr-2" />
                 <div>
                   <div className="font-medium">{station.name || `Station ${station.id}`}</div>
-                  <div className="text-xs text-gray-500">
+                  <div className="text-xs text-cq-ink-3">
                     {stationDefaults[station.id] ? 'Configured' : 'Default settings'}
                   </div>
                 </div>
@@ -360,22 +360,22 @@ const StationDefaults = ({ stationId = null }) => {
 
       {/* Station Configuration */}
       {selectedStation && (
-        <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-6">
           <h3 className="text-xl font-semibold mb-4 flex items-center">
-            <Coffee size={20} className="mr-2 text-green-600" />
+            <Coffee size={20} className="mr-2 text-cq-ready" />
             Configure Defaults for{' '}
             {stations.find(s => s.id === selectedStation)?.name || `Station ${selectedStation}`}
           </h3>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-cq-ink-2 mb-2">
                 Default Coffee Type
               </label>
               <select
                 value={getCurrentDefaults(selectedStation).coffeeType}
                 onChange={(e) => updateStationDefault(selectedStation, 'coffeeType', e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
+                className="w-full p-3 border border-cq-line rounded-md focus:ring-cq-ready focus:border-cq-ready"
               >
                 {getStationCoffeeOptions(selectedStation).map(type => (
                   <option key={type} value={type}>{type}</option>
@@ -384,13 +384,13 @@ const StationDefaults = ({ stationId = null }) => {
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-cq-ink-2 mb-2">
                 Default Size
               </label>
               <select
                 value={getCurrentDefaults(selectedStation).size}
                 onChange={(e) => updateStationDefault(selectedStation, 'size', e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
+                className="w-full p-3 border border-cq-line rounded-md focus:ring-cq-ready focus:border-cq-ready"
               >
                 {getStationCupSizes(selectedStation).map(size => (
                   <option key={size} value={size}>{size}</option>
@@ -399,13 +399,13 @@ const StationDefaults = ({ stationId = null }) => {
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-cq-ink-2 mb-2">
                 Default Milk Type
               </label>
               <select
                 value={getCurrentDefaults(selectedStation).milkType}
                 onChange={(e) => updateStationDefault(selectedStation, 'milkType', e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
+                className="w-full p-3 border border-cq-line rounded-md focus:ring-cq-ready focus:border-cq-ready"
               >
                 <optgroup label="Standard Milks">
                   {milkOptions
@@ -435,13 +435,13 @@ const StationDefaults = ({ stationId = null }) => {
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-cq-ink-2 mb-2">
                 Default Espresso Shots
               </label>
               <select
                 value={getCurrentDefaults(selectedStation).shots}
                 onChange={(e) => updateStationDefault(selectedStation, 'shots', e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
+                className="w-full p-3 border border-cq-line rounded-md focus:ring-cq-ready focus:border-cq-ready"
               >
                 <option value="0.5">Half shot (1/2)</option>
                 <option value="1">Single shot</option>
@@ -451,34 +451,34 @@ const StationDefaults = ({ stationId = null }) => {
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-cq-ink-2 mb-2">
                 Default Bean Type
               </label>
               {getStationBeanTypes(selectedStation).length > 0 ? (
                 <select
                   value={getCurrentDefaults(selectedStation).beanType}
                   onChange={(e) => updateStationDefault(selectedStation, 'beanType', e.target.value)}
-                  className="w-full p-3 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
+                  className="w-full p-3 border border-cq-line rounded-md focus:ring-cq-ready focus:border-cq-ready"
                 >
                   {getStationBeanTypes(selectedStation).map(type => (
                     <option key={type} value={type}>{type}</option>
                   ))}
                 </select>
               ) : (
-                <p className="p-3 bg-gray-100 text-gray-600 rounded-md">
+                <p className="p-3 bg-cq-wash text-cq-ink-2 rounded-md">
                   No coffee beans configured for this station. Please add coffee items to the station inventory.
                 </p>
               )}
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-cq-ink-2 mb-2">
                 Default Sweetener Type
               </label>
               <select
                 value={getCurrentDefaults(selectedStation).sweetenerType}
                 onChange={(e) => updateStationDefault(selectedStation, 'sweetenerType', e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
+                className="w-full p-3 border border-cq-line rounded-md focus:ring-cq-ready focus:border-cq-ready"
               >
                 {getStationSweetenerTypes(selectedStation).map(type => (
                   <option key={type} value={type}>{type}</option>
@@ -487,9 +487,9 @@ const StationDefaults = ({ stationId = null }) => {
             </div>
           </div>
           
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-            <h4 className="font-medium text-gray-800 mb-2">Preview Default Order</h4>
-            <div className="text-sm text-gray-600">
+          <div className="mt-6 p-4 bg-cq-wash rounded-cq-md">
+            <h4 className="font-medium text-cq-roast mb-2">Preview Default Order</h4>
+            <div className="text-sm text-cq-ink-2">
               <p><strong>Coffee:</strong> {getCurrentDefaults(selectedStation).coffeeType}</p>
               <p><strong>Size:</strong> {getCurrentDefaults(selectedStation).size}</p>
               <p><strong>Milk:</strong> {
@@ -504,8 +504,8 @@ const StationDefaults = ({ stationId = null }) => {
       )}
       
       {!selectedStation && (
-        <div className="text-center py-8 text-gray-500">
-          <Settings size={48} className="mx-auto mb-2 text-gray-400" />
+        <div className="text-center py-8 text-cq-ink-3">
+          <Settings size={48} className="mx-auto mb-2 text-cq-ink-3" />
           <p>Select a station above to configure its default settings</p>
         </div>
       )}

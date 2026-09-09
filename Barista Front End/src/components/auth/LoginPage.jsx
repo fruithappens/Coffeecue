@@ -219,7 +219,7 @@ const LoginPage = ({ onLoginSuccess }) => {
                   pretends one does (it was an href="#" + alert). Plain
                   guidance instead — organisers reset passwords from the
                   Users tab. */}
-              <span className="forgot-password text-sm text-gray-500">
+              <span className="forgot-password text-sm text-cq-ink-3">
                 Forgot your password? Ask your event organiser to reset it.
               </span>
             </div>
@@ -235,7 +235,7 @@ const LoginPage = ({ onLoginSuccess }) => {
           align-items: center;
           min-height: 100vh;
           padding: 20px;
-          background: linear-gradient(135deg, #92400E 0%, #B45309 45%, #F59E0B 100%);
+          background: linear-gradient(135deg, #2A1810 0%, #3B2314 45%, #B8764A 100%);
         }
 
         .login-card {
@@ -248,7 +248,7 @@ const LoginPage = ({ onLoginSuccess }) => {
         }
 
         .login-header {
-          background: linear-gradient(135deg, #B45309 0%, #D97706 100%);
+          background: linear-gradient(135deg, #955A33 0%, #B8764A 100%);
           color: white;
           padding: 28px 20px;
           text-align: center;
@@ -329,7 +329,7 @@ const LoginPage = ({ onLoginSuccess }) => {
         }
         
         .login-button {
-          background-color: #B45309;
+          background-color: #B8764A;
           color: white;
           border: none;
           padding: 10px 20px;
@@ -340,7 +340,7 @@ const LoginPage = ({ onLoginSuccess }) => {
         }
         
         .login-button:hover {
-          background-color: #92400E;
+          background-color: #955A33;
         }
         
         .login-button.loading {
@@ -349,7 +349,7 @@ const LoginPage = ({ onLoginSuccess }) => {
         }
         
         .forgot-password {
-          color: #B45309;
+          color: #955A33;
           text-decoration: none;
           font-size: 14px;
         }

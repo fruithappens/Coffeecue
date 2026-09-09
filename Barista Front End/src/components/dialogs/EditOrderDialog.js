@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { X, Save, Trash2 } from 'lucide-react';
+import { Save, Trash2, Pencil } from 'lucide-react';
 import useCatalog from '../../hooks/useCatalog';
 import { QuickGroup, QuickTile } from '../shared/QuickTiles';
+import { Modal, Button, Segmented } from '../../design';
 
 /**
  * EditOrderDialog — barista override for an order taken down wrong.
@@ -152,56 +153,56 @@ const EditOrderDialog = ({ order, onClose, onSave, onCancelOrder, saving = false
     }
   };
 
-  const inputCls = 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none';
-  const labelCls = 'block text-sm font-medium text-gray-600 mb-1';
+  const inputCls = 'w-full h-10 px-3 rounded-cq-md border-2 border-cq-line bg-cq-milk '
+    + 'text-cq-roast placeholder:text-cq-ink-3 focus:border-cq-caramel focus:outline-none';
+  const labelCls = 'block text-xs font-extrabold uppercase tracking-wider text-cq-ink-3 mb-1.5';
 
   const Toggle = ({ on, setOn, children }) => (
     <button
       type="button"
       onClick={() => setOn(!on)}
       aria-pressed={on}
-      className={`px-3 py-2 rounded-lg border-2 text-sm font-semibold transition-colors
-                  ${on ? 'bg-amber-600 text-white border-amber-600'
-                       : 'bg-white text-gray-700 border-gray-300 hover:border-amber-400'}`}
+      className={`px-3 py-2 rounded-cq-md border-2 text-sm font-semibold transition-colors
+                  ${on ? 'bg-cq-caramel text-white border-cq-caramel'
+                       : 'bg-cq-milk text-cq-roast border-cq-line hover:border-cq-caramel'}`}
     >
       {children}
     </button>
   );
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      {/* Quick mode lays out tiles, which need width; Detailed is a
-          column of fields and reads better narrow. */}
-      <div className={`bg-white rounded-xl shadow-xl w-full max-h-[90vh] overflow-y-auto ${
-        mode === 'quick' ? 'max-w-3xl' : 'max-w-lg'}`}
-           onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 sticky top-0 bg-white">
-          <h3 className="text-lg font-bold text-gray-800">
-            Edit order #{label}{o.customerName ? ` — ${o.customerName}` : ''}
-          </h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700" title="Close">
-            <X size={20} />
-          </button>
-        </div>
-
-        <div className="px-5 pt-4">
-          <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden text-sm">
-            {['quick', 'detailed'].map(m => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => setMode(m)}
-                className={`px-4 py-1.5 font-semibold capitalize ${
-                  mode === m ? 'bg-amber-600 text-white' : 'bg-white text-gray-600'}`}
-              >
-                {m}
-              </button>
-            ))}
-          </div>
-        </div>
+    <Modal
+      title={`Edit order #${label}${o.customerName ? ` \u2014 ${o.customerName}` : ''}`}
+      Icon={Pencil}
+      onClose={onClose}
+      busy={saving}
+      /* Quick mode lays out tiles, which need width; Detailed is a column
+         of fields and reads better narrow. */
+      size={mode === 'quick' ? 'xl' : 'lg'}
+      footer={
+        <>
+          <Button variant="ghost" size="sm" Icon={Trash2} onClick={handleCancelOrder}
+                  disabled={saving} className="mr-auto !text-cq-alert hover:!bg-cq-alert-wash">
+            Cancel this order
+          </Button>
+          <Button variant="ghost" onClick={onClose} disabled={saving}>Close</Button>
+          <Button variant="primary" Icon={Save} onClick={handleSave} disabled={saving}>
+            {saving ? 'Saving\u2026' : 'Save changes'}
+          </Button>
+        </>
+      }
+    >
+      <div className="mb-4">
+        <Segmented
+          value={mode}
+          onChange={setMode}
+          options={[{ value: 'quick', label: 'Quick' },
+                    { value: 'detailed', label: 'Detailed' }]}
+        />
+      </div>
 
         {mode === 'quick' && (
-          <div className="p-5 space-y-4">
+          <div className="space-y-4">
             <QuickGroup label="Drink">
               {drinkList.map(x => (
                 <QuickTile key={x} label={x} emoji="☕"
@@ -225,8 +226,8 @@ const EditOrderDialog = ({ order, onClose, onSave, onCancelOrder, saving = false
               </QuickGroup>
               <QuickGroup label="Sugar">
                 {sugarSelfServe ? (
-                  <div className="text-sm text-gray-500 border-2 border-dashed
-                                  border-gray-200 rounded-xl px-3 py-2.5">
+                  <div className="text-sm text-cq-ink-3 border-2 border-dashed
+                                  border-cq-line rounded-cq-lg px-3 py-2.5">
                     Help-yourself at the counter
                   </div>
                 ) : (
@@ -272,7 +273,7 @@ const EditOrderDialog = ({ order, onClose, onSave, onCancelOrder, saving = false
             </div>
             <div>
               <label className={labelCls}>
-                Mobile number <span className="text-gray-400 font-normal">(optional — enables SMS updates)</span>
+                Mobile number <span className="text-cq-ink-3 font-normal normal-case">(optional \u2014 enables SMS updates)</span>
               </label>
               <input value={phone} onChange={(e) => setPhone(e.target.value)} className={inputCls}
                      placeholder="e.g. 0412 345 678" type="tel" autoComplete="off" />
@@ -281,7 +282,7 @@ const EditOrderDialog = ({ order, onClose, onSave, onCancelOrder, saving = false
         )}
 
         {mode === 'detailed' && (
-        <div className="p-5 space-y-4">
+        <div className="space-y-4">
           <div>
             <label className={labelCls}>Drink</label>
             <input value={drink} onChange={(e) => setDrink(e.target.value)} className={inputCls}
@@ -311,7 +312,7 @@ const EditOrderDialog = ({ order, onClose, onSave, onCancelOrder, saving = false
             <div>
               <label className={labelCls}>Sugar</label>
               {sugarSelfServe ? (
-                <div className="px-3 py-2 border border-dashed border-gray-200 rounded-lg text-sm text-gray-500">
+                <div className="px-3 py-2 border-2 border-dashed border-cq-line rounded-cq-md text-sm text-cq-ink-3">
                   Help-yourself at the counter
                 </div>
               ) : (
@@ -358,7 +359,7 @@ const EditOrderDialog = ({ order, onClose, onSave, onCancelOrder, saving = false
 
           <div>
             <label className={labelCls}>
-              Mobile number <span className="text-gray-400 font-normal">(optional — enables SMS updates)</span>
+              Mobile number <span className="text-cq-ink-3 font-normal normal-case">(optional \u2014 enables SMS updates)</span>
             </label>
             <input value={phone} onChange={(e) => setPhone(e.target.value)} className={inputCls}
                    placeholder="e.g. 0412 345 678" type="tel" autoComplete="off" />
@@ -366,29 +367,7 @@ const EditOrderDialog = ({ order, onClose, onSave, onCancelOrder, saving = false
         </div>
         )}
 
-        <div className="flex items-center justify-between px-5 py-4 border-t border-gray-200 sticky bottom-0 bg-white">
-          <button
-            onClick={handleCancelOrder}
-            disabled={saving}
-            className="flex items-center text-red-600 hover:text-red-800 text-sm font-medium disabled:opacity-50"
-          >
-            <Trash2 size={16} className="mr-1" /> Cancel this order
-          </button>
-          <div className="flex gap-2">
-            <button onClick={onClose} disabled={saving} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg disabled:opacity-50">
-              Close
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="flex items-center px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50"
-            >
-              <Save size={16} className="mr-1" /> {saving ? 'Saving…' : 'Save changes'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 };
 
