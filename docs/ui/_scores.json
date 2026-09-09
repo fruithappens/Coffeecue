@@ -17,9 +17,9 @@
     "selects": 0,
     "inputs": 0,
     "grey": 0,
-    "legacy": 6,
-    "cq": 108,
-    "old": 1
+    "legacy": 0,
+    "cq": 117,
+    "old": 0
   },
   {
     "hash": "menu/stock",
@@ -172,7 +172,7 @@
     "inputs": 0,
     "grey": 0,
     "legacy": 0,
-    "cq": 687,
+    "cq": 693,
     "old": 0
   },
   {
@@ -204,8 +204,8 @@
     "selects": 0,
     "inputs": 1,
     "grey": 0,
-    "legacy": 3,
-    "cq": 101,
+    "legacy": 0,
+    "cq": 104,
     "old": 1
   },
   {

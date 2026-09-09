@@ -1857,14 +1857,25 @@ const BaristaInterface = () => {
   };
   
     // Dismissible Info Panel Component
-  const DismissibleInfoPanel = ({ id, title, message, extraContent, borderColor = 'green', bgColor = 'green', isDismissed, onDismiss }) => {
+  // `tone` replaces the old borderColor/bgColor pair, which built its classes
+  // as `bg-${bgColor}-100`. Tailwind only generates classes it can SEE in the
+  // source, so a constructed name works purely by accident -- whenever that
+  // literal happens to appear in some other file. Any tone nobody else used
+  // rendered with no colour at all.
+  const PANEL_TONE = {
+    ok: 'bg-cq-ready-wash border-cq-ready text-cq-ready',
+    warn: 'bg-cq-warn-wash border-cq-warn text-cq-warn',
+    bad: 'bg-cq-alert-wash border-cq-alert text-cq-alert',
+    info: 'bg-cq-caramel-wash border-cq-caramel text-cq-caramel-deep',
+  };
+  const DismissibleInfoPanel = ({ id, title, message, extraContent, tone = 'ok', isDismissed, onDismiss }) => {
     if (isDismissed) return null;
-    
+
     return (
-      <div className={`bg-${bgColor}-100 border-l-4 border-${borderColor}-500 text-${borderColor}-700 p-2 mb-3 relative`}>
+      <div className={`${PANEL_TONE[tone] || PANEL_TONE.ok} border-l-4 rounded-cq-md p-2.5 mb-3 relative`}>
         <div className="flex">
           <div className="py-1">
-            <svg className={`fill-current h-5 w-5 text-${borderColor}-500 mr-2`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+            <svg className="fill-current h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
               <path d="M2.93 17.07A10 10 0 1 1 17.07 2.93 10 10 0 0 1 2.93 17.07zm12.73-1.41A8 8 0 1 0 4.34 4.34a8 8 0 0 0 11.32 11.32zM9 11V9h2v6H9v-4zm0-6h2v2H9V5z"/>
             </svg>
           </div>
@@ -2427,12 +2438,10 @@ const BaristaInterface = () => {
         {!loading && activeTab === 'schedule' && (
           <div className="p-4">
             {/* API Not Implemented Notification */}
-            <DismissibleInfoPanel
+            <DismissibleInfoPanel tone="info"
               id="scheduleInfoPanel"
               title="Schedule Management Available in Organiser"
               message="Create and manage schedules in the Organiser interface. Go to Organiser → Schedule to add shifts for today."
-              borderColor="blue"
-              bgColor="blue"
               isDismissed={dismissedPanels.scheduleInfoPanel}
               onDismiss={dismissPanel}
             />

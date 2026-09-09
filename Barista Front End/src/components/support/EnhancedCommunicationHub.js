@@ -409,7 +409,7 @@ const EnhancedCommunicationHub = () => {
               disabled={!channel.enabled}
               className={`px-4 py-2 font-medium border-b-2 transition-colors flex items-center space-x-2 ${
                 activeChannel === channel.id
-                  ? `text-${channel.color}-600 border-${channel.color}-600`
+                  ? 'text-cq-caramel-deep border-cq-caramel'
                   : channel.enabled
                     ? 'text-cq-ink-3 border-transparent hover:text-cq-ink-2'
                     : 'text-cq-line cursor-not-allowed'
@@ -595,7 +595,7 @@ const EnhancedCommunicationHub = () => {
                         : template.template}
                     </p>
                     <div className="flex items-center justify-between">
-                      <span className={`inline-flex items-center px-2 py-1 rounded text-xs bg-${getChannelColor(template.channel)}-100 text-${getChannelColor(template.channel)}-700`}>
+                      <span className={'inline-flex items-center px-2 py-1 rounded-cq-sm text-xs bg-cq-caramel-wash text-cq-caramel-deep'}>
                         {template.channel}
                       </span>
                       <ChevronRight className="w-4 h-4 text-cq-ink-3" />

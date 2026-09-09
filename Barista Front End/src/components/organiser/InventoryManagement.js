@@ -26,6 +26,18 @@ const INVENTORY_TO_CATALOG = {
  * Comprehensive Inventory Management Component
  * Allows organizers to create and manage all inventory items by category
  */
+
+// Category colours were built as `bg-${category.color}-100`. Tailwind only
+// generates classes it can SEE in the source, so a constructed name works
+// solely by accident -- when the same literal happens to appear in another
+// file. text-teal-600 did not, and that category's colour has been silently
+// dead. An explicit map is visible to the build AND on the palette.
+//
+// Categories are told apart by icon and name; the tint is a quiet backdrop,
+// not a code to learn.
+const CAT_TINT = 'bg-cq-caramel-wash border border-cq-caramel';
+const CAT_INK = 'text-cq-caramel-deep';
+
 const InventoryManagement = () => {
   // Define inventory categories
   const categories = {
@@ -454,13 +466,13 @@ const InventoryManagement = () => {
                   onClick={() => setActiveCategory(categoryKey)}
                   className={`w-full text-left p-3 rounded-md transition-colors ${
                     activeCategory === categoryKey
-                      ? `bg-${category.color}-100 border border-${category.color}-300`
+                      ? CAT_TINT
                       : 'bg-cq-wash hover:bg-cq-wash'
                   }`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
-                      <span className={`text-${category.color}-600 mr-2`}>
+                      <span className={`${CAT_INK} mr-2`}>
                         {category.icon}
                       </span>
                       <span className="font-medium">{category.name}</span>
@@ -480,7 +492,7 @@ const InventoryManagement = () => {
           {/* Header */}
           <div className="flex justify-between items-center mb-4">
             <div className="flex items-center">
-              <span className={`text-${categories[activeCategory].color}-600 mr-2`}>
+              <span className={`${CAT_INK} mr-2`}>
                 {categories[activeCategory].icon}
               </span>
               <h3 className="text-xl font-semibold">

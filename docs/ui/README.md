@@ -22,11 +22,15 @@ setting is wrong or the paragraph belongs in Help.
 A converted screen reads **legacy 0**. Nothing here is a judgement call — the
 numbers come from the live DOM, swept by `scratchpad/capture/ui_sweep.js`.
 
-Last swept: 2026-09-09 · **27 of 30 done**
+Last swept: 2026-09-09 · **28 of 30 done**
 
 ---
 
-## Done (27)
+## Done (28)
+
+### Menu · Event Inventory
+
+![Menu · Event Inventory](menu-inventory.png)
 
 ### Menu · Event Stock
 
@@ -138,12 +142,11 @@ Last swept: 2026-09-09 · **27 of 30 done**
 
 ---
 
-## Still to do (3), worst first
+## Still to do (2), worst first
 
 | Screen | legacy | cq | selects | inputs |
 | --- | ---: | ---: | ---: | ---: |
 | [Quick Setup](quickSetup.png) | 72 | 31 | 4 | 43 |
-| [Menu · Event Inventory](menu-inventory.png) | 6 | 108 | 0 | 0 |
-| [Messages · Text blast](messages-broadcast.png) | 3 | 101 | 0 | 1 |
+| [Messages · Text blast](messages-broadcast.png) | 0 | 104 | 0 | 1 |
 
 Shots of these are in this folder too — they are the *before*.

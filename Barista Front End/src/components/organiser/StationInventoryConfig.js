@@ -782,7 +782,7 @@ const StationInventoryConfig = ({ stations }) => {
                       <div className="flex items-center space-x-2">
                         <span className={`px-2 py-1 text-xs rounded-full ${
                           categories[item.category] 
-                            ? `bg-${categories[item.category].color}-100 text-${categories[item.category].color}-800`
+                            ? 'bg-cq-caramel-wash text-cq-caramel-deep'
                             : 'bg-cq-wash text-cq-roast'
                         }`}>
                           {item.categoryName}
