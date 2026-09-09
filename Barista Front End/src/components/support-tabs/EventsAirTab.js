@@ -13,17 +13,17 @@ import { fetchEventAccess, normalizeCode } from '../../utils/eventGate';
 const api = new ApiServiceClass();
 
 const STATUS_TONES = {
-  processed: 'bg-green-100 text-green-700',
-  received: 'bg-blue-100 text-blue-700',
-  processing: 'bg-blue-100 text-blue-700',
-  duplicate: 'bg-gray-200 text-gray-600',
-  ignored: 'bg-gray-100 text-gray-500',
-  failed: 'bg-red-100 text-red-700',
+  processed: 'bg-cq-ready-wash text-cq-ready',
+  received: 'bg-cq-caramel-wash text-cq-caramel-deep',
+  processing: 'bg-cq-caramel-wash text-cq-caramel-deep',
+  duplicate: 'bg-cq-wash text-cq-ink-2',
+  ignored: 'bg-cq-wash text-cq-ink-3',
+  failed: 'bg-cq-alert-wash text-cq-alert',
 };
 
 const Row = ({ label, children }) => (
   <div className="flex justify-between py-1 text-sm border-b last:border-0">
-    <span className="text-gray-500">{label}</span>
+    <span className="text-cq-ink-3">{label}</span>
     <span className="font-medium text-right">{children}</span>
   </div>
 );
@@ -55,17 +55,17 @@ const EventAccessCard = () => {
     } finally { setSaving(false); }
   };
   return (
-    <div className="bg-white rounded-lg shadow-md p-4">
+    <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4">
       <h3 className="text-lg font-bold mb-2">Event access code</h3>
-      <p className="text-sm text-gray-500 mb-3">
+      <p className="text-sm text-cq-ink-3 mb-3">
         The one code that unlocks ordering. Use the <strong>same code attendees use for
         the EA app</strong> so it's consistent everywhere. (CupQ can't read the EA app's
         code automatically, so set it here.)
       </p>
       <label className="block text-sm mb-1">
-        <span className="text-gray-600">Event code</span>
+        <span className="text-cq-ink-2">Event code</span>
         <input
-          className="mt-1 w-full border rounded px-2 py-1.5"
+          className="mt-1 w-full border-2 border-cq-line rounded-cq-md bg-cq-milk px-2 py-1.5"
           value={code}
           placeholder="e.g. treenet26"
           autoCapitalize="none" autoCorrect="off" spellCheck={false}
@@ -73,9 +73,9 @@ const EventAccessCard = () => {
         />
       </label>
       {clean && (
-        <p className="text-sm text-gray-600 mb-2">
-          Shareable link: <code className="bg-gray-100 px-1 py-0.5 rounded">{origin}/{clean}</code>
-          <span className="text-gray-400"> — also the code typed on <code>{origin}/my</code></span>
+        <p className="text-sm text-cq-ink-2 mb-2">
+          Shareable link: <code className="bg-cq-wash px-1 py-0.5 rounded">{origin}/{clean}</code>
+          <span className="text-cq-ink-3"> — also the code typed on <code>{origin}/my</code></span>
         </p>
       )}
       <label className="flex items-start gap-2 text-sm mb-3">
@@ -88,7 +88,7 @@ const EventAccessCard = () => {
         </span>
       </label>
       <button
-        className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700 disabled:opacity-40"
+        className="bg-cq-roast text-white px-3 py-1.5 rounded text-sm hover:bg-cq-caramel-deep disabled:opacity-40"
         disabled={saving || !loaded}
         onClick={save}
       >
@@ -122,9 +122,9 @@ const EmbedCard = () => {
     }
   };
   return (
-    <div className="bg-white rounded-lg shadow-md p-4">
+    <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4">
       <h3 className="text-lg font-bold mb-2">Embed code for EventsAir</h3>
-      <p className="text-sm text-gray-500 mb-2">
+      <p className="text-sm text-cq-ink-3 mb-2">
         Embed the coffee ordering page inside the EventsAir attendee app.
         {code
           ? ' The event code is included, so attendees already in the EA app aren’t asked for it again — re-copy this if you ever change the event code.'
@@ -136,19 +136,19 @@ const EmbedCard = () => {
         rows={4}
         onFocus={(e) => e.target.select()}
         onClick={(e) => e.target.select()}
-        className="w-full border rounded px-2 py-1.5 text-xs font-mono bg-gray-50 resize-none"
+        className="w-full border-2 border-cq-line rounded-cq-md bg-cq-milk px-2 py-1.5 text-xs font-mono bg-cq-wash resize-none"
       />
       <button
-        className="mt-2 inline-flex items-center gap-1.5 bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700"
+        className="mt-2 inline-flex items-center gap-1.5 bg-cq-roast text-white px-3 py-1.5 rounded text-sm hover:bg-cq-caramel-deep"
         onClick={copy}
       >
         <Copy size={14} /> Copy embed code
       </button>
       <div className="mt-4 border-t pt-3">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+        <p className="text-xs font-semibold text-cq-ink-3 uppercase tracking-wide mb-1.5">
           Add it in EventsAir
         </p>
-        <ol className="text-sm text-gray-600 list-decimal pl-5 space-y-1">
+        <ol className="text-sm text-cq-ink-2 list-decimal pl-5 space-y-1">
           <li>Open your EventsAir <strong>attendee app / portal</strong> and add or edit a <strong>page</strong> (a Static Content / HTML page).</li>
           <li>Insert an <strong>HTML</strong> element to open the HTML editor.</li>
           <li>In the editor, go to <strong>Tools → Source Code</strong>.</li>
@@ -225,10 +225,10 @@ const CredentialsCard = ({ onChanged }) => {
 
   const field = (key, label, type = 'text', placeholder = '') => (
     <label className="block text-sm mb-2">
-      <span className="text-gray-600">{label}</span>
+      <span className="text-cq-ink-2">{label}</span>
       <input
         type={type}
-        className="mt-1 w-full border rounded px-2 py-1.5"
+        className="mt-1 w-full border-2 border-cq-line rounded-cq-md bg-cq-milk px-2 py-1.5"
         value={draft[key]}
         placeholder={placeholder}
         onChange={e => setDraft(d => ({ ...d, [key]: e.target.value }))}
@@ -237,9 +237,9 @@ const CredentialsCard = ({ onChanged }) => {
   );
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-4">
+    <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4">
       <h3 className="text-lg font-bold mb-2">EventsAir API credentials</h3>
-      <p className="text-sm text-gray-500 mb-3">
+      <p className="text-sm text-cq-ink-3 mb-3">
         Paste the API key details from EventsAir here, Save, then Test
         connection. Once connected, Inspect schema produces the report that
         finalises the integration queries.
@@ -249,11 +249,11 @@ const CredentialsCard = ({ onChanged }) => {
       {field('tenant_endpoint', 'Tenant GraphQL endpoint', 'text', 'https://…eventsair…/graphql')}
       {field('event_id', 'EA event ID')}
       <div className="flex space-x-2 mt-3">
-        <button className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700 disabled:opacity-40"
+        <button className="bg-cq-roast text-white px-3 py-1.5 rounded text-sm hover:bg-cq-caramel-deep disabled:opacity-40"
                 disabled={busy} onClick={save}>Save</button>
-        <button className="bg-gray-200 text-gray-700 px-3 py-1.5 rounded text-sm hover:bg-gray-300 disabled:opacity-40"
+        <button className="bg-cq-wash text-cq-ink-2 px-3 py-1.5 rounded text-sm hover:bg-cq-line disabled:opacity-40"
                 disabled={busy} onClick={testConnection}>Test connection</button>
-        <button className="bg-purple-600 text-white px-3 py-1.5 rounded text-sm hover:bg-purple-700 disabled:opacity-40"
+        <button className="bg-cq-roast text-white px-3 py-1.5 rounded text-sm hover:bg-cq-roast disabled:opacity-40"
                 disabled={busy} onClick={inspectSchema}>Inspect schema</button>
       </div>
       {report && (
@@ -261,7 +261,7 @@ const CredentialsCard = ({ onChanged }) => {
           <div className="flex items-center justify-between">
             <h4 className="font-semibold text-sm">Schema report</h4>
             <button
-              className="text-sm text-blue-600 underline"
+              className="text-sm text-cq-caramel-deep underline"
               onClick={() => {
                 navigator.clipboard.writeText(JSON.stringify(report, null, 2))
                   .then(() => showToast('Report copied to clipboard', 'success'));
@@ -273,7 +273,7 @@ const CredentialsCard = ({ onChanged }) => {
           <ul className="mt-1 text-sm list-disc ml-5">
             {(report.findings || []).map((f, i) => <li key={i}>{f}</li>)}
           </ul>
-          <pre className="mt-2 bg-gray-50 border rounded p-2 text-xs overflow-x-auto max-h-64 overflow-y-auto">
+          <pre className="mt-2 bg-cq-wash border-2 border-cq-line rounded-cq-md bg-cq-milk p-2 text-xs overflow-x-auto max-h-64 overflow-y-auto">
             {JSON.stringify(report, null, 2)}
           </pre>
         </div>
@@ -349,11 +349,11 @@ const EventsAirTab = () => {
 
   return (
     <div className="p-4 space-y-6 max-w-4xl">
-      <div className="bg-white rounded-lg shadow-md p-4">
+      <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-xl font-bold flex items-center">
             <CalendarClock size={20} className="mr-2" /> EventsAir Survey Channel
-            <span className="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded uppercase">Beta</span>
+            <span className="ml-2 text-xs bg-cq-caramel-wash text-cq-caramel-deep px-2 py-0.5 rounded uppercase">Beta</span>
           </h2>
           <div className="flex items-center gap-3">
             <span className="inline-flex items-center gap-1.5 text-sm font-medium"
@@ -361,7 +361,7 @@ const EventsAirTab = () => {
               <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: light.c }} />
               {light.t}
             </span>
-            <button className="text-gray-500 hover:text-gray-700 flex items-center text-sm"
+            <button className="text-cq-ink-3 hover:text-cq-ink-2 flex items-center text-sm"
                     onClick={refresh}>
               <RefreshCw size={16} className="mr-1" /> Refresh
             </button>
@@ -369,11 +369,11 @@ const EventsAirTab = () => {
         </div>
 
         {!status ? (
-          <p className="text-sm text-gray-500">Loading…</p>
+          <p className="text-sm text-cq-ink-3">Loading…</p>
         ) : (
           <>
             {!enabled && (
-              <div className="mb-3 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded p-3">
+              <div className="mb-3 bg-cq-caramel-wash border border-cq-caramel text-cq-caramel-deep text-sm rounded p-3">
                 Channel is <strong>disabled</strong> (set <code>EA_SURVEY_CHANNEL_ENABLED=true</code>{' '}
                 on Railway to activate). Attendee app orders are off; SMS ordering is unaffected.
               </div>
@@ -401,7 +401,7 @@ const EventsAirTab = () => {
                 their phone attached to the order, their handset getting
                 the "coffee is ready" text. Hence a switch the operator
                 sets per event, defaulting to off. */}
-            <div className="mt-3 rounded border border-gray-200 p-3">
+            <div className="mt-3 rounded border border-cq-line p-3">
               <label className="flex items-start gap-3 text-sm cursor-pointer">
                 <input
                   type="checkbox"
@@ -411,17 +411,17 @@ const EventsAirTab = () => {
                   onChange={(e) => setBadge(e.target.checked)}
                 />
                 <span>
-                  <span className="font-medium text-gray-800">
+                  <span className="font-medium text-cq-roast">
                     Let attendees identify by badge number
                   </span>
-                  <span className="block text-gray-600 mt-0.5">
+                  <span className="block text-cq-ink-2 mt-0.5">
                     Only turn this on when the {status?.mirror_count ?? 0} contacts
                     above are <strong>this event&apos;s</strong> attendees. While it
                     is off, the ordering page asks for a mobile number instead and
                     never mentions badges.
                   </span>
                   {badgeLookup && (status?.mirror_count ?? 0) === 0 && (
-                    <span className="block mt-1 text-amber-700">
+                    <span className="block mt-1 text-cq-caramel-deep">
                       The mirror is empty — nobody will be found.
                     </span>
                   )}
@@ -439,14 +439,14 @@ const EventsAirTab = () => {
                 .map(k => `${today[k] || 0} ${k}`).join(' · ')}
             </Row>
             {(today.failed || 0) > 0 && (
-              <div className="mt-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded p-2">
+              <div className="mt-2 bg-cq-alert-wash border border-cq-alert text-cq-alert text-sm rounded p-2">
                 {today.failed} webhook{today.failed === 1 ? '' : 's'} failed processing today —
                 details in the log below.
               </div>
             )}
             <div className="mt-3 flex space-x-2">
               <button
-                className="bg-gray-200 text-gray-700 px-3 py-1.5 rounded text-sm hover:bg-gray-300 disabled:opacity-40"
+                className="bg-cq-wash text-cq-ink-2 px-3 py-1.5 rounded text-sm hover:bg-cq-line disabled:opacity-40"
                 disabled={!enabled || busy}
                 onClick={async () => {
                   setBusy(true);
@@ -462,7 +462,7 @@ const EventsAirTab = () => {
                 Sync attendees
               </button>
               <button
-                className="bg-purple-600 text-white px-3 py-1.5 rounded text-sm hover:bg-purple-700 disabled:opacity-40 flex items-center"
+                className="bg-cq-roast text-white px-3 py-1.5 rounded text-sm hover:bg-cq-roast disabled:opacity-40 flex items-center"
                 disabled={!enabled || busy}
                 title="Runs the full worker path off a fixture — expect a queued order with the APP badge. No phone attached, so no SMS is sent."
                 onClick={async () => {
@@ -490,15 +490,15 @@ const EventsAirTab = () => {
 
       <EmbedCard />
 
-      <div className="bg-white rounded-lg shadow-md p-4">
+      <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4">
         <h3 className="text-lg font-bold mb-2">Webhook log (last 10)</h3>
         {log.length === 0 ? (
-          <p className="text-sm text-gray-500">No webhooks received yet.</p>
+          <p className="text-sm text-cq-ink-3">No webhooks received yet.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-gray-500 border-b">
+                <tr className="text-left text-cq-ink-3 border-b">
                   <th className="py-2 pr-3">Received</th>
                   <th className="py-2 pr-3">Type</th>
                   <th className="py-2 pr-3">Status</th>
@@ -508,15 +508,15 @@ const EventsAirTab = () => {
               <tbody>
                 {log.map(r => (
                   <tr key={r.correlation_id} className="border-b last:border-0">
-                    <td className="py-2 pr-3 whitespace-nowrap text-gray-500">{r.received_at}</td>
+                    <td className="py-2 pr-3 whitespace-nowrap text-cq-ink-3">{r.received_at}</td>
                     <td className="py-2 pr-3">{r.event_type || '—'}</td>
                     <td className="py-2 pr-3">
                       <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
-                        STATUS_TONES[r.status] || 'bg-gray-100 text-gray-600'}`}>
+                        STATUS_TONES[r.status] || 'bg-cq-wash text-cq-ink-2'}`}>
                         {r.status}
                       </span>
                     </td>
-                    <td className="py-2 text-red-600 text-xs max-w-[20rem] truncate" title={r.error || ''}>
+                    <td className="py-2 text-cq-alert text-xs max-w-[20rem] truncate" title={r.error || ''}>
                       {r.error || ''}
                     </td>
                   </tr>

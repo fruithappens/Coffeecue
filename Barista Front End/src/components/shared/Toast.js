@@ -23,14 +23,14 @@ const Toast = ({ message, type = 'info', duration = 3000, onClose, standalone = 
   };
 
   const colors = {
-    success: 'bg-green-500',
-    error: 'bg-red-500',
-    warning: 'bg-amber-500',
-    info: 'bg-blue-500'
+    success: 'bg-cq-ready',
+    error: 'bg-cq-alert',
+    warning: 'bg-cq-caramel',
+    info: 'bg-cq-caramel'
   };
 
   return (
-    <div className={`${standalone ? 'fixed top-4 right-4 z-50' : 'relative'} ${colors[type]} text-white px-4 py-3 rounded-lg shadow-lg flex items-center space-x-3 animate-slide-in`}>
+    <div className={`${standalone ? 'fixed top-4 right-4 z-50' : 'relative'} ${colors[type]} text-white px-4 py-3 rounded-cq-md shadow-lg flex items-center space-x-3 animate-slide-in`}>
       {icons[type]}
       <span className="flex-1">{message}</span>
       <button

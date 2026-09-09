@@ -409,10 +409,10 @@ const SMSTestSimulator = () => {
   };
   
   return (
-    <div className="bg-white rounded-lg shadow-lg p-6">
+    <div className="bg-cq-milk rounded-cq-lg shadow-cq-card-lg p-6">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-800 flex items-center">
-          <MessageSquare className="mr-3 text-blue-600" />
+        <h2 className="text-2xl font-bold text-cq-roast flex items-center">
+          <MessageSquare className="mr-3 text-cq-caramel-deep" />
           SMS Order Test Simulator
         </h2>
         <button
@@ -420,8 +420,8 @@ const SMSTestSimulator = () => {
           disabled={testResults.isRunning}
           className={`px-6 py-2 rounded-md flex items-center ${
             testResults.isRunning 
-              ? 'bg-gray-300 cursor-not-allowed' 
-              : 'bg-green-500 hover:bg-green-600 text-white'
+              ? 'bg-cq-line cursor-not-allowed' 
+              : 'bg-cq-ready hover:bg-cq-ready text-white'
           }`}
         >
           {testResults.isRunning ? (
@@ -441,7 +441,7 @@ const SMSTestSimulator = () => {
       {/* Honest-labelling banner: every stage of this tool runs in the
           browser against mock data. Without this, "Run Test → all green"
           reads like a real end-to-end SMS test, which it is not. */}
-      <div className="mb-6 p-3 bg-amber-50 border border-amber-300 rounded-lg text-sm text-amber-800">
+      <div className="mb-6 p-3 bg-cq-caramel-wash border border-cq-caramel rounded-cq-md text-sm text-cq-caramel-deep">
         <strong>Simulation only.</strong> This walkthrough runs entirely in your
         browser with mock data — no SMS is sent, no order is created, and the
         backend is never called. Use it to demo the order flow. To test the
@@ -453,34 +453,34 @@ const SMSTestSimulator = () => {
         {/* Test Configuration */}
         <div className="space-y-6">
           {/* Customer Configuration */}
-          <div className="bg-gray-50 p-4 rounded-lg">
+          <div className="bg-cq-wash p-4 rounded-cq-md">
             <h3 className="text-lg font-semibold mb-4 flex items-center">
-              <Users className="mr-2 text-gray-600" size={20} />
+              <Users className="mr-2 text-cq-ink-2" size={20} />
               Customer Configuration
             </h3>
             
             <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                   Phone Number
                 </label>
                 <input
                   type="tel"
                   value={testConfig.customerPhone}
                   onChange={(e) => setTestConfig({...testConfig, customerPhone: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  className="w-full px-3 py-2 border border-cq-line rounded-md"
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                   Customer Name
                 </label>
                 <input
                   type="text"
                   value={testConfig.customerName}
                   onChange={(e) => setTestConfig({...testConfig, customerName: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  className="w-full px-3 py-2 border border-cq-line rounded-md"
                 />
               </div>
               
@@ -492,7 +492,7 @@ const SMSTestSimulator = () => {
                     onChange={(e) => setTestConfig({...testConfig, isVIP: e.target.checked})}
                     className="mr-2"
                   />
-                  <Crown className="mr-1 text-yellow-500" size={16} />
+                  <Crown className="mr-1 text-cq-warn" size={16} />
                   VIP Customer
                 </label>
                 
@@ -509,7 +509,7 @@ const SMSTestSimulator = () => {
               
               {testConfig.isGroupOrder && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                     Group Size
                   </label>
                   <input
@@ -517,20 +517,20 @@ const SMSTestSimulator = () => {
                     min="2"
                     value={testConfig.groupSize}
                     onChange={(e) => setTestConfig({...testConfig, groupSize: parseInt(e.target.value) || 2})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    className="w-full px-3 py-2 border border-cq-line rounded-md"
                   />
                 </div>
               )}
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                   <Globe className="inline mr-1" size={16} />
                   Language
                 </label>
                 <select
                   value={testConfig.language}
                   onChange={(e) => setTestConfig({...testConfig, language: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  className="w-full px-3 py-2 border border-cq-line rounded-md"
                 >
                   <option value="en">English</option>
                   <option value="es">Spanish</option>
@@ -541,21 +541,21 @@ const SMSTestSimulator = () => {
           </div>
           
           {/* Order Configuration */}
-          <div className="bg-gray-50 p-4 rounded-lg">
+          <div className="bg-cq-wash p-4 rounded-cq-md">
             <h3 className="text-lg font-semibold mb-4 flex items-center">
-              <Coffee className="mr-2 text-gray-600" size={20} />
+              <Coffee className="mr-2 text-cq-ink-2" size={20} />
               Order Details
             </h3>
             
             <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                   Coffee Type
                 </label>
                 <select
                   value={testConfig.coffeeType}
                   onChange={(e) => setTestConfig({...testConfig, coffeeType: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  className="w-full px-3 py-2 border border-cq-line rounded-md"
                 >
                   {menuItems.map(item => (
                     <option key={item.id} value={item.id}>{item.name}</option>
@@ -565,13 +565,13 @@ const SMSTestSimulator = () => {
               
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                     Size
                   </label>
                   <select
                     value={testConfig.size}
                     onChange={(e) => setTestConfig({...testConfig, size: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    className="w-full px-3 py-2 border border-cq-line rounded-md"
                   >
                     <option value="small">Small</option>
                     <option value="medium">Medium</option>
@@ -580,7 +580,7 @@ const SMSTestSimulator = () => {
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                     Quantity
                   </label>
                   <input
@@ -588,19 +588,19 @@ const SMSTestSimulator = () => {
                     min="1"
                     value={testConfig.quantity}
                     onChange={(e) => setTestConfig({...testConfig, quantity: parseInt(e.target.value) || 1})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    className="w-full px-3 py-2 border border-cq-line rounded-md"
                   />
                 </div>
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                   Milk Type
                 </label>
                 <select
                   value={testConfig.milkType}
                   onChange={(e) => setTestConfig({...testConfig, milkType: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  className="w-full px-3 py-2 border border-cq-line rounded-md"
                 >
                   {availableMilk.map(milk => (
                     <option key={milk.id} value={milk.name.toLowerCase()}>
@@ -611,13 +611,13 @@ const SMSTestSimulator = () => {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                   Special Instructions
                 </label>
                 <textarea
                   value={testConfig.specialInstructions}
                   onChange={(e) => setTestConfig({...testConfig, specialInstructions: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  className="w-full px-3 py-2 border border-cq-line rounded-md"
                   rows="2"
                   placeholder="e.g., Extra hot, no foam..."
                 />
@@ -626,15 +626,15 @@ const SMSTestSimulator = () => {
           </div>
           
           {/* System Configuration */}
-          <div className="bg-gray-50 p-4 rounded-lg">
+          <div className="bg-cq-wash p-4 rounded-cq-md">
             <h3 className="text-lg font-semibold mb-4 flex items-center">
-              <Settings className="mr-2 text-gray-600" size={20} />
+              <Settings className="mr-2 text-cq-ink-2" size={20} />
               System Configuration
             </h3>
             
             <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                   <Calendar className="inline mr-1" size={16} />
                   Test Date/Time (Local)
                 </label>
@@ -655,19 +655,19 @@ const SMSTestSimulator = () => {
                     const localDate = e.target.value;
                     setTestConfig({...testConfig, testDateTime: localDate});
                   }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  className="w-full px-3 py-2 border border-cq-line rounded-md"
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                   <Package className="inline mr-1" size={16} />
                   Stock Levels
                 </label>
                 <select
                   value={testConfig.testStockLevels}
                   onChange={(e) => setTestConfig({...testConfig, testStockLevels: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  className="w-full px-3 py-2 border border-cq-line rounded-md"
                 >
                   <option value="normal">Normal</option>
                   <option value="low">Low</option>
@@ -677,13 +677,13 @@ const SMSTestSimulator = () => {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                   Active Stations
                 </label>
                 <select
                   value={testConfig.activeStations}
                   onChange={(e) => setTestConfig({...testConfig, activeStations: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  className="w-full px-3 py-2 border border-cq-line rounded-md"
                 >
                   <option value="all">All Stations</option>
                   <option value="some">Selected Stations</option>
@@ -693,10 +693,10 @@ const SMSTestSimulator = () => {
               
               {testConfig.activeStations === 'some' && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                     Select Stations
                   </label>
-                  <div className="space-y-2 max-h-32 overflow-y-auto border border-gray-200 rounded p-2">
+                  <div className="space-y-2 max-h-32 overflow-y-auto border border-cq-line rounded p-2">
                     {stations.map(station => (
                       <label key={station.id} className="flex items-center">
                         <input
@@ -725,13 +725,13 @@ const SMSTestSimulator = () => {
               )}
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                   Event Phase
                 </label>
                 <select
                   value={testConfig.eventPhase}
                   onChange={(e) => setTestConfig({...testConfig, eventPhase: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  className="w-full px-3 py-2 border border-cq-line rounded-md"
                 >
                   <option value="opening">Opening (Low Traffic)</option>
                   <option value="normal">Normal</option>
@@ -748,7 +748,7 @@ const SMSTestSimulator = () => {
                   onChange={(e) => setTestConfig({...testConfig, simulateDelay: e.target.checked})}
                   className="mr-2"
                 />
-                <label htmlFor="simulateDelay" className="text-sm text-gray-700">
+                <label htmlFor="simulateDelay" className="text-sm text-cq-ink-2">
                   Simulate Processing Delays ({testConfig.delaySeconds}s per stage)
                 </label>
               </div>
@@ -757,15 +757,15 @@ const SMSTestSimulator = () => {
         </div>
         
         {/* Test Results */}
-        <div className="bg-gray-50 rounded-lg p-4">
+        <div className="bg-cq-wash rounded-cq-md p-4">
           <h3 className="text-lg font-semibold mb-4 flex items-center">
-            <Activity className="mr-2 text-gray-600" size={20} />
+            <Activity className="mr-2 text-cq-ink-2" size={20} />
             Test Results
           </h3>
           
           {testResults.stages.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
-              <MessageSquare size={48} className="mx-auto mb-4 text-gray-300" />
+            <div className="text-center py-12 text-cq-ink-3">
+              <MessageSquare size={48} className="mx-auto mb-4 text-cq-line" />
               <p>Configure test parameters and click "Run Test" to begin</p>
             </div>
           ) : (
@@ -774,26 +774,26 @@ const SMSTestSimulator = () => {
                 <div
                   key={index}
                   className={`p-3 rounded-md border ${
-                    stage.status === 'running' ? 'bg-blue-50 border-blue-200' :
-                    stage.status === 'success' ? 'bg-green-50 border-green-200' :
-                    stage.status === 'warning' ? 'bg-yellow-50 border-yellow-200' :
-                    stage.status === 'error' ? 'bg-red-50 border-red-200' :
-                    'bg-gray-50 border-gray-200'
+                    stage.status === 'running' ? 'bg-cq-caramel-wash border-cq-line' :
+                    stage.status === 'success' ? 'bg-cq-ready-wash border-cq-ready' :
+                    stage.status === 'warning' ? 'bg-cq-warn-wash border-cq-warn' :
+                    stage.status === 'error' ? 'bg-cq-alert-wash border-cq-alert' :
+                    'bg-cq-wash border-cq-line'
                   }`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-start">
-                      {stage.status === 'running' && <RefreshCw className="mr-2 mt-0.5 animate-spin text-blue-500" size={16} />}
-                      {stage.status === 'success' && <CheckCircle className="mr-2 mt-0.5 text-green-500" size={16} />}
-                      {stage.status === 'warning' && <AlertCircle className="mr-2 mt-0.5 text-yellow-500" size={16} />}
-                      {stage.status === 'error' && <AlertCircle className="mr-2 mt-0.5 text-red-500" size={16} />}
+                      {stage.status === 'running' && <RefreshCw className="mr-2 mt-0.5 animate-spin text-cq-caramel-deep" size={16} />}
+                      {stage.status === 'success' && <CheckCircle className="mr-2 mt-0.5 text-cq-ready" size={16} />}
+                      {stage.status === 'warning' && <AlertCircle className="mr-2 mt-0.5 text-cq-warn" size={16} />}
+                      {stage.status === 'error' && <AlertCircle className="mr-2 mt-0.5 text-cq-alert" size={16} />}
                       
                       <div className="flex-1">
-                        <h4 className="font-medium text-gray-800">{stage.stage}</h4>
+                        <h4 className="font-medium text-cq-roast">{stage.stage}</h4>
                         {typeof stage.details === 'string' ? (
-                          <p className="text-sm text-gray-600 mt-1">{stage.details}</p>
+                          <p className="text-sm text-cq-ink-2 mt-1">{stage.details}</p>
                         ) : (
-                          <div className="text-sm text-gray-600 mt-1">
+                          <div className="text-sm text-cq-ink-2 mt-1">
                             <pre className="whitespace-pre-wrap font-mono text-xs bg-white bg-opacity-50 p-2 rounded mt-1">
                               {JSON.stringify(stage.details, null, 2)}
                             </pre>
@@ -801,7 +801,7 @@ const SMSTestSimulator = () => {
                         )}
                       </div>
                     </div>
-                    <span className="text-xs text-gray-500">
+                    <span className="text-xs text-cq-ink-3">
                       {stage.timestamp.toLocaleTimeString()}
                     </span>
                   </div>
@@ -809,24 +809,24 @@ const SMSTestSimulator = () => {
               ))}
               
               {testResults.success && (
-                <div className="mt-4 p-4 bg-green-100 border border-green-300 rounded-md">
-                  <h4 className="font-semibold text-green-800 flex items-center">
+                <div className="mt-4 p-4 bg-cq-ready-wash border border-cq-ready rounded-md">
+                  <h4 className="font-semibold text-cq-ready flex items-center">
                     <CheckCircle className="mr-2" size={20} />
                     Test Completed Successfully
                   </h4>
-                  <p className="text-sm text-green-700 mt-1">
+                  <p className="text-sm text-cq-ready mt-1">
                     All stages passed. The order would be successfully processed.
                   </p>
                 </div>
               )}
               
               {testResults.error && (
-                <div className="mt-4 p-4 bg-red-100 border border-red-300 rounded-md">
-                  <h4 className="font-semibold text-red-800 flex items-center">
+                <div className="mt-4 p-4 bg-cq-alert-wash border border-cq-alert rounded-md">
+                  <h4 className="font-semibold text-cq-alert flex items-center">
                     <AlertCircle className="mr-2" size={20} />
                     Test Failed
                   </h4>
-                  <p className="text-sm text-red-700 mt-1">{testResults.error}</p>
+                  <p className="text-sm text-cq-alert mt-1">{testResults.error}</p>
                 </div>
               )}
             </div>
@@ -836,28 +836,28 @@ const SMSTestSimulator = () => {
       
       {/* Test Summary */}
       {testResults.stages.length > 0 && !testResults.isRunning && (
-        <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-          <h4 className="font-semibold text-blue-800 mb-2">Test Summary</h4>
+        <div className="mt-6 p-4 bg-cq-caramel-wash rounded-cq-md">
+          <h4 className="font-semibold text-cq-caramel-deep mb-2">Test Summary</h4>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
             <div>
-              <span className="text-gray-600">Total Stages:</span>
+              <span className="text-cq-ink-2">Total Stages:</span>
               <span className="ml-2 font-medium">{testResults.stages.length}</span>
             </div>
             <div>
-              <span className="text-gray-600">Successful:</span>
-              <span className="ml-2 font-medium text-green-600">
+              <span className="text-cq-ink-2">Successful:</span>
+              <span className="ml-2 font-medium text-cq-ready">
                 {testResults.stages.filter(s => s.status === 'success').length}
               </span>
             </div>
             <div>
-              <span className="text-gray-600">Warnings:</span>
-              <span className="ml-2 font-medium text-yellow-600">
+              <span className="text-cq-ink-2">Warnings:</span>
+              <span className="ml-2 font-medium text-cq-warn">
                 {testResults.stages.filter(s => s.status === 'warning').length}
               </span>
             </div>
             <div>
-              <span className="text-gray-600">Errors:</span>
-              <span className="ml-2 font-medium text-red-600">
+              <span className="text-cq-ink-2">Errors:</span>
+              <span className="ml-2 font-medium text-cq-alert">
                 {testResults.stages.filter(s => s.status === 'error').length}
               </span>
             </div>

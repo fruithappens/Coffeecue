@@ -219,14 +219,14 @@ const DiagnosticsTab = () => {
     switch (status) {
       case 'healthy':
       case 'passed':
-        return <CheckCircle className="h-5 w-5 text-green-500" />;
+        return <CheckCircle className="h-5 w-5 text-cq-ready" />;
       case 'warning':
-        return <AlertTriangle className="h-5 w-5 text-yellow-500" />;
+        return <AlertTriangle className="h-5 w-5 text-cq-warn" />;
       case 'error':
       case 'failed':
-        return <XCircle className="h-5 w-5 text-red-500" />;
+        return <XCircle className="h-5 w-5 text-cq-alert" />;
       default:
-        return <Clock className="h-5 w-5 text-gray-400 animate-spin" />;
+        return <Clock className="h-5 w-5 text-cq-ink-3 animate-spin" />;
     }
   };
 
@@ -270,7 +270,7 @@ const DiagnosticsTab = () => {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {Object.entries(diagnostics).map(([service, info]) => (
-              <div key={service} className="border rounded-lg p-4">
+              <div key={service} className="border-2 border-cq-line rounded-cq-md bg-cq-milk-cq-md p-4">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     {service === 'api' && <Server className="h-4 w-4" />}
@@ -286,7 +286,7 @@ const DiagnosticsTab = () => {
                 <Badge variant={getStatusBadge(info.status)} className="mb-2">
                   {info.status}
                 </Badge>
-                <p className="text-sm text-gray-600">{info.message}</p>
+                <p className="text-sm text-cq-ink-2">{info.message}</p>
               </div>
             ))}
           </div>
@@ -305,19 +305,19 @@ const DiagnosticsTab = () => {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="text-center">
               <p className="text-2xl font-bold">{performanceMetrics.apiResponseTime}ms</p>
-              <p className="text-sm text-gray-600">API Response</p>
+              <p className="text-sm text-cq-ink-2">API Response</p>
             </div>
             <div className="text-center">
               <p className="text-2xl font-bold">{performanceMetrics.dbQueryTime}ms</p>
-              <p className="text-sm text-gray-600">DB Query</p>
+              <p className="text-sm text-cq-ink-2">DB Query</p>
             </div>
             <div className="text-center">
               <p className="text-2xl font-bold">{performanceMetrics.memoryUsage}%</p>
-              <p className="text-sm text-gray-600">Memory Usage</p>
+              <p className="text-sm text-cq-ink-2">Memory Usage</p>
             </div>
             <div className="text-center">
               <p className="text-2xl font-bold">{performanceMetrics.cpuUsage}%</p>
-              <p className="text-sm text-gray-600">CPU Usage</p>
+              <p className="text-sm text-cq-ink-2">CPU Usage</p>
             </div>
           </div>
         </CardContent>
@@ -337,7 +337,7 @@ const DiagnosticsTab = () => {
               <select
                 value={selectedTest}
                 onChange={(e) => setSelectedTest(e.target.value)}
-                className="px-3 py-2 border rounded-md"
+                className="px-3 py-2 border-2 border-cq-line rounded-cq-md bg-cq-milk-md"
                 disabled={runningTest}
               >
                 <option value="all">All Tests</option>
@@ -357,7 +357,7 @@ const DiagnosticsTab = () => {
             </div>
 
             {testResults.length > 0 && (
-              <div className="border rounded-lg p-4 max-h-96 overflow-y-auto">
+              <div className="border-2 border-cq-line rounded-cq-md bg-cq-milk-cq-md p-4 max-h-96 overflow-y-auto">
                 <h3 className="font-medium mb-2">Test Results</h3>
                 <div className="space-y-2">
                   {testResults.map((result, index) => (
@@ -407,15 +407,15 @@ const DiagnosticsTab = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm max-h-96 overflow-y-auto">
+          <div className="bg-cq-roast-deep text-cq-cream p-4 rounded-cq-md font-mono text-sm max-h-96 overflow-y-auto">
             {logs.length === 0 ? (
-              <p className="text-gray-400">No logs available</p>
+              <p className="text-cq-ink-3">No logs available</p>
             ) : (
               logs.map((log, index) => (
                 <div key={index} className={`mb-1 ${
-                  log?.level === 'ERROR' ? 'text-red-400' :
-                  log?.level === 'WARN' ? 'text-yellow-400' :
-                  'text-gray-300'
+                  log?.level === 'ERROR' ? 'text-cq-alert' :
+                  log?.level === 'WARN' ? 'text-cq-warn' :
+                  'text-cq-line'
                 }`}>
                   [{log?.timestamp || 'Unknown'}] {log?.level || 'INFO'}: {log?.message || 'No message'}
                 </div>

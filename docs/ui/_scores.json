@@ -29,7 +29,7 @@
     "inputs": 0,
     "grey": 0,
     "legacy": 0,
-    "cq": 217,
+    "cq": 214,
     "old": 0
   },
   {
@@ -49,10 +49,10 @@
     "file": "stations.png",
     "selects": 0,
     "inputs": 0,
-    "grey": 2,
-    "legacy": 18,
-    "cq": 31,
-    "old": 5
+    "grey": 0,
+    "legacy": 0,
+    "cq": 50,
+    "old": 0
   },
   {
     "hash": "branding/logo",
@@ -124,12 +124,12 @@
     "hash": "users/access",
     "label": "People · Roles & access",
     "file": "users-access.png",
-    "selects": 1,
+    "selects": 0,
     "inputs": 0,
     "grey": 0,
-    "legacy": 6,
-    "cq": 45,
-    "old": 2
+    "legacy": 0,
+    "cq": 56,
+    "old": 0
   },
   {
     "hash": "live/readiness",
@@ -148,10 +148,10 @@
     "file": "live-board.png",
     "selects": 0,
     "inputs": 0,
-    "grey": 15,
-    "legacy": 54,
-    "cq": 35,
-    "old": 20
+    "grey": 0,
+    "legacy": 0,
+    "cq": 90,
+    "old": 0
   },
   {
     "hash": "live/metrics",
@@ -159,10 +159,10 @@
     "file": "live-metrics.png",
     "selects": 0,
     "inputs": 0,
-    "grey": 11,
-    "legacy": 42,
-    "cq": 35,
-    "old": 15
+    "grey": 0,
+    "legacy": 0,
+    "cq": 100,
+    "old": 0
   },
   {
     "hash": "orders/all",
@@ -172,7 +172,7 @@
     "inputs": 0,
     "grey": 0,
     "legacy": 0,
-    "cq": 735,
+    "cq": 675,
     "old": 0
   },
   {
@@ -201,23 +201,23 @@
     "hash": "messages/broadcast",
     "label": "Messages · Text blast",
     "file": "messages-broadcast.png",
-    "selects": 1,
-    "inputs": 7,
-    "grey": 7,
-    "legacy": 48,
-    "cq": 36,
-    "old": 23
+    "selects": 0,
+    "inputs": 6,
+    "grey": 3,
+    "legacy": 26,
+    "cq": 73,
+    "old": 13
   },
   {
     "hash": "messages/test",
     "label": "Messages · Test a text",
     "file": "messages-test.png",
-    "selects": 7,
-    "inputs": 7,
+    "selects": 0,
+    "inputs": 3,
     "grey": 0,
-    "legacy": 28,
-    "cq": 36,
-    "old": 21
+    "legacy": 0,
+    "cq": 70,
+    "old": 3
   },
   {
     "hash": "messages/blocked",
@@ -278,23 +278,23 @@
     "hash": "system/diagnostics",
     "label": "System · Diagnostics",
     "file": "system-diagnostics.png",
-    "selects": 1,
+    "selects": 0,
     "inputs": 0,
     "grey": 20,
-    "legacy": 53,
-    "cq": 48,
-    "old": 24
+    "legacy": 41,
+    "cq": 67,
+    "old": 20
   },
   {
     "hash": "eventsair",
     "label": "EventsAir",
     "file": "eventsair.png",
     "selects": 0,
-    "inputs": 7,
-    "grey": 5,
-    "legacy": 35,
-    "cq": 31,
-    "old": 17
+    "inputs": 2,
+    "grey": 0,
+    "legacy": 0,
+    "cq": 79,
+    "old": 2
   },
   {
     "hash": "settings",

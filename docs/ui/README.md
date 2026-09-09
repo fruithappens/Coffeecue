@@ -22,11 +22,11 @@ setting is wrong or the paragraph belongs in Help.
 A converted screen reads **legacy 0**. Nothing here is a judgement call — the
 numbers come from the live DOM, swept by `scratchpad/capture/ui_sweep.js`.
 
-Last swept: 2026-09-09 · **12 of 30 done**
+Last swept: 2026-09-09 · **18 of 30 done**
 
 ---
 
-## Done (12)
+## Done (18)
 
 ### Menu · Event Stock
 
@@ -35,6 +35,10 @@ Last swept: 2026-09-09 · **12 of 30 done**
 ### Menu · Station Inventory
 
 ![Menu · Station Inventory](menu-stationInventory.png)
+
+### Stations
+
+![Stations](stations.png)
 
 ### Branding · Logo & look
 
@@ -48,6 +52,18 @@ Last swept: 2026-09-09 · **12 of 30 done**
 
 ![Branding · Labels](branding-labels.png)
 
+### People · Roles & access
+
+![People · Roles & access](users-access.png)
+
+### Live · Board
+
+![Live · Board](live-board.png)
+
+### Live · Metrics
+
+![Live · Metrics](live-metrics.png)
+
 ### Orders · All
 
 ![Orders · All](orders-all.png)
@@ -55,6 +71,10 @@ Last swept: 2026-09-09 · **12 of 30 done**
 ### Messages · Tell everyone
 
 ![Messages · Tell everyone](messages-notice.png)
+
+### Messages · Test a text
+
+![Messages · Test a text](messages-test.png)
 
 ### Messages · Blocked numbers
 
@@ -68,6 +88,10 @@ Last swept: 2026-09-09 · **12 of 30 done**
 
 ![Report](report.png)
 
+### EventsAir
+
+![EventsAir](eventsair.png)
+
 ### Settings
 
 ![Settings](settings.png)
@@ -78,27 +102,21 @@ Last swept: 2026-09-09 · **12 of 30 done**
 
 ---
 
-## Still to do (18), worst first
+## Still to do (12), worst first
 
 | Screen | legacy | cq | selects | inputs |
 | --- | ---: | ---: | ---: | ---: |
 | [Quick Setup](quickSetup.png) | 72 | 31 | 4 | 43 |
 | [Live · Readiness](live-readiness.png) | 55 | 35 | 1 | 6 |
 | [Branding · Milk colours](branding-milk.png) | 54 | 36 | 0 | 9 |
-| [Live · Board](live-board.png) | 54 | 35 | 0 | 0 |
-| [System · Diagnostics](system-diagnostics.png) | 53 | 48 | 1 | 0 |
 | [System · Health](system-health.png) | 52 | 34 | 0 | 1 |
-| [Messages · Text blast](messages-broadcast.png) | 48 | 36 | 1 | 7 |
-| [Live · Metrics](live-metrics.png) | 42 | 35 | 0 | 0 |
-| [EventsAir](eventsair.png) | 35 | 31 | 0 | 7 |
-| [Messages · Test a text](messages-test.png) | 28 | 36 | 7 | 7 |
+| [System · Diagnostics](system-diagnostics.png) | 41 | 67 | 0 | 0 |
+| [Messages · Text blast](messages-broadcast.png) | 26 | 73 | 0 | 6 |
 | [Printers](printers.png) | 26 | 31 | 10 | 9 |
-| [Stations](stations.png) | 18 | 31 | 0 | 0 |
 | [Orders · Groups](orders-groups.png) | 15 | 34 | 4 | 5 |
 | [Help](help.png) | 9 | 31 | 0 | 0 |
 | [People](users-people.png) | 7 | 34 | 1 | 1 |
 | [Menu · Event Inventory](menu-inventory.png) | 6 | 108 | 0 | 0 |
-| [People · Roles & access](users-access.png) | 6 | 45 | 1 | 0 |
 | [Schedule](schedule.png) | 1 | 65 | 0 | 0 |
 
 Shots of these are in this folder too — they are the *before*.

@@ -223,7 +223,7 @@ const UsersAccessTab = () => {
           {/* Search and Filter */}
           <div className="flex gap-4 mb-4">
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-cq-ink-3" />
               <Input
                 placeholder="Search users..."
                 value={searchTerm}
@@ -234,7 +234,7 @@ const UsersAccessTab = () => {
             <select
               value={filterRole}
               onChange={(e) => setFilterRole(e.target.value)}
-              className="px-3 py-2 border rounded-md"
+              className="px-3 py-2 border-2 border-cq-line rounded-cq-md bg-cq-milk-md"
             >
               <option value="all">All Roles</option>
               {roles.map(role => (
@@ -260,7 +260,7 @@ const UsersAccessTab = () => {
               </thead>
               <tbody>
                 {filteredUsers.map(user => (
-                  <tr key={user.id} className="border-b hover:bg-gray-50">
+                  <tr key={user.id} className="border-b hover:bg-cq-wash">
                     <td className="p-2">
                       {editingUser === user.id ? (
                         <Input
@@ -303,7 +303,7 @@ const UsersAccessTab = () => {
                             );
                             setUsers(updated);
                           }}
-                          className="px-2 py-1 border rounded"
+                          className="px-2 py-1 border-2 border-cq-line rounded-cq-md bg-cq-milk"
                         >
                           {roles.map(role => (
                             <option key={role} value={role}>
@@ -322,7 +322,7 @@ const UsersAccessTab = () => {
                         {user.is_active ? 'Active' : 'Inactive'}
                       </Badge>
                     </td>
-                    <td className="p-2 text-sm text-gray-600">
+                    <td className="p-2 text-sm text-cq-ink-2">
                       {user.last_login ? new Date(user.last_login).toLocaleDateString() : 'Never'}
                     </td>
                     <td className="p-2">
@@ -385,7 +385,7 @@ const UsersAccessTab = () => {
                               variant="ghost"
                               onClick={() => handleDeleteUser(user.id)}
                               disabled={loading}
-                              className="text-red-600"
+                              className="text-cq-alert"
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -449,7 +449,7 @@ const UsersAccessTab = () => {
                 <select
                   value={newUser.role}
                   onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-md"
+                  className="w-full px-3 py-2 border-2 border-cq-line rounded-cq-md bg-cq-milk-md"
                 >
                   {roles.map(role => (
                     <option key={role} value={role}>
@@ -489,9 +489,9 @@ const UsersAccessTab = () => {
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {roles.map(role => (
-                <div key={role} className="border rounded-lg p-4">
+                <div key={role} className="border-2 border-cq-line rounded-cq-md bg-cq-milk-cq-md p-4">
                   <h3 className="font-medium mb-2 capitalize">{role}</h3>
-                  <div className="space-y-1 text-sm text-gray-600">
+                  <div className="space-y-1 text-sm text-cq-ink-2">
                     <p>Active Users: {users.filter(u => u.role === role && u.is_active).length}</p>
                     <p>Total Users: {users.filter(u => u.role === role).length}</p>
                   </div>

@@ -130,16 +130,16 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6">
+    <div className="bg-cq-milk rounded-cq-lg shadow-cq-card-lg p-4 sm:p-6">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
-        <h2 className="text-xl sm:text-2xl font-bold text-gray-800 flex flex-wrap items-center gap-x-2 gap-y-1">
+        <h2 className="text-xl sm:text-2xl font-bold text-cq-roast flex flex-wrap items-center gap-x-2 gap-y-1">
           <Settings className="shrink-0" />
           Station Settings
           
         </h2>
         <button
           onClick={() => setShowAddForm(true)}
-          className="flex items-center justify-center w-full sm:w-auto shrink-0 px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600"
+          className="flex items-center justify-center w-full sm:w-auto shrink-0 px-4 py-2 bg-cq-ready text-white rounded-md hover:bg-cq-ready"
         >
           <Plus size={16} className="mr-2" />
           Add Station
@@ -150,8 +150,8 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
       {saveStatus && (
         <div className={`mb-4 p-3 rounded-md flex items-center ${
           saveStatus === 'success' 
-            ? 'bg-green-100 text-green-800 border border-green-200' 
-            : 'bg-red-100 text-red-800 border border-red-200'
+            ? 'bg-cq-ready-wash text-cq-ready border border-cq-ready' 
+            : 'bg-cq-alert-wash text-cq-alert border border-cq-alert'
         }`}>
           {saveStatus === 'success' ? (
             <CheckCircle size={16} className="mr-2" />
@@ -165,33 +165,33 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6">
         {/* Station List */}
         <div className="lg:col-span-4">
-          <h3 className="text-lg font-semibold mb-4 text-gray-700">Stations</h3>
+          <h3 className="text-lg font-semibold mb-4 text-cq-ink-2">Stations</h3>
           <div className="space-y-2">
             {stations.map(station => (
               <div
                 key={station.id}
                 className={`p-3 rounded-md border cursor-pointer transition-colors ${
                   selectedStation?.id === station.id
-                    ? 'border-blue-300 bg-blue-50'
-                    : 'border-gray-200 hover:bg-gray-50'
+                    ? 'border-cq-line bg-cq-caramel-wash'
+                    : 'border-cq-line hover:bg-cq-wash'
                 }`}
                 onClick={() => setSelectedStation(station)}
               >
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
-                    <h4 className="font-medium text-gray-900">{station.name}</h4>
+                    <h4 className="font-medium text-cq-roast">{station.name}</h4>
                     {station.location && (
-                      <p className="text-sm text-gray-600 flex items-center mt-1">
+                      <p className="text-sm text-cq-ink-2 flex items-center mt-1">
                         <MapPin size={12} className="mr-1" />
                         {station.location}
                       </p>
                     )}
                     <div className="flex items-center mt-1">
                       <div className={`w-2 h-2 rounded-full mr-2 ${
-                        station.status === 'active' ? 'bg-green-500' :
-                        station.status === 'maintenance' ? 'bg-amber-500' : 'bg-red-500'
+                        station.status === 'active' ? 'bg-cq-ready' :
+                        station.status === 'maintenance' ? 'bg-cq-caramel' : 'bg-cq-alert'
                       }`} />
-                      <span className="text-xs text-gray-500 capitalize">
+                      <span className="text-xs text-cq-ink-3 capitalize">
                         {station.status || 'unknown'}
                       </span>
                     </div>
@@ -218,8 +218,8 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
                       }}
                       className={`px-2 py-1 text-xs rounded font-medium ${
                         station.status === 'active'
-                          ? 'bg-red-100 text-red-800 hover:bg-red-200 border border-red-300'
-                          : 'bg-blue-100 text-blue-800 hover:bg-blue-200 border border-blue-300'
+                          ? 'bg-cq-alert-wash text-cq-alert hover:bg-cq-alert-wash border border-cq-alert'
+                          : 'bg-cq-caramel-wash text-cq-caramel-deep hover:bg-cq-caramel-wash border border-cq-line'
                       }`}
                       title={station.status === 'active'
                         ? 'Take this station offline (no new orders will be routed here)'
@@ -232,7 +232,7 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
                         e.stopPropagation();
                         handleDeleteStation(station.id);
                       }}
-                      className="text-red-600 hover:bg-red-100 p-1 rounded"
+                      className="text-cq-alert hover:bg-cq-alert-wash p-1 rounded"
                       title="Delete station (permanent)"
                     >
                       <Trash2 size={14} />
@@ -244,8 +244,8 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
           </div>
 
           {stations.length === 0 && (
-            <div className="text-center py-8 text-gray-500">
-              <Coffee size={48} className="mx-auto mb-4 text-gray-400" />
+            <div className="text-center py-8 text-cq-ink-3">
+              <Coffee size={48} className="mx-auto mb-4 text-cq-ink-3" />
               <p>No stations configured</p>
               <p className="text-sm">Add your first station to get started</p>
             </div>
@@ -285,7 +285,7 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
                                 maxConcurrentOrders: selectedStation.maxConcurrentOrders || 3
                               });
                             }}
-                            className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 flex items-center"
+                            className="px-4 py-2 bg-cq-line text-cq-ink-2 rounded-md hover:bg-cq-ink-3 flex items-center"
                           >
                             <X size={16} className="mr-2" />
                             Discard
@@ -296,8 +296,8 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
                           disabled={isSaving || !dirty}
                           className={`px-4 py-2 rounded-md flex items-center ${
                             !dirty
-                              ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                              : 'bg-amber-600 text-white hover:bg-amber-700'
+                              ? 'bg-cq-wash text-cq-ink-3 cursor-not-allowed'
+                              : 'bg-cq-roast text-white hover:bg-cq-caramel-deep'
                           } disabled:opacity-50`}
                           title={!dirty ? 'No changes to save' : 'Save the changes you made'}
                         >
@@ -312,11 +312,11 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
 
               <div className="space-y-6">
                 {/* Basic Information */}
-                <div className="bg-gray-50 rounded-md p-4">
+                <div className="bg-cq-wash rounded-md p-4">
                   <h4 className="text-lg font-medium mb-4">Basic Information</h4>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                         Station Name
                       </label>
                       <input
@@ -324,12 +324,12 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
                         value={stationData.name}
                         onChange={(e) => setStationData({ ...stationData, name: e.target.value })}
                         
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500 disabled:bg-gray-100"
+                        className="w-full px-3 py-2 border border-cq-line rounded-md focus:ring-2 focus:border-cq-caramel focus:border-cq-caramel disabled:bg-cq-wash"
                         placeholder="Enter station name..."
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                         Location
                       </label>
                       <input
@@ -337,14 +337,14 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
                         value={stationData.location}
                         onChange={(e) => setStationData({ ...stationData, location: e.target.value })}
                         
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500 disabled:bg-gray-100"
+                        className="w-full px-3 py-2 border border-cq-line rounded-md focus:ring-2 focus:border-cq-caramel focus:border-cq-caramel disabled:bg-cq-wash"
                         placeholder="Enter location..."
                       />
                     </div>
                   </div>
 
                   <div className="mt-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                       Description
                     </label>
                     <textarea
@@ -352,25 +352,25 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
                       onChange={(e) => setStationData({ ...stationData, description: e.target.value })}
                       
                       rows={3}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500 disabled:bg-gray-100"
+                      className="w-full px-3 py-2 border border-cq-line rounded-md focus:ring-2 focus:border-cq-caramel focus:border-cq-caramel disabled:bg-cq-wash"
                       placeholder="Optional description..."
                     />
                   </div>
                 </div>
 
                 {/* Operational Settings */}
-                <div className="bg-gray-50 rounded-md p-4">
+                <div className="bg-cq-wash rounded-md p-4">
                   <h4 className="text-lg font-medium mb-4">Operational Settings</h4>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                         Status
                       </label>
                       <select
                         value={stationData.status}
                         onChange={(e) => setStationData({ ...stationData, status: e.target.value })}
                         
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500 disabled:bg-gray-100"
+                        className="w-full px-3 py-2 border border-cq-line rounded-md focus:ring-2 focus:border-cq-caramel focus:border-cq-caramel disabled:bg-cq-wash"
                       >
                         <option value="active">Active</option>
                         <option value="inactive">Inactive</option>
@@ -378,7 +378,7 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                         Max Concurrent Orders
                       </label>
                       <input
@@ -388,7 +388,7 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
                         value={stationData.maxConcurrentOrders}
                         onChange={(e) => setStationData({ ...stationData, maxConcurrentOrders: parseInt(e.target.value) || 1 })}
                         
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500 disabled:bg-gray-100"
+                        className="w-full px-3 py-2 border border-cq-line rounded-md focus:ring-2 focus:border-cq-caramel focus:border-cq-caramel disabled:bg-cq-wash"
                       />
                     </div>
                   </div>
@@ -398,13 +398,13 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
               {/* Walk-in defaults for THIS station.
                   Used to be its own tab with its own station picker, which
                   meant choosing a station twice to configure one station. */}
-              <div className="mt-8 pt-6 border-t border-gray-200">
+              <div className="mt-8 pt-6 border-t border-cq-line">
                 <StationDefaults stationId={selectedStation.id} />
               </div>
             </div>
           ) : (
-            <div className="text-center py-12 text-gray-500">
-              <Settings size={48} className="mx-auto mb-4 text-gray-400" />
+            <div className="text-center py-12 text-cq-ink-3">
+              <Settings size={48} className="mx-auto mb-4 text-cq-ink-3" />
               <p>Select a station to configure its settings</p>
             </div>
           )}
@@ -414,65 +414,65 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
       {/* Add Station Form */}
       {showAddForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+          <div className="bg-white rounded-cq-md p-6 w-full max-w-md">
             <h3 className="text-xl font-semibold mb-4">Add New Station</h3>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                   Station Name *
                 </label>
                 <input
                   type="text"
                   value={newStation.name}
                   onChange={(e) => setNewStation({ ...newStation, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-cq-line rounded-md focus:ring-2 focus:border-cq-caramel focus:border-cq-caramel"
                   placeholder="Enter station name..."
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                   Location
                 </label>
                 <input
                   type="text"
                   value={newStation.location}
                   onChange={(e) => setNewStation({ ...newStation, location: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-cq-line rounded-md focus:ring-2 focus:border-cq-caramel focus:border-cq-caramel"
                   placeholder="Enter location..."
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                   Description
                 </label>
                 <textarea
                   value={newStation.description}
                   onChange={(e) => setNewStation({ ...newStation, description: e.target.value })}
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-cq-line rounded-md focus:ring-2 focus:border-cq-caramel focus:border-cq-caramel"
                   placeholder="Optional description..."
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                     Status
                   </label>
                   <select
                     value={newStation.status}
                     onChange={(e) => setNewStation({ ...newStation, status: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-cq-line rounded-md focus:ring-2 focus:border-cq-caramel focus:border-cq-caramel"
                   >
                     <option value="active">Active</option>
                     <option value="inactive">Inactive</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                     Max Orders
                   </label>
                   <input
@@ -481,7 +481,7 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
                     max="10"
                     value={newStation.maxConcurrentOrders}
                     onChange={(e) => setNewStation({ ...newStation, maxConcurrentOrders: parseInt(e.target.value) || 1 })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-cq-line rounded-md focus:ring-2 focus:border-cq-caramel focus:border-cq-caramel"
                   />
                 </div>
               </div>
@@ -499,14 +499,14 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
                     maxConcurrentOrders: 3
                   });
                 }}
-                className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+                className="px-4 py-2 bg-cq-line text-cq-ink-2 rounded-md hover:bg-cq-ink-3"
               >
                 Cancel
               </button>
               <button
                 onClick={handleAddStation}
                 disabled={!newStation.name.trim() || isSaving}
-                className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 disabled:opacity-50"
+                className="px-4 py-2 bg-cq-ready text-white rounded-md hover:bg-cq-ready disabled:opacity-50"
               >
                 {isSaving ? 'Adding...' : 'Add Station'}
               </button>
