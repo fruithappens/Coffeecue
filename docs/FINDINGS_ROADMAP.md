@@ -267,6 +267,50 @@ concurrent events become routine rather than occasional.
 
 ---
 
+## 14. The sweep scored 30 screens; the app has far more than 30 surfaces
+
+**Status:** open — the real remaining work, and bigger than "2 screens to go".
+
+Steve asked whether everything is consistent or something escaped. Audited
+it properly instead of trusting the scoreboard. 29 of the 30 scored screens
+are genuinely clean. The scoreboard was blind to everything you cannot
+reach by clicking a nav item on an already-loaded page.
+
+**42 of 121 component files still lean legacy** (raw grey Tailwind classes
+outnumbering `cq-` ones); **32 carry five or more**. By group:
+
+- **Dialogs — 5 untouched, zero design-system classes between them.**
+  EditOrder (19), Message (14), MoveOrder (10), Broadcast (8), WaitTime (6).
+  A barista opens these more often than most nav screens. ConfirmDialog is
+  the one that was done.
+- **Barista panels, confirmed reachable** (they render inside
+  BaristaInterface.js): QueueIntelligence (23), StationLoadBalancer (20),
+  EnhancedStationCapabilities (28), DynamicStaffAllocation (29),
+  MultiLevelInventory (14), StationChat. Plus ToolsTab (31/2),
+  StationPrinterPanel (17), StationCapabilitiesEditor (18), StationChooser
+  (9), EightySixBoard (7).
+- **Customer surfaces wear the brand but not the vocabulary.** Phase 6 gave
+  them the event's colours; it did not put them on the shared components.
+  KioskOrder (76/1), KioskAdminPanel (14/0), HowToOrderPage (11/3),
+  MobileOrderPage (10/0).
+- **Login and Unauthorized** — the first screen anyone sees. Never touched.
+- **A dead branch still in the bundle.** `Organiser.js` imports the old
+  16-tab `OrganiserInterface` in App.js but never renders it (`/organiser`
+  redirects to the runner). Not user-reachable, but it ships in every
+  download and is exactly what comes back to life by accident. Delete it.
+
+**The scorer lied by omission.** It counts raw classes in a loaded DOM, so
+a modal that is not open scores nothing, and finding 11 already showed a
+screen can score 0 and still read as legacy. Green means "nothing obvious
+on the page as loaded", not "done".
+
+**Fixed looks like:** four batches — dialogs (5 files, biggest visible win
+per hour), barista panels (11), customer surfaces (4), Quick Setup alone —
+plus deleting the dead Organiser branch, plus teaching the sweep to open
+modals or it will keep reporting green.
+
+---
+
 ## Still on Steve
 
 Not findings — decisions and config that only he can make.
