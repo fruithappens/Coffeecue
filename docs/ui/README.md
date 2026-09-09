@@ -22,11 +22,15 @@ setting is wrong or the paragraph belongs in Help.
 A converted screen reads **legacy 0**. Nothing here is a judgement call — the
 numbers come from the live DOM, swept by `scratchpad/capture/ui_sweep.js`.
 
-Last swept: 2026-09-09 · **8 of 30 done**
+Last swept: 2026-09-09 · **9 of 30 done**
 
 ---
 
-## Done (8)
+## Done (9)
+
+### Branding · Sponsors
+
+![Branding · Sponsors](branding-sponsors.png)
 
 ### Branding · Labels
 
@@ -62,11 +66,10 @@ Last swept: 2026-09-09 · **8 of 30 done**
 
 ---
 
-## Still to do (22), worst first
+## Still to do (21), worst first
 
 | Screen | legacy | cq | selects | inputs |
 | --- | ---: | ---: | ---: | ---: |
-| [Branding · Sponsors](branding-sponsors.png) | 213 | 36 | 16 | 35 |
 | [Menu · Event Stock](menu-stock.png) | 130 | 35 | 0 | 14 |
 | [Branding · Logo & look](branding-logo.png) | 97 | 36 | 1 | 24 |
 | [Menu · Event Inventory](menu-inventory.png) | 78 | 35 | 0 | 10 |

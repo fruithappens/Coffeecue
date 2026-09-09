@@ -69,12 +69,12 @@
     "hash": "branding/sponsors",
     "label": "Branding · Sponsors",
     "file": "branding-sponsors.png",
-    "selects": 16,
-    "inputs": 35,
-    "grey": 21,
-    "legacy": 213,
-    "cq": 36,
-    "old": 114
+    "selects": 0,
+    "inputs": 0,
+    "grey": 0,
+    "legacy": 0,
+    "cq": 284,
+    "old": 0
   },
   {
     "hash": "branding/labels",
@@ -172,7 +172,7 @@
     "inputs": 0,
     "grey": 0,
     "legacy": 0,
-    "cq": 717,
+    "cq": 723,
     "old": 0
   },
   {
