@@ -8,6 +8,10 @@ Read all of it before you touch a file. It is short.
 
 **Starting a session?** `docs/UI_REWRITE_PROMPT.md` has the prompt to paste in.
 
+**Found something that is not a styling problem?** Add it to
+`docs/FINDINGS_ROADMAP.md` rather than fixing it here. Half the useful things
+in that file came out of this rewrite.
+
 ---
 
 ## 1. What the job actually is
