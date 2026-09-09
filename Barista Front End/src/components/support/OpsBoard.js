@@ -32,10 +32,10 @@ const ageLabel = (m) => (m == null ? '' : m < 1 ? 'just now' : m < 60 ? `${m}m` 
 
 // Status colour system (control-room traffic light).
 const TONE = {
-  green: { dot: '#22c55e', text: 'text-emerald-300', ring: 'ring-emerald-500/30', bg: 'bg-emerald-500/10', bar: 'bg-emerald-500' },
-  amber: { dot: '#f59e0b', text: 'text-amber-300', ring: 'ring-amber-500/30', bg: 'bg-amber-500/10', bar: 'bg-amber-500' },
-  red: { dot: '#ef4444', text: 'text-red-300', ring: 'ring-red-500/40', bg: 'bg-red-500/10', bar: 'bg-red-500' },
-  idle: { dot: '#64748b', text: 'text-slate-400', ring: 'ring-slate-700', bg: 'bg-slate-800/40', bar: 'bg-slate-600' },
+  green: { dot: '#22c55e', text: 'text-emerald-300', ring: 'ring-cq-ready/30', bg: 'bg-cq-ready/10', bar: 'bg-cq-ready' },
+  amber: { dot: '#f59e0b', text: 'text-amber-300', ring: 'ring-cq-caramel/30', bg: 'bg-cq-caramel/10', bar: 'bg-cq-caramel' },
+  red: { dot: '#ef4444', text: 'text-red-300', ring: 'ring-cq-alert/40', bg: 'bg-cq-alert/10', bar: 'bg-cq-alert' },
+  idle: { dot: '#64748b', text: 'text-cq-ink-3', ring: 'ring-cq-ink-3', bg: 'bg-cq-roast/40', bar: 'bg-slate-600' },
 };
 const worst = (levels) => (levels.includes('red') ? 'red' : levels.includes('amber') ? 'amber' : 'green');
 
@@ -227,21 +227,21 @@ export default function OpsBoard() {
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans p-3 md:p-5"
          style={{ fontVariantNumeric: 'tabular-nums' }}>
       {/* ---- composite status banner ---- */}
-      <div className={`rounded-2xl ring-1 ${t.ring} ${t.bg} px-5 py-4 mb-4 flex flex-wrap items-center gap-x-6 gap-y-2`}>
+      <div className={`rounded-cq-xl ring-1 ${t.ring} ${t.bg} px-5 py-4 mb-4 flex flex-wrap items-center gap-x-6 gap-y-2`}>
         <span className="relative flex h-4 w-4">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60" style={{ backgroundColor: t.dot }} />
           <span className="relative inline-flex rounded-full h-4 w-4" style={{ backgroundColor: t.dot }} />
         </span>
         <div className="min-w-0">
           <div className={`text-2xl md:text-3xl font-extrabold tracking-tight ${t.text}`}>{m.headline}</div>
-          <div className="text-slate-400 text-sm truncate">
+          <div className="text-cq-ink-3 text-sm truncate">
             {m.warns.length ? m.warns[0].t : 'Everything proven working right now.'}
           </div>
         </div>
         <div className="ml-auto flex items-center gap-4 text-right">
           <div>
-            <div className="text-xs uppercase tracking-widest text-slate-500">Live</div>
-            <div className="text-sm text-slate-300">
+            <div className="text-xs uppercase tracking-widest text-cq-ink-3">Live</div>
+            <div className="text-sm text-cq-ink-3">
               {okAge == null ? 'connecting…' : okAge <= 15 ? `updated ${okAge}s ago` :
                 <span className="text-amber-400">stale — {okAge}s ago</span>}
             </div>
@@ -274,7 +274,7 @@ export default function OpsBoard() {
             {m.lanes.map((l) => {
               const lt = TONE[!l.active ? 'red' : (!l.barista || l.wait >= 15) ? 'amber' : 'green'];
               return (
-                <div key={l.id} className={`rounded-xl ring-1 ${lt.ring} bg-slate-900 p-4`}>
+                <div key={l.id} className={`rounded-cq-lg ring-1 ${lt.ring} bg-cq-roast p-4`}>
                   <div className="flex items-center gap-2">
                     <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: lt.dot }} />
                     <div className="font-bold text-lg truncate">{l.name}</div>
@@ -282,17 +282,17 @@ export default function OpsBoard() {
                       {l.active ? 'Active' : 'Offline'}
                     </span>
                   </div>
-                  {l.location && <div className="text-xs text-slate-500 mb-2">{l.location}</div>}
+                  {l.location && <div className="text-xs text-cq-ink-3 mb-2">{l.location}</div>}
                   <div className="grid grid-cols-3 gap-2 mt-2">
                     <Stat k="Wait" v={l.wait == null ? '—' : `${l.wait}m`} />
                     <Stat k="Queue" v={l.queue} />
                     <Stat k="Brewing" v={l.brewing} />
                   </div>
                   <div className="mt-3 flex items-center justify-between text-xs">
-                    <span className={l.barista ? 'text-slate-300' : 'text-amber-400 font-semibold'}>
+                    <span className={l.barista ? 'text-cq-ink-3' : 'text-amber-400 font-semibold'}>
                       {l.barista ? `👤 ${l.barista}` : '⚠ no barista signed in'}
                     </span>
-                    <span className="text-slate-500">
+                    <span className="text-cq-ink-3">
                       {l.lastDoneMin == null ? 'no completions yet' : `last done ${ageLabel(l.lastDoneMin)} ago`}
                     </span>
                   </div>
@@ -303,7 +303,7 @@ export default function OpsBoard() {
 
           {/* ---- early-warning strip ---- */}
           <SectionTitle>Watch list</SectionTitle>
-          <div className="rounded-xl ring-1 ring-slate-800 bg-slate-900 p-3">
+          <div className="rounded-cq-lg ring-1 ring-cq-ink-3 bg-cq-roast p-3">
             {m.warns.length === 0 ? (
               <div className="text-emerald-300 text-sm py-2 px-1">✓ No warnings — all leading indicators clear.</div>
             ) : (
@@ -333,12 +333,12 @@ export default function OpsBoard() {
                 : rejecting ? 'Twilio rejecting webhooks'
                   : m.smsProven ? 'Proven working' : 'Unproven — not yet demonstrated';
               return (
-                <div className={`rounded-xl ring-1 ${st.ring} ${st.bg} p-4`}>
+                <div className={`rounded-cq-lg ring-1 ${st.ring} ${st.bg} p-4`}>
                   <div className="flex items-center gap-2">
                     <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: st.dot }} />
                     <span className={`font-bold ${st.text}`}>{label}</span>
                   </div>
-                  <div className="mt-2 text-xs text-slate-400 space-y-0.5">
+                  <div className="mt-2 text-xs text-cq-ink-3 space-y-0.5">
                     <div>From {m.smsH?.from_number || '—'}</div>
                     <div>Last sent: {m.smsSentMin == null ? 'never since restart' : `${ageLabel(m.smsSentMin)} ago`}</div>
                     <div>Sent / failed since boot: {num(m.smsH?.outbound?.sent_since_boot)} / {num(m.smsH?.outbound?.failed_since_boot)}</div>
@@ -353,9 +353,9 @@ export default function OpsBoard() {
           {/* activity feed */}
           <div>
             <SectionTitle>Live activity</SectionTitle>
-            <div className="rounded-xl ring-1 ring-slate-800 bg-slate-900 p-2 max-h-72 overflow-y-auto">
+            <div className="rounded-cq-lg ring-1 ring-cq-ink-3 bg-cq-roast p-2 max-h-72 overflow-y-auto">
               {m.feed.length === 0 ? <Empty>No recent activity.</Empty> : (
-                <ul className="divide-y divide-slate-800/70">
+                <ul className="divide-y divide-cq-ink-3/70">
                   {m.feed.map(({ o, t: ts }) => {
                     const s = o.status || '';
                     const dot = s === 'completed' ? '#22c55e' : s === 'in-progress' ? '#f59e0b'
@@ -365,10 +365,10 @@ export default function OpsBoard() {
                       <li key={o.id || o.orderNumber || o.order_number} className="flex items-center gap-2 py-1.5 px-1 text-sm">
                         <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: dot }} />
                         <span className="font-semibold">#{o.orderNumber || o.order_number}</span>
-                        <span className="text-slate-400 truncate">{o.customerName || o.customer_name || ''}</span>
-                        <span className="text-slate-500">· {label}</span>
-                        {o.channel && <span className="text-slate-600 text-xs">· {o.channel}</span>}
-                        <span className="ml-auto text-slate-500 text-xs">{fmtClock(ts)}</span>
+                        <span className="text-cq-ink-3 truncate">{o.customerName || o.customer_name || ''}</span>
+                        <span className="text-cq-ink-3">· {label}</span>
+                        {o.channel && <span className="text-cq-ink-2 text-xs">· {o.channel}</span>}
+                        <span className="ml-auto text-cq-ink-3 text-xs">{fmtClock(ts)}</span>
                       </li>
                     );
                   })}
@@ -382,29 +382,29 @@ export default function OpsBoard() {
             <SectionTitle>Actions</SectionTitle>
             <div className="grid grid-cols-2 gap-2">
               <button onClick={refresh} disabled={busy === 'refresh'}
-                className="rounded-lg bg-slate-800 hover:bg-slate-700 py-3 font-semibold text-sm">
+                className="rounded-cq-md bg-cq-roast hover:bg-cq-roast py-3 font-semibold text-sm">
                 ↻ Refresh
               </button>
               <button onClick={() => setBcOpen((v) => !v)}
-                className="rounded-lg bg-sky-600 hover:bg-sky-500 py-3 font-semibold text-sm">
+                className="rounded-cq-md bg-sky-600 hover:bg-sky-500 py-3 font-semibold text-sm">
                 📣 Broadcast
               </button>
               <button onClick={emergencyStop} disabled={busy === 'stop'}
-                className="col-span-2 rounded-lg bg-red-600 hover:bg-red-500 py-3 font-bold text-sm">
+                className="col-span-2 rounded-cq-md bg-cq-alert hover:bg-cq-alert py-3 font-bold text-sm">
                 {busy === 'stop' ? 'Pausing…' : '⛔ Pause all orders (emergency)'}
               </button>
             </div>
             {bcOpen && (
-              <div className="mt-2 rounded-lg bg-slate-900 ring-1 ring-slate-800 p-2">
+              <div className="mt-2 rounded-cq-md bg-cq-roast ring-1 ring-cq-ink-3 p-2">
                 <textarea value={bcMsg} onChange={(e) => setBcMsg(e.target.value.slice(0, 300))}
                   rows={2} placeholder="Message to today's customers (plain text — SMS cost applies)"
-                  className="w-full bg-slate-950 rounded px-2 py-1.5 text-sm text-slate-100 outline-none ring-1 ring-slate-800" />
+                  className="w-full bg-slate-950 rounded px-2 py-1.5 text-sm text-slate-100 outline-none ring-1 ring-cq-ink-3" />
                 <div className="flex items-center gap-2 mt-1">
                   <button onClick={sendBroadcast} disabled={!bcMsg.trim() || busy === 'broadcast'}
                     className="rounded bg-sky-600 hover:bg-sky-500 px-3 py-1.5 text-sm font-semibold disabled:opacity-40">
                     {busy === 'broadcast' ? 'Sending…' : 'Send to today'}
                   </button>
-                  <span className="text-xs text-slate-500">{bcMsg.length}/300</span>
+                  <span className="text-xs text-cq-ink-3">{bcMsg.length}/300</span>
                 </div>
               </div>
             )}
@@ -412,7 +412,7 @@ export default function OpsBoard() {
           </div>
 
           {/* server footer — deliberately small */}
-          <div className="text-xs text-slate-500 flex flex-wrap gap-x-4 gap-y-1 pt-1 border-t border-slate-800/70">
+          <div className="text-xs text-cq-ink-3 flex flex-wrap gap-x-4 gap-y-1 pt-1 border-t border-cq-ink-3/70">
             <span>server cpu {m.perf?.cpuUsage != null ? `${Math.round(m.perf.cpuUsage)}%` : '—'}</span>
             <span>mem {m.perf?.memoryUsage != null ? `${Math.round(m.perf.memoryUsage)}%` : '—'}</span>
             <span>api {m.perf?.apiResponseTime != null ? `${m.perf.apiResponseTime}ms` : '—'}</span>
@@ -422,7 +422,7 @@ export default function OpsBoard() {
         </div>
       </div>
 
-      {loading && <div className="fixed inset-0 flex items-center justify-center bg-slate-950/80 text-slate-300">Loading the board…</div>}
+      {loading && <div className="fixed inset-0 flex items-center justify-center bg-slate-950/80 text-cq-ink-3">Loading the board…</div>}
     </div>
   );
 }
@@ -437,22 +437,22 @@ function Kpi({ label, value, sub, trend, trendGoodDown, tone = 'idle' }) {
     arrow = <span className={bad ? 'text-red-400' : 'text-emerald-400'}>{up ? '▲' : '▼'}</span>;
   }
   return (
-    <div className={`rounded-xl ring-1 ${t.ring} bg-slate-900 p-3`}>
-      <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
+    <div className={`rounded-cq-lg ring-1 ${t.ring} bg-cq-roast p-3`}>
+      <div className="text-xs uppercase tracking-wide text-cq-ink-3">{label}</div>
       <div className={`text-3xl font-extrabold mt-1 flex items-baseline gap-1 ${t.text}`}>
         <span>{value}</span>{arrow && <span className="text-base">{arrow}</span>}
       </div>
-      {sub && <div className="text-xs text-slate-500 mt-0.5">{sub}</div>}
+      {sub && <div className="text-xs text-cq-ink-3 mt-0.5">{sub}</div>}
     </div>
   );
 }
 const Stat = ({ k, v }) => (
-  <div className="text-center rounded-lg bg-slate-950/60 py-1.5">
+  <div className="text-center rounded-cq-md bg-slate-950/60 py-1.5">
     <div className="text-lg font-bold leading-none">{v}</div>
-    <div className="text-[10px] uppercase tracking-wide text-slate-500 mt-0.5">{k}</div>
+    <div className="text-[10px] uppercase tracking-wide text-cq-ink-3 mt-0.5">{k}</div>
   </div>
 );
 const SectionTitle = ({ children }) => (
-  <div className="text-xs font-semibold uppercase tracking-widest text-slate-500 mb-1">{children}</div>
+  <div className="text-xs font-semibold uppercase tracking-widest text-cq-ink-3 mb-1">{children}</div>
 );
-const Empty = ({ children }) => <div className="text-slate-500 text-sm py-3 px-2 text-center">{children}</div>;
+const Empty = ({ children }) => <div className="text-cq-ink-3 text-sm py-3 px-2 text-center">{children}</div>;

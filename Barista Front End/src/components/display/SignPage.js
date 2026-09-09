@@ -15,30 +15,30 @@ const SignPage = () => {
   const sub = (params.get('sub') || '').slice(0, 80);
 
   return (
-    <div className="min-h-screen bg-white flex flex-col items-center justify-center p-8 text-center">
+    <div className="min-h-screen bg-cq-milk flex flex-col items-center justify-center p-8 text-center">
       <style>{`
         @media print {
           .no-print { display: none !important; }
           @page { size: A4 landscape; margin: 1cm; }
         }
       `}</style>
-      <div className="text-[11vw] leading-none font-extrabold tracking-tight text-gray-900 uppercase break-words max-w-full">
+      <div className="text-[11vw] leading-none font-extrabold tracking-tight text-cq-roast uppercase break-words max-w-full">
         {title}
       </div>
       {sub && (
-        <div className="text-[3.5vw] mt-6 text-gray-600 font-medium">
+        <div className="text-[3.5vw] mt-6 text-cq-ink-2 font-medium">
           {sub}
         </div>
       )}
       <div className="no-print fixed bottom-4 right-4 flex gap-2">
         <button
-          className="bg-cq-roast text-white px-4 py-2 rounded-lg font-semibold shadow"
+          className="bg-cq-roast text-white px-4 py-2 rounded-cq-md font-semibold shadow"
           onClick={() => window.print()}
         >
           Print A4 sign
         </button>
         <button
-          className="bg-gray-700 text-white px-4 py-2 rounded-lg font-semibold shadow"
+          className="bg-cq-roast text-white px-4 py-2 rounded-cq-md font-semibold shadow"
           onClick={() => {
             const el = document.documentElement;
             if (el.requestFullscreen) el.requestFullscreen();
@@ -47,7 +47,7 @@ const SignPage = () => {
           Fullscreen (digital sign)
         </button>
       </div>
-      <div className="no-print fixed bottom-4 left-4 text-xs text-gray-400 max-w-xs text-left">
+      <div className="no-print fixed bottom-4 left-4 text-xs text-cq-ink-3 max-w-xs text-left">
         Change the wording in the address bar: ?title=CAPPUCCINO&amp;sub=your text
       </div>
     </div>

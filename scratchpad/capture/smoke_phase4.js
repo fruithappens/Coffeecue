@@ -1,5 +1,6 @@
 // Phase 4 smoke on the TEST COPY: the new barista queue screen.
 const { chromium } = require('playwright-core');
+const { eventCode } = require('./eventcode');
 const BASE = 'http://localhost:5001';
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const res = []; const check = (n, ok, d = '') => { res.push(ok); console.log(`${ok ? 'PASS' : 'FAIL'}  ${n}  ${d}`); };
@@ -8,7 +9,8 @@ const errs = [];
   const login = await fetch(BASE + '/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'coffeecue', password: 'adminpassword' }) }).then(r => r.json());
   const TOKEN = login.token || login.access_token;
   const api = (path, method = 'GET', body) => fetch(BASE + '/api' + path, { method, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + TOKEN }, body: body ? JSON.stringify(body) : undefined }).then(r => r.json());
-  const order = (name, drink = 'Latte', milk = 'Full Cream') => fetch(BASE + '/api/display/order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, coffee_type: drink, milk, size: 'Medium', channel: 'web', surface: 'phone', sms_opt_in: false }) }).then(r => r.json());
+  const EVENT_CODE = await eventCode(BASE);
+  const order = (name, drink = 'Latte', milk = 'Full Cream') => fetch(BASE + '/api/display/order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, coffee_type: drink, milk, size: 'Medium', channel: 'web', surface: 'phone', sms_opt_in: false, e: EVENT_CODE }) }).then(r => r.json());
 
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   const tablet = async (label, seed) => {

@@ -83,7 +83,7 @@ const needsMilk = (drink) => !!drink && !NO_MILK.test(drink);
 // queueing, not at a desk.
 const Choice = ({ label, options, value, onPick }) => (
   <div className="mb-4">
-    <div className="text-sm text-gray-600 mb-2">{label}</div>
+    <div className="text-sm text-cq-ink-2 mb-2">{label}</div>
     <div className="flex flex-wrap gap-2">
       {options.map((o) => {
         const v = o.value || o.name;
@@ -92,9 +92,9 @@ const Choice = ({ label, options, value, onPick }) => (
           <button
             key={v}
             onClick={() => onPick(on ? '' : v)}
-            className={`px-4 py-3 rounded-xl border-2 text-base font-medium ${
+            className={`px-4 py-3 rounded-cq-lg border-2 text-base font-medium ${
               on ? 'bg-cq-roast border-cq-caramel text-white'
-                 : 'bg-white border-gray-300 text-gray-800'}`}
+                 : 'bg-cq-milk border-cq-line text-cq-roast'}`}
           >
             {o.name || v}
           </button>
@@ -875,12 +875,12 @@ const MyCoffeePage = () => {
   // ---- event CODE gate (a cold visitor is asked for the code once) -------
   if (codeGate) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6"
+      <div className="min-h-screen bg-cq-wash flex flex-col items-center justify-center p-6"
            style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top))' }}>
         <div className="w-full max-w-sm text-center">
           <div className="text-5xl mb-3" aria-hidden>☕</div>
           <h1 className="text-2xl font-bold mb-1">Event code</h1>
-          <p className="text-gray-600 mb-5">
+          <p className="text-cq-ink-2 mb-5">
             Enter the event code to order — it's on the posters and signage
             here. Scanned a QR code at the event? You won't need this.
           </p>
@@ -890,11 +890,11 @@ const MyCoffeePage = () => {
             onKeyDown={(e) => { if (e.key === 'Enter') submitCode(); }}
             placeholder="Event code"
             autoCapitalize="none" autoCorrect="off" spellCheck={false}
-            className="w-full border-2 rounded-xl px-4 py-4 text-xl text-center"
+            className="w-full border-2 rounded-cq-lg px-4 py-4 text-xl text-center"
           />
-          {codeError && <p className="text-red-600 mt-3">{codeError}</p>}
+          {codeError && <p className="text-cq-alert mt-3">{codeError}</p>}
           <button
-            className="w-full mt-4 py-4 rounded-xl bg-cq-roast text-white text-lg font-semibold disabled:opacity-40"
+            className="w-full mt-4 py-4 rounded-cq-lg bg-cq-roast text-white text-lg font-semibold disabled:opacity-40"
             disabled={!codeInput.trim()}
             onClick={submitCode}
           >
@@ -908,12 +908,12 @@ const MyCoffeePage = () => {
   // ---- event password gate (before anything else) -----------------------
   if (pwGate) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6"
+      <div className="min-h-screen bg-cq-wash flex flex-col items-center justify-center p-6"
            style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top))' }}>
         <div className="w-full max-w-sm text-center">
           <div className="text-5xl mb-3" aria-hidden>🔒</div>
           <h1 className="text-2xl font-bold mb-1">Event password</h1>
-          <p className="text-gray-600 mb-5">
+          <p className="text-cq-ink-2 mb-5">
             This event's coffee ordering is password-protected. Enter the
             password you were given.
           </p>
@@ -922,11 +922,11 @@ const MyCoffeePage = () => {
             onChange={(e) => { setPwInput(e.target.value); setPwError(''); }}
             onKeyDown={(e) => { if (e.key === 'Enter') submitPw(); }}
             placeholder="Event password"
-            className="w-full border-2 rounded-xl px-4 py-4 text-xl text-center"
+            className="w-full border-2 rounded-cq-lg px-4 py-4 text-xl text-center"
           />
-          {pwError && <p className="text-red-600 mt-3">{pwError}</p>}
+          {pwError && <p className="text-cq-alert mt-3">{pwError}</p>}
           <button
-            className="w-full mt-4 py-4 rounded-xl bg-cq-roast text-white text-lg font-semibold disabled:opacity-40"
+            className="w-full mt-4 py-4 rounded-cq-lg bg-cq-roast text-white text-lg font-semibold disabled:opacity-40"
             disabled={!pwInput.trim() || pwChecking}
             onClick={submitPw}
           >
@@ -940,18 +940,18 @@ const MyCoffeePage = () => {
   // ---- one number, several people ----------------------------------------
   if (!me && choices) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center p-6"
+      <div className="min-h-screen bg-cq-wash flex flex-col items-center p-6"
            style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top))',
                     paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
         <div className="w-full max-w-sm text-center">
           <h1 className="text-2xl font-bold mb-1">Which one are you?</h1>
-          <p className="text-gray-600 mb-6">
+          <p className="text-cq-ink-2 mb-6">
             More than one person uses that number.
           </p>
           {choices.map((p) => (
             <button
               key={p.cid}
-              className="w-full mb-3 py-4 rounded-xl bg-white border-2 border-cq-caramel
+              className="w-full mb-3 py-4 rounded-cq-lg bg-cq-milk border-2 border-cq-caramel
                          text-cq-caramel-deep text-lg font-semibold"
               onClick={() => { setChoices(null); setCid(p.cid); }}
             >
@@ -959,7 +959,7 @@ const MyCoffeePage = () => {
             </button>
           ))}
           <button
-            className="w-full mt-2 py-3 text-gray-600 underline"
+            className="w-full mt-2 py-3 text-cq-ink-2 underline"
             onClick={() => { setChoices(null); setEntry(''); }}
           >
             None of these — try again
@@ -1013,13 +1013,13 @@ const MyCoffeePage = () => {
   // on the attendee list, OR this event never consults one.
   if (guestAsk) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center p-6"
+      <div className="min-h-screen bg-cq-wash flex flex-col items-center p-6"
            style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top))',
                     paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
         <div className="w-full max-w-sm text-center">
           <div className="text-5xl mb-3" aria-hidden>☕</div>
           <h1 className="text-2xl font-bold mb-1">What&apos;s your first name?</h1>
-          <p className="text-gray-600 mb-6">
+          <p className="text-cq-ink-2 mb-6">
             {/* Only claim a list was checked when one actually was. With
                 attendee lookup off, nothing consults the delegate list by
                 design, so "that number isn't on the delegate list" states
@@ -1030,7 +1030,7 @@ const MyCoffeePage = () => {
               : "Just a name for the cup and you're set."}
           </p>
           <input
-            className="w-full border-2 rounded-xl px-4 py-4 text-2xl text-center"
+            className="w-full border-2 rounded-cq-lg px-4 py-4 text-2xl text-center"
             autoFocus
             autoComplete="given-name"
             placeholder="First name"
@@ -1038,9 +1038,9 @@ const MyCoffeePage = () => {
             onChange={(e) => setGuestName(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') registerGuest(); }}
           />
-          {error && <p className="text-red-600 mt-3">{error}</p>}
+          {error && <p className="text-cq-alert mt-3">{error}</p>}
           <button
-            className="w-full mt-4 py-4 rounded-xl bg-cq-roast text-white text-lg font-semibold disabled:opacity-40"
+            className="w-full mt-4 py-4 rounded-cq-lg bg-cq-roast text-white text-lg font-semibold disabled:opacity-40"
             disabled={!guestName.trim() || busy}
             onClick={registerGuest}
           >
@@ -1082,7 +1082,7 @@ const MyCoffeePage = () => {
     // contact id). Ordering is now the front door; identity happens at
     // the end of the flow, where it belongs.
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen bg-cq-milk">
         <KioskOrder
           key={orderEpoch}
           headerColor={brand.accent}
@@ -1128,7 +1128,7 @@ const MyCoffeePage = () => {
 
   if (!me) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center p-6"
+      <div className="min-h-screen bg-cq-wash flex flex-col items-center p-6"
            style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top))',
                     paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
         <div className="w-full max-w-sm text-center">
@@ -1136,7 +1136,7 @@ const MyCoffeePage = () => {
         <NoticeBanner notices={notices} className="mb-4 text-left" />
           <div className="text-5xl mb-3" aria-hidden>☕</div>
           <h1 className="text-2xl font-bold mb-1">Your coffee</h1>
-          <p className="text-gray-600 mb-6">
+          <p className="text-cq-ink-2 mb-6">
             {mode === 'badge'
               ? "Enter the number on your name badge. We'll remember your order and text you when it's ready."
               : badgeLookup
@@ -1144,7 +1144,7 @@ const MyCoffeePage = () => {
                 : "Enter your mobile. We'll remember your order and text you when it's ready."}
           </p>
           <input
-            className="w-full border-2 rounded-xl px-4 py-4 text-2xl text-center"
+            className="w-full border-2 rounded-cq-lg px-4 py-4 text-2xl text-center"
             inputMode={mode === 'phone' ? 'tel' : 'numeric'}
             placeholder={mode === 'phone' ? '04XX XXX XXX' : 'e.g. 56'}
             value={entry}
@@ -1154,9 +1154,9 @@ const MyCoffeePage = () => {
               if (mode === 'phone') load(entry, { byPhone: true }); else setCid(entry);
             }}
           />
-          {error && <p className="text-red-600 mt-3">{error}</p>}
+          {error && <p className="text-cq-alert mt-3">{error}</p>}
           <button
-            className="w-full mt-4 py-4 rounded-xl bg-cq-roast text-white text-lg font-semibold disabled:opacity-40"
+            className="w-full mt-4 py-4 rounded-cq-lg bg-cq-roast text-white text-lg font-semibold disabled:opacity-40"
             disabled={!entry || busy}
             onClick={() => {
               if (mode === 'phone') load(entry, { byPhone: true }); else setCid(entry);
@@ -1183,13 +1183,13 @@ const MyCoffeePage = () => {
                 : 'Use my mobile number instead'}
             </button>
           )}
-          <div className="mt-5 pt-4 border-t border-gray-200">
-            <p className="text-sm text-gray-600 mb-2">
+          <div className="mt-5 pt-4 border-t border-cq-line">
+            <p className="text-sm text-cq-ink-2 mb-2">
               Or find an order by its number (it's on the order screen):
             </p>
             <div className="flex gap-2">
               <input
-                className="flex-1 border-2 rounded-xl px-3 py-3 text-xl text-center"
+                className="flex-1 border-2 rounded-cq-lg px-3 py-3 text-xl text-center"
                 inputMode="numeric"
                 placeholder="e.g. 250"
                 value={orderNum}
@@ -1197,23 +1197,23 @@ const MyCoffeePage = () => {
                 onKeyDown={(e) => { if (e.key === 'Enter' && orderNum) findOrderByNumber(); }}
               />
               <button
-                className="px-5 rounded-xl bg-gray-800 text-white font-semibold disabled:opacity-40"
+                className="px-5 rounded-cq-lg bg-cq-roast text-white font-semibold disabled:opacity-40"
                 disabled={!orderNum || orderNumBusy}
                 onClick={findOrderByNumber}
               >
                 {orderNumBusy ? '…' : 'Find'}
               </button>
             </div>
-            {orderNumError && <p className="text-red-600 mt-2 text-sm">{orderNumError}</p>}
+            {orderNumError && <p className="text-cq-alert mt-2 text-sm">{orderNumError}</p>}
           </div>
 
           {/* ...or by the name it was put under. The last resort that always
               works: no phone, no badge, no order number -- just a name. */}
-          <div className="mt-5 pt-4 border-t border-gray-200">
-            <p className="text-sm text-gray-600 mb-2">Or by the name it was ordered under:</p>
+          <div className="mt-5 pt-4 border-t border-cq-line">
+            <p className="text-sm text-cq-ink-2 mb-2">Or by the name it was ordered under:</p>
             <div className="flex gap-2">
               <input
-                className="flex-1 border-2 rounded-xl px-3 py-3 text-lg"
+                className="flex-1 border-2 rounded-cq-lg px-3 py-3 text-lg"
                 placeholder="First name"
                 value={findName}
                 maxLength={40}
@@ -1221,7 +1221,7 @@ const MyCoffeePage = () => {
                 onKeyDown={(e) => { if (e.key === 'Enter') findByName(); }}
               />
               <button
-                className="px-5 rounded-xl text-white font-semibold disabled:opacity-40"
+                className="px-5 rounded-cq-lg text-white font-semibold disabled:opacity-40"
                 style={{ backgroundColor: brand.accent }}
                 disabled={findName.trim().length < 2 || findBusy}
                 onClick={findByName}
@@ -1230,30 +1230,30 @@ const MyCoffeePage = () => {
               </button>
             </div>
             {findHits && findHits.length === 0 && (
-              <p className="text-sm text-gray-600 mt-2">
+              <p className="text-sm text-cq-ink-2 mt-2">
                 Nothing waiting under that name in the last couple of hours. Check the
                 spelling, or just order again below.
               </p>
             )}
             {findHits && findHits.length > 0 && (
               <div className="mt-3 space-y-2 text-left">
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-cq-ink-3">
                   {findHits.length === 1 ? 'Is this you?' : 'Which one is yours?'}
                 </p>
                 {findHits.map((o) => (
                   <button
                     key={o.order_number}
                     onClick={() => { window.location.href = `/order?order=${o.order_number}`; }}
-                    className="w-full border-2 rounded-xl px-3 py-2.5 text-left hover:border-gray-400"
+                    className="w-full border-2 rounded-cq-lg px-3 py-2.5 text-left hover:border-cq-ink-3"
                   >
                     <div className="flex items-baseline gap-2">
                       <span className="text-xl font-extrabold" style={{ color: brand.accent }}>#{o.order_number}</span>
-                      <span className="font-bold text-gray-800">{o.name}</span>
+                      <span className="font-bold text-cq-roast">{o.name}</span>
                     </div>
-                    <div className="text-sm text-gray-600">
+                    <div className="text-sm text-cq-ink-2">
                       {[o.drink, o.milk].filter(Boolean).join(' · ')}
                     </div>
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-cq-ink-3">
                       {[o.station_name, o.minutes_ago === 0 ? 'just now' : `${o.minutes_ago} min ago`]
                         .filter(Boolean).join(' · ')}
                     </div>
@@ -1263,7 +1263,7 @@ const MyCoffeePage = () => {
             )}
           </div>
           <button
-            className="w-full mt-3 py-3 text-gray-600 underline"
+            className="w-full mt-3 py-3 text-cq-ink-2 underline"
             onClick={() => setFullOrder(true)}
           >
             {badgeLookup
@@ -1271,14 +1271,14 @@ const MyCoffeePage = () => {
               : 'Just order without giving a number'}
           </button>
           <button
-            className="w-full mt-2 py-2 text-gray-500 underline text-sm"
+            className="w-full mt-2 py-2 text-cq-ink-3 underline text-sm"
             onClick={() => setCheckExisting(false)}
           >
             Back to ordering
           </button>
         </div>
         {fullOrder && (
-          <div className="fixed inset-0 bg-white z-50 overflow-auto">
+          <div className="fixed inset-0 bg-cq-milk z-50 overflow-auto">
             <KioskOrder channel={cid ? 'app' : 'web'} onClose={() => setFullOrder(false)} />
           </div>
         )}
@@ -1303,14 +1303,14 @@ const MyCoffeePage = () => {
     const copy = STATUS[active.status] || { title: 'One moment…', tone: 'bg-gray-400' };
     const ready = active.status === 'completed';
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center p-6"
+      <div className="min-h-screen bg-cq-wash flex flex-col items-center p-6"
            style={{ minHeight: '100dvh',
                     paddingTop: 'max(1.5rem, env(safe-area-inset-top))',
                     paddingBottom: BEACON_PAD_BOTTOM }}>
         <div className="w-full max-w-md">
           <EventHeader brand={brand} className="mb-4" />
         <NoticeBanner notices={notices} className="mb-4 text-left" />
-          <div className={`${copy.tone} text-white rounded-2xl p-6 text-center shadow-lg
+          <div className={`${copy.tone} text-white rounded-cq-xl p-6 text-center shadow-cq-card
                            ${ready ? 'animate-pulse' : ''}`}>
             <div className="text-sm uppercase tracking-wide opacity-90">
               {me.first_name}'s order
@@ -1344,7 +1344,7 @@ const MyCoffeePage = () => {
             <button
               type="button"
               onClick={markCollected}
-              className="mt-4 w-full py-4 rounded-xl bg-gray-900 text-white text-lg font-semibold"
+              className="mt-4 w-full py-4 rounded-cq-lg bg-cq-roast text-white text-lg font-semibold"
             >
               I've got it
             </button>
@@ -1358,10 +1358,10 @@ const MyCoffeePage = () => {
           <div className="mt-6 flex items-center justify-center gap-2 text-sm">
             <span className={`inline-block w-2 h-2 rounded-full
                               ${!connected || staleSeconds > 30
-                                ? 'bg-amber-500'
-                                : 'bg-green-500 motion-safe:animate-pulse'}`} />
+                                ? 'bg-cq-caramel'
+                                : 'bg-cq-ready motion-safe:animate-pulse'}`} />
             <span className={!connected || staleSeconds > 30
-                              ? 'text-amber-700' : 'text-gray-500'}>
+                              ? 'text-cq-caramel-deep' : 'text-cq-ink-3'}>
               {!connected
                 ? 'Not connected — trying again'
                 : staleSeconds > 30
@@ -1375,7 +1375,7 @@ const MyCoffeePage = () => {
             <BaristaAskCard orderNumber={active.order_number} />
           </div>
           <CancelOrderButton orderNumber={active.order_number} status={active.status} />
-          <p className="text-center text-gray-500 text-sm mt-2">
+          <p className="text-center text-cq-ink-3 text-sm mt-2">
             Keep this page open — it updates by itself.
           </p>
 
@@ -1390,11 +1390,11 @@ const MyCoffeePage = () => {
             type="button"
             onClick={toggleSound}
             aria-pressed={soundOn}
-            className={`mt-4 w-full flex items-center justify-center gap-2 py-3 rounded-xl
+            className={`mt-4 w-full flex items-center justify-center gap-2 py-3 rounded-cq-lg
                         border-2 text-sm font-semibold transition-colors
                         ${soundOn
-                          ? 'border-green-600 text-green-700 bg-green-50'
-                          : 'border-red-500 text-red-600 bg-red-50'}`}
+                          ? 'border-cq-ready text-cq-ready bg-cq-ready-wash'
+                          : 'border-cq-alert text-cq-alert bg-cq-alert-wash'}`}
           >
             {soundOn
               ? <Volume2 size={18} className="shrink-0" />
@@ -1402,13 +1402,13 @@ const MyCoffeePage = () => {
             {soundOn ? 'Sound on when ready' : 'Tap for a sound when ready'}
           </button>
           {soundOn && audioState === 'running' && (
-            <p className="mt-1 text-xs text-center text-gray-500">
+            <p className="mt-1 text-xs text-center text-cq-ink-3">
               Chime played — didn't hear it? Check your phone's silent
               switch and volume.
             </p>
           )}
           {soundOn && audioState === 'blocked' && (
-            <p className="mt-1 text-xs text-center text-amber-700">
+            <p className="mt-1 text-xs text-center text-cq-caramel-deep">
               This app is blocking sound. This screen still turns green
               when it's ready — or opt in for a text.
             </p>
@@ -1427,15 +1427,15 @@ const MyCoffeePage = () => {
             <img
               src={`/api/qr?size=7&data=${encodeURIComponent(`${window.location.origin}/order`)}`}
               alt="Order a coffee"
-              className="w-40 h-40 bg-white rounded-xl p-2 shadow"
+              className="w-40 h-40 bg-cq-milk rounded-cq-lg p-2 shadow"
             />
-            <p className="text-xs text-gray-500 mt-2 text-center">
+            <p className="text-xs text-cq-ink-3 mt-2 text-center">
               Someone else can scan this to order their own.
             </p>
           </div>
 
           <button
-            className="w-full mt-6 py-3 rounded-xl bg-gray-800 text-white font-semibold"
+            className="w-full mt-6 py-3 rounded-cq-lg bg-cq-roast text-white font-semibold"
             onClick={() => setFullOrder(true)}
           >
             Order another
@@ -1445,8 +1445,8 @@ const MyCoffeePage = () => {
               along the bottom. Hidden until the operator adds sponsors. */}
           {sponsorTicker.enabled && sponsorTicker.sponsors.length > 0 && (
             <div className="mt-8">
-              <p className="text-[11px] uppercase tracking-wider text-gray-400 mb-2">Proudly supported by</p>
-              <div className="rounded-xl overflow-hidden shadow-sm">
+              <p className="text-[11px] uppercase tracking-wider text-cq-ink-3 mb-2">Proudly supported by</p>
+              <div className="rounded-cq-lg overflow-hidden shadow-sm">
                 <SponsorTicker items={sponsorTicker.sponsors} position="bottom" size={sponsorTicker.size} />
               </div>
             </div>
@@ -1454,7 +1454,7 @@ const MyCoffeePage = () => {
           <PoweredBy brand={brand} className="mt-8 text-center" />
         </div>
         {fullOrder && (
-          <div className="fixed inset-0 bg-white z-50 overflow-auto">
+          <div className="fixed inset-0 bg-cq-milk z-50 overflow-auto">
             <KioskOrder
               eaCid={cid}
               headerColor={brand.accent}
@@ -1470,7 +1470,7 @@ const MyCoffeePage = () => {
 
   // ---- identified, nothing in flight -------------------------------------
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center p-6"
+    <div className="min-h-screen bg-cq-wash flex flex-col items-center p-6"
          style={{ paddingTop: 'max(1.5rem, env(safe-area-inset-top))',
                   paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
       <div className="w-full max-w-md text-center pb-2">
@@ -1478,20 +1478,20 @@ const MyCoffeePage = () => {
         <NoticeBanner notices={notices} className="mb-4 text-left" />
         {editingName ? (
           <div className="mb-5 text-left">
-            <label className="block text-sm text-gray-600 mb-1">
+            <label className="block text-sm text-cq-ink-2 mb-1">
               Name for the cup
             </label>
             <input
-              className="w-full border-2 rounded-xl px-4 py-3 text-lg"
+              className="w-full border-2 rounded-cq-lg px-4 py-3 text-lg"
               placeholder={me.registered_name || 'Your name'}
               value={nameDraft}
               maxLength={40}
               onChange={(e) => setNameDraft(e.target.value)}
             />
             <div className="flex gap-2 mt-3">
-              <button className="flex-1 py-3 rounded-xl bg-cq-roast text-white font-semibold disabled:opacity-40"
+              <button className="flex-1 py-3 rounded-cq-lg bg-cq-roast text-white font-semibold disabled:opacity-40"
                       disabled={busy} onClick={saveName}>Save</button>
-              <button className="flex-1 py-3 rounded-xl bg-gray-200 font-semibold"
+              <button className="flex-1 py-3 rounded-cq-lg bg-cq-line font-semibold"
                       onClick={() => setEditingName(false)}>Cancel</button>
             </div>
           </div>
@@ -1509,12 +1509,12 @@ const MyCoffeePage = () => {
 
         {me.usual ? (
           <>
-            <p className="text-gray-600 mb-1">Your usual</p>
+            <p className="text-cq-ink-2 mb-1">Your usual</p>
             {/* The pipe separates drink from barista note in storage; it
                 is not something to show a customer. */}
             <p className="text-2xl font-semibold mb-6">{String(me.usual).replace(' | ', ' — ')}</p>
             <button
-              className="w-full py-5 rounded-2xl bg-cq-roast text-white text-xl font-bold shadow disabled:opacity-40"
+              className="w-full py-5 rounded-cq-xl bg-cq-roast text-white text-xl font-bold shadow disabled:opacity-40"
               disabled={busy}
               onClick={orderUsual}
             >
@@ -1522,12 +1522,12 @@ const MyCoffeePage = () => {
             </button>
           </>
         ) : (
-          <p className="text-gray-600 mb-6">
+          <p className="text-cq-ink-2 mb-6">
             You haven't saved a usual yet.
           </p>
         )}
 
-        {error && <p className="text-red-600 mt-4">{error}</p>}
+        {error && <p className="text-cq-alert mt-4">{error}</p>}
 
         {editing ? (
           /* The SAME chooser the QR flow uses, in pick mode. There used to
@@ -1544,7 +1544,7 @@ const MyCoffeePage = () => {
         ) : null}
         {!editing ? (
           <button
-            className="w-full mt-3 py-3 rounded-xl bg-white border-2 border-cq-caramel text-cq-caramel-deep font-semibold"
+            className="w-full mt-3 py-3 rounded-cq-lg bg-cq-milk border-2 border-cq-caramel text-cq-caramel-deep font-semibold"
             onClick={startEditing}
           >
             {me.usual ? 'Change my usual' : 'Save my usual'}
@@ -1552,13 +1552,13 @@ const MyCoffeePage = () => {
         ) : null}
 
         <button
-          className="w-full mt-3 py-3 text-gray-700 underline"
+          className="w-full mt-3 py-3 text-cq-ink-2 underline"
           onClick={() => setFullOrder(true)}
         >
           Order something else
         </button>
 
-        <button className="mt-8 text-xs text-gray-400 underline" onClick={forget}>
+        <button className="mt-8 text-xs text-cq-ink-3 underline" onClick={forget}>
           Not {me.first_name}? Start again
         </button>
         <PoweredBy brand={brand} className="mt-10" />
@@ -1566,7 +1566,7 @@ const MyCoffeePage = () => {
       </div>
 
       {fullOrder && (
-        <div className="fixed inset-0 bg-white z-50 overflow-auto">
+        <div className="fixed inset-0 bg-cq-milk z-50 overflow-auto">
           {/* eaCid so the order is filed against THIS person: their name on
               the cup, their phone attached server-side, and the order then
               shows here as theirs instead of vanishing. */}

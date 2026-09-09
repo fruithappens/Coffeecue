@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import BaristaInterface from './components/barista/BaristaInterface';
-import Organiser from './components/organiser/Organiser';
 import DisplayScreen from './components/display/DisplayScreen';
 import SponsorWall from './components/display/SponsorWall';
 import SignPage from './components/display/SignPage';

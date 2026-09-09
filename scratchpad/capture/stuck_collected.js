@@ -2,6 +2,7 @@
 // despite picked up." Reproduce it: take a card out from under the button
 // (a second device marking it) and then tap Collected.
 const { chromium } = require('playwright-core');
+const { eventCode } = require('./eventcode');
 const BASE = 'http://localhost:5001';
 const pass = [], fail = [];
 const ok = (n, c, d = '') => (c ? pass : fail).push(n + (d ? ` — ${d}` : ''));
@@ -17,7 +18,8 @@ const ok = (n, c, d = '') => (c ? pass : fail).push(n + (d ? ` — ${d}` : ''));
   const made = await fetch(`${BASE}/api/display/order`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: 'Stuck test', coffee_type: 'Latte', milk: 'Full Cream',
-      size: 'medium', channel: 'web', surface: 'phone', sms_opt_in: false }),
+      size: 'medium', channel: 'web', surface: 'phone', sms_opt_in: false,
+      e: await eventCode(BASE) }),
   }).then(r => r.json());
   const num = made.order_number;
   const list = await fetch(`${BASE}/api/orders`, { headers: H }).then(r => r.json());

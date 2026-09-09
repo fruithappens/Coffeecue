@@ -115,15 +115,15 @@ const InProgressOrder = ({
 
   return (
     <div 
-      className={`rounded-lg shadow-md p-4 mb-4 relative ${getOrderBackgroundColor(order, settings)}`}
+      className={`rounded-cq-md shadow-cq-card p-4 mb-4 relative ${getOrderBackgroundColor(order, settings)}`}
       style={milkColorStyle}
     >
       {/* Completion overlay animation */}
       {showCompletionSuccess && (
-        <div className="absolute inset-0 bg-green-50 rounded-lg flex items-center justify-center z-10 animate-fade-in">
+        <div className="absolute inset-0 bg-cq-ready-wash rounded-cq-md flex items-center justify-center z-10 animate-fade-in">
           <div className="text-center">
-            <CheckCircle size={48} className="text-green-500 mx-auto mb-2" />
-            <div className="text-xl font-bold text-green-700">Order Completed!</div>
+            <CheckCircle size={48} className="text-cq-ready mx-auto mb-2" />
+            <div className="text-xl font-bold text-cq-ready">Order Completed!</div>
           </div>
         </div>
       )}
@@ -131,27 +131,27 @@ const InProgressOrder = ({
       {/* Order header with customer info */}
       <div className="flex justify-between">
         <div>
-          <div className="text-sm text-gray-500">Order #{order.id}</div>
+          <div className="text-sm text-cq-ink-3">Order #{order.id}</div>
           <div className="text-xl font-bold mt-1">{order.customerName}</div>
-          <div className="text-gray-700">{order.phoneNumber}</div>
+          <div className="text-cq-ink-2">{order.phoneNumber}</div>
         </div>
         <div className="flex flex-col items-end space-y-1">
           {order.priority && (
-            <div className="bg-red-100 text-red-700 px-2 py-1 rounded text-sm font-medium">
+            <div className="bg-cq-alert-wash text-cq-alert px-2 py-1 rounded text-sm font-medium">
               PRIORITY
             </div>
           )}
           {order.batchGroup && (
-            <div className="bg-amber-100 text-amber-700 px-2 py-1 rounded text-xs font-medium">
+            <div className="bg-cq-caramel-wash text-cq-caramel-deep px-2 py-1 rounded text-xs font-medium">
               BATCH: {order.batchGroup.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
             </div>
           )}
-          <div className="flex items-center mt-2 text-gray-500">
+          <div className="flex items-center mt-2 text-cq-ink-3">
             <Clock size={16} className="mr-1" />
             <span>{order.waitTime} min</span>
           </div>
           {messageCount > 0 && (
-            <div className={`text-xs mt-1 rounded-full px-2 py-0.5 ${hasFailedMessages ? 'bg-red-100 text-red-700' : 'bg-cq-caramel-wash text-cq-caramel-deep'}`}>
+            <div className={`text-xs mt-1 rounded-full px-2 py-0.5 ${hasFailedMessages ? 'bg-cq-alert-wash text-cq-alert' : 'bg-cq-caramel-wash text-cq-caramel-deep'}`}>
               {messageCount} message{messageCount !== 1 ? 's' : ''}
             </div>
           )}
@@ -159,24 +159,24 @@ const InProgressOrder = ({
       </div>
       
       {/* Order details */}
-      <div className="mt-4 bg-gray-100 p-3 rounded-lg">
+      <div className="mt-4 bg-cq-wash p-3 rounded-cq-md">
         <div className="text-xl font-bold flex items-center">
           <Coffee size={20} className="mr-2" />
           {order.size ? `${order.size} ` : ''}{order.coffeeType}
         </div>
-        <div className="text-gray-700 flex items-center">
+        <div className="text-cq-ink-2 flex items-center">
           {order.milkType && order.milkType !== 'No Milk' && (
             <span style={getMilkDotStyle(order.milkType, order.milkTypeId)}></span>
           )}
           {order.milkType}, {order.sugar}
         </div>
-        {order.extraHot && <div className="text-gray-700">Extra hot</div>}
+        {order.extraHot && <div className="text-cq-ink-2">Extra hot</div>}
         {/* Anything the customer wrote. It existed on the
             order and on the API response (specialInstructions) but nothing
             on this screen rendered them, so a "double shot, no foam" was
             invisible to the person making it. */}
         {(order.specialInstructions || order.notes) && (
-          <div className="mt-1 inline-block bg-amber-100 text-amber-900 text-sm px-2 py-1 rounded">
+          <div className="mt-1 inline-block bg-cq-caramel-wash text-cq-caramel-deep text-sm px-2 py-1 rounded">
             {order.specialInstructions || order.notes}
           </div>
         )}
@@ -192,17 +192,17 @@ const InProgressOrder = ({
       {/* Action buttons */}
       <div className="mt-4 flex space-x-2">
         <button 
-          className="flex-1 bg-gray-200 py-2 rounded flex items-center justify-center space-x-1 hover:bg-gray-300 relative"
+          className="flex-1 bg-cq-line py-2 rounded flex items-center justify-center space-x-1 hover:bg-cq-line relative"
           onClick={handleSendMessage}
         >
           <MessageCircle size={18} />
           <span>Message Customer</span>
           {hasFailedMessages && (
-            <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full"></span>
+            <span className="absolute -top-1 -right-1 w-4 h-4 bg-cq-alert rounded-full"></span>
           )}
         </button>
         <button 
-          className="flex-1 bg-gray-200 py-2 rounded flex items-center justify-center space-x-1 hover:bg-gray-300"
+          className="flex-1 bg-cq-line py-2 rounded flex items-center justify-center space-x-1 hover:bg-cq-line"
           onClick={handlePrintLabel}
         >
           <Printer size={18} />
@@ -227,10 +227,10 @@ const InProgressOrder = ({
           position="top"
         >
           <button 
-            className={`group w-full py-3 rounded-lg font-bold text-lg flex items-center justify-center space-x-2
+            className={`group w-full py-3 rounded-cq-md font-bold text-lg flex items-center justify-center space-x-2
                       ${isCompleting || showCompletionSuccess 
                         ? 'bg-gray-400 text-gray-100 cursor-not-allowed' 
-                        : 'bg-green-500 text-white hover:bg-green-600'}`}
+                        : 'bg-cq-ready text-white hover:bg-cq-ready'}`}
             onClick={handleComplete}
             disabled={isCompleting || showCompletionSuccess}
           >
@@ -259,7 +259,7 @@ const InProgressOrder = ({
           clamp the ratio so the bar never goes negative or NaN. */}
       <div className="mt-3 flex items-center space-x-2">
         <div className="text-sm">Time pressure:</div>
-        <div className="flex-grow bg-gray-200 h-2 rounded-full overflow-hidden">
+        <div className="flex-grow bg-cq-line h-2 rounded-full overflow-hidden">
           <div
             className={`h-2 ${getTimeRatioColor(order.waitTime || 0, order.promisedTime || 5)}`}
             style={{

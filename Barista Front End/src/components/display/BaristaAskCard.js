@@ -53,26 +53,26 @@ export default function BaristaAskCard({ orderNumber, ask: askProp, headerColor 
 
   if (sent) {
     return (
-      <div className="rounded-2xl border-2 p-4 text-center" style={{ borderColor: headerColor }}>
+      <div className="rounded-cq-xl border-2 p-4 text-center" style={{ borderColor: headerColor }}>
         <div className="text-lg font-bold" style={{ color: headerColor }}>Thanks — sent to the barista.</div>
-        <div className="text-sm text-gray-500 mt-1">They'll see your answer on their screen.</div>
+        <div className="text-sm text-cq-ink-3 mt-1">They'll see your answer on their screen.</div>
       </div>
     );
   }
   if (!ask || !ask.message) return null;
 
   return (
-    <div className="rounded-2xl border-2 p-4" style={{ borderColor: headerColor, background: '#fffdf7' }}>
-      <div className="text-xs font-bold uppercase tracking-wide text-amber-700 mb-1">
+    <div className="rounded-cq-xl border-2 p-4" style={{ borderColor: headerColor, background: '#fffdf7' }}>
+      <div className="text-xs font-bold uppercase tracking-wide text-cq-caramel-deep mb-1">
         A message from the barista
       </div>
-      <div className="text-xl font-semibold text-gray-800 mb-3">{ask.message}</div>
+      <div className="text-xl font-semibold text-cq-roast mb-3">{ask.message}</div>
 
       {Array.isArray(ask.options) && ask.options.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-3">
           {ask.options.map((opt) => (
             <button key={opt} disabled={sending} onClick={() => send(opt)}
-              className="px-4 py-3 rounded-xl text-white text-lg font-bold disabled:opacity-50"
+              className="px-4 py-3 rounded-cq-lg text-white text-lg font-bold disabled:opacity-50"
               style={{ backgroundColor: headerColor }}>
               {opt}
             </button>
@@ -86,10 +86,10 @@ export default function BaristaAskCard({ orderNumber, ask: askProp, headerColor 
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') send(text); }}
           placeholder="…or type a reply"
-          className="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2 text-base"
+          className="flex-1 border-2 border-cq-line rounded-cq-lg px-3 py-2 text-base"
         />
         <button disabled={sending || !text.trim()} onClick={() => send(text)}
-          className="px-4 rounded-xl text-white font-semibold disabled:opacity-40"
+          className="px-4 rounded-cq-lg text-white font-semibold disabled:opacity-40"
           style={{ backgroundColor: headerColor }}>
           {sending ? '…' : 'Send'}
         </button>

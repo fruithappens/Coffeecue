@@ -1,5 +1,6 @@
 // Does one notice actually reach every surface?
 const { chromium } = require('playwright-core');
+const { eventCode } = require('./eventcode');
 const BASE = 'http://localhost:5001';
 const pass = [], fail = [];
 const ok = (n, c, d = '') => (c ? pass : fail).push(n + (d ? ` — ${d}` : ''));
@@ -45,9 +46,14 @@ async function api(path, opts = {}) {
   await p.screenshot({ path: `${__dirname}/notice_board.png` });
 
   // 2. The beacon in a customer's hand.
+  // Arrive the way a customer does -- via the QR, which carries ?e=. Without
+  // the code an event with the gate switched on shows the code prompt, and
+  // the notice is behind it.
+  const CODE = await eventCode(BASE);
   const phone = await ctx.newPage();
   await phone.setViewportSize({ width: 390, height: 844 });
-  await phone.goto(`${BASE}/my`, { waitUntil: 'networkidle' });
+  await phone.goto(`${BASE}/my${CODE ? `?e=${encodeURIComponent(CODE)}` : ''}`,
+                   { waitUntil: 'networkidle' });
   await phone.waitForTimeout(2500);
   text = await phone.locator('body').innerText();
   ok('beacon shows the notice', /run out of skim milk/i.test(text));

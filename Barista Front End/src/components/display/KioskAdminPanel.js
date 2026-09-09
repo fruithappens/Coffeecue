@@ -143,10 +143,10 @@ const KioskAdminPanel = ({ stationId, stationName }) => {
   const Action = ({ icon: Icon, label, onClick, danger }) => (
     <button
       onClick={() => { poke(); onClick(); }}
-      className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl border-2 text-left
+      className={`flex items-center gap-3 w-full px-4 py-3 rounded-cq-lg border-2 text-left
                   text-base font-semibold ${danger
-                    ? 'border-red-300 text-red-700 bg-red-50 hover:bg-red-100'
-                    : 'border-gray-300 text-gray-800 bg-white hover:border-amber-500'}`}
+                    ? 'border-cq-alert text-cq-alert bg-cq-alert-wash hover:bg-cq-alert-wash'
+                    : 'border-cq-line text-cq-roast bg-cq-milk hover:border-cq-caramel'}`}
     >
       <Icon size={20} className="shrink-0" /> {label}
     </button>
@@ -168,30 +168,30 @@ const KioskAdminPanel = ({ stationId, stationName }) => {
       {stage === 'pin' && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-6"
              onPointerDown={poke}>
-          <div className="bg-white rounded-2xl p-6 w-full max-w-xs text-center shadow-2xl">
-            <Shield className="mx-auto text-amber-700" size={28} />
-            <div className="font-bold text-gray-800 mt-1 mb-3">Staff PIN</div>
-            <div className={`h-8 text-2xl tracking-[0.5em] font-mono ${pinError ? 'text-red-600' : 'text-gray-800'}`}>
+          <div className="bg-cq-milk rounded-cq-xl p-6 w-full max-w-xs text-center shadow-2xl">
+            <Shield className="mx-auto text-cq-caramel-deep" size={28} />
+            <div className="font-bold text-cq-roast mt-1 mb-3">Staff PIN</div>
+            <div className={`h-8 text-2xl tracking-[0.5em] font-mono ${pinError ? 'text-cq-alert' : 'text-cq-roast'}`}>
               {pinError ? '····' : '•'.repeat(pin.length)}
             </div>
-            {pinError && <div className="text-xs text-red-600 mb-1">Wrong PIN</div>}
+            {pinError && <div className="text-xs text-cq-alert mb-1">Wrong PIN</div>}
             <div className="grid grid-cols-3 gap-2 mt-2">
               {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((d) => (
                 <button key={d} onClick={() => press(String(d))}
-                  className="py-3 rounded-xl bg-gray-100 hover:bg-amber-100 text-xl font-bold">
+                  className="py-3 rounded-cq-lg bg-cq-wash hover:bg-cq-caramel-wash text-xl font-bold">
                   {d}
                 </button>
               ))}
               <button onClick={() => { poke(); setStage('hidden'); setPin(''); }}
-                className="py-3 rounded-xl bg-gray-100 text-gray-500">
+                className="py-3 rounded-cq-lg bg-cq-wash text-cq-ink-3">
                 <X size={20} className="mx-auto" />
               </button>
               <button onClick={() => press('0')}
-                className="py-3 rounded-xl bg-gray-100 hover:bg-amber-100 text-xl font-bold">
+                className="py-3 rounded-cq-lg bg-cq-wash hover:bg-cq-caramel-wash text-xl font-bold">
                 0
               </button>
               <button onClick={() => { poke(); setPin(pin.slice(0, -1)); }}
-                className="py-3 rounded-xl bg-gray-100 text-gray-500">
+                className="py-3 rounded-cq-lg bg-cq-wash text-cq-ink-3">
                 <Delete size={20} className="mx-auto" />
               </button>
             </div>
@@ -202,21 +202,21 @@ const KioskAdminPanel = ({ stationId, stationName }) => {
       {stage === 'panel' && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-6"
              onPointerDown={poke}>
-          <div className="bg-gray-50 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+          <div className="bg-cq-wash rounded-cq-xl p-6 w-full max-w-md shadow-2xl">
             <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center gap-2 font-bold text-gray-800">
-                <Shield size={20} className="text-amber-700" /> Device admin
+              <div className="flex items-center gap-2 font-bold text-cq-roast">
+                <Shield size={20} className="text-cq-caramel-deep" /> Device admin
               </div>
-              <button onClick={() => setStage('hidden')} className="text-gray-400 hover:text-gray-700">
+              <button onClick={() => setStage('hidden')} className="text-cq-ink-3 hover:text-cq-ink-2">
                 <X size={20} />
               </button>
             </div>
-            <div className="text-xs text-gray-500 mb-3">
+            <div className="text-xs text-cq-ink-3 mb-3">
               {stationName || `Station ${stationId || '?'}`} · {identity}
               {version && <> · build {version.replace('main.', '').replace('.js', '')}</>}
               <span className="block">Closes itself after 30s idle.</span>
               {defaultPin && (
-                <span className="block text-red-600 font-semibold">
+                <span className="block text-cq-alert font-semibold">
                   Default PIN in use — change it in Comms Hub → Event wording.
                 </span>
               )}

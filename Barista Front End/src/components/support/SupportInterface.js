@@ -106,7 +106,7 @@ const SupportInterface = () => {
   const ActiveComponent = activeLeaf.component;
 
   return (
-    <div className="cq cq-legacy flex h-screen bg-gray-50">
+    <div className="cq cq-legacy flex h-screen bg-cq-wash">
       {/* Toasts (Printers tab and friends dispatch app:toast events). */}
       <ToastManager />
       {/* Mobile drawer backdrop — tap to close. */}
@@ -116,17 +116,17 @@ const SupportInterface = () => {
       {/* Sidebar — same chrome as the Organiser sidebar: white, collapsible,
           amber active state, back-to-home in the header, Log out in a footer.
           Emergency keeps a red accent. */}
-      <div className={`bg-white shadow-lg ${sidebarOpen ? 'w-64' : 'w-20'} transition-all duration-300 flex flex-col fixed inset-y-0 left-0 z-40 ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full'} md:static md:translate-x-0 md:z-auto`}>
-        <div className="p-4 border-b border-gray-200">
+      <div className={`bg-cq-milk shadow-cq-card ${sidebarOpen ? 'w-64' : 'w-20'} transition-all duration-300 flex flex-col fixed inset-y-0 left-0 z-40 ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full'} md:static md:translate-x-0 md:z-auto`}>
+        <div className="p-4 border-b border-cq-line">
           <div className="flex justify-between items-center">
             <div className="flex items-center">
-              <h1 className={`font-bold text-gray-800 ${sidebarOpen ? 'text-xl' : 'text-sm'}`}>
+              <h1 className={`font-bold text-cq-roast ${sidebarOpen ? 'text-xl' : 'text-sm'}`}>
                 {sidebarOpen ? 'Support' : 'S'}
               </h1>
             </div>
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="text-gray-500 hover:text-gray-800"
+              className="text-cq-ink-3 hover:text-cq-roast"
             >
               {sidebarOpen ? '◀' : '▶'}
             </button>
@@ -139,8 +139,8 @@ const SupportInterface = () => {
               const { Icon } = s;
               const isActive = activeSection === s.id;
               const cls = s.id === 'emergency'
-                ? (isActive ? 'bg-red-100 text-red-800' : 'text-red-700 hover:bg-red-50')
-                : (isActive ? 'bg-amber-100 text-amber-800' : 'text-gray-700 hover:bg-gray-100');
+                ? (isActive ? 'bg-cq-alert-wash text-cq-alert' : 'text-cq-alert hover:bg-cq-alert-wash')
+                : (isActive ? 'bg-cq-caramel-wash text-cq-caramel-deep' : 'text-cq-ink-2 hover:bg-cq-wash');
               return (
                 <button
                   key={s.id}
@@ -156,8 +156,8 @@ const SupportInterface = () => {
           </div>
         </nav>
 
-        <div className="p-4 border-t border-gray-200">
-          <button onClick={handleLogout} className="flex items-center text-gray-700 w-full hover:text-red-600">
+        <div className="p-4 border-t border-cq-line">
+          <button onClick={handleLogout} className="flex items-center text-cq-ink-2 w-full hover:text-cq-alert">
             <LogOut size={20} className="mr-3" />
             {sidebarOpen && <span>Log out</span>}
           </button>
@@ -172,28 +172,28 @@ const SupportInterface = () => {
             "System monitoring and management tools (Active: <tabId>)" —
             the raw tab id was internal state on show, and the oversized
             title collided with the timestamp beside it. */}
-        <header className="bg-white shadow-sm px-6 py-4 flex items-center justify-between">
+        <header className="bg-cq-milk shadow-sm px-6 py-4 flex items-center justify-between">
           <div className="flex items-center min-w-0">
             {/* Mobile-only menu button — opens the sidebar drawer. */}
             <button
-              className="md:hidden mr-2 p-1 rounded hover:bg-gray-200 text-gray-700 flex-shrink-0"
+              className="md:hidden mr-2 p-1 rounded hover:bg-cq-line text-cq-ink-2 flex-shrink-0"
               onClick={() => setMobileNavOpen(true)}
               aria-label="Open navigation menu"
             >
               <Menu size={24} />
             </button>
-            <h1 className="text-xl font-bold text-gray-800 truncate">
+            <h1 className="text-xl font-bold text-cq-roast truncate">
               {grouped ? `${section.label} — ${activeLeaf.label}` : section.label}
             </h1>
           </div>
 
           <div className="flex items-center space-x-4 flex-shrink-0">
-            <div className="text-sm text-gray-600 hidden md:block">
+            <div className="text-sm text-cq-ink-2 hidden md:block">
               Last update: {lastUpdated.toLocaleTimeString()}
             </div>
             <button
               onClick={() => { setLastUpdated(new Date()); window.location.reload(); }}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 hover:bg-cq-wash rounded-cq-md transition-colors"
               title="Refresh"
             >
               <RefreshCw size={20} />
@@ -203,22 +203,22 @@ const SupportInterface = () => {
             <div className="relative">
               <button
                 onClick={() => setAccountOpen(o => !o)}
-                className="h-9 w-9 rounded-full bg-amber-200 flex items-center justify-center hover:bg-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                className="h-9 w-9 rounded-full bg-amber-200 flex items-center justify-center hover:bg-amber-300 focus:outline-none focus:ring-2 focus:ring-cq-caramel"
                 title={`Signed in as ${userLabel}`}
               >
-                <span className="text-amber-800 font-medium">{userInitial}</span>
+                <span className="text-cq-caramel-deep font-medium">{userInitial}</span>
               </button>
               {accountOpen && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setAccountOpen(false)} />
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-20 py-1">
-                    <div className="px-4 py-2 border-b border-gray-100">
-                      <div className="text-xs text-gray-500">Signed in as</div>
-                      <div className="text-sm font-medium text-gray-800 truncate">{userLabel}</div>
+                  <div className="absolute right-0 mt-2 w-48 bg-cq-milk rounded-cq-md shadow-cq-card border border-cq-line z-20 py-1">
+                    <div className="px-4 py-2 border-b border-cq-line">
+                      <div className="text-xs text-cq-ink-3">Signed in as</div>
+                      <div className="text-sm font-medium text-cq-roast truncate">{userLabel}</div>
                     </div>
                     <button
                       onClick={() => { setAccountOpen(false); handleLogout(); }}
-                      className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center"
+                      className="w-full text-left px-4 py-2 text-sm text-cq-alert hover:bg-cq-alert-wash flex items-center"
                     >
                       <LogOut size={16} className="mr-2" /> Log out
                     </button>
