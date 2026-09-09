@@ -549,7 +549,7 @@ const EnhancedScheduleManagement = () => {
                       
                       {/* Pre-order window indicator */}
                       <div
-                        className="absolute top-0 bottom-0 bg-orange-200 opacity-50 rounded-l-lg"
+                        className="absolute top-0 bottom-0 bg-cq-caramel-wash opacity-50 rounded-l-lg"
                         style={{
                           right: '100%',
                           width: `${(session.preOrderWindow / 60) * 120}px`
@@ -558,7 +558,7 @@ const EnhancedScheduleManagement = () => {
                       
                       {/* Barista prep time indicator */}
                       <div
-                        className="absolute top-0 bottom-0 bg-purple-200 opacity-50 rounded-l-lg"
+                        className="absolute top-0 bottom-0 bg-cq-caramel-wash opacity-50 rounded-l-lg"
                         style={{
                           right: '100%',
                           width: `${(session.baristaPrep / 60) * 120}px`
@@ -577,11 +577,11 @@ const EnhancedScheduleManagement = () => {
                 <span>Scheduled Session</span>
               </div>
               <div className="flex items-center">
-                <div className="w-4 h-4 bg-orange-200 rounded mr-2" />
+                <div className="w-4 h-4 bg-cq-caramel-wash rounded mr-2" />
                 <span>Pre-order Window</span>
               </div>
               <div className="flex items-center">
-                <div className="w-4 h-4 bg-purple-200 rounded mr-2" />
+                <div className="w-4 h-4 bg-cq-caramel-wash rounded mr-2" />
                 <span>Barista Prep Time</span>
               </div>
               <div className="flex items-center">
@@ -745,7 +745,7 @@ const EnhancedScheduleManagement = () => {
                             {session.assignedBaristas?.length || 0} baristas
                           </span>
                           {session.extended && (
-                            <span className="text-orange-600">
+                            <span className="text-cq-caramel-deep">
                               Extended by {session.extensionMinutes} mins
                             </span>
                           )}
@@ -828,7 +828,7 @@ const EnhancedScheduleManagement = () => {
                               message: `Alert: ${session.name} update`
                             });
                           }}
-                          className="p-2 bg-purple-500 hover:bg-purple-600 text-white rounded-cq-md"
+                          className="p-2 bg-cq-caramel hover:bg-cq-roast text-white rounded-cq-md"
                           title="Send alert to all stations"
                         >
                           <Bell size={20} />
@@ -881,8 +881,8 @@ const EnhancedScheduleManagement = () => {
             </div>
             
             {/* Communication panel */}
-            <div className="mt-6 p-4 bg-purple-50 border border-purple-200 rounded-cq-md">
-              <h4 className="font-semibold text-purple-800 mb-3 flex items-center">
+            <div className="mt-6 p-4 bg-cq-caramel-wash border border-purple-200 rounded-cq-md">
+              <h4 className="font-semibold text-cq-caramel-deep mb-3 flex items-center">
                 <MessageSquare size={20} className="mr-2" />
                 Quick Communication
               </h4>
@@ -898,7 +898,7 @@ const EnhancedScheduleManagement = () => {
                       });
                     }
                   }}
-                  className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-cq-md"
+                  className="px-4 py-2 bg-cq-caramel hover:bg-cq-roast text-white rounded-cq-md"
                 >
                   Broadcast Message
                 </button>
@@ -910,7 +910,7 @@ const EnhancedScheduleManagement = () => {
                       priority: 'high'
                     });
                   }}
-                  className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-cq-md"
+                  className="px-4 py-2 bg-cq-caramel hover:bg-cq-roast text-white rounded-cq-md"
                 >
                   Alert: Schedule Change
                 </button>

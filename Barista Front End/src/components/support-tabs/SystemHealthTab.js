@@ -262,22 +262,22 @@ const SystemHealthTab = () => {
   const getStatusIcon = (status) => {
     switch (status) {
       case 'healthy':
-        return <CheckCircle className="w-5 h-5 text-green-500" />;
+        return <CheckCircle className="w-5 h-5 text-cq-ready" />;
       case 'warning':
-        return <AlertTriangle className="w-5 h-5 text-yellow-500" />;
+        return <AlertTriangle className="w-5 h-5 text-cq-warn" />;
       case 'error':
-        return <XCircle className="w-5 h-5 text-red-500" />;
+        return <XCircle className="w-5 h-5 text-cq-alert" />;
       default:
-        return <Activity className="w-5 h-5 text-gray-500" />;
+        return <Activity className="w-5 h-5 text-cq-ink-3" />;
     }
   };
   
   const getStatusColor = (status) => {
     switch (status) {
-      case 'healthy': return 'border-green-500 bg-green-50';
-      case 'warning': return 'border-yellow-500 bg-yellow-50';
-      case 'error': return 'border-red-500 bg-red-50';
-      default: return 'border-gray-500 bg-gray-50';
+      case 'healthy': return 'border-cq-ready bg-cq-ready-wash';
+      case 'warning': return 'border-cq-warn bg-cq-warn-wash';
+      case 'error': return 'border-cq-alert bg-cq-alert-wash';
+      default: return 'border-cq-line bg-cq-wash';
     }
   };
   
@@ -301,23 +301,23 @@ const SystemHealthTab = () => {
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold">System Health Monitor</h2>
         <div className="flex items-center space-x-4">
-          <span className="text-sm text-gray-600">
+          <span className="text-sm text-cq-ink-2">
             Last update: {lastUpdate.toLocaleTimeString()}
           </span>
           <label className="flex items-center">
             <input
-              type="checkbox"
+              type="checkbox" className="w-[18px] h-[18px] rounded-cq-sm border-2 border-cq-line accent-cq-caramel cursor-pointer"
               checked={autoRefresh}
               onChange={(e) => setAutoRefresh(e.target.checked)}
-              className="mr-2"
+              className="mr-2 w-[18px] h-[18px] rounded-cq-sm border-2 border-cq-line accent-cq-caramel cursor-pointer"
             />
             <span className="text-sm">Auto-refresh</span>
           </label>
           <button
             onClick={checkSystemHealth}
-            className="p-2 bg-blue-100 hover:bg-blue-200 rounded-lg transition-colors"
+            className="p-2 bg-cq-caramel-wash hover:bg-cq-caramel-wash rounded-cq-md transition-colors"
           >
-            <RefreshCw className="w-5 h-5 text-blue-600" />
+            <RefreshCw className="w-5 h-5 text-cq-caramel-deep" />
           </button>
         </div>
       </div>
@@ -375,7 +375,7 @@ const SystemHealthTab = () => {
       </div>
       
       {/* System Resources */}
-      <div className="mt-6 bg-white rounded-lg shadow-sm p-6">
+      <div className="mt-6 bg-cq-milk rounded-cq-lg shadow-cq-card p-6">
         <h3 className="font-semibold text-lg mb-4 flex items-center">
           <Cpu className="w-5 h-5 mr-2" />
           System Resources
@@ -400,7 +400,7 @@ const SystemHealthTab = () => {
           />
         </div>
         {perf.cpu == null && (
-          <p className="text-xs text-gray-500 mt-3">
+          <p className="text-xs text-cq-ink-3 mt-3">
             Live CPU/memory unavailable — /api/diagnostics/performance unreachable.
           </p>
         )}
@@ -415,21 +415,21 @@ const SystemHealthTab = () => {
 
 const OverviewCard = ({ label, value, status }) => {
   const statusColors = {
-    healthy: 'text-green-600',
-    warning: 'text-yellow-600',
-    error: 'text-red-600'
+    healthy: 'text-cq-ready',
+    warning: 'text-cq-warn',
+    error: 'text-cq-alert'
   };
   
   return (
-    <div className="bg-white rounded-lg shadow-sm p-4">
-      <div className="text-sm text-gray-600 mb-1">{label}</div>
+    <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4">
+      <div className="text-sm text-cq-ink-2 mb-1">{label}</div>
       <div className={`text-2xl font-bold ${statusColors[status]}`}>{value}</div>
     </div>
   );
 };
 
 const ComponentCard = ({ component, getStatusIcon, getStatusColor, onRestart }) => (
-  <div className={`border-2 rounded-lg p-4 ${getStatusColor(component.status)}`}>
+  <div className={`border-2 rounded-cq-md p-4 ${getStatusColor(component.status)}`}>
     <div className="flex items-center justify-between mb-3">
       <div className="flex items-center space-x-3">
         {component.icon}
@@ -439,7 +439,7 @@ const ComponentCard = ({ component, getStatusIcon, getStatusColor, onRestart }) 
         {getStatusIcon(component.status)}
         <button
           onClick={onRestart}
-          className="p-1 hover:bg-gray-200 rounded transition-colors"
+          className="p-1 hover:bg-cq-wash rounded transition-colors"
           title="Restart component"
         >
           <RefreshCw className="w-4 h-4" />
@@ -448,7 +448,7 @@ const ComponentCard = ({ component, getStatusIcon, getStatusColor, onRestart }) 
     </div>
     
     {component.warning && (
-      <div className="mb-3 p-2 bg-yellow-100 rounded text-sm text-yellow-800">
+      <div className="mb-3 p-2 bg-cq-warn-wash rounded text-sm text-cq-warn">
         {component.warning}
       </div>
     )}
@@ -456,7 +456,7 @@ const ComponentCard = ({ component, getStatusIcon, getStatusColor, onRestart }) 
     <div className="grid grid-cols-2 gap-2 text-sm">
       {Object.entries(component.metrics).map(([key, value]) => (
         <div key={key}>
-          <span className="text-gray-600">{key}:</span>
+          <span className="text-cq-ink-2">{key}:</span>
           <span className="font-medium ml-1">{value}</span>
         </div>
       ))}
@@ -467,20 +467,20 @@ const ComponentCard = ({ component, getStatusIcon, getStatusColor, onRestart }) 
 const ResourceMeter = ({ label, value, max, unit, color }) => {
   const percentage = (value / max) * 100;
   const colorClasses = {
-    blue: 'bg-blue-500',
-    green: 'bg-green-500',
-    purple: 'bg-purple-500'
+    blue: 'bg-cq-caramel',
+    green: 'bg-cq-ready',
+    purple: 'bg-cq-caramel'
   };
   
   return (
     <div>
       <div className="flex justify-between mb-1">
         <span className="text-sm font-medium">{label}</span>
-        <span className="text-sm text-gray-600">
+        <span className="text-sm text-cq-ink-2">
           {value}{unit} / {max}{unit}
         </span>
       </div>
-      <div className="w-full bg-gray-200 rounded-full h-2">
+      <div className="w-full bg-cq-wash rounded-full h-2">
         <div
           className={`h-full rounded-full ${colorClasses[color]}`}
           style={{ width: `${percentage}%` }}

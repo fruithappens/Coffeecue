@@ -404,7 +404,7 @@ const MultiLevelInventory = () => {
     switch (type) {
       case 'critical': return <AlertTriangle className="text-red-500" size={20} />;
       case 'warning': return <TrendingDown className="text-yellow-500" size={20} />;
-      case 'info': return <RefreshCw className="text-blue-500" size={20} />;
+      case 'info': return <RefreshCw className="text-cq-caramel-deep" size={20} />;
       default: return null;
     }
   };
@@ -412,7 +412,7 @@ const MultiLevelInventory = () => {
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-cq-caramel"></div>
       </div>
     );
   }
@@ -450,7 +450,7 @@ const MultiLevelInventory = () => {
               <div key={index} className={`flex items-center justify-between p-3 rounded-lg border ${
                 alert.type === 'critical' ? 'border-red-300 bg-red-50' :
                 alert.type === 'warning' ? 'border-yellow-300 bg-yellow-50' :
-                'border-blue-300 bg-blue-50'
+                'border-cq-line bg-cq-caramel-wash'
               }`}>
                 <div className="flex items-center space-x-3">
                   {getAlertIcon(alert.type)}
@@ -484,7 +484,7 @@ const MultiLevelInventory = () => {
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold">Total Milk Stock</h3>
-              <Package className="text-blue-500" size={24} />
+              <Package className="text-cq-caramel-deep" size={24} />
             </div>
             <div className="text-3xl font-bold text-gray-900">
               {unlimitedStockMode ? '∞' : `${totals.milk.toFixed(1)}L`}

@@ -292,7 +292,7 @@ const EnhancedLiveOperationsDashboard = () => {
       overload: <Users className="text-cq-alert" size={20} />,
       wait: <Clock className="text-cq-warn" size={20} />,
       vip: <Zap className="text-cq-caramel-deep" size={20} />,
-      stock: <Package className="text-orange-500" size={20} />,
+      stock: <Package className="text-cq-caramel" size={20} />,
       system: <AlertCircle className="text-cq-alert" size={20} />
     };
     return icons[type] || <Bell className="text-cq-caramel-deep" size={20} />;

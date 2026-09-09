@@ -70,8 +70,8 @@ const EnhancedStationCapabilities = () => {
     },
     experienced: {
       label: 'Experienced',
-      color: 'bg-blue-100 text-blue-700',
-      borderColor: 'border-blue-300',
+      color: 'bg-cq-caramel-wash text-cq-caramel-deep',
+      borderColor: 'border-cq-line',
       allowedDrinks: ['all_standard_drinks'],
       maxConcurrentOrders: 5,
       complexityLimit: 'standard',
@@ -80,7 +80,7 @@ const EnhancedStationCapabilities = () => {
     },
     expert: {
       label: 'Expert',
-      color: 'bg-purple-100 text-purple-700',
+      color: 'bg-cq-caramel-wash text-cq-caramel-deep',
       borderColor: 'border-purple-300',
       allowedDrinks: ['all_drinks'],
       maxConcurrentOrders: 8,
@@ -401,7 +401,7 @@ const EnhancedStationCapabilities = () => {
                             <span className="font-medium">#{order.orderNumber}</span> - 
                             {order.coffeeType}, {order.milkType}
                             {order.alternativeMilk && (
-                              <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-1 rounded">Alt Milk</span>
+                              <span className="ml-2 text-xs bg-cq-caramel-wash text-cq-caramel-deep px-1 rounded">Alt Milk</span>
                             )}
                             {(order.vip || order.priority) && (
                               <span className="ml-2 text-xs bg-red-100 text-red-700 px-1 rounded">VIP</span>

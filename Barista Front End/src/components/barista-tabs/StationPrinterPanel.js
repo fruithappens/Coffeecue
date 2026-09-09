@@ -26,7 +26,7 @@ const STATUS_STYLE = {
   done: 'bg-green-100 text-green-700',
   printed: 'bg-green-100 text-green-700',
   pending: 'bg-amber-100 text-amber-800',
-  printing: 'bg-blue-100 text-blue-700',
+  printing: 'bg-cq-caramel-wash text-cq-caramel-deep',
   failed: 'bg-red-100 text-red-700',
   cancelled: 'bg-gray-100 text-gray-500',
 };
@@ -140,7 +140,7 @@ const StationPrinterPanel = ({ stationId, stationPrinter }) => {
                   <button
                     onClick={() => act(j.id, 'retry')}
                     disabled={busyJob === j.id}
-                    className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                    className="p-1 text-cq-caramel-deep hover:bg-cq-caramel-wash rounded"
                     title="Retry this job"
                   >
                     <RotateCw size={14} />

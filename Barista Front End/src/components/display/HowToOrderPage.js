@@ -100,8 +100,8 @@ const HowToOrderPage = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-4xl">
         {/* 1. Web ordering — the no-SIM / overseas-guest answer */}
-        <div className="border-4 border-blue-600 rounded-3xl p-6 text-center">
-          <div className="text-3xl font-extrabold text-blue-700 mb-1">SCAN TO ORDER</div>
+        <div className="border-4 border-cq-caramel rounded-3xl p-6 text-center">
+          <div className="text-3xl font-extrabold text-cq-caramel-deep mb-1">SCAN TO ORDER</div>
           <div className="text-lg text-gray-600 mb-4">
             No SIM, no app — just WiFi
           </div>
@@ -145,7 +145,7 @@ const HowToOrderPage = () => {
       )}
 
       <div className="no-print fixed bottom-4 right-4 flex gap-2">
-        <button className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold shadow"
+        <button className="bg-cq-roast text-white px-4 py-2 rounded-lg font-semibold shadow"
                 onClick={() => window.print()}>Print A4</button>
         <button className="bg-gray-700 text-white px-4 py-2 rounded-lg font-semibold shadow"
                 onClick={() => { const el = document.documentElement;

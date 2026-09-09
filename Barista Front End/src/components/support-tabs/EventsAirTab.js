@@ -79,7 +79,7 @@ const EventAccessCard = () => {
         </p>
       )}
       <label className="flex items-start gap-2 text-sm mb-3">
-        <input type="checkbox" className="mt-0.5" checked={requireCode}
+        <input type="checkbox" className="mt-0.5 w-[18px] h-[18px] rounded-cq-sm border-2 border-cq-line accent-cq-caramel cursor-pointer" checked={requireCode}
                onChange={(e) => setRequireCode(e.target.checked)} />
         <span>
           <strong>Require this code to order.</strong> Turn ON for the event (direct
@@ -405,7 +405,7 @@ const EventsAirTab = () => {
               <label className="flex items-start gap-3 text-sm cursor-pointer">
                 <input
                   type="checkbox"
-                  className="mt-1"
+                  className="mt-1 w-[18px] h-[18px] rounded-cq-sm border-2 border-cq-line accent-cq-caramel cursor-pointer"
                   checked={!!badgeLookup}
                   disabled={badgeBusy || badgeLookup === null}
                   onChange={(e) => setBadge(e.target.checked)}

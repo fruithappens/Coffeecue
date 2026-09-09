@@ -107,14 +107,14 @@ const FLOW_SVG = `
 
 const SmsFlowReference = () => (
   <div className="max-w-5xl">
-    <div className="bg-white rounded-lg shadow p-6">
-      <p className="text-gray-700 mb-1">
+    <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-6">
+      <p className="text-cq-ink-2 mb-1">
         This is how the SMS ordering bot handles every incoming text. Use it as a
         reference when setting up an event or explaining the system to your team.
       </p>
-      <p className="text-gray-500 text-sm mb-4">
+      <p className="text-cq-ink-3 text-sm mb-4">
         The menu customers can order (drinks, milk, sizes, prices) always comes from
-        <span className="font-medium text-gray-700"> your event setup</span> — only the bot's
+        <span className="font-medium text-cq-ink-2"> your event setup</span> — only the bot's
         wording is built in. Customers can text <span className="font-mono">STATUS</span>,{' '}
         <span className="font-mono">CANCEL</span>, <span className="font-mono">MENU</span>, or{' '}
         <span className="font-mono">BARISTA</span> at any point.
@@ -123,22 +123,22 @@ const SmsFlowReference = () => (
     </div>
 
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-      <div className="bg-white rounded-lg shadow p-4">
-        <h3 className="font-semibold text-gray-800 mb-1">Want to change the menu?</h3>
-        <p className="text-sm text-gray-500">
+      <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4">
+        <h3 className="font-semibold text-cq-roast mb-1">Want to change the menu?</h3>
+        <p className="text-sm text-cq-ink-3">
           Use Quick Setup or Inventory — the bot only sells what you've stocked for this event.
         </p>
       </div>
-      <div className="bg-white rounded-lg shadow p-4">
-        <h3 className="font-semibold text-gray-800 mb-1">Want to change the welcome text?</h3>
-        <p className="text-sm text-gray-500">
+      <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4">
+        <h3 className="font-semibold text-cq-roast mb-1">Want to change the welcome text?</h3>
+        <p className="text-sm text-cq-ink-3">
           The first message (and the event name in it) is set under Settings — everything else
           is built-in wording.
         </p>
       </div>
-      <div className="bg-white rounded-lg shadow p-4">
-        <h3 className="font-semibold text-gray-800 mb-1">Want to see real texts?</h3>
-        <p className="text-sm text-gray-500">
+      <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4">
+        <h3 className="font-semibold text-cq-roast mb-1">Want to see real texts?</h3>
+        <p className="text-sm text-cq-ink-3">
           Support → Comms Hub shows the live log of messages in and out.
         </p>
       </div>

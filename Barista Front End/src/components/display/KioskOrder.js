@@ -938,7 +938,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                   {eaIdentity.guest ? '' : ' (from your event registration)'}
                 </span>
                 <button
-                  className="ml-2 text-sm text-blue-600 underline"
+                  className="ml-2 text-sm text-cq-caramel-deep underline"
                   onClick={() => { setEaIdentity(null); setName(''); }}
                 >
                   Not you?

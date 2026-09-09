@@ -431,7 +431,7 @@ const SMSTestSimulator = () => {
             </>
           ) : (
             <>
-              <Play className="mr-2" size={20} />
+              <Play className="mr-2 w-[18px] h-[18px] rounded-cq-sm border-2 border-cq-line accent-cq-caramel cursor-pointer" size={20} />
               Run Test
             </>
           )}
@@ -487,10 +487,10 @@ const SMSTestSimulator = () => {
               <div className="flex items-center space-x-4">
                 <label className="flex items-center">
                   <input
-                    type="checkbox"
+                    type="checkbox" className="w-[18px] h-[18px] rounded-cq-sm border-2 border-cq-line accent-cq-caramel cursor-pointer"
                     checked={testConfig.isVIP}
                     onChange={(e) => setTestConfig({...testConfig, isVIP: e.target.checked})}
-                    className="mr-2"
+                    className="mr-2 w-[18px] h-[18px] rounded-cq-sm border-2 border-cq-line accent-cq-caramel cursor-pointer"
                   />
                   <Crown className="mr-1 text-cq-warn" size={16} />
                   VIP Customer
@@ -498,10 +498,10 @@ const SMSTestSimulator = () => {
                 
                 <label className="flex items-center">
                   <input
-                    type="checkbox"
+                    type="checkbox" className="w-[18px] h-[18px] rounded-cq-sm border-2 border-cq-line accent-cq-caramel cursor-pointer"
                     checked={testConfig.isGroupOrder}
                     onChange={(e) => setTestConfig({...testConfig, isGroupOrder: e.target.checked})}
-                    className="mr-2"
+                    className="mr-2 w-[18px] h-[18px] rounded-cq-sm border-2 border-cq-line accent-cq-caramel cursor-pointer"
                   />
                   Group Order
                 </label>
@@ -700,7 +700,7 @@ const SMSTestSimulator = () => {
                     {stations.map(station => (
                       <label key={station.id} className="flex items-center">
                         <input
-                          type="checkbox"
+                          type="checkbox" className="w-[18px] h-[18px] rounded-cq-sm border-2 border-cq-line accent-cq-caramel cursor-pointer"
                           checked={testConfig.selectedStations.includes(station.id)}
                           onChange={(e) => {
                             if (e.target.checked) {
@@ -715,7 +715,7 @@ const SMSTestSimulator = () => {
                               });
                             }
                           }}
-                          className="mr-2"
+                          className="mr-2 w-[18px] h-[18px] rounded-cq-sm border-2 border-cq-line accent-cq-caramel cursor-pointer"
                         />
                         {station.name}
                       </label>
@@ -742,11 +742,11 @@ const SMSTestSimulator = () => {
               
               <div className="flex items-center">
                 <input
-                  type="checkbox"
+                  type="checkbox" className="w-[18px] h-[18px] rounded-cq-sm border-2 border-cq-line accent-cq-caramel cursor-pointer"
                   id="simulateDelay"
                   checked={testConfig.simulateDelay}
                   onChange={(e) => setTestConfig({...testConfig, simulateDelay: e.target.checked})}
-                  className="mr-2"
+                  className="mr-2 w-[18px] h-[18px] rounded-cq-sm border-2 border-cq-line accent-cq-caramel cursor-pointer"
                 />
                 <label htmlFor="simulateDelay" className="text-sm text-cq-ink-2">
                   Simulate Processing Delays ({testConfig.delaySeconds}s per stage)
@@ -811,7 +811,7 @@ const SMSTestSimulator = () => {
               {testResults.success && (
                 <div className="mt-4 p-4 bg-cq-ready-wash border border-cq-ready rounded-md">
                   <h4 className="font-semibold text-cq-ready flex items-center">
-                    <CheckCircle className="mr-2" size={20} />
+                    <CheckCircle className="mr-2 w-[18px] h-[18px] rounded-cq-sm border-2 border-cq-line accent-cq-caramel cursor-pointer" size={20} />
                     Test Completed Successfully
                   </h4>
                   <p className="text-sm text-cq-ready mt-1">
@@ -823,7 +823,7 @@ const SMSTestSimulator = () => {
               {testResults.error && (
                 <div className="mt-4 p-4 bg-cq-alert-wash border border-cq-alert rounded-md">
                   <h4 className="font-semibold text-cq-alert flex items-center">
-                    <AlertCircle className="mr-2" size={20} />
+                    <AlertCircle className="mr-2 w-[18px] h-[18px] rounded-cq-sm border-2 border-cq-line accent-cq-caramel cursor-pointer" size={20} />
                     Test Failed
                   </h4>
                   <p className="text-sm text-cq-alert mt-1">{testResults.error}</p>

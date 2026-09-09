@@ -309,12 +309,12 @@ const StationDefaults = ({ stationId = null }) => {
       )}
       
       {!embedded && (
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+      <div className="bg-cq-caramel-wash border border-cq-line rounded-lg p-4 mb-6">
         <div className="flex items-start">
-          <AlertTriangle size={20} className="text-blue-600 mr-2 mt-0.5" />
+          <AlertTriangle size={20} className="text-cq-caramel-deep mr-2 mt-0.5" />
           <div>
-            <h3 className="font-semibold text-blue-800 mb-1">About Station Defaults</h3>
-            <p className="text-blue-700 text-sm">
+            <h3 className="font-semibold text-cq-caramel-deep mb-1">About Station Defaults</h3>
+            <p className="text-cq-caramel-deep text-sm">
               Configure default selections for walk-in orders at each station. These settings will 
               pre-populate the walk-in order form to speed up order entry. Baristas can still 
               modify these selections for individual orders.

@@ -93,7 +93,7 @@ const Choice = ({ label, options, value, onPick }) => (
             key={v}
             onClick={() => onPick(on ? '' : v)}
             className={`px-4 py-3 rounded-xl border-2 text-base font-medium ${
-              on ? 'bg-blue-600 border-blue-600 text-white'
+              on ? 'bg-cq-roast border-cq-caramel text-white'
                  : 'bg-white border-gray-300 text-gray-800'}`}
           >
             {o.name || v}
@@ -894,7 +894,7 @@ const MyCoffeePage = () => {
           />
           {codeError && <p className="text-red-600 mt-3">{codeError}</p>}
           <button
-            className="w-full mt-4 py-4 rounded-xl bg-blue-600 text-white text-lg font-semibold disabled:opacity-40"
+            className="w-full mt-4 py-4 rounded-xl bg-cq-roast text-white text-lg font-semibold disabled:opacity-40"
             disabled={!codeInput.trim()}
             onClick={submitCode}
           >
@@ -926,7 +926,7 @@ const MyCoffeePage = () => {
           />
           {pwError && <p className="text-red-600 mt-3">{pwError}</p>}
           <button
-            className="w-full mt-4 py-4 rounded-xl bg-blue-600 text-white text-lg font-semibold disabled:opacity-40"
+            className="w-full mt-4 py-4 rounded-xl bg-cq-roast text-white text-lg font-semibold disabled:opacity-40"
             disabled={!pwInput.trim() || pwChecking}
             onClick={submitPw}
           >
@@ -951,8 +951,8 @@ const MyCoffeePage = () => {
           {choices.map((p) => (
             <button
               key={p.cid}
-              className="w-full mb-3 py-4 rounded-xl bg-white border-2 border-blue-600
-                         text-blue-700 text-lg font-semibold"
+              className="w-full mb-3 py-4 rounded-xl bg-white border-2 border-cq-caramel
+                         text-cq-caramel-deep text-lg font-semibold"
               onClick={() => { setChoices(null); setCid(p.cid); }}
             >
               {p.first_name}{p.badge ? ` · badge ${p.badge}` : ''}
@@ -1040,14 +1040,14 @@ const MyCoffeePage = () => {
           />
           {error && <p className="text-red-600 mt-3">{error}</p>}
           <button
-            className="w-full mt-4 py-4 rounded-xl bg-blue-600 text-white text-lg font-semibold disabled:opacity-40"
+            className="w-full mt-4 py-4 rounded-xl bg-cq-roast text-white text-lg font-semibold disabled:opacity-40"
             disabled={!guestName.trim() || busy}
             onClick={registerGuest}
           >
             {busy ? 'Saving…' : 'Continue'}
           </button>
           <button
-            className="w-full mt-3 py-2 text-blue-700 underline text-sm"
+            className="w-full mt-3 py-2 text-cq-caramel-deep underline text-sm"
             onClick={() => { setGuestAsk(false); setError(''); setEntry(''); setGuestPhone(''); }}
           >
             Try a different number
@@ -1156,7 +1156,7 @@ const MyCoffeePage = () => {
           />
           {error && <p className="text-red-600 mt-3">{error}</p>}
           <button
-            className="w-full mt-4 py-4 rounded-xl bg-blue-600 text-white text-lg font-semibold disabled:opacity-40"
+            className="w-full mt-4 py-4 rounded-xl bg-cq-roast text-white text-lg font-semibold disabled:opacity-40"
             disabled={!entry || busy}
             onClick={() => {
               if (mode === 'phone') load(entry, { byPhone: true }); else setCid(entry);
@@ -1175,7 +1175,7 @@ const MyCoffeePage = () => {
               synced last. */}
           {badgeLookup && (
             <button
-              className="w-full mt-3 py-2 text-blue-700 underline text-sm"
+              className="w-full mt-3 py-2 text-cq-caramel-deep underline text-sm"
               onClick={() => { setMode(mode === 'phone' ? 'badge' : 'phone'); setEntry(''); setError(''); }}
             >
               {mode === 'phone'
@@ -1489,7 +1489,7 @@ const MyCoffeePage = () => {
               onChange={(e) => setNameDraft(e.target.value)}
             />
             <div className="flex gap-2 mt-3">
-              <button className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-semibold disabled:opacity-40"
+              <button className="flex-1 py-3 rounded-xl bg-cq-roast text-white font-semibold disabled:opacity-40"
                       disabled={busy} onClick={saveName}>Save</button>
               <button className="flex-1 py-3 rounded-xl bg-gray-200 font-semibold"
                       onClick={() => setEditingName(false)}>Cancel</button>
@@ -1499,7 +1499,7 @@ const MyCoffeePage = () => {
           <h1 className="text-3xl font-bold mb-1">
             Hi {me.first_name}
             <button
-              className="ml-2 align-middle text-sm font-normal text-blue-600 underline"
+              className="ml-2 align-middle text-sm font-normal text-cq-caramel-deep underline"
               onClick={() => { setNameDraft(me.name_overridden ? me.first_name : ''); setEditingName(true); }}
             >
               edit
@@ -1514,7 +1514,7 @@ const MyCoffeePage = () => {
                 is not something to show a customer. */}
             <p className="text-2xl font-semibold mb-6">{String(me.usual).replace(' | ', ' — ')}</p>
             <button
-              className="w-full py-5 rounded-2xl bg-blue-600 text-white text-xl font-bold shadow disabled:opacity-40"
+              className="w-full py-5 rounded-2xl bg-cq-roast text-white text-xl font-bold shadow disabled:opacity-40"
               disabled={busy}
               onClick={orderUsual}
             >
@@ -1544,7 +1544,7 @@ const MyCoffeePage = () => {
         ) : null}
         {!editing ? (
           <button
-            className="w-full mt-3 py-3 rounded-xl bg-white border-2 border-blue-600 text-blue-600 font-semibold"
+            className="w-full mt-3 py-3 rounded-xl bg-white border-2 border-cq-caramel text-cq-caramel-deep font-semibold"
             onClick={startEditing}
           >
             {me.usual ? 'Change my usual' : 'Save my usual'}

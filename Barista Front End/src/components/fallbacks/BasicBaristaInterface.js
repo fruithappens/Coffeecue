@@ -35,7 +35,7 @@ const BasicBaristaInterface = ({ error, onRetry }) => {
         <h2 className="text-xl font-bold text-gray-800">Emergency Barista Mode</h2>
         <button
           onClick={onRetry}
-          className="ml-auto bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600"
+          className="ml-auto bg-cq-caramel text-white px-3 py-1 rounded text-sm hover:bg-cq-roast"
         >
           Try Full Interface
         </button>
@@ -115,7 +115,7 @@ const BasicBaristaInterface = ({ error, onRetry }) => {
                     </div>
                     <button
                       onClick={() => completeOrder(order.id)}
-                      className="bg-blue-500 text-white px-2 py-1 rounded text-xs hover:bg-blue-600"
+                      className="bg-cq-caramel text-white px-2 py-1 rounded text-xs hover:bg-cq-roast"
                     >
                       Complete
                     </button>
@@ -128,9 +128,9 @@ const BasicBaristaInterface = ({ error, onRetry }) => {
       </div>
 
       {/* Instructions */}
-      <div className="mt-6 bg-blue-50 border border-blue-200 rounded p-4">
-        <h4 className="font-medium text-blue-800 mb-2">Emergency Mode Instructions:</h4>
-        <ul className="text-sm text-blue-700 space-y-1">
+      <div className="mt-6 bg-cq-caramel-wash border border-cq-line rounded p-4">
+        <h4 className="font-medium text-cq-caramel-deep mb-2">Emergency Mode Instructions:</h4>
+        <ul className="text-sm text-cq-caramel-deep space-y-1">
           <li>• Use this interface to manually track orders</li>
           <li>• Check with support staff for system status updates</li>
           <li>• Consider backup procedures for payment processing</li>

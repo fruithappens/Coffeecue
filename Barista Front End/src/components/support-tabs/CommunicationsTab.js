@@ -132,7 +132,7 @@ const CommunicationsTab = () => {
         <div className="flex space-x-2">
           <button
             onClick={() => setActiveSection('broadcast')}
-            className={`px-4 py-2 rounded-lg ${activeSection === 'broadcast' ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}
+            className={`px-4 py-2 rounded-lg ${activeSection === 'broadcast' ? 'bg-cq-roast text-white' : 'bg-gray-100'}`}
           >
             Broadcast
           </button>
@@ -151,7 +151,7 @@ const CommunicationsTab = () => {
           {/* Stats */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard
-              icon={<MessageSquare className="w-6 h-6 text-blue-600" />}
+              icon={<MessageSquare className="w-6 h-6 text-cq-caramel-deep" />}
               label="Messages Today"
               value="3,421"
             />
@@ -196,7 +196,7 @@ const CommunicationsTab = () => {
             </div>
             <button
               onClick={handleTestSms}
-              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+              className="mt-4 px-4 py-2 bg-cq-roast text-white rounded-lg hover:bg-cq-caramel-deep transition-colors flex items-center"
             >
               <Send className="w-4 h-4 mr-2" />
               Send Test Message
@@ -248,7 +248,7 @@ const CommunicationsTab = () => {
             <div className="pt-4 border-t">
               <button
                 onClick={handleUpdateTwilioConfig}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="px-4 py-2 bg-cq-roast text-white rounded-lg hover:bg-cq-caramel-deep transition-colors"
               >
                 Update Configuration
               </button>
@@ -268,7 +268,7 @@ const CommunicationsTab = () => {
               <FileText className="w-5 h-5 mr-2" />
               Message Templates
             </h3>
-            <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+            <button className="px-4 py-2 bg-cq-roast text-white rounded-lg hover:bg-cq-caramel-deep transition-colors">
               Add Template
             </button>
           </div>
@@ -340,7 +340,7 @@ const CommunicationsTab = () => {
             <button
               onClick={handleBroadcastSend}
               disabled={broadcastBusy || !broadcast.message.trim()}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center"
+              className="px-4 py-2 bg-cq-roast text-white rounded-lg hover:bg-cq-caramel-deep disabled:opacity-50 flex items-center"
             >
               <Send className="w-4 h-4 mr-2" />
               Send broadcast
@@ -348,7 +348,7 @@ const CommunicationsTab = () => {
           </div>
 
           {broadcastPreview && (
-            <div className="mt-4 p-4 border-l-4 border-blue-500 bg-blue-50 rounded">
+            <div className="mt-4 p-4 border-l-4 border-cq-caramel bg-cq-caramel-wash rounded">
               <p className="text-sm">
                 <strong>{broadcastPreview.recipient_count}</strong> recipient
                 {broadcastPreview.recipient_count === 1 ? '' : 's'} match the
@@ -431,7 +431,7 @@ const CommunicationsTab = () => {
                     <td className="py-2">{sms.message}</td>
                     <td className="py-2">
                       {sms.direction === 'in' ? (
-                        <span className="text-blue-600">Inbound</span>
+                        <span className="text-cq-caramel-deep">Inbound</span>
                       ) : (
                         <span className="text-green-600">Outbound</span>
                       )}
@@ -439,7 +439,7 @@ const CommunicationsTab = () => {
                     <td className="py-2">
                       <span className={`px-2 py-1 rounded-full text-xs ${
                         sms.status === 'delivered' ? 'bg-green-100 text-green-800' :
-                        sms.status === 'processed' ? 'bg-blue-100 text-blue-800' :
+                        sms.status === 'processed' ? 'bg-cq-caramel-wash text-cq-caramel-deep' :
                         'bg-red-100 text-red-800'
                       }`}>
                         {sms.status}
@@ -482,8 +482,8 @@ const SmsRow = ({ sms }) => (
   <div className="flex items-center justify-between p-3 hover:bg-gray-50 rounded">
     <div className="flex items-center space-x-3">
       {sms.direction === 'in' ? (
-        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-          <MessageSquare className="w-4 h-4 text-blue-600" />
+        <div className="w-8 h-8 bg-cq-caramel-wash rounded-full flex items-center justify-center">
+          <MessageSquare className="w-4 h-4 text-cq-caramel-deep" />
         </div>
       ) : (
         <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
@@ -507,7 +507,7 @@ const TemplateCard = ({ template }) => (
     <div className="flex items-center justify-between mb-2">
       <h4 className="font-medium">{template.name}</h4>
       <div className="flex space-x-2">
-        <button className="text-blue-600 hover:text-blue-800">Edit</button>
+        <button className="text-cq-caramel-deep hover:text-cq-caramel-deep">Edit</button>
         <button className="text-red-600 hover:text-red-800">Delete</button>
       </div>
     </div>

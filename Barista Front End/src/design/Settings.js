@@ -135,6 +135,29 @@ export function TextField({ value, onChange, placeholder, type = 'text',
   );
 }
 
+// A checkbox, styled. Toggle is the right control for a setting that is on or
+// off; this is for the inline kind -- "also send a text", "I understand" --
+// sitting in a sentence where a pill would look wrong. Seven screens had a
+// bare browser checkbox doing this, which is the one control the palette
+// never reached.
+export function Checkbox({ checked, onChange, label, hint, disabled = false, className = '' }) {
+  return (
+    <label className={`flex items-start gap-2.5 cursor-pointer ${
+      disabled ? 'opacity-50 cursor-default' : ''} ${className}`}>
+      <input
+        type="checkbox" checked={!!checked} disabled={disabled}
+        onChange={(e) => onChange && onChange(e.target.checked)}
+        className="mt-0.5 w-[18px] h-[18px] rounded-cq-sm border-2 border-cq-line
+                   accent-cq-caramel cursor-pointer disabled:cursor-default"
+      />
+      <span className="min-w-0">
+        <span className="text-sm font-semibold text-cq-ink-2">{label}</span>
+        {hint ? <span className="block text-sm text-cq-ink-3">{hint}</span> : null}
+      </span>
+    </label>
+  );
+}
+
 // The one place a longer explanation belongs: under the group, once, not under
 // every field.
 export function SettingNote({ children }) {

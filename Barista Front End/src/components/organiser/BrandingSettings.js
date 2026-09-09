@@ -392,7 +392,7 @@ const BrandingSettings = () => {
         <div className="mb-6">
           <label className="flex items-center space-x-3">
             <input
-              type="checkbox"
+              type="checkbox" className="w-[18px] h-[18px] rounded-cq-sm border-2 border-cq-line accent-cq-caramel cursor-pointer"
               checked={settings.customBranding}
               onChange={(e) => setSettings({...settings, customBranding: e.target.checked})}
               className="w-5 h-5 text-cq-caramel-deep rounded focus:border-cq-caramel"

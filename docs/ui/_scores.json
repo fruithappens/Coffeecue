@@ -29,7 +29,7 @@
     "inputs": 0,
     "grey": 0,
     "legacy": 0,
-    "cq": 214,
+    "cq": 217,
     "old": 0
   },
   {
@@ -59,11 +59,11 @@
     "label": "Branding · Logo & look",
     "file": "branding-logo.png",
     "selects": 0,
-    "inputs": 2,
+    "inputs": 0,
     "grey": 0,
     "legacy": 0,
     "cq": 140,
-    "old": 2
+    "old": 0
   },
   {
     "hash": "branding/sponsors",
@@ -92,11 +92,11 @@
     "label": "Branding · Milk colours",
     "file": "branding-milk.png",
     "selects": 0,
-    "inputs": 9,
-    "grey": 9,
-    "legacy": 54,
-    "cq": 36,
-    "old": 26
+    "inputs": 0,
+    "grey": 0,
+    "legacy": 0,
+    "cq": 105,
+    "old": 0
   },
   {
     "hash": "schedule",
@@ -105,20 +105,20 @@
     "selects": 0,
     "inputs": 0,
     "grey": 0,
-    "legacy": 1,
-    "cq": 65,
+    "legacy": 0,
+    "cq": 67,
     "old": 0
   },
   {
     "hash": "users/people",
     "label": "People",
     "file": "users-people.png",
-    "selects": 1,
-    "inputs": 1,
-    "grey": 1,
-    "legacy": 7,
-    "cq": 34,
-    "old": 3
+    "selects": 0,
+    "inputs": 0,
+    "grey": 0,
+    "legacy": 0,
+    "cq": 47,
+    "old": 0
   },
   {
     "hash": "users/access",
@@ -135,12 +135,12 @@
     "hash": "live/readiness",
     "label": "Live · Readiness",
     "file": "live-readiness.png",
-    "selects": 1,
-    "inputs": 6,
-    "grey": 1,
-    "legacy": 55,
-    "cq": 35,
-    "old": 20
+    "selects": 0,
+    "inputs": 0,
+    "grey": 0,
+    "legacy": 0,
+    "cq": 117,
+    "old": 0
   },
   {
     "hash": "live/board",
@@ -161,7 +161,7 @@
     "inputs": 0,
     "grey": 0,
     "legacy": 0,
-    "cq": 100,
+    "cq": 103,
     "old": 0
   },
   {
@@ -172,19 +172,19 @@
     "inputs": 0,
     "grey": 0,
     "legacy": 0,
-    "cq": 675,
+    "cq": 681,
     "old": 0
   },
   {
     "hash": "orders/groups",
     "label": "Orders · Groups",
     "file": "orders-groups.png",
-    "selects": 4,
-    "inputs": 5,
-    "grey": 1,
-    "legacy": 15,
-    "cq": 34,
-    "old": 12
+    "selects": 0,
+    "inputs": 0,
+    "grey": 0,
+    "legacy": 0,
+    "cq": 61,
+    "old": 0
   },
   {
     "hash": "messages/notice",
@@ -202,22 +202,22 @@
     "label": "Messages · Text blast",
     "file": "messages-broadcast.png",
     "selects": 0,
-    "inputs": 6,
-    "grey": 3,
-    "legacy": 26,
-    "cq": 73,
-    "old": 13
+    "inputs": 1,
+    "grey": 0,
+    "legacy": 3,
+    "cq": 101,
+    "old": 1
   },
   {
     "hash": "messages/test",
     "label": "Messages · Test a text",
     "file": "messages-test.png",
     "selects": 0,
-    "inputs": 3,
+    "inputs": 0,
     "grey": 0,
     "legacy": 0,
-    "cq": 70,
-    "old": 3
+    "cq": 73,
+    "old": 0
   },
   {
     "hash": "messages/blocked",
@@ -245,12 +245,12 @@
     "hash": "printers",
     "label": "Printers",
     "file": "printers.png",
-    "selects": 10,
-    "inputs": 9,
-    "grey": 1,
-    "legacy": 26,
-    "cq": 31,
-    "old": 25
+    "selects": 0,
+    "inputs": 0,
+    "grey": 0,
+    "legacy": 0,
+    "cq": 78,
+    "old": 0
   },
   {
     "hash": "report",
@@ -268,11 +268,11 @@
     "label": "System · Health",
     "file": "system-health.png",
     "selects": 0,
-    "inputs": 1,
+    "inputs": 0,
     "grey": 0,
-    "legacy": 52,
-    "cq": 34,
-    "old": 14
+    "legacy": 0,
+    "cq": 92,
+    "old": 0
   },
   {
     "hash": "system/diagnostics",
@@ -280,21 +280,21 @@
     "file": "system-diagnostics.png",
     "selects": 0,
     "inputs": 0,
-    "grey": 20,
-    "legacy": 41,
-    "cq": 67,
-    "old": 20
+    "grey": 0,
+    "legacy": 0,
+    "cq": 110,
+    "old": 0
   },
   {
     "hash": "eventsair",
     "label": "EventsAir",
     "file": "eventsair.png",
     "selects": 0,
-    "inputs": 2,
+    "inputs": 0,
     "grey": 0,
     "legacy": 0,
-    "cq": 79,
-    "old": 2
+    "cq": 81,
+    "old": 0
   },
   {
     "hash": "settings",
@@ -324,9 +324,9 @@
     "file": "help.png",
     "selects": 0,
     "inputs": 0,
-    "grey": 4,
-    "legacy": 9,
-    "cq": 31,
-    "old": 4
+    "grey": 0,
+    "legacy": 0,
+    "cq": 44,
+    "old": 0
   }
 ]

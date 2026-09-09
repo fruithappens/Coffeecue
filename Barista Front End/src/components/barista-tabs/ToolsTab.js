@@ -273,7 +273,7 @@ const DialIn = ({ stationId, baristaName }) => {
             <span className="font-medium text-amber-800">Sour / sharp / thin</span> — under-extracted.
             Grind <b>FINER</b> (or increase dose / time). Shot likely ran too fast.
           </div>
-          <div className="border rounded-lg px-3 py-2 bg-orange-50 border-orange-200">
+          <div className="border rounded-lg px-3 py-2 bg-cq-caramel-wash border-cq-caramel">
             <span className="font-medium text-orange-900">Bitter / harsh / dry</span> — over-extracted.
             Grind <b>COARSER</b> (or reduce dose / time). Shot likely ran too slow.
           </div>

@@ -3,7 +3,8 @@
 import json, os, datetime
 OUT = os.path.expanduser("~/cupq-next/docs/ui")
 rows = json.load(open(f"{OUT}/_scores.json"))
-done = [r for r in rows if r["legacy"] == 0 and r["selects"] == 0]
+# Match the guide: legacy 0, selects 0, inputs 0 -- raw controls only.
+done = [r for r in rows if r["legacy"] == 0 and r["selects"] == 0 and r["inputs"] == 0]
 todo = sorted([r for r in rows if r not in done], key=lambda r: -r["legacy"])
 
 md = [

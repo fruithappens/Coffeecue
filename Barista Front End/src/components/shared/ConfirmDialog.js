@@ -54,12 +54,12 @@ export default function ConfirmHost() {
       aria-label={title || 'Confirm'}
     >
       <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
-        {title && <h3 className="text-lg font-bold text-gray-900 mb-2">{title}</h3>}
-        {message && <p className="text-gray-700 whitespace-pre-line">{message}</p>}
+        {title && <h3 className="text-lg font-bold text-cq-roast mb-2">{title}</h3>}
+        {message && <p className="text-cq-ink-2 whitespace-pre-line">{message}</p>}
         <div className="mt-5 flex justify-end gap-2">
           <button
             type="button"
-            className="px-4 py-2 rounded-lg bg-gray-100 text-gray-800 hover:bg-gray-200 font-medium"
+            className="px-4 py-2 rounded-cq-md bg-cq-wash text-cq-roast hover:bg-cq-wash font-medium"
             onClick={() => done(false)}
           >
             {cancelLabel}
@@ -67,7 +67,7 @@ export default function ConfirmHost() {
           <button
             type="button"
             autoFocus
-            className={`px-4 py-2 rounded-lg text-white font-semibold ${danger ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-600 hover:bg-amber-700'}`}
+            className={`px-4 py-2 rounded-cq-md text-white font-semibold ${danger ? 'bg-cq-alert hover:opacity-90' : 'bg-cq-roast hover:bg-cq-caramel-deep'}`}
             onClick={() => done(true)}
           >
             {confirmLabel}

@@ -256,12 +256,12 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
     <div className={embedded
       ? "h-full w-full bg-white overflow-hidden flex flex-col"
       : "fixed bottom-0 right-0 w-full md:w-[440px] max-w-[100vw] h-[28rem] bg-white shadow-lg border rounded-t-lg overflow-hidden z-40 flex flex-col"}>
-      <div className="bg-blue-500 text-white p-2 flex justify-between items-center flex-shrink-0">
+      <div className="bg-cq-caramel text-white p-2 flex justify-between items-center flex-shrink-0">
         <div className="flex items-center min-w-0">
           <h3 className="font-medium mr-1 whitespace-nowrap">Chat</h3>
           <div className="relative ml-1 min-w-0">
             <button
-              className="flex items-center text-white text-sm p-1 hover:bg-blue-600 rounded truncate max-w-[200px]"
+              className="flex items-center text-white text-sm p-1 hover:bg-cq-roast rounded truncate max-w-[200px]"
               onClick={() => setShowStationSelector(!showStationSelector)}
               title={getCurrentStationName()}
             >
@@ -275,7 +275,7 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
                 {stations.map(station => (
                   <div 
                     key={station.id}
-                    className={`p-2 hover:bg-gray-100 cursor-pointer ${station.id === selectedStationId ? 'bg-blue-100' : ''}`}
+                    className={`p-2 hover:bg-gray-100 cursor-pointer ${station.id === selectedStationId ? 'bg-cq-caramel-wash' : ''}`}
                     onClick={() => {
                       // Set the selected station ID
                       setSelectedStationId(station.id);
@@ -308,7 +308,7 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
         </div>
         <div className="flex items-center flex-shrink-0">
           <button
-            className="text-white p-1 hover:bg-blue-600 rounded"
+            className="text-white p-1 hover:bg-cq-roast rounded"
             onClick={handleRefresh}
             disabled={loading}
             title="Refresh Messages"
@@ -320,7 +320,7 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
               took up space in the header. To clear messages now, use
               the backend reset path or a SQL truncate. */}
           <button
-            className="text-white p-1 hover:bg-blue-600 rounded ml-1"
+            className="text-white p-1 hover:bg-cq-roast rounded ml-1"
             onClick={onClose}
             title="Close Chat"
           >
@@ -336,9 +336,9 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
       )}
       
       {/* Barista name editor */}
-      <div className="bg-blue-50 border-b flex items-center p-2 justify-between">
+      <div className="bg-cq-caramel-wash border-b flex items-center p-2 justify-between">
         <div className="flex items-center">
-          <User size={14} className="text-blue-700 mr-1" />
+          <User size={14} className="text-cq-caramel-deep mr-1" />
           {isEditingName ? (
             <input
               type="text"
@@ -357,7 +357,7 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
           )}
         </div>
         <button
-          className="text-blue-700 p-1 hover:bg-blue-100 rounded"
+          className="text-cq-caramel-deep p-1 hover:bg-cq-caramel-wash rounded"
           onClick={() => {
             if (isEditingName) {
               handleSaveBaristaName();
@@ -373,7 +373,7 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
       <div className="flex-1 overflow-y-auto p-3 bg-gray-50">
         {loading && messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cq-caramel"></div>
             <p className="mt-2 text-gray-500 text-sm">Loading messages...</p>
           </div>
         ) : messages.length === 0 ? (
@@ -402,7 +402,7 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
                   : mentionsMe
                     ? 'bg-amber-50 border-l-2 border-amber-500'
                     : fromMe
-                      ? 'bg-blue-100'
+                      ? 'bg-cq-caramel-wash'
                       : 'bg-gray-100'
               }`}
             >
@@ -411,7 +411,7 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
                   {/* Format sender name to show correct station */}
                   {message.sender}
                   {' '}
-                  <span className="text-blue-600">
+                  <span className="text-cq-caramel-deep">
                     (
                     {stations.find(s => s.id === message.station_id || 
                                     (typeof message.station_id === 'string' && 
@@ -503,7 +503,7 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
         <button
           type="submit"
           className={`${
-            sending ? 'bg-blue-400' : 'bg-blue-500 hover:bg-blue-600'
+            sending ? 'bg-cq-caramel' : 'bg-cq-caramel hover:bg-cq-roast'
           } text-white px-3 py-2 rounded-r transition-colors flex items-center justify-center min-w-[64px]`}
           disabled={sending || !newMessage.trim()}
         >

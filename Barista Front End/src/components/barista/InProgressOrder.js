@@ -151,7 +151,7 @@ const InProgressOrder = ({
             <span>{order.waitTime} min</span>
           </div>
           {messageCount > 0 && (
-            <div className={`text-xs mt-1 rounded-full px-2 py-0.5 ${hasFailedMessages ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
+            <div className={`text-xs mt-1 rounded-full px-2 py-0.5 ${hasFailedMessages ? 'bg-red-100 text-red-700' : 'bg-cq-caramel-wash text-cq-caramel-deep'}`}>
               {messageCount} message{messageCount !== 1 ? 's' : ''}
             </div>
           )}
@@ -182,7 +182,7 @@ const InProgressOrder = ({
         )}
         {order.alternativeMilk && (
           <div className="mt-1">
-            <span className="inline-block bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">
+            <span className="inline-block bg-cq-caramel-wash text-cq-caramel-deep text-xs px-2 py-0.5 rounded">
               Alternative Milk
             </span>
           </div>

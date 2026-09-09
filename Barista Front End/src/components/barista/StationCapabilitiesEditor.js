@@ -432,15 +432,15 @@ const StationCapabilitiesEditor = () => {
 
   return (
     <div className="space-y-4">
-      <div className="bg-blue-50 border-l-4 border-blue-400 p-3 rounded">
-        <p className="text-sm text-blue-900">
+      <div className="bg-cq-caramel-wash border-l-4 border-cq-caramel p-3 rounded">
+        <p className="text-sm text-cq-caramel-deep">
           <strong>What this controls:</strong> the SMS bot routes incoming
           orders to whichever station can actually make them. If a station
           doesn't have "oat" ticked, oat-milk orders won't be assigned there.
           Use this when a station's equipment changes mid-event (frother
           breaks, ran out of a specific milk, etc.).
         </p>
-        <p className="text-xs text-blue-700 mt-1">
+        <p className="text-xs text-cq-caramel-deep mt-1">
           Changes take effect on the next incoming order — no restart needed.
         </p>
       </div>

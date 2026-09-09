@@ -11,7 +11,7 @@ const SourceBadge = ({ order }) => {
   if (!order || (order.orderSource || order.source) !== 'ea_app') return null;
   return (
     <span
-      className="inline-block bg-purple-100 text-purple-800 text-xs font-semibold px-2 py-0.5 rounded uppercase tracking-wide whitespace-nowrap"
+      className="inline-block bg-cq-caramel-wash text-cq-caramel-deep text-xs font-semibold px-2 py-0.5 rounded uppercase tracking-wide whitespace-nowrap"
       title={order.needsContact
         ? 'Ordered in the event app — no phone number on file; call the name at pickup'
         : 'Ordered in the event app (EventsAir)'}

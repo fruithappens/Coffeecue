@@ -32,7 +32,7 @@ const SignPage = () => {
       )}
       <div className="no-print fixed bottom-4 right-4 flex gap-2">
         <button
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold shadow"
+          className="bg-cq-roast text-white px-4 py-2 rounded-lg font-semibold shadow"
           onClick={() => window.print()}
         >
           Print A4 sign

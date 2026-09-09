@@ -273,7 +273,7 @@ const QueueIntelligence = () => {
   const getStatusColor = (status) => {
     switch (status) {
       case 'available': return 'bg-green-100 text-green-800';
-      case 'active': return 'bg-blue-100 text-blue-800';
+      case 'active': return 'bg-cq-caramel-wash text-cq-caramel-deep';
       case 'busy': return 'bg-yellow-100 text-yellow-800';
       case 'overloaded': return 'bg-red-100 text-red-800';
       case 'offline': return 'bg-gray-200 text-gray-600';
@@ -284,7 +284,7 @@ const QueueIntelligence = () => {
   const getStatusIcon = (status) => {
     switch (status) {
       case 'available': return <CheckCircle size={16} className="text-green-600" />;
-      case 'active': return <Clock size={16} className="text-blue-600" />;
+      case 'active': return <Clock size={16} className="text-cq-caramel-deep" />;
       case 'busy': return <Users size={16} className="text-yellow-600" />;
       case 'overloaded': return <AlertTriangle size={16} className="text-red-600" />;
       case 'offline': return <AlertTriangle size={16} className="text-gray-500" />;
@@ -427,7 +427,7 @@ const QueueIntelligence = () => {
       {routingSuggestions.length > 0 && (
         <div className="bg-white p-6 rounded-lg shadow-sm">
           <h3 className="text-lg font-semibold mb-4 flex items-center">
-            <BarChart3 className="mr-2 text-blue-600" />
+            <BarChart3 className="mr-2 text-cq-caramel-deep" />
             Intelligent Routing Suggestions ({routingSuggestions.length})
           </h3>
           <div className="space-y-3">
@@ -450,13 +450,13 @@ const QueueIntelligence = () => {
                   )}
                   
                   <div className="text-center">
-                    <div className="text-sm font-medium text-blue-600">{suggested.station.name}</div>
+                    <div className="text-sm font-medium text-cq-caramel-deep">{suggested.station.name}</div>
                     <div className="text-xs text-gray-500">
                       Score: {Math.round(suggested.score)} | Wait: {suggested.station.estimatedWaitTime}m
                     </div>
                   </div>
                   
-                  <button className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700">
+                  <button className="px-3 py-1 bg-cq-roast text-white text-xs rounded hover:bg-cq-caramel-deep">
                     Route
                   </button>
                 </div>
@@ -469,7 +469,7 @@ const QueueIntelligence = () => {
       {/* Metrics Summary */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-lg shadow-sm text-center">
-          <div className="text-2xl font-bold text-blue-600">{routingMetrics.totalOrdersRouted || 0}</div>
+          <div className="text-2xl font-bold text-cq-caramel-deep">{routingMetrics.totalOrdersRouted || 0}</div>
           <div className="text-sm text-gray-600">Active Orders</div>
         </div>
         <div className="bg-white p-4 rounded-lg shadow-sm text-center">
@@ -477,11 +477,11 @@ const QueueIntelligence = () => {
           <div className="text-sm text-gray-600">Avg Wait (busy stations)</div>
         </div>
         <div className="bg-white p-4 rounded-lg shadow-sm text-center">
-          <div className="text-2xl font-bold text-purple-600">{routingMetrics.stationsAvailable}/{routingMetrics.stationsTotal}</div>
+          <div className="text-2xl font-bold text-cq-caramel-deep">{routingMetrics.stationsAvailable}/{routingMetrics.stationsTotal}</div>
           <div className="text-sm text-gray-600">Stations Available</div>
         </div>
         <div className="bg-white p-4 rounded-lg shadow-sm text-center">
-          <div className="text-2xl font-bold text-orange-600">{routingMetrics.workloadBalance || 0}%</div>
+          <div className="text-2xl font-bold text-cq-caramel-deep">{routingMetrics.workloadBalance || 0}%</div>
           <div className="text-sm text-gray-600">Workload Balance</div>
         </div>
       </div>

@@ -41,7 +41,9 @@ async function score(p) {
     // <input type="file" class="hidden"> -- there is nothing to restyle.
     const raw = (sel) => [...document.querySelectorAll(sel)]
       .filter(e => !/\bcq-/.test(e.className || ''))
-      .filter(e => e.type !== 'file' && e.type !== 'hidden'
+      // 'color' is a swatch the browser draws -- there is nothing to restyle,
+      // same as the hidden file input behind an upload button.
+      .filter(e => !['file', 'hidden', 'color'].includes(e.type)
                    && !/\bhidden\b/.test(e.className || '')).length;
     return { selects: raw('select'), inputs: raw('input'), grey, legacy, cq };
   });

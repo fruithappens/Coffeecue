@@ -57,7 +57,7 @@ export default function CustomerQuestionsList({ items, replyDrafts, setReplyDraf
                     <button
                       onClick={() => sendReply(q)}
                       disabled={sending[q.id] || !(replyDrafts[q.id] || '').trim()}
-                      className="px-3 py-1 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1 flex-shrink-0"
+                      className="px-3 py-1 bg-cq-roast text-white rounded text-sm font-medium hover:bg-cq-caramel-deep disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1 flex-shrink-0"
                     >
                       <Send size={14} />
                       {sending[q.id] ? '…' : 'Send'}

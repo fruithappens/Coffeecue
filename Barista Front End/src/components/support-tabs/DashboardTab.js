@@ -215,7 +215,7 @@ const DashboardTab = () => {
         <MetricCard
           title="Active Orders"
           value={metrics.activeOrders}
-          icon={<Coffee className="w-6 h-6 text-orange-600" />}
+          icon={<Coffee className="w-6 h-6 text-cq-caramel-deep" />}
         />
         <MetricCard
           title="Avg Wait Today"
@@ -349,7 +349,7 @@ const DashboardTab = () => {
         <h3 className="font-semibold text-lg mb-4">Live Order Flow</h3>
         <div className="grid grid-cols-3 gap-4">
           <div className="text-center">
-            <div className="text-3xl font-bold text-orange-600">{pendingOrders?.length || 0}</div>
+            <div className="text-3xl font-bold text-cq-caramel-deep">{pendingOrders?.length || 0}</div>
             <div className="text-sm text-cq-ink-2">Pending</div>
           </div>
           <div className="text-center">

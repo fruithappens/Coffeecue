@@ -1502,7 +1502,7 @@ const BaristaInterface = () => {
           <div className="text-sm text-gray-600">{order.phoneNumber}</div>
           {order.alternativeMilk && (
             <div className="mt-1">
-              <span className="inline-block bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">
+              <span className="inline-block bg-cq-caramel-wash text-cq-caramel-deep text-xs px-2 py-0.5 rounded">
                 Alternative Milk
               </span>
             </div>
@@ -1678,7 +1678,7 @@ const BaristaInterface = () => {
             <div className="text-sm text-gray-500 flex items-center">
               <span className="mr-2">Available: {item.amount} {item.unit}</span>
               <button 
-                className="text-blue-500 text-xs underline"
+                className="text-cq-caramel-deep text-xs underline"
                 onClick={() => setShowNumericInput(!showNumericInput)}
               >
                 {showNumericInput ? 'Hide' : 'Edit'}
@@ -1711,7 +1711,7 @@ const BaristaInterface = () => {
             <div className="font-medium flex items-center">
               Capacity: {item.capacity} {item.unit}
               <button 
-                className="ml-2 text-blue-500 text-xs underline"
+                className="ml-2 text-cq-caramel-deep text-xs underline"
                 onClick={() => setIsEditingCapacity(!isEditingCapacity)}
               >
                 {isEditingCapacity ? 'Cancel' : 'Edit'}
@@ -1821,7 +1821,7 @@ const BaristaInterface = () => {
         case 'active':
           return 'bg-green-100 border-green-500 text-green-700';
         case 'upcoming':
-          return 'bg-blue-100 border-blue-500 text-blue-700';
+          return 'bg-cq-caramel-wash border-cq-caramel text-cq-caramel-deep';
         case 'completed':
           return 'bg-gray-100 border-gray-500 text-gray-700';
         default:
@@ -2940,7 +2940,7 @@ const BaristaInterface = () => {
                           the Support printer tab already uses. */}
                       <button
                         type="button"
-                        className="text-sm text-blue-700 underline"
+                        className="text-sm text-cq-caramel-deep underline"
                         onClick={async () => {
                           try {
                             const resp = await fetch('/api/print/preview?sticker=1', {
@@ -3270,7 +3270,7 @@ const BaristaInterface = () => {
               {/* Restore dismissed info panels (folded in from its own
                   near-empty card; gives honest toast feedback now). */}
               <button
-                className="mt-3 text-sm text-blue-600 hover:text-blue-800 underline"
+                className="mt-3 text-sm text-cq-caramel-deep hover:text-cq-caramel-deep underline"
                 onClick={restoreAllPanels}
               >
                 Restore dismissed info panels
@@ -3348,7 +3348,7 @@ const BaristaInterface = () => {
                             <span className="text-xs text-gray-500">{v.label}</span>
                             <code className="text-sm font-bold">{shortPath}</code>
                             <button
-                              className="text-blue-600 text-xs underline"
+                              className="text-cq-caramel-deep text-xs underline"
                               onClick={() => {
                                 try {
                                   navigator.clipboard.writeText(url);
@@ -3361,13 +3361,13 @@ const BaristaInterface = () => {
                               Copy
                             </button>
                             <button
-                              className="text-blue-600 text-xs underline"
+                              className="text-cq-caramel-deep text-xs underline"
                               onClick={() => setScreenLinkQr({ url, label: `${chosenName} — ${v.label}` })}
                             >
                               QR
                             </button>
                             <button
-                              className="text-blue-600 text-xs underline"
+                              className="text-cq-caramel-deep text-xs underline"
                               onClick={() => setScreenLinkPreview({ url, label: `${chosenName} — ${v.label}` })}
                             >
                               Preview
@@ -3436,7 +3436,7 @@ const BaristaInterface = () => {
                   Tab", and a link further down) all doing the same thing. */}
               <div className="flex space-x-4 mb-4">
                 <button
-                  className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                  className="px-4 py-2 bg-cq-caramel text-white rounded hover:bg-cq-roast"
                   onClick={openDisplayScreen}
                 >
                   Open customer Display (new tab)
@@ -3883,13 +3883,13 @@ const BaristaInterface = () => {
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setMessagesTab('questions')}
-                className={`px-3 py-1 rounded text-sm font-medium ${messagesTab === 'questions' ? 'bg-white shadow text-blue-700' : 'text-gray-600 hover:bg-gray-200'}`}
+                className={`px-3 py-1 rounded text-sm font-medium ${messagesTab === 'questions' ? 'bg-white shadow text-cq-caramel-deep' : 'text-gray-600 hover:bg-gray-200'}`}
               >
                 Questions{cq.count > 0 ? ` (${cq.count})` : ''}
               </button>
               <button
                 onClick={() => { setMessagesTab('chat'); chatUnread.markRead(); }}
-                className={`px-3 py-1 rounded text-sm font-medium ${messagesTab === 'chat' ? 'bg-white shadow text-blue-700' : 'text-gray-600 hover:bg-gray-200'}`}
+                className={`px-3 py-1 rounded text-sm font-medium ${messagesTab === 'chat' ? 'bg-white shadow text-cq-caramel-deep' : 'text-gray-600 hover:bg-gray-200'}`}
               >
                 Station chat{chatUnread.unread > 0 ? ` (${chatUnread.unread})` : ''}
               </button>
@@ -3970,8 +3970,8 @@ const BaristaInterface = () => {
 //      (recent_minutes=30, station_id=X) is reliable.
 const SOUND_EVENT_ROWS = [
   { key: 'newOrder',      label: 'New Order',      enableField: 'soundNewOrder',      btnColor: 'bg-green-500 hover:bg-green-600' },
-  { key: 'orderComplete', label: 'Order Complete', enableField: 'soundOrderComplete', btnColor: 'bg-blue-500 hover:bg-blue-600' },
-  { key: 'orderPickedUp', label: 'Order Picked Up', enableField: 'soundOrderPickedUp', btnColor: 'bg-purple-500 hover:bg-purple-600' },
+  { key: 'orderComplete', label: 'Order Complete', enableField: 'soundOrderComplete', btnColor: 'bg-cq-caramel hover:bg-cq-roast' },
+  { key: 'orderPickedUp', label: 'Order Picked Up', enableField: 'soundOrderPickedUp', btnColor: 'bg-cq-caramel hover:bg-cq-roast' },
   { key: 'lowStock',      label: 'Low Stock Alert', enableField: 'soundLowStock',     btnColor: 'bg-yellow-500 hover:bg-yellow-600' },
   { key: 'error',         label: 'Error Alert',     enableField: 'soundError',        btnColor: 'bg-red-500 hover:bg-red-600' },
 ];

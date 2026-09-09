@@ -155,8 +155,8 @@ const ApiNotificationBanner = () => {
     message = 'Connection to server lost. Using cached data.';
     buttonText = 'Refresh';
     colorScheme = {
-      container: 'bg-orange-500 text-white',
-      button: 'bg-white text-orange-700 hover:bg-orange-100'
+      container: 'bg-cq-caramel text-white',
+      button: 'bg-white text-cq-caramel-deep hover:bg-cq-caramel-wash'
     };
   }
   

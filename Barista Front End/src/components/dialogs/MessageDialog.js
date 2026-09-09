@@ -135,7 +135,7 @@ const MessageDialog = ({ order, onSubmit, onClose }) => {
                 <div 
                   key={msg.messageId} 
                   className={`flex items-start p-2 rounded ${
-                    msg.type === 'outgoing' ? 'bg-blue-50' : 'bg-gray-50'
+                    msg.type === 'outgoing' ? 'bg-cq-caramel-wash' : 'bg-gray-50'
                   }`}
                 >
                   <div className="flex-grow">

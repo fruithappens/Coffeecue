@@ -26,10 +26,10 @@ const NOTIFICATION_TYPES = {
     icon: <AlertTriangle className="text-yellow-500" size={20} />
   },
   INFO: {
-    bgColor: 'bg-blue-100',
-    textColor: 'text-blue-800',
-    borderColor: 'border-blue-500',
-    icon: <Info className="text-blue-500" size={20} />
+    bgColor: 'bg-cq-caramel-wash',
+    textColor: 'text-cq-caramel-deep',
+    borderColor: 'border-cq-caramel',
+    icon: <Info className="text-cq-caramel-deep" size={20} />
   }
 };
 
