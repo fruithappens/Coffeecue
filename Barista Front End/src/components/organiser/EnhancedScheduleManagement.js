@@ -368,24 +368,24 @@ const EnhancedScheduleManagement = () => {
   const getSkillIcon = (experience) => {
     switch (experience) {
       case 'expert':
-        return <Award className="w-4 h-4 text-yellow-500" />;
+        return <Award className="w-4 h-4 text-cq-warn" />;
       case 'intermediate':
-        return <Star className="w-4 h-4 text-blue-500" />;
+        return <Star className="w-4 h-4 text-cq-caramel-deep" />;
       default:
-        return <User className="w-4 h-4 text-gray-500" />;
+        return <User className="w-4 h-4 text-cq-ink-3" />;
     }
   };
   
   return (
-    <div className="bg-white rounded-lg shadow-lg">
+    <div className="bg-cq-milk rounded-cq-lg shadow-cq-card-lg">
       <div className="px-6 pt-6">
         <QuickSetupStatusBanner section="schedule" />
       </div>
       {/* Header */}
-      <div className="p-4 sm:p-6 border-b border-gray-200">
+      <div className="p-4 sm:p-6 border-b border-cq-line">
         <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-3">
-          <h2 className="text-lg sm:text-2xl font-bold text-gray-800 flex items-center">
-            <Calendar size={28} className="mr-3 shrink-0 text-amber-600" />
+          <h2 className="text-lg sm:text-2xl font-bold text-cq-roast flex items-center">
+            <Calendar size={28} className="mr-3 shrink-0 text-cq-caramel" />
             Enhanced Schedule Management
           </h2>
           
@@ -398,7 +398,7 @@ const EnhancedScheduleManagement = () => {
                   date.setDate(date.getDate() - 1);
                   setSelectedDate(date.toISOString().split('T')[0]);
                 }}
-                className="p-2 hover:bg-gray-100 rounded"
+                className="p-2 hover:bg-cq-wash rounded"
               >
                 <ChevronLeft size={20} />
               </button>
@@ -407,7 +407,7 @@ const EnhancedScheduleManagement = () => {
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-md"
+                className="px-3 py-2 border border-cq-line rounded-md"
               />
               
               <button
@@ -416,7 +416,7 @@ const EnhancedScheduleManagement = () => {
                   date.setDate(date.getDate() + 1);
                   setSelectedDate(date.toISOString().split('T')[0]);
                 }}
-                className="p-2 hover:bg-gray-100 rounded"
+                className="p-2 hover:bg-cq-wash rounded"
               >
                 <ChevronRight size={20} />
               </button>
@@ -424,7 +424,7 @@ const EnhancedScheduleManagement = () => {
             
             {/* Emergency override */}
             {emergencyOverride ? (
-              <div className="px-4 py-2 bg-red-100 text-red-700 rounded-lg flex items-center">
+              <div className="px-4 py-2 bg-cq-alert-wash text-cq-alert rounded-cq-md flex items-center">
                 <Shield size={20} className="mr-2" />
                 Emergency Override Active
               </div>
@@ -435,7 +435,7 @@ const EnhancedScheduleManagement = () => {
                     activateEmergencyOverride();
                   }
                 }}
-                className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg flex items-center"
+                className="px-4 py-2 bg-cq-alert-wash0 hover:bg-cq-alert text-white rounded-cq-md flex items-center"
               >
                 <Shield size={20} className="mr-2" />
                 Emergency Override
@@ -445,28 +445,28 @@ const EnhancedScheduleManagement = () => {
         </div>
         
         {/* Tabs */}
-        <div className="mt-6 flex space-x-4 border-b border-gray-200 overflow-x-auto">
+        <div className="mt-6 flex space-x-4 border-b border-cq-line overflow-x-auto">
           <button
             onClick={() => setActiveTab('timeline')}
-            className={`pb-2 px-4 whitespace-nowrap shrink-0 ${activeTab === 'timeline' ? 'border-b-2 border-amber-500 text-amber-600' : 'text-gray-600'}`}
+            className={`pb-2 px-4 whitespace-nowrap shrink-0 ${activeTab === 'timeline' ? 'border-b-2 border-cq-caramel text-cq-caramel' : 'text-cq-ink-2'}`}
           >
             Timeline View
           </button>
           <button
             onClick={() => setActiveTab('stations')}
-            className={`pb-2 px-4 whitespace-nowrap shrink-0 ${activeTab === 'stations' ? 'border-b-2 border-amber-500 text-amber-600' : 'text-gray-600'}`}
+            className={`pb-2 px-4 whitespace-nowrap shrink-0 ${activeTab === 'stations' ? 'border-b-2 border-cq-caramel text-cq-caramel' : 'text-cq-ink-2'}`}
           >
             Station Control
           </button>
           <button
             onClick={() => setActiveTab('sessions')}
-            className={`pb-2 px-4 whitespace-nowrap shrink-0 ${activeTab === 'sessions' ? 'border-b-2 border-amber-500 text-amber-600' : 'text-gray-600'}`}
+            className={`pb-2 px-4 whitespace-nowrap shrink-0 ${activeTab === 'sessions' ? 'border-b-2 border-cq-caramel text-cq-caramel' : 'text-cq-ink-2'}`}
           >
             Session Management
           </button>
           <button
             onClick={() => setActiveTab('assignments')}
-            className={`pb-2 px-4 whitespace-nowrap shrink-0 ${activeTab === 'assignments' ? 'border-b-2 border-amber-500 text-amber-600' : 'text-gray-600'}`}
+            className={`pb-2 px-4 whitespace-nowrap shrink-0 ${activeTab === 'assignments' ? 'border-b-2 border-cq-caramel text-cq-caramel' : 'text-cq-ink-2'}`}
           >
             Barista Assignments
           </button>
@@ -482,7 +482,7 @@ const EnhancedScheduleManagement = () => {
               <h3 className="text-lg font-semibold">Event Timeline</h3>
               <button
                 onClick={() => setShowAddSession(true)}
-                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg flex items-center"
+                className="px-4 py-2 bg-cq-roast hover:bg-cq-caramel-deep text-white rounded-cq-md flex items-center"
               >
                 <Plus size={20} className="mr-2" />
                 Add Session
@@ -493,9 +493,9 @@ const EnhancedScheduleManagement = () => {
             <div className="relative overflow-x-auto" ref={timelineRef}>
               <div className="relative" style={{ width: `${timelineHours.length * 120}px`, height: '400px' }}>
                 {/* Hour markers */}
-                <div className="absolute top-0 left-0 right-0 h-8 border-b border-gray-300 flex">
+                <div className="absolute top-0 left-0 right-0 h-8 border-b border-cq-line flex">
                   {timelineHours.map(hour => (
-                    <div key={hour} className="w-30 text-center text-sm text-gray-600" style={{ width: '120px' }}>
+                    <div key={hour} className="w-30 text-center text-sm text-cq-ink-2" style={{ width: '120px' }}>
                       {hour}:00
                     </div>
                   ))}
@@ -503,10 +503,10 @@ const EnhancedScheduleManagement = () => {
                 
                 {/* Current time indicator */}
                 <div
-                  className="absolute top-8 bottom-0 w-0.5 bg-red-500 z-20"
+                  className="absolute top-8 bottom-0 w-0.5 bg-cq-alert-wash0 z-20"
                   style={{ left: `${getTimelinePosition(`${currentTime.getHours()}:${currentTime.getMinutes()}`)}px` }}
                 >
-                  <div className="absolute -top-2 -left-3 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center">
+                  <div className="absolute -top-2 -left-3 w-6 h-6 bg-cq-alert-wash0 rounded-full flex items-center justify-center">
                     <Clock size={12} className="text-white" />
                   </div>
                 </div>
@@ -521,11 +521,11 @@ const EnhancedScheduleManagement = () => {
                   return (
                     <div
                       key={session.id}
-                      className={`absolute rounded-lg p-3 cursor-pointer transition-all ${
-                        isActive ? 'bg-green-100 border-2 border-green-500' :
-                        isPaused ? 'bg-yellow-100 border-2 border-yellow-500' :
-                        isRunningLate ? 'bg-red-100 border-2 border-red-500' :
-                        'bg-blue-100 border-2 border-blue-300'
+                      className={`absolute rounded-cq-md p-3 cursor-pointer transition-all ${
+                        isActive ? 'bg-cq-ready-wash border-2 border-cq-ready' :
+                        isPaused ? 'bg-cq-warn-wash border-2 border-cq-warn' :
+                        isRunningLate ? 'bg-cq-alert-wash border-2 border-cq-alert' :
+                        'bg-cq-caramel-wash border-2 border-cq-line'
                       }`}
                       style={{
                         left: `${getTimelinePosition(session.startTime)}px`,
@@ -538,13 +538,13 @@ const EnhancedScheduleManagement = () => {
                       <div className="flex items-center justify-between h-full">
                         <div className="flex-1">
                           <div className="font-semibold text-sm truncate">{session.name}</div>
-                          <div className="text-xs text-gray-600">
+                          <div className="text-xs text-cq-ink-2">
                             {session.startTime} - {session.endTime}
                           </div>
                         </div>
-                        {isActive && <Activity size={16} className="text-green-600 animate-pulse" />}
-                        {isPaused && <PauseCircle size={16} className="text-yellow-600" />}
-                        {isRunningLate && <AlertCircle size={16} className="text-red-600" />}
+                        {isActive && <Activity size={16} className="text-cq-ready animate-pulse" />}
+                        {isPaused && <PauseCircle size={16} className="text-cq-warn" />}
+                        {isRunningLate && <AlertCircle size={16} className="text-cq-alert" />}
                       </div>
                       
                       {/* Pre-order window indicator */}
@@ -573,7 +573,7 @@ const EnhancedScheduleManagement = () => {
             {/* Legend */}
             <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
               <div className="flex items-center whitespace-nowrap">
-                <div className="w-4 h-4 bg-blue-100 border border-blue-300 rounded mr-2 shrink-0" />
+                <div className="w-4 h-4 bg-cq-caramel-wash border border-cq-line rounded mr-2 shrink-0" />
                 <span>Scheduled Session</span>
               </div>
               <div className="flex items-center">
@@ -585,11 +585,11 @@ const EnhancedScheduleManagement = () => {
                 <span>Barista Prep Time</span>
               </div>
               <div className="flex items-center">
-                <div className="w-4 h-4 bg-green-100 border-2 border-green-500 rounded mr-2" />
+                <div className="w-4 h-4 bg-cq-ready-wash border-2 border-cq-ready rounded mr-2" />
                 <span>Active</span>
               </div>
               <div className="flex items-center">
-                <div className="w-4 h-4 bg-red-100 border-2 border-red-500 rounded mr-2" />
+                <div className="w-4 h-4 bg-cq-alert-wash border-2 border-cq-alert rounded mr-2" />
                 <span>Running Late</span>
               </div>
             </div>
@@ -601,7 +601,7 @@ const EnhancedScheduleManagement = () => {
           <div>
             <div className="mb-4">
               <h3 className="text-lg font-semibold mb-2">Station Control Panel</h3>
-              <p className="text-gray-600">Lock/unlock stations to control order flow during breaks</p>
+              <p className="text-cq-ink-2">Lock/unlock stations to control order flow during breaks</p>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -614,8 +614,8 @@ const EnhancedScheduleManagement = () => {
                 return (
                   <div
                     key={station.id}
-                    className={`p-4 rounded-lg border-2 ${
-                      isLocked ? 'bg-red-50 border-red-300' : 'bg-green-50 border-green-300'
+                    className={`p-4 rounded-cq-md border-2 ${
+                      isLocked ? 'bg-cq-alert-wash border-cq-alert' : 'bg-cq-ready-wash border-cq-ready'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-3">
@@ -625,8 +625,8 @@ const EnhancedScheduleManagement = () => {
                       </h4>
                       <button
                         onClick={() => toggleStationLock(station.id)}
-                        className={`p-2 rounded-lg ${
-                          isLocked ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-green-500 hover:bg-green-600 text-white'
+                        className={`p-2 rounded-cq-md ${
+                          isLocked ? 'bg-cq-alert-wash0 hover:bg-cq-alert text-white' : 'bg-cq-ready-wash0 hover:bg-cq-ready text-white'
                         }`}
                       >
                         {isLocked ? <Lock size={20} /> : <Unlock size={20} />}
@@ -635,21 +635,21 @@ const EnhancedScheduleManagement = () => {
                     
                     <div className="space-y-1 text-sm">
                       <div className="flex items-center justify-between">
-                        <span className="text-gray-600">Status:</span>
-                        <span className={`font-medium ${isLocked ? 'text-red-600' : 'text-green-600'}`}>
+                        <span className="text-cq-ink-2">Status:</span>
+                        <span className={`font-medium ${isLocked ? 'text-cq-alert' : 'text-cq-ready'}`}>
                           {isLocked ? 'Locked' : 'Open'}
                         </span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-gray-600">Barista:</span>
-                        <span className={hasActiveBarista ? 'text-green-600' : 'text-gray-500'}>
+                        <span className="text-cq-ink-2">Barista:</span>
+                        <span className={hasActiveBarista ? 'text-cq-ready' : 'text-cq-ink-3'}>
                           {hasActiveBarista ? 'Assigned' : 'None'}
                         </span>
                       </div>
                     </div>
                     
                     {isLocked && (
-                      <div className="mt-3 text-xs text-red-600 bg-red-100 p-2 rounded">
+                      <div className="mt-3 text-xs text-cq-alert bg-cq-alert-wash p-2 rounded">
                         Station locked - not accepting new orders
                       </div>
                     )}
@@ -658,8 +658,8 @@ const EnhancedScheduleManagement = () => {
               })}
             </div>
             
-            <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <h4 className="font-semibold text-blue-800 mb-2">Quick Actions</h4>
+            <div className="mt-6 p-4 bg-cq-caramel-wash border border-cq-line rounded-cq-md">
+              <h4 className="font-semibold text-cq-caramel-deep mb-2">Quick Actions</h4>
               <div className="flex space-x-3">
                 <button
                   onClick={() => {
@@ -668,7 +668,7 @@ const EnhancedScheduleManagement = () => {
                     setStationLocks(locked);
                     localStorage.setItem('station_locks', JSON.stringify(locked));
                   }}
-                  className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg"
+                  className="px-4 py-2 bg-cq-alert-wash0 hover:bg-cq-alert text-white rounded-cq-md"
                 >
                   Lock All Stations
                 </button>
@@ -679,7 +679,7 @@ const EnhancedScheduleManagement = () => {
                     setStationLocks(unlocked);
                     localStorage.setItem('station_locks', JSON.stringify(unlocked));
                   }}
-                  className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg"
+                  className="px-4 py-2 bg-cq-ready-wash0 hover:bg-cq-ready text-white rounded-cq-md"
                 >
                   Unlock All Stations
                 </button>
@@ -691,7 +691,7 @@ const EnhancedScheduleManagement = () => {
                     setStationLocks(locked);
                     localStorage.setItem('station_locks', JSON.stringify(locked));
                   }}
-                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg"
+                  className="px-4 py-2 bg-cq-roast hover:bg-cq-caramel-deep text-white rounded-cq-md"
                 >
                   Quiet Period Mode
                 </button>
@@ -707,7 +707,7 @@ const EnhancedScheduleManagement = () => {
               <h3 className="text-lg font-semibold">Real-time Session Control</h3>
               <button
                 onClick={() => setShowAddSession(true)}
-                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg flex items-center"
+                className="px-4 py-2 bg-cq-roast hover:bg-cq-caramel-deep text-white rounded-cq-md flex items-center"
               >
                 <Plus size={20} className="mr-2" />
                 Add Session
@@ -725,17 +725,17 @@ const EnhancedScheduleManagement = () => {
                 return (
                   <div
                     key={session.id}
-                    className={`p-6 rounded-lg border-2 ${
-                      isActive ? 'bg-green-50 border-green-300' :
-                      isPaused ? 'bg-yellow-50 border-yellow-300' :
-                      isRunningLate ? 'bg-red-50 border-red-300' :
-                      'bg-gray-50 border-gray-300'
+                    className={`p-6 rounded-cq-md border-2 ${
+                      isActive ? 'bg-cq-ready-wash border-cq-ready' :
+                      isPaused ? 'bg-cq-warn-wash border-cq-warn' :
+                      isRunningLate ? 'bg-cq-alert-wash border-cq-alert' :
+                      'bg-cq-wash border-cq-line'
                     }`}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <h4 className="text-xl font-semibold mb-2">{session.name}</h4>
-                        <div className="flex items-center space-x-4 text-sm text-gray-600 mb-4">
+                        <div className="flex items-center space-x-4 text-sm text-cq-ink-2 mb-4">
                           <span className="flex items-center">
                             <Clock size={16} className="mr-1" />
                             {session.startTime} - {session.endTime}
@@ -756,7 +756,7 @@ const EnhancedScheduleManagement = () => {
                           {!isActive && !isPaused && !isRunningLate && (
                             <button
                               onClick={() => updateSessionStatus(session.id, 'active')}
-                              className="px-3 py-1 bg-green-500 hover:bg-green-600 text-white rounded-lg flex items-center text-sm"
+                              className="px-3 py-1 bg-cq-ready-wash0 hover:bg-cq-ready text-white rounded-cq-md flex items-center text-sm"
                             >
                               <PlayCircle size={16} className="mr-1" />
                               Start
@@ -767,14 +767,14 @@ const EnhancedScheduleManagement = () => {
                             <>
                               <button
                                 onClick={() => updateSessionStatus(session.id, 'paused')}
-                                className="px-3 py-1 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg flex items-center text-sm"
+                                className="px-3 py-1 bg-cq-warn-wash0 hover:bg-cq-warn text-white rounded-cq-md flex items-center text-sm"
                               >
                                 <PauseCircle size={16} className="mr-1" />
                                 Pause
                               </button>
                               <button
                                 onClick={() => updateSessionStatus(session.id, 'running_late')}
-                                className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-lg flex items-center text-sm"
+                                className="px-3 py-1 bg-cq-alert-wash0 hover:bg-cq-alert text-white rounded-cq-md flex items-center text-sm"
                               >
                                 <AlertCircle size={16} className="mr-1" />
                                 Running Late
@@ -785,7 +785,7 @@ const EnhancedScheduleManagement = () => {
                           {(isPaused || isRunningLate) && (
                             <button
                               onClick={() => updateSessionStatus(session.id, 'active')}
-                              className="px-3 py-1 bg-green-500 hover:bg-green-600 text-white rounded-lg flex items-center text-sm"
+                              className="px-3 py-1 bg-cq-ready-wash0 hover:bg-cq-ready text-white rounded-cq-md flex items-center text-sm"
                             >
                               <PlayCircle size={16} className="mr-1" />
                               Resume
@@ -793,23 +793,23 @@ const EnhancedScheduleManagement = () => {
                           )}
                           
                           {/* Quick extend buttons */}
-                          <div className="flex items-center space-x-2 ml-4 pl-4 border-l border-gray-300">
-                            <span className="text-sm text-gray-600">Extend:</span>
+                          <div className="flex items-center space-x-2 ml-4 pl-4 border-l border-cq-line">
+                            <span className="text-sm text-cq-ink-2">Extend:</span>
                             <button
                               onClick={() => extendSessionTime(session.id, 5)}
-                              className="px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-sm"
+                              className="px-2 py-1 bg-cq-roast hover:bg-cq-caramel-deep text-white rounded text-sm"
                             >
                               +5m
                             </button>
                             <button
                               onClick={() => extendSessionTime(session.id, 10)}
-                              className="px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-sm"
+                              className="px-2 py-1 bg-cq-roast hover:bg-cq-caramel-deep text-white rounded text-sm"
                             >
                               +10m
                             </button>
                             <button
                               onClick={() => extendSessionTime(session.id, 15)}
-                              className="px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-sm"
+                              className="px-2 py-1 bg-cq-roast hover:bg-cq-caramel-deep text-white rounded text-sm"
                             >
                               +15m
                             </button>
@@ -828,14 +828,14 @@ const EnhancedScheduleManagement = () => {
                               message: `Alert: ${session.name} update`
                             });
                           }}
-                          className="p-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg"
+                          className="p-2 bg-purple-500 hover:bg-purple-600 text-white rounded-cq-md"
                           title="Send alert to all stations"
                         >
                           <Bell size={20} />
                         </button>
                         <button
                           onClick={() => deleteSession(session.id)}
-                          className="p-2 bg-red-500 hover:bg-red-600 text-white rounded-lg"
+                          className="p-2 bg-cq-alert-wash0 hover:bg-cq-alert text-white rounded-cq-md"
                           title="Delete session"
                         >
                           <Trash2 size={20} />
@@ -844,7 +844,7 @@ const EnhancedScheduleManagement = () => {
                     </div>
                     
                     {/* Pre-order control */}
-                    <div className="mt-4 pt-4 border-t border-gray-200">
+                    <div className="mt-4 pt-4 border-t border-cq-line">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-4">
                           <span className="text-sm font-medium">Pre-orders:</span>
@@ -854,15 +854,15 @@ const EnhancedScheduleManagement = () => {
                               newWindows[session.id] = !preOrderWindows[session.id];
                               setPreOrderWindows(newWindows);
                             }}
-                            className={`px-3 py-1 rounded-lg text-sm ${
+                            className={`px-3 py-1 rounded-cq-md text-sm ${
                               preOrderWindows[session.id] ? 
-                              'bg-green-500 text-white' : 
-                              'bg-gray-300 text-gray-700'
+                              'bg-cq-ready-wash0 text-white' : 
+                              'bg-cq-line text-cq-ink-2'
                             }`}
                           >
                             {preOrderWindows[session.id] ? 'Open' : 'Closed'}
                           </button>
-                          <span className="text-sm text-gray-600">
+                          <span className="text-sm text-cq-ink-2">
                             Window: {session.preOrderWindow} mins before session
                           </span>
                         </div>
@@ -873,15 +873,15 @@ const EnhancedScheduleManagement = () => {
               })}
               
               {getCurrentAndUpcomingSessions().length === 0 && (
-                <div className="text-center py-12 text-gray-500">
-                  <Clock size={48} className="mx-auto mb-4 text-gray-400" />
+                <div className="text-center py-12 text-cq-ink-3">
+                  <Clock size={48} className="mx-auto mb-4 text-cq-ink-3" />
                   <p>No current or upcoming sessions</p>
                 </div>
               )}
             </div>
             
             {/* Communication panel */}
-            <div className="mt-6 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+            <div className="mt-6 p-4 bg-purple-50 border border-purple-200 rounded-cq-md">
               <h4 className="font-semibold text-purple-800 mb-3 flex items-center">
                 <MessageSquare size={20} className="mr-2" />
                 Quick Communication
@@ -898,7 +898,7 @@ const EnhancedScheduleManagement = () => {
                       });
                     }
                   }}
-                  className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg"
+                  className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-cq-md"
                 >
                   Broadcast Message
                 </button>
@@ -910,7 +910,7 @@ const EnhancedScheduleManagement = () => {
                       priority: 'high'
                     });
                   }}
-                  className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg"
+                  className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-cq-md"
                 >
                   Alert: Schedule Change
                 </button>
@@ -924,16 +924,16 @@ const EnhancedScheduleManagement = () => {
           <div>
             <div className="mb-4">
               <h3 className="text-lg font-semibold mb-2">Barista Assignment Matrix</h3>
-              <p className="text-gray-600">Assign baristas to stations for each session</p>
+              <p className="text-cq-ink-2">Assign baristas to stations for each session</p>
             </div>
             
             {sessions.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                <Users size={48} className="mx-auto mb-4 text-gray-400" />
+              <div className="text-center py-12 text-cq-ink-3">
+                <Users size={48} className="mx-auto mb-4 text-cq-ink-3" />
                 <p>No sessions scheduled for {new Date(selectedDate).toLocaleDateString()}</p>
                 <button
                   onClick={() => setShowAddSession(true)}
-                  className="mt-4 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg"
+                  className="mt-4 px-4 py-2 bg-cq-roast hover:bg-cq-caramel-deep text-white rounded-cq-md"
                 >
                   Add Session
                 </button>
@@ -941,11 +941,11 @@ const EnhancedScheduleManagement = () => {
             ) : (
               <div className="space-y-6">
                 {sessions.map(session => (
-                  <div key={session.id} className="border border-gray-200 rounded-lg p-4">
+                  <div key={session.id} className="border border-cq-line rounded-cq-md p-4">
                     <div className="flex items-center justify-between mb-4">
                       <div>
                         <h4 className="font-semibold">{session.name}</h4>
-                        <span className="text-sm text-gray-600">
+                        <span className="text-sm text-cq-ink-2">
                           {session.startTime} - {session.endTime}
                         </span>
                       </div>
@@ -954,7 +954,7 @@ const EnhancedScheduleManagement = () => {
                           setSelectedSession(session);
                           setShowAssignBarista(true);
                         }}
-                        className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm"
+                        className="px-3 py-1 bg-cq-roast hover:bg-cq-caramel-deep text-white rounded-cq-md text-sm"
                       >
                         Assign Barista
                       </button>
@@ -972,13 +972,13 @@ const EnhancedScheduleManagement = () => {
                         return (
                           <div
                             key={station.id}
-                            className={`p-3 rounded-lg border ${
-                              assignment ? 'bg-green-50 border-green-300' : 'bg-gray-50 border-gray-300'
+                            className={`p-3 rounded-cq-md border ${
+                              assignment ? 'bg-cq-ready-wash border-cq-ready' : 'bg-cq-wash border-cq-line'
                             }`}
                           >
                             <div className="flex items-center justify-between">
                               <div className="flex items-center">
-                                <Coffee size={16} className="mr-2 text-gray-600" />
+                                <Coffee size={16} className="mr-2 text-cq-ink-2" />
                                 <span className="font-medium text-sm">
                                   {station.name || `Station ${station.id}`}
                                 </span>
@@ -993,7 +993,7 @@ const EnhancedScheduleManagement = () => {
                                       assignedBaristas: updatedAssignments 
                                     });
                                   }}
-                                  className="text-red-500 hover:text-red-700"
+                                  className="text-cq-alert hover:text-cq-alert"
                                 >
                                   <XCircle size={16} />
                                 </button>
@@ -1006,7 +1006,7 @@ const EnhancedScheduleManagement = () => {
                                 <span className="ml-2 text-sm">{barista.fullName}</span>
                               </div>
                             ) : (
-                              <div className="mt-2 text-sm text-gray-500">
+                              <div className="mt-2 text-sm text-cq-ink-3">
                                 No barista assigned
                               </div>
                             )}
@@ -1025,7 +1025,7 @@ const EnhancedScheduleManagement = () => {
       {/* Add Session Modal */}
       {showAddSession && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+          <div className="bg-white rounded-cq-md p-6 w-full max-w-md">
             <h3 className="text-lg font-semibold mb-4">Add New Session</h3>
             
             <form
@@ -1044,25 +1044,25 @@ const EnhancedScheduleManagement = () => {
             >
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                     Session Name
                   </label>
                   <input
                     name="name"
                     type="text"
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    className="w-full px-3 py-2 border border-cq-line rounded-md"
                     placeholder="e.g., Morning Keynote"
                   />
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                     Session Type
                   </label>
                   <select
                     name="type"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    className="w-full px-3 py-2 border border-cq-line rounded-md"
                   >
                     <option value="keynote">Keynote</option>
                     <option value="break">Break</option>
@@ -1074,33 +1074,33 @@ const EnhancedScheduleManagement = () => {
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                       Start Time
                     </label>
                     <input
                       name="startTime"
                       type="time"
                       required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      className="w-full px-3 py-2 border border-cq-line rounded-md"
                     />
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                       End Time
                     </label>
                     <input
                       name="endTime"
                       type="time"
                       required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      className="w-full px-3 py-2 border border-cq-line rounded-md"
                     />
                   </div>
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                       Pre-order Window (mins)
                     </label>
                     <input
@@ -1109,12 +1109,12 @@ const EnhancedScheduleManagement = () => {
                       defaultValue="15"
                       min="5"
                       max="60"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      className="w-full px-3 py-2 border border-cq-line rounded-md"
                     />
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                       Barista Prep (mins)
                     </label>
                     <input
@@ -1123,7 +1123,7 @@ const EnhancedScheduleManagement = () => {
                       defaultValue="30"
                       min="15"
                       max="120"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      className="w-full px-3 py-2 border border-cq-line rounded-md"
                     />
                   </div>
                 </div>
@@ -1133,13 +1133,13 @@ const EnhancedScheduleManagement = () => {
                 <button
                   type="button"
                   onClick={() => setShowAddSession(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                  className="px-4 py-2 border border-cq-line rounded-md hover:bg-cq-wash"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700"
+                  className="px-4 py-2 bg-cq-roast text-white rounded-md hover:bg-cq-caramel-deep"
                 >
                   Add Session
                 </button>
@@ -1152,7 +1152,7 @@ const EnhancedScheduleManagement = () => {
       {/* Assign Barista Modal */}
       {showAssignBarista && selectedSession && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+          <div className="bg-white rounded-cq-md p-6 w-full max-w-md">
             <h3 className="text-lg font-semibold mb-4">
               Assign Barista to {selectedSession.name}
             </h3>
@@ -1171,13 +1171,13 @@ const EnhancedScheduleManagement = () => {
             >
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                     Select Barista
                   </label>
                   <select
                     name="baristaId"
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    className="w-full px-3 py-2 border border-cq-line rounded-md"
                   >
                     <option value="">Choose barista...</option>
                     {baristas.map(barista => (
@@ -1190,13 +1190,13 @@ const EnhancedScheduleManagement = () => {
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                     Assign to Station
                   </label>
                   <select
                     name="stationId"
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    className="w-full px-3 py-2 border border-cq-line rounded-md"
                   >
                     <option value="">Choose station...</option>
                     {stations.map(station => {
@@ -1222,13 +1222,13 @@ const EnhancedScheduleManagement = () => {
                 <button
                   type="button"
                   onClick={() => setShowAssignBarista(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                  className="px-4 py-2 border border-cq-line rounded-md hover:bg-cq-wash"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700"
+                  className="px-4 py-2 bg-cq-roast text-white rounded-md hover:bg-cq-caramel-deep"
                 >
                   Assign
                 </button>
@@ -1245,14 +1245,14 @@ const EnhancedScheduleManagement = () => {
           onClick={() => setSelectedSession(null)}
         >
           <div 
-            className="bg-white rounded-lg p-6 w-full max-w-2xl"
+            className="bg-white rounded-cq-md p-6 w-full max-w-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold">{selectedSession.name}</h3>
               <button
                 onClick={() => setSelectedSession(null)}
-                className="text-gray-500 hover:text-gray-700"
+                className="text-cq-ink-3 hover:text-cq-ink-2"
               >
                 <XCircle size={24} />
               </button>
@@ -1261,21 +1261,21 @@ const EnhancedScheduleManagement = () => {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <span className="text-sm text-gray-600">Time:</span>
+                  <span className="text-sm text-cq-ink-2">Time:</span>
                   <p className="font-medium">
                     {selectedSession.startTime} - {selectedSession.endTime}
                   </p>
                 </div>
                 <div>
-                  <span className="text-sm text-gray-600">Type:</span>
+                  <span className="text-sm text-cq-ink-2">Type:</span>
                   <p className="font-medium capitalize">{selectedSession.type}</p>
                 </div>
                 <div>
-                  <span className="text-sm text-gray-600">Pre-order Window:</span>
+                  <span className="text-sm text-cq-ink-2">Pre-order Window:</span>
                   <p className="font-medium">{selectedSession.preOrderWindow} minutes</p>
                 </div>
                 <div>
-                  <span className="text-sm text-gray-600">Barista Prep Time:</span>
+                  <span className="text-sm text-cq-ink-2">Barista Prep Time:</span>
                   <p className="font-medium">{selectedSession.baristaPrep} minutes</p>
                 </div>
               </div>
@@ -1289,11 +1289,11 @@ const EnhancedScheduleManagement = () => {
                       const station = stations.find(s => s.id === assignment.stationId);
                       
                       return (
-                        <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded">
+                        <div key={index} className="flex items-center justify-between bg-cq-wash p-2 rounded">
                           <div className="flex items-center">
                             {getSkillIcon(barista?.experience)}
                             <span className="ml-2">{barista?.fullName || 'Unknown'}</span>
-                            <span className="mx-2 text-gray-500">→</span>
+                            <span className="mx-2 text-cq-ink-3">→</span>
                             <span>{station?.name || `Station ${assignment.stationId}`}</span>
                           </div>
                         </div>
@@ -1301,7 +1301,7 @@ const EnhancedScheduleManagement = () => {
                     })}
                   </div>
                 ) : (
-                  <p className="text-gray-500">No baristas assigned yet</p>
+                  <p className="text-cq-ink-3">No baristas assigned yet</p>
                 )}
               </div>
               
@@ -1310,13 +1310,13 @@ const EnhancedScheduleManagement = () => {
                   onClick={() => {
                     setShowAssignBarista(true);
                   }}
-                  className="px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700"
+                  className="px-4 py-2 bg-cq-roast text-white rounded-md hover:bg-cq-caramel-deep"
                 >
                   Assign Barista
                 </button>
                 <button
                   onClick={() => deleteSession(selectedSession.id)}
-                  className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600"
+                  className="px-4 py-2 bg-cq-alert-wash0 text-white rounded-md hover:bg-cq-alert"
                 >
                   Delete Session
                 </button>

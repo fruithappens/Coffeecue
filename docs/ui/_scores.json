@@ -15,22 +15,22 @@
     "label": "Menu · Event Inventory",
     "file": "menu-inventory.png",
     "selects": 0,
-    "inputs": 10,
-    "grey": 7,
-    "legacy": 78,
-    "cq": 35,
-    "old": 32
+    "inputs": 0,
+    "grey": 0,
+    "legacy": 6,
+    "cq": 108,
+    "old": 1
   },
   {
     "hash": "menu/stock",
     "label": "Menu · Event Stock",
     "file": "menu-stock.png",
     "selects": 0,
-    "inputs": 14,
-    "grey": 33,
-    "legacy": 130,
-    "cq": 35,
-    "old": 62
+    "inputs": 0,
+    "grey": 0,
+    "legacy": 0,
+    "cq": 217,
+    "old": 0
   },
   {
     "hash": "menu/stationInventory",
@@ -38,10 +38,10 @@
     "file": "menu-stationInventory.png",
     "selects": 0,
     "inputs": 0,
-    "grey": 4,
-    "legacy": 9,
-    "cq": 35,
-    "old": 4
+    "grey": 0,
+    "legacy": 0,
+    "cq": 45,
+    "old": 0
   },
   {
     "hash": "stations",
@@ -58,12 +58,12 @@
     "hash": "branding/logo",
     "label": "Branding · Logo & look",
     "file": "branding-logo.png",
-    "selects": 1,
-    "inputs": 24,
-    "grey": 15,
-    "legacy": 97,
-    "cq": 36,
-    "old": 56
+    "selects": 0,
+    "inputs": 2,
+    "grey": 0,
+    "legacy": 0,
+    "cq": 140,
+    "old": 2
   },
   {
     "hash": "branding/sponsors",
@@ -103,11 +103,11 @@
     "label": "Schedule",
     "file": "schedule.png",
     "selects": 0,
-    "inputs": 1,
+    "inputs": 0,
     "grey": 0,
-    "legacy": 32,
-    "cq": 31,
-    "old": 9
+    "legacy": 1,
+    "cq": 65,
+    "old": 0
   },
   {
     "hash": "users/people",
@@ -172,7 +172,7 @@
     "inputs": 0,
     "grey": 0,
     "legacy": 0,
-    "cq": 723,
+    "cq": 735,
     "old": 0
   },
   {

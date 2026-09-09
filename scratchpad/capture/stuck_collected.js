@@ -26,8 +26,17 @@ const ok = (n, c, d = '') => (c ? pass : fail).push(n + (d ? ` — ${d}` : ''));
   await fetch(`${BASE}/api/orders/${id}/start`, { method: 'POST', headers: H }).catch(() => {});
   await fetch(`${BASE}/api/orders/${id}/complete`, { method: 'POST', headers: H }).catch(() => {});
 
+  // Point the tablet at the station the order actually landed on. Without
+  // this the test depended on routing luck: it passed while the default
+  // station happened to match and failed the moment it did not.
+  const station = row && (row.stationId || row.station_id);
   const browser = await chromium.launch({ channel: 'chrome' });
   const p = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  if (station) {
+    await p.addInitScript((sid) => {
+      localStorage.setItem('coffee_cue_selected_station', String(sid));
+    }, station);
+  }
   await p.goto(`${BASE}/barista`, { waitUntil: 'networkidle' });
   await p.waitForTimeout(1200);
   if (/sign in|log in|password/i.test(await p.locator('body').innerText())) {

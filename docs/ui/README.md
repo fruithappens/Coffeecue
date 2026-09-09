@@ -22,11 +22,23 @@ setting is wrong or the paragraph belongs in Help.
 A converted screen reads **legacy 0**. Nothing here is a judgement call — the
 numbers come from the live DOM, swept by `scratchpad/capture/ui_sweep.js`.
 
-Last swept: 2026-09-09 · **9 of 30 done**
+Last swept: 2026-09-09 · **12 of 30 done**
 
 ---
 
-## Done (9)
+## Done (12)
+
+### Menu · Event Stock
+
+![Menu · Event Stock](menu-stock.png)
+
+### Menu · Station Inventory
+
+![Menu · Station Inventory](menu-stationInventory.png)
+
+### Branding · Logo & look
+
+![Branding · Logo & look](branding-logo.png)
 
 ### Branding · Sponsors
 
@@ -66,13 +78,10 @@ Last swept: 2026-09-09 · **9 of 30 done**
 
 ---
 
-## Still to do (21), worst first
+## Still to do (18), worst first
 
 | Screen | legacy | cq | selects | inputs |
 | --- | ---: | ---: | ---: | ---: |
-| [Menu · Event Stock](menu-stock.png) | 130 | 35 | 0 | 14 |
-| [Branding · Logo & look](branding-logo.png) | 97 | 36 | 1 | 24 |
-| [Menu · Event Inventory](menu-inventory.png) | 78 | 35 | 0 | 10 |
 | [Quick Setup](quickSetup.png) | 72 | 31 | 4 | 43 |
 | [Live · Readiness](live-readiness.png) | 55 | 35 | 1 | 6 |
 | [Branding · Milk colours](branding-milk.png) | 54 | 36 | 0 | 9 |
@@ -82,14 +91,14 @@ Last swept: 2026-09-09 · **9 of 30 done**
 | [Messages · Text blast](messages-broadcast.png) | 48 | 36 | 1 | 7 |
 | [Live · Metrics](live-metrics.png) | 42 | 35 | 0 | 0 |
 | [EventsAir](eventsair.png) | 35 | 31 | 0 | 7 |
-| [Schedule](schedule.png) | 32 | 31 | 0 | 1 |
 | [Messages · Test a text](messages-test.png) | 28 | 36 | 7 | 7 |
 | [Printers](printers.png) | 26 | 31 | 10 | 9 |
 | [Stations](stations.png) | 18 | 31 | 0 | 0 |
 | [Orders · Groups](orders-groups.png) | 15 | 34 | 4 | 5 |
-| [Menu · Station Inventory](menu-stationInventory.png) | 9 | 35 | 0 | 0 |
 | [Help](help.png) | 9 | 31 | 0 | 0 |
 | [People](users-people.png) | 7 | 34 | 1 | 1 |
+| [Menu · Event Inventory](menu-inventory.png) | 6 | 108 | 0 | 0 |
 | [People · Roles & access](users-access.png) | 6 | 45 | 1 | 0 |
+| [Schedule](schedule.png) | 1 | 65 | 0 | 0 |
 
 Shots of these are in this folder too — they are the *before*.

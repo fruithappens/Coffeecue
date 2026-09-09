@@ -85,10 +85,10 @@ const BeanDoseCard = () => {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow p-4 mb-6 flex flex-wrap items-center gap-4">
+    <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4 mb-6 flex flex-wrap items-center gap-4">
       <div className="flex-1 min-w-[16rem]">
         <h3 className="text-lg font-bold">Coffee dose per shot</h3>
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-cq-ink-2">
           Grams of beans one espresso shot deducts from stock. Every recipe
           counts shots; this converts them to grams. Australian standard is
           20–22g — keep it on the high side so dial-in shots and spills
@@ -102,13 +102,13 @@ const BeanDoseCard = () => {
           max="60"
           value={grams}
           onChange={(e) => setGrams(e.target.value)}
-          className="w-24 border rounded px-2 py-1.5 text-right"
+          className="w-24 h-9 border-2 border-cq-line rounded-cq-md bg-cq-milk px-2 focus:border-cq-caramel focus:outline-none.5 text-right"
         />
-        <span className="text-gray-500 text-sm">g</span>
+        <span className="text-cq-ink-3 text-sm">g</span>
         <button
           onClick={save}
           disabled={saving}
-          className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-1.5 rounded font-semibold"
+          className="bg-cq-roast hover:bg-cq-caramel-deep text-white px-4 py-1.5 rounded font-semibold"
         >
           {saved ? 'Saved' : 'Save'}
         </button>
@@ -155,11 +155,11 @@ const IngredientRow = ({ item, onSaved }) => {
   };
 
   return (
-    <div className="flex items-center gap-3 py-2 border-b border-gray-100 last:border-0">
+    <div className="flex items-center gap-3 py-2 border-b border-cq-line last:border-0">
       <div className="flex-1 min-w-0">
-        <span className="font-medium text-gray-800 capitalize">{item.name}</span>
+        <span className="font-medium text-cq-roast capitalize">{item.name}</span>
         {low && (
-          <span className="ml-2 inline-flex items-center gap-1 text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
+          <span className="ml-2 inline-flex items-center gap-1 text-xs bg-cq-alert-wash text-cq-alert px-2 py-0.5 rounded-full">
             <AlertTriangle size={12} /> low (warn at {threshold})
           </span>
         )}
@@ -170,20 +170,20 @@ const IngredientRow = ({ item, onSaved }) => {
         step="any"
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        className={`w-28 border rounded px-2 py-1 text-right ${dirty ? 'border-amber-500' : 'border-gray-300'}`}
+        className={`w-28 h-9 border-2 rounded-cq-md bg-cq-milk px-2 py-1 text-right ${dirty ? 'border-cq-caramel' : 'border-cq-line'}`}
       />
-      <span className="text-sm text-gray-500 w-12">{item.unit || ''}</span>
+      <span className="text-sm text-cq-ink-3 w-12">{item.unit || ''}</span>
       <button
         onClick={save}
         disabled={saving || !dirty}
         title={dirty ? 'Save this quantity' : 'Unchanged'}
         className={`p-1.5 rounded ${dirty
-          ? 'bg-amber-600 text-white hover:bg-amber-700'
-          : 'bg-gray-100 text-gray-300 cursor-default'}`}
+          ? 'bg-cq-roast text-white hover:bg-cq-caramel-deep'
+          : 'bg-cq-wash text-cq-line cursor-default'}`}
       >
         <Save size={16} />
       </button>
-      {err && <span className="text-xs text-red-600">{err}</span>}
+      {err && <span className="text-xs text-cq-alert">{err}</span>}
     </div>
   );
 };
@@ -231,27 +231,27 @@ const RecipeLine = ({ drink, size, line, onSaved }) => {
 
   return (
     <div className="flex items-center gap-2 text-sm py-1">
-      <span className="flex-1 text-gray-700 capitalize">{lineName(line)}</span>
+      <span className="flex-1 text-cq-ink-2 capitalize">{lineName(line)}</span>
       <input
         type="number"
         min="0"
         step="any"
         value={qty}
         onChange={(e) => setQty(e.target.value)}
-        className={`w-20 border rounded px-2 py-0.5 text-right ${dirty ? 'border-amber-500' : 'border-gray-200'}`}
+        className={`w-20 h-9 border-2 rounded-cq-md bg-cq-milk px-2 py-0.5 text-right ${dirty ? 'border-cq-caramel' : 'border-cq-line'}`}
       />
-      <span className="text-gray-500 w-10">{line.unit}</span>
+      <span className="text-cq-ink-3 w-10">{line.unit}</span>
       <button
         onClick={save}
         disabled={saving || !dirty}
         className={`p-1 rounded ${dirty
-          ? 'bg-amber-600 text-white hover:bg-amber-700'
-          : 'text-gray-300 cursor-default'}`}
+          ? 'bg-cq-roast text-white hover:bg-cq-caramel-deep'
+          : 'text-cq-line cursor-default'}`}
       >
         <Save size={14} />
       </button>
       {line.source === 'custom' && (
-        <span className="text-[10px] uppercase tracking-wide bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
+        <span className="text-[10px] uppercase tracking-wide bg-cq-caramel-wash text-cq-caramel-deep px-1.5 py-0.5 rounded">
           custom
         </span>
       )}
@@ -266,19 +266,19 @@ const RecipeCard = ({ drink, sizes, onSaved }) => {
     (a, b) => sizeOrder.indexOf(a) - sizeOrder.indexOf(b)
   );
   return (
-    <div className="bg-white rounded-lg shadow">
+    <div className="bg-cq-milk rounded-cq-lg shadow-cq-card">
       <button
         className="w-full flex items-center justify-between px-4 py-3"
         onClick={() => setOpen(v => !v)}
       >
-        <span className="font-bold text-gray-800 capitalize">{drink}</span>
+        <span className="font-bold text-cq-roast capitalize">{drink}</span>
         {open ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
       </button>
       {open && (
         <div className="px-4 pb-4 grid grid-cols-1 md:grid-cols-3 gap-4">
           {ordered.map(size => (
-            <div key={size} className="border border-gray-100 rounded p-3">
-              <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
+            <div key={size} className="border border-cq-line rounded p-3">
+              <div className="text-xs font-semibold uppercase tracking-wide text-cq-ink-3 mb-1">
                 {size}
               </div>
               {sizes[size].map((line, i) => (
@@ -359,9 +359,9 @@ const StationAllocation = ({ inventory, onChanged }) => {
   const amountOf = (row) => (row ? parseFloat(row.amount) || 0 : 0);
 
   return (
-    <div className="bg-white rounded-lg shadow p-4 mt-8">
-      <h2 className="text-xl font-bold text-gray-800">Station allocation</h2>
-      <p className="text-sm text-gray-600 mb-3">
+    <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4 mt-8">
+      <h2 className="text-xl font-bold text-cq-roast">Station allocation</h2>
+      <p className="text-sm text-cq-ink-2 mb-3">
         Each cart's own supply. A restock is a transfer — "move 6L skim
         from the event reserve to Station 2" — so the ledger records where
         things physically went. Orders deplete the station's own row first,
@@ -371,20 +371,20 @@ const StationAllocation = ({ inventory, onChanged }) => {
       <div className="overflow-x-auto">
         <table className="text-sm w-full">
           <thead>
-            <tr className="text-left text-gray-500">
-              <th className="py-1 pr-4">Ingredient</th>
-              <th className="py-1 pr-4">Event reserve</th>
+            <tr className="text-left border-b border-cq-line">
+              <th className="py-2 pr-4 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">Ingredient</th>
+              <th className="py-2 pr-4 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">Event reserve</th>
               {stations.map((st) => (
-                <th key={st.id} className="py-1 pr-4">{st.name || `Station ${st.id}`}</th>
+                <th key={st.id} className="py-2 pr-4 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">{st.name || `Station ${st.id}`}</th>
               ))}
-              <th className="py-1">Move</th>
+              <th className="py-2 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">Move</th>
             </tr>
           </thead>
           <tbody>
             {Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b)).map(([key, g]) => (
-              <tr key={key} className="border-t border-gray-100 align-top">
+              <tr key={key} className="border-t border-cq-line align-top">
                 <td className="py-2 pr-4 font-medium capitalize">{g.name}
-                  <span className="text-xs text-gray-400 block">{g.category}</span>
+                  <span className="text-xs text-cq-ink-3 block">{g.category}</span>
                 </td>
                 <td className="py-2 pr-4 font-mono">{amountOf(g.event)}</td>
                 {stations.map((st) => (
@@ -397,19 +397,19 @@ const StationAllocation = ({ inventory, onChanged }) => {
                     <span className="flex items-center gap-1 flex-wrap">
                       <input type="number" min="0" step="any" value={move.amount}
                         onChange={(e) => setMove((m) => ({ ...m, amount: e.target.value }))}
-                        className="w-20 border border-gray-300 rounded px-2 py-1 text-right" autoFocus />
+                        className="w-20 border border-cq-line rounded px-2 py-1 text-right" autoFocus />
                       <select value={move.from}
                         onChange={(e) => setMove((m) => ({ ...m, from: e.target.value }))}
-                        className="border border-gray-300 rounded px-1 py-1">
+                        className="border border-cq-line rounded px-1 py-1">
                         <option value="event">Event</option>
                         {stations.map((st) => (
                           <option key={st.id} value={st.id}>{st.name || `S${st.id}`}</option>
                         ))}
                       </select>
-                      <span className="text-gray-400">→</span>
+                      <span className="text-cq-ink-3">→</span>
                       <select value={move.to}
                         onChange={(e) => setMove((m) => ({ ...m, to: e.target.value }))}
-                        className="border border-gray-300 rounded px-1 py-1">
+                        className="border border-cq-line rounded px-1 py-1">
                         <option value="">to…</option>
                         <option value="event">Event</option>
                         {stations.map((st) => (
@@ -417,15 +417,15 @@ const StationAllocation = ({ inventory, onChanged }) => {
                         ))}
                       </select>
                       <button onClick={() => doMove(g)} disabled={busy}
-                        className="bg-amber-600 text-white rounded px-2 py-1 font-semibold">
+                        className="bg-cq-roast text-white rounded px-2 py-1 font-semibold">
                         Move
                       </button>
                       <button onClick={() => setMove({ key: null, amount: '', from: 'event', to: '' })}
-                        className="text-gray-400 px-1">✕</button>
+                        className="text-cq-ink-3 px-1">✕</button>
                     </span>
                   ) : (
                     <button onClick={() => { setErr(''); setMove({ key, amount: '', from: 'event', to: '' }); }}
-                      className="text-amber-700 underline text-sm">
+                      className="text-cq-caramel-deep underline text-sm">
                       transfer
                     </button>
                   )}
@@ -435,7 +435,7 @@ const StationAllocation = ({ inventory, onChanged }) => {
           </tbody>
         </table>
       </div>
-      {err && <div className="mt-2 text-sm text-red-600">{err}</div>}
+      {err && <div className="mt-2 text-sm text-cq-alert">{err}</div>}
     </div>
   );
 };
@@ -480,11 +480,11 @@ const CupReconciliation = () => {
           value={editing ? edit[key] : (value ?? '')}
           placeholder="—"
           onChange={(e) => setEdit((s2) => ({ ...s2, [key]: e.target.value }))}
-          className="w-20 border border-gray-300 rounded px-2 py-1 text-right"
+          className="w-20 border border-cq-line rounded px-2 py-1 text-right"
         />
         {editing && (
           <button onClick={() => save(sid, field)}
-            className="p-1 bg-amber-600 text-white rounded" title="Save count">
+            className="p-1 bg-cq-roast text-white rounded" title="Save count">
             <Save size={13} />
           </button>
         )}
@@ -493,9 +493,9 @@ const CupReconciliation = () => {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow p-4 mt-8">
-      <h2 className="text-xl font-bold text-gray-800">Cup reconciliation</h2>
-      <p className="text-sm text-gray-600 mb-3">
+    <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4 mt-8">
+      <h2 className="text-xl font-bold text-cq-roast">Cup reconciliation</h2>
+      <p className="text-sm text-cq-ink-2 mb-3">
         The venue counts physical cups (start minus end of day); we count
         completed orders. The two will differ — staff coffees, remakes,
         spills — and the variance belongs in the report, explained, not
@@ -504,32 +504,32 @@ const CupReconciliation = () => {
       <div className="overflow-x-auto">
         <table className="text-sm w-full">
           <thead>
-            <tr className="text-left text-gray-500">
-              <th className="py-1 pr-4">Station</th>
-              <th className="py-1 pr-4">Cups at start</th>
-              <th className="py-1 pr-4">Cups at end</th>
-              <th className="py-1 pr-4">Venue used</th>
-              <th className="py-1 pr-4">Our orders</th>
-              <th className="py-1">Variance</th>
+            <tr className="text-left border-b border-cq-line">
+              <th className="py-2 pr-4 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">Station</th>
+              <th className="py-2 pr-4 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">Cups at start</th>
+              <th className="py-2 pr-4 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">Cups at end</th>
+              <th className="py-2 pr-4 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">Venue used</th>
+              <th className="py-2 pr-4 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">Our orders</th>
+              <th className="py-2 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">Variance</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.station_id} className="border-t border-gray-100">
+              <tr key={r.station_id} className="border-t border-cq-line">
                 <td className="py-2 pr-4 font-medium">{r.station_name}</td>
                 <td className="py-2 pr-4"><CountCell sid={r.station_id} field="start" value={r.start} /></td>
                 <td className="py-2 pr-4"><CountCell sid={r.station_id} field="end" value={r.end} /></td>
                 <td className="py-2 pr-4 font-mono">{r.venue_used ?? '—'}</td>
                 <td className="py-2 pr-4 font-mono">{r.system_orders}</td>
                 <td className={`py-2 font-mono font-bold ${
-                  r.variance == null ? 'text-gray-400'
-                    : Math.abs(r.variance) <= 5 ? 'text-green-700' : 'text-amber-700'}`}>
+                  r.variance == null ? 'text-cq-ink-3'
+                    : Math.abs(r.variance) <= 5 ? 'text-cq-ready' : 'text-cq-caramel-deep'}`}>
                   {r.variance == null ? '—' : (r.variance > 0 ? `+${r.variance}` : r.variance)}
                 </td>
               </tr>
             ))}
             {totals && (
-              <tr className="border-t-2 border-gray-300 font-bold">
+              <tr className="border-t-2 border-cq-line font-bold">
                 <td className="py-2 pr-4">Event total</td>
                 <td /><td />
                 <td className="py-2 pr-4 font-mono">{totals.venue_used || '—'}</td>
@@ -594,22 +594,22 @@ const EventStockManagement = () => {
       <BeanDoseCard />
 
       <div className="flex items-center justify-between mb-1">
-        <h2 className="text-2xl font-bold text-gray-800">Ingredients</h2>
+        <h2 className="text-2xl font-bold text-cq-roast">Ingredients</h2>
         <button
           onClick={load}
-          className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
+          className="flex items-center gap-1 text-sm text-cq-ink-2 hover:text-cq-roast"
         >
           <RefreshCw size={14} /> Refresh
         </button>
       </div>
-      <p className="text-gray-600 mb-4">
+      <p className="text-cq-ink-2 mb-4">
         The live ledger — what orders check against and completions deduct
         from. Drinks don't carry quantities; these do.
       </p>
 
-      {loading && <div className="text-gray-500 py-8">Loading stock…</div>}
+      {loading && <div className="text-cq-ink-3 py-8">Loading stock…</div>}
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 mb-4">
+        <div className="bg-cq-alert-wash border border-cq-alert text-cq-alert rounded p-3 mb-4">
           {error}
         </div>
       )}
@@ -621,11 +621,11 @@ const EventStockManagement = () => {
             const meta = CATEGORY_META[cat];
             const Icon = meta.icon;
             return (
-              <div key={cat} className="bg-white rounded-lg shadow p-4">
+              <div key={cat} className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <Icon size={18} className="text-amber-700" />
-                  <h3 className="font-bold text-gray-800">{meta.label}</h3>
-                  <span className="text-xs text-gray-400">({meta.unit})</span>
+                  <Icon size={18} className="text-cq-caramel-deep" />
+                  <h3 className="font-bold text-cq-roast">{meta.label}</h3>
+                  <span className="text-xs text-cq-ink-3">({meta.unit})</span>
                 </div>
                 {items
                   .sort((a, b) => String(a.name).localeCompare(String(b.name)))
@@ -637,8 +637,8 @@ const EventStockManagement = () => {
           })}
       </div>
 
-      <h2 className="text-2xl font-bold text-gray-800 mb-1">Recipes</h2>
-      <p className="text-gray-600 mb-4">
+      <h2 className="text-2xl font-bold text-cq-roast mb-1">Recipes</h2>
+      <p className="text-cq-ink-2 mb-4">
         What each drink burns, per size. Edit a dose and it sticks — your
         numbers survive updates; "custom" marks the ones you've changed.
       </p>

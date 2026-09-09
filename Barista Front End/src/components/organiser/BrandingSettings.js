@@ -368,21 +368,21 @@ const BrandingSettings = () => {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
+      <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-6">
         <h2 className="text-2xl font-bold mb-4 flex items-center">
           <Palette className="mr-2" />
           Branding & Customization
         </h2>
         
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center text-red-700">
+          <div className="mb-4 p-3 bg-cq-alert-wash border border-cq-alert rounded-cq-md flex items-center text-cq-alert">
             <AlertCircle className="mr-2" size={20} />
             {error}
           </div>
         )}
         
         {success && (
-          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center text-green-700">
+          <div className="mb-4 p-3 bg-cq-ready-wash border border-cq-ready rounded-cq-md flex items-center text-cq-ready">
             <Check className="mr-2" size={20} />
             {success}
           </div>
@@ -395,11 +395,11 @@ const BrandingSettings = () => {
               type="checkbox"
               checked={settings.customBranding}
               onChange={(e) => setSettings({...settings, customBranding: e.target.checked})}
-              className="w-5 h-5 text-blue-600 rounded focus:ring-amber-500"
+              className="w-5 h-5 text-cq-caramel-deep rounded focus:border-cq-caramel"
             />
             <span className="text-lg font-medium">Enable Custom Branding</span>
           </label>
-          <p className="text-sm text-gray-600 mt-1 ml-8">
+          <p className="text-sm text-cq-ink-2 mt-1 ml-8">
             Show the event's own name, logo and colours instead of the CupQ defaults
           </p>
         </div>
@@ -407,7 +407,7 @@ const BrandingSettings = () => {
         {settings.customBranding && (
           <div className="space-y-4 ml-8">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                 Client Name
               </label>
               <input
@@ -415,7 +415,7 @@ const BrandingSettings = () => {
                 value={settings.clientName}
                 onChange={(e) => setSettings({...settings, clientName: e.target.value})}
                 placeholder="e.g. National Wine Centre"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                className="w-full px-3 py-2 border border-cq-line rounded-cq-md focus:outline-none focus:ring-2 focus:border-cq-caramel"
               />
             </div>
 
@@ -426,12 +426,12 @@ const BrandingSettings = () => {
                 it only affected /display, then SMS customers got
                 greeted with that string). Promoting to its own
                 top-level section makes the breadth explicit. */}
-            <div className="border-t border-gray-200 pt-4 mt-2">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+            <div className="border-t border-cq-line pt-4 mt-2">
+              <p className="text-xs font-semibold text-cq-ink-3 uppercase tracking-wide mb-2">
                 Event identity
               </p>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                   Event name
                 </label>
                 <input
@@ -439,9 +439,9 @@ const BrandingSettings = () => {
                   value={settings.event_name}
                   onChange={(e) => setSettings({...settings, event_name: e.target.value})}
                   placeholder="e.g. Your Event Name"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="w-full px-3 py-2 border border-cq-line rounded-cq-md focus:outline-none focus:ring-2 focus:border-cq-caramel"
                 />
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-cq-ink-3 mt-1">
                   Used in <strong>every customer-facing place</strong>:
                   the SMS welcome (<em>"Welcome to [event name]!"</em>),
                   the order-confirmation SMS, AND the big header on
@@ -450,12 +450,12 @@ const BrandingSettings = () => {
               </div>
             </div>
 
-            <div className="border-t border-gray-200 pt-4 mt-2">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+            <div className="border-t border-cq-line pt-4 mt-2">
+              <p className="text-xs font-semibold text-cq-ink-3 uppercase tracking-wide mb-2">
                 Customer SMS channel
               </p>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                   SMS order number
                 </label>
                 <input
@@ -463,9 +463,9 @@ const BrandingSettings = () => {
                   value={settings.smsNumber}
                   onChange={(e) => setSettings({...settings, smsNumber: e.target.value})}
                   placeholder="+61 412 345 678"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="w-full px-3 py-2 border border-cq-line rounded-cq-md focus:outline-none focus:ring-2 focus:border-cq-caramel"
                 />
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-cq-ink-3 mt-1">
                   Number customers text to place an order. Appears in
                   the footer of the /display screen and on the landing
                   page. Falls back to the backend's <code>TWILIO_PHONE_NUMBER</code>
@@ -478,7 +478,7 @@ const BrandingSettings = () => {
                 storage needed) and shown on the /display screen header +
                 login + printable report. */}
             <div className="md:col-span-2 border-t pt-4 mt-2">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+              <p className="text-xs font-semibold text-cq-ink-3 uppercase tracking-wide mb-2">
                 Logo / display graphic
               </p>
               <div className="flex items-center gap-4">
@@ -486,15 +486,15 @@ const BrandingSettings = () => {
                   <img
                     src={settings.clientLogo}
                     alt="Logo preview"
-                    className="h-16 w-auto max-w-[160px] object-contain border border-gray-200 rounded bg-white p-1"
+                    className="h-16 w-auto max-w-[160px] object-contain border border-cq-line rounded bg-white p-1"
                   />
                 ) : (
-                  <div className="h-16 w-28 flex items-center justify-center border border-dashed border-gray-300 rounded text-xs text-gray-400">
+                  <div className="h-16 w-28 flex items-center justify-center border border-dashed border-cq-line rounded text-xs text-cq-ink-3">
                     No logo
                   </div>
                 )}
                 <div className="flex flex-col gap-2">
-                  <label className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center cursor-pointer text-sm w-fit">
+                  <label className="px-4 py-2 bg-cq-wash text-cq-ink-2 rounded-cq-md hover:bg-cq-wash flex items-center cursor-pointer text-sm w-fit">
                     <Upload className="mr-2" size={16} />
                     {settings.clientLogo ? 'Replace logo' : 'Upload logo'}
                     <input
@@ -508,12 +508,12 @@ const BrandingSettings = () => {
                     <button
                       type="button"
                       onClick={() => setSettings(prev => ({ ...prev, clientLogo: '' }))}
-                      className="text-xs text-red-600 hover:underline w-fit"
+                      className="text-xs text-cq-alert hover:underline w-fit"
                     >
                       Remove logo
                     </button>
                   )}
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-cq-ink-3">
                     PNG/JPG/SVG under 400KB. Shows on the customer display
                     screen and the login page. Click Save to apply. The
                     sticker logo for printed labels is under Branding → Labels.
@@ -526,10 +526,10 @@ const BrandingSettings = () => {
                 beacon and the ordering form all wear the event, not CupQ --
                 this decides how. */}
             <div className="md:col-span-2 border-t pt-4 mt-2">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+              <p className="text-xs font-semibold text-cq-ink-3 uppercase tracking-wide mb-1">
                 Top of the customer screens
               </p>
-              <p className="text-xs text-gray-500 mb-3">
+              <p className="text-xs text-cq-ink-3 mb-3">
                 What a delegate sees above the order on their phone.
               </p>
               <div className="flex flex-wrap gap-2 mb-3">
@@ -538,26 +538,26 @@ const BrandingSettings = () => {
                     key={mode}
                     type="button"
                     onClick={() => setSettings(prev => ({ ...prev, customerHeaderMode: mode }))}
-                    className={`px-3 py-2 rounded-lg text-sm font-semibold border-2 ${
+                    className={`px-3 py-2 rounded-cq-md text-sm font-semibold border-2 ${
                       (settings.customerHeaderMode || 'logo_name') === mode
-                        ? 'border-amber-500 bg-amber-50 text-amber-800'
-                        : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}
+                        ? 'border-cq-caramel bg-cq-caramel-wash text-cq-caramel-deep'
+                        : 'border-cq-line text-cq-ink-2 hover:border-cq-line'}`}
                   >
                     {label}
                   </button>
                 ))}
               </div>
               <div className="flex flex-wrap items-center gap-4">
-                <label className="flex items-center gap-2 text-sm text-gray-600">
+                <label className="flex items-center gap-2 text-sm text-cq-ink-2">
                   Text colour
                   <input
                     type="color"
                     value={settings.customerHeaderColor || settings.primaryColor || '#C08552'}
                     onChange={(e) => setSettings(prev => ({ ...prev, customerHeaderColor: e.target.value }))}
-                    className="h-9 w-14 rounded border border-gray-300"
+                    className="h-9 w-14 rounded border border-cq-line"
                   />
                   {settings.customerHeaderColor && (
-                    <button type="button" className="text-xs text-gray-500 hover:underline"
+                    <button type="button" className="text-xs text-cq-ink-3 hover:underline"
                             onClick={() => setSettings(prev => ({ ...prev, customerHeaderColor: '' }))}>
                       use the event colour
                     </button>
@@ -566,15 +566,15 @@ const BrandingSettings = () => {
                 {(settings.customerHeaderMode || 'logo_name') === 'image' && (
                   <div className="flex items-center gap-3">
                     {settings.customerHeaderImage ? (
-                      <img src={settings.customerHeaderImage} alt="" className="h-10 w-auto max-w-[10rem] object-contain border rounded bg-white p-1" />
+                      <img src={settings.customerHeaderImage} alt="" className="h-10 w-auto max-w-[10rem] object-contain border-2 border-cq-line rounded-cq-md bg-cq-milk bg-white p-1" />
                     ) : null}
-                    <label className="px-3 py-2 rounded-lg border-2 border-gray-200 text-sm font-semibold text-gray-600 cursor-pointer hover:border-gray-300">
+                    <label className="px-3 py-2 rounded-cq-md border-2 border-cq-line text-sm font-semibold text-cq-ink-2 cursor-pointer hover:border-cq-line">
                       {settings.customerHeaderImage ? 'Replace picture' : 'Upload picture'}
                       <input type="file" accept="image/*" className="hidden"
                              onChange={handleCustomerHeaderUpload} />
                     </label>
                     {settings.customerHeaderImage && (
-                      <button type="button" className="text-xs text-red-600 hover:underline"
+                      <button type="button" className="text-xs text-cq-alert hover:underline"
                               onClick={() => setSettings(prev => ({ ...prev, customerHeaderImage: '' }))}>
                         Remove
                       </button>
@@ -582,7 +582,7 @@ const BrandingSettings = () => {
                   </div>
                 )}
               </div>
-              <p className="text-xs text-gray-500 mt-2">
+              <p className="text-xs text-cq-ink-3 mt-2">
                 A wide, short picture works best here — it sits above the order
                 on a phone. Click Save to apply.
               </p>
@@ -593,10 +593,10 @@ const BrandingSettings = () => {
                 image. When set, the Display shows the image full-screen and
                 the order boxes shrink when quiet / grow as orders arrive. */}
             <div className="md:col-span-2 border-t pt-4 mt-2">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+              <p className="text-xs font-semibold text-cq-ink-3 uppercase tracking-wide mb-1">
                 Display backgrounds (full-screen)
               </p>
-              <p className="text-xs text-gray-500 mb-3">
+              <p className="text-xs text-cq-ink-3 mb-3">
                 Optional. Upload a wide image for horizontal screens and a tall
                 one for vertical screens — the display auto-picks the right one.
                 Order boxes stay compact when quiet and expand over the image as
@@ -608,22 +608,22 @@ const BrandingSettings = () => {
                   { key: 'bgLandscape', label: 'Landscape 16:9 (horizontal screen)', box: 'h-20 w-36' },
                   { key: 'bgPortrait', label: 'Portrait 9:16 (vertical screen)', box: 'h-32 w-20' },
                 ].map(({ key, label, box }) => (
-                  <div key={key} className="border border-gray-200 rounded-lg p-3">
-                    <p className="text-xs font-medium text-gray-600 mb-2">{label}</p>
+                  <div key={key} className="border border-cq-line rounded-cq-md p-3">
+                    <p className="text-xs font-medium text-cq-ink-2 mb-2">{label}</p>
                     <div className="flex items-start gap-3">
                       {settings[key] ? (
                         <img
                           src={settings[key]}
                           alt={`${label} preview`}
-                          className={`${box} object-cover border border-gray-200 rounded bg-white`}
+                          className={`${box} object-cover border border-cq-line rounded bg-white`}
                         />
                       ) : (
-                        <div className={`${box} flex items-center justify-center border border-dashed border-gray-300 rounded text-xs text-gray-400 text-center`}>
+                        <div className={`${box} flex items-center justify-center border border-dashed border-cq-line rounded text-xs text-cq-ink-3 text-center`}>
                           No image
                         </div>
                       )}
                       <div className="flex flex-col gap-2">
-                        <label className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center cursor-pointer text-sm w-fit">
+                        <label className="px-3 py-2 bg-cq-wash text-cq-ink-2 rounded-cq-md hover:bg-cq-wash flex items-center cursor-pointer text-sm w-fit">
                           <Upload className="mr-2" size={16} />
                           {settings[key] ? 'Replace' : 'Upload'}
                           <input
@@ -637,7 +637,7 @@ const BrandingSettings = () => {
                           <button
                             type="button"
                             onClick={() => setSettings(prev => ({ ...prev, [key]: '' }))}
-                            className="text-xs text-red-600 hover:underline w-fit"
+                            className="text-xs text-cq-alert hover:underline w-fit"
                           >
                             Remove
                           </button>
@@ -653,7 +653,7 @@ const BrandingSettings = () => {
             <DisplayBackgroundVideo />
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                 System Name
               </label>
               <input
@@ -661,12 +661,12 @@ const BrandingSettings = () => {
                 value={settings.systemName}
                 onChange={(e) => setSettings({...settings, systemName: e.target.value})}
                 placeholder="Coffee Cue"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                className="w-full px-3 py-2 border border-cq-line rounded-cq-md focus:outline-none focus:ring-2 focus:border-cq-caramel"
               />
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                 Company Name
               </label>
               <input
@@ -674,13 +674,13 @@ const BrandingSettings = () => {
                 value={settings.companyName}
                 onChange={(e) => setSettings({...settings, companyName: e.target.value})}
                 placeholder="Coffee Cue"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                className="w-full px-3 py-2 border border-cq-line rounded-cq-md focus:outline-none focus:ring-2 focus:border-cq-caramel"
               />
             </div>
             
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                   Short Name (for compact views)
                 </label>
                 <input
@@ -688,12 +688,12 @@ const BrandingSettings = () => {
                   value={settings.shortName}
                   onChange={(e) => setSettings({...settings, shortName: e.target.value})}
                   placeholder="Coffee Cue"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="w-full px-3 py-2 border border-cq-line rounded-cq-md focus:outline-none focus:ring-2 focus:border-cq-caramel"
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                   Tagline
                 </label>
                 <input
@@ -701,65 +701,65 @@ const BrandingSettings = () => {
                   value={settings.tagline}
                   onChange={(e) => setSettings({...settings, tagline: e.target.value})}
                   placeholder="Skip the Queue, Get Your Cue"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="w-full px-3 py-2 border border-cq-line rounded-cq-md focus:outline-none focus:ring-2 focus:border-cq-caramel"
                 />
               </div>
             </div>
             
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                   Landing Page Title
                 </label>
                 <input
                   type="text"
                   value={settings.landingTitle}
                   onChange={(e) => setSettings({...settings, landingTitle: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="w-full px-3 py-2 border border-cq-line rounded-cq-md focus:outline-none focus:ring-2 focus:border-cq-caramel"
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                   Landing Page Subtitle
                 </label>
                 <input
                   type="text"
                   value={settings.landingSubtitle}
                   onChange={(e) => setSettings({...settings, landingSubtitle: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="w-full px-3 py-2 border border-cq-line rounded-cq-md focus:outline-none focus:ring-2 focus:border-cq-caramel"
                 />
               </div>
             </div>
             
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                   Admin Panel Title
                 </label>
                 <input
                   type="text"
                   value={settings.adminPanelTitle}
                   onChange={(e) => setSettings({...settings, adminPanelTitle: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="w-full px-3 py-2 border border-cq-line rounded-cq-md focus:outline-none focus:ring-2 focus:border-cq-caramel"
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                   Barista Panel Title
                 </label>
                 <input
                   type="text"
                   value={settings.baristaPanelTitle}
                   onChange={(e) => setSettings({...settings, baristaPanelTitle: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="w-full px-3 py-2 border border-cq-line rounded-cq-md focus:outline-none focus:ring-2 focus:border-cq-caramel"
                 />
               </div>
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                 Footer Text
               </label>
               <input
@@ -767,9 +767,9 @@ const BrandingSettings = () => {
                 value={settings.footerText}
                 onChange={(e) => setSettings({...settings, footerText: e.target.value})}
                 placeholder="© 2025 Your Organisation"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                className="w-full px-3 py-2 border border-cq-line rounded-cq-md focus:outline-none focus:ring-2 focus:border-cq-caramel"
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-cq-ink-3 mt-1">
                 This text appears at the bottom of the main page
               </p>
             </div>
@@ -778,7 +778,7 @@ const BrandingSettings = () => {
       </div>
       
       {/* Color Theme */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
+      <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-6">
         <h3 className="text-lg font-semibold mb-4 flex items-center">
           <Palette className="mr-2" size={20} />
           Color Theme
@@ -786,13 +786,13 @@ const BrandingSettings = () => {
         
         {/* Preset Themes */}
         <div className="mb-6">
-          <p className="text-sm text-gray-600 mb-3">Quick Themes:</p>
+          <p className="text-sm text-cq-ink-2 mb-3">Quick Themes:</p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {Object.entries(colorThemes).map(([key, theme]) => (
               <button
                 key={key}
                 onClick={() => applyTheme(theme)}
-                className="p-3 border rounded-lg hover:border-blue-500 transition-colors"
+                className="p-3 border-2 border-cq-line rounded-cq-md bg-cq-milk-cq-md hover:border-cq-caramel transition-colors"
                 style={{
                   borderColor: theme.primaryColor,
                   backgroundColor: theme.backgroundColor
@@ -819,7 +819,7 @@ const BrandingSettings = () => {
         {/* Custom Colors */}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-cq-ink-2 mb-1">
               Primary Color
             </label>
             <div className="flex space-x-2">
@@ -833,13 +833,13 @@ const BrandingSettings = () => {
                 type="text"
                 value={settings.primaryColor}
                 onChange={(e) => setSettings({...settings, primaryColor: e.target.value})}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg"
+                className="flex-1 px-3 py-2 border border-cq-line rounded-cq-md"
               />
             </div>
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-cq-ink-2 mb-1">
               Secondary Color
             </label>
             <div className="flex space-x-2">
@@ -853,7 +853,7 @@ const BrandingSettings = () => {
                 type="text"
                 value={settings.secondaryColor}
                 onChange={(e) => setSettings({...settings, secondaryColor: e.target.value})}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg"
+                className="flex-1 px-3 py-2 border border-cq-line rounded-cq-md"
               />
             </div>
           </div>
@@ -862,7 +862,7 @@ const BrandingSettings = () => {
         {/* Preview Button */}
         <button
           onClick={() => setPreviewMode(!previewMode)}
-          className="mt-4 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center"
+          className="mt-4 px-4 py-2 bg-cq-wash text-cq-ink-2 rounded-cq-md hover:bg-cq-wash flex items-center"
         >
           <Eye className="mr-2" size={16} />
           {previewMode ? 'Hide' : 'Show'} Preview
@@ -870,20 +870,20 @@ const BrandingSettings = () => {
       </div>
       
       {/* Language Settings */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
+      <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-6">
         <h3 className="text-lg font-semibold mb-4 flex items-center">
           <Globe className="mr-2" size={20} />
           Multi-Language Support
         </h3>
         
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-cq-ink-2 mb-1">
             Default Language
           </label>
           <select
             value={settings.defaultLanguage}
             onChange={(e) => setSettings({...settings, defaultLanguage: e.target.value})}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+            className="w-full px-3 py-2 border border-cq-line rounded-cq-md focus:outline-none focus:ring-2 focus:border-cq-caramel"
           >
             <option value="en">English</option>
             <option value="es">Español</option>
@@ -895,16 +895,16 @@ const BrandingSettings = () => {
         </div>
         
         <div className="mb-4">
-          <p className="text-sm font-medium text-gray-700 mb-2">Available Languages:</p>
+          <p className="text-sm font-medium text-cq-ink-2 mb-2">Available Languages:</p>
           <div className="flex flex-wrap gap-2">
             {settings.availableLanguages.map(lang => (
-              <span key={lang} className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
+              <span key={lang} className="px-3 py-1 bg-cq-caramel-wash text-cq-caramel-deep rounded-full text-sm">
                 {lang}
               </span>
             ))}
             <button
               onClick={() => addLanguage('es')}
-              className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm hover:bg-gray-200"
+              className="px-3 py-1 bg-cq-wash text-cq-ink-2 rounded-full text-sm hover:bg-cq-wash"
             >
               + Add Language
             </button>
@@ -913,27 +913,27 @@ const BrandingSettings = () => {
         
         {/* Translation Editor */}
         <div className="border-t pt-4">
-          <h4 className="text-sm font-medium text-gray-700 mb-3">Message Translations</h4>
+          <h4 className="text-sm font-medium text-cq-ink-2 mb-3">Message Translations</h4>
           <div className="space-y-3">
             {Object.keys(settings.translations[settings.defaultLanguage] || {}).map(key => (
               <div key={key} className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-gray-500">{key} (English)</label>
+                  <label className="text-xs text-cq-ink-3">{key} (English)</label>
                   <input
                     type="text"
                     value={settings.translations.en[key]}
                     onChange={(e) => updateTranslation('en', key, e.target.value)}
-                    className="w-full px-3 py-1 border border-gray-300 rounded text-sm"
+                    className="w-full px-3 py-1 border border-cq-line rounded text-sm"
                   />
                 </div>
                 {settings.availableLanguages.filter(l => l !== 'en').map(lang => (
                   <div key={lang}>
-                    <label className="text-xs text-gray-500">{key} ({lang})</label>
+                    <label className="text-xs text-cq-ink-3">{key} ({lang})</label>
                     <input
                       type="text"
                       value={settings.translations[lang]?.[key] || ''}
                       onChange={(e) => updateTranslation(lang, key, e.target.value)}
-                      className="w-full px-3 py-1 border border-gray-300 rounded text-sm"
+                      className="w-full px-3 py-1 border border-cq-line rounded text-sm"
                     />
                   </div>
                 ))}
@@ -944,17 +944,17 @@ const BrandingSettings = () => {
       </div>
       
       {/* Import/Export */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
+      <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-6">
         <h3 className="text-lg font-semibold mb-4">Import/Export Settings</h3>
         <div className="flex space-x-4">
           <button
             onClick={exportSettings}
-            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center"
+            className="px-4 py-2 bg-cq-wash text-cq-ink-2 rounded-cq-md hover:bg-cq-wash flex items-center"
           >
             <Download className="mr-2" size={16} />
             Export Settings
           </button>
-          <label className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center cursor-pointer">
+          <label className="px-4 py-2 bg-cq-wash text-cq-ink-2 rounded-cq-md hover:bg-cq-wash flex items-center cursor-pointer">
             <Upload className="mr-2" size={16} />
             Import Settings
             <input
@@ -975,7 +975,7 @@ const BrandingSettings = () => {
               resetBranding();
             }
           }}
-          className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center"
+          className="px-6 py-3 bg-cq-wash text-cq-ink-2 rounded-cq-md hover:bg-cq-wash flex items-center"
         >
           <RotateCcw className="mr-2" size={20} />
           Reset to Default
@@ -984,7 +984,7 @@ const BrandingSettings = () => {
         <button
           onClick={handleSave}
           disabled={saving}
-          className="px-6 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 flex items-center"
+          className="px-6 py-3 bg-cq-roast text-white rounded-cq-md hover:bg-cq-caramel-deep disabled:opacity-50 flex items-center"
         >
           {saving ? (
             <>
@@ -1003,9 +1003,9 @@ const BrandingSettings = () => {
       {/* Preview */}
       {previewMode && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
+          <div className="bg-white rounded-cq-md max-w-md w-full p-6">
             <div 
-              className="p-4 rounded-lg mb-4"
+              className="p-4 rounded-cq-md mb-4"
               style={{
                 backgroundColor: settings.primaryColor,
                 color: 'white'
@@ -1036,7 +1036,7 @@ const BrandingSettings = () => {
                   backgroundColor: settings.secondaryColor,
                   color: 'white'
                 }}
-                className="w-full py-2 rounded-lg font-medium"
+                className="w-full py-2 rounded-cq-md font-medium"
               >
                 Sample Button
               </button>
@@ -1044,7 +1044,7 @@ const BrandingSettings = () => {
             
             <button
               onClick={() => setPreviewMode(false)}
-              className="mt-4 w-full py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+              className="mt-4 w-full py-2 border border-cq-line rounded-cq-md hover:bg-cq-wash"
             >
               Close Preview
             </button>
