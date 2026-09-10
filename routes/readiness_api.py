@@ -445,6 +445,41 @@ def _check_printers_polling(db):
     return {'status': 'ok', 'detail': f"Polling every {', '.join(fine)}" + (f"; not yet seen: {', '.join(unseen)}" if unseen else '') + '.'}
 
 
+def _check_cloudprnt_secret(db):
+    """Is the printer endpoint actually shut?
+
+    /cloudprnt cannot use a login -- a printer has no way to hold a token --
+    so it is guarded by a shared secret in the URL. That guard FAILS OPEN: no
+    CLOUDPRNT_SHARED_SECRET set means no check at all, and nothing anywhere
+    said so. Unset, the endpoint is public, and the two things a stranger can
+    do with it are worse than they sound:
+
+      * GET returns the rendered label -- a customer's name and their order.
+      * Fetching a job CONSUMES it, so the real printer never gets it. Labels
+        vanish one at a time and it looks exactly like a flaky printer.
+
+    Only worth saying when there is a CloudPRNT printer to protect.
+    """
+    import os
+    from routes.print_routes import CLOUDPRNT_SHARED_SECRET
+    cur = db.cursor()
+    cur.execute("SELECT count(*) FROM printers "
+                "WHERE enabled = TRUE AND driver = 'cloudprnt'")
+    row = cur.fetchone()
+    n = (row[0] if not isinstance(row, dict) else list(row.values())[0]) or 0
+    if not n:
+        return {'status': 'skipped',
+                'detail': 'No CloudPRNT printers enabled.'}
+    if CLOUDPRNT_SHARED_SECRET:
+        return {'status': 'ok',
+                'detail': f'/cloudprnt needs a secret; {n} printer(s) using it.'}
+    return {'status': 'warn', 'detail':
+            f'/cloudprnt is OPEN -- anyone can read your labels (customer '
+            f'names) and swallow print jobs. Set CLOUDPRNT_SHARED_SECRET on '
+            f'the server, then add ?secret=... to the CloudPRNT URL in each '
+            f'of the {n} printer(s) web config.'}
+
+
 def _check_memory_watch():
     """The watchdog that logs memory, trims the allocator and alerts above the
     line (services/memory_watch.py) -- the Treenet day-2 restarts."""
@@ -503,6 +538,8 @@ def get_readiness():
         _safe_check('inbound_sms', 'Inbound texts arriving', _check_inbound_sms),
         _safe_check('admin_alerts', 'Alerts reach the organiser', _check_admin_alerts),
         _safe_check('printers_polling', 'Label printers polling fast', lambda: _check_printers_polling(db)),
+        _safe_check('cloudprnt_secret', 'Printer endpoint is locked',
+                    lambda: _check_cloudprnt_secret(db)),
         _safe_check('memory_watch', 'Server memory watchdog', _check_memory_watch),
         _safe_check('stations', 'Stations', lambda: _check_stations(db)),
         _safe_check('event_name', 'Event name', lambda: _check_event_name(db)),

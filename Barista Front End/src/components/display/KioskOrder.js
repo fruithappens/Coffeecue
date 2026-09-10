@@ -1118,7 +1118,17 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
         {/* ---------- STRENGTH (espresso drinks only) ---------- */}
         {step === 'strength' && (
           <>
-            <Header title="How strong?" onBack={goBack} />
+            {/* This step used to ask one thing. It now also carries extra
+                hot, decaf, the sugar line and a free-text note, so a title
+                that says "How strong?" is describing a third of the page
+                (Steve). Name the step for what it is, and let each control
+                say its own piece. */}
+            <Header title="Anything to add?" onBack={goBack} />
+            <p className="-mt-4 mb-3 text-base text-gray-500">
+              Strength, temperature, decaf or a note for the barista. Skip it and
+              we&rsquo;ll make it the usual way.
+            </p>
+            <div className="text-sm font-semibold text-gray-400 uppercase tracking-wide">How strong?</div>
             <div className="grid grid-cols-3 gap-2 py-4">
               {/* Three, not four. Steve: "think should be normal, double,
                   half, notes 1/4, 1/8, 3x etc". "Extra strong" sat beside
@@ -1198,7 +1208,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
             )}
             <label className="block mb-3">
               <span className="block text-base text-gray-600 mb-1">
-                Anything else? (optional)
+                A note for the barista (optional)
               </span>
               <input
                 type="text"
@@ -1418,6 +1428,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                           {it.strength ? `, ${it.strength === 'strong' ? 'double shot' : it.strength === 'weak' ? 'half strength' : 'extra strong'}` : ''}
                           {it.extraHot ? ', extra hot' : ''}
                           {it.decaf ? ', decaf' : ''}
+                          {(it.notes || '').trim() ? ` · ${it.notes.trim()}` : ''}
                         </div>
                       </div>
                       {i < cart.length && (
@@ -1444,6 +1455,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                             : strength === 'weak' ? 'Half strength'
                             : 'Extra strong'}</li>
                     )}
+                    {notes.trim() ? <li>📝 {notes.trim()}</li> : null}
                     {extraHot && <li>🌡️ Extra hot</li>}
                   </ul>
                 </>
@@ -1518,7 +1530,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
             hardware -- the person waiting behind does not have to wait
             for the screen. Deliberately small and low-contrast: it must
             never compete with the step the current customer is on. */}
-        {step !== 'done' && (
+        {step !== 'done' && channel !== 'walkin' && (
           <div className="mt-6 pt-4 border-t border-gray-200 flex items-center justify-center gap-4 opacity-80">
             <img
               src={`/api/qr?size=5&data=${encodeURIComponent(
@@ -1641,7 +1653,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
       </div>
       {/* Sponsor strip, pinned above the phone toolbar / the events-app nav
           while the customer picks their drink. */}
-      {stripOn && (
+      {stripOn && channel !== 'walkin' && (
         <div className="fixed left-0 right-0 z-[55] shadow-lg"
              style={{ bottom: embeddedInApp ? 'calc(env(safe-area-inset-bottom) + 8.5rem)' : 'env(safe-area-inset-bottom)' }}>
           <SponsorTicker items={sponsorStrip.sponsors} position="bottom" size={phoneNarrow ? 'xs' : 'small'} />
