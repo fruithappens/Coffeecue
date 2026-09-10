@@ -370,6 +370,33 @@ the guide's rule about not refactoring and converting together.
 
 ---
 
+## 17. The production database volume: what is actually in the 196 MB
+
+**Status:** open — a monitoring gap, and one 17 MB row.
+
+Railway reports the Postgres volume at 196 MB of 500 MB. Measured on the live
+DB (read-only, 11 Sep): the database itself is **50 MB**; WAL is 64 MB (4
+segments, `max_wal_size` 1 GB — Postgres recycles these, they do not grow
+unbounded); the rest is Postgres' own overhead. Orders are ~1.2 KB each:
+970 of them are 1.2 MB. At that rate 500 MB of orders is ~300,000 orders.
+
+**37 of the 50 MB is one table — `settings` — and 17 MB of that is one row:
+`display_bg_video`**, the display board's background video stored base64 in
+the settings KV. Every save of a branding blob rewrites the whole value
+(`_kv_put`), leaving dead TOAST rows (1,892 waiting for VACUUM). This is the
+only thing in the schema that can move the number quickly.
+
+**Fixed looks like:**
+- a `Database` row in System · Health beside the memory row: size, WAL,
+  % of volume, from `pg_database_size` + `pg_ls_waldir` — WARN at 60 %,
+  ALERT at 80 % — so this is a meter, not a surprise;
+- the background video on the Railway volume (or a URL), not in a KV row;
+- `VACUUM (FULL) settings` once, at a quiet moment, to reclaim the dead TOAST.
+
+Backups are copy-on-write snapshots off the volume: they cannot fill it.
+
+---
+
 ## Still on Steve
 
 Not findings — decisions and config that only he can make.
