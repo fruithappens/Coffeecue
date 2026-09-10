@@ -643,6 +643,70 @@ def _m019_station_stats_twin_columns(cur):
     logger.info("m019: station_stats twin columns aligned (%s rows)", cur.rowcount)
 
 
+def _m020_inventory_grams_precision(cur):
+    """Give stock three decimals so a coffee's dose survives being recorded.
+
+    inventory_items stored kg and L to TWO decimals -- steps of 10 g and
+    10 mL. A 22 g dose therefore recorded as 20 g, every cup, and the error
+    runs one way: the ledger always says you used LESS than you did, so the
+    system believes there are beans that are not there. Over a 557-order
+    event that is more than a kilogram of phantom stock, and the first
+    anyone knows is a hopper running dry mid-service.
+
+    Four decimals is a tenth of a gram: enough that a half shot (5.5 g)
+    lands exactly instead of rounding down to 5 g every single time --
+    the same lie, just smaller. Idempotent: re-running is a no-op."""
+    for col in ("amount", "current_quantity", "capacity", "minimum_threshold"):
+        cur.execute(
+            "SELECT numeric_scale FROM information_schema.columns "
+            "WHERE table_name = 'inventory_items' AND column_name = %s", (col,))
+        row = cur.fetchone()
+        if not row:
+            continue
+        scale = row[0] if not isinstance(row, dict) else list(row.values())[0]
+        if scale is not None and int(scale) < 4:
+            cur.execute(
+                f"ALTER TABLE inventory_items ALTER COLUMN {col} TYPE NUMERIC(12,4)")
+            logger.info("m020: inventory_items.%s -> NUMERIC(12,4)", col)
+
+
+def _m021_event_notices(cur):
+    """A place to keep the thing you need to tell everyone RIGHT NOW.
+
+    Until now "tell waiting customers" meant SMS and only SMS. Anyone
+    watching the board, or holding the beacon page open on their phone,
+    got nothing -- which is most of the room, since the phone number is
+    optional everywhere. So "we've run out of skim, come and talk to us"
+    or "machine down, all coffees moving to cart 3" reached maybe a third
+    of the people it was for.
+
+    One notice row, and every surface reads it. expires_at makes a notice
+    take itself down (nobody remembers to clear the board at 3pm);
+    cleared_at is the manual "that's sorted" and is what the runner's
+    Take it down button sets."""
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS event_notices (
+            id SERIAL PRIMARY KEY,
+            message TEXT NOT NULL,
+            level VARCHAR(20) NOT NULL DEFAULT 'info',
+            on_screens BOOLEAN NOT NULL DEFAULT TRUE,
+            on_phones BOOLEAN NOT NULL DEFAULT TRUE,
+            by_sms BOOLEAN NOT NULL DEFAULT FALSE,
+            sms_sent INTEGER NOT NULL DEFAULT 0,
+            station_id INTEGER,
+            created_by VARCHAR(120),
+            created_at TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC'),
+            expires_at TIMESTAMP,
+            cleared_at TIMESTAMP
+        )
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_event_notices_live
+        ON event_notices (cleared_at, expires_at)
+    """)
+    logger.info("m021: event_notices ready")
+
+
 MIGRATIONS: list[Migration] = [
     Migration(1, 'station_stats_extras',       _m001_station_stats_extras),
     Migration(2, 'customer_preferences_is_vip', _m002_customer_preferences_is_vip),
@@ -665,6 +729,8 @@ MIGRATIONS: list[Migration] = [
     Migration(17, 'stock_overrides',           _m017_stock_overrides),
     Migration(18, 'shipped_demo_template',     _m018_shipped_demo_template),
     Migration(19, 'station_stats_twin_columns', _m019_station_stats_twin_columns),
+    Migration(20, 'inventory_grams_precision', _m020_inventory_grams_precision),
+    Migration(21, 'event_notices',            _m021_event_notices),
     Migration(22, 'split_shot_model',         _m022_split_shot_model),
 ]
 

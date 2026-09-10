@@ -13,6 +13,7 @@ import QueuePsychologyIntelligence from '../support/QueuePsychologyIntelligence'
 import EventLifecycleManagement from './EventLifecycleManagement';
 import AnalyticsDashboard from '../support/AnalyticsDashboard';
 import EnhancedCommunicationHub from '../support/EnhancedCommunicationHub';
+import NoticeComposer from '../runner/NoticeComposer';
 import PredictiveIntelligence from '../support/PredictiveIntelligence';
 import BrandingSettings from './BrandingSettings';
 import MilkColorSettings from './MilkColorSettings';
@@ -453,7 +454,14 @@ const OrganiserInterface = () => {
               day, one click apart. */}
           {activeSection === 'operations' && activeTab === 'readiness' && <ReadinessTab />}
           {activeSection === 'operations' && activeTab === 'live' && <EnhancedLiveOperationsDashboard />}
-          {activeSection === 'operations' && activeTab === 'messages' && <EnhancedCommunicationHub />}
+          {activeSection === 'operations' && activeTab === 'messages' && (
+            <>
+              {/* One notice, every surface: the board, the order form, the
+                  beacon, the barista queue (and a text, off by default). */}
+              <NoticeComposer />
+              <EnhancedCommunicationHub />
+            </>
+          )}
 
           {/* Orders — individual orders and group orders. */}
           {activeSection === 'orders' && activeTab === 'all' && (

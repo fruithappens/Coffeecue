@@ -23,6 +23,8 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { getSavedRounds, saveRound } from '../../utils/savedRounds';
 import DrinkIcon from './DrinkIcon';
 import SponsorTicker from './SponsorTicker';
+import useNotices from '../shared/useNotices';
+import NoticeBanner from '../shared/NoticeBanner';
 import { remember, recall } from '../../utils/deviceMemory';
 import { event as logEvent } from '../../services/logging';
 import { X, ArrowLeft, Plus, Minus, Check, Loader, MapPin, Zap } from 'lucide-react';
@@ -63,6 +65,8 @@ export const milkEmoji = (name) => {
 const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced,
                       eaCid, channel = 'kiosk', onPick , onCheckExisting,
                       eventCode = '' }) => {
+  // Anything the event needs everyone to know, before they order.
+  const notices = useNotices('phone', stationId);
   // Event code carried with the order. Priority: a code already on the URL
   // (a scanned QR / a code the visitor typed on /my) wins; otherwise the
   // `eventCode` a trusted on-site surface (the board) passed in. Lets the
@@ -906,6 +910,9 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
         {/* ---------- DRINK (first screen) ---------- */}
         {step === 'drink' && (
           <>
+            {/* The most useful place in the whole app for "we've run out of
+                skim": right where someone is about to choose it. */}
+            <NoticeBanner notices={notices} className="mb-4" />
             <Header title={eaIdentity
               ? `Hi ${eaIdentity.firstName}! Pick a drink ☕`
               : 'Order here ☕'} />
@@ -926,7 +933,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
             {loadingMenu ? (
               <div className="flex items-center justify-center py-16 text-gray-500"><Loader className="animate-spin mr-2" /> Loading menu…</div>
             ) : (menu?.coffee_types || []).length === 0 ? (
-              <div className="text-center py-16 text-gray-500 text-xl">No drinks available right now. Please see a barista.</div>
+              <div className="text-center py-16 text-gray-500 text-xl">Nothing on the menu just now. Come and see us and we'll sort you out.</div>
             ) : (
               <>
                 {drinkCategories.length > 1 && (
@@ -1368,7 +1375,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                     onBack={goBack} />
             <p className="text-xl text-gray-600 mb-4 font-medium">
               {eaSuggest.choose
-                ? <>That number is registered to more than one person.</>
+                ? <>More than one person is using that number.</>
                 : <>That number is registered to <b>{eaSuggest.firstName}</b>.</>}
             </p>
             <div className="space-y-3">

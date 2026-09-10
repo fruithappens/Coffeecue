@@ -42,6 +42,8 @@ import { playPreset } from '../../services/SoundNotificationService';
 import { event as logEvent } from '../../services/logging';
 
 import SponsorWall from './SponsorWall';
+import useNotices from '../shared/useNotices';
+import NoticeBanner from '../shared/NoticeBanner';
 
 // Connection-loss bookkeeping for the display (see hooks/useOrders.js for
 // the barista's): one event per outage, sent once the server is back.
@@ -244,6 +246,11 @@ const DisplayScreen = () => {
   useEffect(() => startConnectionWatchdog({ idleMs: 60000 }), []);
   const [searchParams] = useSearchParams();
   const stationId = searchParams.get('station');
+  // What the room needs to be told right now. A board showing one cart also
+  // shows that cart's own notices; an "all carts" board shows only the
+  // event-wide ones (a message about cart 2 on the cart 4 screen is noise).
+  const notices = useNotices('screen',
+    stationId && stationId !== 'all' ? stationId : null);
   // ?orientation= overrides the saved setting. Useful for the
   // operator to test both layouts without changing the saved value.
   const orientationFromUrl = searchParams.get('orientation');
@@ -1443,6 +1450,18 @@ const DisplayScreen = () => {
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: -1 }}
         />
       )}
+
+      {/* --- Notice ---
+           Steve: "maybe a button to allow to push to displays ie ran out of
+           skim milk please come talk to us about options etc."
+
+           Top of the board, above even the sponsors. It went between the
+           header and the columns first, which put it straight under the
+           hanging QR ribbon -- half the sentence disappeared behind the
+           code. Up here it is full width with nothing over it, and it is
+           the first thing the eye lands on, which is the point: this is
+           the message that changes what someone is about to order. */}
+      <NoticeBanner notices={notices} big className="px-6 md:px-10 pt-3" />
 
       {/* Sponsor ticker (top) — a scrolling logo reel above the board when
           the Organiser set the position to 'top'. Hidden when disabled or

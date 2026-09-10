@@ -15635,3 +15635,263 @@ def eventsair_status():
     except Exception as e:
         logger.error(f"eventsair_status error: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# NOTICES -- one message, every surface
+#
+# Steve, watching a broadcast go out: "wondering how this works for non-SMS
+# beacon watching and even display watching... can they see this message via
+# sms, via beacon etc?" They could not. broadcast/customers is SMS and only
+# SMS, and a phone number is optional at every ordering door, so the people
+# most likely to be standing there staring at the board were the ones least
+# likely to be told.
+#
+# A notice is one row read by three surfaces: the public board, the beacon
+# page on a customer's own phone, and (only if asked for) a text. It expires
+# on its own, because nobody remembers to clear the board.
+# ---------------------------------------------------------------------------
+
+def _notice_db():
+    """The one shared connection this file uses everywhere else. Rolled back
+    first: a poisoned transaction from an earlier request would otherwise make
+    every notice query fail for reasons that have nothing to do with notices."""
+    coffee_system = current_app.config.get('coffee_system')
+    db = getattr(coffee_system, 'db', None) if coffee_system else None
+    if db is None:
+        raise RuntimeError('database is not available')
+    try:
+        db.rollback()
+    except Exception:
+        pass
+    return db
+
+
+NOTICE_MAX_LEN = 280
+NOTICE_LEVELS = {'info', 'warning'}
+
+
+def _notice_row_to_dict(row):
+    return {
+        'id': row[0],
+        'message': row[1],
+        'level': row[2] or 'info',
+        'onScreens': bool(row[3]),
+        'onPhones': bool(row[4]),
+        'bySms': bool(row[5]),
+        'smsSent': row[6] or 0,
+        'stationId': row[7],
+        'createdBy': row[8],
+        'createdAt': row[9].isoformat() if row[9] else None,
+        'expiresAt': row[10].isoformat() if row[10] else None,
+        'clearedAt': row[11].isoformat() if row[11] else None,
+    }
+
+
+_NOTICE_COLS = ("id, message, level, on_screens, on_phones, by_sms, sms_sent, "
+                "station_id, created_by, created_at, expires_at, cleared_at")
+
+
+@bp.route('/notices/active', methods=['GET'])
+def notices_active_public():
+    """What is on right now. Public on purpose -- the board has no login and
+    neither does the phone in a customer's hand.
+
+    ?surface=screen|phone filters to the surfaces the notice was actually
+    aimed at, so "just tell the baristas' screens" doesn't end up on a
+    stranger's beacon. ?station_id= adds that cart's own notices to the
+    event-wide ones.
+    """
+    try:
+        surface = (request.args.get('surface') or '').strip().lower()
+        station_id = request.args.get('station_id')
+        conn = _notice_db()
+        cur = conn.cursor()
+        where = ["cleared_at IS NULL",
+                 "(expires_at IS NULL OR expires_at > (NOW() AT TIME ZONE 'UTC'))"]
+        params = []
+        if surface == 'screen':
+            where.append("on_screens = TRUE")
+        elif surface == 'phone':
+            where.append("on_phones = TRUE")
+        if station_id and str(station_id).isdigit():
+            where.append("(station_id IS NULL OR station_id = %s)")
+            params.append(int(station_id))
+        cur.execute(
+            f"SELECT {_NOTICE_COLS} FROM event_notices WHERE "
+            + " AND ".join(where) + " ORDER BY created_at DESC LIMIT 5",
+            tuple(params))
+        rows = [_notice_row_to_dict(r) for r in cur.fetchall()]
+        cur.close()
+        return jsonify({'status': 'success', 'notices': rows})
+    except Exception as e:
+        logger.error(f"notices_active_public error: {e}")
+        # A board that can't read notices must still show coffee.
+        return jsonify({'status': 'success', 'notices': []})
+
+
+@bp.route('/notices', methods=['GET'])
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def notices_list():
+    """Recent notices, live ones first, so the runner can see what is already
+    up before adding another one."""
+    try:
+        conn = _notice_db()
+        cur = conn.cursor()
+        cur.execute(
+            f"SELECT {_NOTICE_COLS} FROM event_notices "
+            "ORDER BY created_at DESC LIMIT 25")
+        rows = [_notice_row_to_dict(r) for r in cur.fetchall()]
+        cur.close()
+        now = datetime.utcnow()
+        for r in rows:
+            expired = bool(r['expiresAt']) and r['expiresAt'] < now.isoformat()
+            r['live'] = not r['clearedAt'] and not expired
+        return jsonify({'status': 'success', 'notices': rows})
+    except Exception as e:
+        logger.error(f"notices_list error: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@bp.route('/notices', methods=['POST'])
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def notices_create():
+    """Put up a notice.
+
+    Body: message, level (info|warning), minutes (0 = until taken down),
+          onScreens, onPhones, bySms, audience (for the SMS leg), stationId.
+
+    The SMS leg reuses the existing broadcast machinery rather than growing a
+    second way to send a text -- same audience rules, same cap, same log.
+    """
+    try:
+        data = request.get_json() or {}
+        message = (data.get('message') or '').strip()
+        if not message:
+            return jsonify({'status': 'error',
+                            'message': 'Type the message first'}), 400
+        if len(message) > NOTICE_MAX_LEN:
+            return jsonify({'status': 'error',
+                            'message': f'Keep it under {NOTICE_MAX_LEN} characters'}), 400
+        level = (data.get('level') or 'info').lower()
+        if level not in NOTICE_LEVELS:
+            level = 'info'
+        on_screens = bool(data.get('onScreens', True))
+        on_phones = bool(data.get('onPhones', True))
+        by_sms = bool(data.get('bySms', False))
+        if not (on_screens or on_phones or by_sms):
+            return jsonify({'status': 'error',
+                            'message': 'Choose at least one place to show it'}), 400
+        try:
+            minutes = int(data.get('minutes') or 0)
+        except (TypeError, ValueError):
+            minutes = 0
+        minutes = max(0, min(minutes, 480))
+        station_id = data.get('stationId')
+        station_id = int(station_id) if str(station_id or '').isdigit() else None
+
+        sms_sent = 0
+        sms_error = None
+        if by_sms:
+            sms_sent, sms_error = _notice_send_sms(
+                message, data.get('audience') or 'today')
+
+        conn = _notice_db()
+        cur = conn.cursor()
+        cur.execute(
+            """INSERT INTO event_notices
+               (message, level, on_screens, on_phones, by_sms, sms_sent,
+                station_id, created_by, expires_at)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,
+                       CASE WHEN %s > 0
+                            THEN (NOW() AT TIME ZONE 'UTC') + (%s * INTERVAL '1 minute')
+                            ELSE NULL END)
+               RETURNING """ + _NOTICE_COLS,
+            (message, level, on_screens, on_phones, by_sms, sms_sent,
+             station_id, _notice_actor(), minutes, minutes))
+        row = _notice_row_to_dict(cur.fetchone())
+        conn.commit()
+        cur.close()
+        _notice_broadcast(row)
+        return jsonify({'status': 'success', 'notice': row,
+                        'smsSent': sms_sent, 'smsError': sms_error})
+    except Exception as e:
+        logger.error(f"notices_create error: {e}")
+        try:
+            _notice_db()
+        except Exception:
+            pass
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@bp.route('/notices/<int:notice_id>/clear', methods=['POST'])
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def notices_clear(notice_id):
+    """Take it down. Everything that showed it stops showing it."""
+    try:
+        conn = _notice_db()
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE event_notices SET cleared_at = (NOW() AT TIME ZONE 'UTC') "
+            "WHERE id = %s AND cleared_at IS NULL RETURNING " + _NOTICE_COLS,
+            (notice_id,))
+        row = cur.fetchone()
+        conn.commit()
+        cur.close()
+        if not row:
+            return jsonify({'status': 'success', 'cleared': False})
+        _notice_broadcast(_notice_row_to_dict(row), cleared=True)
+        return jsonify({'status': 'success', 'cleared': True})
+    except Exception as e:
+        logger.error(f"notices_clear error: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+def _notice_actor():
+    try:
+        ident = get_jwt_identity()
+        return str(ident)[:120] if ident else None
+    except Exception:
+        return None
+
+
+def _notice_send_sms(message, audience):
+    """Fire the notice as a text through the existing broadcast path.
+
+    Returns (sent_count, error_string_or_None). A failed text must never stop
+    the notice reaching the board -- half a room told beats nobody told.
+    """
+    try:
+        from routes.support_api_routes import (_broadcast_recipients,
+                                               BROADCAST_MAX_RECIPIENTS)
+        conn = _notice_db()
+        cur = conn.cursor()
+        recipients = _broadcast_recipients(cur, audience)
+        cur.close()
+        recipients = recipients[:BROADCAST_MAX_RECIPIENTS]
+        svc = current_app.config.get('messaging_service')
+        if not svc:
+            return 0, 'Texts are not switched on for this event'
+        sent = 0
+        for phone in recipients:
+            try:
+                if svc.send_message(phone, message):
+                    sent += 1
+            except Exception as send_err:
+                logger.error(f"notice sms failed for {phone}: {send_err}")
+        return sent, None
+    except Exception as e:
+        logger.error(f"_notice_send_sms error: {e}")
+        return 0, str(e)
+
+
+def _notice_broadcast(row, cleared=False):
+    """Push it live so a board that is already open changes within the second,
+    instead of waiting out its polling interval."""
+    try:
+        socketio = current_app.config.get('socketio')
+        if socketio:
+            socketio.emit('notice_update',
+                          {'notice': row, 'cleared': cleared})
+    except Exception as e:
+        logger.warning(f"notice socket emit failed: {e}")
