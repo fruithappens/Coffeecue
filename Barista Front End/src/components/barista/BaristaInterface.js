@@ -8,13 +8,14 @@ import SmsHealthBanner from '../shared/SmsHealthBanner';
 import AuthService from '../../services/AuthService';
 import printService from '../../services/PrintService';
 import BroadcastDialog from '../dialogs/BroadcastDialog';
-import { 
-  Coffee, Package, Calendar, Check, Monitor, Settings,
-  MessageCircle, Printer, Plus, Clock,
-  Bell, XCircle, RefreshCw, Edit, ArrowLeft, ChevronDown,
-  Send, CheckCircle, Brain, Scale, Users, MoreHorizontal, Wrench, Shuffle,
-  Truck, Maximize2, Minimize2, ArrowRightLeft, AlertTriangle,
-} from 'lucide-react';
+import StationChooser from './StationChooser';
+import QueueHeader from './queue/QueueHeader';
+import QueueColumn from './queue/QueueColumn';
+import StationPicker from './queue/StationPicker';
+import AdminSheet from './queue/AdminSheet';
+import useLanesLayout from './queue/useLanesLayout';
+import { TabBar, SettingGroup, SettingRow, Toggle as CqToggle, Segmented, SelectRow, SettingNote } from '../../design';
+import { ArrowLeft, ArrowRightLeft, Bell, Brain, Calendar, Check, CheckCircle, Clock, Coffee, Eye, Grid, Hand, Layers, MessageCircle, Monitor, Package, Printer, RefreshCw, RotateCw, Scale, Send, Settings, Timer, Truck, Users, Wrench, XCircle } from 'lucide-react';
 
 // Import app mode context
 import { useAppMode } from '../../context/AppContext';
@@ -28,10 +29,7 @@ import useStationChatUnread from '../../hooks/useStationChatUnread';
 import AskCustomerControls from './AskCustomerControls';
 import useSchedule from '../../hooks/useSchedule';
 import {
-  getOrderBackgroundColor,
   getTimeRatioColor,
-  formatTimeSince,
-  formatBatchName,
   calculateMinutesDiff,
   buildGroupInfo,
   applicableStages,
@@ -55,7 +53,7 @@ import SoundNotificationService, {
 import MessageDialog from '../dialogs/MessageDialog';
 import MoveOrderDialog from '../dialogs/MoveOrderDialog';
 import WaitTimeDialog from '../dialogs/WaitTimeDialog';
-import WalkInOrderDialog from '../dialogs/WalkInOrderDialog';
+import KioskOrder from '../display/KioskOrder';
 import EditOrderDialog from '../dialogs/EditOrderDialog';
 import useCustomerQuestions from '../../hooks/useCustomerQuestions';
 import CustomerQuestionsList from './CustomerQuestionsList';
@@ -63,11 +61,7 @@ import ToolsTab from '../barista-tabs/ToolsTab';
 // Using inline help dialog instead of importing external component
 import StationChat from '../support/StationChat';
 import OrderNotificationHandler from '../shared/OrderNotificationHandler';
-import PendingOrdersSection from './PendingOrdersSection';
 import '../../styles/boardDensity.css';
-import {
-  filterByMilk, milkOptions, sortCurrentOrders, summariseMilk,
-} from '../../utils/currentOrderView';
 import GroupBadge from './GroupBadge';
 import SourceBadge from './SourceBadge';
 import RushMixStrip from './RushMixStrip';
@@ -98,7 +92,7 @@ const ScaledDisplayPreview = ({ url }) => {
   }, []);
   return (
     <div ref={wrapRef}
-         className="relative w-full overflow-hidden rounded-lg border bg-gray-900"
+         className="relative w-full overflow-hidden rounded-cq-md border bg-cq-roast"
          style={{ aspectRatio: '16 / 9' }}>
       <iframe
         title={`Display preview ${url}`}
@@ -127,20 +121,44 @@ const BaristaInterface = () => {
     updateStation,
     updateStationStatus,
     refreshData: refreshStations
-  } = useStations();
+  } = useStations({ autoSelect: false });
 
   // What the room is being told right now (see NoticeComposer). A barista on
   // cart 4 needs to know cart 2 is down as much as the person waiting does --
   // they are the one who gets asked about it.
   const notices = useNotices('screen', selectedStation);
+  // Lanes side by side on a landscape tablet or a laptop; one column on a
+  // phone or a portrait tablet (see useLanesLayout).
+  const lanes = useLanesLayout();
 
   // State for showing station selector dropdown
-  const [showStationSelector, setShowStationSelector] = useState(false);
+  // Phase 4 (the queue screen): which OTHER stations this tablet watches in
+  // the header -- a device preference, capped -- plus the station picker and
+  // the PIN-gated admin sheet.
+  const [watchedIds, setWatchedIds] = useState(() => {
+    try { const v = JSON.parse(localStorage.getItem('coffee_cue_watched_stations') || '[]'); return Array.isArray(v) ? v.map(Number).filter(Boolean) : []; } catch (e) { return []; }
+  });
+  const toggleWatch = (id) => setWatchedIds(prev => {
+    const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id].slice(0, 3);
+    try { localStorage.setItem('coffee_cue_watched_stations', JSON.stringify(next)); } catch (e) { /* device pref only */ }
+    return next;
+  });
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
+  // One PIN unlocks this tablet for UNLOCK_MINUTES (or until Lock now /
+  // sign out): moving between the queue and the settings pages must not
+  // ask for it again (Steve). Kept in sessionStorage so a reload keeps it.
+  const UNLOCK_MINUTES = 10;
+  const [unlockedUntil, setUnlockedUntil] = useState(() => { try { return Number(sessionStorage.getItem('coffee_cue_unlocked_until') || 0); } catch (e) { return 0; } });
+  const [nowTick, setNowTick] = useState(Date.now());
+  useEffect(() => { const t = setInterval(() => setNowTick(Date.now()), 30000); return () => clearInterval(t); }, []);
+  const unlocked = unlockedUntil > nowTick;
+  const unlockedMinutes = unlocked ? Math.max(1, Math.ceil((unlockedUntil - nowTick) / 60000)) : 0;
+  const unlockNow = () => { const until = Date.now() + UNLOCK_MINUTES * 60000; setUnlockedUntil(until); setNowTick(Date.now()); try { sessionStorage.setItem('coffee_cue_unlocked_until', String(until)); } catch (e) { /* ignore */ } };
+  const lockNow = () => { setUnlockedUntil(0); try { sessionStorage.removeItem('coffee_cue_unlocked_until'); } catch (e) { /* ignore */ } };
   // Auto-refresh interval picker (header pill) open/closed
-  const [showRefreshMenu, setShowRefreshMenu] = useState(false);
   // Admin-only "Switch view" dropdown in the header (replaces the floating
   // cross-interface switcher on this screen).
-  const [showViewSwitch, setShowViewSwitch] = useState(false);
 
   // Per-device screen zoom for the whole barista interface. Two problems from
   // the event floor (Steve): on a SMALL tablet the Start button was a hard tap
@@ -231,7 +249,12 @@ const BaristaInterface = () => {
     return 'orders';
   };
   
-  const [activeTab, setActiveTabState] = useState(loadActiveTab());
+  // A tab remembered from before phase 4 (Completed, Inventory, Schedule,
+  // Capabilities, Staff...) is no longer on this screen; land on the queue.
+  const [activeTab, setActiveTabState] = useState(() => {
+    const t = loadActiveTab();
+    return ['orders', 'stock', 'tools', 'settings', 'display'].includes(t) ? t : 'orders';
+  });
 
   // Label printer (Star mC-Label3 via CloudPRNT). The list is polled so the
   // header chip tracks online/offline; auto-print is a per-DEVICE choice
@@ -243,8 +266,6 @@ const BaristaInterface = () => {
   // "what am I looking at right now" rather than a preference, and a
   // barista who filters to oat should not find it still filtered
   // tomorrow morning.
-  const [currentSort, setCurrentSort] = useState('oldest');
-  const [currentMilkFilter, setCurrentMilkFilter] = useState('');
   // Notification hold: while it is on, completed orders do not text the
   // customer -- they queue up and go out together when released.
   const [holdState, setHoldState] = useState(null);
@@ -398,41 +419,6 @@ const BaristaInterface = () => {
   // Accept every organiser-role spelling/variant so a user created as
   // 'event_organizer' gets the manager tabs too (was missing it).
   const isManager = ['admin', 'staff', 'organizer', 'organiser', 'event_organizer'].includes(_currentRole);
-  const MANAGER_ONLY_TABS = ['display', 'queue', 'balance', 'capabilities', 'staff', 'settings'];
-
-  // Desktop tab bar, grouped by the job being done. Twelve tabs in one
-  // row had become a wall of similar-looking words — Stock next to
-  // Inventory, Queue Rules next to Balance, Staff next to Schedule —
-  // where the difference between neighbours was not obvious from the
-  // label.
-  //
-  // activeTab still holds the LEAF id, so every `activeTab === 'stock'`
-  // content block below is untouched, and the mobile bottom bar (which
-  // sets leaf ids directly) keeps working as it is.
-  const BARISTA_GROUPS = [
-    { id: 'orders',    label: 'Orders',    Icon: Coffee, tab: 'orders' },
-    { id: 'completed', label: 'Completed', Icon: Check,  tab: 'completed' },
-    { id: 'stockGrp',  label: 'Stock',     Icon: Package, tabs: [
-        // Same subject, different scope: what this station has in front
-        // of it, versus every station plus forecasting.
-        { id: 'stock',     label: 'This Station', Icon: Package },
-        { id: 'inventory', label: 'All Stations', Icon: Truck },
-      ] },
-    { id: 'queueGrp',  label: 'Queue',     Icon: Brain, tabs: [
-        { id: 'queue',   label: 'Rules',   Icon: Brain },
-        { id: 'balance', label: 'Balance', Icon: Scale },
-      ] },
-    { id: 'teamGrp',   label: 'Team',      Icon: Users, tabs: [
-        { id: 'staff',    label: 'Staff',    Icon: Users },
-        { id: 'schedule', label: 'Schedule', Icon: Calendar },
-      ] },
-    { id: 'stationGrp', label: 'Station',  Icon: Settings, tabs: [
-        { id: 'capabilities', label: 'Capabilities', Icon: Settings },
-        { id: 'display',      label: 'Display',      Icon: Monitor },
-        { id: 'settings',     label: 'Settings',     Icon: Settings },
-      ] },
-    { id: 'tools',     label: 'Tools',     Icon: Wrench, tab: 'tools' },
-  ];
 
   // Wrapper function to persist active tab when it changes
   const setActiveTab = (tab) => {
@@ -449,6 +435,8 @@ const BaristaInterface = () => {
   // manager-only tab (e.g. restored from localStorage), bounce them to
   // Orders so they don't land on a blank/gated view.
   useEffect(() => {
+  // The tabs a plain barista may not open (managers see them behind the lock).
+  const MANAGER_ONLY_TABS = ['display', 'queue', 'balance', 'capabilities', 'staff', 'settings'];
     if (!isManager && MANAGER_ONLY_TABS.includes(activeTab)) {
       setActiveTab('orders');
     }
@@ -458,7 +446,6 @@ const BaristaInterface = () => {
   // Remembers which leaf each group was last on, so leaving a group and
   // coming back returns to the screen you were using rather than the
   // first one.
-  const [groupSubTab, setGroupSubTab] = useState({});
   // Text the operator is typing into the refresh-interval box. Separate from
   // autoRefreshInterval so a half-typed number is not fought by the setter.
   const [refreshDraft, setRefreshDraft] = useState('');
@@ -556,7 +543,6 @@ const BaristaInterface = () => {
   // Live pending customer-questions — count drives the Messages badge (replaces
   // the old hardcoded `unreadMessages = 2` that always showed a fake "2").
   const cq = useCustomerQuestions();
-  const [filter, setFilter] = useState('all');
   
   // Effect to ensure settings are synced with selected station
   // Use useRef to track if we've already synced this station to avoid unnecessary updates
@@ -565,29 +551,27 @@ const BaristaInterface = () => {
   useEffect(() => {
     // Skip if nothing has changed or we don't have a valid selection
     if (!selectedStation || !stations.length) return;
-    if (lastSyncedStation.current === selectedStation) return;
+    const station = stations.find(s => s.id === selectedStation);
+    // Re-sync when the station RECORD changes, not just the station id:
+    // the list is polled from the server, so a name or barista saved on
+    // another tablet at this station reaches this one within the poll.
+    // (Keying on the id alone left a stale in-memory copy on screen.)
+    const signature = station
+      ? `${station.id}|${station.name || ''}|${station.location || ''}|${station.baristaName || station.barista || ''}`
+      : String(selectedStation);
+    if (lastSyncedStation.current === signature) return;
     
     console.log(`Syncing settings for station ${selectedStation}`);
     
-    const station = stations.find(s => s.id === selectedStation);
     if (station) {
-      // Update our ref to avoid repeated updates for the same station
-      lastSyncedStation.current = selectedStation;
+      // Remember what we synced so an unchanged poll doesn't re-run this
+      lastSyncedStation.current = signature;
       
       // Get station-specific barista name
       const stationBaristaName = getStationBaristaName(selectedStation);
       
-      // Try to get custom station name from localStorage first
-      let stationName = station.name;
-      try {
-        const customName = localStorage.getItem(`coffee_station_name_${selectedStation}`);
-        if (customName) {
-          console.log(`Using custom name from localStorage for station ${selectedStation}: ${customName}`);
-          stationName = customName;
-        }
-      } catch (e) {
-        console.error(`Error getting custom name for station ${selectedStation}:`, e);
-      }
+      // The station record (server) is the only source of the name.
+      const stationName = station.name;
       
       setSettings(prev => ({
         ...prev,
@@ -628,7 +612,6 @@ const BaristaInterface = () => {
   const [editSaving, setEditSaving] = useState(false);
   const [currentMessageOrder, setCurrentMessageOrder] = useState(null);
   // Mobile-only: the bottom tab bar's "More" sheet (manager tabs).
-  const [showMobileMore, setShowMobileMore] = useState(false);
 
   // NEW: Message status tracking
   const [messageStatus, setMessageStatus] = useState({});
@@ -732,16 +715,14 @@ const BaristaInterface = () => {
         ? parseInt(stationId, 10) 
         : stationId;
       
-      // Try to get station-specific barista name
-      const stationBaristaName = localStorage.getItem(`coffee_barista_name_station_${numericStationId}`);
-      
-      // Fall back to station name if no barista name is found
+      // The barista's name lives on the station record (server), so every
+      // device at this station sees the same name.
+      const stationObj = stations.find(s => s.id === numericStationId);
+      const stationBaristaName = stationObj ? (stationObj.baristaName || stationObj.barista) : '';
       if (stationBaristaName) {
         return stationBaristaName;
       }
       
-      // Get the station name
-      const stationObj = stations.find(s => s.id === numericStationId);
       const stationName = stationObj ? stationObj.name : `Station ${numericStationId}`;
       
       // Fall back to generic "Barista" name with the station name
@@ -792,9 +773,12 @@ const BaristaInterface = () => {
           soundError: parsed.soundError !== undefined ? parsed.soundError : true,
           soundVolume: parsed.soundVolume || 50, // 0-100
           autoPrintLabels: parsed.autoPrintLabels || false,
-          stationName: parsed.stationName || stations.find(s => s.id === selectedStation)?.name || 'Coffee Station',
-          stationLocation: parsed.stationLocation || stations.find(s => s.id === selectedStation)?.location || '',
-          baristaName: parsed.baristaName || getStationBaristaName(selectedStation),
+          // Station identity is NOT a device setting: it comes from the
+          // station record, never from this blob. (The blob used to win,
+          // so a tablet kept a stale name after the organiser renamed it.)
+          stationName: stations.find(s => s.id === selectedStation)?.name || 'Coffee Station',
+          stationLocation: stations.find(s => s.id === selectedStation)?.location || '',
+          baristaName: getStationBaristaName(selectedStation),
           batchSuggestions: parsed.batchSuggestions !== undefined ? parsed.batchSuggestions : true,
           // Order board layout. 'progression' reads left-to-right the way
           // the work actually flows -- Upcoming, then Current, then Ready
@@ -1451,26 +1435,10 @@ const BaristaInterface = () => {
       if (!autoRefreshEnabled) toggleAutoRefresh();
       updateAutoRefreshInterval(seconds);
     }
-    setShowRefreshMenu(false);
   };
 
   // Other stations (for the at-a-glance queue pills) — lets a barista point
   // a walk-up at a quieter station. Colour-coded by how busy each one is.
-  const otherStations = stations.filter(s => s.id !== selectedStation);
-  // Compact ≤4-char tag for the other-station pills so a long custom name
-  // ("East Wing", "Main Foyer Coffee") doesn't blow the header out. Full name
-  // is still shown on hover (title attr) and in the station dropdown/title.
-  //   "Coffee Station 2" → "S2"  (trailing number wins)
-  //   "East Wing"        → "EW"  (initials of each word)
-  //   "Lobby"            → "Lobb" (first 4 of a single word)
-  const shortStationLabel = (name, id) => {
-    if (!name) return `S${id}`;
-    const trailing = String(name).match(/(\d+)\s*$/);
-    if (trailing) return `S${trailing[1]}`.slice(0, 4);
-    const words = String(name).trim().split(/\s+/).filter(Boolean);
-    if (words.length >= 2) return words.map(w => w[0]).join('').toUpperCase().slice(0, 4);
-    return (words[0] || `S${id}`).slice(0, 4);
-  };
 
   // Batch order handling
   const toggleBatchMode = () => {
@@ -1494,336 +1462,11 @@ const BaristaInterface = () => {
   };
 
   // Handle walk-in order submission with better error handling
-  const handleWalkInOrder = async (orderDetails, orderType = 'single') => {
-    try {
-      console.log('BaristaInterface.handleWalkInOrder called with:', {
-        orderType,
-        customerName: orderDetails.customer_name || orderDetails.customerName,
-        milkType: orderDetails.milk_type || orderDetails.milkType,
-        milkTypeId: orderDetails.milk_type_id || orderDetails.milkTypeId
-      });
-      
-      // If this is a group order, handle it differently
-      if (orderType === 'group') {
-        console.log('Attempting to add group order:', orderDetails);
-        
-        // Find the actual station info from the stations list
-        const stationInfo = stations.find(s => s.id === selectedStation);
-        
-        // Pass the group order to the service function
-        const result = await OrderDataService.submitGroupOrder(orderDetails);
-        
-        if (result && result.success) {
-          setShowWalkInDialog(false);
-          showToast(`Group order "${orderDetails.groupName}" with ${result.count} coffees added to the queue!`, 'success');
-          // Refresh data to show new orders
-          refreshData();
-        } else {
-          // More detailed error message
-          showToast(`Failed to add group order: ${result?.message || 'Unknown error'}`, 'error', 6000);
-        }
-        
-        return;
-      }
-      
-      // Handle regular individual walk-in order
-      console.log('Attempting to add walk-in order:', orderDetails);
-      
-      // Find the actual station info from the stations list
-      const stationInfo = stations.find(s => s.id === selectedStation);
-      
-      // Add station ID to the order details
-      // If a collection station is specified, the order should be processed there
-      const targetStationId = orderDetails.collectionStation || selectedStation;
-      const targetStation = stations.find(s => s.id === targetStationId);
-      
-      const orderWithStation = {
-        ...orderDetails,
-        // Processing station - where the order will be made
-        stationId: targetStationId,
-        station_id: targetStationId,
-        assignedStation: targetStationId,
-        // Add the station name for better display
-        stationName: targetStation ? targetStation.name : (stationInfo ? stationInfo.name : settings.stationName),
-        // Track where the order was originally created (for reference)
-        createdAtStation: selectedStation,
-        created_at_station: selectedStation
-      };
-      
-      console.log('Adding walk-in order with station information:', orderWithStation);
-      
-      // Add a proper try/catch around the API call
-      const result = await addWalkInOrder(orderWithStation);
-
-      // A REFUSAL (e.g. "this station doesn't stock almond") must never
-      // toast success — Danny's two walk-ins "added successfully" while
-      // the backend had refused both and nothing existed anywhere.
-      // (Now also covers plain server errors — Penny's long black said
-      // "added" while the server had it rejected.)
-      if (result && result.refused) {
-        showToast(`❌ Not added: ${result.message}`, 'error', 8000);
-        return; // keep the dialog open so the barista can adjust
-      }
-
-      // True offline: the order is queued on THIS device only until the
-      // connection returns. Say so — it won't be on other stations or
-      // the customer display yet.
-      if (result && result.offline) {
-        setShowWalkInDialog(false);
-        showToast('⚠ OFFLINE — order saved on this device and will sync when '
-          + 'the connection returns. Not visible to other stations yet.', 'info', 8000);
-        return;
-      }
-
-      if (result) {
-        setShowWalkInDialog(false);
-        
-        // Get customer name or use a default
-        const customerName = orderDetails.customer_name || orderDetails.customerName || 'Walk-in Customer';
-        
-        // Honest, specific toast: the order NUMBER and where it landed,
-        // so a barista viewing a different station knows why it isn't on
-        // their own queue.
-        const newNum = result.order_number || result.orderNumber || result.id;
-        let message = `✅ Order${newNum ? ` #${newNum}` : ''} added`;
-        
-        // Add customer name if available
-        if (customerName && customerName !== 'Walk-in Customer') {
-          message += ` for ${customerName}`;
-        }
-        const landedStation = result.station_id || result.stationId
-          || orderWithStation.stationId;
-        if (landedStation) {
-          message += ` → Station ${landedStation}`;
-          if (String(landedStation) !== String(selectedStation)) {
-            message += ` (not this station's queue)`;
-          }
-        }
-        
-        // Add collection station info if different
-        if (orderDetails.collectionStation && orderDetails.collectionStation !== selectedStation) {
-          const stationName = orderWithStation.stationName || `Station ${orderDetails.collectionStation}`;
-          message += `\n📍 Collection at: ${stationName}`;
-        }
-        
-        // Use toast notification
-        showToast(message.replace(/\n/g, ' '), 'success', 5000);
-        
-        console.log('Walk-in order successfully added and dialog closed');
-      } else {
-        // Don't close dialog on error, let user retry
-        console.error('Failed to add walk-in order - keeping dialog open for retry');
-        showToast('Failed to add walk-in order — the server refused it. Check the details and try again.', 'error', 6000);
-      }
-    } catch (error) {
-      console.error('Error submitting walk-in order:', error);
-      
-      // Show specific error message if available
-      const errorMessage = error?.message || 'Unknown error occurred';
-      showToast(`Error adding walk-in order: ${errorMessage}`, 'error', 6000);
-      
-      // Don't close dialog on error, let user retry or manually close
-      console.error('Walk-in order submission failed - keeping dialog open for retry');
-    }
-  };
 
   // Function to show display screen with station ID
   const openDisplayScreen = () => {
     // Pass the station ID in the URL to customize the display
     window.open(`/display?station=${selectedStation}`, '_blank');
-  };
-
-  // Function to render in-progress order
-  const renderInProgressOrder = (order) => {
-    const hasSentMessage = messageStatus[order.id]?.status === 'sent';
-    
-    return (
-      <div key={order.id} className="bg-white rounded-lg shadow-md p-4 mb-4">
-        <div className="flex justify-between">
-          <div>
-            <div className="text-sm text-gray-500">Order #{order.id}</div>
-            <div className="text-xl font-bold mt-1 flex items-center">
-              {order.customerName}
-              {hasSentMessage && (
-                <span className="ml-1 text-green-500" title="Message sent">
-                  <CheckCircle size={16} />
-                </span>
-              )}
-            </div>
-            <div className="text-gray-700">{order.phoneNumber}</div>
-          </div>
-          <div className="flex flex-col items-end">
-            {/* Group badge — still part of a group while being made, so the
-                barista knows to hold it for collection with its siblings. */}
-            <GroupBadge info={groupInfoByOrderId[order.id]} />
-            <SourceBadge order={order} />
-            {order.priority && (
-              <div className="mt-1 bg-red-100 text-red-700 px-2 py-1 rounded text-sm font-medium">
-                PRIORITY
-              </div>
-            )}
-            <div className="mt-2 flex space-x-2">
-              {/* Move mid-make. The backend has allowed reassigning an
-                  in-progress order all along -- its own comment names
-                  this exact case ("barista realises mid-pour they're
-                  out of milk") -- but only the PENDING card ever grew
-                  the button. Steve, mid-service: "cant transfer station
-                  once started ... worked out ran out of that milk or a
-                  error fault". */}
-              <button
-                className="text-gray-500 hover:text-amber-600"
-                onClick={() => handleOpenMoveDialog(order)}
-                title="Move to another station"
-              >
-                <ArrowRightLeft size={16} />
-              </button>
-              <button
-                className="text-gray-500 hover:text-gray-700"
-                onClick={() => handleEditOrder(order)}
-                title="Edit order"
-              >
-                <Edit size={16} />
-              </button>
-            </div>
-          </div>
-        </div>
-        
-        <div className="mt-2 bg-gray-100 p-2 rounded-lg">
-          <div className="text-lg font-bold leading-snug">{order.size ? `${order.size} ` : ''}{order.coffeeType || 'Coffee'}</div>
-          <div className="text-sm text-gray-700">
-            {order.milkType || 'Regular milk'}, {order.sugar || 'No sugar'}
-            {order.extraHot ? ', Extra hot' : ''}
-          </div>
-          {order.alternativeMilk && (
-            <span className="inline-block bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded mt-1">
-              Alternative Milk
-            </span>
-          )}
-        </div>
-
-        {/* Notes + customer message MUST follow the drink onto the in-progress
-            card — they were only on the pending card, so a "1/4 strength / no
-            lid / make it decaf" instruction vanished the moment the barista
-            hit Start (Asher, live). Same fields the pending card reads. */}
-        {(order.notes || order.specialInstructions) && (
-          <div className="mt-2 text-sm text-amber-900 bg-amber-50 border border-amber-300 rounded px-2 py-1 flex items-start gap-1">
-            <span aria-hidden="true">📝</span>
-            <span className="font-semibold">{order.notes || order.specialInstructions}</span>
-          </div>
-        )}
-        {(order.customerMessage || order.customer_message) && (
-          <div className="mt-2 px-2 py-1 bg-amber-50 border border-amber-300 text-amber-900 text-sm rounded flex items-start gap-1">
-            <span aria-hidden="true">💬</span>
-            <span className="italic">{order.customerMessage || order.customer_message}</span>
-          </div>
-        )}
-
-        {/* Team mode stage chips: two-plus baristas sharing this iPad
-            tick their part (shots / milk). COMPLETE stays the explicit
-            final tap — it lights up when every part is ticked but never
-            fires itself (an accidental complete would SMS the customer). */}
-        {teamMode && (() => {
-          const stages = applicableStages(order);
-          if (stages.length === 0) return null;
-          const done = orderStages(order);
-          return (
-            <div className="mt-2 flex space-x-2">
-              {stages.map(stage => (
-                <button
-                  key={stage}
-                  className={`flex-1 py-2 rounded-lg font-semibold text-sm border-2 ${
-                    done[stage]
-                      ? 'bg-green-100 border-green-500 text-green-800'
-                      : 'bg-white border-gray-300 text-gray-600 hover:border-gray-400'}`}
-                  onClick={() => toggleStage(order, stage)}
-                  title={done[stage]
-                    ? `${stage} done - tap to undo`
-                    : `Tap when the ${stage} ${stage === 'shots' ? 'are' : 'is'} done`}
-                >
-                  {done[stage] ? '✓ ' : ''}{stage === 'shots' ? '☕ Shots' : '🥛 Milk'}
-                </button>
-              ))}
-            </div>
-          );
-        })()}
-
-        {/* One compact action row: big COMPLETE, small icon-only message
-            button (Steve: the card ate too much vertical space). Messaging
-            is disabled when the order has no phone number — it used to
-            open the dialog and let you type a message that could never
-            send. */}
-        {(() => {
-          const _ph = String(order.phoneNumber || '').trim().toLowerCase();
-          const hasPhone = !!_ph && _ph !== 'walk-in' && _ph !== 'na' && _ph !== 'n/a';
-          const _stages = teamMode ? applicableStages(order) : [];
-          const _done = orderStages(order);
-          const allStagesDone = _stages.length > 0 && _stages.every(s => _done[s]);
-          return (
-            <div className="mt-2 flex flex-wrap gap-2">
-              <button
-                className={`flex-1 text-white py-2 rounded-lg font-bold ${
-                  allStagesDone
-                    ? 'bg-green-600 hover:bg-green-700 ring-2 ring-green-300 animate-pulse'
-                    : 'bg-green-500 hover:bg-green-600'}`}
-                onClick={() => handleCompleteOrder(order.id)}
-              >
-                {allStagesDone ? 'ALL PARTS DONE - COMPLETE' : 'COMPLETE ORDER'}
-              </button>
-              <button
-                className={`px-3 rounded-lg flex items-center justify-center ${hasPhone
-                  ? 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                  : 'bg-gray-100 text-gray-300 cursor-not-allowed'}`}
-                onClick={() => hasPhone && handleOpenMessageDialog(order)}
-                disabled={!hasPhone}
-                title={hasPhone
-                  ? 'Message customer'
-                  : 'No phone number on this order — add one via Edit (pencil) to enable SMS'}
-              >
-                <MessageCircle size={18} />
-              </button>
-              {stationPrinter && (
-                <button
-                  className="px-3 rounded-lg flex items-center justify-center bg-gray-200 hover:bg-gray-300 text-gray-700"
-                  onClick={() => handlePrintLabel(order)}
-                  title={stationPrinter.online
-                    ? 'Print cup label'
-                    : 'Print cup label (printer looks offline — job will queue)'}
-                >
-                  <Printer size={18} />
-                </button>
-              )}
-              {/* Ask THIS customer (out-of-oat etc.) -- an icon in the action
-                  row (works with any phone or none). Collapsed it's just an
-                  icon so the card stays compact; it expands to a full-width
-                  panel that wraps below (Steve: drop the wording, keep the
-                  icon, fit more orders). */}
-              <AskCustomerControls order={order} />
-            </div>
-          );
-        })()}
-
-        {/* Time-into-order bar. Fills as the order ages against a 5-minute
-            make target (or promisedTime when the API sends one). It used
-            to divide by a promisedTime the /orders listing never provided,
-            so it sat at 0% forever. */}
-        {(() => {
-          const target = order.promisedTime > 0 ? order.promisedTime : 5;
-          const pct = Math.floor(Math.min(((order.waitTime || 0) / target) * 100, 100));
-          return (
-            <div className="mt-2 flex items-center space-x-2 text-xs text-gray-500">
-              <span className="whitespace-nowrap">{order.waitTime || 0} min</span>
-              <div className="flex-grow bg-gray-200 h-1.5 rounded-full overflow-hidden">
-                <div
-                  className={`h-1.5 ${getTimeRatioColor(order.waitTime || 0, target)}`}
-                  style={{ width: `${pct}%` }}
-                ></div>
-              </div>
-              <span className="whitespace-nowrap">target {target} min</span>
-            </div>
-          );
-        })()}
-      </div>
-    );
   };
 
   // Function to render completed order card
@@ -1833,33 +1476,33 @@ const BaristaInterface = () => {
     
     const milkColorStyle = order.milkType && order.milkType !== 'No Milk' 
       ? getMilkColorStyle(order.milkType, order.milkTypeId)
-      : { borderLeftWidth: '4px', borderLeftStyle: 'solid', borderLeftColor: '#10B981' };
+      : { borderLeftWidth: '4px', borderLeftStyle: 'solid', borderLeftColor: 'var(--cq-ready, #1F8A4C)' };
     
     return (
-      <div key={order.id} className="bg-white rounded-lg shadow-sm p-3 mb-2" style={milkColorStyle}>
+      <div key={order.id} className="bg-cq-milk rounded-cq-md shadow-sm p-3 mb-2" style={milkColorStyle}>
         <div className="flex justify-between items-center">
           <div className="font-bold flex items-center">
             Order #{order.id}
             {hasSentMessage && (
-              <span className="ml-1 text-green-500" title="Message sent">
+              <span className="ml-1 text-cq-ready" title="Message sent">
                 <CheckCircle size={14} />
               </span>
             )}
           </div>
-          <div className="text-sm text-gray-500">Completed {minutesWaiting} minutes ago</div>
+          <div className="text-sm text-cq-ink-3">Completed {minutesWaiting} minutes ago</div>
         </div>
         <div className="mt-2">
-          <div className="text-gray-700 flex items-center">
+          <div className="text-cq-ink-2 flex items-center">
             {order.milkType && order.milkType !== 'No Milk' && (
               <span style={getMilkDotStyle(order.milkType, order.milkTypeId)}></span>
             )}
             {order.coffeeType || 'Coffee'}, {order.milkType || 'Regular milk'}
           </div>
           <div className="font-medium">{order.customerName}</div>
-          <div className="text-sm text-gray-600">{order.phoneNumber}</div>
+          <div className="text-sm text-cq-ink-2">{order.phoneNumber}</div>
           {order.alternativeMilk && (
             <div className="mt-1">
-              <span className="inline-block bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded">
+              <span className="inline-block bg-cq-caramel-wash text-cq-caramel-deep text-xs px-2 py-0.5 rounded">
                 Alternative Milk
               </span>
             </div>
@@ -1867,20 +1510,20 @@ const BaristaInterface = () => {
         </div>
         <div className="mt-3 flex space-x-2">
           <button
-            className="flex-1 bg-amber-600 text-white py-1 rounded text-sm hover:bg-amber-700"
+            className="flex-1 bg-cq-caramel text-white py-1 rounded text-sm hover:bg-cq-caramel-deep"
             onClick={() => handleSendReminder(order)}
           >
             Remind
           </button>
           <button
-            className="flex-1 bg-green-500 text-white py-1 rounded text-sm hover:bg-green-600"
+            className="flex-1 bg-cq-ready text-white py-1 rounded text-sm hover:bg-cq-ready"
             onClick={() => markOrderPickedUp(order.id)}
           >
             Picked Up
           </button>
           {stationPrinter && (
             <button
-              className="px-2 bg-gray-200 text-gray-700 py-1 rounded text-sm hover:bg-gray-300 flex items-center"
+              className="px-2 bg-cq-line text-cq-ink-2 py-1 rounded text-sm hover:bg-cq-line flex items-center"
               onClick={() => handlePrintLabel(order, { reprint: true })}
               title="Reprint label (uses the original order details)"
             >
@@ -1896,47 +1539,47 @@ const BaristaInterface = () => {
   const renderPreviousOrder = (order) => {
     const milkColorStyle = order.milkType && order.milkType !== 'No Milk' 
       ? getMilkColorStyle(order.milkType, order.milkTypeId)
-      : { borderLeftWidth: '4px', borderLeftStyle: 'solid', borderLeftColor: '#10B981' };
+      : { borderLeftWidth: '4px', borderLeftStyle: 'solid', borderLeftColor: 'var(--cq-ready, #1F8A4C)' };
     
     return (
-      <div key={order.id} className="bg-white rounded-lg shadow-sm p-3 mb-2" style={milkColorStyle}>
+      <div key={order.id} className="bg-cq-milk rounded-cq-md shadow-sm p-3 mb-2" style={milkColorStyle}>
         <div className="flex justify-between items-center">
           <div className="font-bold">Order #{order.id}</div>
           <button 
-            className="text-sm text-gray-600 bg-gray-200 px-2 py-1 rounded hover:bg-gray-300"
+            className="text-sm text-cq-ink-2 bg-cq-line px-2 py-1 rounded hover:bg-cq-line"
             onClick={() => openOrderDetails(order.id)}
           >
             {expandedOrderId === order.id ? 'Hide Details' : 'View Details'}
           </button>
         </div>
         {expandedOrderId === order.id && (
-          <div className="mt-2 pt-2 border-t border-gray-100 text-sm text-gray-700">
+          <div className="mt-2 pt-2 border-t border-cq-line text-sm text-cq-ink-2">
             {expandedOrderData[order.id] === 'loading' ? (
-              <span className="text-gray-400">Loading…</span>
+              <span className="text-cq-ink-3">Loading…</span>
             ) : expandedOrderData[order.id] === 'error' || !expandedOrderData[order.id] ? (
-              <span className="text-gray-500">Couldn't load the full details — the summary above is what we have.</span>
+              <span className="text-cq-ink-3">Couldn't load the full details — the summary above is what we have.</span>
             ) : (() => {
               const d = expandedOrderData[order.id];
               return (
                 <div className="space-y-0.5">
-                  {d.drink_full && <div><span className="text-gray-500">Order:</span> {d.drink_full}</div>}
-                  {d.station_name && <div><span className="text-gray-500">Station:</span> {d.station_name}{d.station_location ? ` · ${d.station_location}` : ''}</div>}
-                  {d.notice && <div className="text-amber-700">{d.notice}</div>}
-                  <div><span className="text-gray-500">Status:</span> {d.status === 'picked_up' ? 'Picked up' : d.status}</div>
+                  {d.drink_full && <div><span className="text-cq-ink-3">Order:</span> {d.drink_full}</div>}
+                  {d.station_name && <div><span className="text-cq-ink-3">Station:</span> {d.station_name}{d.station_location ? ` · ${d.station_location}` : ''}</div>}
+                  {d.notice && <div className="text-cq-caramel-deep">{d.notice}</div>}
+                  <div><span className="text-cq-ink-3">Status:</span> {d.status === 'picked_up' ? 'Picked up' : d.status}</div>
                 </div>
               );
             })()}
           </div>
         )}
         <div className="mt-2">
-          <div className="text-gray-700 flex items-center">
+          <div className="text-cq-ink-2 flex items-center">
             {order.milkType && order.milkType !== 'No Milk' && (
               <span style={getMilkDotStyle(order.milkType, order.milkTypeId)}></span>
             )}
             {order.coffeeType || 'Coffee'}, {order.milkType || 'Regular milk'} {order.sugar ? `, ${order.sugar}` : ''}
           </div>
           <div className="font-medium">{order.customerName}</div>
-          <div className="text-sm text-gray-600">Picked up at {order.pickedUpAt ? new Date(order.pickedUpAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'unknown'}</div>
+          <div className="text-sm text-cq-ink-2">Picked up at {order.pickedUpAt ? new Date(order.pickedUpAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'unknown'}</div>
         </div>
       </div>
     );
@@ -1954,12 +1597,25 @@ const BaristaInterface = () => {
     const getStatusColor = (status) => {
       switch(status) {
         case 'danger':
-          return 'bg-red-400';
+          return 'bg-cq-alert';
         case 'warning':
-          return 'bg-yellow-400';
+          return 'bg-cq-warn';
         case 'good':
         default:
-          return 'bg-green-400';
+          return 'bg-cq-ready';
+      }
+    };
+
+    // The same three states as a CSS colour. The stock slider below builds a
+    // linear-gradient() out of this, and a Tailwind CLASS NAME inside a
+    // gradient is not a colour -- the whole declaration was invalid, so the
+    // bar has been drawing its track with no fill at all, whatever the level.
+    const getStatusCss = (status) => {
+      switch(status) {
+        case 'danger':  return 'var(--cq-alert, #C8372D)';
+        case 'warning': return 'var(--cq-warn, #B07D10)';
+        case 'good':
+        default:        return 'var(--cq-ready, #1F8A4C)';
       }
     };
     
@@ -2028,14 +1684,14 @@ const BaristaInterface = () => {
     };
     
     return (
-      <div className="flex flex-col mb-6 pb-4 border-b border-gray-200">
+      <div className="flex flex-col mb-6 pb-4 border-b border-cq-line">
         <div className="flex items-center justify-between mb-2">
           <div className="w-1/4">
             <div className="font-medium">{item.name}</div>
-            <div className="text-sm text-gray-500 flex items-center">
+            <div className="text-sm text-cq-ink-3 flex items-center">
               <span className="mr-2">Available: {item.amount} {item.unit}</span>
               <button 
-                className="text-blue-500 text-xs underline"
+                className="text-cq-caramel-deep text-xs underline"
                 onClick={() => setShowNumericInput(!showNumericInput)}
               >
                 {showNumericInput ? 'Hide' : 'Edit'}
@@ -2055,7 +1711,7 @@ const BaristaInterface = () => {
                   className="w-24 p-1 border rounded mr-2"
                 />
                 <button
-                  className="bg-green-500 text-white px-2 py-1 rounded text-xs"
+                  className="bg-cq-ready text-white px-2 py-1 rounded text-xs"
                   onClick={applyNumericInput}
                 >
                   Apply
@@ -2068,7 +1724,7 @@ const BaristaInterface = () => {
             <div className="font-medium flex items-center">
               Capacity: {item.capacity} {item.unit}
               <button 
-                className="ml-2 text-blue-500 text-xs underline"
+                className="ml-2 text-cq-caramel-deep text-xs underline"
                 onClick={() => setIsEditingCapacity(!isEditingCapacity)}
               >
                 {isEditingCapacity ? 'Cancel' : 'Edit'}
@@ -2086,7 +1742,7 @@ const BaristaInterface = () => {
                   className="w-24 p-1 border rounded mr-2"
                 />
                 <button
-                  className="bg-green-500 text-white px-2 py-1 rounded text-xs"
+                  className="bg-cq-ready text-white px-2 py-1 rounded text-xs"
                   onClick={handleCapacityChange}
                 >
                   Update
@@ -2097,7 +1753,7 @@ const BaristaInterface = () => {
           
           <div className="w-1/4 flex justify-end space-x-2">
             <button 
-              className="w-10 h-10 bg-gray-200 rounded-md flex items-center justify-center hover:bg-gray-300"
+              className="w-10 h-10 bg-cq-line rounded-md flex items-center justify-center hover:bg-cq-line"
               onClick={() => {
                 if (item.amount > 0) {
                   // Decrease stock using the hook
@@ -2110,7 +1766,7 @@ const BaristaInterface = () => {
               -
             </button>
             <button 
-              className="w-10 h-10 bg-gray-200 rounded-md flex items-center justify-center hover:bg-gray-300"
+              className="w-10 h-10 bg-cq-line rounded-md flex items-center justify-center hover:bg-cq-line"
               onClick={() => {
                 // Increase stock using the hook
                 const newAmount = Math.min(item.capacity, item.amount + changeAmount);
@@ -2133,9 +1789,9 @@ const BaristaInterface = () => {
               step={item.unit === 'pcs' ? 1 : 0.1}
               value={item.amount}
               onChange={handleSliderChange}
-              className="w-full h-5 appearance-none bg-gray-200 rounded-full focus:outline-none"
+              className="w-full h-5 appearance-none bg-cq-line rounded-full focus:outline-none"
               style={{
-                background: `linear-gradient(to right, ${getStatusColor(item.status)} 0%, ${getStatusColor(item.status)} ${percentage}%, #e5e7eb ${percentage}%, #e5e7eb 100%)`
+                background: `linear-gradient(to right, ${getStatusCss(item.status)} 0%, ${getStatusCss(item.status)} ${percentage}%, var(--cq-line, #E6DCD0) ${percentage}%, var(--cq-line, #E6DCD0) 100%)`
               }}
             />
           </div>
@@ -2144,11 +1800,11 @@ const BaristaInterface = () => {
           <div className="relative w-full h-6">
             {/* Low threshold indicator */}
             <div 
-              className="absolute top-0 w-0.5 h-2 bg-yellow-500" 
+              className="absolute top-0 w-0.5 h-2 bg-cq-warn" 
               style={{ left: `${(item.lowThreshold / item.capacity) * 100}%` }}
             ></div>
             <div 
-              className="absolute top-3 text-xs text-yellow-600" 
+              className="absolute top-3 text-xs text-cq-warn" 
               style={{ left: `${(item.lowThreshold / item.capacity) * 100}%`, transform: 'translateX(-50%)' }}
             >
               Low
@@ -2156,11 +1812,11 @@ const BaristaInterface = () => {
             
             {/* Critical threshold indicator */}
             <div 
-              className="absolute top-0 w-0.5 h-2 bg-red-500" 
+              className="absolute top-0 w-0.5 h-2 bg-cq-alert" 
               style={{ left: `${(item.criticalThreshold / item.capacity) * 100}%` }}
             ></div>
             <div 
-              className="absolute top-3 text-xs text-red-600" 
+              className="absolute top-3 text-xs text-cq-alert" 
               style={{ left: `${(item.criticalThreshold / item.capacity) * 100}%`, transform: 'translateX(-50%)' }}
             >
               Critical
@@ -2176,52 +1832,63 @@ const BaristaInterface = () => {
     const getStatusClass = (status) => {
       switch(status) {
         case 'active':
-          return 'bg-green-100 border-green-500 text-green-700';
+          return 'bg-cq-ready-wash border-cq-ready text-cq-ready';
         case 'upcoming':
-          return 'bg-blue-100 border-blue-500 text-blue-700';
+          return 'bg-cq-caramel-wash border-cq-caramel text-cq-caramel-deep';
         case 'completed':
-          return 'bg-gray-100 border-gray-500 text-gray-700';
+          return 'bg-cq-wash border-cq-ink-3 text-cq-ink-2';
         default:
-          return 'bg-gray-100 border-gray-500 text-gray-700';
+          return 'bg-cq-wash border-cq-ink-3 text-cq-ink-2';
       }
     };
     
     return (
       <div 
         key={`${type}-${item.id}`}
-        className={`mb-2 p-3 rounded-lg border-l-4 ${getStatusClass(item.status)} shadow-sm`}
+        className={`mb-2 p-3 rounded-cq-md border-l-4 ${getStatusClass(item.status)} shadow-sm`}
       >
         <div className="flex justify-between items-center">
           <div className="font-bold">{item.start} - {item.end}</div>
           {type === 'shift' && (
-            <div className="text-sm bg-amber-100 text-amber-800 px-2 py-1 rounded">
+            <div className="text-sm bg-cq-caramel-wash text-cq-caramel-deep px-2 py-1 rounded">
               {item.barista}
             </div>
           )}
           {type === 'rush' && (
-            <div className="text-sm bg-red-100 text-red-800 px-2 py-1 rounded">
+            <div className="text-sm bg-cq-alert-wash text-cq-alert px-2 py-1 rounded">
               Rush Period
             </div>
           )}
         </div>
         <div className="mt-2">
-          {type === 'shift' && <div className="text-gray-700">Barista Shift</div>}
-          {type === 'break' && <div className="text-gray-700">Break Time for {item.barista}</div>}
-          {type === 'rush' && <div className="text-gray-700">{item.reason}</div>}
+          {type === 'shift' && <div className="text-cq-ink-2">Barista Shift</div>}
+          {type === 'break' && <div className="text-cq-ink-2">Break Time for {item.barista}</div>}
+          {type === 'rush' && <div className="text-cq-ink-2">{item.reason}</div>}
         </div>
       </div>
     );
   };
   
     // Dismissible Info Panel Component
-  const DismissibleInfoPanel = ({ id, title, message, extraContent, borderColor = 'green', bgColor = 'green', isDismissed, onDismiss }) => {
+  // `tone` replaces the old borderColor/bgColor pair, which built its classes
+  // as `bg-${bgColor}-100`. Tailwind only generates classes it can SEE in the
+  // source, so a constructed name works purely by accident -- whenever that
+  // literal happens to appear in some other file. Any tone nobody else used
+  // rendered with no colour at all.
+  const PANEL_TONE = {
+    ok: 'bg-cq-ready-wash border-cq-ready text-cq-ready',
+    warn: 'bg-cq-warn-wash border-cq-warn text-cq-warn',
+    bad: 'bg-cq-alert-wash border-cq-alert text-cq-alert',
+    info: 'bg-cq-caramel-wash border-cq-caramel text-cq-caramel-deep',
+  };
+  const DismissibleInfoPanel = ({ id, title, message, extraContent, tone = 'ok', isDismissed, onDismiss }) => {
     if (isDismissed) return null;
-    
+
     return (
-      <div className={`bg-${bgColor}-100 border-l-4 border-${borderColor}-500 text-${borderColor}-700 p-2 mb-3 relative`}>
+      <div className={`${PANEL_TONE[tone] || PANEL_TONE.ok} border-l-4 rounded-cq-md p-2.5 mb-3 relative`}>
         <div className="flex">
           <div className="py-1">
-            <svg className={`fill-current h-5 w-5 text-${borderColor}-500 mr-2`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+            <svg className="fill-current h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
               <path d="M2.93 17.07A10 10 0 1 1 17.07 2.93 10 10 0 0 1 2.93 17.07zm12.73-1.41A8 8 0 1 0 4.34 4.34a8 8 0 0 0 11.32 11.32zM9 11V9h2v6H9v-4zm0-6h2v2H9V5z"/>
             </svg>
           </div>
@@ -2234,7 +1901,7 @@ const BaristaInterface = () => {
         
         {/* Close button */}
         <button 
-          className="absolute top-1 right-1 text-gray-500 hover:text-gray-800 bg-white rounded-full p-1 shadow-sm"
+          className="absolute top-1 right-1 text-cq-ink-3 hover:text-cq-roast bg-cq-milk rounded-full p-1 shadow-sm"
           onClick={() => onDismiss(id)}
           aria-label="Dismiss message"
           title="Dismiss this message"
@@ -2277,7 +1944,7 @@ const BaristaInterface = () => {
     };
     
     return (
-      <div className="p-4 border rounded shadow-lg bg-white">
+      <div className="p-4 border rounded shadow-cq-card bg-cq-milk">
         <h3 className="text-lg font-bold mb-4">Notification Settings</h3>
         <div className="space-y-4">
           <div>
@@ -2332,7 +1999,7 @@ const BaristaInterface = () => {
         
         <div className="mt-4 flex justify-end">
           <button 
-            className="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700"
+            className="px-4 py-2 bg-cq-caramel text-white rounded hover:bg-cq-caramel-deep"
             onClick={saveSettings}
           >
             Save Settings
@@ -2342,528 +2009,220 @@ const BaristaInterface = () => {
     );
   };
 
+  // Switch this tablet to another station (from the picker or a watched
+  // chip). Same steps the old header dropdown did.
+  const switchStation = (id) => {
+    const station = stations.find(s => s.id === id);
+    if (!station) return;
+    changeSelectedStation(id);
+    const baristaName = getStationBaristaName(id);
+    setSettings(prev => ({ ...prev, stationName: station.name, baristaName }));
+    ChatService.initialize(id, station.name, baristaName);
+    refreshData();
+  };
+  // Rush mode: hide the menus, pack the cards, ask for real fullscreen
+  // (a refusal never stops the toggle).
+  const setRushMode = async (next) => {
+    setSettings(prev => ({ ...prev, rushMode: next }));
+    try {
+      if (next && document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen();
+      else if (!next && document.fullscreenElement && document.exitFullscreen) await document.exitFullscreen();
+    } catch (e) { /* fullscreen is a bonus, not the feature */ }
+  };
+
+  // ---- Station-level actions (were the bottom action bar) ----------------
+  const printQueueNow = async () => {
+    setPrintingQueue(true);
+    try {
+      const r = await printService.printQueue(selectedStation);
+      if (!r?.success) showToast(r?.message || 'Could not print the queue', 'error');
+      else if (r.queued > 0) showToast(`Printing ${r.queued} label${r.queued === 1 ? '' : 's'}` + (r.already_printed ? ` (${r.already_printed} already done)` : '') + (r.truncated ? ' - press again for the rest' : ''), 'success');
+      else if (r.already_printed > 0) showToast('Every waiting order already has a label', 'info');
+      else showToast(r.message || 'Nothing to print', 'info');
+    } catch (e) { showToast('Could not print the queue', 'error'); }
+    finally { setPrintingQueue(false); }
+  };
+  // Make ahead: hold the texts, THEN print the batch (printing first leaves
+  // a window where a fast barista completes one and the customer is pulled
+  // out of a session for a coffee sitting on a table).
+  const makeAhead = async () => {
+    setPrintingQueue(true); setHoldBusy(true);
+    try {
+      const api = new (await import('../../services/ApiService')).default();
+      await api.put('/notifications/hold', { holding: true });
+      const r = await printService.printQueue(selectedStation);
+      const n = r?.queued || 0;
+      showToast(n > 0 ? `Texts held, ${n} label${n === 1 ? '' : 's'} printing. Release when the break starts.` : 'Texts held. Nothing new to print.', n > 0 ? 'success' : 'info');
+    } catch (e) { showToast('Could not start make-ahead', 'error'); }
+    finally { setPrintingQueue(false); setHoldBusy(false); refreshHold(); }
+  };
+  const holdTexts = async () => {
+    if (!(await askConfirm({ title: 'Hold all "coffee ready" texts?', message: 'Customers will NOT be told their order is ready until you press Release. Use this only for pre-orders or before a session starts.', confirmLabel: 'Hold texts', danger: true }))) return;
+    setHoldBusy(true);
+    try { const api = new (await import('../../services/ApiService')).default(); await api.put('/notifications/hold', { holding: true }); }
+    finally { setHoldBusy(false); refreshHold(); }
+  };
+  const releaseTexts = async () => {
+    const n = holdState?.will_send ?? 0;
+    if (n > 0 && !(await askConfirm({ title: `Send ${n} held "your coffee is ready" ${n === 1 ? 'message' : 'messages'} now?`, message: 'Every customer whose coffee is already ready gets their text at once.', confirmLabel: 'Send now' }))) return;
+    setHoldBusy(true);
+    try {
+      const api = new (await import('../../services/ApiService')).default();
+      const r = await api.post('/notifications/release', {});
+      if (r?.success) showToast(`Sent ${r.sent} notification${r.sent === 1 ? '' : 's'}`, 'success');
+    } catch (e) { showToast('Could not release notifications', 'error'); }
+    finally { setHoldBusy(false); refreshHold(); }
+  };
+  const stopHolding = async () => {
+    setHoldBusy(true);
+    try { const api = new (await import('../../services/ApiService')).default(); await api.put('/notifications/hold', { holding: false }); }
+    finally { setHoldBusy(false); refreshHold(); }
+  };
+  const refreshAll = () => { refreshStations(); refreshData(); refreshScheduleData(); };
+  // Name the CATEGORY so "medium" isn't mistaken for a recipe or a milk.
+  const lowStockLabel = (i) => {
+    const n = String(i.name || ''); const c = String(i.category || '').toLowerCase();
+    if (c === 'cups') return `${n} cups`;
+    if (c === 'milk' && !/milk$/i.test(n)) return `${n} milk`;
+    if (c === 'coffee' && !/beans?$/i.test(n)) return `${n} beans`;
+    return n;
+  };
+  const rollNeedsAction = labelRoll && ['low', 'critical', 'empty'].includes(labelRoll.level);
+  const stationMenu = [
+    stationPrinter && pendingOrders.length > 0 && !holdState?.holding ? { label: `Make ahead (${pendingOrders.length})`, Icon: Printer, disabled: printingQueue || holdBusy, onClick: makeAhead, hint: 'Hold the ready texts, then print every waiting label' } : null,
+    stationPrinter && pendingOrders.length > 0 ? { label: printingQueue ? 'Sending…' : `Print queue (${pendingOrders.length})`, Icon: Printer, disabled: printingQueue, onClick: printQueueNow } : null,
+    stationPrinter && rollNeedsAction ? { label: 'Fitted a new label roll', Icon: Printer, onClick: async () => { try { await printService.updateRoll(stationPrinter.id, { reset: true }); showToast('New roll recorded', 'success'); } catch (e) { showToast('Could not record the new roll', 'error'); } finally { refreshRoll(); } } } : null,
+    holdState?.holding
+      ? { label: `Release ${holdState.will_send > 0 ? holdState.will_send + ' ' : ''}held ${holdState.will_send === 1 ? 'text' : 'texts'}`, Icon: Send, disabled: holdBusy, onClick: releaseTexts }
+      : { label: 'Hold the "ready" texts', Icon: Bell, disabled: holdBusy, onClick: holdTexts, hint: 'Finish orders without texting anyone yet' },
+    holdState?.holding ? { label: 'Stop holding (no send)', Icon: Bell, disabled: holdBusy, onClick: stopHolding } : null,
+    { label: 'Tell waiting customers', Icon: MessageCircle, onClick: () => setBroadcastOpen(true), hint: 'A message to everyone watching their phone' },
+    { label: 'Session so far', Icon: Clock, onClick: () => { setShowSessionReport(true); refreshSession(); } },
+    { label: isRefreshing ? 'Refreshing…' : 'Refresh', Icon: RefreshCw, disabled: isRefreshing, onClick: refreshAll },
+  ];
+
+  // In lanes the queue fills the screen and nothing on the page scrolls;
+  // every other tab scrolls inside the content area as before.
+  const lanesActive = lanes && activeTab === 'orders';
+
+  // A tablet must be told which station it is at. Until someone chooses
+  // (or if the remembered station no longer exists), ask -- never guess.
+  if (!selectedStation) {
+    return (
+      <StationChooser
+        stations={stations}
+        loading={stationsLoading}
+        onChoose={(id) => changeSelectedStation(id)}
+        onRefresh={() => refreshStations && refreshStations()}
+      />
+    );
+  }
+
   // Main component render
   return (
     <div
-      className="bg-gray-100 min-h-screen flex flex-col"
+      className={`cq flex flex-col ${lanesActive ? 'h-screen overflow-hidden' : 'min-h-screen'}`}
       // At zoom < 1 a bare min-h-screen (100vh) would render shorter than the
       // real viewport once scaled, leaving a grey strip at the bottom; dividing
       // by the zoom keeps it filling the screen. At zoom > 1 the taller content
       // simply overflows and scrolls, which is what we want.
-      style={uiZoom !== 1 ? { zoom: uiZoom, minHeight: `${100 / uiZoom}vh` } : undefined}
+      style={uiZoom !== 1 ? { zoom: uiZoom, minHeight: `${100 / uiZoom}vh`, ...(lanesActive ? { height: `${100 / uiZoom}vh` } : {}) } : undefined}
     >
       {/* Toast Notifications */}
-      <ToastManager />
+      <ToastManager position={lanesActive ? 'bottom-center' : 'bottom-center-high'} />
 
       {/* Outbound-SMS-down alert — loud + always visible during service, the
           one signal that survives a total outbound outage (see component). */}
       <SmsHealthBanner />
 
-      <NoticeBanner notices={notices} className="px-4 pt-3" />
-
       {/* Header - Connection Banner */}
       {!online && (
-        <div className="bg-red-500 text-white p-2 text-center">
+        <div className="bg-cq-alert text-white p-2 text-center">
           Could not connect to backend service. Using sample data instead.
         </div>
       )}
       
       {/* Demo Mode Indicator */}
       {isDemoMode && (
-        <div className="bg-amber-500 text-white p-2 text-center">
+        <div className="bg-cq-caramel text-white p-2 text-center">
           Demo Mode Active - Using simulated data
         </div>
       )}
       
-      {/* Main Header */}
-      {/* Header. On mobile it wraps (flex-wrap) instead of overflowing, and
-          the less-critical pills (Display, auto-refresh) are hidden — the
-          barista keeps Station / Online / Queue / Wait / Questions / HELP. */}
-      <header className={`bg-amber-800 text-white flex flex-wrap gap-y-2 justify-between items-center shadow-md ${settings.rushMode ? 'px-3 py-1.5' : 'p-4'}`}>
-        <div className="flex items-center">
-          <button 
-            className="mr-2 p-1 rounded hover:bg-amber-700"
-            onClick={() => { window.location.href = '/welcome'; }}
-            title="Back to Home"
-          >
-            <ArrowLeft size={20} />
-          </button>
-          <div className="text-xl font-bold cursor-pointer" onClick={() => setShowStationSelector(!showStationSelector)}>
-            {(() => {
-              // Try to get custom name from localStorage first
-              if (selectedStation) {
-                try {
-                  const customName = localStorage.getItem(`coffee_station_name_${selectedStation}`);
-                  if (customName) {
-                    return customName;
-                  }
-                } catch (e) {
-                  console.error('Error getting custom station name for display:', e);
-                }
-              }
-              // Fall back to station from list if no custom name
-              return stations.find(s => s.id === selectedStation)?.name || 'Select a Station';
-            })()}
-            <ChevronDown size={16} className="inline ml-1" />
-          </div>
-          
-          {/* Station Selector Dropdown */}
-          {showStationSelector && (
-            <div className="absolute top-16 left-4 bg-white text-gray-800 shadow-lg rounded-md overflow-hidden z-50">
-              {stations.map(station => (
-                <div 
-                  key={station.id}
-                  className={`p-3 hover:bg-gray-100 cursor-pointer ${station.id === selectedStation ? 'bg-amber-100' : ''}`}
-                  onClick={() => {
-                    // Change selected station (this will trigger sync in useOrders)
-                    changeSelectedStation(station.id);
-                    
-                    // Get station-specific barista name for the new station
-                    const stationBaristaName = getStationBaristaName(station.id);
-                    
-                    // Check for custom station name in localStorage
-                    let customStationName = station.name;
-                    try {
-                      const customName = localStorage.getItem(`coffee_station_name_${station.id}`);
-                      if (customName) {
-                        console.log(`Found custom station name in localStorage: ${customName}`);
-                        customStationName = customName;
-                      }
-                    } catch (e) {
-                      console.error('Error getting custom station name from localStorage:', e);
-                    }
-                    
-                    // Update settings with new station info
-                    setSettings(prev => ({
-                      ...prev,
-                      stationName: customStationName, // Use custom name if available
-                      baristaName: stationBaristaName
-                    }));
-                    
-                    // Also initialize ChatService with the correct names
-                    ChatService.initialize(
-                      station.id, 
-                      customStationName,
-                      stationBaristaName
-                    );
-                    
-                    setShowStationSelector(false);
-                    // Refresh data for the new station
-                    refreshData();
-                  }}
-                >
-                  <div className="font-medium">
-                    {(() => {
-                      try {
-                        const customName = localStorage.getItem(`coffee_station_name_${station.id}`);
-                        return customName || station.name;
-                      } catch (e) {
-                        return station.name;
-                      }
-                    })()}
-                  </div>
-                  <div className="text-xs text-gray-500 flex items-center">
-                    <div className={`w-2 h-2 rounded-full mr-1 ${station.status === 'active' ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                    {station.status === 'active' ? 'Active' : 'Maintenance'}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        
-        <div className="flex flex-wrap gap-2 items-center">
-          {/* Online/Offline — toggles whether THIS station accepts new orders.
-              Tap to take it offline (with confirm) or bring it back. The old
-              Display shortcut was removed (the Display tab still exists). */}
-          <button
-            className={`px-4 py-1 rounded-full flex items-center transition-colors ${stationOnline ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-500 hover:bg-gray-600'}`}
-            onClick={toggleStationOnline}
-            title={stationOnline ? 'Online and taking orders — click to take this station offline' : 'Offline — not receiving new orders. Click to bring it back online'}
-          >
-            <div className={`w-3 h-3 rounded-full ${stationOnline ? 'bg-green-200' : 'bg-gray-300'} mr-2`}></div>
-            {stationOnline ? 'Online' : 'Offline'}
-          </button>
+      {/* The queue header (phase 4): this station, the carts this tablet
+          watches, ONE status line (red only when something is broken), and
+          the lock that opens the admin sheet. */}
+      <QueueHeader
+        station={currentStationObj}
+        stations={stations}
+        watchedIds={watchedIds.filter(id => id !== selectedStation)}
+        rushMode={!!settings.rushMode}
+        net={online}
+        stationOnline={stationOnline}
+        queueCount={queueCount}
+        madeToday={madeToday}
+        waitMin={currentStationObj?.estimatedWait ?? waitTime}
+        printer={stationPrinter}
+        labelRoll={labelRoll}
+        onOpenPicker={() => setPickerOpen(true)}
+        onOpenAdmin={() => setAdminOpen(true)}
+        onTapWait={() => setShowWaitTimeDialog(true)}
+        onTapMade={() => { setShowSessionReport(true); refreshSession(); }}
+        onToggleOnline={toggleStationOnline}
+        onSelectStation={switchStation}
+        holding={holdState?.holding ? holdState : null}
+        lowStock={lowStockItems.map(lowStockLabel)}
+        onTapHold={releaseTexts}
+        onTapLowStock={() => setActiveTab('stock')}
+        unlocked={unlocked}
+      />
 
-          {/* Auto-refresh interval picker — tap to choose how often the queue
-              refreshes. Hidden on mobile to declutter. */}
-          <div className="relative hidden md:block">
-            <button
-              className={`px-4 py-1 rounded-full flex items-center ${autoRefreshEnabled ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-500 hover:bg-gray-600'}`}
-              onClick={() => setShowRefreshMenu(v => !v)}
-              title={autoRefreshEnabled ? `Auto-refresh every ${autoRefreshInterval}s — click to change` : 'Auto-refresh off — click to choose an interval'}
-            >
-              <RefreshCw size={14} className={`mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
-              {autoRefreshEnabled ? `${autoRefreshInterval}s` : 'Off'}
-              <ChevronDown size={14} className="ml-1" />
-            </button>
-            {showRefreshMenu && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setShowRefreshMenu(false)}></div>
-                <div className="absolute right-0 mt-1 bg-white text-gray-800 shadow-lg rounded-md overflow-hidden z-50 w-36">
-                  <div className="px-3 py-1.5 text-xs text-gray-500 border-b">Refresh queue every</div>
-                  {[
-                    { label: 'Off', value: 0 },
-                    { label: '5 seconds', value: 5 },
-                    { label: '15 seconds', value: 15 },
-                    { label: '30 seconds', value: 30 },
-                    { label: '60 seconds', value: 60 },
-                  ].map(opt => {
-                    const active = opt.value === 0 ? !autoRefreshEnabled : (autoRefreshEnabled && autoRefreshInterval === opt.value);
-                    return (
-                      <button
-                        key={opt.value}
-                        className={`block w-full text-left px-3 py-2 text-sm hover:bg-gray-100 ${active ? 'bg-amber-100 font-medium text-amber-800' : ''}`}
-                        onClick={() => setRefreshInterval(opt.value)}
-                      >
-                        {opt.label}{opt.value === 5 ? ' (fast)' : ''}
-                      </button>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-          </div>
+      <NoticeBanner notices={notices} className="px-4 pt-3" />
 
-          <div className="px-4 py-1 rounded-full bg-green-500">
-            Queue: {queueCount}
-          </div>
-
-          {/* Coffees made today at this station. Two jobs: it is the
-              number the baristas were writing down by hand for invoicing,
-              and it is crash insurance -- if the system stalls they can
-              see it stopped at 78 rather than reconstructing it later.
-              Clicking it opens the full session summary. */}
-          {madeToday !== null && (
-            <button
-              className="px-4 py-1 rounded-full bg-amber-900 hover:bg-amber-950 transition-colors"
-              onClick={() => { setShowSessionReport(true); refreshSession(); }}
-              title="Coffees finished at this station today - click for the full summary"
-            >
-              Made: {madeToday}
-            </button>
-          )}
-
-          {/* Wait pill shows the live SMART estimate (backend: per-drink
-              make-time × pending+in-progress ÷ station capacity — the same
-              number SMS customers get). Falls back to the manual value at
-              event start before real data exists. Tap to set the manual
-              starting estimate. */}
-          <button
-            className="px-4 py-1 rounded-full bg-green-500 hover:bg-green-600 flex items-center transition-colors"
-            onClick={() => setShowWaitTimeDialog(true)}
-            title="The walk-up answer: if someone orders RIGHT NOW, this is roughly how long until their coffee — live estimate from the current queue, real make-times and station capacity. With an empty queue it's just the time to make one coffee. Click to set the starting estimate (used until enough real orders complete)."
-          >
-            <Clock size={14} className="mr-1" />
-            Walk-up ~{currentStationObj?.estimatedWait ?? waitTime} min
-          </button>
-
-          {/* Other stations at a glance (e.g. S2: Q5) so a barista can send a
-              walk-up to a quieter station. Green = quiet, amber = busy, red =
-              very busy. Hidden on mobile to keep the condensed header tidy. */}
-          {otherStations.map(s => {
-            const q = s.queueCount ?? 0;
-            // An offline station must NOT look "quiet/green" — that would
-            // invite a barista to send a walk-up to a closed station. Grey it
-            // out and show "off" instead of a queue count.
-            const offline = (s.status || 'active') !== 'active';
-            const tone = offline
-              ? 'bg-gray-500 text-gray-200'
-              : q <= 2 ? 'bg-green-600 text-white'
-              : q <= 5 ? 'bg-yellow-500 text-yellow-900'
-              : 'bg-red-600 text-white';
-            return (
-              <div
-                key={s.id}
-                className={`px-3 py-1 rounded-full text-sm hidden md:flex items-center ${tone}`}
-                title={offline
-                  ? `${s.name}: offline (not taking orders)`
-                  : `${s.name}: ${q} order${q === 1 ? '' : 's'} in queue`}
-              >
-                {shortStationLabel(s.name, s.id)}: {offline ? 'off' : `Q${q}`}
-              </div>
-            );
-          })}
-
-          {/* Label printer chip — only shown when this station has an
-              enabled printer assigned. Green = polled within the last 15s,
-              red = printer has stopped polling (power/WiFi). Desktop only,
-              like the station pills. */}
-          {stationPrinter && (
-            <div
-              className={`px-3 py-1 rounded-full text-sm hidden md:flex items-center ${
-                stationPrinter.online ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}
-              title={stationPrinter.online
-                ? `${stationPrinter.name || 'Label printer'}: online`
-                : `${stationPrinter.name || 'Label printer'}: OFFLINE — check power/WiFi. Labels will queue and print when it reconnects.`}
-            >
-              <Printer size={14} className="mr-1" />
-              {stationPrinter.online ? 'Labels' : 'Labels off'}
-            </div>
-          )}
-
-          {/* Customer questions + station chat now live in the blue Messages
-              bubble (bottom-right); the static HELP button was removed to
-              declutter the header. */}
-
-          {/* Screen size (per-device zoom). Bigger = easier taps on a small
-              tablet (the Start button was the pain point); smaller = more
-              orders on screen. Saved on THIS device only. Tap the % to reset. */}
-          <div
-            className="flex items-center rounded-full bg-amber-900 overflow-hidden mr-2"
-            title="Screen size on this device — bigger for easier taps, smaller to fit more orders. Saved on this tablet only."
-          >
-            <button
-              className="px-3 py-1 text-lg leading-none hover:bg-amber-950 disabled:opacity-40"
-              onClick={() => setZoom(uiZoom - 0.1)}
-              disabled={uiZoom <= ZOOM_MIN}
-              aria-label="Make everything smaller"
-            >
-              &minus;
-            </button>
-            <button
-              className="px-2 py-1 text-sm tabular-nums hover:bg-amber-950"
-              onClick={() => setZoom(1)}
-              title="Reset to 100%"
-            >
-              {Math.round(uiZoom * 100)}%
-            </button>
-            <button
-              className="px-3 py-1 text-lg leading-none hover:bg-amber-950 disabled:opacity-40"
-              onClick={() => setZoom(uiZoom + 0.1)}
-              disabled={uiZoom >= ZOOM_MAX}
-              aria-label="Make everything bigger"
-            >
-              +
-            </button>
-          </div>
-
-          {/* Rush mode. The way in AND the way out -- in rush mode every
-              other menu is gone, so this button must stay visible and
-              obvious, and it says EXIT rather than showing a state. It
-              also asks the browser for real fullscreen, which reclaims
-              the address bar on a tablet; if that is refused (some
-              kiosks block it) the in-page saving still applies. */}
-          <button
-            className={`px-3 py-1 rounded-full flex items-center transition-colors text-sm mr-2 ${
-              settings.rushMode
-                ? 'bg-white text-amber-900 font-bold hover:bg-amber-100'
-                : 'bg-amber-900 hover:bg-amber-950'}`}
-            onClick={async () => {
-              const next = !settings.rushMode;
-              setSettings(prev => ({ ...prev, rushMode: next }));
-              try {
-                if (next && document.documentElement.requestFullscreen) {
-                  await document.documentElement.requestFullscreen();
-                } else if (!next && document.fullscreenElement && document.exitFullscreen) {
-                  await document.exitFullscreen();
-                }
-              } catch (e) {
-                // Fullscreen is a bonus, not the feature. A refusal must
-                // never stop the toggle -- the barista still gets the
-                // hidden menus and the tighter cards.
-              }
-            }}
-            title={settings.rushMode
-              ? 'Show the menus and batch suggestions again'
-              : 'Hide the menus and suggestions, pack the cards, go fullscreen'}
-          >
-            {settings.rushMode
-              ? <><Minimize2 size={14} className="mr-1" /> Exit rush</>
-              : <><Maximize2 size={14} className="mr-1" /> Rush</>}
-          </button>
-
-          {/* Admin-only "Switch view" — jump to another interface from the
-              header (replaces the floating switcher on this screen, which is
-              hidden on /barista). Desktop only. */}
-          {_currentRole === 'admin' && (
-            <div className="relative hidden md:block">
-              <button
-                onClick={() => setShowViewSwitch(v => !v)}
-                className="px-3 py-1 rounded-full bg-amber-900 hover:bg-amber-950 flex items-center transition-colors text-sm"
-                title="Switch to another interface (Organiser / Barista / Support / Display)"
-              >
-                <Shuffle size={14} className="mr-1" /> Switch view
-              </button>
-              {showViewSwitch && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowViewSwitch(false)}></div>
-                  <div className="absolute right-0 mt-2 w-44 bg-white text-gray-800 rounded-lg shadow-lg z-50 overflow-hidden">
-                    <div className="px-3 py-1.5 text-xs text-gray-500 border-b">Switch view</div>
-                    {[
-                      { path: '/organiser', label: 'Organiser' },
-                      { path: '/barista', label: 'Barista' },
-                      { path: '/support', label: 'Support' },
-                      { path: '/displays', label: 'Display' },
-                    ].map(v => (
-                      <button
-                        key={v.path}
-                        onClick={() => { window.location.href = v.path; }}
-                        className="block w-full text-left px-3 py-2 text-sm hover:bg-gray-100"
-                      >
-                        {v.label}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-        </div>
-      </header>
-
-      {/* Navigation Tabs (desktop), grouped. On mobile these are replaced
-          by the fixed bottom tab bar below.
-
-          Groups render only the leaves the current role may see, so a
-          plain barista's "Team" collapses to just Schedule (Staff is
-          manager-only) — and when a group has one visible leaf it is
-          drawn as a plain tab under that leaf's own name, rather than a
-          heading over a single-item sub-bar. */}
-      {/* Both tab bars go away in rush mode -- the slim header keeps the
-          way out, and everything else is a menu the barista is not using
-          while there are ten coffees on the bench. */}
-      {!settings.rushMode && (
-      <div className="hidden md:block bg-white border-b shadow-sm">
-        <div className="flex">
-          {BARISTA_GROUPS.map((g) => {
-            const leaves = (g.tabs || [{ id: g.tab, label: g.label, Icon: g.Icon }])
-              .filter((t) => isManager || !MANAGER_ONLY_TABS.includes(t.id));
-            if (leaves.length === 0) return null;
-            const isActive = leaves.some((t) => t.id === activeTab);
-            // One visible leaf: show it under its own name.
-            const single = leaves.length === 1;
-            const label = single ? leaves[0].label : g.label;
-            const Icon = single ? leaves[0].Icon : g.Icon;
-            return (
-              <button
-                key={g.id}
-                className={`py-4 px-6 font-medium flex items-center ${isActive ? 'border-b-2 border-amber-600 bg-white text-amber-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                onClick={() => {
-                  if (isActive) return;
-                  // Return to the leaf last used in this group.
-                  const remembered = groupSubTab[g.id];
-                  const target = leaves.some((t) => t.id === remembered)
-                    ? remembered
-                    : leaves[0].id;
-                  setActiveTab(target);
-                }}
-              >
-                <Icon size={18} className="mr-1" />
-                {label}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Sub-tabs for the active group. Only drawn when the group has
-            more than one leaf this role can see. */}
-        {(() => {
-          const g = BARISTA_GROUPS.find(
-            (grp) => (grp.tabs || []).some((t) => t.id === activeTab)
-          );
-          if (!g) return null;
-          const leaves = g.tabs.filter(
-            (t) => isManager || !MANAGER_ONLY_TABS.includes(t.id)
-          );
-          if (leaves.length < 2) return null;
-          return (
-            <div className="flex bg-white border-t border-gray-100 px-4">
-              {leaves.map(({ id, label, Icon }) => (
-                <button
-                  key={id}
-                  className={`py-2 px-4 text-sm font-medium flex items-center border-b-2 ${activeTab === id ? 'border-amber-500 text-amber-800' : 'border-transparent text-gray-500 hover:text-gray-800'}`}
-                  onClick={() => {
-                    setActiveTab(id);
-                    setGroupSubTab((prev) => ({ ...prev, [g.id]: id }));
-                  }}
-                >
-                  <Icon size={15} className="mr-1" />
-                  {label}
-                </button>
-              ))}
-            </div>
-          );
-        })()}
-      </div>
-      )}
-
-      {/* Mobile bottom tab bar — replaces the overflowing top tab row on
-          phones. Plain baristas get Orders / Stock / Completed; managers
-          also get a "More" sheet with the configuration tabs. Hidden on
-          md+ (desktop keeps the top tab row). */}
-      {!settings.rushMode && (
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 shadow-lg flex">
-        {[
-          { id: 'orders', label: 'Orders', Icon: Coffee },
-          { id: 'stock', label: 'Stock', Icon: Package },
-          { id: 'completed', label: 'Done', Icon: Check },
-          { id: 'tools', label: 'Tools', Icon: Wrench },
-        ].map(({ id, label, Icon }) => (
-          <button
-            key={id}
-            className={`flex-1 flex flex-col items-center justify-center py-2 ${activeTab === id ? 'text-amber-700' : 'text-gray-500'}`}
-            onClick={() => { setActiveTab(id); setShowMobileMore(false); }}
-          >
-            <Icon size={20} />
-            <span className="text-xs mt-0.5">{label}</span>
-          </button>
-        ))}
-        {isManager && (
-          <button
-            className={`flex-1 flex flex-col items-center justify-center py-2 ${showMobileMore || !['orders', 'stock', 'completed'].includes(activeTab) ? 'text-amber-700' : 'text-gray-500'}`}
-            onClick={() => setShowMobileMore(v => !v)}
-          >
-            <MoreHorizontal size={20} />
-            <span className="text-xs mt-0.5">More</span>
-          </button>
-        )}
-      </div>
-      )}
-
-      {/* Mobile "More" sheet — the manager/config tabs, opened from the bar. */}
-      {showMobileMore && isManager && (
-        <div className="md:hidden fixed inset-0 z-40" onClick={() => setShowMobileMore(false)}>
-          <div className="absolute inset-0 bg-black bg-opacity-40"></div>
-          <div className="absolute bottom-14 left-0 right-0 bg-white rounded-t-2xl shadow-xl p-3" onClick={e => e.stopPropagation()}>
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { id: 'inventory', label: 'Inventory', Icon: Package },
-                { id: 'schedule', label: 'Schedule', Icon: Calendar },
-                { id: 'display', label: 'Display', Icon: Monitor },
-                { id: 'queue', label: 'Queue Rules', Icon: Brain },
-                { id: 'balance', label: 'Balance', Icon: Scale },
-                { id: 'capabilities', label: 'Capabilities', Icon: Settings },
-                { id: 'staff', label: 'Staff', Icon: Users },
-                { id: 'settings', label: 'Settings', Icon: Settings },
-              ].map(({ id, label, Icon }) => (
-                <button
-                  key={id}
-                  className={`flex flex-col items-center justify-center py-3 rounded-lg ${activeTab === id ? 'bg-amber-100 text-amber-800' : 'bg-gray-50 text-gray-700'}`}
-                  onClick={() => { setActiveTab(id); setShowMobileMore(false); }}
-                >
-                  <Icon size={20} />
-                  <span className="text-xs mt-1">{label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
+      {/* Three tabs: Queue, Stock, Tools. The manager tabs live behind the
+          lock (station settings, screens) or in the organiser. Gone in rush
+          mode -- the header keeps the way out. */}
+      {(!settings.rushMode || activeTab !== 'orders') && (
+        <div className="px-4 pt-3">
+          <TabBar
+            tabs={[
+              { id: 'orders', label: 'Queue', Icon: Coffee, count: pendingOrders.length + inProgressOrders.length },
+              { id: 'stock', label: 'Stock', Icon: Package },
+              { id: 'tools', label: 'Tools', Icon: Wrench },
+              // A manager tab opened from the lock appears as a fourth tab
+              // while it is open, so the way back is visible.
+              ...(['orders', 'stock', 'tools'].includes(activeTab) ? [] : [{ id: activeTab, label: ({ completed: 'Completed', inventory: 'Inventory', schedule: 'Schedule', capabilities: 'Capabilities', staff: 'Staff', queue: 'Queue rules', balance: 'Balance', settings: 'Station settings', display: 'Screens' })[activeTab] || 'More', Icon: Settings }]),
+            ]}
+            active={activeTab}
+            onChange={setActiveTab}
+          />
         </div>
       )}
 
       {/* Main Content. Extra bottom padding on mobile so the fixed bottom
           tab bar + sticky action footer don't cover the last items. */}
-      <div className="p-4 flex-grow overflow-y-auto pb-24 md:pb-4">
+      {/* Bottom padding so the last card can scroll clear of the sticky
+          action bar (the page grows past the viewport). */}
+      <div className={`p-4 flex-grow overflow-y-auto ${lanesActive ? 'pb-4 flex flex-col min-h-0' : 'pb-28'} ${activeTab === 'orders' ? '' : 'cq-legacy'}`}>
+        {/* Every page that is not the queue: the old markup inside the
+            palette sweep (design/legacy.css) and one obvious way back. */}
+        {!loading && activeTab !== 'orders' && (
+          <div className="mb-3">
+            <button type="button" onClick={() => setActiveTab('orders')} className="inline-flex items-center gap-2 h-11 px-4 rounded-cq-md bg-cq-roast text-cq-cream font-bold hover:bg-cq-roast-deep">
+              <ArrowLeft size={18} /> Back to the queue
+            </button>
+          </div>
+        )}
         {/* Loading state */}
         {loading && (
           <div className="flex justify-center items-center h-full">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-amber-600"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-cq-caramel"></div>
           </div>
         )}
         
         {/* Error state */}
         {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4">
+          <div className="bg-cq-alert-wash border border-cq-alert text-cq-alert px-4 py-3 rounded relative mb-4">
             <strong className="font-bold">Error!</strong>
             <span className="block sm:inline"> {error}</span>
             <button 
@@ -2877,11 +2236,11 @@ const BaristaInterface = () => {
         
         {/* Last Updated indicator */}
         {!loading && !error && !settings.rushMode && (
-          <div className="text-xs text-gray-500 mb-2 flex items-center">
+          <div className="text-xs text-cq-ink-3 mb-2 flex items-center">
             <Clock size={12} className="mr-1" />
             Last updated: {new Date(lastUpdated).toLocaleTimeString()}
             {isRefreshing && (
-              <span className="ml-2 flex items-center text-amber-600">
+              <span className="ml-2 flex items-center text-cq-caramel-deep">
                 <RefreshCw size={12} className="animate-spin mr-1" />
                 Refreshing...
               </span>
@@ -2897,7 +2256,7 @@ const BaristaInterface = () => {
             A stuck queue with no explanation sends someone to debug the
             server; "Out of paper" sends them to the roll. */}
         {stationPrinter?.fault && (
-          <div className="mb-3 rounded-lg border-l-4 border-red-600 bg-red-50 px-4 py-3 text-red-800">
+          <div className="mb-3 rounded-cq-md border-l-4 border-cq-alert bg-cq-alert-wash px-4 py-3 text-cq-alert">
             <div className="font-bold flex items-center">
               <Printer size={18} className="mr-2" />
               Printer: {stationPrinter.fault}
@@ -2913,186 +2272,46 @@ const BaristaInterface = () => {
         {!loading && activeTab === 'orders' && (
           <>
           {/* Batch suggestions are a planning aid, not something you read
-              mid-rush -- and they were costing two rows above the columns. */}
-          {!settings.rushMode && (
-          <RushMixStrip
+              mid-rush. */}
+          {/* Lanes on a landscape tablet or laptop, a column elsewhere. The
+              rush-mix strip (a planning aid, not for mid-rush) rides inside
+              the Up next lane so it costs no screen height. */}
+          <QueueColumn
+            rushStrip={!settings.rushMode ? (
+              <RushMixStrip
+                pendingOrders={pendingOrders}
+                inProgressOrders={inProgressOrders}
+                stationName={currentStationObj?.name || `Station ${selectedStation}`}
+                onStartBatch={handleStartRushBatch}
+                onBatchComplete={handleBatchComplete}
+              />
+            ) : null}
             pendingOrders={pendingOrders}
             inProgressOrders={inProgressOrders}
-            stationName={currentStationObj?.name || `Station ${selectedStation}`}
-            onStartBatch={handleStartRushBatch}
-            onBatchComplete={handleBatchComplete}
+            completedOrders={completedOrders}
+            showReady={!settings.skipPickedUp}
+            stationId={selectedStation}
+            expiryMinutes={settings.readyExpiryMinutes}
+            teamMode={teamMode}
+            groupInfoByOrderId={groupInfoByOrderId}
+            stationPrinter={stationPrinter}
+            compact={!!(settings.compactOrders || settings.rushMode)}
+            applicableStages={applicableStages}
+            orderStages={orderStages}
+            toggleStage={toggleStage}
+            onStart={startOrderWithLabel}
+            onStartGroup={handleStartGroup}
+            onComplete={handleCompleteOrder}
+            onCollected={markOrderPickedUp}
+            onMessage={handleOpenMessageDialog}
+            onPrint={handlePrintLabel}
+            onMove={handleOpenMoveDialog}
+            onEdit={handleEditOrder}
+            onDelay={handleDelayOrder}
+            onWalkIn={() => setShowWalkInDialog(true)}
+            stationMenu={stationMenu}
+            layout={lanes ? 'lanes' : 'column'}
           />
-          )}
-          {/* Column order follows the work: Upcoming, then Current, then
-              Ready. Steve asked for "columb progression" after CTN26,
-              where the middle-of-the-board Current column filled up and
-              the eye had to jump about to follow one order through. The
-              older Current-first layout is still selectable in Settings.
-
-              `board-compact` tightens the cards for a station making
-              8-10 at once -- see styles/boardDensity.css. */}
-          {/* `board-rtl` mirrors the column order for a cart where the
-              queue is on the barista's right and the hatch is on their
-              left, so the board matches the bench instead of fighting it
-              (Steve: "orders comes in on 1 side and goes out on the
-              other"). It flips the grid, not the JSX, so the reading
-              order and the keyboard order stay put. */}
-          <div className={`grid grid-cols-1 ${
-            settings.skipPickedUp ? 'lg:grid-cols-2' : 'lg:grid-cols-3'} gap-4${
-            (settings.compactOrders || settings.rushMode) ? ' board-compact' : ''}${
-            settings.boardColumnOrder === 'progression-rtl' ? ' board-rtl' : ''}`}>
-            {settings.boardColumnOrder !== 'current-first' && (
-              /* Pending Orders */
-              <PendingOrdersSection
-                orders={pendingOrders}
-                teamMode={teamMode}
-                filter={filter}
-                onFilterChange={setFilter}
-                onStartOrder={startOrderWithLabel}
-                onProcessBatch={processBatch}
-                onSendMessage={handleOpenMessageDialog}
-                onDelayOrder={handleDelayOrder}
-                onEditOrder={handleEditOrder}
-                onMoveOrder={handleOpenMoveDialog}
-                groupInfoByOrderId={groupInfoByOrderId}
-                onStartGroup={handleStartGroup}
-              />
-            )}
-
-            {/* Current Order (In Progress) */}
-            <div>
-              <div className="bg-amber-700 text-white p-2 rounded-t-lg flex justify-between items-center flex-wrap gap-y-1">
-                <h2 className="text-xl font-bold">Current Order ({inProgressOrders.length})</h2>
-                {/* Same place and same shape as the Upcoming column's
-                    chips, so the two headers read as one control strip
-                    rather than two different ideas. */}
-                {inProgressOrders.length > 1 && (
-                  <div className="flex flex-wrap gap-1">
-                    <button
-                      className="px-2 py-1 rounded-md text-xs bg-amber-600 hover:bg-amber-800"
-                      onClick={() => setCurrentSort(v => v === 'oldest' ? 'newest' : 'oldest')}
-                      title={currentSort === 'oldest'
-                        ? 'Longest on the bench first — click for newest first'
-                        : 'Newest first — click for longest on the bench first'}
-                    >
-                      {currentSort === 'oldest' ? '↑ Old' : '↓ New'}
-                    </button>
-                    {milkOptions(inProgressOrders, 2).length > 0 && (
-                      <>
-                        <button
-                          className={`px-2 py-1 rounded-md text-xs ${!currentMilkFilter
-                            ? 'bg-white text-amber-700' : 'bg-amber-600 hover:bg-amber-800'}`}
-                          onClick={() => setCurrentMilkFilter('')}
-                        >
-                          All
-                        </button>
-                        {milkOptions(inProgressOrders, 2).map(m => (
-                          <button
-                            key={m.milk}
-                            className={`px-2 py-1 rounded-md text-xs ${currentMilkFilter === m.milk
-                              ? 'bg-white text-amber-700' : 'bg-amber-600 hover:bg-amber-800'}`}
-                            onClick={() => setCurrentMilkFilter(
-                              currentMilkFilter === m.milk ? '' : m.milk)}
-                          >
-                            {/* No count on the chip: the Steam strip
-                                directly below already gives counts and
-                                litres, and the milk names are long enough
-                                that the counts wrapped this header onto a
-                                second row while the other two stayed on
-                                one. */}
-                            {m.milk}
-                          </button>
-                        ))}
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-              <div className="bg-white p-4 rounded-b-lg shadow-md">
-                {(() => {
-                  const jugs = summariseMilk(inProgressOrders);
-                  const shown = sortCurrentOrders(
-                    filterByMilk(inProgressOrders, currentMilkFilter), currentSort);
-                  return (
-                    <>
-                      {/* What to steam, in litres, for everything on the
-                          bench. One trip to the machine instead of four.
-                          Ignores the milk filter on purpose -- you steam
-                          for the whole bench, not for what you filtered. */}
-                      {jugs.length > 0 && (
-                        <div className="mb-3 text-sm bg-amber-50 border border-amber-200 rounded px-2 py-1.5 flex flex-wrap gap-x-3 gap-y-1">
-                          <span className="font-semibold text-amber-900">Steam:</span>
-                          {jugs.map(j => (
-                            <span key={j.milk} className="text-amber-900 whitespace-nowrap">
-                              {j.litres}L {j.milk}
-                              <span className="text-amber-700"> ({j.count})</span>
-                            </span>
-                          ))}
-                        </div>
-                      )}
-
-                      {shown.length > 0 ? (
-                        shown.map(order => renderInProgressOrder(order))
-                      ) : inProgressOrders.length > 0 ? (
-                        <div className="text-center py-6 text-gray-500 text-sm">
-                          <p>Nothing on the bench with {currentMilkFilter} milk</p>
-                          <button className="mt-1 text-amber-700 underline"
-                                  onClick={() => setCurrentMilkFilter('')}>
-                            Show all {inProgressOrders.length}
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="text-center py-8 text-gray-500">
-                          <Coffee size={48} className="mx-auto mb-2 text-gray-400" />
-                          <p>No orders in progress</p>
-                          <p className="text-sm text-gray-400">Start an order from the queue</p>
-                        </div>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
-            </div>
-
-            {settings.boardColumnOrder === 'current-first' && (
-            /* Pending Orders */
-            <PendingOrdersSection
-              orders={pendingOrders}
-              teamMode={teamMode}
-              filter={filter}
-              onFilterChange={setFilter}
-              onStartOrder={startOrderWithLabel}
-              onProcessBatch={processBatch}
-              onSendMessage={handleOpenMessageDialog}
-              onDelayOrder={handleDelayOrder}
-              onEditOrder={handleEditOrder}
-              onMoveOrder={handleOpenMoveDialog}
-              groupInfoByOrderId={groupInfoByOrderId}
-              onStartGroup={handleStartGroup}
-            />
-            )}
-
-            {/* Ready for Pickup — recently-completed orders at this
-                station with a Collected button. Steve wanted this
-                visible on the main Orders tab so the barista doesn't
-                have to switch to the Completed tab to mark orders
-                as collected as customers arrive. Stale orders still
-                live under the full Completed tab.
-
-                Hidden entirely when "Completing an order finishes it"
-                is on: the grid drops to two columns and the barista
-                never taps Collected. The order still shows as ready on
-                the customer display and still ages off there. */}
-            {!settings.skipPickedUp && (
-            <ReadyForPickupColumn
-              completedOrders={completedOrders}
-              stationId={selectedStation}
-              expiryMinutes={settings.readyExpiryMinutes}
-              onMarkPickedUp={markOrderPickedUp}
-              onSendMessage={handleOpenMessageDialog}
-            />
-            )}
-          </div>
           </>
         )}
 
@@ -3106,14 +2325,14 @@ const BaristaInterface = () => {
             {/* This tab now reads the LIVE inventory table -- the same
                 figures the recipes deplete and the low-stock alerts read.
                 No more "tab says 5 L, warning says 0.19 L". */}
-            <div className="mb-4 rounded-lg border-l-4 border-green-500 bg-green-50 px-4 py-3 text-sm text-green-800">
+            <div className="mb-4 rounded-cq-md border-l-4 border-cq-ready bg-cq-ready-wash px-4 py-3 text-sm text-cq-ready">
               <span className="font-semibold">Live station stock.</span> These
               are the real figures orders draw down and the low-stock alert
               watches — edits here take effect immediately, everywhere.
               {(live.criticalCount > 0 || live.lowCount > 0) && (
                 <span className="block mt-1 font-medium">
-                  {live.criticalCount > 0 && <span className="text-red-600 mr-2">Critical: {live.criticalCount}</span>}
-                  {live.lowCount > 0 && <span className="text-amber-700">Low: {live.lowCount}</span>}
+                  {live.criticalCount > 0 && <span className="text-cq-alert mr-2">Critical: {live.criticalCount}</span>}
+                  {live.lowCount > 0 && <span className="text-cq-caramel-deep">Low: {live.lowCount}</span>}
                 </span>
               )}
             </div>
@@ -3123,7 +2342,7 @@ const BaristaInterface = () => {
               {(live.categories.length ? live.categories : ['milk']).map(category => (
                 <button
                   key={category}
-                  className={`px-4 py-2 rounded-full ${liveStockCat === category ? 'bg-green-500 text-white' : 'bg-gray-200'}`}
+                  className={`px-4 py-2 rounded-full ${liveStockCat === category ? 'bg-cq-ready text-white' : 'bg-cq-line'}`}
                   onClick={() => setLiveStockCat(category)}
                 >
                   {category.charAt(0).toUpperCase() + category.slice(1)}
@@ -3133,7 +2352,7 @@ const BaristaInterface = () => {
 
             <h2 className="text-xl font-bold mb-3 flex items-center justify-between">
               <span>{liveStockCat.charAt(0).toUpperCase() + liveStockCat.slice(1)}</span>
-              <button onClick={live.reload} className="text-sm text-gray-400 hover:text-gray-700 font-normal">
+              <button onClick={live.reload} className="text-sm text-cq-ink-3 hover:text-cq-ink-2 font-normal">
                 Refresh
               </button>
             </h2>
@@ -3141,7 +2360,7 @@ const BaristaInterface = () => {
             <div className="space-y-3">
               {live.loading ? (
                 <div className="flex justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-500"></div>
+                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cq-ready"></div>
                 </div>
               ) : (live.byCategory[liveStockCat] || []).length > 0 ? (
                 (live.byCategory[liveStockCat] || []).map(item => {
@@ -3152,17 +2371,17 @@ const BaristaInterface = () => {
                   const scope = item.station_id ? 'this station' : 'event pool';
                   return (
                     <div key={item.id}
-                      className={`bg-white rounded-lg shadow-sm p-4 flex items-center justify-between gap-3 border-l-4 ${
-                        lvl === 'critical' ? 'border-red-500'
-                        : lvl === 'low' ? 'border-amber-400' : 'border-transparent'}`}>
+                      className={`bg-cq-milk rounded-cq-md shadow-sm p-4 flex items-center justify-between gap-3 border-l-4 ${
+                        lvl === 'critical' ? 'border-cq-alert'
+                        : lvl === 'low' ? 'border-cq-caramel' : 'border-transparent'}`}>
                       <div className="min-w-0">
                         <div className="font-semibold capitalize truncate">{item.name}</div>
-                        <div className="text-sm text-gray-500">
+                        <div className="text-sm text-cq-ink-3">
                           {amt}{item.unit ? ` ${item.unit}` : ''} left
                           {cap ? ` of ${cap}` : ''} · min {min}
-                          <span className="ml-2 text-xs uppercase tracking-wide text-gray-400">{scope}</span>
+                          <span className="ml-2 text-xs uppercase tracking-wide text-cq-ink-3">{scope}</span>
                           {lvl !== 'ok' && (
-                            <span className={`ml-2 text-xs font-bold ${lvl === 'critical' ? 'text-red-600' : 'text-amber-700'}`}>
+                            <span className={`ml-2 text-xs font-bold ${lvl === 'critical' ? 'text-cq-alert' : 'text-cq-caramel-deep'}`}>
                               {lvl === 'critical' ? 'CRITICAL' : 'LOW'}
                             </span>
                           )}
@@ -3171,14 +2390,14 @@ const BaristaInterface = () => {
                       <div className="flex items-center gap-2 shrink-0">
                         <input
                           type="number" min="0" defaultValue={amt} key={`${item.id}-${amt}`}
-                          className="w-20 border-2 border-gray-200 rounded-lg px-2 py-1.5 text-right"
+                          className="w-20 border-2 border-cq-line rounded-cq-md px-2 py-1.5 text-right"
                           onKeyDown={(e) => { if (e.key === 'Enter') live.setAmount(item.id, e.target.value); }}
                           onBlur={(e) => { if ((parseFloat(e.target.value) || 0) !== amt) live.setAmount(item.id, e.target.value); }}
                         />
                         {cap > 0 && (
                           <button
                             onClick={() => live.setAmount(item.id, cap)}
-                            className="px-3 py-1.5 rounded-lg bg-green-500 text-white text-sm font-semibold hover:bg-green-600"
+                            className="px-3 py-1.5 rounded-cq-md bg-cq-ready text-white text-sm font-semibold hover:bg-cq-ready"
                             title={`Restock to full (${cap})`}
                           >
                             Full
@@ -3189,17 +2408,17 @@ const BaristaInterface = () => {
                   );
                 })
               ) : (
-                <div className="text-center py-8 text-gray-500 bg-white rounded-lg shadow-sm">
-                  <Package size={48} className="mx-auto mb-2 text-gray-400" />
+                <div className="text-center py-8 text-cq-ink-3 bg-cq-milk rounded-cq-md shadow-sm">
+                  <Package size={48} className="mx-auto mb-2 text-cq-ink-3" />
                   <p>No {liveStockCat} items in inventory</p>
-                  <p className="text-sm text-gray-400">Add stock in Organiser → Event Stock</p>
+                  <p className="text-sm text-cq-ink-3">Add stock in Organiser → Event Stock</p>
                 </div>
               )}
             </div>
 
             {(live.byCategory[liveStockCat] || []).length > 0 && (
               <button
-                className="w-full mt-4 py-3 bg-green-500 text-white rounded-md font-medium hover:bg-green-600"
+                className="w-full mt-4 py-3 bg-cq-ready text-white rounded-md font-medium hover:bg-cq-ready"
                 onClick={() => {
                   const rows = live.byCategory[liveStockCat] || [];
                   if (window.prompt(`Type 'yes' to restock all ${liveStockCat} to full:`) === 'yes') {
@@ -3214,7 +2433,7 @@ const BaristaInterface = () => {
               </button>
             )}
 
-            <p className="text-xs text-gray-400 mt-3">
+            <p className="text-xs text-cq-ink-3 mt-3">
               Structural changes (adding items, capacities, minimums) live in
               Organiser → Event Stock. This tab is for adjusting what's on hand.
             </p>
@@ -3232,24 +2451,22 @@ const BaristaInterface = () => {
         {!loading && activeTab === 'schedule' && (
           <div className="p-4">
             {/* API Not Implemented Notification */}
-            <DismissibleInfoPanel
+            <DismissibleInfoPanel tone="info"
               id="scheduleInfoPanel"
               title="Schedule Management Available in Organiser"
               message="Create and manage schedules in the Organiser interface. Go to Organiser → Schedule to add shifts for today."
-              borderColor="blue"
-              bgColor="blue"
               isDismissed={dismissedPanels.scheduleInfoPanel}
               onDismiss={dismissPanel}
             />
           
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-white rounded-lg shadow-md p-4">
+              <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4">
                 <h2 className="text-xl font-bold mb-4">Today's Schedule</h2>
                 <div className="space-y-2">
                   {scheduleLoading ? (
                     <div className="text-center py-6">
-                      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-amber-600 mx-auto"></div>
-                      <p className="mt-2 text-gray-500">Loading schedule data...</p>
+                      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-cq-caramel mx-auto"></div>
+                      <p className="mt-2 text-cq-ink-3">Loading schedule data...</p>
                     </div>
                   ) : scheduleData.shifts && scheduleData.shifts.length > 0 ? (
                     scheduleData.shifts.map(item => {
@@ -3264,47 +2481,47 @@ const BaristaInterface = () => {
                       return renderScheduleItem(formattedItem, 'shift');
                     })
                   ) : (
-                    <div className="text-center py-6 text-gray-500">
+                    <div className="text-center py-6 text-cq-ink-3">
                       <p>No schedule data available for this station</p>
-                      <p className="text-sm text-gray-400">Create schedules in the Organiser interface</p>
+                      <p className="text-sm text-cq-ink-3">Create schedules in the Organiser interface</p>
                     </div>
                   )}
                 </div>
               </div>
               
-              <div className="bg-white rounded-lg shadow-md p-4">
+              <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4">
                 <h2 className="text-xl font-bold mb-4">Breaks</h2>
                 <div className="space-y-2">
                   {scheduleLoading ? (
                     <div className="text-center py-6">
-                      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-amber-600 mx-auto"></div>
-                      <p className="mt-2 text-gray-500">Loading break data...</p>
+                      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-cq-caramel mx-auto"></div>
+                      <p className="mt-2 text-cq-ink-3">Loading break data...</p>
                     </div>
                   ) : scheduleData.breaks && scheduleData.breaks.length > 0 ? (
                     scheduleData.breaks.map(item => renderScheduleItem(item, 'break'))
                   ) : (
-                    <div className="text-center py-6 text-gray-500">
+                    <div className="text-center py-6 text-cq-ink-3">
                       <p>No break data available</p>
-                      <p className="text-sm text-gray-400">Break scheduling will be added soon</p>
+                      <p className="text-sm text-cq-ink-3">Break scheduling will be added soon</p>
                     </div>
                   )}
                 </div>
               </div>
               
-              <div className="bg-white rounded-lg shadow-md p-4 md:col-span-2">
+              <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4 md:col-span-2">
                 <h2 className="text-xl font-bold mb-4">Predicted Rush Periods</h2>
                 <div className="space-y-2">
                   {scheduleLoading ? (
                     <div className="text-center py-6">
-                      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-amber-600 mx-auto"></div>
-                      <p className="mt-2 text-gray-500">Loading rush period data...</p>
+                      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-cq-caramel mx-auto"></div>
+                      <p className="mt-2 text-cq-ink-3">Loading rush period data...</p>
                     </div>
                   ) : scheduleData.rushPeriods && scheduleData.rushPeriods.length > 0 ? (
                     scheduleData.rushPeriods.map(item => renderScheduleItem(item, 'rush'))
                   ) : (
-                    <div className="text-center py-6 text-gray-500">
+                    <div className="text-center py-6 text-cq-ink-3">
                       <p>No rush period data available</p>
-                      <p className="text-sm text-gray-400">Rush period analytics will be added soon</p>
+                      <p className="text-sm text-cq-ink-3">Rush period analytics will be added soon</p>
                     </div>
                   )}
                 </div>
@@ -3316,17 +2533,17 @@ const BaristaInterface = () => {
         {/* Completed Orders Tab */}
         {!loading && activeTab === 'completed' && (
           <div>
-            <div className="bg-white rounded-lg shadow-md p-4 mb-4">
+            <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4 mb-4">
               <h2 className="text-xl font-bold mb-3">Completed Orders</h2>
               <div className="flex space-x-2 mb-4">
                 <button 
-                  className={`${historyTab === 'completed' ? 'bg-amber-600 text-white' : 'bg-gray-200 hover:bg-gray-300'} px-6 py-2 rounded-full`}
+                  className={`${historyTab === 'completed' ? 'bg-cq-caramel text-white' : 'bg-cq-line hover:bg-cq-line'} px-6 py-2 rounded-full`}
                   onClick={() => setHistoryTab('completed')}
                 >
                   Today
                 </button>
                 <button 
-                  className={`${historyTab === 'yesterday' ? 'bg-amber-600 text-white' : 'bg-gray-200 hover:bg-gray-300'} px-6 py-2 rounded-full`}
+                  className={`${historyTab === 'yesterday' ? 'bg-cq-caramel text-white' : 'bg-cq-line hover:bg-cq-line'} px-6 py-2 rounded-full`}
                   onClick={() => {
                     setHistoryTab('yesterday');
                     fetchYesterdayOrders();
@@ -3335,7 +2552,7 @@ const BaristaInterface = () => {
                   Yesterday
                 </button>
                 <button 
-                  className={`${historyTab === 'thisWeek' ? 'bg-amber-600 text-white' : 'bg-gray-200 hover:bg-gray-300'} px-6 py-2 rounded-full`}
+                  className={`${historyTab === 'thisWeek' ? 'bg-cq-caramel text-white' : 'bg-cq-line hover:bg-cq-line'} px-6 py-2 rounded-full`}
                   onClick={() => {
                     setHistoryTab('thisWeek');
                     fetchThisWeekOrders();
@@ -3344,7 +2561,7 @@ const BaristaInterface = () => {
                   This Week
                 </button>
                 <button 
-                  className={`${historyTab === 'search' ? 'bg-amber-600 text-white' : 'bg-gray-200 hover:bg-gray-300'} px-6 py-2 rounded-full ml-auto`}
+                  className={`${historyTab === 'search' ? 'bg-cq-caramel text-white' : 'bg-cq-line hover:bg-cq-line'} px-6 py-2 rounded-full ml-auto`}
                   onClick={() => setHistoryTab('search')}
                 >
                   Search Orders
@@ -3363,7 +2580,7 @@ const BaristaInterface = () => {
                       className="flex-1 p-2 border rounded-l-md"
                     />
                     <button
-                      className="bg-amber-600 text-white px-4 py-2 rounded-r-md"
+                      className="bg-cq-caramel text-white px-4 py-2 rounded-r-md"
                       onClick={() => searchOrders(searchTerm)}
                     >
                       Search
@@ -3381,7 +2598,7 @@ const BaristaInterface = () => {
                   {completedOrders.length > 0 ? (
                     completedOrders.map(order => renderCompletedOrder(order))
                   ) : (
-                    <div className="text-center py-6 bg-white rounded-lg shadow-sm text-gray-500">
+                    <div className="text-center py-6 bg-cq-milk rounded-cq-md shadow-sm text-cq-ink-3">
                       <p>No orders ready for pickup</p>
                     </div>
                   )}
@@ -3392,7 +2609,7 @@ const BaristaInterface = () => {
                   {previousOrders.length > 0 ? (
                     previousOrders.map(order => renderPreviousOrder(order))
                   ) : (
-                    <div className="text-center py-6 bg-white rounded-lg shadow-sm text-gray-500">
+                    <div className="text-center py-6 bg-cq-milk rounded-cq-md shadow-sm text-cq-ink-3">
                       <p>No previous orders to display</p>
                     </div>
                   )}
@@ -3405,14 +2622,14 @@ const BaristaInterface = () => {
                 <h3 className="text-xl font-bold mb-3 ml-2">Yesterday's Orders</h3>
                 <div className="space-y-2">
                   {loading ? (
-                    <div className="text-center py-6 bg-white rounded-lg shadow-sm">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600 mx-auto mb-2"></div>
-                      <p className="text-gray-500">Loading yesterday's orders...</p>
+                    <div className="text-center py-6 bg-cq-milk rounded-cq-md shadow-sm">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cq-caramel mx-auto mb-2"></div>
+                      <p className="text-cq-ink-3">Loading yesterday's orders...</p>
                     </div>
                   ) : yesterdayOrders.length > 0 ? (
                     yesterdayOrders.map(order => renderPreviousOrder(order))
                   ) : (
-                    <div className="text-center py-6 bg-white rounded-lg shadow-sm text-gray-500">
+                    <div className="text-center py-6 bg-cq-milk rounded-cq-md shadow-sm text-cq-ink-3">
                       <p>No orders from yesterday</p>
                     </div>
                   )}
@@ -3425,14 +2642,14 @@ const BaristaInterface = () => {
                 <h3 className="text-xl font-bold mb-3 ml-2">This Week's Orders</h3>
                 <div className="space-y-2">
                   {loading ? (
-                    <div className="text-center py-6 bg-white rounded-lg shadow-sm">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600 mx-auto mb-2"></div>
-                      <p className="text-gray-500">Loading this week's orders...</p>
+                    <div className="text-center py-6 bg-cq-milk rounded-cq-md shadow-sm">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cq-caramel mx-auto mb-2"></div>
+                      <p className="text-cq-ink-3">Loading this week's orders...</p>
                     </div>
                   ) : thisWeekOrders.length > 0 ? (
                     thisWeekOrders.map(order => renderPreviousOrder(order))
                   ) : (
-                    <div className="text-center py-6 bg-white rounded-lg shadow-sm text-gray-500">
+                    <div className="text-center py-6 bg-cq-milk rounded-cq-md shadow-sm text-cq-ink-3">
                       <p>No orders from this week</p>
                     </div>
                   )}
@@ -3445,20 +2662,20 @@ const BaristaInterface = () => {
                 <h3 className="text-xl font-bold mb-3 ml-2">Search Results</h3>
                 <div className="space-y-2">
                   {loading ? (
-                    <div className="text-center py-6 bg-white rounded-lg shadow-sm">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600 mx-auto mb-2"></div>
-                      <p className="text-gray-500">Searching orders...</p>
+                    <div className="text-center py-6 bg-cq-milk rounded-cq-md shadow-sm">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cq-caramel mx-auto mb-2"></div>
+                      <p className="text-cq-ink-3">Searching orders...</p>
                     </div>
                   ) : searchTerm ? (
                     searchResults.length > 0 ? (
                       searchResults.map(order => renderPreviousOrder(order))
                     ) : (
-                      <div className="text-center py-6 bg-white rounded-lg shadow-sm text-gray-500">
+                      <div className="text-center py-6 bg-cq-milk rounded-cq-md shadow-sm text-cq-ink-3">
                         <p>No orders match your search</p>
                       </div>
                     )
                   ) : (
-                    <div className="text-center py-6 bg-white rounded-lg shadow-sm text-gray-500">
+                    <div className="text-center py-6 bg-cq-milk rounded-cq-md shadow-sm text-cq-ink-3">
                       <p>Enter a search term to find orders</p>
                     </div>
                   )}
@@ -3496,15 +2713,15 @@ const BaristaInterface = () => {
           <div className="p-4 space-y-6">
             <div>
               <h2 className="text-xl font-bold mb-3">Station Capabilities</h2>
-              <p className="text-sm text-gray-600 mb-3">
+              <p className="text-sm text-cq-ink-2 mb-3">
                 What each station can serve. Drives where the SMS bot
                 routes incoming orders.
               </p>
               <StationCapabilitiesEditor />
             </div>
-            <div className="border-t border-gray-200 pt-6">
+            <div className="border-t border-cq-line pt-6">
               <h2 className="text-xl font-bold mb-3">Barista Skill Profiles</h2>
-              <p className="text-sm text-gray-600 mb-3">
+              <p className="text-sm text-cq-ink-2 mb-3">
                 Optional skill-level tracking per barista. Read-only
                 analytics for now.
               </p>
@@ -3527,14 +2744,14 @@ const BaristaInterface = () => {
         {!loading && activeTab === 'settings' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
             {/* Notification Settings — promoted to the top */}
-            <div className="bg-white rounded-lg shadow-md p-4">
+            <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4">
               <h2 className="text-xl font-bold mb-4">Notification Settings</h2>
               <NotificationSettings />
             </div>
             {/* Team mode — stage chips for multiple baristas sharing this
                 station's iPad. Per-device, default OFF: solo baristas
                 never see the extra chips. */}
-            <div className="bg-white rounded-lg shadow-md p-4">
+            <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4">
               <h2 className="text-xl font-bold mb-4">Team Mode</h2>
               <label className="flex items-center space-x-2">
                 <input
@@ -3552,7 +2769,7 @@ const BaristaInterface = () => {
             {/* Order board — how the three columns are arranged and how
                 tightly the cards pack. Per device, because it depends on
                 the screen in front of this barista, not on the event. */}
-            <div className="bg-white rounded-lg shadow-md p-4">
+            <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4">
               <h2 className="text-xl font-bold mb-4">Order board</h2>
               <div className="space-y-4">
                 <div>
@@ -3566,7 +2783,7 @@ const BaristaInterface = () => {
                     <option value="progression-rtl">Ready &larr; Current &larr; Upcoming (right to left)</option>
                     <option value="current-first">Current &rarr; Upcoming &rarr; Ready (original)</option>
                   </select>
-                  <p className="text-sm text-gray-500 mt-1">
+                  <p className="text-sm text-cq-ink-3 mt-1">
                     In the order a coffee actually moves, so your eye follows one
                     order across the screen. Pick the direction that matches your
                     bench &mdash; if the queue is on your right and you hand out on
@@ -3576,13 +2793,13 @@ const BaristaInterface = () => {
                 <label className="flex items-start space-x-2">
                   <input
                     type="checkbox"
-                    className="mt-1"
+                    className="mt-1 h-4 w-4 accent-cq-caramel"
                     checked={!!settings.skipPickedUp}
                     onChange={(e) => setSettings(prev => ({ ...prev, skipPickedUp: e.target.checked }))}
                   />
                   <span>
                     <span className="font-medium">Completing an order finishes it</span>
-                    <span className="block text-sm text-gray-500">
+                    <span className="block text-sm text-cq-ink-3">
                       Hides the Ready for Pickup column so nobody has to tap
                       Collected. The order still shows as ready on the customer
                       display. Use this when someone is calling names out rather
@@ -3616,9 +2833,9 @@ const BaristaInterface = () => {
                           }));
                         }}
                       />
-                      <span className="text-gray-600">minutes</span>
+                      <span className="text-cq-ink-2">minutes</span>
                     </div>
-                    <p className="text-sm text-gray-500 mt-1">
+                    <p className="text-sm text-cq-ink-3 mt-1">
                       Orders with no phone number stay twice as long &mdash; nobody
                       texted them, so the card is the only reminder to call the name.
                     </p>
@@ -3627,13 +2844,13 @@ const BaristaInterface = () => {
                 <label className="flex items-start space-x-2">
                   <input
                     type="checkbox"
-                    className="mt-1"
+                    className="mt-1 h-4 w-4 accent-cq-caramel"
                     checked={!!settings.compactOrders}
                     onChange={(e) => setSettings(prev => ({ ...prev, compactOrders: e.target.checked }))}
                   />
                   <span>
                     <span className="font-medium">Compact cards</span>
-                    <span className="block text-sm text-gray-500">
+                    <span className="block text-sm text-cq-ink-3">
                       Fits about a third more orders on screen. Turn this on when
                       you are making 8&ndash;10 at once or working on a smaller
                       screen. Order numbers, names and buttons stay full size.
@@ -3645,14 +2862,14 @@ const BaristaInterface = () => {
             {/* Label Printing — per-device auto-print toggle. Deliberately
                 OFF by default: the operator opts each station's tablet in
                 once the printer is confirmed working. */}
-            <div className="bg-white rounded-lg shadow-md p-4">
+            <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4">
               <h2 className="text-xl font-bold mb-4">Label Printing</h2>
               {stationPrinter ? (
                 <div className="space-y-3">
-                  <div className="text-sm text-gray-600 flex items-center">
+                  <div className="text-sm text-cq-ink-2 flex items-center">
                     <Printer size={16} className="mr-2" />
                     {stationPrinter.name || 'Label printer'} —{' '}
-                    <span className={stationPrinter.online ? 'text-green-600 font-medium ml-1' : 'text-red-600 font-medium ml-1'}>
+                    <span className={stationPrinter.online ? 'text-cq-ready font-medium ml-1' : 'text-cq-alert font-medium ml-1'}>
                       {stationPrinter.online ? 'online' : 'offline'}
                     </span>
                   </div>
@@ -3672,7 +2889,7 @@ const BaristaInterface = () => {
                     stationPrinter={stationPrinter}
                   />
                   <button
-                    className="bg-gray-200 text-gray-700 px-3 py-1.5 rounded text-sm hover:bg-gray-300"
+                    className="bg-cq-line text-cq-ink-2 px-3 py-1.5 rounded text-sm hover:bg-cq-line"
                     onClick={async () => {
                       const r = await printService.testPrint(stationPrinter.id);
                       showToast(r?.success ? 'Test label queued' : `Test failed: ${r?.message || 'unknown'}`,
@@ -3693,7 +2910,7 @@ const BaristaInterface = () => {
                       maxLength={60}
                     />
                     <button
-                      className="bg-gray-700 text-white px-3 py-1.5 rounded text-sm hover:bg-gray-800"
+                      className="bg-cq-roast text-white px-3 py-1.5 rounded text-sm hover:bg-cq-roast"
                       onClick={async () => {
                         const el = document.getElementById('bannerTextInput');
                         const text = (el?.value || '').trim();
@@ -3726,7 +2943,7 @@ const BaristaInterface = () => {
                       service — which is why it asks for a count rather
                       than printing one at a time. */}
                   <div className="pt-2 border-t mt-2">
-                    <div className="text-sm text-gray-600 mb-1.5">
+                    <div className="text-sm text-cq-ink-2 mb-1.5">
                       Pre-stickered cups &mdash; branded stickers for plain cups
                     </div>
                     <div className="flex gap-2 items-center">
@@ -3745,7 +2962,7 @@ const BaristaInterface = () => {
                           the Support printer tab already uses. */}
                       <button
                         type="button"
-                        className="text-sm text-blue-700 underline"
+                        className="text-sm text-cq-caramel-deep underline"
                         onClick={async () => {
                           try {
                             const resp = await fetch('/api/print/preview?sticker=1', {
@@ -3767,7 +2984,7 @@ const BaristaInterface = () => {
                         See one first
                       </button>
                       <button
-                        className="bg-gray-700 text-white px-3 py-1.5 rounded text-sm hover:bg-gray-800 ml-auto"
+                        className="bg-cq-roast text-white px-3 py-1.5 rounded text-sm hover:bg-cq-roast ml-auto"
                         onClick={async () => {
                           const el = document.getElementById('stickerCountInput');
                           const count = parseInt(el?.value, 10);
@@ -3804,14 +3021,14 @@ const BaristaInterface = () => {
                   </div>
                 </div>
               ) : (
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-cq-ink-3">
                   No label printer is assigned to this station. Printers are set
                   up in Support → Printers (they appear there automatically the
                   first time they connect).
                 </p>
               )}
             </div>
-            <div className="bg-white rounded-lg shadow-md p-4">
+            <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4">
               <h2 className="text-xl font-bold mb-4">Auto-Refresh Settings</h2>
               <div className="space-y-4">
                 <div>
@@ -3819,15 +3036,14 @@ const BaristaInterface = () => {
                     <input 
                       type="checkbox" 
                       checked={autoRefreshEnabled}
-                      onChange={toggleAutoRefresh}
-                    />
+                      onChange={toggleAutoRefresh} className="h-4 w-4 accent-cq-caramel" />
                     <span>Enable automatic refreshing of order data</span>
                   </label>
                 </div>
                 
                 {autoRefreshEnabled && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                       Refresh interval (seconds)
                     </label>
                     {/* Draft state, not the live value.
@@ -3862,7 +3078,7 @@ const BaristaInterface = () => {
                         }}
                         className="w-20 p-2 border rounded mr-2"
                       />
-                      <span className="text-sm text-gray-500">
+                      <span className="text-sm text-cq-ink-3">
                         {autoRefreshInterval <= 5 ? '(fast — good during service)' : ''}
                       </span>
                     </div>
@@ -3871,7 +3087,7 @@ const BaristaInterface = () => {
                 
                 <div className="mt-4">
                   <button 
-                    className="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700 flex items-center"
+                    className="px-4 py-2 bg-cq-caramel text-white rounded hover:bg-cq-caramel-deep flex items-center"
                     onClick={() => {
                       // Make sure we preserve the current station when refreshing
                       const currentStation = stations.find(s => s.id === selectedStation);
@@ -3892,11 +3108,11 @@ const BaristaInterface = () => {
               </div>
             </div>
             
-            <div className="bg-white rounded-lg shadow-md p-4">
+            <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4">
               <h2 className="text-xl font-bold mb-4">Station Settings</h2>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                     Station Name
                   </label>
                   <input 
@@ -3908,7 +3124,7 @@ const BaristaInterface = () => {
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                     Station Location
                   </label>
                   <input 
@@ -3921,17 +3137,11 @@ const BaristaInterface = () => {
                 </div>
                 
                 <button
-                  className="mt-4 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 flex items-center"
+                  className="mt-4 px-4 py-2 bg-cq-ready text-white rounded hover:bg-cq-ready flex items-center"
                   onClick={async () => {
-                    // Cache locally so the fields survive a reload even if
-                    // the network is down. This is a CACHE, not the save --
-                    // it used to be treated as one, which is why a location
-                    // typed here vanished on another device.
-                    try {
-                      localStorage.setItem(`coffee_station_name_${selectedStation}`, settings.stationName);
-                      localStorage.setItem(`coffee_station_location_${selectedStation}`, settings.stationLocation);
-                      localStorage.setItem(`coffee_station_barista_${selectedStation}`, settings.baristaName);
-                    } catch (e) { /* private mode: the server save below still counts */ }
+                    // No local copy of these: the station record on the
+                    // server is the only place a station's name, location
+                    // and barista live, so every device agrees.
 
                     // The signature is updateStation(stationId, data).
                     // This call passed ONE object with the id inside it, so
@@ -3970,7 +3180,7 @@ const BaristaInterface = () => {
                 </button>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                     Barista Name
                   </label>
                   <input 
@@ -3980,15 +3190,7 @@ const BaristaInterface = () => {
                       const newBaristaName = e.target.value;
                       // Update settings state
                       setSettings(prev => ({...prev, baristaName: newBaristaName}));
-                      // Save to localStorage for persistence with station-specific key
-                      try {
-                        const numericStationId = typeof selectedStation === 'string' 
-                          ? parseInt(selectedStation, 10) 
-                          : selectedStation;
-                        localStorage.setItem(`coffee_barista_name_station_${numericStationId}`, newBaristaName);
-                      } catch (error) {
-                        console.error('Failed to save station-specific barista name to localStorage:', error);
-                      }
+                      // Saved to the station record by "Save Station Settings".
                     }}
                     className="w-full p-2 border rounded"
                   />
@@ -4076,27 +3278,11 @@ const BaristaInterface = () => {
               </div>
             </div>
             
-            <div className="bg-white rounded-lg shadow-md p-4">
+            <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4">
               <h2 className="text-xl font-bold mb-4">System Information</h2>
-              <div className="text-sm text-gray-600 space-y-2">
+              <div className="text-sm text-cq-ink-2 space-y-2">
                 <div>Version: 1.2.0</div>
-                <div>Station: {
-                  (() => {
-                    // Try to get custom name from localStorage first
-                    if (selectedStation) {
-                      try {
-                        const customName = localStorage.getItem(`coffee_station_name_${selectedStation}`);
-                        if (customName) {
-                          return customName;
-                        }
-                      } catch (e) {
-                        console.error('Error getting custom station name for system info:', e);
-                      }
-                    }
-                    // Fall back to station from list
-                    return stations.find(s => s.id === selectedStation)?.name || 'Unknown';
-                  })()
-                }</div>
+                <div>Station: {stations.find(s => s.id === selectedStation)?.name || 'Unknown'}</div>
                 <div>Last Sync: {new Date().toLocaleString()}</div>
                 <div>API Status: {online ? 'Connected' : 'Offline'}</div>
                 <div>App Mode: {isDemoMode ? 'Demo' : 'Production'}</div>
@@ -4105,90 +3291,16 @@ const BaristaInterface = () => {
               {/* Restore dismissed info panels (folded in from its own
                   near-empty card; gives honest toast feedback now). */}
               <button
-                className="mt-3 text-sm text-blue-600 hover:text-blue-800 underline"
+                className="mt-3 text-sm text-cq-caramel-deep hover:text-cq-caramel-deep underline"
                 onClick={restoreAllPanels}
               >
                 Restore dismissed info panels
               </button>
 
-              <div className="mt-4 flex justify-between">
-                {/* Demo mode switches the whole station to FAKE data —
-                    a barista hitting it mid-service would lose the live
-                    queue. Manager-only. */}
-                {isManager && (
-                  <button
-                    className="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700"
-                    onClick={toggleAppMode}
-                  >
-                    Toggle Demo Mode
-                  </button>
-                )}
-                <button 
-                  className="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700"
-                  onClick={() => {
-                    // Save barista name to localStorage with station-specific key
-                    try {
-                      const numericStationId = typeof selectedStation === 'string' 
-                        ? parseInt(selectedStation, 10) 
-                        : selectedStation;
-                      localStorage.setItem(`coffee_barista_name_station_${numericStationId}`, settings.baristaName);
-                    } catch (error) {
-                      console.error('Failed to save station-specific barista name to localStorage:', error);
-                    }
-                    
-                    // Always save station name to localStorage for resilience
-                    if (selectedStation && settings.stationName) {
-                      try {
-                        // Save custom station name in localStorage keyed by station id
-                        localStorage.setItem(`coffee_station_name_${selectedStation}`, settings.stationName);
-                        console.log(`Saved custom station name to localStorage: ${settings.stationName}`);
-                      } catch (e) {
-                        console.error('Error saving custom station name to localStorage:', e);
-                      }
-
-                      // Also update the station in the stations array in localStorage
-                      try {
-                        const savedStations = localStorage.getItem('coffee_cue_stations');
-                        if (savedStations) {
-                          const stations = JSON.parse(savedStations);
-                          const updatedStations = stations.map(station => 
-                            station.id === selectedStation 
-                              ? { ...station, name: settings.stationName, location: settings.stationLocation }
-                              : station
-                          );
-                          localStorage.setItem('coffee_cue_stations', JSON.stringify(updatedStations));
-                          console.log('Updated station name in cached stations');
-                        }
-                      } catch (cacheError) {
-                        console.error('Error updating station name in cached stations:', cacheError);
-                      }
-                      
-                      // Update station name and location using the updateStation function from useStations hook
-                      updateStation(selectedStation, {
-                        name: settings.stationName,
-                        location: settings.stationLocation
-                      }).then(success => {
-                        if (success) {
-                          // Refresh station data to ensure changes are reflected immediately
-                          refreshStations().then(() => {
-                            showToast('Settings updated successfully!', 'success');
-                          });
-                        } else {
-                          showToast('Server update FAILED — change saved on this device only.', 'error', 6000);
-                        }
-                      }).catch(error => {
-                        console.error('Error updating station:', error);
-                        // Still consider it a success since we saved to localStorage
-                        showToast('Server connection error — change saved on this device only: ' + (error.message || 'Unknown error'), 'error', 6000);
-                      });
-                    } else {
-                      showToast('Settings updated successfully!', 'success');
-                    }
-                  }}
-                >
-                  Save Settings
-                </button>
-              </div>
+              {/* The duplicate "Save Settings" button that lived here
+                  (a second, slightly different station save that also
+                  wrote per-device caches) is gone: "Save Station
+                  Settings" above is the one save. */}
             </div>
           </div>
         )}
@@ -4201,7 +3313,7 @@ const BaristaInterface = () => {
                 IS connected to real orders now (rewritten May 2026).
                 Steve flagged the stale popup as confusing — leaving it
                 only on a non-dismissible info panel below. */}
-            <div className="mb-4 rounded-lg p-3 bg-green-50 border-l-4 border-green-500 text-sm text-green-900">
+            <div className="mb-4 rounded-cq-md p-3 bg-cq-ready-wash border-l-4 border-cq-ready text-sm text-cq-ready">
               The display screen shows <strong>live order data</strong>.
               Open it on a tablet or external monitor; portrait /
               landscape now flips automatically based on viewport.
@@ -4210,9 +3322,9 @@ const BaristaInterface = () => {
             {/* Screen links — every display URL findable in one place,
                 copyable, QR-scannable to another device, with short
                 paths a human can type into a TV browser (Steve's ask). */}
-            <div className="bg-white rounded-lg shadow-md p-4 mb-4">
+            <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4 mb-4">
               <h2 className="text-xl font-bold mb-1">Screen links</h2>
-              <p className="text-sm text-gray-600 mb-3">
+              <p className="text-sm text-cq-ink-2 mb-3">
                 Open these on any TV, tablet or phone — <b>no login needed</b>. Short paths are
                 easy to type into a TV browser; Copy puts the full link on the clipboard;
                 QR lets another device scan it straight off this screen.
@@ -4228,7 +3340,7 @@ const BaristaInterface = () => {
                 return (
                   <>
                     <div className="flex items-center gap-2 mb-2">
-                      <label className="text-sm font-medium text-gray-700">Links for:</label>
+                      <label className="text-sm font-medium text-cq-ink-2">Links for:</label>
                       <select
                         value={chosen}
                         onChange={(e) => setLinkStation(e.target.value)}
@@ -4253,11 +3365,11 @@ const BaristaInterface = () => {
                         const shortPath = v.key === 'sponsors' ? '/sponsors' : `/${v.key}${chosen}`;
                         const url = `${window.location.origin}${shortPath}`;
                         return (
-                          <div key={v.key} className="flex items-center gap-2 bg-gray-50 rounded px-2 py-1">
-                            <span className="text-xs text-gray-500">{v.label}</span>
+                          <div key={v.key} className="flex items-center gap-2 bg-cq-wash rounded px-2 py-1">
+                            <span className="text-xs text-cq-ink-3">{v.label}</span>
                             <code className="text-sm font-bold">{shortPath}</code>
                             <button
-                              className="text-blue-600 text-xs underline"
+                              className="text-cq-caramel-deep text-xs underline"
                               onClick={() => {
                                 try {
                                   navigator.clipboard.writeText(url);
@@ -4270,13 +3382,13 @@ const BaristaInterface = () => {
                               Copy
                             </button>
                             <button
-                              className="text-blue-600 text-xs underline"
+                              className="text-cq-caramel-deep text-xs underline"
                               onClick={() => setScreenLinkQr({ url, label: `${chosenName} — ${v.label}` })}
                             >
                               QR
                             </button>
                             <button
-                              className="text-blue-600 text-xs underline"
+                              className="text-cq-caramel-deep text-xs underline"
                               onClick={() => setScreenLinkPreview({ url, label: `${chosenName} — ${v.label}` })}
                             >
                               Preview
@@ -4295,17 +3407,17 @@ const BaristaInterface = () => {
             {screenLinkPreview && (
               <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
                    onClick={() => setScreenLinkPreview(null)}>
-                <div className="bg-white rounded-xl p-4 shadow-xl w-full max-w-3xl"
+                <div className="bg-cq-milk rounded-cq-lg p-4 shadow-cq-raised w-full max-w-3xl"
                      onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center justify-between mb-2">
                     <div className="font-bold">{screenLinkPreview.label}</div>
-                    <button className="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300 text-sm"
+                    <button className="px-3 py-1 bg-cq-line rounded hover:bg-cq-line text-sm"
                             onClick={() => setScreenLinkPreview(null)}>
                       Close
                     </button>
                   </div>
                   <ScaledDisplayPreview url={screenLinkPreview.url} />
-                  <div className="mt-2 text-sm text-gray-600 break-all">{screenLinkPreview.url}</div>
+                  <div className="mt-2 text-sm text-cq-ink-2 break-all">{screenLinkPreview.url}</div>
                 </div>
               </div>
             )}
@@ -4316,7 +3428,7 @@ const BaristaInterface = () => {
             {screenLinkQr && (
               <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
                    onClick={() => setScreenLinkQr(null)}>
-                <div className="bg-white rounded-xl p-6 text-center shadow-xl"
+                <div className="bg-cq-milk rounded-cq-lg p-6 text-center shadow-cq-raised"
                      onClick={(e) => e.stopPropagation()}>
                   <div className="font-bold mb-3">{screenLinkQr.label}</div>
                   <img
@@ -4325,9 +3437,9 @@ const BaristaInterface = () => {
                     height={220}
                     src={`/api/qr?size=8&data=${encodeURIComponent(screenLinkQr.url)}`}
                   />
-                  <div className="mt-3 text-sm text-gray-600 break-all max-w-[260px]">{screenLinkQr.url}</div>
+                  <div className="mt-3 text-sm text-cq-ink-2 break-all max-w-[260px]">{screenLinkQr.url}</div>
                   <button
-                    className="mt-4 px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
+                    className="mt-4 px-4 py-2 bg-cq-line rounded hover:bg-cq-line"
                     onClick={() => setScreenLinkQr(null)}
                   >
                     Close
@@ -4336,7 +3448,7 @@ const BaristaInterface = () => {
               </div>
             )}
 
-            <div className="bg-white rounded-lg shadow-md p-4 mb-4">
+            <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4 mb-4">
               <h2 className="text-xl font-bold mb-4">Display Screen Settings</h2>
               <p className="mb-4">Control what appears on the customer-facing display screen.</p>
 
@@ -4345,7 +3457,7 @@ const BaristaInterface = () => {
                   Tab", and a link further down) all doing the same thing. */}
               <div className="flex space-x-4 mb-4">
                 <button
-                  className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                  className="px-4 py-2 bg-cq-caramel text-white rounded hover:bg-cq-roast"
                   onClick={openDisplayScreen}
                 >
                   Open customer Display (new tab)
@@ -4354,7 +3466,7 @@ const BaristaInterface = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                     Display Header
                   </label>
                   <input
@@ -4366,7 +3478,7 @@ const BaristaInterface = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                     Custom Message
                   </label>
                   {/* Was a dead input — no value, no onChange, saved
@@ -4398,160 +3510,115 @@ const BaristaInterface = () => {
               </div>
             </div>
             
-            <div className="bg-white rounded-lg shadow-md p-4 mb-4">
-              <h2 className="text-xl font-bold mb-4">Display Configuration</h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Layout
-                  </label>
-                  <select
-                    value={settings.displayMode}
-                    onChange={(e) => setSettings(prev => ({...prev, displayMode: e.target.value}))}
-                    className="w-full p-2 border rounded"
-                  >
-                    <option value="auto">Auto — match screen shape</option>
-                    <option value="landscape">Landscape (16:9) — 3 columns side-by-side</option>
-                    <option value="portrait">Portrait (9:16) — stacked, Ready on top</option>
-                    <option value="portrait-columns">Portrait (9:16) — side by side (Ready | Brewing)</option>
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">
-                    How the customer Display arranges the board. <strong>Landscape</strong> =
-                    columns across a wide screen. <strong>Portrait — stacked</strong> = Ready
-                    above Brewing on a tall screen. <strong>Portrait — side by side</strong> =
-                    Ready and Brewing as two columns across the top of a tall screen, freeing
-                    the lower half for the background image/video (great on a big vertical LCD).
-                    "Auto" picks stacked or landscape from the screen's shape.
-                  </p>
-                </div>
+            {/* Display Configuration, rebuilt on the settings vocabulary
+                (design/Settings.js). Steve, holding this page next to the
+                Station Admin sheet: "simple clean, branded UI vs cluttered
+                complicated, non branded UI." It was six raw <select>s, each
+                with a paragraph of grey text under it. Same settings, same
+                behaviour, one row each. The explanations that earned their
+                place moved to the bottom of the group; the rest were saying
+                what the control already says. */}
+            <SettingGroup title="The customer display">
+              <SettingRow Icon={Monitor} label="Layout"
+                          hint="How the board is arranged on screen">
+                <SelectRow
+                  ariaLabel="Layout"
+                  value={settings.displayMode}
+                  onChange={(v) => setSettings(prev => ({ ...prev, displayMode: v }))}
+                  options={[
+                    { value: 'auto', label: 'Auto — match screen shape' },
+                    { value: 'landscape', label: 'Landscape — 3 columns' },
+                    { value: 'portrait', label: 'Portrait — stacked' },
+                    { value: 'portrait-columns', label: 'Portrait — side by side' },
+                  ]}
+                />
+              </SettingRow>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Rotate output
-                  </label>
-                  <select
-                    value={settings.displayRotation ?? 0}
-                    onChange={(e) => setSettings(prev => ({...prev, displayRotation: parseInt(e.target.value, 10)}))}
-                    className="w-full p-2 border rounded"
-                  >
-                    <option value={0}>None (recommended)</option>
-                    <option value={90}>90° clockwise</option>
-                    <option value={180}>180°</option>
-                    <option value={270}>270° (90° counter-clockwise)</option>
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">
-                    For a TV mounted sideways when the OS / display can't rotate the image
-                    itself. Prefer OS-level rotation (Mac System Settings → Displays, Windows
-                    → Display orientation, iPad Control Center) when possible — it's sharper.
-                    Use this as an escape hatch.
-                  </p>
-                </div>
+              <SettingRow Icon={RotateCw} label="Rotate output"
+                          hint="Only for a TV mounted sideways">
+                <Segmented
+                  size="sm"
+                  value={settings.displayRotation ?? 0}
+                  onChange={(v) => setSettings(prev => ({ ...prev, displayRotation: parseInt(v, 10) }))}
+                  options={[
+                    { value: 0, label: 'None' }, { value: 90, label: '90°' },
+                    { value: 180, label: '180°' }, { value: 270, label: '270°' },
+                  ]}
+                />
+              </SettingRow>
 
-                {/* Board overflow controls — how the Display handles more
-                    orders than fit on screen (Steve's ask). */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      When orders overflow
-                    </label>
-                    <select
-                      value={settings.displayOverflowMode || 'flip'}
-                      onChange={(e) => setSettings(prev => ({...prev, displayOverflowMode: e.target.value}))}
-                      className="w-full p-2 border rounded"
-                    >
-                      <option value="flip">Page flip (with countdown)</option>
-                      <option value="scroll">Continuous scroll loop</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Seconds per page
-                    </label>
-                    <select
-                      value={settings.displayFlipSeconds ?? 10}
-                      onChange={(e) => setSettings(prev => ({...prev, displayFlipSeconds: parseInt(e.target.value, 10)}))}
-                      className="w-full p-2 border rounded"
-                      disabled={(settings.displayOverflowMode || 'flip') !== 'flip'}
-                    >
-                      <option value={5}>5 seconds</option>
-                      <option value={8}>8 seconds</option>
-                      <option value={10}>10 seconds</option>
-                      <option value={15}>15 seconds</option>
-                      <option value={20}>20 seconds</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Orders per page
-                    </label>
-                    <select
-                      value={settings.displayCardsPerPage ?? 0}
-                      onChange={(e) => setSettings(prev => ({...prev, displayCardsPerPage: parseInt(e.target.value, 10)}))}
-                      className="w-full p-2 border rounded"
-                    >
-                      <option value={0}>Auto — fit to screen</option>
-                      {[3, 4, 5, 6, 7, 8].map(n => (
-                        <option key={n} value={n}>{n}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <p className="text-xs text-gray-500 -mt-2">
-                  Choosing more orders per page than naturally fit scales the cards down
-                  (3 minimum, 8 maximum). Auto measures the screen and never cuts cards off.
-                </p>
+              <SettingRow Icon={Layers} label="When orders overflow"
+                          hint="More orders than fit on the screen">
+                <Segmented
+                  size="sm"
+                  value={settings.displayOverflowMode || 'flip'}
+                  onChange={(v) => setSettings(prev => ({ ...prev, displayOverflowMode: v }))}
+                  options={[{ value: 'flip', label: 'Page flip' }, { value: 'scroll', label: 'Scroll' }]}
+                />
+              </SettingRow>
 
-                <div className="flex items-start">
-                  <input
-                    type="checkbox"
-                    id="displayTouchOrdering"
-                    checked={settings.displayTouchOrdering !== false}
-                    onChange={(e) => setSettings(prev => ({...prev, displayTouchOrdering: e.target.checked}))}
-                    className="mr-2 mt-1"
+              {(settings.displayOverflowMode || 'flip') === 'flip' ? (
+                <SettingRow Icon={Clock} label="Seconds per page"
+                            hint="How long each page stays up">
+                  <Segmented
+                    size="sm"
+                    value={settings.displayFlipSeconds ?? 10}
+                    onChange={(v) => setSettings(prev => ({ ...prev, displayFlipSeconds: parseInt(v, 10) }))}
+                    options={[5, 8, 10, 15, 20]}
                   />
-                  <label htmlFor="displayTouchOrdering" className="text-sm font-medium text-gray-700">
-                    This display is a touchscreen — customers can tap to order
-                    <span className="block text-xs text-gray-500 font-normal">
-                      Ticked: the display shows a "👆 Order here" tap-to-order button.
-                      Unticked (wall TV nobody can reach): SMS becomes the main call to
-                      action — "Order by SMS … we'll text you when it's ready".
-                    </span>
-                  </label>
-                </div>
+                </SettingRow>
+              ) : null}
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Display Timeout (minutes)
-                  </label>
-                  <input 
-                    type="number" 
-                    min="1" 
-                    max="60"
-                    value={settings.displayTimeout}
-                    onChange={(e) => setSettings(prev => ({...prev, displayTimeout: parseInt(e.target.value)}))}
-                    className="w-full p-2 border rounded"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">How long to show completed orders before removing them</p>
-                </div>
-                
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="showNameOnDisplay"
-                    checked={settings.showNameOnDisplay}
-                    onChange={(e) => setSettings(prev => ({...prev, showNameOnDisplay: e.target.checked}))}
-                    className="mr-2"
-                  />
-                  <label htmlFor="showNameOnDisplay" className="text-sm font-medium text-gray-700">
-                    Show customer names on display (uncheck for privacy)
-                  </label>
-                </div>
-              </div>
-            </div>
+              <SettingRow Icon={Grid} label="Orders per page"
+                          hint="Auto measures the screen and never cuts a card off">
+                <SelectRow
+                  ariaLabel="Orders per page"
+                  value={settings.displayCardsPerPage ?? 0}
+                  onChange={(v) => setSettings(prev => ({ ...prev, displayCardsPerPage: parseInt(v, 10) }))}
+                  options={[{ value: 0, label: 'Auto — fit to screen' },
+                            ...[3, 4, 5, 6, 7, 8].map(n => ({ value: n, label: String(n) }))]}
+                />
+              </SettingRow>
+
+              <SettingRow Icon={Hand} label="Customers can tap to order"
+                          hint="Off for a wall TV nobody can reach">
+                <CqToggle
+                  on={settings.displayTouchOrdering !== false}
+                  onChange={(v) => setSettings(prev => ({ ...prev, displayTouchOrdering: v }))}
+                />
+              </SettingRow>
+
+              <SettingRow Icon={Eye} label="Show customer names"
+                          hint="Turn off for privacy — numbers only">
+                <CqToggle
+                  on={!!settings.showNameOnDisplay}
+                  onChange={(v) => setSettings(prev => ({ ...prev, showNameOnDisplay: v }))}
+                />
+              </SettingRow>
+
+              <SettingRow Icon={Timer} label="Keep finished orders up for"
+                          hint="Then they leave the board">
+                <Segmented
+                  size="sm"
+                  value={settings.displayTimeout}
+                  onChange={(v) => setSettings(prev => ({ ...prev, displayTimeout: parseInt(v, 10) }))}
+                  options={[{ value: 2, label: '2 min' }, { value: 5, label: '5 min' },
+                            { value: 10, label: '10 min' }, { value: 20, label: '20 min' }]}
+                />
+              </SettingRow>
+            </SettingGroup>
+
+            <SettingNote>
+              Rotating here is a last resort — the OS does it more sharply
+              (Mac System Settings → Displays, Windows → Display orientation,
+              iPad Control Centre). Asking for more orders per page than fit
+              scales the cards down, three minimum and eight maximum.
+            </SettingNote>
+
             
-            <div className="bg-white rounded-lg shadow-md p-4">
+            <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4">
               <h2 className="text-xl font-bold mb-1">Preview — live 16:9</h2>
-              <p className="text-sm text-gray-600 mb-3">
+              <p className="text-sm text-cq-ink-2 mb-3">
                 This is the REAL customer display, scaled down — exactly what the
                 external screen shows, live orders, page flips and all. (The old
                 preview was a hand-drawn mock that looked nothing like the screen.)
@@ -4562,137 +3629,16 @@ const BaristaInterface = () => {
         )}
       </div>
 
-      {/* Action Bar. On mobile it sits just above the fixed bottom tab bar
-          (bottom-14 = 56px) and its buttons wrap instead of overflowing. */}
-      <div className="sticky bottom-14 md:bottom-0 bg-white p-3 shadow-lg flex flex-wrap gap-2 justify-between border-t border-gray-200">
-        <div className="flex flex-wrap gap-2">
-          <button 
-            className="px-4 py-2 bg-gray-200 rounded flex items-center hover:bg-gray-300 transition-colors"
-            onClick={() => setShowWalkInDialog(true)}
-          >
-            <Plus size={18} className="mr-1" /> Add Walk-in Order
-          </button>
-          {/* Label roll warning. Only shown when it matters -- a gauge
-              sitting at "ok" all day is noise, and noise is what makes a
-              barista stop reading the top of the screen. */}
-          {labelRoll && (labelRoll.level === 'low' || labelRoll.level === 'critical'
-                         || labelRoll.level === 'empty') && (
-            <div className={`w-full mb-2 px-3 py-2 rounded flex items-center justify-between text-sm ${
-              labelRoll.level === 'low'
-                ? 'bg-amber-50 border border-amber-300 text-amber-900'
-                : 'bg-red-50 border border-red-300 text-red-900'}`}>
-              <span className="flex items-center">
-                <Printer size={16} className="mr-2" />
-                {labelRoll.message}
-              </span>
-              <button
-                className="px-3 py-1 rounded bg-white border border-current text-xs font-semibold hover:bg-gray-50"
-                onClick={async () => {
-                  try {
-                    await printService.updateRoll(stationPrinter.id, { reset: true });
-                    showToast('New roll recorded', 'success');
-                  } catch (e) {
-                    showToast('Could not record the new roll', 'error');
-                  } finally { refreshRoll(); }
-                }}
-                title="I have just fitted a new roll - start counting again"
-              >
-                Fitted a new roll
-              </button>
-            </div>
-          )}
-
-          {/* Make ahead: hold the texts, then print the batch -- in that
-              order, because printing first leaves a window where a fast
-              barista completes one and the customer is pulled out of a
-              session for a coffee that is sitting on a table.
-
-              Both halves existed already (Hold notifications, Print
-              queue) but nothing said they went together, so using them
-              meant remembering two buttons AND the order. Steve asked for
-              "print without notification (for orders being bulk made
-              before a break)" -- this is that, as one tap. */}
-          {stationPrinter && pendingOrders.length > 0 && !holdState?.holding && (
-            <button
-              className="px-4 py-2 bg-amber-100 text-amber-900 rounded flex items-center hover:bg-amber-200 transition-colors disabled:opacity-50"
-              disabled={printingQueue || holdBusy}
-              onClick={async () => {
-                setPrintingQueue(true);
-                setHoldBusy(true);
-                try {
-                  const api = new (await import('../../services/ApiService')).default();
-                  await api.put('/notifications/hold', { holding: true });
-                  const r = await printService.printQueue(selectedStation);
-                  const n = r?.queued || 0;
-                  showToast(
-                    n > 0
-                      ? `Texts held, ${n} label${n === 1 ? '' : 's'} printing. Release when the break starts.`
-                      : 'Texts held. Nothing new to print.',
-                    n > 0 ? 'success' : 'info');
-                } catch (e) {
-                  showToast('Could not start make-ahead', 'error');
-                } finally {
-                  setPrintingQueue(false);
-                  setHoldBusy(false);
-                  refreshHold();
-                }
-              }}
-              title="Hold the ready texts, then print every waiting label — for making a batch before a break"
-            >
-              <Printer size={18} className="mr-1" />
-              Make ahead ({pendingOrders.length})
-            </button>
-          )}
-
-          {/* Print the whole queue. Only offered when this station has a
-              printer and there is something waiting -- a button that does
-              nothing is worse than no button. Steve, watching his own
-              video: "they were hitting print and pulling sticker out,
-              print and sticker". */}
-          {stationPrinter && pendingOrders.length > 0 && (
-            <button
-              className="px-4 py-2 bg-gray-200 rounded flex items-center hover:bg-gray-300 transition-colors disabled:opacity-60"
-              disabled={printingQueue}
-              onClick={async () => {
-                setPrintingQueue(true);
-                try {
-                  const r = await printService.printQueue(selectedStation);
-                  if (!r?.success) {
-                    showToast(r?.message || 'Could not print the queue', 'error');
-                  } else if (r.queued > 0) {
-                    showToast(
-                      `Printing ${r.queued} label${r.queued === 1 ? '' : 's'}` +
-                      (r.already_printed ? ` (${r.already_printed} already done)` : '') +
-                      (r.truncated ? ' - press again for the rest' : ''),
-                      'success');
-                  } else if (r.already_printed > 0) {
-                    showToast('Every waiting order already has a label', 'info');
-                  } else {
-                    showToast(r.message || 'Nothing to print', 'info');
-                  }
-                } catch (e) {
-                  showToast('Could not print the queue', 'error');
-                } finally { setPrintingQueue(false); }
-              }}
-              title="Print a label for every waiting order, oldest first"
-            >
-              <Printer size={18} className="mr-1" />
-              {printingQueue ? 'Sending...' : `Print queue (${pendingOrders.length})`}
-            </button>
-          )}
-
-          {/* Session summary. What the baristas were keeping on paper --
-              how many, what kind, which milks -- so it can be read off
-              at the end of a session for invoicing, and so a stocking
-              decision has numbers behind it. CTN26 carried coconut and
-              sold none of it; that is worth knowing before buying more. */}
+      {/* Session so far -- opened from the status line ("n made") or the
+          admin sheet. The old action bar that housed it is gone: its
+          actions live behind the queue's "..." and on the status line. */}
           {showSessionReport && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
                  onClick={() => setShowSessionReport(false)}>
               <div className="absolute inset-0 bg-black bg-opacity-50"></div>
-              <div className="relative bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto"
+              <div className="relative bg-cq-milk rounded-cq-lg shadow-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto"
                    onClick={e => e.stopPropagation()}>
-                <div className="bg-amber-800 text-white p-4 rounded-t-xl flex justify-between items-center">
+                <div className="bg-cq-caramel-deep text-white p-4 rounded-t-xl flex justify-between items-center">
                   <h2 className="text-xl font-bold">Session so far</h2>
                   <button className="text-white opacity-80 hover:opacity-100"
                           onClick={() => setShowSessionReport(false)}>
@@ -4701,28 +3647,28 @@ const BaristaInterface = () => {
                 </div>
                 <div className="p-4 space-y-4">
                   <div className="grid grid-cols-3 gap-3 text-center">
-                    <div className="bg-gray-50 rounded-lg p-3">
+                    <div className="bg-cq-wash rounded-cq-md p-3">
                       <div className="text-3xl font-bold">{madeToday ?? 0}</div>
-                      <div className="text-xs text-gray-500 mt-1">made here</div>
+                      <div className="text-xs text-cq-ink-3 mt-1">made here</div>
                     </div>
-                    <div className="bg-gray-50 rounded-lg p-3">
+                    <div className="bg-cq-wash rounded-cq-md p-3">
                       <div className="text-3xl font-bold">{sessionStats?.total_orders ?? 0}</div>
-                      <div className="text-xs text-gray-500 mt-1">orders, all stations</div>
+                      <div className="text-xs text-cq-ink-3 mt-1">orders, all stations</div>
                     </div>
-                    <div className="bg-gray-50 rounded-lg p-3">
+                    <div className="bg-cq-wash rounded-cq-md p-3">
                       <div className="text-3xl font-bold">
                         {sessionStats?.avg_wait_min != null
                           ? Math.round(sessionStats.avg_wait_min) : '-'}
                         <span className="text-base">m</span>
                       </div>
-                      <div className="text-xs text-gray-500 mt-1">average wait</div>
+                      <div className="text-xs text-cq-ink-3 mt-1">average wait</div>
                     </div>
                   </div>
 
                   {sessionStats?.milk?.by_milk?.length > 0 && (
                     <div>
                       <h3 className="font-semibold mb-1">Milk</h3>
-                      <div className="text-sm text-gray-600 mb-2">
+                      <div className="text-sm text-cq-ink-2 mb-2">
                         {sessionStats.milk.dairy} full cream &middot;{' '}
                         {sessionStats.milk.alternative} alternative &middot;{' '}
                         {sessionStats.milk.none} no milk
@@ -4741,10 +3687,10 @@ const BaristaInterface = () => {
                   )}
 
                   {sessionStats?.unused_milks?.length > 0 && (
-                    <div className="bg-amber-50 border border-amber-200 rounded p-2 text-sm">
-                      <span className="font-semibold text-amber-900">Not ordered today: </span>
-                      <span className="text-amber-900">{sessionStats.unused_milks.join(', ')}</span>
-                      <div className="text-amber-700 text-xs mt-1">
+                    <div className="bg-cq-caramel-wash border border-cq-line rounded-cq-sm p-2 text-sm">
+                      <span className="font-semibold text-cq-caramel-deep">Not ordered today: </span>
+                      <span className="text-cq-caramel-deep">{sessionStats.unused_milks.join(', ')}</span>
+                      <div className="text-cq-caramel-deep text-xs mt-1">
                         Stocked but unused &mdash; worth reviewing before the next event.
                       </div>
                     </div>
@@ -4767,13 +3713,13 @@ const BaristaInterface = () => {
                   )}
 
                   {sessionStats?.peak_hour?.orders > 0 && (
-                    <div className="text-sm text-gray-600">
+                    <div className="text-sm text-cq-ink-2">
                       Busiest hour: {String(sessionStats.peak_hour.hour).padStart(2, '0')}:00
                       {' '}&mdash; {sessionStats.peak_hour.orders} orders
                     </div>
                   )}
 
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-cq-ink-3">
                     Counts today, from the server. If the screen ever stops
                     updating, the last number you saw here is still what had
                     been made.
@@ -4783,154 +3729,12 @@ const BaristaInterface = () => {
             </div>
           )}
 
-          {/* Broadcast to everyone watching their phone. Sits with the
-              other bulk actions because that is what it is -- but it
-              confirms first and names the count, because this reaches
-              real customers and cannot be unsent. */}
-          <button
-            className="px-4 py-2 bg-gray-200 rounded flex items-center hover:bg-gray-300 transition-colors"
-            onClick={() => setBroadcastOpen(true)}
-            title="Tell customers watching their phone that something has gone wrong"
-          >
-            <MessageCircle size={18} className="mr-1" /> Tell waiting customers
-          </button>
-
-          {/* Notification hold. Deliberately loud when ON and quiet when
-              off: a hold left on by accident means customers are never
-              told their coffee is ready, which is a far worse failure
-              than a text arriving at an awkward moment. The count is on
-              the button because pressing "release" without knowing it is
-              87 texts is how an event gets a surprise phone bill. */}
-          {holdState?.holding ? (
-            <div className="flex items-center gap-2">
-              <button
-                className="px-4 py-2 bg-amber-600 text-white rounded flex items-center hover:bg-amber-700 transition-colors font-semibold disabled:opacity-60"
-                disabled={holdBusy}
-                onClick={async () => {
-                  const n = holdState?.will_send ?? 0;
-                  if (n > 0 && !(await askConfirm({
-                    title: `Send ${n} held "your coffee is ready" ${n === 1 ? 'message' : 'messages'} now?`,
-                    message: 'Every customer whose coffee is already ready gets their text at once.',
-                    confirmLabel: 'Send now',
-                  }))) return;
-                  setHoldBusy(true);
-                  try {
-                    const api = new (await import('../../services/ApiService')).default();
-                    const r = await api.post('/notifications/release', {});
-                    if (r?.success) {
-                      showToast(`Sent ${r.sent} notification${r.sent === 1 ? '' : 's'}`, 'success');
-                    }
-                  } catch (e) {
-                    showToast('Could not release notifications', 'error');
-                  } finally { setHoldBusy(false); refreshHold(); }
-                }}
-                title="Send every held notification, and stop holding"
-              >
-                <Send size={16} className="mr-1" />
-                Release {holdState.will_send > 0 ? `${holdState.will_send} ` : ''}
-                {holdState.will_send === 1 ? 'message' : 'messages'}
-              </button>
-              <button
-                className="px-3 py-2 bg-gray-200 rounded text-sm hover:bg-gray-300"
-                disabled={holdBusy}
-                onClick={async () => {
-                  setHoldBusy(true);
-                  try {
-                    const api = new (await import('../../services/ApiService')).default();
-                    await api.put('/notifications/hold', { holding: false });
-                  }
-                  finally { setHoldBusy(false); refreshHold(); }
-                }}
-                title="Go back to texting customers as each order finishes"
-              >
-                Stop holding
-              </button>
-            </div>
-          ) : (
-            <button
-              className="px-4 py-2 bg-gray-200 rounded flex items-center hover:bg-gray-300 transition-colors"
-              disabled={holdBusy}
-              onClick={async () => {
-                // Confirm: an accidental knock here silently stops EVERY
-                // "your coffee is ready" text until someone notices + releases
-                // (Steve: dangerous buttons need a guard against a mis-tap).
-                if (!(await askConfirm({
-                  title: 'Hold all "coffee ready" texts?',
-                  message: 'Customers will NOT be told their order is ready until you press Release. '
-                    + 'Use this only for pre-orders or before a session starts.',
-                  confirmLabel: 'Hold texts',
-                  danger: true,
-                }))) return;
-                setHoldBusy(true);
-                try {
-                  const api = new (await import('../../services/ApiService')).default();
-                  await api.put('/notifications/hold', { holding: true });
-                }
-                finally { setHoldBusy(false); refreshHold(); }
-              }}
-              title="Finish orders without texting anyone yet - for pre-orders made during a session"
-            >
-              <Bell size={18} className="mr-1" /> Hold notifications
-            </button>
-          )}
-          {/* "Adjust Wait Time" moved to the Wait pill in the header. */}
-          <button
-            className="px-4 py-2 bg-gray-200 rounded flex items-center hover:bg-gray-300 transition-colors"
-            onClick={() => {
-              // Refresh stations, orders, and schedule data
-              refreshStations();
-              refreshData();
-              refreshScheduleData();
-            }}
-          >
-            <RefreshCw size={18} className={`mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
-            {isRefreshing ? 'Refreshing...' : 'Refresh'}
-          </button>
-        </div>
-        
-        {/* Low-stock warning, relocated from a full-width top banner to a
-            compact chip on the RIGHT of the action bar (Steve: it "takes
-            up quite a lot of space at the top"). Names which items are
-            low so it's readable at a glance on a touch screen (no hover),
-            carries the full numbers in the tooltip, and one tap jumps to
-            the Stock tab -- which is where the old banner told them to go
-            anyway. */}
-        {lowStockItems.length > 0 && (() => {
-          // Name the CATEGORY so "medium" isn't mistaken for a recipe or a
-          // milk -- Steve: "what does the medium mean? sounds like its
-          // either the cups or a recipe". It was the cups.
-          const label = (i) => {
-            const n = String(i.name || '');
-            const c = String(i.category || '').toLowerCase();
-            if (c === 'cups') return `${n} cups`;
-            if (c === 'milk' && !/milk$/i.test(n)) return `${n} milk`;
-            if (c === 'coffee' && !/beans?$/i.test(n)) return `${n} beans`;
-            return n;
-          };
-          return (
-            <button
-              onClick={() => setActiveTab('stock')}
-              title={lowStockItems.map(i =>
-                `${label(i)}: ${parseFloat(i.amount) || 0}${i.unit ? ` ${i.unit}` : ''} left (min ${parseFloat(i.minimum_threshold) || 0})`
-              ).join(' · ') + ' — restock, or turn the item off in the Stock tab.'}
-              className="px-3 py-2 rounded flex items-center gap-2 bg-red-50 border-2 border-red-500
-                         text-red-700 font-semibold hover:bg-red-100 transition-colors max-w-[45vw]"
-            >
-              <AlertTriangle size={16} className="shrink-0" />
-              <span className="truncate">
-                Low stock: {lowStockItems.map(label).join(', ')}
-              </span>
-            </button>
-          );
-        })()}
-      </div>
-      
       {/* Messages bubble — opens the unified inbox (customer Questions +
           station Chat). Lifted on mobile so it clears the action footer + the
           fixed bottom tab bar. The badge is the REAL count of pending customer
           questions (was a hardcoded fake "2"). */}
       <button
-        className="fixed bottom-40 md:bottom-16 right-4 bg-blue-500 text-white p-3 rounded-full shadow-lg hover:bg-blue-600 z-30"
+        className="fixed bottom-20 right-4 bg-cq-roast text-cq-cream p-3 rounded-full shadow-cq-raised hover:bg-cq-roast-deep z-30"
         title="Messages — customer questions & station chat"
         onClick={() => {
           // When opening, land on Questions if any are pending, else Chat.
@@ -4952,13 +3756,56 @@ const BaristaInterface = () => {
             .filter(o => String(o.customerMessage || o.customer_message || '').trim()).length;
           const total = cq.count + chatUnread.unread + orderMsgs;
           return total > 0 ? (
-            <span className="absolute -top-2 -right-2 bg-red-600 text-white text-sm font-extrabold min-w-6 h-6 px-1.5 flex items-center justify-center rounded-full ring-2 ring-white animate-pulse">
+            <span className="absolute -top-2 -right-2 bg-cq-alert text-white text-sm font-extrabold min-w-6 h-6 px-1.5 flex items-center justify-center rounded-full ring-2 ring-white animate-pulse">
               {total}
             </span>
           ) : null;
         })()}
       </button>
       
+      {/* Station picker + the PIN-gated admin sheet (phase 4). */}
+      <StationPicker
+        open={pickerOpen}
+        stations={stations}
+        selectedStation={selectedStation}
+        watchedIds={watchedIds.filter(id => id !== selectedStation)}
+        onSelect={(id) => { switchStation(id); setPickerOpen(false); }}
+        onToggleWatch={toggleWatch}
+        onClose={() => setPickerOpen(false)}
+      />
+      <AdminSheet
+        open={adminOpen}
+        onClose={() => setAdminOpen(false)}
+        unlocked={unlocked}
+        unlockedMinutes={unlockedMinutes}
+        onUnlock={unlockNow}
+        onLock={lockNow}
+        state={{
+          rushMode: !!settings.rushMode, teamMode, soundEnabled: settings.soundEnabled,
+          zoom: uiZoom, zoomMin: ZOOM_MIN, zoomMax: ZOOM_MAX,
+          refreshSeconds: autoRefreshEnabled ? autoRefreshInterval : 0,
+          stationName: currentStationObj?.name,
+        }}
+        actions={{
+          setRush: setRushMode,
+          setTeam: setTeamMode,
+          setSound: (on) => setSettings(prev => ({ ...prev, soundEnabled: on })),
+          setZoom,
+          setRefresh: setRefreshInterval,
+          openPicker: () => { setAdminOpen(false); setPickerOpen(true); },
+          openStationSettings: () => { setAdminOpen(false); setActiveTab('settings'); },
+          openDisplaySettings: () => { setAdminOpen(false); setActiveTab('display'); },
+          openTab: (id) => { setAdminOpen(false); setActiveTab(id); },
+          openSession: () => { setAdminOpen(false); setShowSessionReport(true); refreshSession(); },
+          signOut: () => {
+            lockNow();
+            try { localStorage.removeItem('coffee_cue_selected_station'); localStorage.removeItem('last_used_station_id'); } catch (e) { /* ignore */ }
+            AuthService.logout();
+            window.location.href = '/login';
+          },
+        }}
+      />
+
       {/* Dialogs */}
       {showWaitTimeDialog && (
         <WaitTimeDialog 
@@ -4968,10 +3815,21 @@ const BaristaInterface = () => {
         />
       )}
       
+      {/* Walk-up order: the customer's own form, pointed at this station,
+          so the drink questions ("dash of water or milk?"), the sizes and
+          "Add another coffee" are exactly what a customer gets. Steve
+          found the old barista-only form had none of that. */}
       {showWalkInDialog && (
-        <WalkInOrderDialog 
-          onSubmit={handleWalkInOrder}
+        <KioskOrder
+          stationId={selectedStation}
+          channel="walkin"
+          headerColor="#B8764A"
           onClose={() => setShowWalkInDialog(false)}
+          onOrderPlaced={(orderNumber) => {
+            setShowWalkInDialog(false);
+            showToast(`Order${orderNumber ? ` #${orderNumber}` : ''} added to the queue`, 'success');
+            refreshData();
+          }}
         />
       )}
       
@@ -5041,25 +3899,25 @@ const BaristaInterface = () => {
           docked panel. Replaces the separate Questions header button, the
           chat-only panel, and the removed HELP dialog. */}
       {chatOpen && (
-        <div className="fixed bottom-0 right-0 w-full md:w-[440px] max-w-[100vw] h-[28rem] bg-white shadow-lg border rounded-t-lg overflow-hidden z-40 flex flex-col">
-          <div className="bg-gray-100 border-b px-2 py-1.5 flex items-center justify-between flex-shrink-0">
+        <div className="fixed bottom-0 right-0 w-full md:w-[440px] max-w-[100vw] h-[28rem] bg-cq-milk shadow-cq-card border rounded-t-lg overflow-hidden z-40 flex flex-col">
+          <div className="bg-cq-wash border-b px-2 py-1.5 flex items-center justify-between flex-shrink-0">
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setMessagesTab('questions')}
-                className={`px-3 py-1 rounded text-sm font-medium ${messagesTab === 'questions' ? 'bg-white shadow text-blue-700' : 'text-gray-600 hover:bg-gray-200'}`}
+                className={`px-3 py-1 rounded text-sm font-medium ${messagesTab === 'questions' ? 'bg-cq-milk shadow text-cq-caramel-deep' : 'text-cq-ink-2 hover:bg-cq-line'}`}
               >
                 Questions{cq.count > 0 ? ` (${cq.count})` : ''}
               </button>
               <button
                 onClick={() => { setMessagesTab('chat'); chatUnread.markRead(); }}
-                className={`px-3 py-1 rounded text-sm font-medium ${messagesTab === 'chat' ? 'bg-white shadow text-blue-700' : 'text-gray-600 hover:bg-gray-200'}`}
+                className={`px-3 py-1 rounded text-sm font-medium ${messagesTab === 'chat' ? 'bg-cq-milk shadow text-cq-caramel-deep' : 'text-cq-ink-2 hover:bg-cq-line'}`}
               >
                 Station chat{chatUnread.unread > 0 ? ` (${chatUnread.unread})` : ''}
               </button>
             </div>
             <button
               onClick={() => setChatOpen(false)}
-              className="p-1 text-gray-500 hover:text-gray-800 rounded"
+              className="p-1 text-cq-ink-3 hover:text-cq-roast rounded"
               title="Close"
             >
               <XCircle size={20} />
@@ -5131,209 +3989,12 @@ const BaristaInterface = () => {
 //   2. Some old test rows had future-dated completed_at timestamps
 //      that defeated a client-side filter. Backend recency filter
 //      (recent_minutes=30, station_id=X) is reliable.
-const READY_RECENCY_MIN = 30;
-
-// An order whose customer was TEXTED can age off on the normal timer --
-// they know it is waiting and will come. An order with no phone number
-// never got a message, so the only thing telling anyone it exists is
-// this card and the barista calling the name. Those stay twice as long
-// (Steve: "maybe its more the ones that are not getting a SMS").
-const NO_SMS_EXPIRY_MULTIPLIER = 2;
-
-const ReadyForPickupColumn = ({
-  completedOrders, stationId, onMarkPickedUp, onSendMessage,
-  expiryMinutes = READY_RECENCY_MIN,
-}) => {
-  // Switched May 2026: instead of fetching its own list this column
-  // now derives from the same `completedOrders` that the Completed
-  // tab uses. Steve reported the column showing 0 while the
-  // Completed tab showed real orders — proving the data was in the
-  // hook, we just had a broken parallel fetch path.
-  //
-  // We still apply two client-side filters:
-  //   1. station_id matches the selected station (so a barista
-  //      doesn't see other stations' ready orders)
-  //   2. completed within the last READY_RECENCY_MIN minutes (so
-  //      ancient picked-up rows don't squat here forever)
-  const [hiddenIds, setHiddenIds] = React.useState(() => new Set());
-
-  const list = React.useMemo(() => {
-    if (!Array.isArray(completedOrders)) return [];
-    const baseMin = Number(expiryMinutes) > 0
-      ? Number(expiryMinutes) : READY_RECENCY_MIN;
-    const now = Date.now();
-    const cutoff = now - baseMin * 60 * 1000;
-    const cutoffNoSms = now - baseMin * NO_SMS_EXPIRY_MULTIPLIER * 60 * 1000;
-    const sidStr = stationId != null ? String(stationId) : null;
-
-    return completedOrders
-      .filter(o => {
-        // Optimistic-remove: once Collected is tapped, hide
-        // immediately even before the backend confirms.
-        const oid = o.id || o.order_number || o.orderNumber;
-        if (hiddenIds.has(oid)) return false;
-        // Skip already-picked-up
-        const status = (o.status || '').toLowerCase();
-        if (status === 'picked_up' || status === 'picked-up') return false;
-        // Match station — check every alias the data ships under,
-        // tolerate string/number type mismatch.
-        if (sidStr) {
-          const candidates = [
-            o.stationId, o.station_id,
-            o.assignedStation, o.assigned_to_station,
-          ].filter(v => v != null).map(String);
-          if (candidates.length > 0 && !candidates.includes(sidStr)) {
-            return false;
-          }
-        }
-        // Recency
-        const ts = o.completedAt || o.completed_at
-                || o.updatedAt   || o.updated_at;
-        if (!ts) return true;
-        // parseServerDate, NOT new Date(): the backend sends naive UTC
-        // (no 'Z'), which new Date() reads as LOCAL. On UTC+9:30 (Adelaide)
-        // that put every just-completed order ~9.5h in the past, so it was
-        // instantly older than this recency window and the column showed
-        // "Nothing ready yet" while the customer Display (which already uses
-        // parseServerDate) showed it. THIS was the barista-vs-display split.
-        const t = parseServerDate(ts).getTime();
-        if (Number.isNaN(t)) return true;
-        // No phone means no "your coffee is ready" text was ever sent,
-        // so this card is the only trace of it -- give it longer.
-        // hasPhone is a boolean from the API; the number itself is
-        // deliberately not in this listing.
-        const hasPhone = o.hasPhone !== undefined
-          ? !!o.hasPhone
-          : !!String(o.phoneNumber || o.phone_number || o.phone || '').trim();
-        const floor = hasPhone ? cutoff : cutoffNoSms;
-        // Tolerate clock skew up to 5 min in either direction.
-        return t >= floor && t <= now + 5 * 60 * 1000;
-      })
-      .sort((a, b) => {
-        const ta = parseServerDate(a.completedAt || a.completed_at || a.updatedAt || a.updated_at || 0).getTime();
-        const tb = parseServerDate(b.completedAt || b.completed_at || b.updatedAt || b.updated_at || 0).getTime();
-        return tb - ta;
-      });
-  }, [completedOrders, stationId, hiddenIds, expiryMinutes]);
-
-  // Reset the hidden set when the underlying completedOrders changes
-  // significantly — prevents stale ids from accumulating.
-  React.useEffect(() => {
-    if (!Array.isArray(completedOrders)) return;
-    setHiddenIds(prev => {
-      const live = new Set(completedOrders.map(o => o.id || o.order_number || o.orderNumber));
-      const next = new Set([...prev].filter(id => live.has(id)));
-      return next.size === prev.size ? prev : next;
-    });
-  }, [completedOrders]);
-
-  const handleCollected = async (oid) => {
-    setHiddenIds(prev => {
-      const next = new Set(prev);
-      next.add(oid);
-      return next;
-    });
-    try { await onMarkPickedUp(oid); } catch (e) {
-      // If backend failed, unhide so the operator can retry.
-      setHiddenIds(prev => {
-        const next = new Set(prev);
-        next.delete(oid);
-        return next;
-      });
-    }
-  };
-
-  if (process.env.NODE_ENV !== 'production') {
-    console.log(`[ReadyForPickup] showing ${list.length} of ${completedOrders?.length || 0} completedOrders for station ${stationId}`);
-  }
-
-  return (
-    <div>
-      <div className="bg-green-600 text-white p-2 rounded-t-lg flex justify-between items-center">
-        <h2 className="text-xl font-bold">Ready for Pickup</h2>
-        <span className="text-sm">
-          {list.length}
-          {stationId != null && (
-            <span className="ml-2 opacity-75 text-xs">@ Station {stationId}</span>
-          )}
-        </span>
-      </div>
-      <div className="bg-white p-4 rounded-b-lg shadow-md min-h-[120px]">
-        {list.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            <Coffee size={48} className="mx-auto mb-2 text-gray-400" />
-            <p>Nothing ready yet</p>
-            <p className="text-sm text-gray-400">Completed orders appear here</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {list.map(order => {
-              const oid = order.id || order.order_number || order.orderNumber;
-              const orderNum = order.orderNumber || order.order_number || oid;
-              const name = order.customerName || order.customer_name || 'Customer';
-              const coffee = order.coffeeType || order.coffee_type || 'Coffee';
-              const milk = order.milkType || order.milk_type || '';
-              const price = order.priceFormatted || order.price_formatted;
-              return (
-                <div key={oid} className="border rounded-lg p-3 hover:border-green-400">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1 min-w-0">
-                      <div className="font-bold text-lg">#{orderNum}</div>
-                      <div className="text-sm text-gray-700 truncate">{name}</div>
-                      <div className="text-xs text-gray-500 truncate">
-                        {[coffee, milk].filter(Boolean).join(' · ')}
-                      </div>
-                    </div>
-                    {price && (
-                      <span className="inline-block bg-green-100 text-green-800 text-sm font-bold px-2 py-1 rounded whitespace-nowrap">
-                        {price}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex gap-2 mt-3">
-                    <button
-                      type="button"
-                      className="flex-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm rounded font-medium"
-                      onClick={() => handleCollected(oid)}
-                    >
-                      ✓ Collected
-                    </button>
-                    {onSendMessage && (
-                      <button
-                        type="button"
-                        className="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm rounded"
-                        title="Send reminder SMS"
-                        onClick={() => onSendMessage(order)}
-                      >
-                        SMS
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-// ---- SoundChoiceRows -----------------------------------------------------
-// Renders the per-event sound chooser inside the Settings tab. Five rows,
-// one per alert type: each has an enable checkbox, a dropdown for picking
-// which sound to play, and a Test button that previews it.
-//
-// State lives in `settings.soundChoices` ({eventKey: soundPresetKey}) and
-// `settings.sound<EventName>` booleans (legacy on/off per event, kept for
-// back-compat with any code that reads them). All persisted via the
-// existing setSettings flow → coffee_cue_settings localStorage.
 const SOUND_EVENT_ROWS = [
-  { key: 'newOrder',      label: 'New Order',      enableField: 'soundNewOrder',      btnColor: 'bg-green-500 hover:bg-green-600' },
-  { key: 'orderComplete', label: 'Order Complete', enableField: 'soundOrderComplete', btnColor: 'bg-blue-500 hover:bg-blue-600' },
-  { key: 'orderPickedUp', label: 'Order Picked Up', enableField: 'soundOrderPickedUp', btnColor: 'bg-purple-500 hover:bg-purple-600' },
-  { key: 'lowStock',      label: 'Low Stock Alert', enableField: 'soundLowStock',     btnColor: 'bg-yellow-500 hover:bg-yellow-600' },
-  { key: 'error',         label: 'Error Alert',     enableField: 'soundError',        btnColor: 'bg-red-500 hover:bg-red-600' },
+  { key: 'newOrder',      label: 'New Order',      enableField: 'soundNewOrder',      btnColor: 'bg-cq-ready hover:bg-cq-ready' },
+  { key: 'orderComplete', label: 'Order Complete', enableField: 'soundOrderComplete', btnColor: 'bg-cq-caramel hover:bg-cq-roast' },
+  { key: 'orderPickedUp', label: 'Order Picked Up', enableField: 'soundOrderPickedUp', btnColor: 'bg-cq-caramel hover:bg-cq-roast' },
+  { key: 'lowStock',      label: 'Low Stock Alert', enableField: 'soundLowStock',     btnColor: 'bg-cq-warn hover:bg-cq-warn' },
+  { key: 'error',         label: 'Error Alert',     enableField: 'soundError',        btnColor: 'bg-cq-alert hover:bg-cq-alert' },
 ];
 
 const SoundChoiceRows = ({ settings, setSettings }) => {
@@ -5371,7 +4032,7 @@ const SoundChoiceRows = ({ settings, setSettings }) => {
           <select
             value={choices[row.key] || DEFAULT_SOUND_CHOICES[row.key]}
             onChange={(e) => setChoice(row.key, e.target.value)}
-            className="flex-1 min-w-[180px] text-sm px-2 py-1 border border-gray-300 rounded"
+            className="flex-1 min-w-[180px] text-sm px-2 py-1 border border-cq-line rounded"
           >
             {SOUND_PRESETS.map(p => (
               <option key={p.key} value={p.key}>{p.label}</option>
@@ -5389,10 +4050,10 @@ const SoundChoiceRows = ({ settings, setSettings }) => {
       {/* The two sounds that play on OTHER screens. Saved to the server (not
           this device) so the display board and every phone pick them up;
           Test plays the preset here so the operator can hear it. */}
-      <div className="mt-4 pt-3 border-t border-gray-200">
-        <div className="text-sm font-medium text-gray-700 mb-2">On the other screens</div>
+      <div className="mt-4 pt-3 border-t border-cq-line">
+        <div className="text-sm font-medium text-cq-ink-2 mb-2">On the other screens</div>
         {[
-          { key: 'displayReadySound', label: 'Display: order ready', def: 'chime_up', btnColor: 'bg-emerald-600 hover:bg-emerald-700' },
+          { key: 'displayReadySound', label: 'Display: order ready', def: 'chime_up', btnColor: 'bg-cq-ready hover:bg-cq-ready' },
           { key: 'beaconReadySound', label: "Customer's phone: order ready", def: 'cupq_signature', btnColor: 'bg-sky-600 hover:bg-sky-700' },
         ].map(row => (
           <div key={row.key} className="flex items-center gap-2 flex-wrap mb-2">
@@ -5400,7 +4061,7 @@ const SoundChoiceRows = ({ settings, setSettings }) => {
             <select
               value={settings[row.key] || row.def}
               onChange={(e) => setSettings(prev => ({ ...prev, [row.key]: e.target.value }))}
-              className="flex-1 min-w-[180px] text-sm px-2 py-1 border border-gray-300 rounded"
+              className="flex-1 min-w-[180px] text-sm px-2 py-1 border border-cq-line rounded"
             >
               {SOUND_PRESETS.map(p => (
                 <option key={p.key} value={p.key}>{p.label}</option>
@@ -5412,9 +4073,9 @@ const SoundChoiceRows = ({ settings, setSettings }) => {
             </button>
           </div>
         ))}
-        <div className="text-xs text-gray-500">Applies to every display and phone within about 30 seconds.</div>
+        <div className="text-xs text-cq-ink-3">Applies to every display and phone within about 30 seconds.</div>
       </div>
-      <div className="text-xs text-gray-500 mt-2">
+      <div className="text-xs text-cq-ink-3 mt-2">
         Sounds are synthesized in-browser — no assets to download, works offline.
         "No sound" disables that alert without affecting the others.
       </div>

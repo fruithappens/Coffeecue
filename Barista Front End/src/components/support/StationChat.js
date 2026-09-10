@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { XCircle, RefreshCw, AlertTriangle, ChevronDown, Edit, Save, User, AtSign } from 'lucide-react';
 import ChatService from '../../services/ChatService';
+import StationsService from '../../services/StationsService';
 
 // Build a stable @mention token from a station object. We canonicalize
 // to lowercased-with-hyphens so "Coffee Station One" → "@coffee-station-one"
@@ -238,18 +239,10 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
       
       ChatService.initialize(numericStationId, stationName, editedBaristaName.trim());
       
-      // Save to localStorage for persistence with station-specific key
-      try {
-        // Make sure we have a valid numeric station ID for the local storage key
-        const numericStationId = typeof selectedStationId === 'string' 
-          ? parseInt(selectedStationId, 10) 
-          : selectedStationId;
-          
-        // Use station-specific key for barista name
-        localStorage.setItem(`coffee_barista_name_station_${numericStationId}`, editedBaristaName.trim());
-      } catch (error) {
-        console.error('Failed to save station-specific barista name to localStorage:', error);
-      }
+      // The barista's name belongs to the station record on the server
+      // (every device at the station sees it), not to this browser.
+      StationsService.updateStation(numericStationId, { baristaName: editedBaristaName.trim() })
+        .catch((error) => console.error('Failed to save barista name to the station:', error));
     }
     
     // Exit edit mode
@@ -261,14 +254,14 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
     // (title + station picker + refresh + close) and footer (input +
     // @ + type + send) don't overflow. Mobile keeps full-width.
     <div className={embedded
-      ? "h-full w-full bg-white overflow-hidden flex flex-col"
-      : "fixed bottom-0 right-0 w-full md:w-[440px] max-w-[100vw] h-[28rem] bg-white shadow-lg border rounded-t-lg overflow-hidden z-40 flex flex-col"}>
-      <div className="bg-blue-500 text-white p-2 flex justify-between items-center flex-shrink-0">
+      ? "h-full w-full bg-cq-milk overflow-hidden flex flex-col"
+      : "fixed bottom-0 right-0 w-full md:w-[440px] max-w-[100vw] h-[28rem] bg-cq-milk shadow-cq-card border rounded-t-lg overflow-hidden z-40 flex flex-col"}>
+      <div className="bg-cq-caramel text-white p-2 flex justify-between items-center flex-shrink-0">
         <div className="flex items-center min-w-0">
           <h3 className="font-medium mr-1 whitespace-nowrap">Chat</h3>
           <div className="relative ml-1 min-w-0">
             <button
-              className="flex items-center text-white text-sm p-1 hover:bg-blue-600 rounded truncate max-w-[200px]"
+              className="flex items-center text-white text-sm p-1 hover:bg-cq-roast rounded truncate max-w-[200px]"
               onClick={() => setShowStationSelector(!showStationSelector)}
               title={getCurrentStationName()}
             >
@@ -278,11 +271,11 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
             
             {/* Station selector dropdown */}
             {showStationSelector && stations && stations.length > 0 && (
-              <div className="absolute top-full left-0 bg-white text-gray-800 shadow-lg rounded-md overflow-y-auto max-h-40 w-48 z-50">
+              <div className="absolute top-full left-0 bg-cq-milk text-cq-roast shadow-cq-card rounded-md overflow-y-auto max-h-40 w-48 z-50">
                 {stations.map(station => (
                   <div 
                     key={station.id}
-                    className={`p-2 hover:bg-gray-100 cursor-pointer ${station.id === selectedStationId ? 'bg-blue-100' : ''}`}
+                    className={`p-2 hover:bg-cq-wash cursor-pointer ${station.id === selectedStationId ? 'bg-cq-caramel-wash' : ''}`}
                     onClick={() => {
                       // Set the selected station ID
                       setSelectedStationId(station.id);
@@ -303,8 +296,8 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
                     }}
                   >
                     <div className="font-medium text-sm">{station.name}</div>
-                    <div className="text-xs text-gray-500 flex items-center">
-                      <div className={`w-2 h-2 rounded-full mr-1 ${station.status === 'active' ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                    <div className="text-xs text-cq-ink-3 flex items-center">
+                      <div className={`w-2 h-2 rounded-full mr-1 ${station.status === 'active' ? 'bg-cq-ready' : 'bg-cq-alert'}`}></div>
                       {station.status}
                     </div>
                   </div>
@@ -315,7 +308,7 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
         </div>
         <div className="flex items-center flex-shrink-0">
           <button
-            className="text-white p-1 hover:bg-blue-600 rounded"
+            className="text-white p-1 hover:bg-cq-roast rounded"
             onClick={handleRefresh}
             disabled={loading}
             title="Refresh Messages"
@@ -327,7 +320,7 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
               took up space in the header. To clear messages now, use
               the backend reset path or a SQL truncate. */}
           <button
-            className="text-white p-1 hover:bg-blue-600 rounded ml-1"
+            className="text-white p-1 hover:bg-cq-roast rounded ml-1"
             onClick={onClose}
             title="Close Chat"
           >
@@ -336,16 +329,16 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
         </div>
       </div>
       {error && (
-        <div className="bg-red-100 text-red-700 p-2 text-sm flex items-center">
+        <div className="bg-cq-alert-wash text-cq-alert p-2 text-sm flex items-center">
           <AlertTriangle size={16} className="mr-1" />
           {error}
         </div>
       )}
       
       {/* Barista name editor */}
-      <div className="bg-blue-50 border-b flex items-center p-2 justify-between">
+      <div className="bg-cq-caramel-wash border-b flex items-center p-2 justify-between">
         <div className="flex items-center">
-          <User size={14} className="text-blue-700 mr-1" />
+          <User size={14} className="text-cq-caramel-deep mr-1" />
           {isEditingName ? (
             <input
               type="text"
@@ -364,7 +357,7 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
           )}
         </div>
         <button
-          className="text-blue-700 p-1 hover:bg-blue-100 rounded"
+          className="text-cq-caramel-deep p-1 hover:bg-cq-caramel-wash rounded"
           onClick={() => {
             if (isEditingName) {
               handleSaveBaristaName();
@@ -377,14 +370,14 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
         </button>
       </div>
       
-      <div className="flex-1 overflow-y-auto p-3 bg-gray-50">
+      <div className="flex-1 overflow-y-auto p-3 bg-cq-wash">
         {loading && messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-            <p className="mt-2 text-gray-500 text-sm">Loading messages...</p>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cq-caramel"></div>
+            <p className="mt-2 text-cq-ink-3 text-sm">Loading messages...</p>
           </div>
         ) : messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-gray-500">
+          <div className="flex flex-col items-center justify-center h-full text-cq-ink-3">
             <p>No messages yet</p>
             <p className="text-sm">Send a message to start the conversation!</p>
           </div>
@@ -405,20 +398,20 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
               key={message.id}
               className={`p-2 mb-2 rounded ${
                 message.is_urgent
-                  ? 'bg-red-50 border-l-2 border-red-500'
+                  ? 'bg-cq-alert-wash border-l-2 border-cq-alert'
                   : mentionsMe
-                    ? 'bg-amber-50 border-l-2 border-amber-500'
+                    ? 'bg-cq-caramel-wash border-l-2 border-cq-caramel'
                     : fromMe
-                      ? 'bg-blue-100'
-                      : 'bg-gray-100'
+                      ? 'bg-cq-caramel-wash'
+                      : 'bg-cq-wash'
               }`}
             >
-              <div className="text-xs text-gray-500 mb-1 flex justify-between">
+              <div className="text-xs text-cq-ink-3 mb-1 flex justify-between">
                 <span>
                   {/* Format sender name to show correct station */}
                   {message.sender}
                   {' '}
-                  <span className="text-blue-600">
+                  <span className="text-cq-caramel-deep">
                     (
                     {stations.find(s => s.id === message.station_id || 
                                     (typeof message.station_id === 'string' && 
@@ -453,15 +446,15 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
           <button
             type="button"
             onClick={() => setShowMentionPicker((v) => !v)}
-            className="border rounded-l p-2 bg-gray-50 hover:bg-gray-100 text-gray-700 flex items-center"
+            className="border rounded-l p-2 bg-cq-wash hover:bg-cq-wash text-cq-ink-2 flex items-center"
             title="Mention a station — addresses your message to that station"
             disabled={sending}
           >
             <AtSign size={16} />
           </button>
           {showMentionPicker && stations && stations.length > 0 && (
-            <div className="absolute bottom-full left-0 mb-1 bg-white shadow-lg rounded-md border overflow-y-auto max-h-48 w-56 z-50">
-              <div className="text-xs text-gray-500 px-2 py-1 border-b bg-gray-50">
+            <div className="absolute bottom-full left-0 mb-1 bg-cq-milk shadow-cq-card rounded-md border overflow-y-auto max-h-48 w-56 z-50">
+              <div className="text-xs text-cq-ink-3 px-2 py-1 border-b bg-cq-wash">
                 Mention a station:
               </div>
               {stations.map((station) => (
@@ -469,11 +462,11 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
                   key={station.id}
                   type="button"
                   onClick={() => insertMention(station)}
-                  className="w-full text-left p-2 hover:bg-gray-100 border-b last:border-b-0"
+                  className="w-full text-left p-2 hover:bg-cq-wash border-b last:border-b-0"
                 >
                   <div className="font-medium text-sm">@{_mentionToken(station)}</div>
-                  <div className="text-xs text-gray-500 flex items-center">
-                    <div className={`w-2 h-2 rounded-full mr-1 ${station.status === 'active' ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                  <div className="text-xs text-cq-ink-3 flex items-center">
+                    <div className={`w-2 h-2 rounded-full mr-1 ${station.status === 'active' ? 'bg-cq-ready' : 'bg-cq-alert'}`}></div>
                     {station.status}
                   </div>
                 </button>
@@ -510,7 +503,7 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
         <button
           type="submit"
           className={`${
-            sending ? 'bg-blue-400' : 'bg-blue-500 hover:bg-blue-600'
+            sending ? 'bg-cq-caramel' : 'bg-cq-caramel hover:bg-cq-roast'
           } text-white px-3 py-2 rounded-r transition-colors flex items-center justify-center min-w-[64px]`}
           disabled={sending || !newMessage.trim()}
         >

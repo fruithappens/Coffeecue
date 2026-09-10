@@ -6,7 +6,10 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAppMode } from '../context/AppContext';
 import StationsService from '../services/StationsService';
 
-export default function useStations() {
+// autoSelect: when no station is stored on this device, pick the first
+// active one (organiser / support screens want that). The barista screen
+// passes false so the person is asked which station the tablet is at.
+export default function useStations({ autoSelect = true } = {}) {
   // State management
   const [stations, setStations] = useState([]);
   const [selectedStation, setSelectedStation] = useState(null);
@@ -49,22 +52,7 @@ export default function useStations() {
       if (isDemoMode) {
         const savedStations = localStorage.getItem('coffee_cue_stations');
         if (savedStations && isMounted.current) {
-          let parsedStations = JSON.parse(savedStations);
-          
-          // Apply any custom station names from localStorage
-          parsedStations = parsedStations.map(station => {
-            try {
-              const customName = localStorage.getItem(`coffee_station_name_${station.id}`);
-              if (customName) {
-                console.log(`[useStations] Applying custom name for station ${station.id}: ${customName}`);
-                return { ...station, name: customName };
-              }
-            } catch (e) {
-              console.error(`[useStations] Error getting custom name for station ${station.id}:`, e);
-            }
-            return station;
-          });
-          
+          const parsedStations = JSON.parse(savedStations);
           setStations(parsedStations);
         }
         
@@ -77,19 +65,10 @@ export default function useStations() {
         const fetchedStations = await StationsService.getStations();
         
         if (isMounted.current && fetchedStations) {
-          // Apply any custom station names from localStorage - CRITICAL
-          const enhancedStations = fetchedStations.map(station => {
-            try {
-              const customName = localStorage.getItem(`coffee_station_name_${station.id}`);
-              if (customName) {
-                console.log(`[useStations] Overriding station ${station.id} name from "${station.name}" to "${customName}"`);
-                return { ...station, name: customName };
-              }
-            } catch (e) {
-              console.error(`[useStations] Error getting custom name for station ${station.id}:`, e);
-            }
-            return station;
-          });
+          // Names come from the server as-is. There is no per-device
+          // override any more (it made tablets disagree about a station's
+          // name and kept stale names after an organiser rename).
+          const enhancedStations = fetchedStations;
           
           setStations(enhancedStations);
           
@@ -134,18 +113,20 @@ export default function useStations() {
             }
             
             // If no saved station was found or valid, use the first active one
-            if (!stationToSelect) {
+            // -- unless the caller wants the person to choose (barista
+            // screen: never guess which cart a tablet is at).
+            if (!stationToSelect && autoSelect) {
               const activeStation = enhancedStations.find(s => s.status === 'active');
               stationToSelect = activeStation ? activeStation.id : enhancedStations[0].id;
               console.log(`[useStations] Using ${activeStation ? 'first active' : 'first'} station: ${stationToSelect}`);
             }
             
-            // Set the selected station
-            setSelectedStation(stationToSelect);
-            
-            // Store selected station in localStorage
-            localStorage.setItem('coffee_cue_selected_station', stationToSelect.toString());
-            localStorage.setItem('last_used_station_id', stationToSelect.toString());
+            if (stationToSelect) {
+              setSelectedStation(stationToSelect);
+              // Store selected station in localStorage
+              localStorage.setItem('coffee_cue_selected_station', stationToSelect.toString());
+              localStorage.setItem('last_used_station_id', stationToSelect.toString());
+            }
           }
         }
       }
@@ -165,7 +146,7 @@ export default function useStations() {
         setIsRefreshing(false);
       }
     }
-  }, [isDemoMode]);
+  }, [isDemoMode, autoSelect]);
 
   // Update station status
   const updateStationStatus = useCallback(async (stationId, status) => {
