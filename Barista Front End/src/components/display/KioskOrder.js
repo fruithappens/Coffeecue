@@ -77,11 +77,17 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
   // `eventCode` a trusted on-site surface (the board) passed in. Lets the
   // kiosk keep ordering when the gate is on without a code ever being typed
   // at the counter. Empty when no gate is configured.
+  // The barista's own walk-up form is the one caller with neither: the
+  // tablet mounts it with no eventCode and no ?e=. With the gate on, its
+  // orders were refused as "from a different event". So a walk-up falls
+  // back to the code the public display config already publishes -- the
+  // same one the board stamps on its QR.
+  const [cfgEventCode, setCfgEventCode] = useState('');
   const carriedEventCode = (() => {
     try {
       const fromUrl = new URLSearchParams(window.location.search).get('e');
-      return (fromUrl && fromUrl.trim()) || eventCode || '';
-    } catch (e) { return eventCode || ''; }
+      return (fromUrl && fromUrl.trim()) || eventCode || (channel === 'walkin' ? cfgEventCode : '');
+    } catch (e) { return eventCode || (channel === 'walkin' ? cfgEventCode : ''); }
   })();
   // PICK MODE. With `onPick` supplied this screen chooses a drink and
   // hands it back instead of ordering one -- same tiles, same pictures,
@@ -104,8 +110,11 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
       try {
         const r = await fetch('/api/display/config');
         const b = r.ok ? await r.json() : null;
-        const n = String((b?.config || b || {}).sms_number || '').trim();
+        const cfg = (b?.config || b || {});
+        const n = String(cfg.sms_number || '').trim();
         if (!dead && n) setSmsNumber(n);
+        const ec = String(cfg.event_code || '').trim();
+        if (!dead && ec) setCfgEventCode(ec);
       } catch (e) { /* the strip works without it */ }
     })();
     return () => { dead = true; };
