@@ -81,7 +81,7 @@ export default function DisplaySelector({ embedded = false }) {
     fetch('/api/display/config')
       .then((r) => (r.ok ? r.json() : null))
       .then((b) => setLook((b && (b.config || b)) || null))
-      .catch(() => {});
+      .catch(() => undefined);
   }, []);
 
   // The board's address, built from the choices on this page rather than
