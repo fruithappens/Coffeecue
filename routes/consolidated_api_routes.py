@@ -10,6 +10,7 @@ import threading
 from flask import Blueprint, jsonify, request, current_app, Response
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from datetime import datetime, timedelta
+from datetime import timezone as _tz
 import json
 import re
 from auth import jwt_required_with_demo, role_required_with_demo
@@ -12010,6 +12011,130 @@ def cup_reconciliation():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+def _event_timezone():
+    """Where the event actually is, as an IANA zone.
+
+    The server stores UTC (it runs TZ=UTC to match Railway) and every report
+    grouped by the UTC date, which for an Australian coffee cart is simply the
+    wrong day. Adelaide is UTC+9:30, so a 7am start is 21:30 UTC the PREVIOUS
+    day: on the Treenet event that put 144 of the first morning's orders on
+    the 2nd, and the two-day total read 463 instead of 577. A quarter of the
+    event, filed under a day it did not happen on.
+
+    Settable per event; defaults to Steve's own zone rather than UTC, because
+    a default of UTC is the bug.
+    """
+    tz = ''
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        if coffee_system:
+            tz = coffee_system._get_setting('event_timezone', '') or ''
+    except Exception:
+        tz = ''
+    tz = (tz or '').strip() or 'Australia/Adelaide'
+    try:
+        from zoneinfo import ZoneInfo
+        ZoneInfo(tz)
+        return tz
+    except Exception:
+        # Fall back to UTC, not to the default zone: if the zone database is
+        # missing the default fails the same way and the report goes dark.
+        logger.warning("event_timezone %r is not a known zone; using UTC", tz)
+        return 'UTC'
+
+
+def _report_window():
+    """The window a report covers, as UTC instants. Returns (start, end, label,
+    tz) where end is EXCLUSIVE.
+
+    The dates in the URL are LOCAL dates -- the day the event happened, as the
+    person who was there would name it -- and they are converted to the UTC
+    instants that bracket that local day. The SQL then stays a plain range over
+    created_at, which is both simple and index-friendly.
+
+    ?date=YYYY-MM-DD   one local day
+    ?from=&to=         a range, both ends inclusive (an event runs over days)
+    nothing            today, where the event is
+
+    Bad dates fall back to today rather than erroring: a mistyped URL should
+    show today's numbers, not a stack trace.
+    """
+    from datetime import date as _date, datetime as _dt, timedelta as _td
+    from zoneinfo import ZoneInfo
+
+    tz = _event_timezone()
+    try:
+        zone = ZoneInfo(tz)
+    except Exception:
+        # 'UTC' itself needs the zone database; timezone.utc never does.
+        zone = _tz.utc
+
+    def _parse(v):
+        try:
+            return _date.fromisoformat(str(v).strip()[:10])
+        except (ValueError, TypeError):
+            return None
+
+    def _utc(d):
+        """Local midnight on `d`, as a naive UTC timestamp for the DB."""
+        return (_dt(d.year, d.month, d.day, tzinfo=zone)
+                .astimezone(_tz.utc).replace(tzinfo=None))
+
+    today = _dt.now(zone).date()
+    one = _parse(request.args.get('date'))
+    a = _parse(request.args.get('from'))
+    b = _parse(request.args.get('to'))
+    if one:
+        a = b = one
+    elif a and b:
+        if b < a:
+            a, b = b, a
+    elif a:
+        b = a
+    else:
+        a = b = today
+    label = a.isoformat() if a == b else f'{a.isoformat()} to {b.isoformat()}'
+    return _utc(a), _utc(b + _td(days=1)), label, tz
+
+
+@bp.route('/reports/days', methods=['GET'])
+@role_required_with_demo(['admin', 'staff'])
+def report_days():
+    """Which days have orders, newest first, with the count on each.
+
+    Deliberately NOT grouped into "events". I tried: chain consecutive days
+    into one run. On real data it swallowed a 2-day event into a 14-day block,
+    because a handful of test orders on the quiet days in between bridged every
+    gap. There is no honest way to tell a 6-order test afternoon from a small
+    event, so the report does not pretend to -- it shows the days and their
+    volumes, and the person who was there picks. 314 orders on the 3rd is
+    obvious to a human and unguessable to a heuristic.
+    """
+    try:
+        coffee_system = current_app.config.get('coffee_system')
+        db = coffee_system.db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        cur = db.cursor()
+        cur.execute("""
+            SELECT (created_at AT TIME ZONE 'UTC'
+                    AT TIME ZONE %(tz)s)::date AS d, COUNT(*) AS n
+            FROM orders
+            GROUP BY 1
+            ORDER BY 1 DESC
+            LIMIT 120
+        """, {'tz': _event_timezone()})
+        days = [{'date': r[0].isoformat(), 'orders': int(r[1])}
+                for r in cur.fetchall()]
+        cur.close()
+        return jsonify({'success': True, 'days': days})
+    except Exception as e:
+        logger.error(f"report_days error: {e}")
+        return jsonify({'success': False, 'error': str(e), 'days': []}), 500
+
+
 @bp.route('/reports/today', methods=['GET'])
 @jwt_required_with_demo()
 def get_today_report():
@@ -12029,32 +12154,38 @@ def get_today_report():
             pass
         cur = db.cursor()
 
+        # WHICH DAY. The whole report used to say CURRENT_DATE in sixteen
+        # places, so it could only ever describe today. Steve's Treenet event
+        # ran on the 3rd and 4th; asking for its report on the 5th returned a
+        # page of zeros, and the only way to see the event you had just run
+        # was to have run it today. A report you cannot open after the event
+        # is not a report.
+        #
+        # ?date=YYYY-MM-DD for one day, or ?from=&?to= for a whole event
+        # (inclusive of both ends). No arguments still means today, so every
+        # existing caller keeps working untouched.
+        d0, d1, window_label, tzname = _report_window()
+        W = {'d0': d0, 'd1': d1, 'tz': tzname}
+
+        def _ex(sql, extra=None):
+            """Every query in this report is bound to the same window."""
+            cur.execute(sql, {**W, **(extra or {})})
+
         # Status breakdown for today
-        cur.execute("""
+        _ex("""
             SELECT status, COUNT(*) AS n
             FROM orders
-            WHERE created_at::date = CURRENT_DATE
+            WHERE created_at >= %(d0)s AND created_at < %(d1)s
             GROUP BY status
         """)
         status_counts = {row[0]: int(row[1]) for row in cur.fetchall()}
         total = sum(status_counts.values())
 
-        # TIME TO MAKE: created_at -> completed_at.
-        #
-        # This used to measure created_at -> updated_at, which is not the wait
-        # at all -- it is the time until somebody tapped Collected. Steve, on a
-        # 138 minute figure in the Treenet report: "I think they would not have
-        # stayed for 2 hours." They did not. That coffee was MADE in 5 minutes
-        # and then sat on the shelf for 133. Steve again, once he saw the
-        # split: "the real time needs to be from order received and complete,
-        # not necessarily picked up as that is out of baristas control and
-        # person may not even come back."
-        #
-        # Measured properly, Treenet reads 5.6 min average instead of 13.3.
-        cur.execute("""
+        # Average wait (created → completed) for completed/picked_up orders today
+        _ex("""
             SELECT AVG(EXTRACT(EPOCH FROM (completed_at - created_at)) / 60.0)
             FROM orders
-            WHERE created_at::date = CURRENT_DATE
+            WHERE created_at >= %(d0)s AND created_at < %(d1)s
               AND completed_at IS NOT NULL
               AND created_at IS NOT NULL
         """)
@@ -12063,10 +12194,10 @@ def get_today_report():
 
         # Revenue from stamped prices (works when pricing was enabled
         # when the order was confirmed — see ARCHITECTURE.md §11).
-        cur.execute("""
+        _ex("""
             SELECT COALESCE(SUM((order_details->>'price')::numeric), 0)
             FROM orders
-            WHERE created_at::date = CURRENT_DATE
+            WHERE created_at >= %(d0)s AND created_at < %(d1)s
               AND order_details ? 'price'
         """)
         row = cur.fetchone()
@@ -12075,14 +12206,14 @@ def get_today_report():
         # Per-station breakdown. `done` + the active time span give a MEASURED
         # orders/hour — the real throughput, which the team can use as the
         # baseline ("expected throughput") for the next event.
-        cur.execute("""
+        _ex("""
             SELECT station_id, COUNT(*) AS n,
                    AVG(EXTRACT(EPOCH FROM (completed_at - created_at)) / 60.0)
                      FILTER (WHERE completed_at IS NOT NULL) AS avg_min,
                    COUNT(*) FILTER (WHERE status IN ('completed', 'picked_up')) AS done,
                    EXTRACT(EPOCH FROM (MAX(updated_at) - MIN(created_at))) / 3600.0 AS span_hours
             FROM orders
-            WHERE created_at::date = CURRENT_DATE
+            WHERE created_at >= %(d0)s AND created_at < %(d1)s
             GROUP BY station_id
             ORDER BY station_id
         """)
@@ -12103,10 +12234,10 @@ def get_today_report():
             })
 
         # Top 5 drinks today
-        cur.execute("""
+        _ex("""
             SELECT LOWER(order_details->>'type') AS drink, COUNT(*) AS n
             FROM orders
-            WHERE created_at::date = CURRENT_DATE
+            WHERE created_at >= %(d0)s AND created_at < %(d1)s
               AND order_details ? 'type'
             GROUP BY drink
             ORDER BY n DESC
@@ -12123,13 +12254,13 @@ def get_today_report():
         # lower-cased with a trailing " milk" stripped -- because the
         # database genuinely holds both "Oat Milk" and "oat" for the same
         # drink and counting them apart understates every alternative.
-        cur.execute("""
+        _ex("""
             SELECT COALESCE(NULLIF(regexp_replace(
                        lower(trim(order_details->>'milk')), '\\s*milk$', ''), ''),
                    'no milk') AS m,
                    COUNT(*) AS n
             FROM orders
-            WHERE created_at::date = CURRENT_DATE
+            WHERE created_at >= %(d0)s AND created_at < %(d1)s
             GROUP BY m
             ORDER BY n DESC
         """)
@@ -12164,10 +12295,11 @@ def get_today_report():
         # Peak hour — which hour of the day had the most orders. The
         # post-event summary leans on this ("you handled 47 orders in
         # the 10am hour"), and it's a one-liner aggregate.
-        cur.execute("""
-            SELECT EXTRACT(HOUR FROM created_at)::int AS hour, COUNT(*) AS n
+        _ex("""
+            SELECT EXTRACT(HOUR FROM (created_at AT TIME ZONE 'UTC'
+                                      AT TIME ZONE %(tz)s))::int AS hour, COUNT(*) AS n
             FROM orders
-            WHERE created_at::date = CURRENT_DATE
+            WHERE created_at >= %(d0)s AND created_at < %(d1)s
             GROUP BY hour
             ORDER BY n DESC
             LIMIT 1
@@ -12203,14 +12335,14 @@ def get_today_report():
         sms = {'outbound': 0, 'outbound_with_provider_id': 0,
                'inbound': 0, 'inbound_unanswered': 0, 'est_segments': 0}
         try:
-            cur.execute("SELECT COUNT(*), COUNT(message_sid) FROM order_messages "
-                        "WHERE sent_at::date = CURRENT_DATE")
+            _ex("SELECT COUNT(*), COUNT(message_sid) FROM order_messages "
+                        "WHERE sent_at >= %(d0)s AND sent_at < %(d1)s")
             r = cur.fetchone()
             if r:
                 sms['outbound'] = int(r[0] or 0)
                 sms['outbound_with_provider_id'] = int(r[1] or 0)
-            cur.execute("SELECT COALESCE(SUM(CEIL(GREATEST(LENGTH(message),1)/160.0)),0) "
-                        "FROM order_messages WHERE sent_at::date = CURRENT_DATE")
+            _ex("SELECT COALESCE(SUM(CEIL(GREATEST(LENGTH(message),1)/160.0)),0) "
+                        "FROM order_messages WHERE sent_at >= %(d0)s AND sent_at < %(d1)s")
             r = cur.fetchone()
             sms['est_segments'] = int(r[0]) if r and r[0] is not None else sms['outbound']
         except Exception as _e:
@@ -12218,9 +12350,9 @@ def get_today_report():
             try: db.rollback()
             except Exception: pass
         try:
-            cur.execute("SELECT COUNT(*), "
+            _ex("SELECT COUNT(*), "
                         "COUNT(*) FILTER (WHERE response_sent IS NULL OR response_sent = '') "
-                        "FROM sms_messages WHERE received_at::date = CURRENT_DATE")
+                        "FROM sms_messages WHERE received_at >= %(d0)s AND received_at < %(d1)s")
             r = cur.fetchone()
             if r:
                 sms['inbound'] = int(r[0] or 0)
@@ -12233,16 +12365,14 @@ def get_today_report():
         # --- UI / client errors --------------------------------------------
         errors = {'count': 0, 'recent': []}
         try:
-            # The column is occurred_at (migration 11), not created_at. Both
-            # queries therefore threw, were swallowed by the except below,
-            # and the report has always said ZERO user-facing errors -- a
-            # number that looks like good news and is simply the question
-            # never being asked.
-            cur.execute("SELECT COUNT(*) FROM client_errors WHERE occurred_at::date = CURRENT_DATE")
+            # The column is occurred_at (migration 11), not created_at, so
+            # both queries threw, were swallowed, and the report always said
+            # ZERO user-facing errors.
+            _ex("SELECT COUNT(*) FROM client_errors WHERE occurred_at >= %(d0)s AND occurred_at < %(d1)s")
             r = cur.fetchone()
             errors['count'] = int(r[0]) if r and r[0] is not None else 0
-            cur.execute("SELECT message, COUNT(*) AS n FROM client_errors "
-                        "WHERE occurred_at::date = CURRENT_DATE "
+            _ex("SELECT message, COUNT(*) AS n FROM client_errors "
+                        "WHERE occurred_at >= %(d0)s AND occurred_at < %(d1)s "
                         "GROUP BY message ORDER BY n DESC LIMIT 5")
             errors['recent'] = [{'message': (row[0] or '')[:160], 'count': int(row[1])}
                                 for row in cur.fetchall()]
@@ -12258,7 +12388,7 @@ def get_today_report():
 
         def _count(sql):
             try:
-                cur.execute(sql)
+                _ex(sql)
                 r = cur.fetchone()
                 return int(r[0]) if r and r[0] is not None else 0
             except Exception as _e:
@@ -12267,33 +12397,31 @@ def get_today_report():
                 except Exception: pass
                 return 0
 
-        n = _count("SELECT COUNT(*) FROM orders WHERE created_at::date = CURRENT_DATE "
+        n = _count("SELECT COUNT(*) FROM orders WHERE created_at >= %(d0)s AND created_at < %(d1)s "
                    "AND status = 'pending' AND created_at < NOW() - INTERVAL '15 minutes'")
         if n:
             issues.append({'key': 'stuck_pending', 'severity': 'warning', 'count': n,
                            'title': f"{n} order(s) stuck pending over 15 min",
                            'hint': 'Were these missed, or was a station under-staffed at peak?'})
         n = _count("SELECT COUNT(*) FROM orders o JOIN station_stats s ON o.station_id = s.station_id "
-                   "WHERE o.created_at::date = CURRENT_DATE AND COALESCE(s.status,'active') <> 'active' "
+                   "WHERE o.created_at >= %(d0)s AND o.created_at < %(d1)s AND COALESCE(s.status,'active') <> 'active' "
                    "AND o.status IN ('pending','in-progress','in_progress')")
         if n:
             issues.append({'key': 'orders_on_closed_station', 'severity': 'danger', 'count': n,
                            'title': f"{n} active order(s) on a closed/maintenance station",
                            'hint': 'These may never be made — reassign them to an open station.'})
-        # Counted on completed_at, not updated_at. On the Treenet data the old
-        # measure reported 136 orders over 20 minutes; the real number is 7.
-        # The other 129 were made in minutes and then sat waiting to be
-        # collected -- a different problem with a different fix, and this
-        # warning was sending the team looking for a staffing shortage that
-        # was not there.
-        n = _count("SELECT COUNT(*) FROM orders WHERE created_at::date = CURRENT_DATE "
+        # TIME TO MAKE, not time until someone tapped "collected". Measured
+        # on updated_at this said 136 orders at Treenet; measured on
+        # completed_at it is 7. The other 129 were made in minutes and then
+        # sat on the shelf, which is a different problem with a different fix.
+        n = _count("SELECT COUNT(*) FROM orders WHERE created_at >= %(d0)s AND created_at < %(d1)s "
                    "AND completed_at IS NOT NULL "
                    "AND EXTRACT(EPOCH FROM (completed_at - created_at))/60.0 > 20")
         if n:
             issues.append({'key': 'long_waits', 'severity': 'warning', 'count': n,
                            'title': f"{n} order(s) took over 20 minutes to make",
                            'hint': 'Long waits hurt satisfaction — consider more staff at peak.'})
-        n = _count("SELECT COUNT(*) FROM orders WHERE created_at::date = CURRENT_DATE AND status = 'cancelled'")
+        n = _count("SELECT COUNT(*) FROM orders WHERE created_at >= %(d0)s AND created_at < %(d1)s AND status = 'cancelled'")
         if n:
             issues.append({'key': 'cancellations', 'severity': 'info', 'count': n,
                            'title': f"{n} order(s) cancelled",
@@ -12307,8 +12435,247 @@ def get_today_report():
                            'title': f"{errors['count']} app error(s) logged on devices",
                            'hint': 'See the App errors section — a barista screen may have glitched.'})
 
+
+        # --- WHAT WE COULD NOT SERVE ---------------------------------
+        # Steve: "requests that could not be met". The report counted what we
+        # sold and was silent about what we turned away, which is the half a
+        # publican would actually act on.
+        #
+        # The ordering screen has been logging UNAVAILABLE_TAP all along --
+        # someone tapping a drink or milk that is switched off, with the item
+        # and, for a milk, the drink they were building. Nobody ever looked at
+        # it. That tap IS the question people were asking at the cart ("is
+        # there decaf?", "do you have oat?"), already counted.
+        unmet = {'taps': [], 'tap_total': 0, 'questions_unanswered': 0,
+                 'cancelled': 0}
+        try:
+            _ex("""
+                SELECT COALESCE(payload->>'kind', 'item') AS kind,
+                       COALESCE(payload->>'item', '?')    AS item,
+                       COUNT(*)                           AS n
+                FROM client_events
+                WHERE code = 'UNAVAILABLE_TAP'
+                  AND occurred_at >= %(d0)s AND occurred_at < %(d1)s
+                GROUP BY 1, 2
+                ORDER BY n DESC
+                LIMIT 12
+            """)
+            unmet['taps'] = [{'kind': r[0], 'item': r[1], 'count': int(r[2])}
+                             for r in cur.fetchall()]
+            unmet['tap_total'] = sum(t['count'] for t in unmet['taps'])
+        except Exception as e:
+            logger.warning(f"report unavailable taps failed: {e}")
+        try:
+            _ex("""
+                SELECT COUNT(*) FROM customer_questions
+                WHERE created_at >= %(d0)s AND created_at < %(d1)s
+                  AND (response IS NULL OR response = '')
+            """)
+            r = cur.fetchone()
+            unmet['questions_unanswered'] = int(r[0]) if r else 0
+        except Exception as e:
+            logger.warning(f"report unanswered questions failed: {e}")
+        unmet['cancelled'] = int(status_counts.get('cancelled', 0))
+
+        # --- TIMES ----------------------------------------------------
+        # "Average wait" alone hides the tail: a 13 minute mean with a 40
+        # minute worst case is a very different day from a flat 13, and the
+        # person who waited 40 is the one who remembers it.
+        times = {'first': None, 'last': None, 'span_hours': None, 'days': 0,
+                 'wait_median': None, 'wait_p90': None, 'wait_worst': None,
+                 'shelf_median': None, 'shelf_worst': None,
+                 'per_day': []}
+        try:
+            # Per LOCAL day, then summed. Taking MIN and MAX across the whole
+            # window gave a two-day event a 32.7 hour "service span", which is
+            # the wall clock from the first coffee on Thursday to the last on
+            # Friday -- including the night. Hours actually serving is the
+            # number that means something.
+            _ex("""
+                SELECT d, MIN(t) AS first_t, MAX(t) AS last_t
+                FROM (
+                    SELECT (created_at AT TIME ZONE 'UTC'
+                            AT TIME ZONE %(tz)s) AS t,
+                           (created_at AT TIME ZONE 'UTC'
+                            AT TIME ZONE %(tz)s)::date AS d
+                    FROM orders
+                    WHERE created_at >= %(d0)s AND created_at < %(d1)s
+                ) q
+                GROUP BY d ORDER BY d
+            """)
+            rows = cur.fetchall()
+            if rows:
+                times['first'] = rows[0][1].strftime('%H:%M')
+                times['last'] = rows[-1][2].strftime('%H:%M')
+                times['span_hours'] = round(sum(
+                    (r[2] - r[1]).total_seconds() / 3600.0 for r in rows), 1)
+                times['days'] = len(rows)
+                # Per day as well as summed: Treenet's day one ran 06:35 to
+                # 22:50 on the back of four stragglers after 6pm, and a single
+                # "24.4 hours serving" hides that completely.
+                times['per_day'] = [
+                    {'date': r[0].isoformat(),
+                     'first': r[1].strftime('%H:%M'),
+                     'last': r[2].strftime('%H:%M')} for r in rows]
+            _ex("""
+                SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY w),
+                       percentile_cont(0.9) WITHIN GROUP (ORDER BY w),
+                       MAX(w)
+                FROM (
+                    SELECT EXTRACT(EPOCH FROM (completed_at - created_at))/60.0 AS w
+                    FROM orders
+                    WHERE created_at >= %(d0)s AND created_at < %(d1)s
+                      AND completed_at IS NOT NULL
+                ) q
+            """)
+            r = cur.fetchone()
+            if r and r[0] is not None:
+                times['wait_median'] = round(float(r[0]), 1)
+                times['wait_p90'] = round(float(r[1]), 1)
+                times['wait_worst'] = round(float(r[2]), 1)
+            # TIME ON THE SHELF is its own measurement, not part of the wait.
+            # Steve, on a 138 minute figure: "I think they would not have
+            # stayed for 2 hours, may have been a test or just an error, maybe
+            # just take out the outlier." It was neither, and nothing needed
+            # removing: that coffee was MADE in 5 minutes and then sat for 133.
+            # Deleting the row would have hidden a real signal -- whether people
+            # are hearing that their coffee is ready -- behind a tidier average.
+            _ex("""
+                SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY s),
+                       MAX(s)
+                FROM (
+                    SELECT EXTRACT(EPOCH FROM (picked_up_at - completed_at))/60.0 AS s
+                    FROM orders
+                    WHERE created_at >= %(d0)s AND created_at < %(d1)s
+                      AND picked_up_at IS NOT NULL AND completed_at IS NOT NULL
+                ) q
+            """)
+            r = cur.fetchone()
+            if r and r[0] is not None:
+                times['shelf_median'] = round(float(r[0]), 1)
+                times['shelf_worst'] = round(float(r[1]), 1)
+        except Exception as e:
+            logger.warning(f"report times failed: {e}")
+
+        # --- HOW THEY ORDERED -----------------------------------------
+        # Worth knowing before deciding whether the text line earns its cost.
+        channels = []
+        try:
+            _ex("""
+                SELECT COALESCE(order_details::jsonb->>'channel', 'unknown') AS ch,
+                       COUNT(*) AS n
+                FROM orders
+                WHERE created_at >= %(d0)s AND created_at < %(d1)s
+                GROUP BY 1 ORDER BY n DESC
+            """)
+            channels = [{'channel': r[0], 'orders': int(r[1])}
+                        for r in cur.fetchall()]
+        except Exception as e:
+            logger.warning(f"report channels failed: {e}")
+
+        # --- BEANS ---------------------------------------------------
+        # The report described the milk in detail and never once mentioned
+        # coffee, which is the thing you actually have to order more of.
+        #
+        # SHOTS are the honest unit: two shots is two shots whatever the
+        # grinder is set to, and it is the number that captures "standard vs
+        # double" without arguing about dose. Kilograms then follow from the
+        # CURRENT beans_grams_per_shot setting, which is stated on the report
+        # so nobody has to guess which dose produced the figure.
+        #
+        # Deliberately RE-RESOLVED rather than summed from each order's
+        # _resolved_lines stamp. The stamp is what the ledger moved on the
+        # day, and on Treenet that was computed at 22 g per shot -- double the
+        # real dose -- so summing the stamps would faithfully reproduce a
+        # number we now know was wrong. Re-resolving answers the question
+        # actually being asked: how much coffee does an event like this one
+        # take, at the dose I use now.
+        beans = {'shots': 0.0, 'kg': 0.0, 'by_bean': {}, 'grams_per_shot': None,
+                 'strength_mix': {'as_recipe': 0, 'extra': 0, 'lighter': 0},
+                 'kg_per_100': None, 'orders_counted': 0, 'no_recipe': 0}
+        # Only when asked. resolve_order runs recipe queries per call and the
+        # report calls it twice per order; /reports/today is polled every
+        # 30 s by every barista tablet, the dashboard and the ops board, and
+        # none of them show beans. On a 577-order day that was thousands of
+        # extra queries per poll. The Report screen asks with ?beans=1.
+        _want_beans = request.args.get('beans') in ('1', 'true', 'yes')
+        if _want_beans:
+            try:
+                from services.recipes import resolve_order as _resolve_for_report
+                gps = float(coffee_system._get_setting('beans_grams_per_shot', '22') or 22)
+                beans['grams_per_shot'] = gps
+                _ex("""
+                    SELECT order_details FROM orders
+                    WHERE created_at >= %(d0)s AND created_at < %(d1)s
+                      AND status <> 'cancelled'
+                """)
+                for r in cur.fetchall():
+                    od = r[0] if not isinstance(r, dict) else r.get('order_details')
+                    if isinstance(od, str):
+                        try:
+                            od = json.loads(od)
+                        except (ValueError, TypeError):
+                            continue
+                    if not isinstance(od, dict):
+                        continue
+                    try:
+                        lines, _m = _resolve_for_report(
+                            db, od, coffee_system._get_setting,
+                            requested_bean=coffee_system._requested_bean(od))
+                    except Exception:
+                        lines = None
+                    if not lines:
+                        beans['no_recipe'] += 1
+                        continue
+                    grams = sum(float(ln['qty']) for ln in lines
+                                if ln.get('category') == 'coffee')
+                    if grams <= 0:
+                        continue          # tea, hot chocolate: no beans, not a miss
+                    beans['orders_counted'] += 1
+                    shots = grams / gps if gps else 0
+                    beans['shots'] += shots
+                    for ln in lines:
+                        if ln.get('category') == 'coffee':
+                            nm = str(ln.get('name') or 'house blend')
+                            beans['by_bean'][nm] = round(
+                                beans['by_bean'].get(nm, 0.0) + float(ln['qty']) / 1000.0, 4)
+                    # Measured against what THIS drink's own recipe gives at plain
+                    # strength -- a large IS a double, so counting "2 shots" as
+                    # extra would be wrong. Called 'lighter' rather than 'half'
+                    # because 14 of Treenet's orders carried an explicit shot
+                    # count below their recipe: genuinely less coffee, but nobody
+                    # asked for a half strength.
+                    try:
+                        base_lines, _bm = _resolve_for_report(
+                            db, {**od, 'strength': '', 'shots': None},
+                            coffee_system._get_setting,
+                            requested_bean=coffee_system._requested_bean(od))
+                        base_g = sum(float(ln['qty']) for ln in (base_lines or [])
+                                     if ln.get('category') == 'coffee') or grams
+                    except Exception:
+                        base_g = grams
+                    if grams > base_g + 0.01:
+                        beans['strength_mix']['extra'] += 1
+                    elif grams < base_g - 0.01:
+                        beans['strength_mix']['lighter'] += 1
+                    else:
+                        beans['strength_mix']['as_recipe'] += 1
+                beans['shots'] = round(beans['shots'], 1)
+                beans['kg'] = round(sum(beans['by_bean'].values()), 3)
+                if beans['orders_counted']:
+                    beans['kg_per_100'] = round(
+                        beans['kg'] / beans['orders_counted'] * 100, 2)
+            except Exception as _be:
+                logger.warning(f"report bean maths failed: {_be}")
+
         return jsonify({
             'success': True,
+            'window': window_label,
+            'timezone': tzname,
+            'beans': beans,
+            'unmet': unmet,
+            'times': times,
+            'channels': channels,
             'date': datetime.now().date().isoformat(),
             'total_orders': total,
             'status_breakdown': status_counts,
