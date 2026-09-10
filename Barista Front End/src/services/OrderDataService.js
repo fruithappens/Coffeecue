@@ -13,8 +13,9 @@ class OrderDataService {
     // -> OrderDataService -> ApiService -- and `new ApiService()` at module
     // load throws "Cannot access 'X' before initialization" whenever
     // webpack happens to evaluate this file before ApiService finishes.
-    // Deleting unrelated files (phase 1 of the re-imagining) flipped that
-    // order and every screen went blank. First use is always after load.
+    // Which change trips it is pure ordering luck (deleting unrelated
+    // files did, on the test copy, and every screen went blank). First use
+    // is always after load, so the getter is safe.
     this._apiService = null;
     this.debugMode = true;
     
