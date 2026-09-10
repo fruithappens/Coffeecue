@@ -578,6 +578,41 @@ def _m018_shipped_demo_template(cur):
     )
 
 
+def _m022_split_shot_model(cur):
+    """A standard drink is a split shot: one shot, 11 g. A double is 22 g.
+
+    Steve watched the baristas at Treenet: 22 g in the basket, two spouts,
+    a cup under each -- so every standard coffee took ONE shot of the pair,
+    and a double took both. The shipped recipe rows said a medium was two
+    shots and the dose setting defaulted to 22 g per shot, so the ledger
+    booked 44 g for a double and the report read 21 kg for an event that
+    used 8.5. Every single-shot drink was recorded as a double.
+
+    Two data changes, both no-ops where the operator has already fixed
+    them by hand (the copy has):
+      - beans_grams_per_shot becomes 11 -- only when it is unset or still
+        the old default of 22, so a deliberately chosen dose survives;
+      - the SHIPPED medium rows that say 2 shots become 1, except Magic,
+        which is a double by definition. Operator-edited rows (source
+        other than 'shipped') are left alone, as are small and large.
+    Ships alongside the recipes.py change that makes strength words
+    ADDITIVE ("double" = the recipe's shots + 1); without this data that
+    change would book a double medium as three shots of 22 g.
+    """
+    cur.execute("""
+        INSERT INTO settings (key, value, description)
+        VALUES ('beans_grams_per_shot', '11',
+                'Grams of beans per single shot. Standard drink = 1 shot; double = 2.')
+        ON CONFLICT (key) DO UPDATE SET value = '11'
+        WHERE settings.value IS NULL OR btrim(settings.value) IN ('', '22', '22.0')
+    """)
+    cur.execute("""
+        UPDATE recipes SET quantity = 1
+        WHERE source = 'shipped' AND unit = 'shot' AND size = 'medium'
+          AND quantity = 2 AND lower(drink) <> 'magic'
+    """)
+
+
 # Master list. Append new migrations at the bottom — DO NOT renumber
 # existing ones, and DO NOT change `version`. The runner trusts the
 # version number to determine which migrations to skip.
@@ -630,6 +665,7 @@ MIGRATIONS: list[Migration] = [
     Migration(17, 'stock_overrides',           _m017_stock_overrides),
     Migration(18, 'shipped_demo_template',     _m018_shipped_demo_template),
     Migration(19, 'station_stats_twin_columns', _m019_station_stats_twin_columns),
+    Migration(22, 'split_shot_model',         _m022_split_shot_model),
 ]
 
 
