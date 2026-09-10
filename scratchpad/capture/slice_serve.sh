@@ -46,7 +46,10 @@ mkdir -p "$DIR/static" && cp -R "$FE/build/." "$DIR/static/"
 
 # Backend: the copy's venv, this checkout's code, UTC like Railway.
 mkdir -p "$DIR/logs"
-( cd "$DIR" && TZ=UTC nohup "$COPY/venv/bin/python" run_server.py > "$DIR/logs/backend.log" 2>&1 & echo $! > "$DIR/logs/backend.pid" )
+# stdin closed and fully detached: when this script's output is piped
+# (`slice_serve.sh ... | tail`), a background child that still holds the
+# pipe keeps the reader waiting forever after the script has finished.
+( cd "$DIR" && TZ=UTC nohup "$COPY/venv/bin/python" run_server.py < /dev/null > "$DIR/logs/backend.log" 2>&1 & echo $! > "$DIR/logs/backend.pid" ) < /dev/null > /dev/null 2>&1
 for i in $(seq 1 20); do sleep 1; curl -s -o /dev/null http://localhost:5001/api/health && break; done
 if curl -s -o /dev/null http://localhost:5001/api/health; then
   echo "serving $DIR on http://localhost:5001 (db $DB)"
