@@ -34,7 +34,7 @@ export default function AdminSheet({ open, onClose, state = {}, actions = {}, un
   useEffect(() => { if (open) { setStage(unlocked ? 'panel' : 'pin'); setPinError(false); } }, [open, unlocked]);
   useEffect(() => {
     if (stage !== 'panel') return;
-    fetch('/api/app-version').then((r) => (r.ok ? r.json() : {})).then((b) => setVersion(b.bundle || '')).catch(() => {});
+    fetch('/api/app-version').then((r) => (r.ok ? r.json() : {})).then((b) => setVersion(b.bundle || '')).catch(() => undefined);
   }, [stage]);
   if (!open) return null;
 

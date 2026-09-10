@@ -12,16 +12,6 @@ import DisplaySelector from './components/display/DisplaySelector';
 import DesignSheet from './components/design/DesignSheet';
 import RunnerInterface from './components/runner/RunnerInterface';
 
-// /organiser and /support were two apps that overlapped; they are one app
-// now. Keep the old doors working -- a bookmark, a printed link, anything
-// in the app still pointing at them -- and carry the hash across so a deep
-// link like #branding/labels still lands where it did.
-const ToRunner = () => {
-  React.useEffect(() => {
-    window.location.replace('/run' + (window.location.hash || ''));
-  }, []);
-  return null;
-};
 import OpsBoard from './components/support/OpsBoard';
 import LoginPage from './components/auth/LoginPage';
 import AuthService from './services/AuthService';
@@ -38,6 +28,17 @@ import UpdateAvailable from './components/shared/UpdateAvailable';
 import ErrorBoundary from './components/shared/ErrorBoundary';
 import BasicBaristaInterface from './components/fallbacks/BasicBaristaInterface';
 import ConfirmHost from './components/shared/ConfirmDialog';
+
+// /organiser and /support were two apps that overlapped; they are one app
+// now. Keep the old doors working -- a bookmark, a printed link, anything
+// in the app still pointing at them -- and carry the hash across so a deep
+// link like #branding/labels still lands where it did.
+const ToRunner = () => {
+  React.useEffect(() => {
+    window.location.replace('/run' + (window.location.hash || ''));
+  }, []);
+  return null;
+};
 
 // Renders its children EXCEPT on the screens a customer sees. Those pages
 // are deliberately unauthenticated, so anything that reports "you are not
