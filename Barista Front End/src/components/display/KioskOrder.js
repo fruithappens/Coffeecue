@@ -23,6 +23,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { getSavedRounds, saveRound } from '../../utils/savedRounds';
 import DrinkIcon from './DrinkIcon';
 import SponsorTicker from './SponsorTicker';
+import { useEventBrand, EventHeader, PoweredBy } from '../../design/eventBrand';
 import useNotices from '../shared/useNotices';
 import NoticeBanner from '../shared/NoticeBanner';
 import { remember, recall } from '../../utils/deviceMemory';
@@ -62,21 +63,31 @@ export const milkEmoji = (name) => {
 // delegate lands on after scanning a QR (mounted by MobileOrderPage at
 // /order). They are different channels for reporting and only the caller
 // knows which one it is, so it is a prop, not a guess.
-const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced,
+const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced,
                       eaCid, channel = 'kiosk', onPick , onCheckExisting,
                       eventCode = '' }) => {
   // Anything the event needs everyone to know, before they order.
   const notices = useNotices('phone', stationId);
+  // Whose event this is -- the operator's logo, name and colour. A delegate
+  // ordering at Treenet should see Treenet, with CupQ signing the foot.
+  const brand = useEventBrand();
+
   // Event code carried with the order. Priority: a code already on the URL
   // (a scanned QR / a code the visitor typed on /my) wins; otherwise the
   // `eventCode` a trusted on-site surface (the board) passed in. Lets the
   // kiosk keep ordering when the gate is on without a code ever being typed
   // at the counter. Empty when no gate is configured.
+  // The barista's own walk-up form is the one caller with neither: the
+  // tablet mounts it with no eventCode and no ?e=. With the gate on, its
+  // orders were refused as "from a different event". So a walk-up falls
+  // back to the code the public display config already publishes -- the
+  // same one the board stamps on its QR.
+  const [cfgEventCode, setCfgEventCode] = useState('');
   const carriedEventCode = (() => {
     try {
       const fromUrl = new URLSearchParams(window.location.search).get('e');
-      return (fromUrl && fromUrl.trim()) || eventCode || '';
-    } catch (e) { return eventCode || ''; }
+      return (fromUrl && fromUrl.trim()) || eventCode || (channel === 'walkin' ? cfgEventCode : '');
+    } catch (e) { return eventCode || (channel === 'walkin' ? cfgEventCode : ''); }
   })();
   // PICK MODE. With `onPick` supplied this screen chooses a drink and
   // hands it back instead of ordering one -- same tiles, same pictures,
@@ -99,8 +110,11 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
       try {
         const r = await fetch('/api/display/config');
         const b = r.ok ? await r.json() : null;
-        const n = String((b?.config || b || {}).sms_number || '').trim();
+        const cfg = (b?.config || b || {});
+        const n = String(cfg.sms_number || '').trim();
         if (!dead && n) setSmsNumber(n);
+        const ec = String(cfg.event_code || '').trim();
+        if (!dead && ec) setCfgEventCode(ec);
       } catch (e) { /* the strip works without it */ }
     })();
     return () => { dead = true; };
@@ -714,7 +728,12 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
         // phone from a QR -- so each area is tracked and tunable on its own.
         surface: channel === 'kiosk'
           ? 'kiosk'
-          : ((() => { try { return window.self !== window.top; } catch (e) { return true; } })() ? 'ea_app' : 'phone'),
+          : channel === 'walkin'
+            // The barista typing a walk-up order on the cart's tablet: the
+            // same form the customer uses, so the options and "add another"
+            // are identical, stamped as a barista-entered order.
+            ? 'walkin'
+            : ((() => { try { return window.self !== window.top; } catch (e) { return true; } })() ? 'ea_app' : 'phone'),
         // Explicit, so the report can count 'chose texts' without inferring
         // it from whether a number happened to be attached.
         sms_opt_in: !!(smsOptIn && phone.trim()),
@@ -787,18 +806,21 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`relative flex flex-col items-center justify-center rounded-2xl p-5 min-h-[120px] text-center transition
-        ${disabled ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-800 hover:shadow-lg active:scale-95 shadow'}`}
+      // Tight sides on a phone: at 390px the old p-5 left 107px for the
+      // label and "Cappuccino" needs about 118, so it wrapped (Steve).
+      // Shorter too -- roomy is right, scrolling past seven drinks is not.
+      className={`relative flex flex-col items-center justify-center rounded-cq-xl px-2.5 py-4 sm:p-5 min-h-[104px] sm:min-h-[120px] text-center transition
+        ${disabled ? 'bg-cq-wash text-cq-ink-3 cursor-not-allowed' : 'bg-cq-milk text-cq-roast hover:shadow-cq-card active:scale-95 shadow'}`}
       style={active ? { boxShadow: `0 0 0 4px ${headerColor}` } : undefined}
     >
-      <span className="mb-2 flex items-center justify-center h-14" aria-hidden>
+      <span className="mb-1.5 sm:mb-2 flex items-center justify-center h-11 sm:h-14" aria-hidden>
         {icon || <span className="text-5xl">{emoji}</span>}
       </span>
       {/* break-words + full width so a long single-word label ("Cappuccino",
           "Medium") wraps instead of clipping — matters most with iPhone
           Display Zoom / Larger Text on, which narrows the viewport. */}
       <span className="text-xl font-bold leading-tight break-words w-full">{label}</span>
-      {sub && <span className="mt-1 text-xs font-semibold text-amber-600">{sub}</span>}
+      {sub && <span className="mt-1 text-xs font-semibold text-cq-caramel-deep">{sub}</span>}
     </button>
     </div>
   );
@@ -807,12 +829,12 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
     <div className="flex items-center justify-between mb-6">
       <div className="flex items-center gap-3 min-w-0">
         {onBack && (
-          <button onClick={onBack} className="p-2 rounded-full bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 flex-shrink-0">
+          <button onClick={onBack} className="p-2 rounded-full bg-cq-milk border border-cq-line text-cq-ink-2 hover:bg-cq-wash flex-shrink-0">
             <ArrowLeft size={28} />
           </button>
         )}
         {/* Dark, not white. This header sits INSIDE the panel, whose
-            background is #f8fafc - so white-on-near-white made "Order here
+            background is the cream page colour - so white-on-near-white made "Order here
             - pick a drink" effectively invisible on the kiosk. It was
             presumably styled for the dark backdrop behind the panel. */}
         {/* Sized down and allowed to WRAP on a phone.
@@ -821,10 +843,10 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
             on the one screen whose whole job is telling somebody what
             to do. The close button is flex-shrink-0 beside it, so on a
             narrow screen the heading was fighting for what was left. */}
-        <h2 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-gray-900
+        <h2 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-cq-roast
                        leading-tight break-words">{title}</h2>
       </div>
-      <button onClick={onClose} className="p-2 rounded-full bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 flex-shrink-0" title="Cancel">
+      <button onClick={onClose} className="p-2 rounded-full bg-cq-milk border border-cq-line text-cq-ink-2 hover:bg-cq-wash flex-shrink-0" title="Cancel">
         <X size={28} />
       </button>
     </div>
@@ -846,7 +868,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
   })();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 overflow-y-auto"
+    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-2 sm:p-4 overflow-y-auto"
          onPointerDown={resetIdle}
          style={{ background: `linear-gradient(135deg, ${headerColor}ee, #000000cc)`,
                   // The EventsAir app's webview sits UNDER the app's own
@@ -867,10 +889,10 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
       {idleCountdown != null && idleCountdown > 0 && (
         <div className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-6"
              onPointerDown={(e) => { e.stopPropagation(); resetIdle(); }}>
-          <div className="bg-white rounded-3xl p-10 text-center shadow-2xl max-w-md">
+          <div className="bg-cq-milk rounded-3xl p-10 text-center shadow-2xl max-w-md">
             <div className="text-8xl font-black mb-2" style={{ color: headerColor }}>{idleCountdown}</div>
-            <div className="text-3xl font-extrabold text-gray-800 mb-2">Still there?</div>
-            <div className="text-xl text-gray-600">
+            <div className="text-3xl font-extrabold text-cq-roast mb-2">Still there?</div>
+            <div className="text-xl text-cq-ink-2">
               Tap anywhere to keep ordering — otherwise this screen goes back
               to the order board in {idleCountdown} second{idleCountdown === 1 ? '' : 's'}.
             </div>
@@ -882,25 +904,25 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
           -- an inner scroll area inside a mis-reported webview viewport
           is how the top and bottom went missing. Kiosks (sm+) keep the
           centred card with its own scroll. */}
-      <div className={`w-full sm:max-h-[92vh] sm:overflow-y-auto rounded-3xl p-6 md:p-8
+      <div className={`w-full sm:max-h-[92vh] sm:overflow-y-auto rounded-3xl p-4 sm:p-6 md:p-8
                        ${step === 'done' ? 'max-w-5xl' : 'max-w-3xl'}`}
-           style={{ backgroundColor: '#f8fafc' }}>
+           style={{ backgroundColor: 'var(--cq-cream, #F6F1EA)' }}>
 
         {/* ---------- NAME (after the drink is built) ---------- */}
         {step === 'name' && (
           <>
             <Header title="Almost done — who's it for?"
                     onBack={goBack} />
-            <p className="text-xl text-gray-600 mb-3 font-medium">First name for the order</p>
+            <p className="text-xl text-cq-ink-2 mb-3 font-medium">First name for the order</p>
             <input
               autoFocus value={name} onChange={(e) => setName(e.target.value)}
               placeholder="Type your name"
-              className="w-full text-3xl font-bold p-5 rounded-2xl border-4 border-gray-200 focus:outline-none"
+              className="w-full text-3xl font-bold p-5 rounded-cq-xl border-4 border-cq-line focus:outline-none"
               style={{ borderColor: name ? headerColor : undefined }}
             />
             <button
               disabled={name.trim().length < 2} onClick={afterName}
-              className="mt-6 w-full py-5 rounded-2xl text-2xl font-extrabold text-white disabled:opacity-40"
+              className="mt-6 w-full py-5 rounded-cq-xl text-2xl font-extrabold text-white disabled:opacity-40"
               style={{ backgroundColor: headerColor }}>
               Next →
             </button>
@@ -910,6 +932,8 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
         {/* ---------- DRINK (first screen) ---------- */}
         {step === 'drink' && (
           <>
+            <EventHeader brand={brand} className="mb-4" />
+
             {/* The most useful place in the whole app for "we've run out of
                 skim": right where someone is about to choose it. */}
             <NoticeBanner notices={notices} className="mb-4" />
@@ -918,12 +942,12 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
               : 'Order here ☕'} />
             {eaIdentity && (
               <div className="flex items-center justify-center -mt-2 mb-2">
-                <span className="text-sm text-gray-500">
+                <span className="text-sm text-cq-ink-3">
                   Ordering as <strong>{eaIdentity.firstName}</strong>
                   {eaIdentity.guest ? '' : ' (from your event registration)'}
                 </span>
                 <button
-                  className="ml-2 text-sm text-blue-600 underline"
+                  className="ml-2 text-sm text-cq-caramel-deep underline"
                   onClick={() => { setEaIdentity(null); setName(''); }}
                 >
                   Not you?
@@ -931,9 +955,9 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
               </div>
             )}
             {loadingMenu ? (
-              <div className="flex items-center justify-center py-16 text-gray-500"><Loader className="animate-spin mr-2" /> Loading menu…</div>
+              <div className="flex items-center justify-center py-16 text-cq-ink-3"><Loader className="animate-spin mr-2" /> Loading menu…</div>
             ) : (menu?.coffee_types || []).length === 0 ? (
-              <div className="text-center py-16 text-gray-500 text-xl">Nothing on the menu just now. Come and see us and we'll sort you out.</div>
+              <div className="text-center py-16 text-cq-ink-3 text-xl">Nothing on the menu just now. Come and see us and we'll sort you out.</div>
             ) : (
               <>
                 {drinkCategories.length > 1 && (
@@ -943,7 +967,9 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                         className="px-4 py-2 rounded-full text-base font-bold transition"
                         style={drinkCat === cat
                           ? { backgroundColor: headerColor, color: '#fff' }
-                          : { backgroundColor: '#fff', color: '#374151', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+                          : { backgroundColor: 'var(--cq-milk, #FFFFFF)',
+                              color: 'var(--cq-ink-2, #5C4A3D)',
+                              boxShadow: '0 1px 2px rgba(59,35,20,0.10)' }}>
                         {cat}
                       </button>
                     ))}
@@ -952,7 +978,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                 {onCheckExisting && (
                   <button
                     onClick={onCheckExisting}
-                    className="block mx-auto mb-3 text-sm text-gray-500 underline"
+                    className="block mx-auto mb-3 text-sm text-cq-ink-3 underline"
                   >
                     Already ordered? Find my order
                   </button>
@@ -962,14 +988,14 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                     only when fresh (no drink picked, nothing in the cart). */}
                 {isOwnDevice && cart.length === 0 && !drink && savedRounds.length > 0 && (
                   <div className="mb-4">
-                    <div className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-2">Your saved rounds</div>
+                    <div className="text-xs font-bold uppercase tracking-wide text-cq-ink-3 mb-2">Your saved rounds</div>
                     <div className="flex flex-wrap gap-2">
                       {savedRounds.map((rnd) => (
                         <button key={rnd.name} onClick={() => loadRound(rnd)}
-                          className="px-4 py-3 rounded-2xl border-2 text-left"
+                          className="px-4 py-3 rounded-cq-xl border-2 text-left"
                           style={{ borderColor: headerColor }}>
                           <div className="font-extrabold" style={{ color: headerColor }}>☕ {rnd.name}</div>
-                          <div className="text-xs text-gray-500">
+                          <div className="text-xs text-cq-ink-3">
                             {rnd.items.length} coffee{rnd.items.length === 1 ? '' : 's'} · tap to re-order
                           </div>
                         </button>
@@ -985,7 +1011,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                   const shown = showAllDrinks ? drinksForTab
                     : drinksForTab.filter(d => d.featured !== false);
                   return (
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
                       {shown.map(d => (
                         <Tile key={d.value} icon={<DrinkIcon name={d.value} />} label={d.name}
                           active={drink?.value === d.value}
@@ -1027,6 +1053,31 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                 })()}
               </>
             )}
+            {/* What this event is NOT carrying. Steve, from the floor at
+                Treenet: the only questions asked all event were "is there
+                hot chocolate?" and "is there decaf?" -- both things that
+                were not on the screen at all. Nobody asked about oat,
+                because oat was right there marked unavailable. Naming what
+                is off the menu answers those questions before they are
+                asked. Small, last, and tappable so the venue learns what
+                people wanted. */}
+            {Array.isArray(menu?.not_today) && menu.not_today.length > 0 && (
+              <div className="mt-6 pt-4 border-t border-cq-line">
+                <div className="text-sm font-semibold text-cq-ink-3 mb-1.5">Not available today</div>
+                <div className="flex flex-wrap gap-x-2 gap-y-1">
+                  {menu.not_today.map((name, i) => (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() => logEvent('UNAVAILABLE_TAP', { kind: 'drink', item: name, station: myStation, channel })}
+                      className="text-base text-cq-ink-3 line-through decoration-gray-300"
+                    >
+                      {name}{i < menu.not_today.length - 1 ? ' ·' : ''}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         )}
 
@@ -1034,8 +1085,17 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
         {step === 'milk' && (
           <>
             <Header title="Milk?" onBack={goBack} />
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {milkOptions.map(m => {
+            {/* What we HAVE, as tiles. What we have RUN OUT OF stays on
+                screen underneath -- smaller, and as text.
+                Steve, from the floor: the greyed-out items were doing real
+                work. The only questions asked all event were "is there hot
+                chocolate?" and "is there decaf?" -- things that were not on
+                the screen at all. Nobody asked about oat, because oat was
+                right there marked unavailable. Hiding them behind a tap
+                (my first attempt) throws that away. Smaller and last, but
+                never hidden. */}
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
+              {milkOptions.filter((m) => !m.unavailable && compatible(drink, m)).map(m => {
                 const ok = !m.unavailable && compatible(drink, m);
                 // A long black defaults to NO MILK -- the highlighted
                 // tile says so before a single tap (Steve). Tapping any
@@ -1057,6 +1117,29 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                 );
               })}
             </div>
+            {(() => {
+              const gone = milkOptions.filter((m) => m.unavailable || !compatible(drink, m));
+              if (gone.length === 0) return null;
+              return (
+                <div className="mt-6 pt-4 border-t border-cq-line">
+                  <div className="text-sm font-semibold text-cq-ink-3 mb-1.5">Not available today</div>
+                  <div className="flex flex-wrap gap-x-2 gap-y-1">
+                    {gone.map((m, i) => (
+                      <button
+                        key={m.value}
+                        type="button"
+                        // Still tappable: the venue learns what people
+                        // wanted but could not have (UNAVAILABLE_TAP).
+                        onClick={() => logEvent('UNAVAILABLE_TAP', { kind: 'milk', item: m.value, drink: drink?.value, station: myStation, channel })}
+                        className="text-base text-cq-ink-3 line-through decoration-gray-300"
+                      >
+                        {m.name}{i < gone.length - 1 ? ' ·' : ''}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </>
         )}
 
@@ -1103,20 +1186,20 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
             <Header title="How much sugar?" onBack={goBack} />
             <div className="flex items-center justify-center gap-8 py-8">
               <button onClick={() => setSugar(s => Math.max(0, s - 1))}
-                className="p-6 rounded-full bg-white shadow text-gray-700 active:scale-95 disabled:opacity-40" disabled={sugar === 0}>
+                className="p-6 rounded-full bg-cq-milk shadow text-cq-ink-2 active:scale-95 disabled:opacity-40" disabled={sugar === 0}>
                 <Minus size={40} />
               </button>
               <div className="text-center min-w-[120px]">
                 <div className="text-7xl font-extrabold" style={{ color: headerColor }}>{sugar}</div>
-                <div className="text-lg font-semibold text-gray-500">{sugar === 0 ? (menu?.sugar_self_serve ? 'Add your own sugar at pickup' : 'No sugar') : `sugar${sugar > 1 ? 's' : ''}`}</div>
+                <div className="text-lg font-semibold text-cq-ink-3">{sugar === 0 ? (menu?.sugar_self_serve ? 'Add your own sugar at pickup' : 'No sugar') : `sugar${sugar > 1 ? 's' : ''}`}</div>
               </div>
               <button onClick={() => setSugar(s => Math.min(9, s + 1))}
-                className="p-6 rounded-full bg-white shadow text-gray-700 active:scale-95">
+                className="p-6 rounded-full bg-cq-milk shadow text-cq-ink-2 active:scale-95">
                 <Plus size={40} />
               </button>
             </div>
             <button onClick={afterSugar}
-              className="w-full py-5 rounded-2xl text-2xl font-extrabold text-white" style={{ backgroundColor: headerColor }}>
+              className="w-full py-5 rounded-cq-xl text-2xl font-extrabold text-white" style={{ backgroundColor: headerColor }}>
               Next →
             </button>
           </>
@@ -1131,11 +1214,11 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                 (Steve). Name the step for what it is, and let each control
                 say its own piece. */}
             <Header title="Anything to add?" onBack={goBack} />
-            <p className="-mt-4 mb-3 text-base text-gray-500">
+            <p className="-mt-4 mb-3 text-base text-cq-ink-3">
               Strength, temperature, decaf or a note for the barista. Skip it and
               we&rsquo;ll make it the usual way.
             </p>
-            <div className="text-sm font-semibold text-gray-400 uppercase tracking-wide">How strong?</div>
+            <div className="text-sm font-semibold text-cq-ink-3 uppercase tracking-wide">How strong?</div>
             <div className="grid grid-cols-3 gap-2 py-4">
               {/* Three, not four. Steve: "think should be normal, double,
                   half, notes 1/4, 1/8, 3x etc". "Extra strong" sat beside
@@ -1152,8 +1235,8 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                 <button
                   key={opt.label}
                   onClick={() => setStrength(opt.value)}
-                  className={`py-4 px-2 rounded-2xl font-bold shadow active:scale-95 leading-tight ${
-                    strength === opt.value ? 'text-white' : 'bg-white text-gray-800'}`}
+                  className={`py-4 px-2 rounded-cq-xl font-bold shadow active:scale-95 leading-tight ${
+                    strength === opt.value ? 'text-white' : 'bg-cq-milk text-cq-roast'}`}
                   style={strength === opt.value ? { backgroundColor: headerColor } : {}}
                 >
                   {/* text-lg (not xl) + wrapping so a one-word label like
@@ -1170,8 +1253,8 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                 screen for one toggle is a tap nobody thanks you for. */}
             <button
               onClick={() => setExtraHot(v => !v)}
-              className={`w-full py-4 rounded-2xl text-xl font-bold shadow mb-3 ${
-                extraHot ? 'text-white' : 'bg-white text-gray-800'}`}
+              className={`w-full py-4 rounded-cq-xl text-xl font-bold shadow mb-3 ${
+                extraHot ? 'text-white' : 'bg-cq-milk text-cq-roast'}`}
               style={extraHot ? { backgroundColor: headerColor } : {}}
             >
               {extraHot ? '✓ Extra hot' : 'Extra hot?'}
@@ -1191,8 +1274,8 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
               || menu.beans.some(b => /decaf/i.test(b))) && (
             <button
               onClick={() => setDecaf(v => !v)}
-              className={`w-full py-4 rounded-2xl text-xl font-bold shadow mb-3 ${
-                decaf ? 'text-white' : 'bg-white text-gray-800'}`}
+              className={`w-full py-4 rounded-cq-xl text-xl font-bold shadow mb-3 ${
+                decaf ? 'text-white' : 'bg-cq-milk text-cq-roast'}`}
               style={decaf ? { backgroundColor: headerColor } : {}}
             >
               {decaf ? '✓ Decaf' : 'Decaf?'}
@@ -1204,9 +1287,9 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                 with the other add-ons: reads clearly as "already handled,
                 nothing to choose", and is far harder to skip than a caption. */}
             {menu?.sugar_self_serve && (
-              <div className="w-full py-4 px-4 rounded-2xl mb-3 bg-gray-100
-                              border-2 border-dashed border-gray-300
-                              flex items-center justify-center gap-2 text-gray-500">
+              <div className="w-full py-4 px-4 rounded-cq-xl mb-3 bg-cq-wash
+                              border-2 border-dashed border-cq-line
+                              flex items-center justify-center gap-2 text-cq-ink-3">
                 <span className="text-2xl leading-none" aria-hidden>🍬</span>
                 <span className="text-base font-semibold text-center">
                   Sugar &amp; sweeteners — help yourself at pickup
@@ -1214,7 +1297,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
               </div>
             )}
             <label className="block mb-3">
-              <span className="block text-base text-gray-600 mb-1">
+              <span className="block text-base text-cq-ink-2 mb-1">
                 A note for the barista (optional)
               </span>
               <input
@@ -1222,13 +1305,13 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                 value={notes}
                 onChange={(e) => setNotes(e.target.value.slice(0, 80))}
                 placeholder="e.g. 1/4 strength, 3 shots"
-                className="w-full px-4 py-4 rounded-2xl text-lg border-2 border-gray-200
+                className="w-full px-4 py-4 rounded-cq-xl text-lg border-2 border-cq-line
                            focus:outline-none"
                 style={notes ? { borderColor: headerColor } : {}}
               />
             </label>
             <button onClick={afterStrength}
-              className="w-full py-5 rounded-2xl text-2xl font-extrabold text-white" style={{ backgroundColor: headerColor }}>
+              className="w-full py-5 rounded-cq-xl text-2xl font-extrabold text-white" style={{ backgroundColor: headerColor }}>
               Next →
             </button>
           </>
@@ -1241,24 +1324,24 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
             <div className="grid grid-cols-1 gap-3">
               {myStation != null && capable.includes(myStation) && (
                 <button onClick={() => chooseStation(myStation)}
-                  className="flex items-center justify-between rounded-2xl p-5 bg-white shadow hover:shadow-lg active:scale-[0.99]">
-                  <span className="flex items-center gap-3 text-2xl font-bold text-gray-800"><MapPin size={28} style={{ color: headerColor }} /> Collect here</span>
-                  <span className="text-lg text-gray-500">{stationName(myStation)} · {waitText(myStation)}</span>
+                  className="flex items-center justify-between rounded-cq-xl p-5 bg-cq-milk shadow hover:shadow-cq-card active:scale-[0.99]">
+                  <span className="flex items-center gap-3 text-2xl font-bold text-cq-roast"><MapPin size={28} style={{ color: headerColor }} /> Collect here</span>
+                  <span className="text-lg text-cq-ink-3">{stationName(myStation)} · {waitText(myStation)}</span>
                 </button>
               )}
               {fastestStation != null && fastestStation !== myStation && (
                 <button onClick={() => chooseStation(fastestStation)}
-                  className="flex items-center justify-between rounded-2xl p-5 bg-white shadow hover:shadow-lg active:scale-[0.99]">
-                  <span className="flex items-center gap-3 text-2xl font-bold text-gray-800"><Zap size={28} className="text-amber-500" /> Fastest</span>
-                  <span className="text-lg text-gray-500">{stationName(fastestStation)} · {waitText(fastestStation)}</span>
+                  className="flex items-center justify-between rounded-cq-xl p-5 bg-cq-milk shadow hover:shadow-cq-card active:scale-[0.99]">
+                  <span className="flex items-center gap-3 text-2xl font-bold text-cq-roast"><Zap size={28} className="text-cq-caramel-deep" /> Fastest</span>
+                  <span className="text-lg text-cq-ink-3">{stationName(fastestStation)} · {waitText(fastestStation)}</span>
                 </button>
               )}
-              <div className="text-sm font-semibold uppercase tracking-wide text-gray-400 mt-2 px-1">Or pick a station</div>
+              <div className="text-sm font-semibold uppercase tracking-wide text-cq-ink-3 mt-2 px-1">Or pick a station</div>
               {capable.map(sid => (
                 <button key={sid} onClick={() => chooseStation(sid)}
-                  className="flex items-center justify-between rounded-2xl p-4 bg-white shadow hover:shadow-lg active:scale-[0.99]">
-                  <span className="text-xl font-bold text-gray-800">{stationName(sid)}{sid === myStation ? ' (here)' : ''}</span>
-                  <span className="text-base text-gray-500">{waitText(sid)}</span>
+                  className="flex items-center justify-between rounded-cq-xl p-4 bg-cq-milk shadow hover:shadow-cq-card active:scale-[0.99]">
+                  <span className="text-xl font-bold text-cq-roast">{stationName(sid)}{sid === myStation ? ' (here)' : ''}</span>
+                  <span className="text-base text-cq-ink-3">{waitText(sid)}</span>
                 </button>
               ))}
             </div>
@@ -1269,21 +1352,21 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
         {step === 'phone' && eaIdentity?.hasPhone && !phone && (
           <>
             <Header title="Is this right?" onBack={goBack} />
-            <p className="text-xl text-gray-600 mb-4 font-medium">
+            <p className="text-xl text-cq-ink-2 mb-4 font-medium">
               We have <b>{name || eaIdentity.firstName}</b> and a mobile number
               on your registration.
             </p>
             <div className="space-y-3">
               <button
                 onClick={() => { setUseRegisteredPhone(true); afterName(); }}
-                className="w-full py-4 rounded-2xl text-white text-xl font-bold"
+                className="w-full py-4 rounded-cq-xl text-white text-xl font-bold"
                 style={{ backgroundColor: headerColor }}
               >
                 Yes — text that number when it’s ready
               </button>
               <button
                 onClick={() => { setUseRegisteredPhone(false); afterName(); }}
-                className="w-full py-4 rounded-2xl text-xl font-bold border-4"
+                className="w-full py-4 rounded-cq-xl text-xl font-bold border-4"
                 style={{ borderColor: headerColor, color: headerColor }}
               >
                 No texts — I’ll watch this screen
@@ -1291,7 +1374,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
               <button
                 onClick={() => { setUseRegisteredPhone(false);
                   setEaIdentity((e) => (e ? { ...e, hasPhone: false } : e)); }}
-                className="w-full py-3 text-gray-600 underline"
+                className="w-full py-3 text-cq-ink-2 underline"
               >
                 Use a different name or number
               </button>
@@ -1302,7 +1385,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
           <>
             <Header title={isOwnDevice ? 'How should we tell you?' : 'Want a text when it’s ready?'}
                     onBack={goBack} />
-            <p className="text-xl text-gray-600 mb-3 font-medium">
+            <p className="text-xl text-cq-ink-2 mb-3 font-medium">
               {/* On someone's OWN phone, THIS PAGE is a way of being told,
                   and the best one -- no number, nothing to pay for, and it
                   updates itself. Say that first and offer the text as an
@@ -1322,18 +1405,18 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
             <input
               autoFocus value={phone} onChange={(e) => setPhone(e.target.value)}
               inputMode="tel" placeholder="04XX XXX XXX"
-              className="w-full text-3xl font-bold p-5 rounded-2xl border-4 border-gray-200 focus:outline-none"
+              className="w-full text-3xl font-bold p-5 rounded-cq-xl border-4 border-cq-line focus:outline-none"
               style={{ borderColor: phoneValid ? headerColor : undefined }}
             />
             {phoneValid && (
               <button
                 onClick={() => setSmsOptIn(!smsOptIn)}
-                className={`mt-4 w-full flex items-center gap-3 rounded-2xl border-4 p-4 text-left text-lg font-semibold
-                            ${smsOptIn ? 'bg-green-50 border-green-600 text-green-800'
-                                       : 'bg-white border-gray-300 text-gray-500'}`}
+                className={`mt-4 w-full flex items-center gap-3 rounded-cq-xl border-4 p-4 text-left text-lg font-semibold
+                            ${smsOptIn ? 'bg-cq-ready-wash border-cq-ready text-cq-ready'
+                                       : 'bg-cq-milk border-cq-line text-cq-ink-3'}`}
               >
-                <span className={`flex items-center justify-center w-8 h-8 rounded-lg text-xl font-black
-                                  ${smsOptIn ? 'bg-green-600 text-white' : 'border-2 border-gray-400 text-transparent'}`}>
+                <span className={`flex items-center justify-center w-8 h-8 rounded-cq-md text-xl font-black
+                                  ${smsOptIn ? 'bg-cq-ready text-white' : 'border-2 border-cq-ink-3 text-transparent'}`}>
                   ✓
                 </span>
                 <span className="flex-1">
@@ -1353,13 +1436,13 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                   skip back. */}
               {phoneValid ? (
                 <button disabled={lookupBusy} onClick={continueWithNumber}
-                  className="w-full py-5 rounded-2xl text-xl font-extrabold text-white shadow active:scale-95 disabled:opacity-40"
+                  className="w-full py-5 rounded-cq-xl text-xl font-extrabold text-white shadow active:scale-95 disabled:opacity-40"
                   style={{ backgroundColor: headerColor }}>
                   {lookupBusy ? 'One sec…' : 'Continue →'}
                 </button>
               ) : (
                 <button onClick={() => { setPhone(''); setEaSuggest(null); goTo('name'); }}
-                  className="w-full py-5 rounded-2xl text-xl font-extrabold text-white shadow active:scale-95"
+                  className="w-full py-5 rounded-cq-xl text-xl font-extrabold text-white shadow active:scale-95"
                   style={{ backgroundColor: headerColor }}>
                   {isOwnDevice ? '📱 No number — watch it on this phone' : "📺 No number — I'll watch the board"}
                 </button>
@@ -1373,7 +1456,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
           <>
             <Header title={eaSuggest.choose ? 'Which one are you?' : 'Is this you?'}
                     onBack={goBack} />
-            <p className="text-xl text-gray-600 mb-4 font-medium">
+            <p className="text-xl text-cq-ink-2 mb-4 font-medium">
               {eaSuggest.choose
                 ? <>More than one person is using that number.</>
                 : <>That number is registered to <b>{eaSuggest.firstName}</b>.</>}
@@ -1387,7 +1470,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                       setName(c.first_name);
                       afterName();
                     }}
-                    className="w-full py-4 rounded-2xl text-white text-xl font-bold"
+                    className="w-full py-4 rounded-cq-xl text-white text-xl font-bold"
                     style={{ backgroundColor: headerColor }}
                   >
                     I'm {c.first_name}
@@ -1396,7 +1479,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
               ) : (
                 <button
                   onClick={() => { setName(eaSuggest.firstName); afterName(); }}
-                  className="w-full py-4 rounded-2xl text-white text-xl font-bold"
+                  className="w-full py-4 rounded-cq-xl text-white text-xl font-bold"
                   style={{ backgroundColor: headerColor }}
                 >
                   Yes — I'm {eaSuggest.firstName}
@@ -1404,7 +1487,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
               )}
               <button
                 onClick={() => { setEaSuggest(null); goTo('name'); }}
-                className="w-full py-4 rounded-2xl text-xl font-bold border-4"
+                className="w-full py-4 rounded-cq-xl text-xl font-bold border-4"
                 style={{ borderColor: headerColor, color: headerColor }}
               >
                 {eaSuggest.choose ? 'Someone else — type a name' : 'No — use another name'}
@@ -1417,7 +1500,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
         {step === 'review' && (
           <>
             <Header title="All good?" onBack={goBack} />
-            <div className="bg-white rounded-2xl p-6 shadow mb-4">
+            <div className="bg-cq-milk rounded-cq-xl p-6 shadow mb-4">
               {cart.length > 0 ? (
                 // GROUP: every cup, named, so the orderer can check the round.
                 <ul className="space-y-3">
@@ -1425,11 +1508,11 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                     <li key={i} className="flex items-start gap-3 border-b last:border-b-0 pb-2 last:pb-0">
                       <span className="text-2xl">{drinkEmoji(it.drink?.value)}</span>
                       <div className="min-w-0 flex-1">
-                        <div className="text-xl font-extrabold text-gray-800">
+                        <div className="text-xl font-extrabold text-cq-roast">
                           {it.name || 'Guest'}
-                          {i === cart.length && <span className="ml-2 text-xs font-semibold text-amber-600">this one</span>}
+                          {i === cart.length && <span className="ml-2 text-xs font-semibold text-cq-caramel-deep">this one</span>}
                         </div>
-                        <div className="text-base text-gray-600">
+                        <div className="text-base text-cq-ink-2">
                           {[it.size?.name, it.drink?.name].filter(Boolean).join(' ')}
                           {it.milk && !/no milk/i.test(it.milk?.value || '') ? `, ${it.milk?.name}` : ''}
                           {it.strength ? `, ${it.strength === 'strong' ? 'double shot' : it.strength === 'weak' ? 'half strength' : 'extra strong'}` : ''}
@@ -1440,7 +1523,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                       </div>
                       {i < cart.length && (
                         <button onClick={() => setCart((c) => c.filter((_, j) => j !== i))}
-                          className="text-gray-400 hover:text-red-500 shrink-0" title="Remove this coffee">
+                          className="text-cq-ink-3 hover:text-cq-alert shrink-0" title="Remove this coffee">
                           <X size={20} />
                         </button>
                       )}
@@ -1449,8 +1532,8 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                 </ul>
               ) : (
                 <>
-                  <div className="text-2xl font-extrabold text-gray-800 mb-3">{name.trim()}</div>
-                  <ul className="text-xl text-gray-700 space-y-1">
+                  <div className="text-2xl font-extrabold text-cq-roast mb-3">{name.trim()}</div>
+                  <ul className="text-xl text-cq-ink-2 space-y-1">
                     <li>{drinkEmoji(drink?.value)} {drink?.name}</li>
                     <li>{milkEmoji(milk?.value)} {milk?.name}</li>
                     {size && <li>🥤 {size.name}</li>}
@@ -1472,9 +1555,9 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                 {chosenStation != null && waitText(chosenStation) ? ` · ${waitText(chosenStation)}` : ''}
               </div>
               {phone.trim() && smsOptIn ? (
-                <div className="mt-1 text-base text-gray-500">We'll text {phone.trim()} when it's ready.</div>
+                <div className="mt-1 text-base text-cq-ink-3">We'll text {phone.trim()} when it's ready.</div>
               ) : (eaIdentity && eaIdentity.hasPhone && useRegisteredPhone && (
-                <div className="mt-1 text-base text-gray-500">
+                <div className="mt-1 text-base text-cq-ink-3">
                   {eaIdentity.guest
                     ? "We'll text the number you gave us when it's ready."
                     : "We'll text your registered number when it's ready."}
@@ -1485,27 +1568,27 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                 disable the button — it used to show the error while
                 leaving a big active "Place order" underneath. */}
             {capable.length === 0 && !errorMsg && (
-              <div className="rounded-2xl p-4 mb-4 bg-red-100 text-red-800 text-lg font-semibold">
+              <div className="rounded-cq-xl p-4 mb-4 bg-cq-alert-wash text-cq-alert text-lg font-semibold">
                 No station can make that exact combination right now — tap back and adjust the drink or milk.
               </div>
             )}
             {errorMsg && (
-              <div className="rounded-2xl p-4 mb-4 bg-red-100 text-red-800 text-lg font-semibold">{errorMsg}</div>
+              <div className="rounded-cq-xl p-4 mb-4 bg-cq-alert-wash text-cq-alert text-lg font-semibold">{errorMsg}</div>
             )}
             {/* Save this round to re-order in one tap next time (own
                 phone only -- a shared kiosk shouldn't hoard rounds). */}
             {isOwnDevice && cart.length > 0 && (
               roundSaved ? (
-                <div className="mb-3 text-center text-sm font-semibold text-green-700">
+                <div className="mb-3 text-center text-sm font-semibold text-cq-ready">
                   Saved — you'll see it on your next visit.
                 </div>
               ) : (
                 <div className="mb-3 flex gap-2">
                   <input value={roundName} onChange={(e) => setRoundName(e.target.value)}
                     placeholder="Save this round as… (e.g. Wallfly)"
-                    className="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2 text-sm" />
+                    className="flex-1 border-2 border-cq-line rounded-cq-lg px-3 py-2 text-sm" />
                   <button onClick={doSaveRound} disabled={!roundName.trim()}
-                    className="px-4 rounded-xl text-sm font-semibold text-white disabled:opacity-40"
+                    className="px-4 rounded-cq-lg text-sm font-semibold text-white disabled:opacity-40"
                     style={{ backgroundColor: headerColor }}>Save</button>
                 </div>
               )
@@ -1514,12 +1597,12 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                 a friend. Each gets its own name so the cups are labelled
                 281-1, 281-2... (Steve's app group ordering). */}
             <button onClick={addAnotherDrink} disabled={submitting}
-              className="w-full py-4 rounded-2xl text-xl font-bold mb-3 border-2 flex items-center justify-center gap-2 disabled:opacity-50"
+              className="w-full py-4 rounded-cq-xl text-xl font-bold mb-3 border-2 flex items-center justify-center gap-2 disabled:opacity-50"
               style={{ borderColor: headerColor, color: headerColor }}>
               <Plus size={22} /> Add another coffee
             </button>
             <button onClick={placeOrder} disabled={submitting || capable.length === 0}
-              className="w-full py-6 rounded-2xl text-3xl font-extrabold text-white flex items-center justify-center gap-3 disabled:opacity-50"
+              className="w-full py-6 rounded-cq-xl text-3xl font-extrabold text-white flex items-center justify-center gap-3 disabled:opacity-50"
               style={{ backgroundColor: headerColor }}>
               {submitting ? <><Loader className="animate-spin" /> Placing…</>
                 : <><Check size={32} /> {cart.length > 0 ? `Place ${cart.length + 1} coffees` : 'Place order'}</>}
@@ -1537,20 +1620,21 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
             hardware -- the person waiting behind does not have to wait
             for the screen. Deliberately small and low-contrast: it must
             never compete with the step the current customer is on. */}
+        {channel !== 'walkin' && <PoweredBy brand={brand} className="mt-6 text-center" />}
         {step !== 'done' && channel !== 'walkin' && (
-          <div className="mt-6 pt-4 border-t border-gray-200 flex items-center justify-center gap-4 opacity-80">
+          <div className="mt-6 pt-4 border-t border-cq-line flex items-center justify-center gap-4 opacity-80">
             <img
               src={`/api/qr?size=5&data=${encodeURIComponent(
                 `${window.location.origin}/order${myStation ? `?station=${myStation}` : ''}` +
                 (carriedEventCode ? `${myStation ? '&' : '?'}e=${carriedEventCode}` : ''))}`}
               alt="Share the menu with a friend"
-              className="w-20 h-20 rounded bg-white p-1"
+              className="w-20 h-20 rounded bg-cq-milk p-1"
             />
             <div className="text-left">
-              <div className="text-base font-semibold text-gray-700">
+              <div className="text-base font-semibold text-cq-ink-2">
                 Share the menu with a friend
               </div>
-              <div className="text-sm text-gray-500">
+              <div className="text-sm text-cq-ink-3">
                 Scan this code{smsNumber ? ` or text ${smsNumber}` : ''}
               </div>
             </div>
@@ -1568,15 +1652,15 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
           <div className="text-center py-6 md:grid md:grid-cols-2 md:gap-8 md:items-center md:text-left">
             <div className="md:flex md:flex-col md:justify-center">
               <div className="text-6xl md:text-7xl mb-3">✅</div>
-              <h2 className="text-3xl md:text-4xl font-extrabold text-gray-800 mb-1">Thanks, {name.trim()}!</h2>
-              <p className="text-xl md:text-2xl text-gray-600 mb-2">Your order number is</p>
+              <h2 className="text-3xl md:text-4xl font-extrabold text-cq-roast mb-1">Thanks, {name.trim()}!</h2>
+              <p className="text-xl md:text-2xl text-cq-ink-2 mb-2">Your order number is</p>
               <div className="text-7xl md:text-8xl font-black mb-3 leading-none"
                    style={{ color: headerColor }}>#{result.order_number}</div>
-              <p className="text-xl md:text-2xl text-gray-700 font-semibold">
+              <p className="text-xl md:text-2xl text-cq-ink-2 font-semibold">
                 Collect from <b>{result.station_name || `Station ${result.station_id}`}</b>
               </p>
               {phone.trim() && (
-                <p className="text-base md:text-lg text-gray-500 mt-2">We'll text you when it's ready.</p>
+                <p className="text-base md:text-lg text-cq-ink-3 mt-2">We'll text you when it's ready.</p>
               )}
             </div>
             <div className="md:flex md:flex-col md:items-center">
@@ -1595,9 +1679,9 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
                   src={`/api/qr?size=8&data=${encodeURIComponent(
                     `${window.location.origin}/order?order=${result.order_number}`)}`}
                   alt={`Track order ${result.order_number}`}
-                  className="w-32 h-32 md:w-40 md:h-40 rounded-lg bg-white p-2 shadow"
+                  className="w-32 h-32 md:w-40 md:h-40 rounded-cq-md bg-cq-milk p-2 shadow"
                 />
-                <p className="text-base text-gray-600 mt-2 max-w-xs">
+                <p className="text-base text-cq-ink-2 mt-2 max-w-xs">
                   {phone.trim()
                     ? 'Scan to watch it on your phone - or let a friend scan it for you.'
                     : "Scan to watch it on your phone. No number needed."}
@@ -1608,14 +1692,14 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
             {/* What you actually ordered, so you can see it all arrived
                 -- not just the drink name. Steve, tracking his own:
                 "your not confident that the whole order was recieved". */}
-            <div className="mt-4 mx-auto w-full max-w-md rounded-2xl bg-gray-50 border-2 border-gray-200 px-5 py-3 text-center">
-              <div className="text-sm uppercase tracking-wide text-gray-500 mb-1">
+            <div className="mt-4 mx-auto w-full max-w-md rounded-cq-xl bg-cq-wash border-2 border-cq-line px-5 py-3 text-center">
+              <div className="text-sm uppercase tracking-wide text-cq-ink-3 mb-1">
                 Your order
               </div>
-              <div className="text-2xl font-bold text-gray-800 capitalize">
+              <div className="text-2xl font-bold text-cq-roast capitalize">
                 {[size?.name, drink?.name].filter(Boolean).join(' ')}
               </div>
-              <div className="text-lg text-gray-600 mt-0.5">
+              <div className="text-lg text-cq-ink-2 mt-0.5">
                 {[
                   milk?.name,
                   sugar === 0
@@ -1637,13 +1721,13 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
             {/* The countdown, out loud, with a way to buy more time. */}
             {doneLeft != null && (
               <div className="mt-4 flex flex-col items-center gap-2">
-                <div className="text-lg text-gray-500">
-                  This screen clears in <b className="text-gray-800">{doneLeft}</b>
+                <div className="text-lg text-cq-ink-3">
+                  This screen clears in <b className="text-cq-roast">{doneLeft}</b>
                   {doneLeft === 1 ? ' second' : ' seconds'}
                 </div>
                 <button
                   onClick={() => setDoneLeft((n) => (n || 0) + DONE_EXTENSION)}
-                  className="px-8 py-4 rounded-2xl text-lg font-bold border-2 border-gray-300 bg-white text-gray-800"
+                  className="px-8 py-4 rounded-cq-xl text-lg font-bold border-2 border-cq-line bg-cq-milk text-cq-roast"
                 >
                   I need more time to scan
                 </button>
@@ -1651,7 +1735,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
             )}
 
             <button onClick={onClose}
-              className="mt-5 px-10 py-4 rounded-2xl text-xl font-bold text-white" style={{ backgroundColor: headerColor }}>
+              className="mt-5 px-10 py-4 rounded-cq-xl text-xl font-bold text-white" style={{ backgroundColor: headerColor }}>
               Done
             </button>
             </div>
@@ -1661,7 +1745,7 @@ const KioskOrder = ({ stationId, headerColor = '#C08552', onClose, onOrderPlaced
       {/* Sponsor strip, pinned above the phone toolbar / the events-app nav
           while the customer picks their drink. */}
       {stripOn && channel !== 'walkin' && (
-        <div className="fixed left-0 right-0 z-[55] shadow-lg"
+        <div className="fixed left-0 right-0 z-[55] shadow-cq-card"
              style={{ bottom: embeddedInApp ? 'calc(env(safe-area-inset-bottom) + 8.5rem)' : 'env(safe-area-inset-bottom)' }}>
           <SponsorTicker items={sponsorStrip.sponsors} position="bottom" size={phoneNarrow ? 'xs' : 'small'} />
         </div>

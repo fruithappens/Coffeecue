@@ -134,11 +134,11 @@ export function SoundToggleButton({ soundOn, onToggle, className = '', audioStat
         type="button"
         onClick={onToggle}
         aria-pressed={soundOn}
-        className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl
+        className={`w-full flex items-center justify-center gap-2 py-3 rounded-cq-lg
                     border-2 text-sm font-semibold transition-colors
                     ${soundOn
-                      ? 'border-green-600 text-green-700 bg-green-50'
-                      : 'border-red-500 text-red-600 bg-red-50'}`}
+                      ? 'border-cq-ready text-cq-ready bg-cq-ready-wash'
+                      : 'border-cq-alert text-cq-alert bg-cq-alert-wash'}`}
       >
         {soundOn
           ? <Volume2 size={18} className="shrink-0" />
@@ -151,13 +151,13 @@ export function SoundToggleButton({ soundOn, onToggle, className = '', audioStat
           page never let audio start. Either way the page still turns
           green and (if opted in) the text still arrives. */}
       {soundOn && audioState === 'running' && (
-        <p className="mt-1 text-xs text-center text-gray-500">
+        <p className="mt-1 text-xs text-center text-cq-ink-3">
           Chime played — didn't hear it? Check your phone's silent
           switch and volume.
         </p>
       )}
       {soundOn && audioState === 'blocked' && (
-        <p className="mt-1 text-xs text-center text-amber-700">
+        <p className="mt-1 text-xs text-center text-cq-caramel-deep">
           This app is blocking sound. The screen still turns green when
           it's ready — or add your mobile for a text.
         </p>

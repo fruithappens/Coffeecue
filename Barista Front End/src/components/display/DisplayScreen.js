@@ -74,10 +74,10 @@ const withSrc = (url, station) => {
 
 // Visual theme presets. Each provides bg, panel, text, accent.
 const THEMES = {
-  light:   { bg: 'bg-gray-50',    panel: 'bg-white',         text: 'text-gray-900', subtext: 'text-gray-500', border: 'border-gray-200' },
-  dark:    { bg: 'bg-gray-900',   panel: 'bg-gray-800',      text: 'text-gray-50',  subtext: 'text-gray-400', border: 'border-gray-700' },
-  coffee:  { bg: 'bg-amber-50',   panel: 'bg-amber-100/40',  text: 'text-amber-950', subtext: 'text-amber-700', border: 'border-amber-200' },
-  minimal: { bg: 'bg-white',      panel: 'bg-white',         text: 'text-gray-900', subtext: 'text-gray-400', border: 'border-gray-100' },
+  light:   { bg: 'bg-cq-wash',    panel: 'bg-cq-milk',         text: 'text-cq-roast', subtext: 'text-cq-ink-3', border: 'border-cq-line' },
+  dark:    { bg: 'bg-cq-roast',   panel: 'bg-cq-roast',      text: 'text-cq-cream',  subtext: 'text-cq-ink-3', border: 'border-cq-ink-3' },
+  coffee:  { bg: 'bg-cq-caramel-wash',   panel: 'bg-cq-caramel-wash/40',  text: 'text-cq-roast', subtext: 'text-cq-caramel-deep', border: 'border-cq-line' },
+  minimal: { bg: 'bg-cq-milk',      panel: 'bg-cq-milk',         text: 'text-cq-roast', subtext: 'text-cq-ink-3', border: 'border-cq-line' },
 };
 
 // Font size scale — controls the giant order number cells.
@@ -165,14 +165,14 @@ const OrderCard = ({ order, variant, fonts, theme, showCustomerName, showDetails
   // a white card, which is how a colour meant to be seen across a room
   // ends up invisible.
   const ringClass = variant === 'ready'
-    ? 'ring-[6px] ring-green-500 shadow-green-200/60 ready-breathe'
-    : 'ring-[6px] ring-amber-500';
+    ? 'ring-[6px] ring-cq-ready shadow-green-200/60 ready-breathe'
+    : 'ring-[6px] ring-cq-caramel';
   const badgeClass = variant === 'ready'
-    ? 'bg-green-500 text-white'
-    : 'bg-amber-400 text-amber-950';
+    ? 'bg-cq-ready text-white'
+    : 'bg-cq-caramel-wash text-cq-roast';
 
   return (
-    <div className={`relative isolate rounded-2xl ${theme.panel} ${ringClass} shadow-lg
+    <div className={`relative isolate rounded-cq-xl ${theme.panel} ${ringClass} shadow-cq-card
                      px-6 py-3 md:px-8 md:py-4 transition-all duration-500
                      ${isNew && variant === 'ready' ? 'animate-pulse-once' : ''}`}>
       {/* A FRESH completion also pulses its whole BACKGROUND green for
@@ -181,7 +181,7 @@ const OrderCard = ({ order, variant, fonts, theme, showCustomerName, showDetails
           needed -- the one signal that always works on a screen nobody
           can touch. */}
       {isNew && variant === 'ready' && (
-        <div className="absolute inset-0 -z-10 rounded-2xl pointer-events-none cupq-ready-flash" aria-hidden />
+        <div className="absolute inset-0 -z-10 rounded-cq-xl pointer-events-none cupq-ready-flash" aria-hidden />
       )}
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
@@ -191,13 +191,25 @@ const OrderCard = ({ order, variant, fonts, theme, showCustomerName, showDetails
               instead of being a caption under it. flex-wrap so a long
               name drops to its own line on a narrow screen rather than
               squeezing the number. */}
+          {/* The NAME leads, in the biggest type on the board.
+              A customer crossing a room is looking for themselves, not for
+              a number they may never have read -- the number is what the
+              barista calls and what the label carries, so it stays, one
+              size down and beside the name. With names turned off (a
+              privacy setting) the number takes the big slot back. */}
           <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1 min-w-0">
-            <div className={`${fonts.num} font-extrabold leading-none tracking-tight ${theme.text} flex-shrink-0`}>
-              #{order.order_number}
-            </div>
-            {showCustomerName && (
-              <div className={`${fonts.name} font-semibold leading-none ${theme.text} truncate min-w-0`}>
-                {formatCustomerLine(order)}
+            {showCustomerName ? (
+              <>
+                <div className={`${fonts.num} font-extrabold leading-none tracking-tight ${theme.text} truncate min-w-0`}>
+                  {formatCustomerLine(order)}
+                </div>
+                <div className={`${fonts.name} font-semibold leading-none ${theme.subtext} flex-shrink-0`}>
+                  #{order.order_number}
+                </div>
+              </>
+            ) : (
+              <div className={`${fonts.num} font-extrabold leading-none tracking-tight ${theme.text} flex-shrink-0`}>
+                #{order.order_number}
               </div>
             )}
           </div>
@@ -220,7 +232,7 @@ const OrderCard = ({ order, variant, fonts, theme, showCustomerName, showDetails
           {order.stationLabel && (
             <div className={`px-4 py-1.5 rounded-full ${fonts.label} whitespace-nowrap
                              ${variant === 'ready'
-                               ? 'bg-gray-900 text-white font-extrabold'
+                               ? 'bg-cq-roast text-white font-extrabold'
                                : 'bg-black/10 font-semibold ' + theme.subtext}`}>
               {order.stationLabel}
             </div>
@@ -324,7 +336,7 @@ const DisplayScreen = () => {
     // CupQ house dark. This initial value matters: a second merge from
     // the local settings hook runs after the API one, so a blue left
     // here beat the colour the server actually sent.
-    header_color: '#C08552',
+    header_color: '#B8764A',
     custom_message: '',
     logo: '',
     background_landscape: '',
@@ -1346,15 +1358,15 @@ const DisplayScreen = () => {
   // shadow and text. Steve: "think the black backgound should be the
   // coffee colour". A near-black band reads as chrome; the tan reads as
   // the brand.
-  const CUPQ_DARK = '#1F2A37';
-  const CUPQ_COFFEE = '#C08552';
+  const CUPQ_DARK = '#3B2314';
+  const CUPQ_COFFEE = '#B8764A';
   const headerColor = config.header_color || CUPQ_COFFEE;
   const _hx = (headerColor || '').replace('#', '');
   const _r = parseInt(_hx.substring(0, 2) || '1e', 16);
   const _g = parseInt(_hx.substring(2, 4) || '40', 16);
   const _b = parseInt(_hx.substring(4, 6) || 'af', 16);
   const _lum = (0.299 * _r + 0.587 * _g + 0.114 * _b) / 255;
-  const onHeader = _lum > 0.6 ? '#111827' : '#ffffff';
+  const onHeader = _lum > 0.6 ? '#3B2314' : '#FFFFFF';
   const onHeaderDim = _lum > 0.6 ? 'rgba(17,24,39,0.72)' : 'rgba(255,255,255,0.82)';
 
   // The banner is a WHITE CARD with a coffee keyline, not a coloured
@@ -1396,7 +1408,7 @@ const DisplayScreen = () => {
        + 0.587 * parseInt(_ax.slice(2, 4), 16)
        + 0.114 * parseInt(_ax.slice(4, 6), 16)) / 255
     : 0.5;
-  const onAccent = _alum > 0.6 ? '#1F2A37' : '#FFFFFF';
+  const onAccent = _alum > 0.6 ? '#3B2314' : '#FFFFFF';
   // A light accent on a white card has no edge of its own, so give it
   // one. Without this a cream button simply vanishes into the banner.
   const accentNeedsOutline = _alum > 0.75;
@@ -1535,10 +1547,10 @@ const DisplayScreen = () => {
             className="block rounded-full"
             style={{
               width: 9, height: 9,
-              backgroundColor: health.level === 'green' ? '#22c55e'
-                             : health.level === 'orange' ? '#f59e0b' : '#ef4444',
+              backgroundColor: health.level === 'green' ? '#1F8A4C'
+                             : health.level === 'orange' ? '#B07D10' : '#C8372D',
               opacity: health.level === 'green' ? 0.55 : 0.95,
-              boxShadow: health.level === 'red' ? '0 0 6px #ef4444' : 'none',
+              boxShadow: health.level === 'red' ? '0 0 6px #C8372D' : 'none',
             }}
           />
           {holdProgress > 0 && (
@@ -1570,7 +1582,7 @@ const DisplayScreen = () => {
           </button>
           )}
           {config.logo ? (
-            <div className="bg-white rounded-xl p-2 mr-4 shadow-sm flex items-center flex-shrink-0">
+            <div className="bg-cq-milk rounded-cq-lg p-2 mr-4 shadow-sm flex items-center flex-shrink-0">
               <img
                 src={config.logo}
                 alt=""
@@ -1660,7 +1672,7 @@ const DisplayScreen = () => {
                           borderRight: `6px solid ${bannerEdge}`,
                           borderBottom: `6px solid ${bannerEdge}`,
                           boxShadow: BANNER_SHADOW }}>
-              <div className="bg-white rounded-xl p-2 shadow-lg">
+              <div className="bg-cq-milk rounded-cq-lg p-2 shadow-cq-card">
               <img
                 // `size` is the endpoint's module size, not pixel width;
                 // the CSS below decides how big it actually draws.
@@ -1714,7 +1726,7 @@ const DisplayScreen = () => {
                           borderRight: `6px solid ${bannerEdge}`,
                           [portraitColumns ? 'borderTop' : 'borderBottom']: `6px solid ${bannerEdge}`,
                           boxShadow: BANNER_SHADOW }}>
-              <div className="bg-white rounded-xl p-2 shadow-lg">
+              <div className="bg-cq-milk rounded-cq-lg p-2 shadow-cq-card">
                 <img
                   src={`/api/qr?size=10&data=${encodeURIComponent(withSrc(orderQrUrl, currentStation?.id))}`}
                   alt="Scan to order"
@@ -1789,7 +1801,7 @@ const DisplayScreen = () => {
                 <img
                   src={`/api/qr?size=8&data=${encodeURIComponent(withSrc(orderQrUrl, currentStation?.id))}`}
                   alt="Scan to order from your phone"
-                  className="rounded bg-white p-1"
+                  className="rounded bg-cq-milk p-1"
                   style={{ width: 'clamp(92px, 9.2vw, 128px)',
                            height: 'clamp(92px, 9.2vw, 128px)' }}
                 />
@@ -1842,7 +1854,7 @@ const DisplayScreen = () => {
                  looking pressable. */
               <button
                 onClick={(e) => { e.stopPropagation(); setShowKiosk(true); }}
-                className="flex items-center gap-2 rounded-2xl px-4 2xl:px-7 py-2.5 2xl:py-4 font-extrabold shadow-md hover:opacity-90 active:scale-95 whitespace-nowrap"
+                className="flex items-center gap-2 rounded-cq-xl px-4 2xl:px-7 py-2.5 2xl:py-4 font-extrabold shadow-cq-card hover:opacity-90 active:scale-95 whitespace-nowrap"
                 style={{ backgroundColor: bannerEdge, color: onAccent,
                          border: accentNeedsOutline ? `2px solid ${bannerInk}` : 'none' }}
               >
@@ -1873,7 +1885,7 @@ const DisplayScreen = () => {
                 }
               }}
               onClick={(e) => e.stopPropagation()}
-              className="px-3 py-2 rounded-lg text-sm border-0 bg-white/95 text-gray-800"
+              className="px-3 py-2 rounded-cq-md text-sm border-0 bg-cq-milk/95 text-cq-roast"
             >
               <option value="all">All Stations</option>
               {stations.map(s => (
@@ -1884,7 +1896,7 @@ const DisplayScreen = () => {
           <button
             onClick={(e) => { e.stopPropagation(); toggleAnnouncements(); }}
             className="p-2 rounded-full hover:opacity-80"
-            style={{ backgroundColor: readySound === 'off' ? bannerChip : (soundNeedsTap ? '#f59e0b' : '#16a34a'),
+            style={{ backgroundColor: readySound === 'off' ? bannerChip : (soundNeedsTap ? '#B07D10' : '#1F8A4C'),
                      color: readySound === 'off' ? onHeader : '#ffffff' }}
             title={readySound === 'off'
               ? 'Sound OFF - tap for a chime on every fresh completion'
@@ -1898,10 +1910,16 @@ const DisplayScreen = () => {
               speak): say so, loudly, instead of failing silently. Any tap or key
               press anywhere on the page arms it and replays what was held. */}
           {readySound !== 'off' && soundNeedsTap && (
-            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 px-6 py-4 rounded-2xl bg-amber-500 text-black font-bold text-xl shadow-2xl animate-pulse cursor-pointer text-center"
-                 onClick={(e) => e.stopPropagation()}>
-              Tap once anywhere to enable sound
-            </div>
+            // Beside the speaker it belongs to, not across the middle of the
+            // board. This was a banner pinned dead centre of a screen people
+            // read from four metres away -- it sat on top of the orders,
+            // which are the entire point of the board. A tap anywhere still
+            // arms the sound; this only has to be noticed.
+            <span className="px-3 py-1.5 rounded-full text-sm font-bold animate-pulse whitespace-nowrap cursor-pointer"
+                  style={{ backgroundColor: bannerChip, color: bannerInk }}
+                  onClick={(e) => e.stopPropagation()}>
+              tap for sound
+            </span>
           )}
           <button
             onClick={(e) => { e.stopPropagation(); setOrientation(orientation === 'portrait' ? 'landscape' : 'portrait'); }}
@@ -1934,7 +1952,7 @@ const DisplayScreen = () => {
 
       {/* --- Connection warning --- */}
       {hadResult && !connected && (
-        <div className="mx-6 md:mx-10 mb-3 px-4 py-2 rounded-lg bg-red-500/90 text-white text-sm">
+        <div className="mx-6 md:mx-10 mb-3 px-4 py-2 rounded-cq-md bg-cq-alert/90 text-white text-sm">
           {error || 'Not connected to backend — orders may be stale.'}
         </div>
       )}
@@ -2101,7 +2119,7 @@ const DisplayScreen = () => {
           {showOrderButton && isPortrait && (
             <button
               onClick={(e) => { e.stopPropagation(); setShowKiosk(true); }}
-              className="flex items-center gap-3 rounded-2xl px-7 py-4 text-2xl font-extrabold shadow-md hover:opacity-90 active:scale-95"
+              className="flex items-center gap-3 rounded-cq-xl px-7 py-4 text-2xl font-extrabold shadow-cq-card hover:opacity-90 active:scale-95"
               style={{ backgroundColor: headerColor, color: onHeader }}
             >
               <span style={{ fontSize: 'clamp(20px, 1.7vw, 30px)' }} aria-hidden>👆</span><span style={{ fontSize: 'clamp(17px, 1.5vw, 30px)' }}>Order here</span>
@@ -2110,10 +2128,10 @@ const DisplayScreen = () => {
           {/* Only advertise SMS ordering when a number is actually configured. */}
           {config.sms_number && !(isPortrait === false && showOrderButton) && (
             (showOrderButton) ? (
-              <div className="flex items-center min-w-0 rounded-2xl px-5 py-3 shadow-sm bg-white/90 text-gray-800">
+              <div className="flex items-center min-w-0 rounded-cq-xl px-5 py-3 shadow-sm bg-cq-milk/90 text-cq-roast">
                 <MessageCircle size={26} className="mr-3 flex-shrink-0" />
                 <div className="min-w-0">
-                  <div className="text-xs font-bold uppercase tracking-wide text-gray-500">
+                  <div className="text-xs font-bold uppercase tracking-wide text-cq-ink-3">
                     Or order by SMS
                   </div>
                   <div className="text-xl font-extrabold tracking-wide truncate">
@@ -2123,7 +2141,7 @@ const DisplayScreen = () => {
               </div>
             ) : (
               /* SMS-first CTA for non-touch screens. */
-              <div className="flex items-center min-w-0 rounded-2xl px-7 py-4 shadow-md"
+              <div className="flex items-center min-w-0 rounded-cq-xl px-7 py-4 shadow-cq-card"
                    style={{ backgroundColor: headerColor, color: onHeader }}>
                 <MessageCircle size={32} className="mr-4 flex-shrink-0" />
                 <div className="min-w-0">
@@ -2189,7 +2207,7 @@ const DisplayScreen = () => {
         /* Fresh-completion background flash: green ~8 times over 12 s, then
            rests transparent so only the ring remains. */
         @keyframes cupqReadyFlash { 0%, 100% { opacity: 0; } 50% { opacity: 0.55; } }
-        .cupq-ready-flash { background: #22c55e; opacity: 0; animation: cupqReadyFlash 1.5s ease-in-out 0s 8; }
+        .cupq-ready-flash { background: #1F8A4C; opacity: 0; animation: cupqReadyFlash 1.5s ease-in-out 0s 8; }
         .ready-breathe {
           animation: readyBreathe 2.6s ease-in-out infinite;
         }
@@ -2378,7 +2396,7 @@ const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
   // text so cards stay legible whatever the image, and let the panel hug
   // its content (compact when empty, growing as orders arrive).
   const theme = hasBg
-    ? { ...baseTheme, panel: 'bg-white/90 backdrop-blur-md', text: 'text-gray-900', subtext: 'text-gray-500', border: 'border-gray-200' }
+    ? { ...baseTheme, panel: 'bg-cq-milk/90 backdrop-blur-md', text: 'text-cq-roast', subtext: 'text-cq-ink-3', border: 'border-cq-line' }
     : baseTheme;
   // Column colours come from the board's palette, not from two hardcoded
   // status colours.
@@ -2394,7 +2412,7 @@ const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
   // for, and on a light board the dark block is what the eye lands on
   // first -- the job green used to do by convention, done here by
   // contrast instead.
-  const headerBg = isReady ? (ink || '#1F2A37') : (accent || '#C08552');
+  const headerBg = isReady ? (ink || '#3B2314') : (accent || '#B8764A');
   const icon = isReady ? <Check size={28} className="mr-2" /> : <Clock size={28} className="mr-2" />;
   // Upper case, as in the concept: two words in caps read as a LABEL for
   // the column beneath, where title case reads as a heading you might be
@@ -2427,7 +2445,7 @@ const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
                       WebkitBackdropFilter: 'blur(8px)',
                       border: '1px solid rgba(255,255,255,0.55)' }} />
     <section
-      className={`rounded-3xl overflow-hidden flex flex-col ${theme.panel} shadow-xl h-full
+      className={`rounded-3xl overflow-hidden flex flex-col ${theme.panel} shadow-cq-raised h-full
                         ${hasBg ? 'w-full' : ''}`}
       style={{ backfaceVisibility: 'hidden',
                // Cap each column to the real space it was measured to have,
@@ -2530,7 +2548,7 @@ const Column = ({ kind, theme: baseTheme, fonts, isPortrait, loading, orders,
               <div className={`flex items-center justify-center gap-2 pt-1 ${theme.subtext}`}>
                 {Array.from({ length: pageCount }).map((_, i) => (
                   <span key={i}
-                        className={`inline-block w-2.5 h-2.5 rounded-full ${i === safePage ? (isReady ? 'bg-green-500' : 'bg-amber-500') : 'bg-gray-300'}`} />
+                        className={`inline-block w-2.5 h-2.5 rounded-full ${i === safePage ? (isReady ? 'bg-cq-ready' : 'bg-cq-caramel') : 'bg-cq-line'}`} />
                 ))}
                 <span className="ml-2 text-sm">
                   {safePage * pageSize + 1}–{Math.min(orders.length, (safePage + 1) * pageSize)} of {orders.length}
