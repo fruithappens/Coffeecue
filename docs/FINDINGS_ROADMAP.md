@@ -397,6 +397,21 @@ Backups are copy-on-write snapshots off the volume: they cannot fill it.
 
 ---
 
+## 18. One startup rollback after migration 22 ran on production
+
+**Status:** open, low. The guard did its job; the cause is worth a look.
+
+The deploy that applied migration 22 logged once:
+`Startup left the database connection IDLE IN TRANSACTION (status=2). Some
+init path read without committing. Rolling back`. The next deploy (20, 21)
+did not. `apply_pending_migrations` commits after each migration, so the
+open transaction is a read somewhere after it -- probably the runner's
+final `_applied_versions` re-read or an init path that follows. Harmless
+because app.py's startup guard rolls it back, but a guard that fires is a
+bug being tolerated. Find the read, commit or rollback after it.
+
+---
+
 ## Still on Steve
 
 Not findings — decisions and config that only he can make.

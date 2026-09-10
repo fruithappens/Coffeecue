@@ -30,8 +30,11 @@ DIR="$1"; DB="$2"
 kill_5001
 # Fresh clone of the copy's DB for this run.
 if psql -lqt | cut -d'|' -f1 | grep -qw "$DB"; then dropdb "$DB"; fi
-createdb -T cupq_next "$DB"
-echo "db: $DB (cloned from cupq_next)"
+# TEMPLATE=<db> clones a different database -- e.g. a restore of production,
+# to watch a migration do on real data what it did on the copy.
+TEMPLATE="${TEMPLATE:-cupq_next}"
+createdb -T "$TEMPLATE" "$DB"
+echo "db: $DB (cloned from $TEMPLATE)"
 
 # Environment: the copy's, pointed at the clone.
 sed -E "s#^DATABASE_URL=.*#DATABASE_URL=postgresql://localhost/$DB?gssencmode=disable\&sslmode=disable#" "$COPY/.env" > "$DIR/.env"
