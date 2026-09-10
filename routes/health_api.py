@@ -301,6 +301,10 @@ def which_env():
     """Which environment this is -- so the front end can show an unmissable
     TEST COPY banner anywhere that is not production. Production sets no
     APP_ENV (or 'production') and shows nothing."""
-    import os
-    env = (os.getenv('APP_ENV') or os.getenv('RAILWAY_ENVIRONMENT') or 'production').lower()
-    return jsonify({'success': True, 'env': env, 'test_copy': env != 'production'})
+    # OPT-IN. Only an explicit APP_ENV that is not production shows the
+    # stripe. RAILWAY_ENVIRONMENT is deliberately ignored: a Railway
+    # environment named anything but "production" would have painted the
+    # live site red. The copy sets APP_ENV=next in its .env.
+    app_env = (os.getenv('APP_ENV') or '').strip().lower()
+    test_copy = bool(app_env) and app_env not in ('production', 'prod')
+    return jsonify({'success': True, 'env': app_env or 'production', 'test_copy': test_copy})

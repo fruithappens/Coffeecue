@@ -90,7 +90,7 @@ export default function ReportTab() {
     if (!from) return;
     setBusy(true);
     try {
-      const qs = new URLSearchParams({ from, to: to || from });
+      const qs = new URLSearchParams({ from, to: to || from, beans: '1' });
       const r = await fetch(`/api/reports/today?${qs}`, { headers: authHeaders() });
       setData(await r.json());
     } catch (e) {

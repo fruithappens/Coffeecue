@@ -12771,73 +12771,80 @@ def get_today_report():
         beans = {'shots': 0.0, 'kg': 0.0, 'by_bean': {}, 'grams_per_shot': None,
                  'strength_mix': {'as_recipe': 0, 'extra': 0, 'lighter': 0},
                  'kg_per_100': None, 'orders_counted': 0, 'no_recipe': 0}
-        try:
-            from services.recipes import resolve_order as _resolve_for_report
-            gps = float(coffee_system._get_setting('beans_grams_per_shot', '22') or 22)
-            beans['grams_per_shot'] = gps
-            _ex("""
-                SELECT order_details FROM orders
-                WHERE created_at >= %(d0)s AND created_at < %(d1)s
-                  AND status <> 'cancelled'
-            """)
-            for r in cur.fetchall():
-                od = r[0] if not isinstance(r, dict) else r.get('order_details')
-                if isinstance(od, str):
-                    try:
-                        od = json.loads(od)
-                    except (ValueError, TypeError):
+        # Only when asked. resolve_order runs recipe queries per call and the
+        # report calls it twice per order; /reports/today is polled every
+        # 30 s by every barista tablet, the dashboard and the ops board, and
+        # none of them show beans. On a 577-order day that was thousands of
+        # extra queries per poll. The Report screen asks with ?beans=1.
+        _want_beans = request.args.get('beans') in ('1', 'true', 'yes')
+        if _want_beans:
+            try:
+                from services.recipes import resolve_order as _resolve_for_report
+                gps = float(coffee_system._get_setting('beans_grams_per_shot', '22') or 22)
+                beans['grams_per_shot'] = gps
+                _ex("""
+                    SELECT order_details FROM orders
+                    WHERE created_at >= %(d0)s AND created_at < %(d1)s
+                      AND status <> 'cancelled'
+                """)
+                for r in cur.fetchall():
+                    od = r[0] if not isinstance(r, dict) else r.get('order_details')
+                    if isinstance(od, str):
+                        try:
+                            od = json.loads(od)
+                        except (ValueError, TypeError):
+                            continue
+                    if not isinstance(od, dict):
                         continue
-                if not isinstance(od, dict):
-                    continue
-                try:
-                    lines, _m = _resolve_for_report(
-                        db, od, coffee_system._get_setting,
-                        requested_bean=coffee_system._requested_bean(od))
-                except Exception:
-                    lines = None
-                if not lines:
-                    beans['no_recipe'] += 1
-                    continue
-                grams = sum(float(ln['qty']) for ln in lines
-                            if ln.get('category') == 'coffee')
-                if grams <= 0:
-                    continue          # tea, hot chocolate: no beans, not a miss
-                beans['orders_counted'] += 1
-                shots = grams / gps if gps else 0
-                beans['shots'] += shots
-                for ln in lines:
-                    if ln.get('category') == 'coffee':
-                        nm = str(ln.get('name') or 'house blend')
-                        beans['by_bean'][nm] = round(
-                            beans['by_bean'].get(nm, 0.0) + float(ln['qty']) / 1000.0, 4)
-                # Measured against what THIS drink's own recipe gives at plain
-                # strength -- a large IS a double, so counting "2 shots" as
-                # extra would be wrong. Called 'lighter' rather than 'half'
-                # because 14 of Treenet's orders carried an explicit shot
-                # count below their recipe: genuinely less coffee, but nobody
-                # asked for a half strength.
-                try:
-                    base_lines, _bm = _resolve_for_report(
-                        db, {**od, 'strength': '', 'shots': None},
-                        coffee_system._get_setting,
-                        requested_bean=coffee_system._requested_bean(od))
-                    base_g = sum(float(ln['qty']) for ln in (base_lines or [])
-                                 if ln.get('category') == 'coffee') or grams
-                except Exception:
-                    base_g = grams
-                if grams > base_g + 0.01:
-                    beans['strength_mix']['extra'] += 1
-                elif grams < base_g - 0.01:
-                    beans['strength_mix']['lighter'] += 1
-                else:
-                    beans['strength_mix']['as_recipe'] += 1
-            beans['shots'] = round(beans['shots'], 1)
-            beans['kg'] = round(sum(beans['by_bean'].values()), 3)
-            if beans['orders_counted']:
-                beans['kg_per_100'] = round(
-                    beans['kg'] / beans['orders_counted'] * 100, 2)
-        except Exception as _be:
-            logger.warning(f"report bean maths failed: {_be}")
+                    try:
+                        lines, _m = _resolve_for_report(
+                            db, od, coffee_system._get_setting,
+                            requested_bean=coffee_system._requested_bean(od))
+                    except Exception:
+                        lines = None
+                    if not lines:
+                        beans['no_recipe'] += 1
+                        continue
+                    grams = sum(float(ln['qty']) for ln in lines
+                                if ln.get('category') == 'coffee')
+                    if grams <= 0:
+                        continue          # tea, hot chocolate: no beans, not a miss
+                    beans['orders_counted'] += 1
+                    shots = grams / gps if gps else 0
+                    beans['shots'] += shots
+                    for ln in lines:
+                        if ln.get('category') == 'coffee':
+                            nm = str(ln.get('name') or 'house blend')
+                            beans['by_bean'][nm] = round(
+                                beans['by_bean'].get(nm, 0.0) + float(ln['qty']) / 1000.0, 4)
+                    # Measured against what THIS drink's own recipe gives at plain
+                    # strength -- a large IS a double, so counting "2 shots" as
+                    # extra would be wrong. Called 'lighter' rather than 'half'
+                    # because 14 of Treenet's orders carried an explicit shot
+                    # count below their recipe: genuinely less coffee, but nobody
+                    # asked for a half strength.
+                    try:
+                        base_lines, _bm = _resolve_for_report(
+                            db, {**od, 'strength': '', 'shots': None},
+                            coffee_system._get_setting,
+                            requested_bean=coffee_system._requested_bean(od))
+                        base_g = sum(float(ln['qty']) for ln in (base_lines or [])
+                                     if ln.get('category') == 'coffee') or grams
+                    except Exception:
+                        base_g = grams
+                    if grams > base_g + 0.01:
+                        beans['strength_mix']['extra'] += 1
+                    elif grams < base_g - 0.01:
+                        beans['strength_mix']['lighter'] += 1
+                    else:
+                        beans['strength_mix']['as_recipe'] += 1
+                beans['shots'] = round(beans['shots'], 1)
+                beans['kg'] = round(sum(beans['by_bean'].values()), 3)
+                if beans['orders_counted']:
+                    beans['kg_per_100'] = round(
+                        beans['kg'] / beans['orders_counted'] * 100, 2)
+            except Exception as _be:
+                logger.warning(f"report bean maths failed: {_be}")
 
         return jsonify({
             'success': True,
