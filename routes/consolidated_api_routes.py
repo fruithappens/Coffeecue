@@ -10,6 +10,7 @@ import threading
 from flask import Blueprint, jsonify, request, current_app, Response
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from datetime import datetime, timedelta
+from datetime import timezone as _tz
 import json
 import re
 from auth import jwt_required_with_demo, role_required_with_demo
@@ -12245,8 +12246,10 @@ def _event_timezone():
         ZoneInfo(tz)
         return tz
     except Exception:
-        logger.warning("event_timezone %r is not a known zone; using Australia/Adelaide", tz)
-        return 'Australia/Adelaide'
+        # Fall back to UTC, not to the default zone: if the zone database is
+        # missing the default fails the same way and the report goes dark.
+        logger.warning("event_timezone %r is not a known zone; using UTC", tz)
+        return 'UTC'
 
 
 def _report_window():
@@ -12269,7 +12272,11 @@ def _report_window():
     from zoneinfo import ZoneInfo
 
     tz = _event_timezone()
-    zone = ZoneInfo(tz)
+    try:
+        zone = ZoneInfo(tz)
+    except Exception:
+        # 'UTC' itself needs the zone database; timezone.utc never does.
+        zone = _tz.utc
 
     def _parse(v):
         try:
@@ -12280,7 +12287,7 @@ def _report_window():
     def _utc(d):
         """Local midnight on `d`, as a naive UTC timestamp for the DB."""
         return (_dt(d.year, d.month, d.day, tzinfo=zone)
-                .astimezone(ZoneInfo('UTC')).replace(tzinfo=None))
+                .astimezone(_tz.utc).replace(tzinfo=None))
 
     today = _dt.now(zone).date()
     one = _parse(request.args.get('date'))
