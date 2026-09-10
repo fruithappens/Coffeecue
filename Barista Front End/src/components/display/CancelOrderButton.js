@@ -38,13 +38,13 @@ export default function CancelOrderButton({ orderNumber, status, onCancelled }) 
   };
 
   if (msg) {
-    return <p className="text-center text-sm text-gray-500 mt-3">{msg}</p>;
+    return <p className="text-center text-sm text-cq-ink-3 mt-3">{msg}</p>;
   }
 
   if (!confirming) {
     return (
       <button onClick={() => setConfirming(true)}
-        className="block mx-auto mt-3 text-sm text-gray-500 underline">
+        className="block mx-auto mt-3 text-sm text-cq-ink-3 underline">
         Cancel my order
       </button>
     );
@@ -54,16 +54,16 @@ export default function CancelOrderButton({ orderNumber, status, onCancelled }) 
   // page open and accidently cancel". "Keep it" is the bigger, greener,
   // default-looking button; cancelling is the smaller, plainer one.
   return (
-    <div className="mt-3 rounded-xl border-2 border-gray-200 p-3 text-center">
-      <p className="text-base font-semibold text-gray-800 mb-1">Are you sure you want to cancel?</p>
-      <p className="text-xs text-gray-500 mb-3">This can't be undone. If it's already being made you'll need to see a barista.</p>
+    <div className="mt-3 rounded-cq-lg border-2 border-cq-line p-3 text-center">
+      <p className="text-base font-semibold text-cq-roast mb-1">Are you sure you want to cancel?</p>
+      <p className="text-xs text-cq-ink-3 mb-3">This can't be undone. If it's already being made you'll need to see a barista.</p>
       <div className="flex gap-2 justify-center">
         <button onClick={() => setConfirming(false)} disabled={busy}
-          className="px-5 py-3 rounded-xl bg-green-600 text-white text-base font-bold">
+          className="px-5 py-3 rounded-cq-lg bg-cq-ready text-white text-base font-bold">
           No, keep my order
         </button>
         <button onClick={doCancel} disabled={busy}
-          className="px-4 py-3 rounded-xl bg-white border-2 border-red-300 text-red-600 text-sm font-semibold disabled:opacity-50">
+          className="px-4 py-3 rounded-cq-lg bg-cq-milk border-2 border-cq-alert text-cq-alert text-sm font-semibold disabled:opacity-50">
           {busy ? 'Cancelling…' : 'Yes, cancel it'}
         </button>
       </div>

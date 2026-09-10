@@ -18,14 +18,11 @@ import { useSearchParams, Navigate } from 'react-router-dom';
 import useReadyChime, { SoundToggleButton } from './useReadyChime';
 import SponsorTicker from './SponsorTicker';
 import { event as logEvent } from '../../services/logging';
+import { CUSTOMER_STATUS } from '../../constants/customerStatus';
+import { useEventBrand, EventHeader, PoweredBy } from '../../design/eventBrand';
 
-const STATUS_COPY = {
-  pending: { title: 'In the queue', tone: 'bg-blue-600' },
-  'in-progress': { title: 'Being made now', tone: 'bg-amber-500' },
-  completed: { title: 'READY - come and get it', tone: 'bg-green-600' },
-  picked_up: { title: 'Collected - enjoy!', tone: 'bg-gray-500' },
-  cancelled: { title: 'Cancelled', tone: 'bg-red-600' },
-};
+// Customer-facing status words live in ONE place (constants/customerStatus).
+const STATUS_COPY = CUSTOMER_STATUS;
 
 // Embedded in the EventsAir app's webview, or a standalone phone browser?
 // (A cross-origin frame throws on window.top.) The status beacon is what a
@@ -40,6 +37,9 @@ const BEACON_PAD_BOTTOM = IS_EMBEDDED
   : 'calc(env(safe-area-inset-bottom) + 2rem)';
 
 const MobileOrderPage = () => {
+  // Whose event this is. The beacon is the screen a delegate stares at
+  // while they wait, so it should say Treenet, not CupQ.
+  const brand = useEventBrand();
   const [params, setParams] = useSearchParams();
   const stationId = params.get('station');
   const trackNumber = params.get('order');
@@ -215,15 +215,16 @@ const MobileOrderPage = () => {
   }, [trackNumber]);
 
   if (trackNumber) {
-    const copy = STATUS_COPY[track?.status] || { title: 'Checking…', tone: 'bg-gray-400' };
+    const copy = STATUS_COPY[track?.status] || { title: 'Checking…', tone: 'bg-cq-ink-3' };
     const ready = track?.status === 'completed';
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center p-6"
+      <div className="min-h-screen bg-cq-wash flex flex-col items-center p-6"
            style={{ minHeight: '100dvh',
                     paddingTop: 'max(1.5rem, env(safe-area-inset-top))',
                     // Room for the sponsor strip when it is on.
                     paddingBottom: tickerOn ? `calc(${BEACON_PAD_BOTTOM} + 84px)` : BEACON_PAD_BOTTOM }}>
         <div className="w-full max-w-md" ref={colRef} style={fit !== 1 ? { zoom: fit } : undefined}>
+          <EventHeader brand={brand} className="mb-4" />
           {/* Incident notice. Above the order card on purpose: if the
               system is in trouble, that outranks the queue position the
               customer came here to read.
@@ -232,7 +233,7 @@ const MobileOrderPage = () => {
               be made, so its watcher is deliberately left alone rather
               than sent to re-confirm and create a duplicate. */}
           {track?.notice && (
-            <div className="mb-4 rounded-2xl bg-amber-100 border-2 border-amber-500 p-4 text-amber-950">
+            <div className="mb-4 rounded-cq-xl bg-cq-caramel-wash border-2 border-cq-caramel p-4 text-cq-roast">
               <div className="font-extrabold text-lg mb-1">Please read</div>
               <div className="text-base leading-snug">{track.notice}</div>
             </div>
@@ -244,7 +245,7 @@ const MobileOrderPage = () => {
               <BaristaAskCard orderNumber={trackNumber} ask={track?.barista_ask || null} />
             </div>
           )}
-          <div className={`${copy.tone} text-white rounded-2xl p-6 text-center shadow-lg
+          <div className={`${copy.tone} text-white rounded-cq-xl p-6 text-center shadow-cq-card
                            ${ready ? 'animate-pulse' : ''}`}>
             <div className="text-sm uppercase tracking-wide opacity-90">Your order</div>
             <div className="font-extrabold my-2"
@@ -280,7 +281,7 @@ const MobileOrderPage = () => {
               bench. */}
           {ready && !collected && (
             <button
-              className="w-full mt-4 py-4 rounded-xl bg-green-600 text-white text-xl font-bold shadow disabled:opacity-60"
+              className="w-full mt-4 py-4 rounded-cq-lg bg-cq-ready text-white text-xl font-bold shadow disabled:opacity-60"
               disabled={collecting}
               onClick={async () => {
                 setCollecting(true);
@@ -303,7 +304,7 @@ const MobileOrderPage = () => {
           )}
           {collected && (
             <div className={`mt-4 text-center font-semibold text-lg ${
-              track?.status === 'cancelled' ? 'text-gray-600' : 'text-green-700'}`}>
+              track?.status === 'cancelled' ? 'text-cq-ink-2' : 'text-cq-ready'}`}>
               {track?.status === 'cancelled'
                 ? 'This order was cancelled.'
                 : 'Enjoy your coffee.'}
@@ -314,7 +315,7 @@ const MobileOrderPage = () => {
               Falls back to the short name on an older server that does
               not send the long one. */}
           {(track?.drink_full || track?.drink) && (
-            <div className="text-center text-gray-700 mt-3 text-lg">
+            <div className="text-center text-cq-ink-2 mt-3 text-lg">
               {track.first_name && (
                 <span className="font-semibold">{track.first_name} · </span>
               )}
@@ -327,7 +328,7 @@ const MobileOrderPage = () => {
               onToggle={() => { try { logEvent('BEACON_SOUND', { on: !soundOn, order: trackNumber }); } catch (e) { /* log only */ } toggleSound(); }} />
           )}
           {gone && (
-            <div className="mt-3 text-center text-gray-500">
+            <div className="mt-3 text-center text-cq-ink-3">
               We can't find that order number.
             </div>
           )}
@@ -341,7 +342,7 @@ const MobileOrderPage = () => {
               asks, not something to put in front of them every time. */}
           {!collected && (
             <details className="mt-6">
-              <summary className="text-center text-gray-500 text-sm cursor-pointer select-none">
+              <summary className="text-center text-cq-ink-3 text-sm cursor-pointer select-none">
                 Show a code for a friend to scan
               </summary>
               <div className="flex flex-col items-center mt-3">
@@ -349,9 +350,9 @@ const MobileOrderPage = () => {
                   src={`/api/qr?size=7&data=${encodeURIComponent(
                     `${window.location.origin}/order?order=${trackNumber}`)}`}
                   alt={`Order ${trackNumber}`}
-                  className="w-44 h-44 bg-white rounded-lg p-2 shadow"
+                  className="w-44 h-44 bg-cq-milk rounded-cq-md p-2 shadow"
                 />
-                <p className="text-xs text-gray-500 mt-2">
+                <p className="text-xs text-cq-ink-3 mt-2">
                   They will see this order's progress too.
                 </p>
               </div>
@@ -367,9 +368,9 @@ const MobileOrderPage = () => {
               <div className="mt-6 flex items-center justify-center gap-2 text-sm">
                 <span className={`inline-block w-2 h-2 rounded-full
                                   ${worried
-                                    ? 'bg-amber-500'
-                                    : 'bg-green-500 motion-safe:animate-pulse'}`} />
-                <span className={worried ? 'text-amber-700' : 'text-gray-500'}>
+                                    ? 'bg-cq-caramel'
+                                    : 'bg-cq-ready motion-safe:animate-pulse'}`} />
+                <span className={worried ? 'text-cq-caramel-deep' : 'text-cq-ink-3'}>
                   {!connected
                     ? 'Not connected — trying again'
                     : staleSeconds > 30
@@ -381,11 +382,11 @@ const MobileOrderPage = () => {
               </div>
             );
           })()}
-          <p className="text-center text-gray-500 text-sm mt-2">
+          <p className="text-center text-cq-ink-3 text-sm mt-2">
             Keep this page open — it updates by itself. No text message needed.
           </p>
           <button
-            className="block mx-auto mt-2 text-sm text-gray-500 underline"
+            className="block mx-auto mt-2 text-sm text-cq-ink-3 underline"
             onClick={() => {
               try {
                 const raw = recall('cupq_active_order');
@@ -410,17 +411,19 @@ const MobileOrderPage = () => {
               } catch (er) { /* nothing remembered */ }
             }} />
           <button
-            className="w-full mt-6 py-3 rounded-xl bg-gray-800 text-white font-semibold"
+            className="w-full mt-6 py-3 rounded-cq-lg bg-cq-roast text-white font-semibold"
             onClick={() => { setParams({ ...(stationId ? { station: stationId } : {}) }); setTrack(null); }}
           >
             Order another coffee
           </button>
+          <PoweredBy brand={brand} className="mt-8 text-center" />
+
         </div>
         {/* Sponsor strip, pinned above the phone toolbar / the events-app
             nav so it is seen without scrolling -- the display's ticker,
             on the page people actually watch. */}
         {tickerOn && (
-          <div className="fixed left-0 right-0 z-20 shadow-lg"
+          <div className="fixed left-0 right-0 z-20 shadow-cq-card"
                style={{ bottom: IS_EMBEDDED ? 'calc(env(safe-area-inset-bottom) + 8.5rem)' : 'env(safe-area-inset-bottom)' }}>
             <SponsorTicker items={sponsorTicker.sponsors} position="bottom" size="small" />
           </div>

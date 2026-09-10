@@ -19,8 +19,8 @@ const ROAST = '#4a2c17';
 const CREMA = '#c98a3d';
 const MILK = '#f6efe4';
 const FOAM = '#efe3d0';
-const LINE = '#3f3f46';
-const GLASS = '#e5e7eb';
+const LINE = '#3B2314';
+const GLASS = '#E6DCD0';
 
 // Steam wisps shared by the hot cups.
 const Steam = ({ x = 32 }) => (

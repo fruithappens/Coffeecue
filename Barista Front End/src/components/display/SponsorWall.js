@@ -96,8 +96,8 @@ export default function SponsorWall({ embedded = false, preview = null }) {
   const bgStyle = wallBg === 'white'
     ? { background: '#ffffff' }
     : branded
-      ? { backgroundImage: `url("${bgImg}")`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundColor: '#0b3d2e' }
-      : { background: 'linear-gradient(160deg,#f4faf7 0%,#e9f5ee 100%)' };
+      ? { backgroundImage: `url("${bgImg}")`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundColor: '#2A1810' }
+      : { background: 'linear-gradient(160deg,#F6F1EA 0%,#F1E3D6 100%)' };
 
   return (
     <div style={{
@@ -112,7 +112,7 @@ export default function SponsorWall({ embedded = false, preview = null }) {
         {brand.logo ? <img src={brand.logo} alt="" style={{ height: '7vh', maxHeight: 84, objectFit: 'contain' }} /> : null}
         <div style={{ textAlign: 'center' }}>
           {brand.event_name ? <div style={{ fontSize: 'clamp(20px,3.2vh,40px)', fontWeight: 800, letterSpacing: '-0.01em' }}>{brand.event_name}</div> : null}
-          <div style={{ fontSize: 'clamp(13px,1.8vh,20px)', color: '#0f766e', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.14em' }}>
+          <div style={{ fontSize: 'clamp(13px,1.8vh,20px)', color: '#955A33', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.14em' }}>
             Thank you to our sponsors
           </div>
         </div>
@@ -120,7 +120,7 @@ export default function SponsorWall({ embedded = false, preview = null }) {
 
       <div style={{ flex: '1 1 auto', minHeight: 0, position: 'relative', zIndex: 1 }}>
         {groups.length === 0 ? (
-          <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, color: '#6b7280', fontSize: 'clamp(14px,2vh,22px)' }}>
+          <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, color: '#8C7B6E', fontSize: 'clamp(14px,2vh,22px)' }}>
             {(!preview && !ready) ? (
               // Still loading the first payload — show the event mark, not an
               // alarming "none" message (Steve: it flashed on takeover).
@@ -256,7 +256,7 @@ function WallScroll({ groups }) {
       </div>
       <div style={{ position: 'absolute', bottom: '2.5vh', display: 'flex', gap: 8 }}>
         {groups.map((gg, i) => (
-          <span key={gg.tier.id} style={{ width: 10, height: 10, borderRadius: '50%', background: i === (idx % groups.length) ? '#0f766e' : 'rgba(15,118,110,0.25)' }} />
+          <span key={gg.tier.id} style={{ width: 10, height: 10, borderRadius: '50%', background: i === (idx % groups.length) ? '#955A33' : 'rgba(149,90,51,0.25)' }} />
         ))}
       </div>
     </div>
@@ -265,7 +265,7 @@ function WallScroll({ groups }) {
 
 const tierHeadingStyle = {
   textAlign: 'center', fontSize: 'clamp(15px,2.4vh,30px)', fontWeight: 800,
-  color: '#0f766e', textTransform: 'uppercase', letterSpacing: '0.12em', margin: '1.6vh 0',
+  color: '#955A33', textTransform: 'uppercase', letterSpacing: '0.12em', margin: '1.6vh 0',
 };
 
 // fill: stretch to the full width of the grid cell (used by the grid wall so
