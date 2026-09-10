@@ -26,6 +26,18 @@ const INVENTORY_TO_CATALOG = {
  * Comprehensive Inventory Management Component
  * Allows organizers to create and manage all inventory items by category
  */
+
+// Category colours were built as `bg-${category.color}-100`. Tailwind only
+// generates classes it can SEE in the source, so a constructed name works
+// solely by accident -- when the same literal happens to appear in another
+// file. text-teal-600 did not, and that category's colour has been silently
+// dead. An explicit map is visible to the build AND on the palette.
+//
+// Categories are told apart by icon and name; the tint is a quiet backdrop,
+// not a code to learn.
+const CAT_TINT = 'bg-cq-caramel-wash border border-cq-caramel';
+const CAT_INK = 'text-cq-caramel-deep';
+
 const InventoryManagement = () => {
   // Define inventory categories
   const categories = {
@@ -412,15 +424,15 @@ const InventoryManagement = () => {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6">
+    <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4 sm:p-6">
       <QuickSetupStatusBanner section="event_inventory" />
       {saveError && (
-        <div className="mb-4 p-3 rounded-md bg-red-50 border border-red-300 text-red-800 text-sm">
+        <div className="mb-4 p-3 rounded-md bg-cq-alert-wash border border-cq-alert text-cq-alert text-sm">
           {saveError}
         </div>
       )}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
-        <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Inventory Management</h2>
+        <h2 className="text-xl sm:text-2xl font-bold text-cq-roast">Inventory Management</h2>
         <button
           onClick={async () => {
             // One tap used to replace the whole event menu and save it,
@@ -435,7 +447,7 @@ const InventoryManagement = () => {
             });
             if (ok) initializeDefaultInventory();
           }}
-          className="px-4 py-2 bg-white border border-red-300 text-red-700 rounded-md hover:bg-red-50"
+          className="px-4 py-2 bg-cq-milk border border-cq-alert text-cq-alert rounded-md hover:bg-cq-alert-wash"
         >
           Reset to Defaults
         </button>
@@ -444,7 +456,7 @@ const InventoryManagement = () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6">
         {/* Category Sidebar */}
         <div className="lg:col-span-3">
-          <h3 className="text-lg font-semibold mb-4 text-gray-700">Categories</h3>
+          <h3 className="text-lg font-semibold mb-4 text-cq-ink-2">Categories</h3>
           <div className="space-y-2">
             {Object.entries(categories).map(([categoryKey, category]) => {
               const stats = getCategoryStats(categoryKey);
@@ -454,18 +466,18 @@ const InventoryManagement = () => {
                   onClick={() => setActiveCategory(categoryKey)}
                   className={`w-full text-left p-3 rounded-md transition-colors ${
                     activeCategory === categoryKey
-                      ? `bg-${category.color}-100 border border-${category.color}-300`
-                      : 'bg-gray-50 hover:bg-gray-100'
+                      ? CAT_TINT
+                      : 'bg-cq-wash hover:bg-cq-wash'
                   }`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
-                      <span className={`text-${category.color}-600 mr-2`}>
+                      <span className={`${CAT_INK} mr-2`}>
                         {category.icon}
                       </span>
                       <span className="font-medium">{category.name}</span>
                     </div>
-                    <span className="text-xs text-gray-500">
+                    <span className="text-xs text-cq-ink-3">
                       {stats.enabled}/{stats.total}
                     </span>
                   </div>
@@ -480,7 +492,7 @@ const InventoryManagement = () => {
           {/* Header */}
           <div className="flex justify-between items-center mb-4">
             <div className="flex items-center">
-              <span className={`text-${categories[activeCategory].color}-600 mr-2`}>
+              <span className={`${CAT_INK} mr-2`}>
                 {categories[activeCategory].icon}
               </span>
               <h3 className="text-xl font-semibold">
@@ -489,7 +501,7 @@ const InventoryManagement = () => {
             </div>
             <button
               onClick={() => setShowAddForm(true)}
-              className="flex items-center px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600"
+              className="flex items-center px-4 py-2 bg-cq-ready text-white rounded-md hover:bg-cq-ready"
             >
               <Plus size={16} className="mr-2" />
               Add Item
@@ -498,24 +510,24 @@ const InventoryManagement = () => {
 
           {/* Search */}
           <div className="relative mb-4">
-            <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-cq-ink-3" />
             <input
               type="text"
               placeholder="Search items..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500"
+              className="w-full pl-10 pr-4 py-2 border border-cq-line rounded-md focus:ring-2 focus:border-cq-caramel focus:border-cq-caramel"
             />
           </div>
 
           {/* Add Item Form */}
           {showAddForm && (
-            <div className="bg-gray-50 rounded-md p-4 mb-4">
+            <div className="bg-cq-wash rounded-md p-4 mb-4">
               <h4 className="text-lg font-medium mb-3">Add New Item</h4>
               <div className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                       Item Name
                     </label>
                     {/* CatalogNameInput shows a datalist of canonical
@@ -531,14 +543,14 @@ const InventoryManagement = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                       Description
                     </label>
                     <input
                       type="text"
                       value={newItem.description}
                       onChange={(e) => setNewItem({ ...newItem, description: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500"
+                      className="w-full px-3 py-2 border border-cq-line rounded-md focus:ring-2 focus:border-cq-caramel focus:border-cq-caramel"
                       placeholder="Enter description..."
                     />
                   </div>
@@ -549,14 +561,14 @@ const InventoryManagement = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {categories[activeCategory].additionalFields.map(field => (
                       <div key={field.key}>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                           {field.label}
                         </label>
                         <input
                           type={field.type}
                           value={newItem[field.key] || ''}
                           onChange={(e) => setNewItem({ ...newItem, [field.key]: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500"
+                          className="w-full px-3 py-2 border border-cq-line rounded-md focus:ring-2 focus:border-cq-caramel focus:border-cq-caramel"
                           placeholder={`Enter ${field.label.toLowerCase()}...`}
                           required={field.required}
                         />
@@ -579,13 +591,13 @@ const InventoryManagement = () => {
                     }
                     setNewItem(baseItem);
                   }}
-                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+                  className="px-4 py-2 bg-cq-line text-cq-ink-2 rounded-md hover:bg-cq-ink-3"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={addItem}
-                  className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600"
+                  className="px-4 py-2 bg-cq-ready text-white rounded-md hover:bg-cq-ready"
                 >
                   Add Item
                 </button>
@@ -600,8 +612,8 @@ const InventoryManagement = () => {
                 key={item.id}
                 className={`p-4 rounded-md border ${
                   item.enabled 
-                    ? 'border-gray-200 bg-white' 
-                    : 'border-gray-100 bg-gray-50 opacity-60'
+                    ? 'border-cq-line bg-cq-milk' 
+                    : 'border-cq-line bg-cq-wash opacity-60'
                 }`}
               >
                 {editingItem === item.id ? (
@@ -620,15 +632,15 @@ const InventoryManagement = () => {
                           type="checkbox"
                           checked={item.enabled}
                           onChange={() => toggleItem(item.id)}
-                          className="h-4 w-4 text-blue-600 focus:ring-amber-500 border-gray-300 rounded"
+                          className="h-4 w-4 text-cq-caramel-deep focus:border-cq-caramel border-cq-line rounded"
                         />
                       </label>
                       <div>
-                        <h4 className="font-medium text-gray-900">{item.name}</h4>
-                        <p className="text-sm text-gray-600">{item.description}</p>
+                        <h4 className="font-medium text-cq-roast">{item.name}</h4>
+                        <p className="text-sm text-cq-ink-2">{item.description}</p>
                         {/* Show additional fields for cups */}
                         {activeCategory === 'cups' && (item.volume || item.shots) && (
-                          <div className="flex space-x-4 text-sm text-gray-500 mt-1">
+                          <div className="flex space-x-4 text-sm text-cq-ink-3 mt-1">
                             {item.volume && <span>Volume: {item.volume}ml</span>}
                             {item.shots && <span>Shots: {item.shots}</span>}
                           </div>
@@ -638,13 +650,13 @@ const InventoryManagement = () => {
                     <div className="flex space-x-2">
                       <button
                         onClick={() => setEditingItem(item.id)}
-                        className="p-2 text-blue-600 hover:bg-blue-100 rounded-md"
+                        className="p-2 text-cq-caramel-deep hover:bg-cq-caramel-wash rounded-md"
                       >
                         <Edit3 size={16} />
                       </button>
                       <button
                         onClick={() => deleteItem(item.id)}
-                        className="p-2 text-red-600 hover:bg-red-100 rounded-md"
+                        className="p-2 text-cq-alert hover:bg-cq-alert-wash rounded-md"
                       >
                         <Trash2 size={16} />
                       </button>
@@ -656,8 +668,8 @@ const InventoryManagement = () => {
           </div>
 
           {getFilteredItems().length === 0 && (
-            <div className="text-center py-8 text-gray-500">
-              <Package size={48} className="mx-auto mb-4 text-gray-400" />
+            <div className="text-center py-8 text-cq-ink-3">
+              <Package size={48} className="mx-auto mb-4 text-cq-ink-3" />
               <p>No items found in this category</p>
               {searchTerm && (
                 <p className="text-sm">Try adjusting your search term</p>
@@ -703,25 +715,25 @@ const EditItemForm = ({ item, onSave, onCancel, category, categories }) => {
     <div className="space-y-3">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-cq-ink-2 mb-1">
             Item Name
           </label>
           <input
             type="text"
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500"
+            className="w-full px-3 py-2 border border-cq-line rounded-md focus:ring-2 focus:border-cq-caramel focus:border-cq-caramel"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-cq-ink-2 mb-1">
             Description
           </label>
           <input
             type="text"
             value={formData.description}
             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500"
+            className="w-full px-3 py-2 border border-cq-line rounded-md focus:ring-2 focus:border-cq-caramel focus:border-cq-caramel"
           />
         </div>
       </div>
@@ -731,14 +743,14 @@ const EditItemForm = ({ item, onSave, onCancel, category, categories }) => {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {categories[category].additionalFields.map(field => (
             <div key={field.key}>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                 {field.label}
               </label>
               <input
                 type={field.type}
                 value={formData[field.key] || ''}
                 onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-cq-line rounded-md focus:ring-2 focus:border-cq-caramel focus:border-cq-caramel"
                 required={field.required}
               />
             </div>
@@ -748,14 +760,14 @@ const EditItemForm = ({ item, onSave, onCancel, category, categories }) => {
       <div className="flex justify-end space-x-2">
         <button
           onClick={onCancel}
-          className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 flex items-center"
+          className="px-4 py-2 bg-cq-line text-cq-ink-2 rounded-md hover:bg-cq-ink-3 flex items-center"
         >
           <X size={16} className="mr-1" />
           Cancel
         </button>
         <button
           onClick={handleSave}
-          className="px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 flex items-center"
+          className="px-4 py-2 bg-cq-roast text-white rounded-md hover:bg-cq-caramel-deep flex items-center"
         >
           <Save size={16} className="mr-1" />
           Save
@@ -786,7 +798,7 @@ const CatalogNameInput = ({ categoryKey, value, onChange }) => {
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500"
+        className="w-full px-3 py-2 border border-cq-line rounded-md focus:ring-2 focus:border-cq-caramel focus:border-cq-caramel"
         placeholder={useDatalist
           ? `Type or pick a ${catalogCategory}…`
           : 'Enter item name...'}
@@ -803,7 +815,7 @@ const CatalogNameInput = ({ categoryKey, value, onChange }) => {
         </datalist>
       )}
       {catalogCategory && (
-        <p className="text-xs text-gray-500 mt-1">
+        <p className="text-xs text-cq-ink-3 mt-1">
           Suggestions from the canonical {catalogCategory} catalog. You
           can still type a custom name — it'll be added to the event's
           inventory but won't auto-appear in other dropdowns.

@@ -402,9 +402,9 @@ const MultiLevelInventory = () => {
 
   const getAlertIcon = (type) => {
     switch (type) {
-      case 'critical': return <AlertTriangle className="text-red-500" size={20} />;
-      case 'warning': return <TrendingDown className="text-yellow-500" size={20} />;
-      case 'info': return <RefreshCw className="text-blue-500" size={20} />;
+      case 'critical': return <AlertTriangle className="text-cq-alert" size={20} />;
+      case 'warning': return <TrendingDown className="text-cq-warn" size={20} />;
+      case 'info': return <RefreshCw className="text-cq-caramel-deep" size={20} />;
       default: return null;
     }
   };
@@ -412,7 +412,7 @@ const MultiLevelInventory = () => {
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-cq-caramel"></div>
       </div>
     );
   }
@@ -420,11 +420,11 @@ const MultiLevelInventory = () => {
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-900">Multi-Level Inventory Intelligence</h2>
+        <h2 className="text-2xl font-bold text-cq-roast">Multi-Level Inventory Intelligence</h2>
         <div className="flex space-x-4">
           <button
             onClick={() => loadInventoryData()}
-            className="flex items-center space-x-2 bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700"
+            className="flex items-center space-x-2 bg-cq-caramel text-white px-4 py-2 rounded-cq-md hover:bg-cq-caramel-deep"
           >
             <RefreshCw size={16} />
             <span>Refresh</span>
@@ -432,7 +432,7 @@ const MultiLevelInventory = () => {
           <select 
             value={selectedView} 
             onChange={(e) => setSelectedView(e.target.value)}
-            className="border rounded-lg px-3 py-2"
+            className="border rounded-cq-md px-3 py-2"
           >
             <option value="overview">Event Overview</option>
             <option value="station">Station View</option>
@@ -443,14 +443,14 @@ const MultiLevelInventory = () => {
 
       {/* Alerts Section */}
       {inventoryData.alerts.length > 0 && (
-        <div className="bg-white rounded-lg shadow p-4">
+        <div className="bg-cq-milk rounded-cq-md shadow p-4">
           <h3 className="text-lg font-semibold mb-3">Active Alerts</h3>
           <div className="space-y-2">
             {inventoryData.alerts.map((alert, index) => (
-              <div key={index} className={`flex items-center justify-between p-3 rounded-lg border ${
-                alert.type === 'critical' ? 'border-red-300 bg-red-50' :
-                alert.type === 'warning' ? 'border-yellow-300 bg-yellow-50' :
-                'border-blue-300 bg-blue-50'
+              <div key={index} className={`flex items-center justify-between p-3 rounded-cq-md border ${
+                alert.type === 'critical' ? 'border-cq-alert bg-cq-alert-wash' :
+                alert.type === 'warning' ? 'border-cq-warn bg-cq-warn-wash' :
+                'border-cq-line bg-cq-caramel-wash'
               }`}>
                 <div className="flex items-center space-x-3">
                   {getAlertIcon(alert.type)}
@@ -459,7 +459,7 @@ const MultiLevelInventory = () => {
                 {alert.action === 'redistribute' && (
                   <button
                     onClick={() => handleRedistribute(alert)}
-                    className="text-sm bg-amber-600 text-white px-3 py-1 rounded hover:bg-amber-700"
+                    className="text-sm bg-cq-caramel text-white px-3 py-1 rounded hover:bg-cq-caramel-deep"
                   >
                     Redistribute {alert.suggestedTransfer}L
                   </button>
@@ -467,7 +467,7 @@ const MultiLevelInventory = () => {
                 {alert.action === 'restock' && (
                   <button
                     onClick={() => handleEmergencyRestock(alert.item, alert.itemType, 10)}
-                    className="text-sm bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
+                    className="text-sm bg-cq-alert text-white px-3 py-1 rounded hover:bg-cq-alert"
                   >
                     Emergency Restock
                   </button>
@@ -481,45 +481,45 @@ const MultiLevelInventory = () => {
       {/* Overview View */}
       {selectedView === 'overview' && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-cq-milk rounded-cq-md shadow p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold">Total Milk Stock</h3>
-              <Package className="text-blue-500" size={24} />
+              <Package className="text-cq-caramel-deep" size={24} />
             </div>
-            <div className="text-3xl font-bold text-gray-900">
+            <div className="text-3xl font-bold text-cq-roast">
               {unlimitedStockMode ? '∞' : `${totals.milk.toFixed(1)}L`}
             </div>
-            <div className="mt-2 text-sm text-gray-500">
+            <div className="mt-2 text-sm text-cq-ink-3">
               {unlimitedStockMode
                 ? 'Unlimited stock mode is on'
                 : `Across ${Object.keys(inventoryData.stationLevel).length} stations`}
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-cq-milk rounded-cq-md shadow p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold">Total Coffee Stock</h3>
               <Coffee className="text-brown-500" size={24} />
             </div>
-            <div className="text-3xl font-bold text-gray-900">
+            <div className="text-3xl font-bold text-cq-roast">
               {unlimitedStockMode ? '∞' : `${totals.coffee.toFixed(1)}kg`}
             </div>
-            <div className="mt-2 text-sm text-gray-500">
+            <div className="mt-2 text-sm text-cq-ink-3">
               {unlimitedStockMode
                 ? 'No stock tracking this event'
                 : `${inventoryData.predictions?.stockoutRisk?.filter(r => r.type === 'coffee').length || 0} items at risk`}
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-cq-milk rounded-cq-md shadow p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold">Total Cups</h3>
-              <Package className="text-green-500" size={24} />
+              <Package className="text-cq-ready" size={24} />
             </div>
-            <div className="text-3xl font-bold text-gray-900">
+            <div className="text-3xl font-bold text-cq-roast">
               {unlimitedStockMode ? '∞' : totals.cups}
             </div>
-            <div className="mt-2 text-sm text-gray-500">
+            <div className="mt-2 text-sm text-cq-ink-3">
               {unlimitedStockMode ? 'Cups not depleted' : 'All sizes combined'}
             </div>
           </div>
@@ -528,12 +528,12 @@ const MultiLevelInventory = () => {
 
       {/* Station View */}
       {selectedView === 'station' && (
-        <div className="bg-white rounded-lg shadow">
+        <div className="bg-cq-milk rounded-cq-md shadow">
           <div className="p-4 border-b">
             <select
               value={selectedStation?.id || ''}
               onChange={(e) => setSelectedStation(inventoryData.stationLevel[e.target.value])}
-              className="w-full border rounded-lg px-3 py-2"
+              className="w-full border rounded-cq-md px-3 py-2"
             >
               <option value="">Select a station...</option>
               {Object.values(inventoryData.stationLevel).map(station => (
@@ -553,20 +553,20 @@ const MultiLevelInventory = () => {
                 <h4 className="text-lg font-medium mb-3">Milk Stock</h4>
                 <div className="space-y-2">
                   {selectedStation.inventory?.milk?.map(item => (
-                    <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded">
+                    <div key={item.id} className="flex items-center justify-between p-3 bg-cq-wash rounded">
                       <div>
                         <span className="font-medium">{item.name}</span>
                         <span className={`ml-2 text-xs px-2 py-1 rounded ${
-                          item.status === 'good' ? 'bg-green-100 text-green-700' :
-                          item.status === 'warning' ? 'bg-yellow-100 text-yellow-700' :
-                          'bg-red-100 text-red-700'
+                          item.status === 'good' ? 'bg-cq-ready-wash text-cq-ready' :
+                          item.status === 'warning' ? 'bg-cq-warn-wash text-cq-warn' :
+                          'bg-cq-alert-wash text-cq-alert'
                         }`}>
                           {item.status}
                         </span>
                       </div>
                       <div className="text-right">
                         <div className="font-bold">{item.amount}{item.unit}</div>
-                        <div className="text-xs text-gray-500">of {item.capacity}{item.unit}</div>
+                        <div className="text-xs text-cq-ink-3">of {item.capacity}{item.unit}</div>
                       </div>
                     </div>
                   ))}
@@ -578,20 +578,20 @@ const MultiLevelInventory = () => {
                 <h4 className="text-lg font-medium mb-3">Coffee Stock</h4>
                 <div className="space-y-2">
                   {selectedStation.inventory?.coffee?.map(item => (
-                    <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded">
+                    <div key={item.id} className="flex items-center justify-between p-3 bg-cq-wash rounded">
                       <div>
                         <span className="font-medium">{item.name}</span>
                         <span className={`ml-2 text-xs px-2 py-1 rounded ${
-                          item.status === 'good' ? 'bg-green-100 text-green-700' :
-                          item.status === 'warning' ? 'bg-yellow-100 text-yellow-700' :
-                          'bg-red-100 text-red-700'
+                          item.status === 'good' ? 'bg-cq-ready-wash text-cq-ready' :
+                          item.status === 'warning' ? 'bg-cq-warn-wash text-cq-warn' :
+                          'bg-cq-alert-wash text-cq-alert'
                         }`}>
                           {item.status}
                         </span>
                       </div>
                       <div className="text-right">
                         <div className="font-bold">{item.amount}{item.unit}</div>
-                        <div className="text-xs text-gray-500">of {item.capacity}{item.unit}</div>
+                        <div className="text-xs text-cq-ink-3">of {item.capacity}{item.unit}</div>
                       </div>
                     </div>
                   ))}
@@ -607,20 +607,20 @@ const MultiLevelInventory = () => {
                     <h4 className="text-lg font-medium mb-3">{title}</h4>
                     <div className="space-y-2">
                       {selectedStation.inventory[bucket].map(item => (
-                        <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded">
+                        <div key={item.id} className="flex items-center justify-between p-3 bg-cq-wash rounded">
                           <div>
                             <span className="font-medium">{item.name}</span>
                             <span className={`ml-2 text-xs px-2 py-1 rounded ${
-                              item.status === 'good' ? 'bg-green-100 text-green-700' :
-                              item.status === 'warning' ? 'bg-yellow-100 text-yellow-700' :
-                              'bg-red-100 text-red-700'
+                              item.status === 'good' ? 'bg-cq-ready-wash text-cq-ready' :
+                              item.status === 'warning' ? 'bg-cq-warn-wash text-cq-warn' :
+                              'bg-cq-alert-wash text-cq-alert'
                             }`}>
                               {item.status}
                             </span>
                           </div>
                           <div className="text-right">
                             <div className="font-bold">{item.amount} {item.unit}</div>
-                            <div className="text-xs text-gray-500">of {item.capacity} {item.unit}</div>
+                            <div className="text-xs text-cq-ink-3">of {item.capacity} {item.unit}</div>
                           </div>
                         </div>
                       ))}
@@ -636,7 +636,7 @@ const MultiLevelInventory = () => {
       {/* Predictions View */}
       {selectedView === 'predictions' && (
         <div className="space-y-6">
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-cq-milk rounded-cq-md shadow p-6">
             <h3 className="text-xl font-semibold mb-4">Consumption Predictions</h3>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -645,28 +645,28 @@ const MultiLevelInventory = () => {
                 <h4 className="text-lg font-medium mb-3">Milk Consumption Forecast</h4>
                 <div className="space-y-3">
                   {Object.entries(inventoryData.predictions?.milkConsumption || {}).map(([milk, data]) => (
-                    <div key={milk} className="border rounded-lg p-3">
+                    <div key={milk} className="border rounded-cq-md p-3">
                       <div className="flex justify-between items-center mb-2">
                         <span className="font-medium">{milk}</span>
                         <span className={`text-xs px-2 py-1 rounded ${
-                          data.riskLevel === 'high' ? 'bg-red-100 text-red-700' :
-                          data.riskLevel === 'medium' ? 'bg-yellow-100 text-yellow-700' :
-                          'bg-green-100 text-green-700'
+                          data.riskLevel === 'high' ? 'bg-cq-alert-wash text-cq-alert' :
+                          data.riskLevel === 'medium' ? 'bg-cq-warn-wash text-cq-warn' :
+                          'bg-cq-ready-wash text-cq-ready'
                         }`}>
                           {data.riskLevel} risk
                         </span>
                       </div>
-                      <div className="text-sm text-gray-600">
+                      <div className="text-sm text-cq-ink-2">
                         Current: {data.currentStock.toFixed(1)}L | 
                         Predicted use: {data.predictedConsumption.toFixed(1)}L | 
                         Remaining: {data.remainingStock.toFixed(1)}L
                       </div>
-                      <div className="mt-2 bg-gray-200 h-2 rounded-full overflow-hidden">
+                      <div className="mt-2 bg-cq-line h-2 rounded-full overflow-hidden">
                         <div 
                           className={`h-2 ${
-                            data.riskLevel === 'high' ? 'bg-red-500' :
-                            data.riskLevel === 'medium' ? 'bg-yellow-500' :
-                            'bg-green-500'
+                            data.riskLevel === 'high' ? 'bg-cq-alert' :
+                            data.riskLevel === 'medium' ? 'bg-cq-warn' :
+                            'bg-cq-ready'
                           }`}
                           style={{ width: `${Math.max(0, Math.min(100, (data.remainingStock / data.currentStock) * 100))}%` }}
                         />
@@ -681,10 +681,10 @@ const MultiLevelInventory = () => {
                 <h4 className="text-lg font-medium mb-3">Reorder Suggestions</h4>
                 <div className="space-y-3">
                   {inventoryData.predictions?.reorderSuggestions?.map((suggestion, index) => (
-                    <div key={index} className="border border-red-300 bg-red-50 rounded-lg p-3">
+                    <div key={index} className="border border-cq-alert bg-cq-alert-wash rounded-cq-md p-3">
                       <div className="flex items-center space-x-2 mb-2">
-                        <Truck className="text-red-500" size={20} />
-                        <span className="font-medium text-red-700">{suggestion.urgency.toUpperCase()}</span>
+                        <Truck className="text-cq-alert" size={20} />
+                        <span className="font-medium text-cq-alert">{suggestion.urgency.toUpperCase()}</span>
                       </div>
                       <div className="text-sm">{suggestion.message}</div>
                       <div className="mt-2">
@@ -693,7 +693,7 @@ const MultiLevelInventory = () => {
                             request against the matching ledger row and
                             says what happened either way. */}
                         <button
-                          className="text-sm bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
+                          className="text-sm bg-cq-alert text-white px-3 py-1 rounded hover:bg-cq-alert"
                           onClick={async (e) => {
                             const btn = e.currentTarget;
                             btn.disabled = true;
@@ -733,8 +733,8 @@ const MultiLevelInventory = () => {
                     </div>
                   ))}
                   {(!inventoryData.predictions?.reorderSuggestions || inventoryData.predictions?.reorderSuggestions?.length === 0) && (
-                    <div className="text-center py-8 text-gray-500">
-                      <Package size={48} className="mx-auto mb-2 text-gray-400" />
+                    <div className="text-center py-8 text-cq-ink-3">
+                      <Package size={48} className="mx-auto mb-2 text-cq-ink-3" />
                       <p>No urgent reorders needed</p>
                     </div>
                   )}
@@ -744,7 +744,7 @@ const MultiLevelInventory = () => {
           </div>
 
           {/* Auto-Restock Settings */}
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-cq-milk rounded-cq-md shadow p-6">
             <h3 className="text-xl font-semibold mb-4">Auto-Restock Settings</h3>
             <div className="space-y-4">
               <label className="flex items-center space-x-3">

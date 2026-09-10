@@ -8,6 +8,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Ban, RotateCcw, ShieldCheck, Loader, AlertTriangle } from 'lucide-react';
 import ApiServiceClass from '../../services/ApiService';
+import { Panel, DataTable, TableRow, Cell, Empty, TextField } from '../../design';
 
 export default function SmsBlocklistTab() {
   const apiRef = useRef(null);
@@ -77,80 +78,92 @@ export default function SmsBlocklistTab() {
   };
 
   return (
-    <div className="max-w-2xl">
+    <div className="cq max-w-2xl">
       <div className="flex items-center gap-2 mb-1">
-        <Ban className="text-red-600" size={22} />
-        <h2 className="text-xl font-bold text-gray-800">SMS Blocklist</h2>
+        <Ban className="text-cq-alert" size={22} />
+        <h2 className="text-lg font-bold text-cq-roast">Blocked numbers</h2>
       </div>
-      <p className="text-sm text-gray-600 mb-4">
-        Blocked numbers get <b>no reply</b> from the ordering bot, which protects your
-        SMS credit from spam. Blocking is <b>fully reversible</b> — unblock anytime and
-        the number can order again immediately. Nothing is deleted.
+      <p className="text-sm text-cq-ink-3 mb-4 max-w-[62ch]">
+        A blocked number gets <b>no reply</b> from the ordering line, which
+        protects your SMS credit from spam. Blocking is fully reversible and
+        deletes nothing.
       </p>
 
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-5 text-sm text-blue-800 flex gap-2">
-        <ShieldCheck size={18} className="flex-shrink-0 mt-0.5" />
+      {/* Was a blue info box -- the only blue on the screen, and blue means
+          nothing in this palette. It is reassurance, so it wears the brand. */}
+      <div className="bg-cq-caramel-wash rounded-cq-md p-4 mb-5 text-sm text-cq-ink-2 flex gap-2.5">
+        <ShieldCheck size={18} className="flex-shrink-0 mt-0.5 text-cq-caramel-deep" />
         <span>
-          You usually won't need this: a number that floods the line is
-          <b> automatically paused for ~10 minutes</b> and flagged in the barista
-          Messages inbox. Use this page to permanently block (or unblock) a specific number.
+          You usually will not need this. A number that floods the line is
+          <b> paused automatically for about ten minutes</b> and flagged in the
+          barista Messages inbox. Use this page to block one for good.
         </span>
       </div>
 
-      {/* Block a new number */}
       <div className="flex gap-2 mb-5">
-        <input
+        <TextField
           type="tel"
+          width="flex-1"
           value={newPhone}
-          onChange={(e) => setNewPhone(e.target.value)}
+          onChange={setNewPhone}
           onKeyDown={(e) => e.key === 'Enter' && block()}
-          placeholder="Phone number to block (e.g. 0412 345 678)"
-          className="flex-1 px-3 py-2 border rounded-lg text-sm"
+          placeholder="Number to block, e.g. 0412 345 678"
           disabled={busy}
         />
         <button
+          type="button"
           onClick={block}
           disabled={busy || !newPhone.trim()}
-          className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 disabled:opacity-50 inline-flex items-center gap-1"
+          className="h-10 px-4 rounded-cq-md bg-cq-alert text-white font-semibold text-sm
+                     hover:opacity-90 disabled:opacity-40 inline-flex items-center gap-1.5"
         >
           <Ban size={16} /> Block
         </button>
       </div>
 
-      {/* Blocklist */}
       {loading ? (
-        <div className="text-gray-500 py-8 text-center inline-flex items-center gap-2 justify-center w-full">
-          <Loader className="animate-spin" size={18} /> Loading…
-        </div>
+        <Empty>
+          <span className="inline-flex items-center gap-2">
+            <Loader className="animate-spin" size={16} /> Loading…
+          </span>
+        </Empty>
       ) : error ? (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-sm flex items-center gap-2">
+        <div className="bg-cq-alert-wash rounded-cq-md p-3 text-sm text-cq-alert flex items-center gap-2">
           <AlertTriangle size={16} /> {error}
-          <button onClick={load} className="ml-auto underline">Retry</button>
+          <button type="button" onClick={load} className="ml-auto underline font-semibold">
+            Try again
+          </button>
         </div>
       ) : list.length === 0 ? (
-        <div className="text-center text-gray-500 py-10 border-2 border-dashed border-gray-200 rounded-lg">
-          No numbers are blocked. 🎉
-        </div>
+        <Panel>
+          <Empty>Nobody is blocked.</Empty>
+        </Panel>
       ) : (
-        <ul className="divide-y border rounded-lg overflow-hidden">
-          {list.map((b) => (
-            <li key={b.phone} className="flex items-center gap-3 p-3 bg-white">
-              <div className="min-w-0 flex-1">
-                <div className="font-semibold text-gray-800 font-mono">{b.phone}</div>
-                <div className="text-xs text-gray-500 truncate">
-                  {b.reason ? `${b.reason} · ` : ''}{b.by ? `by ${b.by} · ` : ''}{fmtWhen(b.at)}
-                </div>
-              </div>
-              <button
-                onClick={() => unblock(b.phone)}
-                disabled={busy}
-                className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 inline-flex items-center gap-1 flex-shrink-0"
-              >
-                <RotateCcw size={14} /> Unblock
-              </button>
-            </li>
-          ))}
-        </ul>
+        <Panel title={`${list.length} blocked`}>
+          <DataTable head={['Number', 'Why, and when', '']} align={[null, null, 'right']}>
+            {list.map((b) => (
+              <TableRow key={b.phone}>
+                <Cell strong className="font-mono whitespace-nowrap">{b.phone}</Cell>
+                <Cell dim>
+                  {[b.reason, b.by ? `by ${b.by}` : null, fmtWhen(b.at)]
+                    .filter(Boolean).join(' · ')}
+                </Cell>
+                <Cell right>
+                  <button
+                    type="button"
+                    onClick={() => unblock(b.phone)}
+                    disabled={busy}
+                    className="h-9 px-3 rounded-cq-md border border-cq-line text-sm font-semibold
+                               text-cq-ink-2 hover:bg-cq-wash disabled:opacity-40
+                               inline-flex items-center gap-1.5 whitespace-nowrap"
+                  >
+                    <RotateCcw size={14} /> Unblock
+                  </button>
+                </Cell>
+              </TableRow>
+            ))}
+          </DataTable>
+        </Panel>
       )}
     </div>
   );

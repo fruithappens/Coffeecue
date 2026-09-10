@@ -25,27 +25,27 @@ const ShotTimer = () => {
   }, [running]);
 
   const secs = ms / 1000;
-  const tone = secs === 0 ? 'text-gray-800'
-    : secs < 25 ? 'text-amber-600'
-    : secs <= 32 ? 'text-green-600'
-    : 'text-red-600';
+  const tone = secs === 0 ? 'text-cq-roast'
+    : secs < 25 ? 'text-cq-caramel-deep'
+    : secs <= 32 ? 'text-cq-ready'
+    : 'text-cq-alert';
 
   return (
     <div className="flex flex-col items-center py-6">
       <div className={`font-mono font-bold tabular-nums ${tone}`} style={{ fontSize: '4.5rem', lineHeight: 1 }}>
         {secs.toFixed(1)}<span className="text-3xl">s</span>
       </div>
-      <div className="text-sm text-gray-500 mt-2">Target espresso shot: 25–32 seconds</div>
+      <div className="text-sm text-cq-ink-3 mt-2">Target espresso shot: 25–32 seconds</div>
       <div className="flex gap-3 mt-6">
         <button
           onClick={() => setRunning(r => !r)}
-          className={`px-10 py-3 rounded-lg text-white font-semibold text-lg transition-colors ${running ? 'bg-red-500 hover:bg-red-600' : 'bg-green-600 hover:bg-green-700'}`}
+          className={`px-10 py-3 rounded-cq-md text-white font-semibold text-lg transition-colors ${running ? 'bg-cq-alert hover:bg-cq-alert' : 'bg-cq-ready hover:bg-cq-ready'}`}
         >
           {running ? 'Stop' : 'Start'}
         </button>
         <button
           onClick={() => { setRunning(false); setMs(0); }}
-          className="px-6 py-3 rounded-lg bg-gray-200 hover:bg-gray-300 font-semibold text-lg flex items-center"
+          className="px-6 py-3 rounded-cq-md bg-cq-line hover:bg-cq-line font-semibold text-lg flex items-center"
         >
           <RotateCcw size={18} className="mr-1" /> Reset
         </button>
@@ -110,18 +110,18 @@ const Recipes = () => {
   return (
     <div className="py-4 max-w-xl mx-auto">
       <div className="relative mb-3">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-cq-ink-3" />
         <input
           type="text"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search a drink — e.g. magic, americano, piccolo…"
-          className="w-full pl-9 pr-3 py-2 border rounded-lg"
+          className="w-full pl-9 pr-3 py-2 border rounded-cq-md"
           autoFocus
         />
       </div>
       {results.length === 0 ? (
-        <p className="text-sm text-gray-500 text-center py-6">
+        <p className="text-sm text-cq-ink-3 text-center py-6">
           No match. Try the closest standard drink (e.g. "latte", "long black").
         </p>
       ) : (
@@ -129,19 +129,19 @@ const Recipes = () => {
           {results.map(r => {
             const open = openName === r.name;
             return (
-              <li key={r.name} className="border rounded-lg overflow-hidden">
+              <li key={r.name} className="border rounded-cq-md overflow-hidden">
                 <button
                   onClick={() => setOpenName(open ? null : r.name)}
-                  className="w-full flex justify-between items-center px-3 py-2 text-left hover:bg-gray-50"
+                  className="w-full flex justify-between items-center px-3 py-2 text-left hover:bg-cq-wash"
                 >
                   <span className="font-medium">{r.name}</span>
-                  <span className="text-xs text-gray-400">{r.cup}</span>
+                  <span className="text-xs text-cq-ink-3">{r.cup}</span>
                 </button>
                 {open && (
-                  <div className="px-3 pb-3 text-sm text-gray-700 bg-gray-50">
+                  <div className="px-3 pb-3 text-sm text-cq-ink-2 bg-cq-wash">
                     {r.method}
                     {r.aka.length > 0 && (
-                      <div className="text-xs text-gray-400 mt-1">also: {r.aka.join(', ')}</div>
+                      <div className="text-xs text-cq-ink-3 mt-1">also: {r.aka.join(', ')}</div>
                     )}
                   </div>
                 )}
@@ -195,7 +195,7 @@ const DialIn = ({ stationId, baristaName }) => {
   // inputs keep focus while typing — a nested component would remount each key.
   const fld = (k, label, opts = {}) => (
     <label className={`text-sm block ${opts.full ? 'col-span-2' : ''}`}>
-      <span className="block text-gray-500 mb-1">{label}</span>
+      <span className="block text-cq-ink-3 mb-1">{label}</span>
       <input
         type={opts.type || 'text'}
         value={card[k]}
@@ -210,7 +210,7 @@ const DialIn = ({ stationId, baristaName }) => {
   const yld = parseFloat(card.yield) || 0;
   const ratio = dose > 0 ? (yld / dose) : 0;
   const t = parseFloat(card.shot_time) || 0;
-  const timeTone = t === 0 ? 'text-gray-400' : (t >= 25 && t <= 32) ? 'text-green-600' : 'text-amber-600';
+  const timeTone = t === 0 ? 'text-cq-ink-3' : (t >= 25 && t <= 32) ? 'text-cq-ready' : 'text-cq-caramel-deep';
 
   const save = async () => {
     if (!stationId) { setStatus({ ok: false, msg: 'Pick a station first (top-left) to save.' }); return; }
@@ -232,12 +232,12 @@ const DialIn = ({ stationId, baristaName }) => {
         <div className="flex items-center justify-between mb-1">
           <h4 className="font-semibold">Dial-in card{stationId ? '' : ' (no station selected)'}</h4>
           {meta?.updated_at && (
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-cq-ink-3">
               updated {new Date(meta.updated_at).toLocaleTimeString()}{meta.updated_by ? ` · ${meta.updated_by}` : ''}
             </span>
           )}
         </div>
-        <p className="text-xs text-gray-500 mb-3">The team's recipe for this station — shared across everyone's device.</p>
+        <p className="text-xs text-cq-ink-3 mb-3">The team's recipe for this station — shared across everyone's device.</p>
 
         <div className="grid grid-cols-2 gap-3">
           {fld('bean', 'Bean / roast', { full: true, placeholder: 'e.g. House blend, roasted 3 days ago' })}
@@ -251,7 +251,7 @@ const DialIn = ({ stationId, baristaName }) => {
         </div>
 
         <div className="flex items-center gap-4 mt-3 text-sm">
-          <span>Ratio <b className="text-amber-700">1:{ratio.toFixed(2)}</b></span>
+          <span>Ratio <b className="text-cq-caramel-deep">1:{ratio.toFixed(2)}</b></span>
           <span className={timeTone}>
             Shot {t ? `${t}s` : '—'}{t && (t < 25 || t > 32) ? ' (aim 25–32s)' : ''}
           </span>
@@ -259,25 +259,25 @@ const DialIn = ({ stationId, baristaName }) => {
 
         <div className="flex items-center gap-3 mt-4">
           <button onClick={save} disabled={saving || !loaded}
-            className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded font-medium disabled:opacity-50">
+            className="px-5 py-2 bg-cq-caramel hover:bg-cq-caramel-deep text-white rounded font-medium disabled:opacity-50">
             {saving ? 'Saving…' : 'Save dial-in'}
           </button>
-          {status && <span className={`text-sm ${status.ok ? 'text-green-700' : 'text-amber-700'}`}>{status.msg}</span>}
+          {status && <span className={`text-sm ${status.ok ? 'text-cq-ready' : 'text-cq-caramel-deep'}`}>{status.msg}</span>}
         </div>
       </div>
 
       <div>
         <h4 className="font-semibold mb-2">Tastes off? Adjust the grind</h4>
         <div className="space-y-2 text-sm">
-          <div className="border rounded-lg px-3 py-2 bg-amber-50 border-amber-200">
-            <span className="font-medium text-amber-800">Sour / sharp / thin</span> — under-extracted.
+          <div className="rounded-cq-md px-3 py-2 bg-cq-caramel-wash border border-cq-line">
+            <span className="font-medium text-cq-caramel-deep">Sour / sharp / thin</span> — under-extracted.
             Grind <b>FINER</b> (or increase dose / time). Shot likely ran too fast.
           </div>
-          <div className="border rounded-lg px-3 py-2 bg-orange-50 border-orange-200">
-            <span className="font-medium text-orange-900">Bitter / harsh / dry</span> — over-extracted.
+          <div className="border rounded-cq-md px-3 py-2 bg-cq-caramel-wash border-cq-caramel">
+            <span className="font-medium text-cq-roast">Bitter / harsh / dry</span> — over-extracted.
             Grind <b>COARSER</b> (or reduce dose / time). Shot likely ran too slow.
           </div>
-          <div className="border rounded-lg px-3 py-2 bg-gray-50">
+          <div className="border rounded-cq-md px-3 py-2 bg-cq-wash">
             <span className="font-medium">Shot timing:</span> too fast (&lt;20s) → grind finer;
             too slow (&gt;35s) → grind coarser. Change ONE thing at a time.
           </div>
@@ -340,18 +340,18 @@ const MilkGuide = ({ stationId = null }) => {
   return (
   <div className="py-4 max-w-xl mx-auto">
     {stationId && (
-      <div className="mb-5 border rounded-lg p-3 bg-amber-50 border-amber-200">
+      <div className="mb-5 rounded-cq-md p-3 bg-cq-caramel-wash border border-cq-line">
         <label className="flex items-start gap-2 cursor-pointer">
           <input
             type="checkbox"
-            className="mt-1"
+            className="mt-1 h-4 w-4 accent-cq-caramel"
             checked={symbols}
             disabled={busy}
             onChange={(e) => toggle(e.target.checked)}
           />
           <span>
             <span className="font-medium">Print a shape beside the milk</span>
-            <span className="block text-sm text-gray-600">
+            <span className="block text-sm text-cq-ink-2">
               A mark at the start of the drink line, in the same place on
               every label, so a row of cups can be read without reading it.
               The words stay exactly as they are. This station only.
@@ -359,7 +359,7 @@ const MilkGuide = ({ stationId = null }) => {
           </span>
         </label>
         {Object.keys(glyphs).length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-700">
+          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-cq-ink-2">
             {Object.entries(glyphs).map(([milk, mark]) => (
               <span key={milk} className="whitespace-nowrap">
                 <span className="font-mono font-bold">{mark}</span> {milk}
@@ -371,7 +371,7 @@ const MilkGuide = ({ stationId = null }) => {
     )}
     <table className="w-full text-sm">
       <thead>
-        <tr className="border-b text-gray-500 text-left">
+        <tr className="border-b text-cq-ink-3 text-left">
           <th className="py-2">Drink</th><th className="py-2">Texture</th><th className="py-2">Temp</th>
         </tr>
       </thead>
@@ -379,13 +379,13 @@ const MilkGuide = ({ stationId = null }) => {
         {MILK.map(m => (
           <tr key={m.drink} className="border-b last:border-b-0">
             <td className="py-2 font-medium">{m.drink}</td>
-            <td className="py-2 text-gray-700">{m.foam}</td>
-            <td className="py-2 text-gray-700">{m.temp}</td>
+            <td className="py-2 text-cq-ink-2">{m.foam}</td>
+            <td className="py-2 text-cq-ink-2">{m.temp}</td>
           </tr>
         ))}
       </tbody>
     </table>
-    <p className="text-xs text-gray-400 mt-3">
+    <p className="text-xs text-cq-ink-3 mt-3">
       Don't exceed ~70°C — milk scalds and loses sweetness. Stretch (air) at the start,
       then submerge the wand tip to roll and polish the texture.
     </p>
@@ -409,18 +409,18 @@ const Tally = () => {
       <div className="text-7xl font-bold tabular-nums mb-6">{n}</div>
       <div className="flex items-center gap-4">
         <button onClick={() => set(n - 1)}
-          className="w-16 h-16 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center">
+          className="w-16 h-16 rounded-full bg-cq-line hover:bg-cq-line flex items-center justify-center">
           <Minus size={28} />
         </button>
         <button onClick={() => set(n + 1)}
-          className="w-24 h-24 rounded-full bg-amber-600 hover:bg-amber-700 text-white flex items-center justify-center">
+          className="w-24 h-24 rounded-full bg-cq-caramel hover:bg-cq-caramel-deep text-white flex items-center justify-center">
           <Plus size={40} />
         </button>
       </div>
-      <button onClick={() => set(0)} className="mt-6 text-sm text-gray-500 hover:text-gray-800 flex items-center">
+      <button onClick={() => set(0)} className="mt-6 text-sm text-cq-ink-3 hover:text-cq-roast flex items-center">
         <RotateCcw size={14} className="mr-1" /> Reset
       </button>
-      <p className="text-xs text-gray-400 mt-2">Saved on this device — survives a tab switch.</p>
+      <p className="text-xs text-cq-ink-3 mt-2">Saved on this device — survives a tab switch.</p>
     </div>
   );
 };
@@ -437,8 +437,8 @@ const Convert = () => {
           <input type="number" min="0" step="0.5" value={oz}
             onChange={(e) => setOz(e.target.value)}
             className="w-24 px-2 py-1 border rounded" />
-          <span className="text-gray-500">fl oz =</span>
-          <span className="text-xl font-bold text-amber-700">{Math.round(ml)} ml</span>
+          <span className="text-cq-ink-3">fl oz =</span>
+          <span className="text-xl font-bold text-cq-caramel-deep">{Math.round(ml)} ml</span>
         </div>
       </div>
       <div>
@@ -448,8 +448,8 @@ const Convert = () => {
             {[['Small', '8oz', '~237 ml'], ['Medium', '12oz', '~355 ml'], ['Large', '16oz', '~473 ml']].map(([s, o, m]) => (
               <tr key={o} className="border-b last:border-b-0">
                 <td className="py-1.5">{s}</td>
-                <td className="py-1.5 text-gray-700">{o}</td>
-                <td className="py-1.5 text-gray-500 text-right">{m}</td>
+                <td className="py-1.5 text-cq-ink-2">{o}</td>
+                <td className="py-1.5 text-cq-ink-3 text-right">{m}</td>
               </tr>
             ))}
           </tbody>
@@ -476,20 +476,20 @@ const ToolsTab = ({ stationId = null, baristaName = '' }) => {
     <div>
       <div className="mb-3">
         <h2 className="text-xl font-bold">Barista tools</h2>
-        <p className="text-sm text-gray-500">Handy on-the-floor helpers — these all work offline.</p>
+        <p className="text-sm text-cq-ink-3">Handy on-the-floor helpers — these all work offline.</p>
       </div>
       <div className="flex flex-wrap gap-2 mb-4">
         {TOOLS.map(t => (
           <button
             key={t.id}
             onClick={() => setTool(t.id)}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium flex items-center ${tool === t.id ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+            className={`px-3 py-1.5 rounded-full text-sm font-medium flex items-center ${tool === t.id ? 'bg-cq-caramel text-white' : 'bg-cq-wash text-cq-ink-2 hover:bg-cq-line'}`}
           >
             <t.Icon size={15} className="mr-1.5" /> {t.label}
           </button>
         ))}
       </div>
-      <div className="bg-white rounded-lg shadow-sm p-3">
+      <div className="bg-cq-milk rounded-cq-md shadow-sm p-3">
         {active.render({ stationId, baristaName })}
       </div>
     </div>

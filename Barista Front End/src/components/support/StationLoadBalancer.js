@@ -253,48 +253,50 @@ const StationLoadBalancer = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'available': return 'text-green-600 bg-green-100';
-      case 'active': return 'text-blue-600 bg-blue-100';
-      case 'busy': return 'text-yellow-600 bg-yellow-100';
-      case 'overloaded': return 'text-red-600 bg-red-100';
-      case 'offline': return 'text-gray-600 bg-gray-200';
-      default: return 'text-gray-600 bg-gray-100';
+      case 'available': return 'text-cq-ready bg-cq-ready-wash';
+      case 'active': return 'text-cq-caramel-deep bg-cq-caramel-wash';
+      case 'busy': return 'text-cq-warn bg-cq-warn-wash';
+      case 'overloaded': return 'text-cq-alert bg-cq-alert-wash';
+      case 'offline': return 'text-cq-ink-2 bg-cq-line';
+      default: return 'text-cq-ink-2 bg-cq-wash';
     }
   };
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-green-600 to-teal-600 text-white p-6 rounded-lg">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold flex items-center">
-              <Scale className="mr-3" />
-              Station Load Balancer
-            </h2>
-            <p className="text-green-100 mt-1">
-              Real-time workload distribution and order transfer optimization
+      <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-5">
+        <div className="flex flex-wrap items-center gap-4">
+          <Scale className="w-5 h-5 text-cq-caramel flex-shrink-0" />
+          <div className="min-w-0">
+            <h2 className="text-lg font-bold text-cq-roast">Evening out the stations</h2>
+            <p className="text-sm text-cq-ink-3">
+              Who is busiest, and what moving an order would do about it.
             </p>
           </div>
-          <div className="flex items-center space-x-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold">{balancingMetrics.workloadVariance}</div>
-              <div className="text-sm text-green-200">Variance</div>
+          <div className="flex items-center gap-6 ml-auto tabular-nums">
+            <div>
+              <div className="text-2xl font-bold text-cq-roast">
+                {balancingMetrics.workloadVariance}
+              </div>
+              <div className="text-sm text-cq-ink-2">Spread</div>
             </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold">{balancingMetrics.transfersToday}</div>
-              <div className="text-sm text-green-200">Transfers</div>
+            <div>
+              <div className="text-2xl font-bold text-cq-roast">
+                {balancingMetrics.transfersToday}
+              </div>
+              <div className="text-sm text-cq-ink-2">Moved today</div>
             </div>
           </div>
         </div>
       </div>
 
       {/* Balancing Controls */}
-      <div className="bg-white p-6 rounded-lg shadow-sm">
+      <div className="bg-cq-milk p-6 rounded-cq-md shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold flex items-center">
-            <Zap className="mr-2 text-yellow-600" />
-            Load Balancing Configuration
+            <Zap className="mr-2 text-cq-warn" />
+            When to even things out
           </h3>
           <div className="flex items-center space-x-4">
             <label className="flex items-center space-x-2">
@@ -305,25 +307,25 @@ const StationLoadBalancer = () => {
                   ...balancingRules,
                   autoBalance: e.target.checked
                 })}
-                className="rounded border-gray-300"
+                className="rounded border-cq-line"
               />
-              <span className="text-sm font-medium">Auto-Balance</span>
+              <span className="text-sm font-medium">Move orders automatically</span>
             </label>
             <button
               onClick={() => setTransferSuggestions(transferSuggestionsData)}
               disabled={balancingActive}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center space-x-2"
+              className="h-10 px-4 rounded-cq-md bg-cq-milk border-2 border-cq-line text-cq-roast font-bold hover:border-cq-caramel disabled:opacity-40 flex items-center space-x-2"
             >
               <RefreshCw size={16} className={balancingActive ? 'animate-spin' : ''} />
-              <span>Analyze</span>
+              <span>Check now</span>
             </button>
           </div>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Balance Threshold (%)
+            <label className="block text-sm font-medium text-cq-ink-2 mb-1">
+              Busy above
             </label>
             <input
               type="range"
@@ -334,13 +336,13 @@ const StationLoadBalancer = () => {
                 ...balancingRules,
                 balanceThreshold: parseInt(e.target.value)
               })}
-              className="w-full"
+              className="w-full accent-cq-caramel"
             />
-            <div className="text-xs text-gray-500">{balancingRules.balanceThreshold}%</div>
+            <div className="text-xs text-cq-ink-3">{balancingRules.balanceThreshold}%</div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Max Transfers
+            <label className="block text-sm font-medium text-cq-ink-2 mb-1">
+              Move at most
             </label>
             <select
               value={balancingRules.maxTransfers}
@@ -348,7 +350,7 @@ const StationLoadBalancer = () => {
                 ...balancingRules,
                 maxTransfers: parseInt(e.target.value)
               })}
-              className="w-full p-2 border rounded"
+              className="w-full h-10 px-3 rounded-cq-md border-2 border-cq-line bg-cq-milk text-cq-roast focus:border-cq-caramel focus:outline-none"
             >
               <option value={1}>1</option>
               <option value={3}>3</option>
@@ -364,37 +366,37 @@ const StationLoadBalancer = () => {
                   ...balancingRules,
                   considerCapabilities: e.target.checked
                 })}
-                className="rounded border-gray-300"
+                className="rounded border-cq-line"
               />
-              <span className="text-sm font-medium">Check Capabilities</span>
+              <span className="text-sm font-medium">Only to a station that can make it</span>
             </label>
           </div>
         </div>
       </div>
 
       {/* Station Workload Visualization */}
-      <div className="bg-white p-6 rounded-lg shadow-sm">
+      <div className="bg-cq-milk p-6 rounded-cq-md shadow-sm">
         <h3 className="text-lg font-semibold mb-4 flex items-center">
-          <Users className="mr-2 text-blue-600" />
-          Station Workload Distribution
+          <Users className="mr-2 text-cq-caramel-deep" />
+          How busy each station is
         </h3>
         
         <div className="space-y-4">
           {workloadData.stations.map(station => (
-            <div key={station.id} className="flex items-center space-x-4 p-3 bg-gray-50 rounded-lg">
+            <div key={station.id} className="flex items-center space-x-4 p-3 bg-cq-wash rounded-cq-md">
               <div className="w-20 text-sm font-medium">{station.name}</div>
               
               <div className="flex-1">
-                <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+                <div className="flex items-center justify-between text-xs text-cq-ink-2 mb-1">
                   <span>{station.currentLoad}/{station.maxCapacity} orders</span>
                   <span>{Math.round(station.workloadPercentage)}%</span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-3">
+                <div className="w-full bg-cq-line rounded-full h-3">
                   <div 
                     className={`h-3 rounded-full transition-all duration-300 ${
-                      station.workloadPercentage > 90 ? 'bg-red-500' :
-                      station.workloadPercentage > 70 ? 'bg-yellow-500' :
-                      'bg-green-500'
+                      station.workloadPercentage > 90 ? 'bg-cq-alert' :
+                      station.workloadPercentage > 70 ? 'bg-cq-warn' :
+                      'bg-cq-ready'
                     }`}
                     style={{ width: `${Math.min(100, station.workloadPercentage)}%` }}
                   ></div>
@@ -407,7 +409,7 @@ const StationLoadBalancer = () => {
               
               <div className="text-right text-sm">
                 <div className="font-medium">{station.estimatedWaitTime}m</div>
-                <div className="text-xs text-gray-500">wait time</div>
+                <div className="text-xs text-cq-ink-3">wait time</div>
               </div>
             </div>
           ))}
@@ -416,29 +418,29 @@ const StationLoadBalancer = () => {
 
       {/* Transfer Suggestions */}
       {transferSuggestions.length > 0 && (
-        <div className="bg-white p-6 rounded-lg shadow-sm">
+        <div className="bg-cq-milk p-6 rounded-cq-md shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold flex items-center">
-              <ArrowRightLeft className="mr-2 text-purple-600" />
-              Recommended Transfers ({transferSuggestions.length})
+              <ArrowRightLeft className="mr-2 text-cq-caramel-deep" />
+              Orders worth moving ({transferSuggestions.length})
             </h3>
             <button
               onClick={executeAllTransfers}
               disabled={balancingActive}
-              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+              className="h-10 px-4 rounded-cq-md bg-cq-caramel text-white font-bold hover:bg-cq-caramel-deep disabled:opacity-40"
             >
-              Execute All Transfers
+              Move all
             </button>
           </div>
           
           <div className="space-y-3">
             {transferSuggestions.map((suggestion, index) => (
-              <div key={`${suggestion.order.id}-${index}`} className="flex items-center justify-between p-4 bg-purple-50 rounded-lg">
+              <div key={`${suggestion.order.id}-${index}`} className="flex items-center justify-between p-4 bg-cq-caramel-wash rounded-cq-md">
                 <div className="flex-1">
                   <div className="font-medium">
                     #{suggestion.order.orderNumber} - {suggestion.order.customerName}
                   </div>
-                  <div className="text-sm text-gray-600">
+                  <div className="text-sm text-cq-ink-2">
                     {suggestion.order.coffeeType}, {suggestion.order.milkType}
                   </div>
                 </div>
@@ -446,28 +448,26 @@ const StationLoadBalancer = () => {
                 <div className="flex items-center space-x-4">
                   <div className="text-center">
                     <div className="text-sm font-medium">{suggestion.fromStation.name}</div>
-                    <div className="text-xs text-gray-500">{suggestion.fromStation.estimatedWaitTime}m wait</div>
+                    <div className="text-xs text-cq-ink-3">{suggestion.fromStation.estimatedWaitTime}m wait</div>
                   </div>
                   
-                  <ArrowRightLeft size={16} className="text-purple-600" />
+                  <ArrowRightLeft size={16} className="text-cq-caramel-deep" />
                   
                   <div className="text-center">
-                    <div className="text-sm font-medium text-purple-600">{suggestion.toStation.name}</div>
-                    <div className="text-xs text-gray-500">{suggestion.toStation.estimatedWaitTime}m wait</div>
+                    <div className="text-sm font-medium text-cq-caramel-deep">{suggestion.toStation.name}</div>
+                    <div className="text-xs text-cq-ink-3">{suggestion.toStation.estimatedWaitTime}m wait</div>
                   </div>
                   
                   <div className="text-center">
-                    <div className="text-sm font-bold text-green-600">-{suggestion.waitTimeReduction}m</div>
-                    <div className="text-xs text-gray-500">time saved</div>
+                    <div className="text-sm font-bold text-cq-ready">{Math.abs(suggestion.waitTimeReduction)}m</div>
+                    <div className="text-xs text-cq-ink-3">quicker</div>
                   </div>
                   
                   <button
                     onClick={() => executeTransfer(suggestion)}
                     disabled={balancingActive}
-                    className="px-3 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700 disabled:opacity-50"
-                  >
-                    Transfer
-                  </button>
+                    className="px-3 py-1 bg-cq-roast text-white text-xs rounded hover:bg-cq-roast disabled:opacity-50"
+                  >Move</button>
                 </div>
               </div>
             ))}
@@ -475,29 +475,6 @@ const StationLoadBalancer = () => {
         </div>
       )}
 
-      {/* Balance Status */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-lg shadow-sm text-center">
-          <div className={`text-2xl font-bold ${workloadData.needsBalancing ? 'text-red-600' : 'text-green-600'}`}>
-            {workloadData.needsBalancing ? <AlertTriangle size={24} className="mx-auto" /> : <CheckCircle size={24} className="mx-auto" />}
-          </div>
-          <div className="text-sm text-gray-600 mt-1">
-            {workloadData.needsBalancing ? 'Needs Balancing' : 'Well Balanced'}
-          </div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow-sm text-center">
-          <div className="text-2xl font-bold text-blue-600">{balancingMetrics.workloadVariance || 0}</div>
-          <div className="text-sm text-gray-600">Workload Variance</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow-sm text-center">
-          <div className="text-2xl font-bold text-green-600">{balancingMetrics.avgWaitTime || 0}m</div>
-          <div className="text-sm text-gray-600">Avg Wait Time</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow-sm text-center">
-          <div className="text-2xl font-bold text-purple-600">{Math.round(balancingMetrics.efficiencyGain || 0)}m</div>
-          <div className="text-sm text-gray-600">Time Saved Today</div>
-        </div>
-      </div>
     </div>
   );
 };

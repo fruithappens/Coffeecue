@@ -91,22 +91,22 @@ export default function AskCustomerControls({ order }) {
   // one-tap acknowledgement so the customer knows it was received.
   if (reply && reply.text) {
     return (
-      <div className="mt-2 w-full rounded-lg border-2 border-green-500 bg-green-50 p-2">
-        <div className="text-xs font-bold uppercase tracking-wide text-green-700">Customer replied</div>
-        <div className="text-lg font-semibold text-green-900">“{reply.text}”</div>
+      <div className="mt-2 w-full rounded-cq-md border-2 border-cq-ready bg-cq-ready-wash p-2">
+        <div className="text-xs font-bold uppercase tracking-wide text-cq-ready">Customer replied</div>
+        <div className="text-lg font-semibold text-cq-ready">“{reply.text}”</div>
         {acked ? (
-          <div className="mt-2 text-sm font-semibold text-green-700">✓ Acknowledged</div>
+          <div className="mt-2 text-sm font-semibold text-cq-ready">✓ Acknowledged</div>
         ) : (
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <button onClick={() => ackCustomer('Got it - making your coffee now.')} disabled={acking}
-              className="px-3 py-1.5 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 disabled:opacity-50">
+              className="px-3 py-1.5 rounded-cq-md bg-cq-ready text-white text-sm font-semibold hover:bg-cq-ready disabled:opacity-50">
               👍 Got it
             </button>
             <button onClick={() => ackCustomer('No worries, all sorted - making it now.')} disabled={acking}
-              className="px-3 py-1.5 rounded-lg bg-green-100 text-green-800 text-sm font-semibold hover:bg-green-200 disabled:opacity-50">
+              className="px-3 py-1.5 rounded-cq-md bg-cq-ready-wash text-cq-ready text-sm font-semibold hover:bg-cq-ready-wash disabled:opacity-50">
               All sorted
             </button>
-            <button onClick={() => setOpen(true)} className="text-sm text-green-700 underline">Ask something else</button>
+            <button onClick={() => setOpen(true)} className="text-sm text-cq-ready underline">Ask something else</button>
           </div>
         )}
         {open && <AskForm {...{ message, setMessage, optionsText, setOptionsText, sending, send, setOpen }} />}
@@ -116,10 +116,10 @@ export default function AskCustomerControls({ order }) {
 
   if (ask && ask.message && !open) {
     return (
-      <div className="mt-2 w-full rounded-lg border border-amber-300 bg-amber-50 p-2 text-sm">
-        <span className="text-amber-800">Waiting for a reply to: </span>
-        <span className="font-semibold text-amber-900">“{ask.message}”</span>
-        <button onClick={() => setOpen(true)} className="ml-2 text-amber-700 underline">Ask again</button>
+      <div className="mt-2 w-full rounded-cq-md border border-cq-caramel bg-cq-caramel-wash p-2 text-sm">
+        <span className="text-cq-caramel-deep">Waiting for a reply to: </span>
+        <span className="font-semibold text-cq-caramel-deep">“{ask.message}”</span>
+        <button onClick={() => setOpen(true)} className="ml-2 text-cq-caramel-deep underline">Ask again</button>
       </div>
     );
   }
@@ -138,7 +138,7 @@ export default function AskCustomerControls({ order }) {
   return (
     <button onClick={() => setOpen(true)}
       title="Ask this customer a question (works with any phone, or none)"
-      className="px-3 rounded-lg flex items-center justify-center bg-gray-200 hover:bg-gray-300 text-gray-700">
+      className="px-3 rounded-cq-md flex items-center justify-center bg-cq-line hover:bg-cq-line text-cq-ink-2">
       <MessageSquare size={18} />
     </button>
   );
@@ -146,12 +146,12 @@ export default function AskCustomerControls({ order }) {
 
 function AskForm({ message, setMessage, optionsText, setOptionsText, sending, send, setOpen }) {
   return (
-    <div className="mt-1 border rounded-lg p-2 bg-white">
+    <div className="mt-1 border rounded-cq-md p-2 bg-cq-milk">
       <div className="flex flex-wrap gap-1 mb-2">
         {PRESETS.map((p) => (
           <button key={p.label} type="button"
             onClick={() => { setMessage(p.message); setOptionsText(p.options); }}
-            className="text-xs bg-gray-100 hover:bg-gray-200 rounded px-2 py-1">
+            className="text-xs bg-cq-wash hover:bg-cq-line rounded px-2 py-1">
             {p.label}
           </button>
         ))}
@@ -168,13 +168,13 @@ function AskForm({ message, setMessage, optionsText, setOptionsText, sending, se
       />
       <div className="flex gap-2">
         <button onClick={send} disabled={sending || !message.trim()}
-          className="flex-1 bg-amber-600 hover:bg-amber-700 text-white rounded py-1.5 text-sm font-semibold disabled:opacity-40">
+          className="flex-1 bg-cq-caramel hover:bg-cq-caramel-deep text-white rounded py-1.5 text-sm font-semibold disabled:opacity-40">
           {sending ? 'Sending…' : 'Send to customer'}
         </button>
         <button onClick={() => setOpen(false)}
-          className="px-3 rounded bg-gray-100 text-gray-600 text-sm">Cancel</button>
+          className="px-3 rounded bg-cq-wash text-cq-ink-2 text-sm">Cancel</button>
       </div>
-      <div className="text-[11px] text-gray-400 mt-1">
+      <div className="text-[11px] text-cq-ink-3 mt-1">
         Shows on their order page. If they left a mobile, it also texts them.
       </div>
     </div>

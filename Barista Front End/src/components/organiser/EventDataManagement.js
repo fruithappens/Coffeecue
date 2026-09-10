@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Download, Upload, Trash2, ShieldAlert, Database } from 'lucide-react';
+import { Download, Upload, Trash2, ShieldAlert, Database, Palette, Users } from 'lucide-react';
+import { Panel, SettingRow, Toggle, TextField } from '../../design';
 import ApiServiceClass from '../../services/ApiService';
 
 const api = new ApiServiceClass();
@@ -136,104 +137,101 @@ const EventDataManagement = () => {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow p-6 max-w-3xl">
-      <h2 className="text-xl font-bold flex items-center mb-1">
-        <Database className="w-5 h-5 mr-2" /> Event Data
-      </h2>
-      <p className="text-gray-600 text-sm mb-6">
+    <div className="cq max-w-3xl">
+      <div className="flex items-center gap-2 mb-1">
+        <Database className="w-5 h-5 text-cq-caramel" />
+        <h2 className="text-lg font-bold text-cq-roast">Event data</h2>
+      </div>
+      <p className="text-sm text-cq-ink-3 mb-5 max-w-[62ch]">
         Archive this event, hand the next client a clean system, and carry
         returning attendees' saved orders forward to next year.
       </p>
 
       {result && (
-        <div className={`mb-6 p-3 rounded-lg text-sm border ${
-          result.ok ? 'bg-green-50 border-green-300 text-green-800'
-                     : 'bg-red-50 border-red-300 text-red-800'}`}>
+        <div className={`mb-5 p-3 rounded-cq-md text-sm ${
+          result.ok ? 'bg-cq-ready-wash text-cq-ready' : 'bg-cq-alert-wash text-cq-alert'}`}>
           {result.msg}
         </div>
       )}
 
-      {/* EXPORT */}
-      <section className="border border-gray-200 rounded-lg p-4 mb-4">
-        <h3 className="font-semibold flex items-center mb-1">
-          <Download className="w-4 h-4 mr-2 text-blue-600" /> Export event
-        </h3>
-        <p className="text-sm text-gray-600 mb-3">
-          Download everything — customers and their usual orders, all orders,
-          SMS history, and config — as one JSON file. For your records and analysis.
+      <Panel title="Export this event" Icon={Download}>
+        <p className="text-sm text-cq-ink-3 mb-4 max-w-[60ch]">
+          Everything — customers and their usual orders, all orders, SMS
+          history and config — as one file. For your records.
         </p>
         <button
-          onClick={handleExport}
-          disabled={busy === 'export'}
-          className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50"
+          type="button" onClick={handleExport} disabled={busy === 'export'}
+          className="h-10 px-4 rounded-cq-md bg-cq-roast text-cq-cream font-semibold
+                     hover:bg-cq-caramel-deep disabled:opacity-40"
         >
-          {busy === 'export' ? 'Exporting…' : 'Export & download'}
+          {busy === 'export' ? 'Exporting…' : 'Export and download'}
         </button>
-      </section>
+      </Panel>
 
-      {/* IMPORT */}
-      <section className="border border-gray-200 rounded-lg p-4 mb-4">
-        <h3 className="font-semibold flex items-center mb-1">
-          <Upload className="w-4 h-4 mr-2 text-green-600" /> Re-import a past event
-        </h3>
-        <p className="text-sm text-gray-600 mb-3">
-          Load a file exported earlier (e.g. last year's). Returning customers'
-          saved orders come back so the bot greets them with their usual. Old
-          orders and messages are <strong>not</strong> loaded into the live queue.
+      <Panel title="Bring back a past event" Icon={Upload}>
+        <p className="text-sm text-cq-ink-3 mb-4 max-w-[60ch]">
+          Load a file exported earlier — last year's, say. Returning customers'
+          saved orders come back, so the line greets them with their usual. Old
+          orders and messages are <strong>not</strong> loaded into the queue.
         </p>
         <input
           type="file" accept="application/json,.json"
           onChange={(e) => setImportFile(e.target.files?.[0] || null)}
-          className="block text-sm mb-2"
+          className="block text-sm text-cq-ink-2 mb-3
+                     file:mr-3 file:h-10 file:px-4 file:rounded-cq-md file:border-0
+                     file:bg-cq-wash file:text-cq-roast file:font-semibold
+                     hover:file:bg-cq-caramel-wash file:cursor-pointer"
         />
-        <label className="flex items-center text-sm text-gray-600 mb-3">
-          <input type="checkbox" className="mr-2"
-            checked={includeConfig} onChange={(e) => setIncludeConfig(e.target.checked)} />
-          Also restore event settings (branding, etc.) from the file
-        </label>
+        <SettingRow Icon={Palette} label="Also restore event settings"
+                    hint="Branding, logo and pricing from the file">
+          <Toggle on={includeConfig} onChange={setIncludeConfig} />
+        </SettingRow>
         <button
-          onClick={handleImport}
-          disabled={busy === 'import' || !importFile}
-          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+          type="button" onClick={handleImport} disabled={busy === 'import' || !importFile}
+          className="mt-4 h-10 px-4 rounded-cq-md bg-cq-roast text-cq-cream font-semibold
+                     hover:bg-cq-caramel-deep disabled:opacity-40"
         >
           {busy === 'import' ? 'Importing…' : 'Import customers'}
         </button>
-      </section>
+      </Panel>
 
-      {/* WIPE */}
-      <section className="border-2 border-red-200 rounded-lg p-4 bg-red-50">
-        <h3 className="font-semibold flex items-center mb-1 text-red-800">
-          <ShieldAlert className="w-4 h-4 mr-2" /> Wipe for next client
-        </h3>
-        <p className="text-sm text-red-700 mb-3">
-          Permanently clears all customer data, orders and SMS history so the
-          next client can't see this one's. <strong>Export first if you want a
-          copy.</strong> Stations, inventory config and logins are kept.
+      {/* The one place red is right: this deletes a client's data for good.
+          Semantic colour, not decoration -- it stays. */}
+      <section className="bg-cq-alert-wash rounded-cq-lg p-5 mb-5">
+        <div className="flex items-center gap-2 mb-1">
+          <ShieldAlert className="w-4 h-4 text-cq-alert" />
+          <h3 className="text-lg font-bold text-cq-alert">Wipe for the next client</h3>
+        </div>
+        <p className="text-sm text-cq-ink-2 mb-4 max-w-[60ch]">
+          Permanently clears every customer, order and message so the next
+          client cannot see this one's. <strong>Export first if you want a
+          copy.</strong> Stations, inventory and logins are kept.
         </p>
-        <label className="flex items-center text-sm text-red-800 mb-2 cursor-pointer">
-          <input type="checkbox" className="mr-2"
-            checked={clearStaff} onChange={(e) => setClearStaff(e.target.checked)} />
-          Also remove this event's staff logins (keeps the master admin so you can still sign in)
+        <div className="bg-cq-milk rounded-cq-md px-4 mb-4">
+          <SettingRow Icon={Users} label="Also remove this event's staff logins"
+                      hint="The master admin is kept, so you can still sign in">
+            <Toggle on={clearStaff} onChange={setClearStaff} />
+          </SettingRow>
+          <SettingRow Icon={Palette} label="Also reset branding and pricing"
+                      hint="So the next client does not see this one's">
+            <Toggle on={resetBranding} onChange={setResetBranding} />
+          </SettingRow>
+        </div>
+        <label className="block text-sm font-semibold text-cq-alert mb-2">
+          Type WIPE to enable
         </label>
-        <label className="flex items-center text-sm text-red-800 mb-3 cursor-pointer">
-          <input type="checkbox" className="mr-2"
-            checked={resetBranding} onChange={(e) => setResetBranding(e.target.checked)} />
-          Also reset event branding, logo &amp; pricing to default (so the next client doesn't see this one's)
-        </label>
-        <label className="block text-sm text-red-800 mb-1">Type <strong>WIPE</strong> to enable:</label>
-        <div className="flex items-center gap-3">
-          <input
-            type="text" value={wipeText}
-            onChange={(e) => setWipeText(e.target.value)}
-            placeholder="WIPE"
-            className="px-3 py-2 border border-red-300 rounded font-mono w-32"
+        <div className="flex items-center gap-3 flex-wrap">
+          <TextField
+            width="w-32" value={wipeText} onChange={setWipeText}
+            placeholder="WIPE" className="font-mono"
           />
           <button
-            onClick={handleWipe}
+            type="button" onClick={handleWipe}
             disabled={busy === 'wipe' || wipeText !== 'WIPE'}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-40 flex items-center"
+            className="h-10 px-4 rounded-cq-md bg-cq-alert text-white font-semibold
+                       hover:opacity-90 disabled:opacity-40 inline-flex items-center gap-2"
           >
-            <Trash2 className="w-4 h-4 mr-2" />
+            <Trash2 className="w-4 h-4" />
             {busy === 'wipe' ? 'Wiping…' : 'Wipe event data'}
           </button>
         </div>

@@ -11,7 +11,8 @@
 // re-implement that here. If the backend refuses, we surface the
 // reason verbatim.
 import React, { useState } from 'react';
-import { XCircle, ArrowRight, AlertCircle, RefreshCw } from 'lucide-react';
+import { ArrowRight, RefreshCw, MoveRight } from 'lucide-react';
+import { Modal, Notice, Subject, PickRow, Button } from '../../design';
 
 const MoveOrderDialog = ({ order, stations, currentStationId, onConfirm, onClose }) => {
   const [sending, setSending] = useState(false);
@@ -50,91 +51,49 @@ const MoveOrderDialog = ({ order, stations, currentStationId, onConfirm, onClose
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-800 bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-bold">Move order to another station</h3>
-          <button
-            className="text-gray-500 hover:text-gray-700"
-            onClick={onClose}
-            disabled={sending}
-          >
-            <XCircle size={20} />
-          </button>
-        </div>
+    <Modal
+      title="Move order to another station"
+      Icon={MoveRight}
+      onClose={onClose}
+      busy={sending}
+      footer={<Button variant="ghost" onClick={onClose} disabled={sending}>Cancel</Button>}
+    >
+      {order && (
+        <Subject title={`#${order.orderNumber || order.id} \u2014 ${order.customerName}`}>
+          {order.coffeeType}, {order.milkType}{order.sugar ? `, ${order.sugar}` : ''}
+          {' \u00b7 '}Currently at Station {currentStationId ?? '?'}
+        </Subject>
+      )}
 
-        {order && (
-          <div className="mb-4 bg-gray-100 p-3 rounded">
-            <div className="font-medium">
-              #{order.orderNumber || order.id} — {order.customerName}
-            </div>
-            <div className="text-sm text-gray-700">
-              {order.coffeeType}, {order.milkType}
-              {order.sugar ? `, ${order.sugar}` : ''}
-            </div>
-            <div className="text-xs text-gray-500 mt-1">
-              Currently at Station {currentStationId ?? '?'}
-            </div>
-          </div>
-        )}
+      {error && <Notice tone="bad">{error}</Notice>}
 
-        {error && (
-          <div className="mb-4 bg-red-50 text-red-700 p-2 rounded border border-red-200 text-sm flex items-start">
-            <AlertCircle size={16} className="mr-1 mt-0.5 flex-shrink-0" />
-            <span>{error}</span>
+      {candidates.length === 0 ? (
+        <Notice tone="warn">
+          No other active stations available. Turn one on under Stations first.
+        </Notice>
+      ) : (
+        <>
+          <p className="text-sm text-cq-ink-3 mb-3">
+            Pick the station to take over. The customer is not told \u2014 let
+            them know in person if it matters.
+          </p>
+          <div className="space-y-2">
+            {candidates.map((s) => (
+              <PickRow
+                key={s.id}
+                label={`Station ${s.id}${s.name && s.name !== `Station ${s.id}` ? ` \u2014 ${s.name}` : ''}`}
+                hint={s.location || undefined}
+                onClick={() => handlePick(s.id)}
+                disabled={sending}
+                right={sending
+                  ? <RefreshCw size={18} className="animate-spin text-cq-caramel flex-shrink-0" />
+                  : <ArrowRight size={18} className="text-cq-caramel flex-shrink-0" />}
+              />
+            ))}
           </div>
-        )}
-
-        {candidates.length === 0 ? (
-          <div className="bg-amber-50 text-amber-800 p-3 rounded border border-amber-200 text-sm">
-            No other active stations available. Activate another station
-            first under Organiser → Stations.
-          </div>
-        ) : (
-          <div>
-            <div className="text-sm text-gray-600 mb-2">
-              Pick the station to take over this order. Customers won't
-              be notified — let them know in person if needed.
-            </div>
-            <div className="space-y-2">
-              {candidates.map((s) => (
-                <button
-                  key={s.id}
-                  className="w-full flex items-center justify-between p-3 border rounded hover:bg-amber-50 hover:border-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-left"
-                  onClick={() => handlePick(s.id)}
-                  disabled={sending}
-                >
-                  <div>
-                    <div className="font-medium">
-                      Station {s.id}
-                      {s.name && s.name !== `Station ${s.id}` ? ` — ${s.name}` : ''}
-                    </div>
-                    {s.location && (
-                      <div className="text-xs text-gray-500">{s.location}</div>
-                    )}
-                  </div>
-                  {sending ? (
-                    <RefreshCw size={18} className="animate-spin text-amber-600" />
-                  ) : (
-                    <ArrowRight size={18} className="text-amber-600" />
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="mt-4 flex justify-end">
-          <button
-            className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
-            onClick={onClose}
-            disabled={sending}
-          >
-            Cancel
-          </button>
-        </div>
-      </div>
-    </div>
+        </>
+      )}
+    </Modal>
   );
 };
 

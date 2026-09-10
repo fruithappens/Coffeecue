@@ -13,7 +13,7 @@ import React from 'react';
 
 export const QuickGroup = ({ label, children }) => (
   <div>
-    <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">
+    <div className="text-xs font-extrabold uppercase tracking-wider text-cq-ink-3 mb-1.5">
       {label}
     </div>
     <div className="flex flex-wrap gap-2">{children}</div>
@@ -29,16 +29,16 @@ export const QuickTile = ({ active, onClick, emoji, label, badge, disabled }) =>
     disabled={disabled}
     aria-disabled={disabled || undefined}
     title={disabled ? `${label} is not on the menu for this event` : undefined}
-    className={`relative min-w-[6.5rem] px-3 py-2.5 rounded-xl border-2 text-center
+    className={`relative min-w-[6.5rem] px-3 py-2.5 rounded-cq-lg border-2 text-center
                 transition-colors ${disabled
-                  ? 'bg-gray-100 text-gray-400 border-gray-200 border-dashed cursor-not-allowed'
+                  ? 'bg-cq-wash text-cq-ink-3 border-cq-line border-dashed cursor-not-allowed'
                   : active
-                  ? 'bg-amber-600 text-white border-amber-600'
-                  : 'bg-white text-gray-800 border-gray-300 hover:border-amber-400'}`}
+                  ? 'bg-cq-caramel text-white border-cq-caramel'
+                  : 'bg-cq-milk text-cq-roast border-cq-line hover:border-cq-caramel'}`}
   >
     {badge && (
       <span className={`absolute top-1 left-1.5 text-[10px] font-bold leading-none
-                        ${active ? 'text-white/70' : 'text-gray-400'}`}>
+                        ${active ? 'text-white/70' : 'text-cq-ink-3'}`}>
         {badge}
       </span>
     )}
@@ -46,7 +46,7 @@ export const QuickTile = ({ active, onClick, emoji, label, badge, disabled }) =>
           aria-hidden>{emoji}</span>
     <span className="block text-sm font-semibold capitalize leading-tight">{label}</span>
     {disabled && (
-      <span className="block text-[10px] font-normal normal-case leading-tight text-gray-400">
+      <span className="block text-[10px] font-normal normal-case leading-tight text-cq-ink-3">
         not available
       </span>
     )}

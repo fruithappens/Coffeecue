@@ -59,42 +59,42 @@ const StickerLogoCard = ({ onChanged }) => {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-4">
-      <h2 className="text-xl font-bold mb-1">Sticker logo</h2>
-      <p className="text-sm text-gray-500 mb-3">
+    <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-5">
+      <h2 className="text-lg font-bold text-cq-roast mb-1">Sticker logo</h2>
+      <p className="text-sm text-cq-ink-3 mb-4 max-w-[62ch]">
         Printed about 7mm tall in black and white on a cup or lid, so keep it
         simple and high-contrast — fine detail and pale colours vanish. Leave
         it empty to print the screen logo from <em>Logo &amp; look</em> instead.
       </p>
       <div className="flex items-center gap-4 flex-wrap">
         {logo ? (
-          <img src={logo} alt="Sticker logo" className="h-16 w-auto max-w-[160px] object-contain border border-gray-200 rounded bg-white p-1" />
+          <img src={logo} alt="Sticker logo" className="h-16 w-auto max-w-[160px] object-contain border border-cq-line rounded-cq-md bg-cq-milk p-1" />
         ) : screenLogo ? (
           <div className="flex items-center gap-2">
-            <img src={screenLogo} alt="Screen logo" className="h-16 w-auto max-w-[160px] object-contain border border-dashed border-gray-300 rounded bg-white p-1 opacity-60" />
-            <span className="text-xs text-gray-400">screen logo<br />(used until you add one)</span>
+            <img src={screenLogo} alt="Screen logo" className="h-16 w-auto max-w-[160px] object-contain border border-dashed border-cq-line rounded-cq-md bg-cq-milk p-1 opacity-60" />
+            <span className="text-xs text-cq-ink-3">screen logo<br />used until you add one</span>
           </div>
         ) : (
-          <div className="h-16 w-28 flex items-center justify-center border border-dashed border-gray-300 rounded text-xs text-gray-400 text-center px-1">
+          <div className="h-16 w-28 flex items-center justify-center border border-dashed border-cq-line rounded-cq-md text-xs text-cq-ink-3 text-center px-1">
             No logo yet
           </div>
         )}
         <div className="flex flex-col gap-2">
-          <label className={`px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center cursor-pointer text-sm w-fit ${(!loaded || busy) ? 'opacity-50 pointer-events-none' : ''}`}>
+          <label className={`px-4 py-2.5 rounded-cq-md bg-cq-wash text-cq-roast font-semibold hover:bg-cq-caramel-wash flex items-center cursor-pointer text-sm w-fit ${(!loaded || busy) ? 'opacity-50 pointer-events-none' : ''}`}>
             <Upload className="mr-2" size={16} />
             {busy ? 'Saving…' : (logo ? 'Replace sticker logo' : 'Upload sticker logo')}
             <input type="file" accept="image/*" onChange={onUpload} className="hidden" disabled={!loaded || busy} />
           </label>
           {logo && (
             <button type="button" onClick={() => saveLogo('')} disabled={busy}
-              className="text-xs text-red-600 hover:underline w-fit disabled:opacity-50">
+              className="text-xs text-cq-alert hover:underline w-fit disabled:opacity-50">
               Remove sticker logo
             </button>
           )}
         </div>
       </div>
-      {msg && <p className="text-sm text-green-700 mt-2">{msg}</p>}
-      {err && <p className="text-sm text-red-600 mt-2">{err}</p>}
+      {msg && <p className="text-sm text-cq-ready mt-3">{msg}</p>}
+      {err && <p className="text-sm text-cq-alert mt-3">{err}</p>}
     </div>
   );
 };
@@ -121,16 +121,26 @@ const LabelsTab = () => {
     <div className="space-y-6">
       <StickerLogoCard onChanged={() => setDesignKey((k) => k + 1)} />
       <LabelDesignCard key={designKey} printers={printers} onPrinted={loadPrinters} />
-      <div className="bg-white rounded-lg shadow-md p-4 flex items-start gap-3 text-sm">
-        <Printer size={18} className="text-gray-500 mt-0.5 flex-shrink-0" />
+      {/* Was "Support → Integrations → Printers" pointing at /support -- the
+          old four-interface model. Support and Organiser became the one runner
+          app; the redirect still worked but the words sent you looking for a
+          menu that no longer exists. */}
+      <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-5 flex items-start gap-3 text-sm">
+        <span className="inline-flex items-center justify-center w-10 h-10 rounded-cq-md
+                         bg-cq-caramel-wash text-cq-roast flex-shrink-0">
+          <Printer size={20} strokeWidth={2.25} />
+        </span>
         <div>
-          <div className="font-semibold text-gray-800">
-            Printers: {printers.length === 0 ? 'none set up yet' : `${enabled.length} enabled, ${online.length} online`}
+          <div className="font-bold text-cq-roast">
+            {printers.length === 0
+              ? 'No printers set up yet'
+              : `${enabled.length} printer${enabled.length === 1 ? '' : 's'} on, ${online.length} answering`}
           </div>
-          <div className="text-gray-500">
-            Connecting a printer, roll width, left offset, calibration and the print queue are in{' '}
-            <a href="/support" className="inline-flex items-center gap-1 text-amber-700 hover:text-amber-900 font-semibold">
-              Support → Integrations → Printers <ExternalLink size={13} />
+          <div className="text-cq-ink-3 mt-0.5">
+            The machines themselves — connecting one, roll width, offset,
+            calibration and the queue — live in{' '}
+            <a href="/run#printers" className="inline-flex items-center gap-1 text-cq-caramel-deep hover:underline font-semibold">
+              Printers <ExternalLink size={13} />
             </a>.
           </div>
         </div>

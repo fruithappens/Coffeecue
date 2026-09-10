@@ -140,22 +140,22 @@ class ErrorBoundary extends React.Component {
       return (
         <div className="relative">
           {/* Error Notification Banner */}
-          <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4 relative">
+          <div className="bg-cq-alert-wash border-l-4 border-cq-alert p-4 mb-4 relative">
             <div className="flex items-start">
               <div className="flex-shrink-0">
-                <AlertTriangle className="h-5 w-5 text-red-400" />
+                <AlertTriangle className="h-5 w-5 text-cq-alert" />
               </div>
               <div className="ml-3 flex-1">
-                <h3 className="text-sm font-medium text-red-800">
+                <h3 className="text-sm font-medium text-cq-alert">
                   Component Error: {componentName || 'Unknown Component'}
                 </h3>
-                <div className="mt-2 text-sm text-red-700">
+                <div className="mt-2 text-sm text-cq-alert">
                   <p>
                     Something went wrong with this part of the interface. 
                     {this.state.retryCount > 0 && ` (Retry attempt: ${this.state.retryCount})`}
                   </p>
                   {this.props.showErrorDetails && (
-                    <details className="mt-2 bg-red-100 p-2 rounded text-xs">
+                    <details className="mt-2 bg-cq-alert-wash p-2 rounded text-xs">
                       <summary className="cursor-pointer font-medium">Technical Details</summary>
                       <pre className="mt-1 whitespace-pre-wrap break-words">
                         {/* Show whatever we can get our hands on — some
@@ -185,14 +185,14 @@ class ErrorBoundary extends React.Component {
                 <div className="mt-4 flex space-x-2">
                   <button
                     onClick={this.handleRetry}
-                    className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700 flex items-center"
+                    className="bg-cq-alert text-white px-3 py-1 rounded text-sm hover:bg-cq-alert flex items-center"
                   >
                     <RefreshCw size={14} className="mr-1" />
                     Try Again
                   </button>
                   <button
                     onClick={this.handleReload}
-                    className="bg-gray-600 text-white px-3 py-1 rounded text-sm hover:bg-gray-700"
+                    className="bg-cq-ink-2 text-white px-3 py-1 rounded text-sm hover:bg-cq-roast"
                   >
                     Reload Page
                   </button>
@@ -201,7 +201,7 @@ class ErrorBoundary extends React.Component {
               <div className="ml-auto pl-3">
                 <button
                   onClick={this.handleDismiss}
-                  className="bg-red-200 rounded-md p-1.5 text-red-500 hover:bg-red-300 focus:outline-none"
+                  className="bg-cq-alert-wash rounded-md p-1.5 text-cq-alert hover:bg-cq-alert-wash focus:outline-none"
                 >
                   <X size={16} />
                 </button>
@@ -213,18 +213,18 @@ class ErrorBoundary extends React.Component {
           {FallbackComponent ? (
             <FallbackComponent error={this.state.error} onRetry={this.handleRetry} />
           ) : (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-6 text-center">
-              <Coffee size={48} className="mx-auto mb-4 text-amber-600" />
-              <h3 className="text-lg font-medium text-amber-800 mb-2">
+            <div className="bg-cq-caramel-wash border border-cq-line rounded-cq-md p-6 text-center">
+              <Coffee size={48} className="mx-auto mb-4 text-cq-caramel-deep" />
+              <h3 className="text-lg font-medium text-cq-caramel-deep mb-2">
                 Service Temporarily Unavailable
               </h3>
-              <p className="text-amber-700 mb-4">
+              <p className="text-cq-caramel-deep mb-4">
                 This part of the coffee ordering system is experiencing issues. 
                 Other features should still work normally.
               </p>
               <button
                 onClick={this.handleRetry}
-                className="bg-amber-600 text-white px-4 py-2 rounded hover:bg-amber-700"
+                className="bg-cq-caramel text-white px-4 py-2 rounded hover:bg-cq-caramel-deep"
               >
                 Try Again
               </button>

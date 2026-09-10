@@ -132,7 +132,7 @@ const CommunicationsTab = () => {
         <div className="flex space-x-2">
           <button
             onClick={() => setActiveSection('broadcast')}
-            className={`px-4 py-2 rounded-lg ${activeSection === 'broadcast' ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}
+            className={`px-4 py-2 rounded-cq-md ${activeSection === 'broadcast' ? 'bg-cq-roast text-white' : 'bg-cq-wash'}`}
           >
             Broadcast
           </button>
@@ -151,29 +151,29 @@ const CommunicationsTab = () => {
           {/* Stats */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard
-              icon={<MessageSquare className="w-6 h-6 text-blue-600" />}
+              icon={<MessageSquare className="w-6 h-6 text-cq-caramel-deep" />}
               label="Messages Today"
               value="3,421"
             />
             <StatCard
-              icon={<CheckCircle className="w-6 h-6 text-green-600" />}
+              icon={<CheckCircle className="w-6 h-6 text-cq-ready" />}
               label="Delivery Rate"
               value="99.2%"
             />
             <StatCard
-              icon={<DollarSign className="w-6 h-6 text-yellow-600" />}
+              icon={<DollarSign className="w-6 h-6 text-cq-warn" />}
               label="Balance"
               value={`$${twilioConfig.balance}`}
             />
             <StatCard
-              icon={<AlertTriangle className="w-6 h-6 text-red-600" />}
+              icon={<AlertTriangle className="w-6 h-6 text-cq-alert" />}
               label="Failed"
               value="12"
             />
           </div>
           
           {/* Test SMS */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-cq-milk rounded-cq-md shadow-sm p-6">
             <h3 className="font-semibold text-lg mb-4 flex items-center">
               <TestTube className="w-5 h-5 mr-2" />
               Send Test SMS
@@ -184,19 +184,19 @@ const CommunicationsTab = () => {
                 placeholder="Phone number"
                 value={testSmsForm.to}
                 onChange={(e) => setTestSmsForm({ ...testSmsForm, to: e.target.value })}
-                className="px-4 py-2 border rounded-lg"
+                className="px-4 py-2 border rounded-cq-md"
               />
               <input
                 type="text"
                 placeholder="Message"
                 value={testSmsForm.message}
                 onChange={(e) => setTestSmsForm({ ...testSmsForm, message: e.target.value })}
-                className="px-4 py-2 border rounded-lg"
+                className="px-4 py-2 border rounded-cq-md"
               />
             </div>
             <button
               onClick={handleTestSms}
-              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+              className="mt-4 px-4 py-2 bg-cq-roast text-white rounded-cq-md hover:bg-cq-caramel-deep transition-colors flex items-center"
             >
               <Send className="w-4 h-4 mr-2" />
               Send Test Message
@@ -204,7 +204,7 @@ const CommunicationsTab = () => {
           </div>
           
           {/* Recent Activity */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-cq-milk rounded-cq-md shadow-sm p-6">
             <h3 className="font-semibold text-lg mb-4">Recent SMS Activity</h3>
             <div className="space-y-2">
               {recentSms.map(sms => (
@@ -217,7 +217,7 @@ const CommunicationsTab = () => {
       
       {/* Twilio Configuration */}
       {activeSection === 'twilio' && (
-        <div className="bg-white rounded-lg shadow-sm p-6">
+        <div className="bg-cq-milk rounded-cq-md shadow-sm p-6">
           <h3 className="font-semibold text-lg mb-6 flex items-center">
             <Settings className="w-5 h-5 mr-2" />
             Twilio Configuration
@@ -248,11 +248,11 @@ const CommunicationsTab = () => {
             <div className="pt-4 border-t">
               <button
                 onClick={handleUpdateTwilioConfig}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="px-4 py-2 bg-cq-roast text-white rounded-cq-md hover:bg-cq-caramel-deep transition-colors"
               >
                 Update Configuration
               </button>
-              <button className="ml-2 px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
+              <button className="ml-2 px-4 py-2 bg-cq-wash rounded-cq-md hover:bg-cq-line transition-colors">
                 Test Connection
               </button>
             </div>
@@ -262,13 +262,13 @@ const CommunicationsTab = () => {
       
       {/* Message Templates */}
       {activeSection === 'templates' && (
-        <div className="bg-white rounded-lg shadow-sm p-6">
+        <div className="bg-cq-milk rounded-cq-md shadow-sm p-6">
           <div className="flex items-center justify-between mb-6">
             <h3 className="font-semibold text-lg flex items-center">
               <FileText className="w-5 h-5 mr-2" />
               Message Templates
             </h3>
-            <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+            <button className="px-4 py-2 bg-cq-roast text-white rounded-cq-md hover:bg-cq-caramel-deep transition-colors">
               Add Template
             </button>
           </div>
@@ -283,12 +283,12 @@ const CommunicationsTab = () => {
 
       {/* Broadcast SMS */}
       {activeSection === 'broadcast' && (
-        <div className="bg-white rounded-lg shadow-sm p-6 max-w-3xl">
+        <div className="bg-cq-milk rounded-cq-md shadow-sm p-6 max-w-3xl">
           <h3 className="font-semibold text-lg mb-2 flex items-center">
             <Megaphone className="w-5 h-5 mr-2" />
             Broadcast SMS
           </h3>
-          <p className="text-sm text-gray-600 mb-6">
+          <p className="text-sm text-cq-ink-2 mb-6">
             Send a one-off message to a group of customers. Useful for "coffee break in 10 minutes",
             schedule changes, or end-of-event thank-yous. Capped at {BROADCAST_MAX_RECIPIENTS} recipients
             per send.
@@ -302,7 +302,7 @@ const CommunicationsTab = () => {
               setBroadcastPreview(null);
               setBroadcastResult(null);
             }}
-            className="w-full px-4 py-2 border rounded-lg mb-4"
+            className="w-full px-4 py-2 border rounded-cq-md mb-4"
             disabled={broadcastBusy}
           >
             <option value="today">Everyone who ordered today</option>
@@ -317,13 +317,13 @@ const CommunicationsTab = () => {
             placeholder="Coffee break starts in 10 minutes — see you at the station!"
             rows={4}
             maxLength={BROADCAST_MAX_LEN}
-            className="w-full px-4 py-2 border rounded-lg mb-1"
+            className="w-full px-4 py-2 border rounded-cq-md mb-1"
             disabled={broadcastBusy}
           />
-          <p className="text-xs text-gray-500 mb-4">
+          <p className="text-xs text-cq-ink-3 mb-4">
             {broadcast.message.length} / {BROADCAST_MAX_LEN} characters
             {broadcast.message.length > 160 && (
-              <span className="ml-2 text-yellow-700">
+              <span className="ml-2 text-cq-warn">
                 (over 160 chars — Twilio will bill as multiple segments)
               </span>
             )}
@@ -333,14 +333,14 @@ const CommunicationsTab = () => {
             <button
               onClick={handleBroadcastPreview}
               disabled={broadcastBusy}
-              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg disabled:opacity-50"
+              className="px-4 py-2 bg-cq-wash hover:bg-cq-line rounded-cq-md disabled:opacity-50"
             >
               Preview recipients
             </button>
             <button
               onClick={handleBroadcastSend}
               disabled={broadcastBusy || !broadcast.message.trim()}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center"
+              className="px-4 py-2 bg-cq-roast text-white rounded-cq-md hover:bg-cq-caramel-deep disabled:opacity-50 flex items-center"
             >
               <Send className="w-4 h-4 mr-2" />
               Send broadcast
@@ -348,20 +348,20 @@ const CommunicationsTab = () => {
           </div>
 
           {broadcastPreview && (
-            <div className="mt-4 p-4 border-l-4 border-blue-500 bg-blue-50 rounded">
+            <div className="mt-4 p-4 border-l-4 border-cq-caramel bg-cq-caramel-wash rounded">
               <p className="text-sm">
                 <strong>{broadcastPreview.recipient_count}</strong> recipient
                 {broadcastPreview.recipient_count === 1 ? '' : 's'} match the
-                <code className="mx-1 px-1 bg-white rounded text-xs">{broadcastPreview.audience}</code>
+                <code className="mx-1 px-1 bg-cq-milk rounded text-xs">{broadcastPreview.audience}</code>
                 audience.
                 {broadcastPreview.recipient_count > BROADCAST_MAX_RECIPIENTS && (
-                  <span className="block text-yellow-800 mt-1">
+                  <span className="block text-cq-warn mt-1">
                     ⚠ Will be capped at {BROADCAST_MAX_RECIPIENTS} on send.
                   </span>
                 )}
               </p>
               {broadcastPreview.sample && broadcastPreview.sample.length > 0 && (
-                <p className="text-xs text-gray-600 mt-2">
+                <p className="text-xs text-cq-ink-2 mt-2">
                   Sample numbers: {broadcastPreview.sample.map(maskNumber).join(', ')}
                 </p>
               )}
@@ -369,16 +369,16 @@ const CommunicationsTab = () => {
           )}
 
           {broadcastResult && broadcastResult.error && (
-            <div className="mt-4 p-4 border-l-4 border-red-500 bg-red-50 rounded">
-              <p className="text-sm text-red-700">
+            <div className="mt-4 p-4 border-l-4 border-cq-alert bg-cq-alert-wash rounded">
+              <p className="text-sm text-cq-alert">
                 <strong>Broadcast failed:</strong> {broadcastResult.error}
               </p>
             </div>
           )}
 
           {broadcastResult && !broadcastResult.error && broadcastResult.sent !== undefined && (
-            <div className="mt-4 p-4 border-l-4 border-green-500 bg-green-50 rounded">
-              <p className="text-sm text-green-800">
+            <div className="mt-4 p-4 border-l-4 border-cq-ready bg-cq-ready-wash rounded">
+              <p className="text-sm text-cq-ready">
                 <strong>Sent {broadcastResult.sent}</strong>
                 {broadcastResult.failed > 0 && (
                   <span> · {broadcastResult.failed} failed</span>
@@ -388,7 +388,7 @@ const CommunicationsTab = () => {
                 )}
               </p>
               {broadcastResult.sample_failures && broadcastResult.sample_failures.length > 0 && (
-                <p className="text-xs text-red-700 mt-1">
+                <p className="text-xs text-cq-alert mt-1">
                   Sample failures: {broadcastResult.sample_failures.join(', ')}
                 </p>
               )}
@@ -399,14 +399,14 @@ const CommunicationsTab = () => {
 
       {/* SMS History */}
       {activeSection === 'history' && (
-        <div className="bg-white rounded-lg shadow-sm p-6">
+        <div className="bg-cq-milk rounded-cq-md shadow-sm p-6">
           <div className="flex items-center justify-between mb-6">
             <h3 className="font-semibold text-lg">SMS History</h3>
             <div className="flex space-x-2">
-              <button className="p-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
+              <button className="p-2 bg-cq-wash rounded-cq-md hover:bg-cq-line transition-colors">
                 <Search className="w-5 h-5" />
               </button>
-              <button className="p-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
+              <button className="p-2 bg-cq-wash rounded-cq-md hover:bg-cq-line transition-colors">
                 <Filter className="w-5 h-5" />
               </button>
             </div>
@@ -425,22 +425,22 @@ const CommunicationsTab = () => {
               </thead>
               <tbody>
                 {recentSms.map(sms => (
-                  <tr key={sms.id} className="border-b hover:bg-gray-50">
+                  <tr key={sms.id} className="border-b hover:bg-cq-wash">
                     <td className="py-2">{sms.time}</td>
                     <td className="py-2">{sms.phone}</td>
                     <td className="py-2">{sms.message}</td>
                     <td className="py-2">
                       {sms.direction === 'in' ? (
-                        <span className="text-blue-600">Inbound</span>
+                        <span className="text-cq-caramel-deep">Inbound</span>
                       ) : (
-                        <span className="text-green-600">Outbound</span>
+                        <span className="text-cq-ready">Outbound</span>
                       )}
                     </td>
                     <td className="py-2">
                       <span className={`px-2 py-1 rounded-full text-xs ${
-                        sms.status === 'delivered' ? 'bg-green-100 text-green-800' :
-                        sms.status === 'processed' ? 'bg-blue-100 text-blue-800' :
-                        'bg-red-100 text-red-800'
+                        sms.status === 'delivered' ? 'bg-cq-ready-wash text-cq-ready' :
+                        sms.status === 'processed' ? 'bg-cq-caramel-wash text-cq-caramel-deep' :
+                        'bg-cq-alert-wash text-cq-alert'
                       }`}>
                         {sms.status}
                       </span>
@@ -457,61 +457,61 @@ const CommunicationsTab = () => {
 };
 
 const StatCard = ({ icon, label, value }) => (
-  <div className="bg-white rounded-lg shadow-sm p-4">
+  <div className="bg-cq-milk rounded-cq-md shadow-sm p-4">
     <div className="flex items-center justify-between mb-2">
       {icon}
       <span className="text-2xl font-bold">{value}</span>
     </div>
-    <div className="text-sm text-gray-600">{label}</div>
+    <div className="text-sm text-cq-ink-2">{label}</div>
   </div>
 );
 
 const ConfigField = ({ label, value, sensitive, editable = true }) => (
   <div>
-    <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+    <label className="block text-sm font-medium text-cq-ink-2 mb-1">{label}</label>
     <input
       type={sensitive ? "password" : "text"}
       value={value}
       readOnly={!editable}
-      className="w-full px-4 py-2 border rounded-lg bg-gray-50"
+      className="w-full px-4 py-2 border rounded-cq-md bg-cq-wash"
     />
   </div>
 );
 
 const SmsRow = ({ sms }) => (
-  <div className="flex items-center justify-between p-3 hover:bg-gray-50 rounded">
+  <div className="flex items-center justify-between p-3 hover:bg-cq-wash rounded">
     <div className="flex items-center space-x-3">
       {sms.direction === 'in' ? (
-        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-          <MessageSquare className="w-4 h-4 text-blue-600" />
+        <div className="w-8 h-8 bg-cq-caramel-wash rounded-full flex items-center justify-center">
+          <MessageSquare className="w-4 h-4 text-cq-caramel-deep" />
         </div>
       ) : (
-        <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-          <Send className="w-4 h-4 text-green-600" />
+        <div className="w-8 h-8 bg-cq-ready-wash rounded-full flex items-center justify-center">
+          <Send className="w-4 h-4 text-cq-ready" />
         </div>
       )}
       <div>
         <p className="font-medium">{sms.phone}</p>
-        <p className="text-sm text-gray-600">{sms.message}</p>
+        <p className="text-sm text-cq-ink-2">{sms.message}</p>
       </div>
     </div>
     <div className="text-right">
-      <p className="text-sm text-gray-500">{sms.time}</p>
-      <p className="text-xs text-gray-400">{sms.status}</p>
+      <p className="text-sm text-cq-ink-3">{sms.time}</p>
+      <p className="text-xs text-cq-ink-3">{sms.status}</p>
     </div>
   </div>
 );
 
 const TemplateCard = ({ template }) => (
-  <div className="border rounded-lg p-4 hover:bg-gray-50">
+  <div className="border rounded-cq-md p-4 hover:bg-cq-wash">
     <div className="flex items-center justify-between mb-2">
       <h4 className="font-medium">{template.name}</h4>
       <div className="flex space-x-2">
-        <button className="text-blue-600 hover:text-blue-800">Edit</button>
-        <button className="text-red-600 hover:text-red-800">Delete</button>
+        <button className="text-cq-caramel-deep hover:text-cq-caramel-deep">Edit</button>
+        <button className="text-cq-alert hover:text-cq-alert">Delete</button>
       </div>
     </div>
-    <p className="text-sm text-gray-600 whitespace-pre-wrap">{template.content}</p>
+    <p className="text-sm text-cq-ink-2 whitespace-pre-wrap">{template.content}</p>
   </div>
 );
 

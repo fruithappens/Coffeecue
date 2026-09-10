@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Coffee, Clock, CheckCircle, Package, Users, Search, Filter, AlertCircle } from 'lucide-react';
 import { getMilkColorStyle, getMilkDotStyle } from '../../utils/milkColorHelper';
+import { Segmented, TextField } from '../../design';
 import { parseServerDate } from '../../utils/orderUtils';
 import '../../styles/milkColors.css';
 
@@ -180,43 +181,41 @@ const AllOrdersTab = () => {
   const renderOrderCard = (order, status) => {
     const milkColorStyle = order.milkType && order.milkType !== 'No Milk' 
       ? getMilkColorStyle(order.milkType, order.milkTypeId)
-      : { borderLeftWidth: '4px', borderLeftStyle: 'solid', borderLeftColor: '#D1D5DB' };
+      // No milk: a neutral rail from the palette, not a stray Tailwind grey.
+      : { borderLeftWidth: '4px', borderLeftStyle: 'solid', borderLeftColor: '#E6DCD0' };
 
-    const statusColors = {
-      pending: 'border-amber-500',
-      inProgress: 'border-blue-500', 
-      completed: 'border-green-500',
-      previous: 'border-gray-400'
-    };
-
+    // Status colour is INFORMATION, so it survives -- it just moves onto the
+    // palette's own semantics. Waiting is the middle state, being made is the
+    // active one (the barista board already uses caramel for Brewing), ready
+    // is ready, collected is done and quiet.
     const statusIcons = {
-      pending: <Clock size={16} className="text-amber-600" />,
-      inProgress: <Coffee size={16} className="text-blue-600" />,
-      completed: <CheckCircle size={16} className="text-green-600" />,
-      previous: <Package size={16} className="text-gray-600" />
+      pending: <Clock size={16} className="text-cq-warn" />,
+      inProgress: <Coffee size={16} className="text-cq-caramel" />,
+      completed: <CheckCircle size={16} className="text-cq-ready" />,
+      previous: <Package size={16} className="text-cq-ink-3" />
     };
 
     return (
       <div 
         key={order.id} 
-        className={`bg-white rounded-lg shadow-sm p-3 mb-2`}
+        className="bg-cq-milk rounded-cq-lg shadow-cq-card p-3.5 mb-2"
         style={milkColorStyle}
       >
         <div className="flex justify-between items-start">
           <div className="flex-1">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               {statusIcons[status]}
-              <span className="font-bold whitespace-nowrap">Order #{order.id}</span>
-              <span className="text-sm text-gray-500 whitespace-nowrap">Station {order.assignedStation || '?'}</span>
+              <span className="font-extrabold text-cq-roast whitespace-nowrap tabular-nums">#{order.id}</span>
+              <span className="text-sm text-cq-ink-3 whitespace-nowrap">Station {order.assignedStation || '?'}</span>
               {order.priority && (
-                <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-xs font-medium">
-                  PRIORITY
+                <span className="bg-cq-alert-wash text-cq-alert px-2 py-0.5 rounded-full text-xs font-bold">
+                  Priority
                 </span>
               )}
             </div>
             <div className="mt-1">
-              <div className="font-medium">{order.customerName}</div>
-              <div className="text-sm text-gray-600 flex items-center gap-1">
+              <div className="font-bold text-cq-ink">{order.customerName}</div>
+              <div className="text-sm text-cq-ink-2 flex items-center gap-1">
                 {order.milkType && order.milkType !== 'No Milk' && (
                   <span style={getMilkDotStyle(order.milkType, order.milkTypeId)}></span>
                 )}
@@ -226,20 +225,20 @@ const AllOrdersTab = () => {
           </div>
           <div className="text-right text-sm">
             {status === 'pending' && (
-              <div className="text-amber-600">Waiting {order.waitTime} min</div>
+              <div className="text-cq-warn font-semibold">Waiting {order.waitTime} min</div>
             )}
             {status === 'inProgress' && order.startedAt && (
-              <div className="text-blue-600">
+              <div className="text-cq-caramel font-semibold">
                 Started {Math.round((Date.now() - parseServerDate(order.startedAt)) / 60000)} min ago
               </div>
             )}
             {status === 'completed' && order.completedAt && (
-              <div className="text-green-600">
+              <div className="text-cq-ready font-semibold">
                 Ready {Math.round((Date.now() - parseServerDate(order.completedAt)) / 60000)} min ago
               </div>
             )}
             {status === 'previous' && order.pickedUpAt && (
-              <div className="text-gray-600">
+              <div className="text-cq-ink-3">
                 Picked up {new Date(order.pickedUpAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
               </div>
             )}
@@ -252,7 +251,7 @@ const AllOrdersTab = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cq-caramel"></div>
       </div>
     );
   }
@@ -284,53 +283,46 @@ const AllOrdersTab = () => {
     <div className="space-y-4">
       {/* Statistics Overview */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <div className="bg-white rounded-lg shadow-sm p-4">
-          <div className="text-2xl font-bold text-gray-800">{stats.totalOrders}</div>
-          <div className="text-sm text-gray-600">Total Orders</div>
-        </div>
-        <div className="bg-amber-50 rounded-lg shadow-sm p-4">
-          <div className="text-2xl font-bold text-amber-600">{stats.pendingCount}</div>
-          <div className="text-sm text-gray-600">Pending</div>
-        </div>
-        <div className="bg-blue-50 rounded-lg shadow-sm p-4">
-          <div className="text-2xl font-bold text-blue-600">{stats.inProgressCount}</div>
-          <div className="text-sm text-gray-600">In Progress</div>
-        </div>
-        <div className="bg-green-50 rounded-lg shadow-sm p-4">
-          <div className="text-2xl font-bold text-green-600">{stats.completedCount}</div>
-          <div className="text-sm text-gray-600">Ready</div>
-        </div>
-        <div className="bg-gray-50 rounded-lg shadow-sm p-4">
-          <div className="text-2xl font-bold text-gray-600">{stats.avgWaitTime} min</div>
-          <div className="text-sm text-gray-600">Avg Wait</div>
-        </div>
+        {[
+          { n: stats.totalOrders, label: 'Orders', tone: 'text-cq-roast' },
+          { n: stats.pendingCount, label: 'Waiting', tone: 'text-cq-warn' },
+          { n: stats.inProgressCount, label: 'Being made', tone: 'text-cq-caramel' },
+          { n: stats.completedCount, label: 'Ready', tone: 'text-cq-ready' },
+          { n: `${stats.avgWaitTime} min`, label: 'Average wait', tone: 'text-cq-roast' },
+        ].map((t) => (
+          <div key={t.label} className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4">
+            <div className={`text-3xl font-extrabold tabular-nums ${t.tone}`}>{t.n}</div>
+            <div className="text-xs font-bold uppercase tracking-wide text-cq-ink-3 mt-1">{t.label}</div>
+          </div>
+        ))}
       </div>
 
       {/* Filters and Search */}
-      <div className="bg-white rounded-lg shadow-sm p-4">
-        <div className="flex flex-wrap gap-4 items-center">
+      <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4">
+        <div className="flex flex-wrap gap-3 items-center">
           <div className="flex items-center gap-2">
-            <Filter size={18} className="text-gray-500" />
-            <select 
+            <Filter size={18} className="text-cq-ink-3" />
+            <Segmented
+              size="sm"
               value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              className="border rounded px-3 py-1"
-            >
-              <option value="all">All Orders</option>
-              <option value="pending">Pending Only</option>
-              <option value="inProgress">In Progress Only</option>
-              <option value="completed">Completed Only</option>
-            </select>
+              onChange={setFilter}
+              options={[
+                { value: 'all', label: 'All' },
+                { value: 'pending', label: 'Waiting' },
+                { value: 'inProgress', label: 'Being made' },
+                { value: 'completed', label: 'Ready' },
+              ]}
+            />
           </div>
-          
+
           <div className="flex items-center gap-2">
-            <Users size={18} className="text-gray-500" />
+            <Users size={18} className="text-cq-ink-3" />
             <select 
               value={stationFilter}
               onChange={(e) => setStationFilter(e.target.value)}
-              className="border rounded px-3 py-1"
+              className="h-9 rounded-cq-md border-2 border-cq-line bg-cq-milk px-3 font-semibold text-cq-roast focus:border-cq-caramel focus:outline-none"
             >
-              <option value="all">All Stations</option>
+              <option value="all">All stations</option>
               {/* The real stations, from the orders on screen. This was
                   hardcoded 1/2/3: a station 3 that filtered to nothing,
                   and no way to pick a fourth. */}
@@ -341,19 +333,18 @@ const AllOrdersTab = () => {
           </div>
           
           <div className="flex-1 flex items-center gap-2">
-            <Search size={18} className="text-gray-500" />
-            <input
-              type="text"
-              placeholder="Search by name, phone, or order #..."
+            <Search size={18} className="text-cq-ink-3" />
+            <TextField
+              width="flex-1 min-w-[12rem]"
+              placeholder="Name, phone or order number"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="flex-1 border rounded px-3 py-1"
+              onChange={setSearchTerm}
             />
           </div>
           
           <button
             onClick={loadAllOrders}
-            className="bg-amber-600 text-white px-4 py-1 rounded hover:bg-amber-700"
+            className="h-10 px-4 rounded-cq-md bg-cq-roast text-cq-cream font-semibold hover:bg-cq-caramel-deep"
           >
             Refresh
           </button>
@@ -361,34 +352,38 @@ const AllOrdersTab = () => {
       </div>
 
       {/* Orders List */}
-      <div className="bg-white rounded-lg shadow-sm p-4">
-        <h3 className="text-lg font-bold mb-3">
-          {filter === 'all' ? 'All Active Orders' : `${filter.charAt(0).toUpperCase() + filter.slice(1)} Orders`}
-          {stationFilter !== 'all' && ` - Station ${stationFilter}`}
+      <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4">
+        <h3 className="text-lg font-bold text-cq-roast mb-3">
+          {({ all: 'Everything on now', pending: 'Waiting',
+              inProgress: 'Being made', completed: 'Ready' }[filter]) || 'Orders'}
+          {stationFilter !== 'all' && ` · Station ${stationFilter}`}
         </h3>
         
+        {/* max-h is viewport-relative: it was a fixed max-h-96, so four cards
+            showed whether the screen was a laptop or a 27-inch monitor and
+            everything else hid behind an inner scrollbar. */}
         {filteredData.orders.length > 0 ? (
-          <div className="space-y-2 max-h-96 overflow-y-auto">
+          <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
             {filteredData.status === 'mixed' 
               ? filteredData.orders.map(order => renderOrderCard(order, order._status))
               : filteredData.orders.map(order => renderOrderCard(order, filteredData.status))
             }
           </div>
         ) : (
-          <div className="text-center py-8 text-gray-500">
-            <AlertCircle size={32} className="mx-auto mb-2 text-gray-400" />
-            <p>No orders found matching your filters</p>
+          <div className="text-center py-10 text-cq-ink-3">
+            <AlertCircle size={30} className="mx-auto mb-2 text-cq-ink-3" />
+            <p>Nothing matches those filters.</p>
           </div>
         )}
       </div>
 
       {/* Station Activity Summary */}
       {stats.busiestStation && (
-        <div className="bg-blue-50 rounded-lg shadow-sm p-4">
+        <div className="bg-cq-caramel-wash rounded-cq-lg p-4">
           <div className="flex items-center gap-2">
-            <AlertCircle size={18} className="text-blue-600" />
-            <span className="text-sm">
-              Station {stats.busiestStation} is the busiest station right now
+            <AlertCircle size={18} className="text-cq-caramel-deep flex-shrink-0" />
+            <span className="text-sm text-cq-ink-2">
+              Station {stats.busiestStation} is busiest right now.
             </span>
           </div>
         </div>

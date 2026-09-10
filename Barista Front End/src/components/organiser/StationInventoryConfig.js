@@ -488,16 +488,16 @@ const StationInventoryConfig = ({ stations }) => {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6">
+    <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4 sm:p-6">
       <QuickSetupStatusBanner section="station_inventory" />
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Station Inventory Configuration</h2>
+        <h2 className="text-xl sm:text-2xl font-bold text-cq-roast">Station Inventory Configuration</h2>
       </div>
       
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6">
         {/* Station Selector */}
         <div className="lg:col-span-3">
-          <h3 className="text-lg font-semibold mb-4 text-gray-700">Select Station</h3>
+          <h3 className="text-lg font-semibold mb-4 text-cq-ink-2">Select Station</h3>
           <div className="space-y-2">
             {stations.map(station => {
               const stats = getStationStats(station.id);
@@ -507,18 +507,18 @@ const StationInventoryConfig = ({ stations }) => {
                   onClick={() => setSelectedStation(station)}
                   className={`w-full text-left p-3 rounded-md transition-colors ${
                     selectedStation?.id === station.id
-                      ? 'bg-blue-100 border border-blue-300'
-                      : 'bg-gray-50 hover:bg-gray-100'
+                      ? 'bg-cq-caramel-wash border border-cq-line'
+                      : 'bg-cq-wash hover:bg-cq-wash'
                   }`}
                 >
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="font-medium">{station.name}</div>
                       {station.location && (
-                        <div className="text-sm text-gray-500">{station.location}</div>
+                        <div className="text-sm text-cq-ink-3">{station.location}</div>
                       )}
                     </div>
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-cq-ink-3">
                       {stats.available}/{stats.total}
                     </div>
                   </div>
@@ -529,7 +529,7 @@ const StationInventoryConfig = ({ stations }) => {
           
           {selectedStation && (
             <div className="mt-4">
-              <h4 className="text-sm font-medium text-gray-700 mb-2">Quick Actions</h4>
+              <h4 className="text-sm font-medium text-cq-ink-2 mb-2">Quick Actions</h4>
               <div className="space-y-2">
                 <select
                   onChange={(e) => {
@@ -538,7 +538,7 @@ const StationInventoryConfig = ({ stations }) => {
                       e.target.value = '';
                     }
                   }}
-                  className="w-full text-sm px-2 py-1 border border-gray-300 rounded"
+                  className="w-full text-sm px-2 py-1 border border-cq-line rounded"
                 >
                   <option value="">Copy from station...</option>
                   {stations
@@ -561,13 +561,13 @@ const StationInventoryConfig = ({ stations }) => {
               {/* Header */}
               <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
                 <div className="flex items-center">
-                  <Coffee className="mr-2 shrink-0 text-blue-600" />
+                  <Coffee className="mr-2 shrink-0 text-cq-caramel-deep" />
                   <h3 className="text-lg sm:text-xl font-semibold">
                     Configure {selectedStation.name}
                   </h3>
                 </div>
                 <div className="flex items-center justify-between sm:justify-end gap-4">
-                  <div className="text-sm text-gray-500">
+                  <div className="text-sm text-cq-ink-3">
                     {(() => {
                       const stats = getStationStats(selectedStation.id);
                       return `${stats.available} of ${stats.total} items available`;
@@ -607,7 +607,7 @@ const StationInventoryConfig = ({ stations }) => {
                       InventoryIntegrationService.forceSyncAllStations();
                       alert(`Copied to ${otherStations.length} station(s).`);
                     }}
-                    className="px-3 py-1 text-sm bg-amber-600 text-white rounded-md hover:bg-amber-700 transition-colors"
+                    className="px-3 py-1 text-sm bg-cq-roast text-white rounded-md hover:bg-cq-caramel-deep transition-colors"
                     title="Copy this station's enabled items to all other stations (overwrites)"
                   >
                     Apply to all stations
@@ -618,19 +618,19 @@ const StationInventoryConfig = ({ stations }) => {
               {/* Filters */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-6">
                 <div className="relative">
-                  <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                  <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-cq-ink-3" />
                   <input
                     type="text"
                     placeholder="Search items..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500"
+                    className="w-full pl-10 pr-4 py-2 border border-cq-line rounded-md focus:ring-2 focus:border-cq-caramel focus:border-cq-caramel"
                   />
                 </div>
                 <select
                   value={filterCategory}
                   onChange={(e) => setFilterCategory(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500"
+                  className="px-3 py-2 border border-cq-line rounded-md focus:ring-2 focus:border-cq-caramel focus:border-cq-caramel"
                 >
                   <option value="all">All Categories</option>
                   {Object.entries(categories).map(([key, category]) => (
@@ -640,7 +640,7 @@ const StationInventoryConfig = ({ stations }) => {
                 <select
                   value={filterAvailability}
                   onChange={(e) => setFilterAvailability(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 focus:border-blue-500"
+                  className="px-3 py-2 border border-cq-line rounded-md focus:ring-2 focus:border-cq-caramel focus:border-cq-caramel"
                 >
                   <option value="all">All Items</option>
                   <option value="available">Available Only</option>
@@ -649,8 +649,8 @@ const StationInventoryConfig = ({ stations }) => {
               </div>
 
               {/* Category Quick Actions */}
-              <div className="bg-gray-50 rounded-md p-4 mb-4">
-                <h4 className="text-sm font-medium text-gray-700 mb-3">Category Quick Actions</h4>
+              <div className="bg-cq-wash rounded-md p-4 mb-4">
+                <h4 className="text-sm font-medium text-cq-ink-2 mb-3">Category Quick Actions</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
                   {Object.entries(categories).map(([categoryKey, category]) => {
                     const categoryItems = inventory[categoryKey]?.filter(item => item.enabled) || [];
@@ -660,21 +660,21 @@ const StationInventoryConfig = ({ stations }) => {
                     ).length;
 
                     return (
-                      <div key={categoryKey} className="flex items-center justify-between p-2 bg-white rounded border">
+                      <div key={categoryKey} className="flex items-center justify-between p-2 bg-cq-milk rounded border">
                         <span className="text-sm font-medium">{category.name}</span>
                         <div className="flex space-x-1">
-                          <span className="text-xs text-gray-500">
+                          <span className="text-xs text-cq-ink-3">
                             {availableCount}/{categoryItems.length}
                           </span>
                           <button
                             onClick={() => setAllItemsInCategory(selectedStation.id, categoryKey, true)}
-                            className="px-2 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600"
+                            className="px-2 py-1 text-xs bg-cq-ready text-white rounded hover:bg-cq-ready"
                           >
                             All
                           </button>
                           <button
                             onClick={() => setAllItemsInCategory(selectedStation.id, categoryKey, false)}
-                            className="px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600"
+                            className="px-2 py-1 text-xs bg-cq-alert text-white rounded hover:bg-cq-alert"
                           >
                             None
                           </button>
@@ -714,26 +714,26 @@ const StationInventoryConfig = ({ stations }) => {
                   return (
                     <div
                       key={item.id}
-                      className="flex items-center justify-between p-3 border border-gray-200 rounded-md hover:bg-gray-50"
+                      className="flex items-center justify-between p-3 border border-cq-line rounded-md hover:bg-cq-wash"
                     >
                       <div className="flex items-center space-x-3">
                         <button
                           onClick={() => toggleItemForStation(selectedStation.id, item.category, item.id)}
                           className={`p-2 rounded-md border-2 transition-colors ${
                             isAvailable 
-                              ? 'bg-green-50 border-green-500 text-green-600 hover:bg-green-100' 
-                              : 'bg-gray-50 border-gray-300 text-gray-400 hover:bg-gray-100 hover:border-gray-400'
+                              ? 'bg-cq-ready-wash border-cq-ready text-cq-ready hover:bg-cq-ready-wash' 
+                              : 'bg-cq-wash border-cq-line text-cq-ink-3 hover:bg-cq-wash hover:border-cq-line'
                           }`}
                           title={isAvailable ? 'Click to disable for this station' : 'Click to enable for this station'}
                         >
                           {isAvailable ? <CheckCircle size={18} /> : <Circle size={18} />}
                         </button>
                         <div className="flex-1">
-                          <h4 className="font-medium text-gray-900">{item.name}</h4>
-                          <p className="text-sm text-gray-600">{item.description}</p>
+                          <h4 className="font-medium text-cq-roast">{item.name}</h4>
+                          <p className="text-sm text-cq-ink-2">{item.description}</p>
                           {isAvailable && (
                             <div className="mt-1 flex items-center space-x-2">
-                              <span className="text-xs text-gray-500">Quantity:</span>
+                              <span className="text-xs text-cq-ink-3">Quantity:</span>
                               <div className="flex items-center space-x-1">
                                 <button
                                   onClick={() => updateStationItemQuantity(
@@ -743,7 +743,7 @@ const StationInventoryConfig = ({ stations }) => {
                                     currentQuantity - 1
                                   )}
                                   disabled={currentQuantity <= 0}
-                                  className="w-6 h-6 flex items-center justify-center text-xs bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  className="w-6 h-6 flex items-center justify-center text-xs bg-cq-wash rounded hover:bg-cq-line disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                   <Minus size={12} />
                                 </button>
@@ -757,7 +757,7 @@ const StationInventoryConfig = ({ stations }) => {
                                     item.id,
                                     parseInt(e.target.value) || 0
                                   )}
-                                  className="w-16 px-1 py-0.5 text-xs text-center border border-gray-300 rounded"
+                                  className="w-16 px-1 py-0.5 text-xs text-center border border-cq-line rounded"
                                 />
                                 <button
                                   onClick={() => updateStationItemQuantity(
@@ -766,11 +766,11 @@ const StationInventoryConfig = ({ stations }) => {
                                     item.id,
                                     currentQuantity + 1
                                   )}
-                                  className="w-6 h-6 flex items-center justify-center text-xs bg-gray-200 rounded hover:bg-gray-300"
+                                  className="w-6 h-6 flex items-center justify-center text-xs bg-cq-wash rounded hover:bg-cq-line"
                                 >
                                   <Plus size={12} />
                                 </button>
-                                <span className="text-xs text-gray-500 ml-2">
+                                <span className="text-xs text-cq-ink-3 ml-2">
                                   {item.unit || (item.category === 'milk' ? 'L' : 
                                               item.category === 'coffee' ? 'kg' : 'units')}
                                 </span>
@@ -782,22 +782,22 @@ const StationInventoryConfig = ({ stations }) => {
                       <div className="flex items-center space-x-2">
                         <span className={`px-2 py-1 text-xs rounded-full ${
                           categories[item.category] 
-                            ? `bg-${categories[item.category].color}-100 text-${categories[item.category].color}-800`
-                            : 'bg-gray-100 text-gray-800'
+                            ? 'bg-cq-caramel-wash text-cq-caramel-deep'
+                            : 'bg-cq-wash text-cq-roast'
                         }`}>
                           {item.categoryName}
                         </span>
                         {isAvailable && (
                           <button
                             onClick={() => removeItemFromStation(selectedStation.id, item.category, item.id)}
-                            className="p-1 text-red-500 hover:bg-red-100 rounded"
+                            className="p-1 text-cq-alert hover:bg-cq-alert-wash rounded"
                             title="Remove from station"
                           >
                             <Trash2 size={16} />
                           </button>
                         )}
                         <div className={`w-3 h-3 rounded-full ${
-                          isAvailable ? 'bg-green-500' : 'bg-gray-300'
+                          isAvailable ? 'bg-cq-ready' : 'bg-cq-line'
                         }`} />
                       </div>
                     </div>
@@ -806,8 +806,8 @@ const StationInventoryConfig = ({ stations }) => {
               </div>
 
               {getFilteredItems().length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  <Package size={48} className="mx-auto mb-4 text-gray-400" />
+                <div className="text-center py-8 text-cq-ink-3">
+                  <Package size={48} className="mx-auto mb-4 text-cq-ink-3" />
                   <p>No items found</p>
                   {searchTerm && (
                     <p className="text-sm">Try adjusting your search or filters</p>
@@ -816,8 +816,8 @@ const StationInventoryConfig = ({ stations }) => {
               )}
             </>
           ) : (
-            <div className="text-center py-12 text-gray-500">
-              <Settings size={48} className="mx-auto mb-4 text-gray-400" />
+            <div className="text-center py-12 text-cq-ink-3">
+              <Settings size={48} className="mx-auto mb-4 text-cq-ink-3" />
               <p>Select a station to configure its available inventory</p>
             </div>
           )}

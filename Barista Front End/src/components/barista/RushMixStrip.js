@@ -54,8 +54,8 @@ const RushMixStrip = ({ pendingOrders, inProgressOrders, stationName,
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-3 mb-4">
-      <div className="flex items-center text-sm font-bold text-gray-700 mb-2">
+    <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-3 mb-4">
+      <div className="flex items-center text-sm font-bold text-cq-ink-2 mb-2">
         <Layers size={16} className="mr-1" /> Rush mix
       </div>
       <div className="flex flex-wrap gap-2">
@@ -65,7 +65,7 @@ const RushMixStrip = ({ pendingOrders, inProgressOrders, stationName,
             <button
               key={key}
               disabled={busyKey != null}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg border-2 border-amber-400 bg-amber-50 hover:bg-amber-100 text-sm font-semibold disabled:opacity-50"
+              className="flex items-center gap-2 px-3 py-2 rounded-cq-md border-2 border-cq-caramel bg-cq-caramel-wash hover:bg-cq-caramel-wash text-sm font-semibold disabled:opacity-50"
               title={`Start all ${group.length} together — make them as one tray`}
               onClick={async () => {
                 setBusyKey(key);
@@ -80,8 +80,8 @@ const RushMixStrip = ({ pendingOrders, inProgressOrders, stationName,
               }}
             >
               {kindLabel(group[0])}
-              <span className="bg-amber-500 text-white rounded-full px-2">{group.length}</span>
-              <span className="text-amber-700">▶ Start batch</span>
+              <span className="bg-cq-caramel text-white rounded-full px-2">{group.length}</span>
+              <span className="text-cq-caramel-deep">▶ Start batch</span>
             </button>
           );
         })}
@@ -92,7 +92,7 @@ const RushMixStrip = ({ pendingOrders, inProgressOrders, stationName,
             <button
               key={key}
               disabled={busyKey != null}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg border-2 border-green-500 bg-green-50 hover:bg-green-100 text-sm font-semibold disabled:opacity-50"
+              className="flex items-center gap-2 px-3 py-2 rounded-cq-md border-2 border-cq-ready bg-cq-ready-wash hover:bg-cq-ready-wash text-sm font-semibold disabled:opacity-50"
               title={`Complete all ${group.length} at once — every ready-SMS will say "collect from ${tableLabel}"`}
               onClick={async () => {
                 setBusyKey(key);
@@ -104,14 +104,14 @@ const RushMixStrip = ({ pendingOrders, inProgressOrders, stationName,
               }}
             >
               {kindLabel(group[0])}
-              <span className="bg-green-600 text-white rounded-full px-2">{group.length}</span>
-              <span className="text-green-700">✓ Tray done → table</span>
+              <span className="bg-cq-ready text-white rounded-full px-2">{group.length}</span>
+              <span className="text-cq-ready">✓ Tray done → table</span>
             </button>
           );
         })}
       </div>
       {agingSingles.length > 0 && (
-        <div className="mt-2 flex items-start text-sm bg-red-50 border border-red-200 rounded-lg p-2 text-red-800">
+        <div className="mt-2 flex items-start text-sm bg-cq-alert-wash border border-cq-alert rounded-cq-md p-2 text-cq-alert">
           <AlertTriangle size={16} className="mr-2 mt-0.5 flex-shrink-0" />
           <span>
             <b>Don't skip:</b>{' '}

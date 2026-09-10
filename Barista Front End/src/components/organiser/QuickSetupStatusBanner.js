@@ -88,8 +88,8 @@ const QuickSetupStatusBanner = ({ section }) => {
   if (!copy?.populated) return null;
 
   return (
-    <div className="bg-amber-50 border border-amber-200 text-amber-900 text-sm px-3 py-2 rounded-md mb-4 flex items-start gap-2">
-      <Zap size={16} className="text-amber-600 mt-0.5 flex-shrink-0" />
+    <div className="bg-cq-caramel-wash border border-cq-caramel text-cq-caramel-deep text-sm px-3 py-2 rounded-md mb-4 flex items-start gap-2">
+      <Zap size={16} className="text-cq-caramel mt-0.5 flex-shrink-0" />
       <div>
         <strong>Quick Setup applied {_formatAgo(stamp.appliedAt)}.</strong>{' '}
         {copy.populated}

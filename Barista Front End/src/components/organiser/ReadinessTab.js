@@ -19,17 +19,17 @@ import ApiServiceClass from '../../services/ApiService';
 const api = new ApiServiceClass();
 
 const STATUS_STYLES = {
-  ok:      { bg: 'bg-green-50',  border: 'border-green-200',  text: 'text-green-800',  Icon: CheckCircle,    iconClass: 'text-green-600' },
-  warn:    { bg: 'bg-amber-50',  border: 'border-amber-200',  text: 'text-amber-800',  Icon: AlertTriangle,  iconClass: 'text-amber-600' },
-  fail:    { bg: 'bg-red-50',    border: 'border-red-200',    text: 'text-red-800',    Icon: XCircle,        iconClass: 'text-red-600' },
-  skipped: { bg: 'bg-gray-50',   border: 'border-gray-200',   text: 'text-gray-600',   Icon: AlertTriangle,  iconClass: 'text-gray-400' },
+  ok:      { bg: 'bg-cq-ready-wash',  border: 'border-cq-ready',  text: 'text-cq-ready',  Icon: CheckCircle,    iconClass: 'text-cq-ready' },
+  warn:    { bg: 'bg-cq-caramel-wash',  border: 'border-cq-caramel',  text: 'text-cq-caramel-deep',  Icon: AlertTriangle,  iconClass: 'text-cq-caramel' },
+  fail:    { bg: 'bg-cq-alert-wash',    border: 'border-cq-alert',    text: 'text-cq-alert',    Icon: XCircle,        iconClass: 'text-cq-alert' },
+  skipped: { bg: 'bg-cq-wash',   border: 'border-cq-line',   text: 'text-cq-ink-2',   Icon: AlertTriangle,  iconClass: 'text-cq-ink-3' },
 };
 
 const ReadinessRow = ({ check }) => {
   const s = STATUS_STYLES[check.status] || STATUS_STYLES.warn;
   const { Icon } = s;
   return (
-    <div className={`rounded-lg border ${s.border} ${s.bg} p-4 flex items-start gap-3`}>
+    <div className={`rounded-cq-md border ${s.border} ${s.bg} p-4 flex items-start gap-3`}>
       <Icon className={`${s.iconClass} mt-0.5 flex-shrink-0`} size={20} />
       <div className="flex-1 min-w-0">
         <div className={`font-medium ${s.text}`}>{check.label}</div>
@@ -206,7 +206,7 @@ const ReadinessTab = () => {
   return (
     <div className="p-0 sm:p-6 max-w-4xl">
       {/* Headline */}
-      <div className={`rounded-lg border-2 ${overallStyle.border} ${overallStyle.bg} p-4 sm:p-5 mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3`}>
+      <div className={`rounded-cq-md border-2 ${overallStyle.border} ${overallStyle.bg} p-4 sm:p-5 mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3`}>
         <div className="flex items-center gap-3">
           <OverallIcon className={overallStyle.iconClass} size={32} />
           <div>
@@ -227,7 +227,7 @@ const ReadinessTab = () => {
         <button
           onClick={handleRefresh}
           disabled={refreshing || loading}
-          className="px-4 py-2 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 flex items-center gap-2"
+          className="px-4 py-2 bg-cq-milk border border-cq-line rounded-md hover:bg-cq-wash disabled:opacity-50 flex items-center gap-2"
         >
           <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
           Re-check
@@ -235,9 +235,9 @@ const ReadinessTab = () => {
       </div>
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 mb-6">
-          <p className="text-red-800 text-sm">{error}</p>
-          <p className="text-red-700 text-xs mt-1">
+        <div className="rounded-cq-md border border-cq-alert bg-cq-alert-wash p-4 mb-6">
+          <p className="text-cq-alert text-sm">{error}</p>
+          <p className="text-cq-alert text-xs mt-1">
             If you just pushed, wait for Railway to redeploy. Otherwise
             check the backend logs.
           </p>
@@ -258,12 +258,12 @@ const ReadinessTab = () => {
           single most common demo-killer and one-click verification
           beats "did the customer get the welcome SMS? Check the
           customer's phone." */}
-      <div className="rounded-lg border border-gray-200 bg-white p-5">
+      <div className="rounded-cq-md border border-cq-line bg-cq-milk p-5">
         <div className="flex items-center gap-2 mb-1">
-          <Phone className="text-amber-600" size={20} />
+          <Phone className="text-cq-caramel" size={20} />
           <h3 className="font-semibold text-lg">Send a test SMS</h3>
         </div>
-        <p className="text-sm text-gray-600 mb-4">
+        <p className="text-sm text-cq-ink-2 mb-4">
           Sends a real Twilio SMS to the number you type. If you get the
           text, customers will too. If you don't, fix Twilio before doors
           open.
@@ -271,7 +271,7 @@ const ReadinessTab = () => {
         <form onSubmit={handleSendTest} className="space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <label className="text-sm">
-              <span className="block text-gray-600 mb-1">
+              <span className="block text-cq-ink-2 mb-1">
                 Your phone number (E.164)
               </span>
               <input
@@ -279,11 +279,11 @@ const ReadinessTab = () => {
                 value={testNumber}
                 onChange={e => setTestNumber(e.target.value)}
                 placeholder="+61400000000"
-                className="w-full px-3 py-2 border border-gray-300 rounded font-mono"
+                className="w-full px-3 py-2 border border-cq-line rounded font-mono"
               />
             </label>
             <label className="text-sm">
-              <span className="block text-gray-600 mb-1">
+              <span className="block text-cq-ink-2 mb-1">
                 Custom message (optional)
               </span>
               <input
@@ -291,7 +291,7 @@ const ReadinessTab = () => {
                 value={testMessage}
                 onChange={e => setTestMessage(e.target.value)}
                 placeholder="Leave blank for a default welcome-style message"
-                className="w-full px-3 py-2 border border-gray-300 rounded"
+                className="w-full px-3 py-2 border border-cq-line rounded"
                 maxLength={300}
               />
             </label>
@@ -300,24 +300,24 @@ const ReadinessTab = () => {
             <button
               type="submit"
               disabled={testSending || !testNumber.trim()}
-              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-md disabled:opacity-50 flex items-center gap-2"
+              className="px-4 py-2 bg-cq-roast hover:bg-cq-caramel-deep text-white rounded-md disabled:opacity-50 flex items-center gap-2"
             >
               {testSending
                 ? (<><RefreshCw size={16} className="animate-spin" /> Sending…</>)
                 : (<><Send size={16} /> Send test SMS</>)}
             </button>
             {testResult && (
-              <span className={`text-sm ${testResult.success ? 'text-green-700' : 'text-red-700'}`}>
+              <span className={`text-sm ${testResult.success ? 'text-cq-ready' : 'text-cq-alert'}`}>
                 {testResult.success ? '✓ ' : '✗ '}{testResult.message}
               </span>
             )}
           </div>
           {testResult?.testingMode && testResult.preview && (
-            <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded text-sm">
-              <div className="font-medium text-amber-800 mb-1">
+            <div className="mt-2 p-3 bg-cq-caramel-wash border border-cq-caramel rounded text-sm">
+              <div className="font-medium text-cq-caramel-deep mb-1">
                 TESTING_MODE preview (not actually sent):
               </div>
-              <div className="text-amber-900 font-mono text-xs whitespace-pre-wrap">
+              <div className="text-cq-caramel-deep font-mono text-xs whitespace-pre-wrap">
                 {testResult.preview}
               </div>
             </div>
@@ -329,12 +329,12 @@ const ReadinessTab = () => {
           station assignment, stock decrement, WebSocket broadcast to
           the Barista screen, customer record creation. If the order
           shows up in Pending, the system is healthy end-to-end. */}
-      <div className="rounded-lg border border-gray-200 bg-white p-5 mt-4">
+      <div className="rounded-cq-md border border-cq-line bg-cq-milk p-5 mt-4">
         <div className="flex items-center gap-2 mb-1">
-          <Zap className="text-amber-600" size={20} />
+          <Zap className="text-cq-caramel" size={20} />
           <h3 className="font-semibold text-lg">Send a test order</h3>
         </div>
-        <p className="text-sm text-gray-600 mb-3">
+        <p className="text-sm text-cq-ink-2 mb-3">
           Places a sample walk-in order through the live pipeline.
           Should appear in Pending on the Barista screen within
           seconds. Cancel or complete after demoing.
@@ -344,14 +344,14 @@ const ReadinessTab = () => {
             type="button"
             onClick={handleSendTestOrder}
             disabled={testOrderSending}
-            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-md disabled:opacity-50 flex items-center gap-2"
+            className="px-4 py-2 bg-cq-roast hover:bg-cq-caramel-deep text-white rounded-md disabled:opacity-50 flex items-center gap-2"
           >
             {testOrderSending
               ? (<><RefreshCw size={16} className="animate-spin" /> Placing…</>)
               : (<><Zap size={16} /> Place a test order</>)}
           </button>
           {testOrderResult && (
-            <span className={`text-sm ${testOrderResult.success ? 'text-green-700' : 'text-red-700'}`}>
+            <span className={`text-sm ${testOrderResult.success ? 'text-cq-ready' : 'text-cq-alert'}`}>
               {testOrderResult.success ? '✓ ' : '✗ '}{testOrderResult.message}
             </span>
           )}
@@ -360,12 +360,12 @@ const ReadinessTab = () => {
 
       {/* Admin alerts — get texted when something breaks, without being
           spammed. Severity threshold + per-issue cooldown. */}
-      <div className="rounded-lg border border-gray-200 bg-white p-5 mt-4">
+      <div className="rounded-cq-md border border-cq-line bg-cq-milk p-5 mt-4">
         <div className="flex items-center gap-2 mb-1">
-          <Phone className="text-amber-600" size={20} />
+          <Phone className="text-cq-caramel" size={20} />
           <h3 className="font-semibold text-lg">Admin alerts</h3>
         </div>
-        <p className="text-sm text-gray-600 mb-4">
+        <p className="text-sm text-cq-ink-2 mb-4">
           Text a number when something goes wrong (e.g. SMS webhook
           rejected, stock decrement failed, Quick Setup error). Choose the
           severity so you're not spammed all day — and each issue type only
@@ -374,57 +374,57 @@ const ReadinessTab = () => {
         <div className="space-y-3">
           <label className="flex items-center text-sm">
             <input
-              type="checkbox"
+              type="checkbox" className="w-[18px] h-[18px] rounded-cq-sm border-2 border-cq-line accent-cq-caramel cursor-pointer"
               checked={!!alertCfg.enabled}
               onChange={e => setAlertCfg(c => ({ ...c, enabled: e.target.checked }))}
-              className="mr-2"
+              className="mr-2 w-[18px] h-[18px] rounded-cq-sm border-2 border-cq-line accent-cq-caramel cursor-pointer"
             />
-            <span className="font-medium text-gray-700">Enable admin alerts</span>
+            <span className="font-medium text-cq-ink-2">Enable admin alerts</span>
           </label>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <label className="text-sm">
-              <span className="block text-gray-600 mb-1">Alert phone (E.164)</span>
+              <span className="block text-cq-ink-2 mb-1">Alert phone (E.164)</span>
               <input
                 type="tel"
                 value={alertCfg.phone}
                 onChange={e => setAlertCfg(c => ({ ...c, phone: e.target.value }))}
                 placeholder="+61400000000"
                 disabled={!alertCfg.enabled}
-                className="w-full px-3 py-2 border border-gray-300 rounded font-mono disabled:bg-gray-100"
+                className="w-full px-3 py-2 border border-cq-line rounded font-mono disabled:bg-cq-wash"
               />
             </label>
             <label className="text-sm">
-              <span className="block text-gray-600 mb-1">Alert email</span>
+              <span className="block text-cq-ink-2 mb-1">Alert email</span>
               <input
                 type="email"
                 value={alertCfg.email || ''}
                 onChange={e => setAlertCfg(c => ({ ...c, email: e.target.value }))}
                 placeholder="you@example.com"
                 disabled={!alertCfg.enabled}
-                className="w-full px-3 py-2 border border-gray-300 rounded disabled:bg-gray-100"
+                className="w-full px-3 py-2 border border-cq-line rounded disabled:bg-cq-wash"
               />
             </label>
             <label className="text-sm">
-              <span className="block text-gray-600 mb-1">Alert on</span>
+              <span className="block text-cq-ink-2 mb-1">Alert on</span>
               <select
                 value={alertCfg.min_severity}
                 onChange={e => setAlertCfg(c => ({ ...c, min_severity: e.target.value }))}
                 disabled={!alertCfg.enabled}
-                className="w-full px-3 py-2 border border-gray-300 rounded disabled:bg-gray-100"
+                className="w-full px-3 py-2 border border-cq-line rounded disabled:bg-cq-wash"
               >
                 <option value="critical">Critical only</option>
                 <option value="error">Error + Critical</option>
               </select>
             </label>
             <label className="text-sm">
-              <span className="block text-gray-600 mb-1">Cooldown (min/issue)</span>
+              <span className="block text-cq-ink-2 mb-1">Cooldown (min/issue)</span>
               <input
                 type="number"
                 min="1"
                 value={alertCfg.cooldown_minutes}
                 onChange={e => setAlertCfg(c => ({ ...c, cooldown_minutes: parseInt(e.target.value) || 15 }))}
                 disabled={!alertCfg.enabled}
-                className="w-full px-3 py-2 border border-gray-300 rounded disabled:bg-gray-100"
+                className="w-full px-3 py-2 border border-cq-line rounded disabled:bg-cq-wash"
               />
             </label>
           </div>
@@ -433,7 +433,7 @@ const ReadinessTab = () => {
               type="button"
               onClick={saveAlertCfg}
               disabled={alertSaving}
-              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-md disabled:opacity-50"
+              className="px-4 py-2 bg-cq-roast hover:bg-cq-caramel-deep text-white rounded-md disabled:opacity-50"
             >
               {alertSaving ? 'Saving…' : 'Save'}
             </button>
@@ -441,12 +441,12 @@ const ReadinessTab = () => {
               type="button"
               onClick={testAlert}
               disabled={!alertCfg.enabled || !alertCfg.phone}
-              className="px-4 py-2 bg-white border border-gray-300 hover:bg-gray-100 rounded-md disabled:opacity-50 text-gray-700"
+              className="px-4 py-2 bg-cq-milk border border-cq-line hover:bg-cq-wash rounded-md disabled:opacity-50 text-cq-ink-2"
             >
               Send test alert
             </button>
             {alertStatus && (
-              <span className={`text-sm ${alertStatus.ok ? 'text-green-700' : 'text-red-700'}`}>
+              <span className={`text-sm ${alertStatus.ok ? 'text-cq-ready' : 'text-cq-alert'}`}>
                 {alertStatus.ok ? '✓ ' : '✗ '}{alertStatus.msg}
               </span>
             )}
@@ -456,9 +456,9 @@ const ReadinessTab = () => {
 
       {/* Demo helper: link back to Quick Setup. Operators land on Readiness
           when something's red and need somewhere to go. */}
-      <div className="mt-6 text-sm text-gray-500 flex items-center gap-2">
+      <div className="mt-6 text-sm text-cq-ink-3 flex items-center gap-2">
         <Zap size={14} />
-        Most fixes live in <strong className="text-gray-700">Quick Setup</strong> (left sidebar).
+        Most fixes live in <strong className="text-cq-ink-2">Quick Setup</strong> (left sidebar).
       </div>
     </div>
   );

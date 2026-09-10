@@ -1,12 +1,16 @@
 import React from 'react';
 
+// On the CupQ palette. These primitives are used by four support screens and
+// were built on blue/grey Tailwind, which is why those screens never looked
+// like the rest of the app however many times the screens themselves were
+// tidied. Same API, same variant names -- only the colours move.
 const variants = {
-  default: 'bg-blue-600 text-white hover:bg-blue-700',
-  destructive: 'bg-red-600 text-white hover:bg-red-700',
-  outline: 'border border-gray-300 bg-white hover:bg-gray-50',
-  secondary: 'bg-gray-200 text-gray-900 hover:bg-gray-300',
-  ghost: 'hover:bg-gray-100',
-  link: 'text-blue-600 underline-offset-4 hover:underline'
+  default: 'bg-cq-roast text-cq-cream hover:bg-cq-caramel-deep',
+  destructive: 'bg-cq-alert text-white hover:opacity-90',
+  outline: 'border border-cq-line bg-cq-milk text-cq-ink-2 hover:bg-cq-wash',
+  secondary: 'bg-cq-wash text-cq-roast hover:bg-cq-caramel-wash',
+  ghost: 'text-cq-ink-2 hover:bg-cq-wash',
+  link: 'text-cq-caramel-deep underline-offset-4 hover:underline'
 };
 
 const sizes = {
@@ -26,9 +30,9 @@ export const Button = ({
 }) => (
   <button
     className={`
-      inline-flex items-center justify-center rounded-md font-medium 
-      transition-colors focus-visible:outline-none focus-visible:ring-2 
-      focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50
+      inline-flex items-center justify-center rounded-cq-md font-semibold 
+      transition-colors focus-visible:outline-none focus-visible:ring-2
+      focus-visible:ring-cq-caramel focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50
       ${variants[variant]} ${sizes[size]} ${className}
     `}
     disabled={disabled}
