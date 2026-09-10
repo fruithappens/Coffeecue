@@ -39,9 +39,16 @@ export default function useNotices(surface, stationId) {
   }, [load]);
 
   useEffect(() => {
+    // Production refuses a socket with no JWT (websocket_routes_fixed.py
+    // _extract_role -> None unless TESTING_MODE). Only a signed-in screen --
+    // the barista tablet, the runner -- opens one; the public board, the
+    // order form and the beacon are served by the 20 s poll above.
+    let token = '';
+    try { token = localStorage.getItem('coffee_system_token') || ''; } catch (e) { token = ''; }
+    if (!token) return undefined;
     let socket;
     try {
-      socket = io({ transports: ['websocket', 'polling'] });
+      socket = io({ transports: ['websocket', 'polling'], auth: { token } });
       socket.on('notice_update', load);
     } catch (e) {
       // No socket here -- the poll above still gets there.
