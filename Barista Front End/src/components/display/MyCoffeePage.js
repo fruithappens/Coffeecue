@@ -1211,7 +1211,7 @@ const MyCoffeePage = () => {
               />
               <button
                 className="px-5 rounded-xl text-white font-semibold disabled:opacity-40"
-                style={{ backgroundColor: brand.accent }}
+                style={{ backgroundColor: '#B8764A' }}
                 disabled={findName.trim().length < 2 || findBusy}
                 onClick={findByName}
               >
@@ -1236,7 +1236,7 @@ const MyCoffeePage = () => {
                     className="w-full border-2 rounded-xl px-3 py-2.5 text-left hover:border-gray-400"
                   >
                     <div className="flex items-baseline gap-2">
-                      <span className="text-xl font-extrabold" style={{ color: brand.accent }}>#{o.order_number}</span>
+                      <span className="text-xl font-extrabold" style={{ color: '#B8764A' }}>#{o.order_number}</span>
                       <span className="font-bold text-gray-800">{o.name}</span>
                     </div>
                     <div className="text-sm text-gray-600">
