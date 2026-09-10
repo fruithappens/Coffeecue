@@ -1,0 +1,98 @@
+/* CupQ design tokens -- phase 3 of the re-imagining.
+   ONE place for colour, type, spacing, radius and shadow. Components read
+   these; screens never hard-code a hex again.
+
+   Colour rules (Steve, 7 Sep): the caramel family is the brand; red and
+   green are for ATTENTION only; areas of the app are told apart by an
+   icon and a name, never by giving each its own colour.
+
+   The font is scoped to `.cq` until the component sheet is approved, so
+   nothing live changes by importing this file. */
+
+/* The @font-face for Manrope lives in public/fonts/manrope.css (linked from
+   public/index.html): CRA's CSS loader would try to bundle a root-relative
+   url() from here, and the font must stay a plain file Flask serves. */
+
+:root {
+  /* -- the caramel family ------------------------------------------- */
+  --cq-roast:        #3B2314;   /* headers, the dark ground, big type   */
+  --cq-roast-deep:   #2A1810;   /* pressed / hover on roast             */
+  --cq-caramel:      #B8764A;   /* THE action colour                    */
+  --cq-caramel-deep: #955A33;   /* hover / pressed on caramel           */
+  --cq-caramel-wash: #F1E3D6;   /* selected / active row fill           */
+  --cq-tan:          #C9A67A;   /* board banner, secondary emphasis     */
+  --cq-cream:        #F6F1EA;   /* page ground                          */
+  --cq-milk:         #FFFFFF;   /* cards                                */
+
+  /* -- warm neutrals (never pure grey) ------------------------------- */
+  --cq-ink:          #2A1F17;   /* body text                            */
+  --cq-ink-2:        #5C4A3D;   /* secondary text                       */
+  --cq-ink-3:        #8C7B6E;   /* muted labels, placeholders           */
+  --cq-line:         #E6DCD0;   /* hairlines, borders                   */
+  --cq-wash:         #EFE7DC;   /* subtle fills (inputs, wells)         */
+
+  /* -- attention only ------------------------------------------------ */
+  --cq-ready:        #1F8A4C;   /* ready / good / done                  */
+  --cq-ready-wash:   #DDF3E4;
+  --cq-alert:        #C8372D;   /* needs a person now                   */
+  --cq-alert-wash:   #FBE3E0;
+  /* The middle state. Health, stock and printer screens are all three-state
+     (fine / watch this / broken) and there was no token for the middle one,
+     so each screen invented its own yellow. Pushed further toward gold than
+     the caramel accent so it still reads as a warning and not as brand. */
+  --cq-warn:         #B07D10;
+  --cq-warn-wash:    #FBF1D6;
+
+  /* -- type ---------------------------------------------------------- */
+  --cq-font: 'Manrope', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --cq-text-xs:   0.75rem;    /* 12 */
+  --cq-text-sm:   0.875rem;   /* 14 */
+  --cq-text-base: 1rem;       /* 16 */
+  --cq-text-lg:   1.125rem;   /* 18 */
+  --cq-text-xl:   1.25rem;    /* 20 */
+  --cq-text-2xl:  1.5rem;     /* 24 */
+  --cq-text-3xl:  1.875rem;   /* 30 */
+  --cq-text-4xl:  2.25rem;    /* 36 */
+  --cq-text-5xl:  3rem;       /* 48  tablet order number               */
+  --cq-text-6xl:  4rem;       /* 64                                    */
+  --cq-text-board: clamp(6rem, 12vw, 9.375rem); /* 96 -> 150 board number */
+
+  /* -- space (4-pt) and shape ---------------------------------------- */
+  --cq-s-1: 4px;  --cq-s-2: 8px;  --cq-s-3: 12px; --cq-s-4: 16px;
+  --cq-s-5: 20px; --cq-s-6: 24px; --cq-s-8: 32px; --cq-s-10: 40px; --cq-s-12: 48px;
+  --cq-r-sm: 6px; --cq-r-md: 10px; --cq-r-lg: 14px; --cq-r-xl: 20px; --cq-r-pill: 999px;
+  --cq-shadow-card: 0 1px 2px rgba(59, 35, 20, 0.06), 0 4px 14px rgba(59, 35, 20, 0.08);
+  --cq-shadow-raised: 0 2px 4px rgba(59, 35, 20, 0.08), 0 12px 32px rgba(59, 35, 20, 0.14);
+  --cq-touch: 48px;           /* minimum tap target on a wet-fingered tablet */
+}
+
+/* The scope. Everything built from the design system sits inside `.cq`;
+   the font, ground and ink apply here and nowhere else (yet). */
+.cq {
+  font-family: var(--cq-font);
+  color: var(--cq-ink);
+  background: var(--cq-cream);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'ss01' on;
+}
+.cq, .cq * { font-variant-numeric: tabular-nums; }
+.cq :focus-visible { outline: 3px solid var(--cq-caramel); outline-offset: 2px; }
+
+/* Ready cards breathe; the one signal that works on a screen nobody can
+   touch. Respects reduced motion. */
+@keyframes cq-breathe {
+  0%, 100% { box-shadow: var(--cq-shadow-card), 0 0 0 0 rgba(31, 138, 76, 0.45); }
+  50%      { box-shadow: var(--cq-shadow-card), 0 0 0 14px rgba(31, 138, 76, 0); }
+}
+.cq-breathe { animation: cq-breathe 2.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .cq-breathe { animation: none; } }
+
+/* Checkboxes and radios are drawn by the browser, and the browser draws them
+   in its own blue. There is no markup to convert -- one property does every
+   one of them, on every screen, including the ones nobody remembered. Doing
+   it here rather than in 35 separate tags also avoids editing 35 JSX tags to
+   change a colour, which is how a stray regex once ate an arrow function. */
+.cq input[type="checkbox"],
+.cq input[type="radio"] {
+  accent-color: var(--cq-caramel);
+}

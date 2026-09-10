@@ -10,6 +10,7 @@ import MobileOrderPage from './components/display/MobileOrderPage';
 import MyCoffeePage from './components/display/MyCoffeePage';
 import HowToOrderPage from './components/display/HowToOrderPage';
 import DisplaySelector from './components/display/DisplaySelector';
+import DesignSheet from './components/design/DesignSheet';
 import SupportInterface from './components/support/SupportInterface';
 import OpsBoard from './components/support/OpsBoard';
 import LoginPage from './components/auth/LoginPage';
@@ -719,6 +720,8 @@ function App() {
           <Route path="/my" element={<MyCoffeePage />} />
           <Route path="/how" element={<HowToOrderPage />} />
           <Route path="/displays" element={<DisplaySelector />} />
+          {/* The design system's component sheet (phase 3 checkpoint). */}
+          <Route path="/design" element={<DesignSheet />} />
           
           {/* Protected routes with role-based access control */}
           <Route 
