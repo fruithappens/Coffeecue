@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { UploadCloud, Trash2, ArrowUp, ArrowDown, Save, ExternalLink, Plus, Layers, GripVertical, Columns } from 'lucide-react';
+import { UploadCloud, Trash2, ArrowUp, ArrowDown, Save, ExternalLink, Plus, Layers, GripVertical, Columns, Heart, Radio, Monitor } from 'lucide-react';
+import { SettingRow, Toggle, Segmented } from '../../design';
 import SponsorTicker from '../display/SponsorTicker';
 import SponsorWall from '../display/SponsorWall';
 import { fetchBranding, patchBranding } from '../../utils/brandingPatch';
@@ -167,157 +168,148 @@ const SponsorsPanel = () => {
   return (
     <div className="max-w-4xl mx-auto p-4 sm:p-6">
       <div className="flex items-center justify-between flex-wrap gap-3 mb-1">
-        <h2 className="text-2xl font-bold text-gray-800">Sponsors</h2>
+        <h2 className="text-lg font-bold text-cq-roast">Sponsors</h2>
         <div className="flex items-center gap-4 text-sm">
-          <a href={`${origin}/tv1`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-amber-700 hover:text-amber-900"><ExternalLink size={15} /> Display</a>
-          <a href={`${origin}/sponsors`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-amber-700 hover:text-amber-900"><ExternalLink size={15} /> Sponsor wall</a>
+          <a href={`${origin}/tv1`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-cq-caramel-deep hover:underline font-semibold"><ExternalLink size={15} /> Display</a>
+          <a href={`${origin}/sponsors`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-cq-caramel-deep hover:underline font-semibold"><ExternalLink size={15} /> Sponsor wall</a>
         </div>
       </div>
-      <p className="text-gray-600 mb-5">
+      <p className="text-cq-ink-3 mb-5 max-w-[62ch]">
         Logos, tiers, the scrolling ticker, the full-screen wall and the thank-you line — all in one place.
         Changes reach the screens within about 20 seconds, no reload.
       </p>
 
       {/* Thank-you line — display + ready SMS */}
-      <div className="bg-white rounded-xl shadow-sm p-4 sm:p-5 mb-4">
-        <label className="flex items-start gap-3 cursor-pointer mb-3">
-          <input type="checkbox" checked={thanks.showSponsor} disabled={!loaded}
-            onChange={(e) => setThanks((t) => ({ ...t, showSponsor: e.target.checked }))} className="mt-1 w-4 h-4" />
-          <span className="text-sm text-gray-700">
-            <strong>Thank-you line</strong>
-            <span className="block text-gray-500">A sentence on the display screen and in the "your coffee is ready" text. Change it between sessions for a "this session sponsored by…" rotation.</span>
-          </span>
-        </label>
+      <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4 sm:p-5 mb-4">
+        <SettingRow Icon={Heart} label="Thank-you line"
+                    hint={'On the display and in the "your coffee is ready" text'}>
+          <Toggle on={!!thanks.showSponsor} disabled={!loaded}
+                  onChange={(v) => setThanks((t) => ({ ...t, showSponsor: v }))} />
+        </SettingRow>
+        <p className="text-sm text-cq-ink-3 mt-3 mb-3 max-w-[60ch]">
+          Change it between sessions for a "this session sponsored by…" rotation.
+        </p>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block text-sm">
-            <span className="text-gray-600">Sponsor name</span>
+            <span className="text-cq-ink-2">Sponsor name</span>
             <input value={thanks.sponsorName} disabled={!loaded || !thanks.showSponsor}
               onChange={(e) => setThanks((t) => ({ ...t, sponsorName: e.target.value }))}
-              placeholder="Acme Corp" className="mt-1 w-full border border-gray-200 rounded px-2 py-1.5 text-sm disabled:bg-gray-50" />
+              placeholder="Acme Corp" className="mt-1 w-full h-10 border-2 border-cq-line rounded-cq-md bg-cq-milk px-3 text-sm text-cq-roast focus:border-cq-caramel focus:outline-none disabled:bg-cq-wash" />
           </label>
           <label className="block text-sm">
-            <span className="text-gray-600">Message — <code>{'{sponsor}'}</code> inserts the name</span>
+            <span className="text-cq-ink-2">Message — <code>{'{sponsor}'}</code> inserts the name</span>
             <input value={thanks.sponsorMessage} disabled={!loaded || !thanks.showSponsor}
               onChange={(e) => setThanks((t) => ({ ...t, sponsorMessage: e.target.value }))}
-              placeholder="Coffees today proudly sponsored by {sponsor}" className="mt-1 w-full border border-gray-200 rounded px-2 py-1.5 text-sm disabled:bg-gray-50" />
+              placeholder="Coffees today proudly sponsored by {sponsor}" className="mt-1 w-full h-10 border-2 border-cq-line rounded-cq-md bg-cq-milk px-3 text-sm text-cq-roast focus:border-cq-caramel focus:outline-none disabled:bg-cq-wash" />
           </label>
         </div>
       </div>
 
       {/* Ticker controls */}
-      <div className="bg-white rounded-xl shadow-sm p-4 sm:p-5 mb-4 grid gap-4 sm:grid-cols-2">
-        <label className="flex items-start gap-3 cursor-pointer">
-          <input type="checkbox" checked={enabled} disabled={!loaded} onChange={(e) => setEnabled(e.target.checked)} className="mt-1 w-4 h-4" />
-          <span className="text-sm text-gray-700">
-            <strong>Scrolling ticker</strong>
-            <span className="block text-gray-500">A strip of logos on the display and the customer beacon.</span>
-          </span>
-        </label>
-        <div>
-          <div className="text-sm font-medium text-gray-700 mb-1.5">Ticker position (display)</div>
-          <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden">
-            {['top', 'bottom'].map((p) => (
-              <button key={p} type="button" disabled={!loaded} onClick={() => setPosition(p)}
-                className={`px-4 py-2 text-sm font-semibold capitalize ${position === p ? 'bg-amber-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>{p}</button>
-            ))}
-          </div>
-        </div>
-        <div>
-          <div className="text-sm font-medium text-gray-700 mb-1.5">Ticker size</div>
-          <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden">
-            {[['small', 'Small'], ['medium', 'Medium'], ['large', 'Large']].map(([v, label]) => (
-              <button key={v} type="button" disabled={!loaded} onClick={() => setTickerSize(v)}
-                className={`px-3 py-2 text-sm font-semibold ${tickerSize === v ? 'bg-amber-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>{label}</button>
-            ))}
-          </div>
-          <p className="text-xs text-gray-500 mt-1.5">Large ≈ a fifth of the screen height.</p>
-        </div>
+      {/* Two hand-rolled button groups here did exactly what Segmented does,
+          in their own colours. Same control, one implementation. */}
+      <div className="bg-cq-milk rounded-cq-lg shadow-cq-card px-4 sm:px-5 mb-4">
+        <SettingRow Icon={Radio} label="Scrolling ticker"
+                    hint="A strip of logos on the display and the customer beacon">
+          <Toggle on={!!enabled} disabled={!loaded} onChange={setEnabled} />
+        </SettingRow>
+        <SettingRow Icon={Layers} label="Ticker position" hint="On the display board">
+          <Segmented size="sm" value={position} onChange={setPosition}
+                     options={[{ value: 'top', label: 'Top' }, { value: 'bottom', label: 'Bottom' }]} />
+        </SettingRow>
+        <SettingRow Icon={Columns} label="Ticker size"
+                    hint="Large is about a fifth of the screen height">
+          <Segmented size="sm" value={tickerSize} onChange={setTickerSize}
+                     options={[{ value: 'small', label: 'Small' },
+                               { value: 'medium', label: 'Medium' },
+                               { value: 'large', label: 'Large' }]} />
+        </SettingRow>
       </div>
 
       {/* Tiers */}
-      <div className="bg-white rounded-xl shadow-sm p-4 sm:p-5 mb-4">
-        <div className="flex items-center gap-2 mb-1"><Layers size={18} className="text-amber-700" /><h3 className="font-semibold text-gray-800">Tiers</h3></div>
-        <p className="text-sm text-gray-500 mb-3">
+      <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4 sm:p-5 mb-4">
+        <div className="flex items-center gap-2 mb-1"><Layers size={18} className="text-cq-caramel-deep" /><h3 className="font-semibold text-cq-roast">Tiers</h3></div>
+        <p className="text-sm text-cq-ink-3 mb-3">
           Name your own tiers (Platinum, Gold… or Diamond) and order them top to bottom.
           <strong> Dwell</strong> is how long that tier lingers in the scrolling wall.
         </p>
-        {tiers.length === 0 && <p className="text-sm text-gray-400 mb-3">No tiers yet — add Platinum, Gold, etc.</p>}
+        {tiers.length === 0 && <p className="text-sm text-cq-ink-3 mb-3">No tiers yet — add Platinum, Gold, etc.</p>}
         <div className="space-y-2">
           {tiers.map((t, i) => (
             <div key={t.id || i}
               onDragOver={(e) => { e.preventDefault(); setDragOverTr(i); }}
               onDrop={(e) => { e.preventDefault(); setTiers((prev) => reorder(prev, dragTr.current, i)); dragTr.current = null; setDragOverTr(null); }}
-              className={`flex items-center gap-2 rounded px-1 py-0.5 ${dragOverTr === i ? 'bg-amber-50 ring-1 ring-amber-300' : ''}`}>
+              className={`flex items-center gap-2 rounded px-1 py-0.5 ${dragOverTr === i ? 'bg-cq-caramel-wash ring-1 ring-cq-caramel' : ''}`}>
               <span draggable onDragStart={() => { dragTr.current = i; }} onDragEnd={() => { dragTr.current = null; setDragOverTr(null); }}
-                className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 flex-shrink-0" title="Drag to reorder">
+                className="cursor-grab active:cursor-grabbing text-cq-line hover:text-cq-ink-3 flex-shrink-0" title="Drag to reorder">
                 <GripVertical size={16} />
               </span>
-              <span className="text-xs text-gray-400 w-5 text-right">{i + 1}</span>
+              <span className="text-xs text-cq-ink-3 w-5 text-right">{i + 1}</span>
               <input value={t.name || ''} onChange={(e) => patchTier(i, { name: e.target.value })}
-                placeholder="Tier name (e.g. Platinum)" className="flex-1 min-w-0 border border-gray-200 rounded px-2 py-1.5 text-sm" />
+                placeholder="Tier name (e.g. Platinum)" className="flex-1 min-w-0 border-2 border-cq-line rounded-cq-md px-2 py-1.5 text-sm" />
               <div className="flex items-center gap-1">
                 <input type="number" min="1" max="60" value={t.dwell}
                   onChange={(e) => patchTier(i, { dwell: e.target.value })}
-                  className="w-16 border border-gray-200 rounded px-2 py-1.5 text-sm text-right" />
-                <span className="text-xs text-gray-500">sec</span>
+                  className="w-16 border-2 border-cq-line rounded-cq-md px-2 py-1.5 text-sm text-right" />
+                <span className="text-xs text-cq-ink-3">sec</span>
               </div>
               <button type="button" onClick={() => patchTier(i, { compact: !t.compact })}
-                className={`p-1.5 rounded ${t.compact ? 'bg-amber-100 text-amber-700' : 'hover:bg-gray-100 text-gray-400'}`}
+                className={`p-1.5 rounded ${t.compact ? 'bg-cq-caramel-wash text-cq-caramel-deep' : 'hover:bg-cq-wash text-cq-ink-3'}`}
                 title="Side by side in the grid wall — good for small tiers (Coffee, Dinner)">
                 <Columns size={15} />
               </button>
-              <button type="button" onClick={() => moveTier(i, -1)} disabled={i === 0} className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30"><ArrowUp size={15} /></button>
-              <button type="button" onClick={() => moveTier(i, 1)} disabled={i === tiers.length - 1} className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30"><ArrowDown size={15} /></button>
-              <button type="button" onClick={() => removeTier(i)} className="p-1.5 rounded hover:bg-red-50 text-red-600"><Trash2 size={15} /></button>
+              <button type="button" onClick={() => moveTier(i, -1)} disabled={i === 0} className="p-1.5 rounded hover:bg-cq-wash disabled:opacity-30"><ArrowUp size={15} /></button>
+              <button type="button" onClick={() => moveTier(i, 1)} disabled={i === tiers.length - 1} className="p-1.5 rounded hover:bg-cq-wash disabled:opacity-30"><ArrowDown size={15} /></button>
+              <button type="button" onClick={() => removeTier(i)} className="p-1.5 rounded hover:bg-cq-alert-wash text-cq-alert"><Trash2 size={15} /></button>
             </div>
           ))}
         </div>
-        <button type="button" onClick={addTier} className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-amber-700 hover:text-amber-900"><Plus size={16} /> Add tier</button>
+        <button type="button" onClick={addTier} className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-cq-caramel-deep hover:underline"><Plus size={16} /> Add tier</button>
       </div>
 
       {/* Upload */}
       <div onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); addFiles(e.dataTransfer.files); }}
-        className="bg-white rounded-xl shadow-sm border-2 border-dashed border-gray-300 p-6 text-center mb-4">
-        <UploadCloud className="mx-auto text-amber-600 mb-2" size={30} />
-        <p className="text-sm text-gray-700 font-medium">Drop logo files here, or</p>
+        className="bg-cq-milk rounded-cq-lg shadow-cq-card border-2 border-dashed border-cq-line p-6 text-center mb-4">
+        <UploadCloud className="mx-auto text-cq-caramel mb-2" size={30} />
+        <p className="text-sm text-cq-ink-2 font-medium">Drop logo files here, or</p>
         <button type="button" onClick={() => fileRef.current && fileRef.current.click()} disabled={busy}
-          className="mt-2 inline-flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg font-semibold disabled:opacity-50">
+          className="mt-2 inline-flex items-center gap-2 bg-cq-roast hover:bg-cq-caramel-deep text-white px-4 py-2 rounded-cq-md font-semibold disabled:opacity-50">
           {busy ? 'Adding…' : 'Choose logo images'}
         </button>
         <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => addFiles(e.target.files)} />
-        <p className="text-xs text-gray-500 mt-3">PNG with a transparent background is ideal; JPG/SVG work too. Auto-resized and shown on white cards.</p>
-        {err && <p className="text-sm text-red-600 mt-2">{err}</p>}
+        <p className="text-xs text-cq-ink-3 mt-3">PNG with a transparent background is ideal; JPG/SVG work too. Auto-resized and shown on white cards.</p>
+        {err && <p className="text-sm text-cq-alert mt-2">{err}</p>}
       </div>
 
       {/* Sponsor list */}
-      <div className="bg-white rounded-xl shadow-sm p-3 sm:p-4 mb-4">
+      <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-3 sm:p-4 mb-4">
         {sponsors.length === 0 ? (
-          <p className="text-center text-gray-400 py-6 text-sm">No logos yet — upload some above.</p>
+          <p className="text-center text-cq-ink-3 py-6 text-sm">No logos yet — upload some above.</p>
         ) : (
-          <ul className="divide-y divide-gray-100">
+          <ul className="divide-y divide-cq-line">
             {sponsors.map((s, i) => (
               <li key={s.id || i}
                 onDragOver={(e) => { e.preventDefault(); setDragOverSp(i); }}
                 onDrop={(e) => { e.preventDefault(); setSponsors((prev) => reorder(prev, dragSp.current, i)); dragSp.current = null; setDragOverSp(null); }}
-                className={`flex items-center gap-2 py-2.5 px-1 rounded ${dragOverSp === i ? 'bg-amber-50 ring-1 ring-amber-300' : ''}`}>
+                className={`flex items-center gap-2 py-2.5 px-1 rounded ${dragOverSp === i ? 'bg-cq-caramel-wash ring-1 ring-cq-caramel' : ''}`}>
                 <span draggable onDragStart={() => { dragSp.current = i; }} onDragEnd={() => { dragSp.current = null; setDragOverSp(null); }}
-                  className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 flex-shrink-0" title="Drag to reorder">
+                  className="cursor-grab active:cursor-grabbing text-cq-line hover:text-cq-ink-3 flex-shrink-0" title="Drag to reorder">
                   <GripVertical size={18} />
                 </span>
-                <div className="w-24 h-12 flex items-center justify-center bg-gray-50 rounded border border-gray-200 flex-shrink-0">
+                <div className="w-24 h-12 flex items-center justify-center bg-cq-wash rounded border border-cq-line flex-shrink-0">
                   <img src={s.image} alt={s.name || 'logo'} style={{ maxHeight: 40, maxWidth: 88, objectFit: 'contain' }} />
                 </div>
                 <input value={s.name || ''} onChange={(e) => patchSponsor(i, { name: e.target.value })} placeholder="Name (optional)"
-                  className="flex-1 min-w-0 border border-gray-200 rounded px-2 py-1.5 text-sm" />
+                  className="flex-1 min-w-0 border-2 border-cq-line rounded-cq-md px-2 py-1.5 text-sm" />
                 <select value={s.tier || ''} onChange={(e) => patchSponsor(i, { tier: e.target.value })}
-                  className="border border-gray-200 rounded px-2 py-1.5 text-sm bg-white flex-shrink-0" title="Tier">
+                  className="border-2 border-cq-line rounded-cq-md px-2 py-1.5 text-sm bg-cq-milk flex-shrink-0" title="Tier">
                   <option value="">— tier —</option>
                   {tiers.filter((t) => (t.name || '').trim()).map((t) => (<option key={t.id} value={t.id}>{t.name}</option>))}
                 </select>
                 <div className="flex items-center gap-1 flex-shrink-0">
-                  <button type="button" onClick={() => moveSponsor(i, -1)} disabled={i === 0} className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30"><ArrowUp size={16} /></button>
-                  <button type="button" onClick={() => moveSponsor(i, 1)} disabled={i === sponsors.length - 1} className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30"><ArrowDown size={16} /></button>
-                  <button type="button" onClick={() => removeSponsor(i)} className="p-1.5 rounded hover:bg-red-50 text-red-600"><Trash2 size={16} /></button>
+                  <button type="button" onClick={() => moveSponsor(i, -1)} disabled={i === 0} className="p-1.5 rounded hover:bg-cq-wash disabled:opacity-30"><ArrowUp size={16} /></button>
+                  <button type="button" onClick={() => moveSponsor(i, 1)} disabled={i === sponsors.length - 1} className="p-1.5 rounded hover:bg-cq-wash disabled:opacity-30"><ArrowDown size={16} /></button>
+                  <button type="button" onClick={() => removeSponsor(i)} className="p-1.5 rounded hover:bg-cq-alert-wash text-cq-alert"><Trash2 size={16} /></button>
                 </div>
               </li>
             ))}
@@ -326,55 +318,55 @@ const SponsorsPanel = () => {
       </div>
 
       {/* Wall settings */}
-      <div className="bg-white rounded-xl shadow-sm p-4 sm:p-5 mb-5">
-        <h3 className="font-semibold text-gray-800 mb-1">Full-screen sponsor wall</h3>
-        <p className="text-sm text-gray-500 mb-4">Open <code>{origin.replace(/^https?:\/\//, '')}/sponsors</code> on any screen (vertical or landscape — it adapts).</p>
+      <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4 sm:p-5 mb-5">
+        <h3 className="font-semibold text-cq-roast mb-1">Full-screen sponsor wall</h3>
+        <p className="text-sm text-cq-ink-3 mb-4">Open <code>{origin.replace(/^https?:\/\//, '')}/sponsors</code> on any screen (vertical or landscape — it adapts).</p>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <div className="text-sm font-medium text-gray-700 mb-1.5">Layout</div>
-            <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden">
+            <div className="text-sm font-medium text-cq-ink-2 mb-1.5">Layout</div>
+            <div className="inline-flex rounded-cq-md border border-cq-line overflow-hidden">
               {[['scroll', 'Scroll'], ['grid', 'Grid']].map(([v, label]) => (
                 <button key={v} type="button" onClick={() => setWall((w) => ({ ...w, layout: v }))}
-                  className={`px-4 py-2 text-sm font-semibold ${wall.layout === v ? 'bg-amber-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>{label}</button>
+                  className={`px-4 py-2 text-sm font-semibold ${wall.layout === v ? 'bg-cq-caramel text-white' : 'bg-cq-milk text-cq-ink-2 hover:bg-cq-wash'}`}>{label}</button>
               ))}
             </div>
-            <p className="text-xs text-gray-500 mt-1.5">{wall.layout === 'grid' ? 'All logos at once, grouped by tier (Platinum on top).' : 'One tier at a time, lingering by each tier’s dwell time.'}</p>
+            <p className="text-xs text-cq-ink-3 mt-1.5">{wall.layout === 'grid' ? 'All logos at once, grouped by tier (Platinum on top).' : 'One tier at a time, lingering by each tier’s dwell time.'}</p>
           </div>
           {/* Grid logo size — only relevant to the Grid layout (the "wider /
               more columns" lever Steve asked for). Small packs more logos
               across the screen; Large shows a few big ones. */}
           {wall.layout === 'grid' && (
             <div>
-              <div className="text-sm font-medium text-gray-700 mb-1.5">Logo size (grid)</div>
-              <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden">
+              <div className="text-sm font-medium text-cq-ink-2 mb-1.5">Logo size (grid)</div>
+              <div className="inline-flex rounded-cq-md border border-cq-line overflow-hidden">
                 {[['small', 'Small'], ['medium', 'Medium'], ['large', 'Large']].map(([v, label]) => (
                   <button key={v} type="button" onClick={() => setWall((w) => ({ ...w, gridSize: v }))}
-                    className={`px-3 py-2 text-sm font-semibold ${(wall.gridSize || 'medium') === v ? 'bg-amber-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>{label}</button>
+                    className={`px-3 py-2 text-sm font-semibold ${(wall.gridSize || 'medium') === v ? 'bg-cq-caramel text-white' : 'bg-cq-milk text-cq-ink-2 hover:bg-cq-wash'}`}>{label}</button>
                 ))}
               </div>
-              <p className="text-xs text-gray-500 mt-1.5">Small = more logos per row (wider); Large = fewer, bigger logos.</p>
+              <p className="text-xs text-cq-ink-3 mt-1.5">Small = more logos per row (wider); Large = fewer, bigger logos.</p>
             </div>
           )}
           <div>
-            <div className="text-sm font-medium text-gray-700 mb-1.5">Background</div>
-            <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden">
+            <div className="text-sm font-medium text-cq-ink-2 mb-1.5">Background</div>
+            <div className="inline-flex rounded-cq-md border border-cq-line overflow-hidden">
               {[['tint', 'Soft tint'], ['white', 'White'], ['branded', 'Event-branded']].map(([v, label]) => (
                 <button key={v} type="button" onClick={() => setWall((w) => ({ ...w, background: v }))}
-                  className={`px-3 py-2 text-sm font-semibold ${wall.background === v ? 'bg-amber-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>{label}</button>
+                  className={`px-3 py-2 text-sm font-semibold ${wall.background === v ? 'bg-cq-caramel text-white' : 'bg-cq-milk text-cq-ink-2 hover:bg-cq-wash'}`}>{label}</button>
               ))}
             </div>
-            <p className="text-xs text-gray-500 mt-1.5">“Event-branded” reuses your uploaded display background image (falls back to the tint if none is set).</p>
+            <p className="text-xs text-cq-ink-3 mt-1.5">“Event-branded” reuses your uploaded display background image (falls back to the tint if none is set).</p>
           </div>
           <div>
-            <label className="flex items-start gap-2 cursor-pointer">
-              <input type="checkbox" checked={wall.takeover} onChange={(e) => setWall((w) => ({ ...w, takeover: e.target.checked }))} className="mt-1 w-4 h-4" />
-              <span className="text-sm text-gray-700"><strong>Take over the main board</strong>
-                <span className="block text-gray-500">The order board flips to the wall now and then, then back.</span></span>
-            </label>
+            <SettingRow Icon={Monitor} label="Take over the main board"
+                        hint="The order board flips to the wall now and then, then back">
+              <Toggle on={!!wall.takeover}
+                      onChange={(v) => setWall((w) => ({ ...w, takeover: v }))} />
+            </SettingRow>
             {wall.takeover && (
-              <div className="mt-2 flex items-center gap-2 text-sm text-gray-600 flex-wrap">
-                every <input type="number" min="15" max="3600" value={wall.everySec} onChange={(e) => setWall((w) => ({ ...w, everySec: e.target.value }))} className="w-20 border border-gray-200 rounded px-2 py-1 text-right" /> sec,
-                for <input type="number" min="3" max="600" value={wall.forSec} onChange={(e) => setWall((w) => ({ ...w, forSec: e.target.value }))} className="w-16 border border-gray-200 rounded px-2 py-1 text-right" /> sec
+              <div className="mt-2 flex items-center gap-2 text-sm text-cq-ink-2 flex-wrap">
+                every <input type="number" min="15" max="3600" value={wall.everySec} onChange={(e) => setWall((w) => ({ ...w, everySec: e.target.value }))} className="w-20 border-2 border-cq-line rounded-cq-md px-2 py-1 text-right" /> sec,
+                for <input type="number" min="3" max="600" value={wall.forSec} onChange={(e) => setWall((w) => ({ ...w, forSec: e.target.value }))} className="w-16 border-2 border-cq-line rounded-cq-md px-2 py-1 text-right" /> sec
               </div>
             )}
           </div>
@@ -383,19 +375,19 @@ const SponsorsPanel = () => {
 
       {/* Live preview — see the ticker size + wall layout/background change
           as you edit, without leaving the panel or saving first. */}
-      <div className="bg-white rounded-xl shadow-sm p-4 sm:p-5 mb-5">
-        <h3 className="font-semibold text-gray-800 mb-1">Live preview</h3>
-        <p className="text-sm text-gray-500 mb-3">Reflects your changes above — no need to save first.</p>
+      <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4 sm:p-5 mb-5">
+        <h3 className="font-semibold text-cq-roast mb-1">Live preview</h3>
+        <p className="text-sm text-cq-ink-3 mb-3">Reflects your changes above — no need to save first.</p>
         {sponsors.length === 0 ? (
-          <p className="text-sm text-gray-400">Add some logos to see the preview.</p>
+          <p className="text-sm text-cq-ink-3">Add some logos to see the preview.</p>
         ) : (
           <>
-            <div className="text-[11px] uppercase tracking-wider text-gray-400 mb-1">Ticker — {tickerSize}</div>
-            <div className="rounded-lg overflow-hidden border border-gray-200 mb-4 bg-gray-100">
+            <div className="text-[11px] uppercase tracking-wider text-cq-ink-3 mb-1">Ticker — {tickerSize}</div>
+            <div className="rounded-cq-md overflow-hidden border border-cq-line mb-4 bg-cq-wash">
               <SponsorTicker items={sponsors} size={tickerSize} position="bottom" />
             </div>
-            <div className="text-[11px] uppercase tracking-wider text-gray-400 mb-1">Wall — {wall.layout}, {wall.background} background</div>
-            <div className="rounded-lg overflow-hidden border border-gray-200" style={{ height: 360 }}>
+            <div className="text-[11px] uppercase tracking-wider text-cq-ink-3 mb-1">Wall — {wall.layout}, {wall.background} background</div>
+            <div className="rounded-cq-md overflow-hidden border border-cq-line" style={{ height: 360 }}>
               <SponsorWall embedded preview={previewData} />
             </div>
           </>
@@ -403,14 +395,14 @@ const SponsorsPanel = () => {
       </div>
 
       <div className="flex items-center gap-3">
-        <button onClick={save} disabled={saving || !loaded} className="inline-flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white px-5 py-2.5 rounded-lg font-semibold disabled:opacity-50">
+        <button onClick={save} disabled={saving || !loaded} className="inline-flex items-center gap-2 bg-cq-roast hover:bg-cq-caramel-deep text-white px-5 py-2.5 rounded-cq-md font-semibold disabled:opacity-50">
           <Save size={17} /> {saving ? 'Saving…' : 'Save sponsors'}
         </button>
-        {savedAt && <span className="text-sm text-green-700">Saved {savedAt.toLocaleTimeString()} — live shortly.</span>}
-        <span className="ml-auto text-xs text-gray-400">{sponsors.length}/30 logos · {tiers.filter((t) => (t.name || '').trim()).length} tiers</span>
+        {savedAt && <span className="text-sm text-cq-ready">Saved {savedAt.toLocaleTimeString()} — live shortly.</span>}
+        <span className="ml-auto text-xs text-cq-ink-3">{sponsors.length}/30 logos · {tiers.filter((t) => (t.name || '').trim()).length} tiers</span>
       </div>
       {sponsors.some((s) => !s.tier) && tiers.length > 0 && (
-        <p className="text-xs text-amber-700 mt-2">Some logos have no tier — they’ll show in an “Other” group on the wall.</p>
+        <p className="text-xs text-cq-caramel-deep mt-2">Some logos have no tier — they’ll show in an “Other” group on the wall.</p>
       )}
     </div>
   );

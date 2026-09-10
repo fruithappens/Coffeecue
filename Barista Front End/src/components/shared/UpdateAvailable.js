@@ -100,8 +100,8 @@ export default function UpdateAvailable() {
     <div
       role="status"
       className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[9999]
-                 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg
-                 bg-amber-600 text-white"
+                 flex items-center gap-3 px-4 py-3 rounded-cq-lg shadow-cq-card
+                 bg-cq-caramel text-white"
     >
       <RefreshCw size={18} className="shrink-0" aria-hidden />
       <span className="text-sm font-semibold">
@@ -110,8 +110,8 @@ export default function UpdateAvailable() {
       <button
         type="button"
         onClick={() => window.location.reload(true)}
-        className="px-3 py-1.5 rounded-lg bg-white text-amber-700 text-sm font-bold
-                   hover:bg-amber-50"
+        className="px-3 py-1.5 rounded-cq-md bg-cq-milk text-cq-caramel-deep text-sm font-bold
+                   hover:bg-cq-caramel-wash"
       >
         Reload
       </button>

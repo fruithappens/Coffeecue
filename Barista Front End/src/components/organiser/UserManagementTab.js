@@ -387,19 +387,19 @@ const UserManagementTab = () => {
 
   const getExperienceColor = (experience) => {
     switch (experience) {
-      case 'expert': return 'text-purple-600 bg-purple-100';
-      case 'advanced': return 'text-blue-600 bg-blue-100';
-      case 'intermediate': return 'text-green-600 bg-green-100';
-      default: return 'text-gray-600 bg-gray-100';
+      case 'expert': return 'text-cq-caramel-deep bg-cq-caramel-wash';
+      case 'advanced': return 'text-cq-caramel-deep bg-cq-caramel-wash';
+      case 'intermediate': return 'text-cq-ready bg-cq-ready-wash';
+      default: return 'text-cq-ink-2 bg-cq-wash';
     }
   };
 
   const getRoleBadgeColor = (role) => {
     switch (role) {
-      case 'admin': return 'bg-red-100 text-red-700';
-      case 'organizer': return 'bg-purple-100 text-purple-700';
-      case 'barista': return 'bg-amber-100 text-amber-700';
-      default: return 'bg-gray-100 text-gray-700';
+      case 'admin': return 'bg-cq-alert-wash text-cq-alert';
+      case 'organizer': return 'bg-cq-caramel-wash text-cq-caramel-deep';
+      case 'barista': return 'bg-cq-caramel-wash text-cq-caramel-deep';
+      default: return 'bg-cq-wash text-cq-ink-2';
     }
   };
 
@@ -407,12 +407,12 @@ const UserManagementTab = () => {
     <div className="space-y-6">
       {/* Loading + error banners — surface backend round-trip status. */}
       {loading && (
-        <div className="bg-blue-50 border border-blue-200 text-blue-800 px-3 py-2 rounded text-sm">
+        <div className="bg-cq-caramel-wash border border-cq-line text-cq-caramel-deep px-3 py-2 rounded text-sm">
           Loading users from the server…
         </div>
       )}
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-800 px-3 py-2 rounded text-sm flex items-center justify-between">
+        <div className="bg-cq-alert-wash border border-cq-alert text-cq-alert px-3 py-2 rounded text-sm flex items-center justify-between">
           <span>{error}</span>
           <button onClick={() => setError(null)} className="ml-2"><X size={16} /></button>
         </div>
@@ -422,9 +422,9 @@ const UserManagementTab = () => {
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
         <div>
           <h2 className="text-xl sm:text-2xl font-bold">User Management</h2>
-          <p className="text-gray-600">
+          <p className="text-cq-ink-2">
             Manage barista profiles, skills, and schedules.
-            <span className="text-xs text-gray-500 ml-2">
+            <span className="text-xs text-cq-ink-3 ml-2">
               Identity (username/email/role/password) is saved to the
               backend. Skills, availability and notes are cached locally
               per-device.
@@ -437,7 +437,7 @@ const UserManagementTab = () => {
             setShowAddUser(true);
             setEditingUser(null);
           }}
-          className="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 flex items-center justify-center gap-2 w-full sm:w-auto shrink-0 whitespace-nowrap"
+          className="bg-cq-roast text-white px-4 py-2 rounded-cq-md hover:bg-cq-caramel-deep flex items-center justify-center gap-2 w-full sm:w-auto shrink-0 whitespace-nowrap"
         >
           <UserPlus size={18} />
           Add New User
@@ -445,25 +445,25 @@ const UserManagementTab = () => {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg shadow-sm p-4">
+      <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4">
         <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 sm:items-center">
           <div className="flex-1 flex items-center gap-2 min-w-0">
-            <Search size={18} className="text-gray-500" />
+            <Search size={18} className="text-cq-ink-3" />
             <input
               type="text"
               placeholder="Search users by name, username, or email..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="flex-1 border rounded px-3 py-1"
+              className="flex-1 border-2 border-cq-line rounded-cq-md bg-cq-milk px-3 py-1"
             />
           </div>
           
           <div className="flex items-center gap-2">
-            <Filter size={18} className="text-gray-500" />
+            <Filter size={18} className="text-cq-ink-3" />
             <select
               value={filterRole}
               onChange={(e) => setFilterRole(e.target.value)}
-              className="border rounded px-3 py-1"
+              className="border-2 border-cq-line rounded-cq-md bg-cq-milk px-3 py-1"
             >
               <option value="all">All Roles</option>
               <option value="barista">Baristas</option>
@@ -476,7 +476,7 @@ const UserManagementTab = () => {
 
       {/* Add/Edit User Form */}
       {(showAddUser || editingUser) && (
-        <div className="bg-white rounded-lg shadow-sm p-6">
+        <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-6">
           <h3 className="text-lg font-bold mb-4">
             {editingUser ? 'Edit User' : 'Add New User'}
           </h3>
@@ -490,7 +490,7 @@ const UserManagementTab = () => {
                   type="text"
                   value={userForm.username}
                   onChange={(e) => setUserForm({...userForm, username: e.target.value})}
-                  className="w-full border rounded px-3 py-2"
+                  className="w-full border-2 border-cq-line rounded-cq-md bg-cq-milk px-3 py-2"
                   disabled={editingUser}
                 />
               </div>
@@ -501,7 +501,7 @@ const UserManagementTab = () => {
                   type="text"
                   value={userForm.fullName}
                   onChange={(e) => setUserForm({...userForm, fullName: e.target.value})}
-                  className="w-full border rounded px-3 py-2"
+                  className="w-full border-2 border-cq-line rounded-cq-md bg-cq-milk px-3 py-2"
                 />
               </div>
               
@@ -511,7 +511,7 @@ const UserManagementTab = () => {
                   type="email"
                   value={userForm.email}
                   onChange={(e) => setUserForm({...userForm, email: e.target.value})}
-                  className="w-full border rounded px-3 py-2"
+                  className="w-full border-2 border-cq-line rounded-cq-md bg-cq-milk px-3 py-2"
                 />
               </div>
               
@@ -521,7 +521,7 @@ const UserManagementTab = () => {
                   type="tel"
                   value={userForm.phone}
                   onChange={(e) => setUserForm({...userForm, phone: e.target.value})}
-                  className="w-full border rounded px-3 py-2"
+                  className="w-full border-2 border-cq-line rounded-cq-md bg-cq-milk px-3 py-2"
                 />
               </div>
               
@@ -530,7 +530,7 @@ const UserManagementTab = () => {
                 <select
                   value={userForm.role}
                   onChange={(e) => setUserForm({...userForm, role: e.target.value})}
-                  className="w-full border rounded px-3 py-2"
+                  className="w-full border-2 border-cq-line rounded-cq-md bg-cq-milk px-3 py-2"
                 >
                   <option value="barista">Barista</option>
                   <option value="organizer">Organizer</option>
@@ -547,12 +547,12 @@ const UserManagementTab = () => {
                         type={showPassword.new ? "text" : "password"}
                         value={userForm.password}
                         onChange={(e) => setUserForm({...userForm, password: e.target.value})}
-                        className="w-full border rounded px-3 py-2 pr-10"
+                        className="w-full border-2 border-cq-line rounded-cq-md bg-cq-milk px-3 py-2 pr-10"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword({...showPassword, new: !showPassword.new})}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-cq-ink-3"
                       >
                         {showPassword.new ? <EyeOff size={18} /> : <Eye size={18} />}
                       </button>
@@ -565,7 +565,7 @@ const UserManagementTab = () => {
                       type="password"
                       value={userForm.confirmPassword}
                       onChange={(e) => setUserForm({...userForm, confirmPassword: e.target.value})}
-                      className="w-full border rounded px-3 py-2"
+                      className="w-full border-2 border-cq-line rounded-cq-md bg-cq-milk px-3 py-2"
                     />
                   </div>
                 </>
@@ -579,7 +579,7 @@ const UserManagementTab = () => {
                 <select
                   value={userForm.experience}
                   onChange={(e) => setUserForm({...userForm, experience: e.target.value})}
-                  className="w-full border rounded px-3 py-2"
+                  className="w-full border-2 border-cq-line rounded-cq-md bg-cq-milk px-3 py-2"
                 >
                   <option value="beginner">Beginner (0-1 years)</option>
                   <option value="intermediate">Intermediate (1-3 years)</option>
@@ -593,7 +593,7 @@ const UserManagementTab = () => {
                 <select
                   value={userForm.preferredStation}
                   onChange={(e) => setUserForm({...userForm, preferredStation: e.target.value})}
-                  className="w-full border rounded px-3 py-2"
+                  className="w-full border-2 border-cq-line rounded-cq-md bg-cq-milk px-3 py-2"
                 >
                   <option value="">No preference</option>
                   {availableStations.map(station => (
@@ -636,7 +636,7 @@ const UserManagementTab = () => {
                 <textarea
                   value={userForm.notes}
                   onChange={(e) => setUserForm({...userForm, notes: e.target.value})}
-                  className="w-full border rounded px-3 py-2"
+                  className="w-full border-2 border-cq-line rounded-cq-md bg-cq-milk px-3 py-2"
                   rows="3"
                   placeholder="Additional notes about this user..."
                 />
@@ -664,13 +664,13 @@ const UserManagementTab = () => {
                 setShowAddUser(false);
                 setEditingUser(null);
               }}
-              className="px-4 py-2 border rounded hover:bg-gray-50"
+              className="px-4 py-2 border-2 border-cq-line rounded-cq-md bg-cq-milk hover:bg-cq-wash"
             >
               Cancel
             </button>
             <button
               onClick={editingUser ? handleUpdateUser : handleAddUser}
-              className="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700 flex items-center gap-2"
+              className="px-4 py-2 bg-cq-roast text-white rounded hover:bg-cq-caramel-deep flex items-center gap-2"
             >
               <Save size={18} />
               {editingUser ? 'Update User' : 'Create User'}
@@ -680,15 +680,15 @@ const UserManagementTab = () => {
       )}
 
       {/* Users List */}
-      <div className="bg-white rounded-lg shadow-sm">
+      <div className="bg-cq-milk rounded-cq-lg shadow-cq-card">
         {filteredUsers.length > 0 ? (
           <div className="divide-y">
             {filteredUsers.map(user => (
               <div key={user.id} className="p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-                    <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center">
-                      <User size={20} className="text-amber-700" />
+                    <div className="w-12 h-12 rounded-full bg-cq-caramel-wash flex items-center justify-center">
+                      <User size={20} className="text-cq-caramel-deep" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
@@ -701,12 +701,12 @@ const UserManagementTab = () => {
                           {user.role}
                         </span>
                         {!user.active && (
-                          <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-600">
+                          <span className="text-xs px-2 py-0.5 rounded bg-cq-wash text-cq-ink-2">
                             Inactive
                           </span>
                         )}
                       </div>
-                      <div className="text-sm text-gray-600">
+                      <div className="text-sm text-cq-ink-2">
                         @{user.username}{user.email ? ` • ${user.email}` : ''}
                       </div>
                       <div className="flex items-center gap-4 mt-1">
@@ -716,21 +716,21 @@ const UserManagementTab = () => {
                           </span>
                         )}
                         {user.preferredStation && (
-                          <span className="text-xs text-gray-500">
+                          <span className="text-xs text-cq-ink-3">
                             Prefers Station {user.preferredStation}
                           </span>
                         )}
                         {user.stats && user.stats.totalOrders > 0 && (
                           <>
-                            <span className="text-xs text-gray-500">
+                            <span className="text-xs text-cq-ink-3">
                               {user.stats.totalOrders} orders
                             </span>
-                            <span className="text-xs text-gray-500">
+                            <span className="text-xs text-cq-ink-3">
                               Avg {user.stats.avgPrepTime}min
                             </span>
                             {user.stats.rating > 0 && (
-                              <span className="text-xs text-gray-500 flex items-center gap-1">
-                                <Star size={12} className="text-yellow-500" />
+                              <span className="text-xs text-cq-ink-3 flex items-center gap-1">
+                                <Star size={12} className="text-cq-warn" />
                                 {user.stats.rating}
                               </span>
                             )}
@@ -743,19 +743,19 @@ const UserManagementTab = () => {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setExpandedUser(expandedUser === user.id ? null : user.id)}
-                      className="p-2 hover:bg-gray-100 rounded"
+                      className="p-2 hover:bg-cq-wash rounded"
                     >
                       {expandedUser === user.id ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                     </button>
                     <button
                       onClick={() => startEdit(user)}
-                      className="p-2 hover:bg-gray-100 rounded text-blue-600"
+                      className="p-2 hover:bg-cq-wash rounded text-cq-caramel-deep"
                     >
                       <Edit2 size={18} />
                     </button>
                     <button
                       onClick={() => handleDeleteUser(user.id)}
-                      className="p-2 hover:bg-gray-100 rounded text-red-600"
+                      className="p-2 hover:bg-cq-wash rounded text-cq-alert"
                     >
                       <Trash2 size={18} />
                     </button>
@@ -770,7 +770,7 @@ const UserManagementTab = () => {
                         <h5 className="font-medium mb-2">Skills</h5>
                         <div className="flex flex-wrap gap-2">
                           {Object.entries(user.skills || {}).filter(([_, value]) => value).map(([skill]) => (
-                            <span key={skill} className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+                            <span key={skill} className="text-xs bg-cq-ready-wash text-cq-ready px-2 py-1 rounded">
                               {skill.replace(/_/g, ' ')}
                             </span>
                           ))}
@@ -794,7 +794,7 @@ const UserManagementTab = () => {
                     {user.notes && (
                       <div className="mt-4">
                         <h5 className="font-medium mb-1">Notes</h5>
-                        <p className="text-sm text-gray-600">{user.notes}</p>
+                        <p className="text-sm text-cq-ink-2">{user.notes}</p>
                       </div>
                     )}
                   </div>
@@ -803,8 +803,8 @@ const UserManagementTab = () => {
             ))}
           </div>
         ) : loading ? null : (
-          <div className="p-8 text-center text-gray-500">
-            <User size={48} className="mx-auto mb-2 text-gray-300" />
+          <div className="p-8 text-center text-cq-ink-3">
+            <User size={48} className="mx-auto mb-2 text-cq-line" />
             <p>No users found</p>
           </div>
         )}

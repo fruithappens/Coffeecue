@@ -82,42 +82,42 @@ const ClientCrashesPanel = () => {
   const hasAny = errors.length > 0;
 
   const barClasses = hasRecent
-    ? 'border-red-300 bg-red-50'
+    ? 'border-cq-alert bg-cq-alert-wash'
     : hasAny
-      ? 'border-amber-300 bg-amber-50'
-      : 'border-green-300 bg-green-50';
+      ? 'border-cq-caramel bg-cq-caramel-wash'
+      : 'border-cq-ready bg-cq-ready-wash';
   const Icon = hasRecent ? AlertTriangle : hasAny ? AlertTriangle : CheckCircle;
   const iconClasses = hasRecent
-    ? 'text-red-600'
+    ? 'text-cq-alert'
     : hasAny
-      ? 'text-amber-600'
-      : 'text-green-600';
+      ? 'text-cq-caramel'
+      : 'text-cq-ready';
 
   return (
-    <div className={`mb-4 rounded-lg border ${barClasses} overflow-hidden`}>
+    <div className={`mb-4 rounded-cq-md border ${barClasses} overflow-hidden`}>
       <div className="flex items-center justify-between px-4 py-3 border-b border-current/20">
         <div className="flex items-center gap-2">
           <Icon size={20} className={iconClasses} />
           <h3 className="font-semibold">
             Frontend crashes
             {hasRecent && (
-              <span className="ml-2 text-sm font-normal text-red-700">
+              <span className="ml-2 text-sm font-normal text-cq-alert">
                 — {recent.length} in the last hour
               </span>
             )}
             {!hasRecent && hasAny && (
-              <span className="ml-2 text-sm font-normal text-amber-700">
+              <span className="ml-2 text-sm font-normal text-cq-caramel-deep">
                 — {errors.length} recent (none in last hour)
               </span>
             )}
             {!hasAny && !loading && (
-              <span className="ml-2 text-sm font-normal text-green-700">
+              <span className="ml-2 text-sm font-normal text-cq-ready">
                 — no crashes captured
               </span>
             )}
           </h3>
         </div>
-        <div className="flex items-center gap-3 text-xs text-gray-600">
+        <div className="flex items-center gap-3 text-xs text-cq-ink-2">
           {lastFetched && (
             <span title={lastFetched.toLocaleString()}>
               Updated {formatWhen(lastFetched.toISOString())}
@@ -126,7 +126,7 @@ const ClientCrashesPanel = () => {
           <button
             onClick={handleRefresh}
             disabled={refreshing}
-            className="p-1 rounded hover:bg-white/40 disabled:opacity-50"
+            className="p-1 rounded hover:bg-cq-milk/40 disabled:opacity-50"
             title="Refresh"
           >
             <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
@@ -135,14 +135,14 @@ const ClientCrashesPanel = () => {
       </div>
 
       {loading && (
-        <div className="px-4 py-3 text-sm text-gray-600">Loading…</div>
+        <div className="px-4 py-3 text-sm text-cq-ink-2">Loading…</div>
       )}
 
       {!loading && errors.length === 0 && (
-        <div className="px-4 py-3 text-sm text-green-700">
+        <div className="px-4 py-3 text-sm text-cq-ready">
           No React Error Boundary catches recorded. When a component crashes,
           it'll appear here automatically — phoned home via
-          <code className="mx-1 px-1 bg-white/60 rounded">/api/client-errors</code>.
+          <code className="mx-1 px-1 bg-cq-milk/60 rounded">/api/client-errors</code>.
         </div>
       )}
 
@@ -163,21 +163,21 @@ const ClientCrashesPanel = () => {
                       <span className="font-medium text-sm">
                         {err.component || 'Unknown component'}
                       </span>
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-cq-ink-3">
                         {formatWhen(err.occurred_at)}
                       </span>
                       {err.user_id && (
-                        <span className="text-xs px-1.5 py-0.5 bg-white/60 rounded">
+                        <span className="text-xs px-1.5 py-0.5 bg-cq-milk/60 rounded">
                           {err.user_id}
                         </span>
                       )}
                       {err.retry_count > 0 && (
-                        <span className="text-xs px-1.5 py-0.5 bg-white/60 rounded">
+                        <span className="text-xs px-1.5 py-0.5 bg-cq-milk/60 rounded">
                           {err.retry_count}× retry
                         </span>
                       )}
                     </div>
-                    <div className="text-sm text-gray-700 truncate mt-0.5">
+                    <div className="text-sm text-cq-ink-2 truncate mt-0.5">
                       {err.message || '(no message)'}
                     </div>
                   </div>
@@ -186,7 +186,7 @@ const ClientCrashesPanel = () => {
                   <div className="ml-6 mt-2 text-xs space-y-1">
                     {err.url && (
                       <div className="break-all">
-                        <span className="text-gray-500">URL: </span>
+                        <span className="text-cq-ink-3">URL: </span>
                         <span className="font-mono">{err.url}</span>
                       </div>
                     )}
@@ -194,9 +194,9 @@ const ClientCrashesPanel = () => {
                         to keep payloads small. If we ever want them
                         inline, add a /api/client-errors/<id> detail
                         endpoint — for now we just show the summary. */}
-                    <div className="text-gray-500 italic">
+                    <div className="text-cq-ink-3 italic">
                       Full stack + component stack are in Postgres
-                      (<code className="font-mono bg-white/60 px-1 rounded">client_errors.id={err.id}</code>) — query directly when fixing.
+                      (<code className="font-mono bg-cq-milk/60 px-1 rounded">client_errors.id={err.id}</code>) — query directly when fixing.
                     </div>
                   </div>
                 )}

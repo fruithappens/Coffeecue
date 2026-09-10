@@ -174,22 +174,22 @@ const MilkColorSettings = () => {
               {standardMilks.map(([milkType, color]) => {
                 const milk = inventoryMilks.find(m => m.name === milkType);
                 return (
-                  <div key={milkType} className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50">
+                  <div key={milkType} className="flex items-center space-x-2 p-3 border-2 border-cq-line rounded-cq-md bg-cq-milk hover:bg-cq-wash">
                     <div 
-                      className="w-8 h-8 rounded-full border-2 border-gray-300" 
+                      className="w-8 h-8 rounded-full border-2 border-cq-line" 
                       style={{ backgroundColor: color }}
                     />
                     <div className="flex-1">
                       <div className="font-medium">{milkType}</div>
                       {milk?.description && (
-                        <div className="text-sm text-gray-500">{milk.description}</div>
+                        <div className="text-sm text-cq-ink-3">{milk.description}</div>
                       )}
                     </div>
                     <input
                       type="color"
                       value={color}
                       onChange={(e) => handleColorChange(milkType, e.target.value)}
-                      className="w-12 h-12 rounded cursor-pointer border-2 border-gray-300"
+                      className="w-12 h-12 rounded cursor-pointer border-2 border-cq-line"
                       title={`Change color for ${milkType}`}
                     />
                   </div>
@@ -206,22 +206,22 @@ const MilkColorSettings = () => {
               {alternativeMilks.map(([milkType, color]) => {
                 const milk = inventoryMilks.find(m => m.name === milkType);
                 return (
-                  <div key={milkType} className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50">
+                  <div key={milkType} className="flex items-center space-x-2 p-3 border-2 border-cq-line rounded-cq-md bg-cq-milk hover:bg-cq-wash">
                     <div 
-                      className="w-8 h-8 rounded-full border-2 border-gray-300" 
+                      className="w-8 h-8 rounded-full border-2 border-cq-line" 
                       style={{ backgroundColor: color }}
                     />
                     <div className="flex-1">
                       <div className="font-medium">{milkType}</div>
                       {milk?.description && (
-                        <div className="text-sm text-gray-500">{milk.description}</div>
+                        <div className="text-sm text-cq-ink-3">{milk.description}</div>
                       )}
                     </div>
                     <input
                       type="color"
                       value={color}
                       onChange={(e) => handleColorChange(milkType, e.target.value)}
-                      className="w-12 h-12 rounded cursor-pointer border-2 border-gray-300"
+                      className="w-12 h-12 rounded cursor-pointer border-2 border-cq-line"
                       title={`Change color for ${milkType}`}
                     />
                   </div>
@@ -273,22 +273,22 @@ const MilkColorSettings = () => {
         <h3 className="text-lg font-medium mb-3">Color Preview</h3>
         
         {/* Visual color legend */}
-        <div className="mb-6 p-4 border rounded bg-gray-50">
+        <div className="mb-6 p-4 border-2 border-cq-line rounded-cq-md bg-cq-milk bg-cq-wash">
           <h4 className="font-medium mb-3">Color Legend</h4>
           <div className="flex flex-wrap gap-3">
-            <div className="flex items-center bg-white p-2 border rounded">
+            <div className="flex items-center bg-cq-milk p-2 border-2 border-cq-line rounded-cq-md bg-cq-milk">
               <div className="milk-indicator-dot soy-milk"></div>
               <span className="text-sm">Soy Milk - Yellow</span>
             </div>
-            <div className="flex items-center bg-white p-2 border rounded">
+            <div className="flex items-center bg-cq-milk p-2 border-2 border-cq-line rounded-cq-md bg-cq-milk">
               <div className="milk-indicator-dot oat-milk"></div>
               <span className="text-sm">Oat Milk - Red</span>
             </div>
-            <div className="flex items-center bg-white p-2 border rounded">
+            <div className="flex items-center bg-cq-milk p-2 border-2 border-cq-line rounded-cq-md bg-cq-milk">
               <div className="milk-indicator-dot almond-milk"></div>
               <span className="text-sm">Almond Milk - Blue</span>
             </div>
-            <div className="flex items-center bg-white p-2 border rounded">
+            <div className="flex items-center bg-cq-milk p-2 border-2 border-cq-line rounded-cq-md bg-cq-milk">
               <div className="milk-indicator-dot lactose-free-milk"></div>
               <span className="text-sm">Lactose-Free - Dashed</span>
             </div>
@@ -316,11 +316,11 @@ const MilkColorSettings = () => {
                       <span 
                         key={`${milkType}-${prop}`}
                         className={`text-xs px-1.5 py-0.5 rounded ${
-                          prop === 'Dairy-Free' ? 'bg-green-100 text-green-800' :
-                          prop === 'Vegan' ? 'bg-green-100 text-green-800' :
-                          prop === 'Lactose-Free' ? 'bg-blue-100 text-blue-800' :
-                          prop === 'Low-Fat' ? 'bg-purple-100 text-purple-800' :
-                          'bg-gray-100 text-gray-800'
+                          prop === 'Dairy-Free' ? 'bg-cq-ready-wash text-cq-ready' :
+                          prop === 'Vegan' ? 'bg-cq-ready-wash text-cq-ready' :
+                          prop === 'Lactose-Free' ? 'bg-cq-caramel-wash text-cq-caramel-deep' :
+                          prop === 'Low-Fat' ? 'bg-cq-caramel-wash text-cq-caramel-deep' :
+                          'bg-cq-wash text-cq-roast'
                         }`}
                       >
                         {prop}
@@ -328,7 +328,7 @@ const MilkColorSettings = () => {
                     ))}
                   </div>
                 </div>
-                <div className="mt-2 text-sm text-gray-600">
+                <div className="mt-2 text-sm text-cq-ink-2">
                   Regular, {milkType}, 1 sugar
                 </div>
               </div>
@@ -344,16 +344,16 @@ const MilkColorSettings = () => {
   }
 
   return (
-    <div className="bg-white shadow-md rounded-lg p-6">
+    <div className="bg-cq-milk shadow-cq-card rounded-cq-md p-6">
       <h2 className="text-xl font-bold mb-6">Milk Color Settings</h2>
       
       {/* Message display */}
       {message && (
         <div 
           className={`p-4 mb-4 rounded ${
-            message.type === 'success' ? 'bg-green-100 text-green-800' : 
-            message.type === 'error' ? 'bg-red-100 text-red-800' : 
-            'bg-blue-100 text-blue-800'
+            message.type === 'success' ? 'bg-cq-ready-wash text-cq-ready' : 
+            message.type === 'error' ? 'bg-cq-alert-wash text-cq-alert' : 
+            'bg-cq-caramel-wash text-cq-caramel-deep'
           }`}
         >
           {message.text}
@@ -361,8 +361,8 @@ const MilkColorSettings = () => {
       )}
       
       {/* Info about managing milk types */}
-      <div className="mb-6 p-4 border border-blue-200 rounded-lg bg-blue-50">
-        <p className="text-sm text-blue-800">
+      <div className="mb-6 p-4 border border-cq-line rounded-cq-md bg-cq-caramel-wash">
+        <p className="text-sm text-cq-caramel-deep">
           <strong>Note:</strong> Milk types are managed in the{' '}
           <span className="font-semibold">Menu → Event Inventory</span> section. 
           Colors you set here will be used throughout the system to identify different milk types visually.
@@ -379,14 +379,14 @@ const MilkColorSettings = () => {
       <div className="mt-6 flex justify-end space-x-3">
         <button
           onClick={handleReset}
-          className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-medium py-2 px-4 rounded"
+          className="bg-cq-line hover:bg-cq-ink-3 text-cq-roast font-medium py-2 px-4 rounded"
         >
           Reset to Defaults
         </button>
         <button
           onClick={handleSave}
           disabled={isSaving}
-          className="bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-4 rounded"
+          className="bg-cq-ready hover:bg-cq-ready text-white font-medium py-2 px-4 rounded"
         >
           {isSaving ? 'Saving...' : 'Save Colors'}
         </button>

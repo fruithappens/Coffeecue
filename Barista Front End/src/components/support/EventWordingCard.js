@@ -93,42 +93,42 @@ const EventWordingCard = () => {
   const nonAscii = Array.from(sponsor).some((c) => c.charCodeAt(0) > 127);
 
   return (
-    <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+    <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4 sm:p-6">
       <div className="flex items-center gap-2 mb-1">
-        <Megaphone className="w-5 h-5 text-amber-700" />
+        <Megaphone className="w-5 h-5 text-cq-caramel-deep" />
         <h3 className="text-lg font-semibold">Event wording</h3>
       </div>
-      <p className="text-sm text-gray-600 mb-4">
+      <p className="text-sm text-cq-ink-2 mb-4">
         Lines the SMS messages build in. Leave a field empty and that line
         simply doesn't exist. Changes apply to the next message — no restart.
       </p>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-cq-ink-2 mb-1">
             Sponsor line
-            <span className="text-gray-400 font-normal"> — added to the order confirmation</span>
+            <span className="text-cq-ink-3 font-normal"> — added to the order confirmation</span>
           </label>
           <input
             value={sponsor}
             onChange={(e) => setSponsor(e.target.value)}
             placeholder="e.g. Coffee proudly supported by Green Adelaide"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2"
+            className="w-full border border-cq-line rounded-cq-md px-3 py-2"
             disabled={!loaded}
           />
           <div className="mt-1 text-xs">
             {sponsor.trim() ? (
-              <span className={costsExtra ? 'text-amber-700' : 'text-green-700'}>
+              <span className={costsExtra ? 'text-cq-caramel-deep' : 'text-cq-ready'}>
                 Confirmation: {withSponsor} segment{withSponsor > 1 ? 's' : ''}
                 {costsExtra
                   ? ` — the sponsor line adds a paid segment to every confirmation (~400 attendees)`
                   : ' — fits in the existing segment'}
               </span>
             ) : (
-              <span className="text-gray-400">Empty — no sponsor line, no cost</span>
+              <span className="text-cq-ink-3">Empty — no sponsor line, no cost</span>
             )}
             {nonAscii && (
-              <span className="text-red-600 block">
+              <span className="text-cq-alert block">
                 Non-ASCII character detected — this makes every confirmation
                 cost double. Plain letters only.
               </span>
@@ -137,41 +137,41 @@ const EventWordingCard = () => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-cq-ink-2 mb-1">
             Venue café name
-            <span className="text-gray-400 font-normal"> — for off-menu requests</span>
+            <span className="text-cq-ink-3 font-normal"> — for off-menu requests</span>
           </label>
           <input
             value={cafe}
             onChange={(e) => setCafe(e.target.value)}
             placeholder="e.g. Wined Bar"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2"
+            className="w-full border border-cq-line rounded-cq-md px-3 py-2"
             disabled={!loaded}
           />
-          <div className="mt-1 text-xs text-gray-500">
+          <div className="mt-1 text-xs text-cq-ink-3">
             {cafe.trim()
               ? `"Sorry, we don't have oat milk… Or grab it yourself from the ${cafe.trim()}."`
               : 'Empty — refusals just list what we do have'}
           </div>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-cq-ink-2 mb-1">
             Device admin PIN
-            <span className="text-gray-400 font-normal"> — press-and-hold the display's top-left corner</span>
+            <span className="text-cq-ink-3 font-normal"> — press-and-hold the display's top-left corner</span>
           </label>
           <input
             value={pin}
             onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
             placeholder="1234 until you change it"
             inputMode="numeric"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 font-mono tracking-widest"
+            className="w-full border border-cq-line rounded-cq-md px-3 py-2 font-mono tracking-widest"
             disabled={!loaded}
           />
-          <div className="mt-1 text-xs text-gray-500">
+          <div className="mt-1 text-xs text-cq-ink-3">
             Unlocks the hidden panel on any display: switch it to a barista
             terminal, change station, clear the device, test sound. 4–6 digits.
             {!pin.trim() && (
-              <span className="text-amber-700 block">
+              <span className="text-cq-caramel-deep block">
                 Empty = the default (1234). Set your own before the event.
               </span>
             )}
@@ -183,12 +183,12 @@ const EventWordingCard = () => {
         <button
           onClick={save}
           disabled={saving || !loaded}
-          className="flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg font-semibold"
+          className="flex items-center gap-2 bg-cq-roast hover:bg-cq-caramel-deep text-white px-4 py-2 rounded-cq-md font-semibold"
         >
           <Save size={16} /> {saving ? 'Saving…' : 'Save wording'}
         </button>
         {savedAt && (
-          <span className="text-sm text-green-700">
+          <span className="text-sm text-cq-ready">
             Saved {savedAt.toLocaleTimeString()} — live on the next SMS
           </span>
         )}

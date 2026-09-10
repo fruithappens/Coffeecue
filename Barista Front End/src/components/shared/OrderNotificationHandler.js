@@ -56,7 +56,7 @@ const OrderNotificationHandler = ({ onSendMessage, onUpdateSettings }) => {
   
   // Component for notification settings
   const NotificationSettings = () => (
-    <div className="bg-white p-4 rounded-lg shadow-lg">
+    <div className="bg-cq-milk p-4 rounded-cq-md shadow-cq-card">
       <h3 className="text-lg font-medium mb-3">Notification Settings</h3>
       
       <div className="space-y-4">
@@ -111,7 +111,7 @@ const OrderNotificationHandler = ({ onSendMessage, onUpdateSettings }) => {
       
       <div className="mt-4 flex justify-end">
         <button
-          className="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700"
+          className="px-4 py-2 bg-cq-caramel text-white rounded hover:bg-cq-caramel-deep"
           onClick={() => setShowSettings(false)}
         >
           Save Settings
@@ -124,7 +124,7 @@ const OrderNotificationHandler = ({ onSendMessage, onUpdateSettings }) => {
     // Render the settings toggle button
     renderSettingsButton: () => (
       <button
-        className="p-2 bg-gray-200 rounded-full hover:bg-gray-300 relative"
+        className="p-2 bg-cq-line rounded-full hover:bg-cq-line relative"
         onClick={() => setShowSettings(!showSettings)}
         title="Notification Settings"
       >

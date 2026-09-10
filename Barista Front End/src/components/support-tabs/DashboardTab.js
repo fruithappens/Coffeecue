@@ -180,10 +180,10 @@ const DashboardTab = () => {
   
   const getAlertIcon = (type) => {
     switch (type) {
-      case 'error': return <XCircle className="w-5 h-5 text-red-500" />;
-      case 'warning': return <AlertTriangle className="w-5 h-5 text-yellow-500" />;
-      case 'success': return <CheckCircle className="w-5 h-5 text-green-500" />;
-      default: return <Activity className="w-5 h-5 text-blue-500" />;
+      case 'error': return <XCircle className="w-5 h-5 text-cq-alert" />;
+      case 'warning': return <AlertTriangle className="w-5 h-5 text-cq-warn" />;
+      case 'success': return <CheckCircle className="w-5 h-5 text-cq-ready" />;
+      default: return <Activity className="w-5 h-5 text-cq-caramel-deep" />;
     }
   };
   
@@ -191,19 +191,19 @@ const DashboardTab = () => {
     // Gutter comes from the Support shell's <main className="p-6">.
     <div>
       {/* System Status Bar */}
-      <div className="bg-white rounded-lg shadow-sm p-4 mb-6 flex items-center justify-between">
+      <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4 mb-6 flex items-center justify-between">
         <div className="flex items-center space-x-6">
           <div className="flex items-center">
-            <div className="w-3 h-3 bg-green-500 rounded-full mr-2 animate-pulse"></div>
+            <div className="w-3 h-3 bg-cq-ready rounded-full mr-2 animate-pulse"></div>
             <span className="font-semibold">System Status: Online</span>
           </div>
           {/* Uptime % removed — was hardcoded 99.8 with no real uptime
               tracking behind it. */}
-          <div className="text-sm text-gray-600">
+          <div className="text-sm text-cq-ink-2">
             Last Update: {new Date().toLocaleTimeString()}
           </div>
         </div>
-        <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+        <button className="p-2 hover:bg-cq-wash rounded-cq-md transition-colors">
           <RefreshCw className="w-5 h-5" />
         </button>
       </div>
@@ -215,55 +215,55 @@ const DashboardTab = () => {
         <MetricCard
           title="Active Orders"
           value={metrics.activeOrders}
-          icon={<Coffee className="w-6 h-6 text-orange-600" />}
+          icon={<Coffee className="w-6 h-6 text-cq-caramel-deep" />}
         />
         <MetricCard
           title="Avg Wait Today"
           value={`${metrics.avgWaitTime} min`}
-          icon={<Clock className="w-6 h-6 text-blue-600" />}
+          icon={<Clock className="w-6 h-6 text-cq-caramel-deep" />}
         />
         {/* "Error Rate" tile removed — no error-rate source ever fed it
             (permanent 0%). Completed-today is real and useful. */}
         <MetricCard
           title="Completed Today"
           value={metrics.completedToday || 0}
-          icon={<CheckCircle className="w-6 h-6 text-green-600" />}
+          icon={<CheckCircle className="w-6 h-6 text-cq-ready" />}
         />
         <MetricCard
           title="Today's Revenue"
           value={`$${metrics.revenue.toLocaleString()}`}
-          icon={<DollarSign className="w-6 h-6 text-green-600" />}
+          icon={<DollarSign className="w-6 h-6 text-cq-ready" />}
         />
       </div>
       
       {/* Alerts and Quick Actions */}
       <div className="grid grid-cols-2 gap-6">
         {/* Recent Alerts */}
-        <div className="bg-white rounded-lg shadow-sm p-4">
+        <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4">
           <h3 className="font-semibold text-lg mb-4 flex items-center">
             <AlertTriangle className="w-5 h-5 mr-2" />
             Recent Alerts
           </h3>
           <div className="space-y-3">
             {alerts.length === 0 ? (
-              <p className="text-sm text-gray-500 py-3">No recent alerts — system healthy.</p>
+              <p className="text-sm text-cq-ink-3 py-3">No recent alerts — system healthy.</p>
             ) : alerts.map(alert => (
-              <div key={alert.id} className="flex items-start space-x-3 p-3 hover:bg-gray-50 rounded">
+              <div key={alert.id} className="flex items-start space-x-3 p-3 hover:bg-cq-wash rounded">
                 {getAlertIcon(alert.type)}
                 <div className="flex-1">
                   <p className="text-sm font-medium">{alert.message}</p>
-                  <p className="text-xs text-gray-500">{alert.time}</p>
+                  <p className="text-xs text-cq-ink-3">{alert.time}</p>
                 </div>
               </div>
             ))}
           </div>
-          <button className="mt-4 text-sm text-blue-600 hover:text-blue-800">
+          <button className="mt-4 text-sm text-cq-caramel-deep hover:text-cq-caramel-deep">
             View All Alerts →
           </button>
         </div>
         
         {/* Quick Actions — wired to real backend endpoints. */}
-        <div className="bg-white rounded-lg shadow-sm p-4">
+        <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4">
           <h3 className="font-semibold text-lg mb-4">Quick Actions</h3>
           <div className="grid grid-cols-2 gap-3">
             <QuickActionButton
@@ -293,16 +293,16 @@ const DashboardTab = () => {
           </div>
           {quickStatus && (
             <div className={`mt-3 text-sm p-2 rounded ${
-              quickStatus.state === 'ok' ? 'bg-green-50 text-green-800' :
-              quickStatus.state === 'err' ? 'bg-red-50 text-red-800' :
-              'bg-gray-50 text-gray-700'
+              quickStatus.state === 'ok' ? 'bg-cq-ready-wash text-cq-ready' :
+              quickStatus.state === 'err' ? 'bg-cq-alert-wash text-cq-alert' :
+              'bg-cq-wash text-cq-ink-2'
             }`}>
               <strong>{quickStatus.label}:</strong> {quickStatus.message}
             </div>
           )}
           {broadcastOpen && (
-            <div className="mt-3 p-3 border border-blue-200 bg-blue-50 rounded">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+            <div className="mt-3 p-3 border border-cq-line bg-cq-caramel-wash rounded">
+              <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                 Broadcast message
               </label>
               {/* Audience: today's customers, or everyone with a saved
@@ -311,7 +311,7 @@ const DashboardTab = () => {
               <select
                 value={broadcastAudience}
                 onChange={(e) => setBroadcastAudience(e.target.value)}
-                className="w-full mb-2 p-2 border border-gray-300 rounded text-sm"
+                className="w-full mb-2 p-2 border border-cq-line rounded text-sm"
               >
                 <option value="today">Today's customers (ordered in the last 24h)</option>
                 <option value="preorders">Pre-order list (everyone with a saved usual)</option>
@@ -323,19 +323,19 @@ const DashboardTab = () => {
                 rows="3"
                 maxLength={480}
                 placeholder="e.g. The coffee station is closing in 15 minutes."
-                className="w-full p-2 border border-gray-300 rounded text-sm"
+                className="w-full p-2 border border-cq-line rounded text-sm"
               />
               <div className="flex justify-between items-center mt-2">
-                <span className="text-xs text-gray-500">{broadcastMsg.length}/480 chars</span>
+                <span className="text-xs text-cq-ink-3">{broadcastMsg.length}/480 chars</span>
                 <div className="space-x-2">
                   <button
                     onClick={() => { setBroadcastOpen(false); setBroadcastMsg(''); }}
-                    className="px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 rounded"
+                    className="px-3 py-1 text-sm bg-cq-wash hover:bg-cq-line rounded"
                   >Cancel</button>
                   <button
                     onClick={sendBroadcast}
                     disabled={broadcastSending || !broadcastMsg.trim()}
-                    className="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded disabled:opacity-50"
+                    className="px-3 py-1 text-sm bg-cq-roast hover:bg-cq-caramel-deep text-white rounded disabled:opacity-50"
                   >{broadcastSending ? 'Sending…' : 'Send'}</button>
                 </div>
               </div>
@@ -345,20 +345,20 @@ const DashboardTab = () => {
       </div>
       
       {/* Live Order Flow */}
-      <div className="mt-6 bg-white rounded-lg shadow-sm p-4">
+      <div className="mt-6 bg-cq-milk rounded-cq-lg shadow-cq-card p-4">
         <h3 className="font-semibold text-lg mb-4">Live Order Flow</h3>
         <div className="grid grid-cols-3 gap-4">
           <div className="text-center">
-            <div className="text-3xl font-bold text-orange-600">{pendingOrders?.length || 0}</div>
-            <div className="text-sm text-gray-600">Pending</div>
+            <div className="text-3xl font-bold text-cq-caramel-deep">{pendingOrders?.length || 0}</div>
+            <div className="text-sm text-cq-ink-2">Pending</div>
           </div>
           <div className="text-center">
-            <div className="text-3xl font-bold text-blue-600">{inProgressOrders?.length || 0}</div>
-            <div className="text-sm text-gray-600">In Progress</div>
+            <div className="text-3xl font-bold text-cq-caramel-deep">{inProgressOrders?.length || 0}</div>
+            <div className="text-sm text-cq-ink-2">In Progress</div>
           </div>
           <div className="text-center">
-            <div className="text-3xl font-bold text-green-600">{completedOrders?.length || 0}</div>
-            <div className="text-sm text-gray-600">Completed Today</div>
+            <div className="text-3xl font-bold text-cq-ready">{completedOrders?.length || 0}</div>
+            <div className="text-sm text-cq-ink-2">Completed Today</div>
           </div>
         </div>
       </div>
@@ -367,18 +367,18 @@ const DashboardTab = () => {
 
       
       {/* Station Status */}
-      <div className="mt-6 bg-white rounded-lg shadow-sm p-4">
+      <div className="mt-6 bg-cq-milk rounded-cq-lg shadow-cq-card p-4">
         <h3 className="font-semibold text-lg mb-4">Station Status</h3>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {stations?.map(station => (
-            <div key={station.id} className="border rounded-lg p-3">
+            <div key={station.id} className="border-2 border-cq-line rounded-cq-md bg-cq-milk p-3">
               <div className="flex items-center justify-between mb-2">
                 <span className="font-medium">Station {station.id}</span>
                 <div className={`w-2 h-2 rounded-full ${
-                  station.status === 'active' ? 'bg-green-500' : 'bg-red-500'
+                  station.status === 'active' ? 'bg-cq-ready' : 'bg-cq-alert'
                 }`}></div>
               </div>
-              <div className="text-sm text-gray-600">
+              <div className="text-sm text-cq-ink-2">
                 <div>Queue: {station.queueLength || 0}</div>
                 <div>Wait: {station.waitTime || 10} min</div>
               </div>
@@ -391,35 +391,35 @@ const DashboardTab = () => {
 };
 
 const MetricCard = ({ title, value, icon, trend, trendUp }) => (
-  <div className="bg-white rounded-lg shadow-sm p-4">
+  <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4">
     <div className="flex items-center justify-between mb-2">
       {icon}
       {/* Only render a trend when one is actually supplied. Hardcoded
           fake trends ("+12%", "+8%") were removed — there's no
           prev-period comparison yet, so showing one was invented. */}
       {trend ? (
-        <span className={`text-sm ${trendUp ? 'text-green-600' : 'text-red-600'}`}>
+        <span className={`text-sm ${trendUp ? 'text-cq-ready' : 'text-cq-alert'}`}>
           {trend}
         </span>
       ) : null}
     </div>
     <div className="text-2xl font-bold">{value}</div>
-    <div className="text-sm text-gray-600">{title}</div>
+    <div className="text-sm text-cq-ink-2">{title}</div>
   </div>
 );
 
 const QuickActionButton = ({ label, icon, color, onClick }) => {
   const colorClasses = {
-    red: 'bg-red-100 hover:bg-red-200 text-red-700',
-    blue: 'bg-blue-100 hover:bg-blue-200 text-blue-700',
-    yellow: 'bg-yellow-100 hover:bg-yellow-200 text-yellow-700',
-    green: 'bg-green-100 hover:bg-green-200 text-green-700'
+    red: 'bg-cq-alert-wash hover:bg-cq-alert-wash text-cq-alert',
+    blue: 'bg-cq-caramel-wash hover:bg-cq-caramel-wash text-cq-caramel-deep',
+    yellow: 'bg-cq-warn-wash hover:bg-cq-warn-wash text-cq-warn',
+    green: 'bg-cq-ready-wash hover:bg-cq-ready-wash text-cq-ready'
   };
   
   return (
     <button
       onClick={onClick}
-      className={`p-3 rounded-lg transition-colors ${colorClasses[color]} flex flex-col items-center space-y-2`}
+      className={`p-3 rounded-cq-md transition-colors ${colorClasses[color]} flex flex-col items-center space-y-2`}
     >
       {icon}
       <span className="text-xs font-medium">{label}</span>
@@ -525,18 +525,18 @@ const TodayReport = () => {
 
   if (loading && !data) {
     return (
-      <div className="mt-6 bg-white rounded-lg shadow-sm p-4">
+      <div className="mt-6 bg-cq-milk rounded-cq-lg shadow-cq-card p-4">
         <h3 className="font-semibold text-lg mb-4">Today's Report</h3>
-        <p className="text-sm text-gray-500">Loading…</p>
+        <p className="text-sm text-cq-ink-3">Loading…</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="mt-6 bg-white rounded-lg shadow-sm p-4">
+      <div className="mt-6 bg-cq-milk rounded-cq-lg shadow-cq-card p-4">
         <h3 className="font-semibold text-lg mb-4">Today's Report</h3>
-        <p className="text-sm text-red-600">{error}</p>
+        <p className="text-sm text-cq-alert">{error}</p>
       </div>
     );
   }
@@ -547,20 +547,20 @@ const TodayReport = () => {
   const fmtMin = (n) => (n == null ? '—' : `${n.toFixed(1)} min`);
 
   return (
-    <div className="mt-6 bg-white rounded-lg shadow-sm p-4">
+    <div className="mt-6 bg-cq-milk rounded-cq-lg shadow-cq-card p-4">
       <div className="flex justify-between items-center mb-4">
         <h3 className="font-semibold text-lg">Today's Report</h3>
         <div className="flex items-center gap-3">
           <button
             onClick={handlePrint}
-            className="text-xs text-amber-700 hover:text-amber-900 underline"
+            className="text-xs text-cq-caramel-deep hover:text-cq-caramel-deep underline"
             title="Open a printable summary in a new tab — Cmd+P → Save as PDF"
           >
             Print / save as PDF
           </button>
           <button
             onClick={handlePostEvent}
-            className="text-xs text-amber-700 hover:text-amber-900 underline"
+            className="text-xs text-cq-caramel-deep hover:text-cq-caramel-deep underline"
             title="Post-event summary with share-with-client framing (peak hour, busiest station, repeat-business CTA)"
           >
             Post-event summary
@@ -568,17 +568,17 @@ const TodayReport = () => {
           <button
             onClick={handleEmail}
             disabled={emailing}
-            className="text-xs text-amber-700 hover:text-amber-900 underline disabled:opacity-50"
+            className="text-xs text-cq-caramel-deep hover:text-cq-caramel-deep underline disabled:opacity-50"
             title="Email the post-event summary straight to the client (requires SMTP configured on the server)"
           >
             {emailing ? 'Emailing…' : 'Email to client'}
           </button>
-          <span className="text-xs text-gray-400">{data?.date}</span>
+          <span className="text-xs text-cq-ink-3">{data?.date}</span>
         </div>
       </div>
       {emailStatus && (
         <div className={`mb-3 text-xs px-3 py-2 rounded ${
-          emailStatus.ok ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-800'
+          emailStatus.ok ? 'bg-cq-ready-wash text-cq-ready' : 'bg-cq-caramel-wash text-cq-caramel-deep'
         }`}>
           {emailStatus.msg}
         </div>
@@ -586,34 +586,34 @@ const TodayReport = () => {
 
       {/* Headline numbers */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-        <div className="text-center p-3 border rounded">
+        <div className="text-center p-3 border-2 border-cq-line rounded-cq-md bg-cq-milk">
           <div className="text-2xl font-bold">{total}</div>
-          <div className="text-xs text-gray-500 uppercase">Total orders</div>
+          <div className="text-xs text-cq-ink-3 uppercase">Total orders</div>
         </div>
-        <div className="text-center p-3 border rounded">
+        <div className="text-center p-3 border-2 border-cq-line rounded-cq-md bg-cq-milk">
           <div className="text-2xl font-bold">{fmtMin(data?.avg_wait_min)}</div>
-          <div className="text-xs text-gray-500 uppercase">Avg wait</div>
+          <div className="text-xs text-cq-ink-3 uppercase">Avg wait</div>
         </div>
-        <div className="text-center p-3 border rounded">
+        <div className="text-center p-3 border-2 border-cq-line rounded-cq-md bg-cq-milk">
           <div className="text-2xl font-bold">{fmtRev(data?.revenue_total)}</div>
-          <div className="text-xs text-gray-500 uppercase">Revenue (stamped)</div>
+          <div className="text-xs text-cq-ink-3 uppercase">Revenue (stamped)</div>
         </div>
-        <div className="text-center p-3 border rounded">
+        <div className="text-center p-3 border-2 border-cq-line rounded-cq-md bg-cq-milk">
           <div className="text-2xl font-bold">
             {data?.status_breakdown?.completed ?? 0}
           </div>
-          <div className="text-xs text-gray-500 uppercase">Completed</div>
+          <div className="text-xs text-cq-ink-3 uppercase">Completed</div>
         </div>
       </div>
 
       {/* Per-station + top drinks side by side */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <h4 className="text-sm font-semibold text-gray-700 mb-2">Per station</h4>
+          <h4 className="text-sm font-semibold text-cq-ink-2 mb-2">Per station</h4>
           {data?.per_station?.length ? (
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b text-gray-500">
+                <tr className="border-b text-cq-ink-3">
                   <th className="text-left py-1">Station</th>
                   <th className="text-right py-1">Orders</th>
                   <th className="text-right py-1">Avg wait</th>
@@ -631,33 +631,33 @@ const TodayReport = () => {
                 ))}
               </tbody>
             </table>
-          ) : <p className="text-sm text-gray-500">No data yet.</p>}
+          ) : <p className="text-sm text-cq-ink-3">No data yet.</p>}
         </div>
         <div>
-          <h4 className="text-sm font-semibold text-gray-700 mb-2">Top drinks</h4>
+          <h4 className="text-sm font-semibold text-cq-ink-2 mb-2">Top drinks</h4>
           {data?.top_drinks?.length ? (
             <ol className="text-sm space-y-1">
               {data.top_drinks.map((d, i) => (
                 <li key={d.drink} className="flex justify-between border-b last:border-b-0 py-1">
                   <span>{i + 1}. {d.drink}</span>
-                  <span className="text-gray-500">{d.orders}</span>
+                  <span className="text-cq-ink-3">{d.orders}</span>
                 </li>
               ))}
             </ol>
-          ) : <p className="text-sm text-gray-500">No data yet.</p>}
+          ) : <p className="text-sm text-cq-ink-3">No data yet.</p>}
         </div>
       </div>
 
       {/* Issues & improvements — auto-detected from the day's data. This is
           the "review and improve" part of the post-event log. */}
       <div className="mt-5">
-        <h4 className="text-sm font-semibold text-gray-700 mb-2">Issues &amp; improvements</h4>
+        <h4 className="text-sm font-semibold text-cq-ink-2 mb-2">Issues &amp; improvements</h4>
         {data?.issues?.length ? (
           <ul className="space-y-2">
             {data.issues.map(it => {
-              const tone = it.severity === 'danger' ? 'bg-red-50 border-red-200 text-red-800'
-                : it.severity === 'warning' ? 'bg-amber-50 border-amber-200 text-amber-800'
-                : 'bg-blue-50 border-blue-200 text-blue-800';
+              const tone = it.severity === 'danger' ? 'bg-cq-alert-wash border-cq-alert text-cq-alert'
+                : it.severity === 'warning' ? 'bg-cq-caramel-wash border-cq-caramel text-cq-caramel-deep'
+                : 'bg-cq-caramel-wash border-cq-line text-cq-caramel-deep';
               return (
                 <li key={it.key} className={`border rounded px-3 py-2 text-sm ${tone}`}>
                   <div className="font-medium">{it.title}</div>
@@ -667,53 +667,53 @@ const TodayReport = () => {
             })}
           </ul>
         ) : (
-          <p className="text-sm text-green-700">No issues detected — clean run.</p>
+          <p className="text-sm text-cq-ready">No issues detected — clean run.</p>
         )}
       </div>
 
       {/* SMS side — customer comms for the event */}
       <div className="mt-5">
-        <h4 className="text-sm font-semibold text-gray-700 mb-2">SMS</h4>
+        <h4 className="text-sm font-semibold text-cq-ink-2 mb-2">SMS</h4>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="text-center p-2 border rounded">
+          <div className="text-center p-2 border-2 border-cq-line rounded-cq-md bg-cq-milk">
             <div className="text-xl font-bold">{data?.sms?.outbound ?? 0}</div>
-            <div className="text-xs text-gray-500 uppercase">Texts sent</div>
+            <div className="text-xs text-cq-ink-3 uppercase">Texts sent</div>
           </div>
-          <div className="text-center p-2 border rounded">
+          <div className="text-center p-2 border-2 border-cq-line rounded-cq-md bg-cq-milk">
             <div className="text-xl font-bold">{data?.sms?.inbound ?? 0}</div>
-            <div className="text-xs text-gray-500 uppercase">Customer texts</div>
+            <div className="text-xs text-cq-ink-3 uppercase">Customer texts</div>
           </div>
-          <div className="text-center p-2 border rounded">
+          <div className="text-center p-2 border-2 border-cq-line rounded-cq-md bg-cq-milk">
             <div className="text-xl font-bold">{data?.sms?.inbound_unanswered ?? 0}</div>
-            <div className="text-xs text-gray-500 uppercase">Unanswered</div>
+            <div className="text-xs text-cq-ink-3 uppercase">Unanswered</div>
           </div>
-          <div className="text-center p-2 border rounded">
+          <div className="text-center p-2 border-2 border-cq-line rounded-cq-md bg-cq-milk">
             <div className="text-xl font-bold">{data?.sms?.est_segments ?? 0}</div>
-            <div className="text-xs text-gray-500 uppercase">Est. segments</div>
+            <div className="text-xs text-cq-ink-3 uppercase">Est. segments</div>
           </div>
         </div>
       </div>
 
       {/* App errors reported by devices during the event */}
       <div className="mt-5">
-        <h4 className="text-sm font-semibold text-gray-700 mb-2">
+        <h4 className="text-sm font-semibold text-cq-ink-2 mb-2">
           App errors{data?.errors?.count ? ` (${data.errors.count})` : ''}
         </h4>
         {data?.errors?.count ? (
           <ul className="text-sm space-y-1">
             {(data.errors.recent || []).map((e, i) => (
               <li key={i} className="flex justify-between border-b last:border-b-0 py-1">
-                <span className="truncate pr-2 text-red-700">{e.message}</span>
-                <span className="text-gray-500 flex-shrink-0">{e.count}×</span>
+                <span className="truncate pr-2 text-cq-alert">{e.message}</span>
+                <span className="text-cq-ink-3 flex-shrink-0">{e.count}×</span>
               </li>
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-green-700">None logged.</p>
+          <p className="text-sm text-cq-ready">None logged.</p>
         )}
       </div>
 
-      <p className="text-xs text-gray-400 mt-3">
+      <p className="text-xs text-cq-ink-3 mt-3">
         Refreshes every 30s and on order updates. Revenue counts only orders
         with a price stamped at confirmation (pricing must be enabled).
       </p>

@@ -144,10 +144,10 @@ const GroupOrdersTab = ({ onSubmitGroupOrders }) => {
   return (
     <div className="p-4">
       <div className="flex justify-between mb-4">
-        <h2 className="text-2xl font-bold text-gray-800">Group Orders</h2>
+        <h2 className="text-2xl font-bold text-cq-roast">Group Orders</h2>
         <div>
           <button 
-            className={`px-4 py-2 rounded-md ${showSavedGroups ? 'bg-amber-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+            className={`px-4 py-2 rounded-md ${showSavedGroups ? 'bg-cq-roast text-white' : 'bg-cq-wash text-cq-ink-2'}`}
             onClick={() => setShowSavedGroups(!showSavedGroups)}
           >
             {showSavedGroups ? 'Create New Group' : 'View Saved Groups'}
@@ -156,23 +156,23 @@ const GroupOrdersTab = ({ onSubmitGroupOrders }) => {
       </div>
       
       {!showSavedGroups ? (
-        <div className="bg-white rounded-lg shadow-md p-4">
+        <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                 Group Name*
               </label>
               <input 
                 type="text" 
                 value={groupName}
                 onChange={(e) => setGroupName(e.target.value)}
-                className="w-full p-2 border rounded"
+                className="w-full p-2 border-2 border-cq-line rounded-cq-md bg-cq-milk"
                 placeholder="e.g. Marketing Team, Room 101"
                 required
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                 Group Code (auto-generated)
               </label>
               <div className="flex">
@@ -180,32 +180,32 @@ const GroupOrdersTab = ({ onSubmitGroupOrders }) => {
                   type="text" 
                   value={groupCode}
                   onChange={(e) => setGroupCode(e.target.value)}
-                  className="w-full p-2 border rounded-l"
+                  className="w-full p-2 border-2 border-cq-line rounded-cq-md bg-cq-milk"
                   placeholder="Code will be generated"
                   readOnly
                 />
                 <button 
-                  className="bg-gray-200 px-3 rounded-r border-y border-r"
+                  className="bg-cq-wash px-3 rounded-r border-y border-r"
                   onClick={() => copyGroupCode(groupCode)}
                   title="Copy code"
                 >
-                  {codeCopied === groupCode ? <Check size={18} className="text-green-600" /> : <Copy size={18} />}
+                  {codeCopied === groupCode ? <Check size={18} className="text-cq-ready" /> : <Copy size={18} />}
                 </button>
               </div>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-cq-ink-3 mt-1">
                 This code can be used by members to reference the group order.
               </p>
             </div>
           </div>
           
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-cq-ink-2 mb-1">
               Group Notes (optional)
             </label>
             <textarea 
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="w-full p-2 border rounded"
+              className="w-full p-2 border-2 border-cq-line rounded-cq-md bg-cq-milk"
               rows="2"
               placeholder="e.g. Break time at 10:30am, Priority group, etc."
             ></textarea>
@@ -215,28 +215,28 @@ const GroupOrdersTab = ({ onSubmitGroupOrders }) => {
           
           <h3 className="text-lg font-semibold mb-3">Individual Orders</h3>
           
-          <div className="bg-gray-50 p-3 rounded-lg mb-4">
+          <div className="bg-cq-wash p-3 rounded-cq-md mb-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                   Name*
                 </label>
                 <input 
                   type="text" 
                   value={newOrder.name}
                   onChange={(e) => setNewOrder({...newOrder, name: e.target.value})}
-                  className="w-full p-2 border rounded"
+                  className="w-full p-2 border-2 border-cq-line rounded-cq-md bg-cq-milk"
                   placeholder="Person's name"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                   Size
                 </label>
                 <select 
                   value={newOrder.size}
                   onChange={(e) => setNewOrder({...newOrder, size: e.target.value})}
-                  className="w-full p-2 border rounded"
+                  className="w-full p-2 border-2 border-cq-line rounded-cq-md bg-cq-milk"
                 >
                   <option value="Small">Small</option>
                   <option value="Regular">Regular</option>
@@ -247,13 +247,13 @@ const GroupOrdersTab = ({ onSubmitGroupOrders }) => {
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                   Coffee Type*
                 </label>
                 <select 
                   value={newOrder.coffeeType}
                   onChange={(e) => setNewOrder({...newOrder, coffeeType: e.target.value})}
-                  className="w-full p-2 border rounded"
+                  className="w-full p-2 border-2 border-cq-line rounded-cq-md bg-cq-milk"
                 >
                   <option value="Espresso">Espresso</option>
                   <option value="Long Black">Long Black</option>
@@ -267,13 +267,13 @@ const GroupOrdersTab = ({ onSubmitGroupOrders }) => {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                   Milk Type
                 </label>
                 <select 
                   value={newOrder.milkType}
                   onChange={(e) => setNewOrder({...newOrder, milkType: e.target.value})}
-                  className="w-full p-2 border rounded"
+                  className="w-full p-2 border-2 border-cq-line rounded-cq-md bg-cq-milk"
                 >
                   <optgroup label="Standard Milks">
                     {milkOptions
@@ -305,13 +305,13 @@ const GroupOrdersTab = ({ onSubmitGroupOrders }) => {
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                   Sugar
                 </label>
                 <select 
                   value={newOrder.sugar}
                   onChange={(e) => setNewOrder({...newOrder, sugar: e.target.value})}
-                  className="w-full p-2 border rounded"
+                  className="w-full p-2 border-2 border-cq-line rounded-cq-md bg-cq-milk"
                 >
                   <option value="No sugar">No sugar</option>
                   <option value="1 sugar">1 sugar</option>
@@ -320,14 +320,14 @@ const GroupOrdersTab = ({ onSubmitGroupOrders }) => {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-cq-ink-2 mb-1">
                   Additional Notes
                 </label>
                 <input 
                   type="text" 
                   value={newOrder.notes}
                   onChange={(e) => setNewOrder({...newOrder, notes: e.target.value})}
-                  className="w-full p-2 border rounded"
+                  className="w-full p-2 border-2 border-cq-line rounded-cq-md bg-cq-milk"
                   placeholder="e.g. extra hot, decaf, etc."
                 />
               </div>
@@ -335,20 +335,20 @@ const GroupOrdersTab = ({ onSubmitGroupOrders }) => {
             
             <div className="flex items-center mb-2">
               <input 
-                type="checkbox" 
+                type="checkbox" className="w-[18px] h-[18px] rounded-cq-sm border-2 border-cq-line accent-cq-caramel cursor-pointer" 
                 id="extraHot"
                 checked={newOrder.extraHot}
                 onChange={(e) => setNewOrder({...newOrder, extraHot: e.target.checked})}
-                className="mr-2"
+                className="mr-2 w-[18px] h-[18px] rounded-cq-sm border-2 border-cq-line accent-cq-caramel cursor-pointer"
               />
-              <label htmlFor="extraHot" className="text-sm text-gray-700">Extra hot</label>
+              <label htmlFor="extraHot" className="text-sm text-cq-ink-2">Extra hot</label>
             </div>
             
             <button 
-              className="w-full p-2 flex items-center justify-center bg-green-600 text-white rounded-md hover:bg-green-700"
+              className="w-full p-2 flex items-center justify-center bg-cq-ready text-white rounded-md hover:opacity-90"
               onClick={handleAddIndividualOrder}
             >
-              <PlusCircle size={18} className="mr-2" />
+              <PlusCircle size={18} className="mr-2 w-[18px] h-[18px] rounded-cq-sm border-2 border-cq-line accent-cq-caramel cursor-pointer" />
               Add Coffee Order
             </button>
           </div>
@@ -356,14 +356,14 @@ const GroupOrdersTab = ({ onSubmitGroupOrders }) => {
           {individualOrders.length > 0 && (
             <>
               <h3 className="text-md font-medium mb-2">Orders in this group: {individualOrders.length}</h3>
-              <div className="bg-gray-50 rounded-lg p-3 mb-4 max-h-60 overflow-y-auto">
+              <div className="bg-cq-wash rounded-cq-md p-3 mb-4 max-h-60 overflow-y-auto">
                 {individualOrders.map((order, index) => (
                   <div key={order.id} className="flex items-center justify-between p-2 border-b last:border-b-0">
                     <div className="flex items-center">
-                      <Coffee size={16} className="mr-2 text-amber-600" />
+                      <Coffee size={16} className="mr-2 text-cq-caramel" />
                       <div>
                         <span className="font-medium">{order.name}</span>
-                        <span className="text-sm text-gray-600 ml-2">
+                        <span className="text-sm text-cq-ink-2 ml-2">
                           {order.size} {order.coffeeType}, 
                           {milkOptions.find(m => m.id === order.milkType)?.name || order.milkType}, 
                           {order.sugar}
@@ -374,7 +374,7 @@ const GroupOrdersTab = ({ onSubmitGroupOrders }) => {
                     </div>
                     <button
                       onClick={() => handleRemoveOrder(order.id)}
-                      className="text-red-500 hover:text-red-700"
+                      className="text-cq-alert hover:text-cq-alert"
                     >
                       <Trash2 size={16} />
                     </button>
@@ -383,39 +383,39 @@ const GroupOrdersTab = ({ onSubmitGroupOrders }) => {
               </div>
               
               <button 
-                className="w-full p-3 mt-4 bg-amber-600 text-white rounded-md hover:bg-amber-700 flex items-center justify-center"
+                className="w-full p-3 mt-4 bg-cq-roast text-white rounded-md hover:bg-cq-caramel-deep flex items-center justify-center"
                 onClick={handleCreateGroup}
               >
-                <FileText size={18} className="mr-2" />
+                <FileText size={18} className="mr-2 w-[18px] h-[18px] rounded-cq-sm border-2 border-cq-line accent-cq-caramel cursor-pointer" />
                 Save Group Order ({individualOrders.length} coffees)
               </button>
             </>
           )}
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow-md p-4">
+        <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4">
           <h3 className="text-xl font-semibold mb-4">Saved Group Orders</h3>
           
           {savedGroups.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">No saved group orders yet.</p>
+            <p className="text-cq-ink-3 text-center py-8">No saved group orders yet.</p>
           ) : (
             <div className="grid grid-cols-1 gap-4">
               {savedGroups.map(group => (
-                <div key={group.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+                <div key={group.id} className="border-2 border-cq-line rounded-cq-md bg-cq-milk p-4 hover:shadow-cq-card transition-shadow">
                   <div className="flex justify-between items-start mb-2">
                     <div>
                       <h4 className="text-lg font-medium">{group.groupName}</h4>
                       <div className="flex items-center space-x-2 mt-1">
-                        <span className="text-sm bg-gray-100 px-2 py-1 rounded">
+                        <span className="text-sm bg-cq-wash px-2 py-1 rounded">
                           Code: {group.groupCode}
                         </span>
                         <button 
                           onClick={() => copyGroupCode(group.groupCode)}
-                          className="text-gray-500 hover:text-gray-700"
+                          className="text-cq-ink-3 hover:text-cq-ink-2"
                           title="Copy code"
                         >
                           {codeCopied === group.groupCode ? 
-                            <Check size={16} className="text-green-600" /> : 
+                            <Check size={16} className="text-cq-ready" /> : 
                             <Copy size={16} />
                           }
                         </button>
@@ -423,14 +423,14 @@ const GroupOrdersTab = ({ onSubmitGroupOrders }) => {
                     </div>
                     <div className="flex space-x-2">
                       <button 
-                        className="px-3 py-1 bg-amber-600 text-white rounded-md hover:bg-amber-700 text-sm flex items-center"
+                        className="px-3 py-1 bg-cq-roast text-white rounded-md hover:bg-cq-caramel-deep text-sm flex items-center"
                         onClick={() => handleSubmitGroupToBarista(group)}
                       >
                         <Coffee size={14} className="mr-1" />
                         Send to Barista
                       </button>
                       <button 
-                        className="px-3 py-1 bg-red-100 text-red-600 rounded-md hover:bg-red-200 text-sm"
+                        className="px-3 py-1 bg-cq-alert-wash text-cq-alert rounded-md hover:bg-cq-alert-wash text-sm"
                         onClick={() => handleDeleteGroup(group.id)}
                       >
                         <Trash2 size={14} />
@@ -438,12 +438,12 @@ const GroupOrdersTab = ({ onSubmitGroupOrders }) => {
                     </div>
                   </div>
                   
-                  <div className="text-sm text-gray-600 mb-2">
+                  <div className="text-sm text-cq-ink-2 mb-2">
                     Created: {new Date(group.createdAt).toLocaleString()}
                   </div>
                   
                   {group.notes && (
-                    <div className="text-sm bg-yellow-50 p-2 rounded mb-2">
+                    <div className="text-sm bg-cq-warn-wash p-2 rounded mb-2">
                       Notes: {group.notes}
                     </div>
                   )}
@@ -456,7 +456,7 @@ const GroupOrdersTab = ({ onSubmitGroupOrders }) => {
                       {group.orders.map((order, idx) => (
                         <div key={idx} className="text-sm p-1 border-b last:border-b-0">
                           <span className="font-medium">{order.name}</span>:&nbsp;
-                          <span className="text-gray-600">
+                          <span className="text-cq-ink-2">
                             {order.size} {order.coffeeType}, 
                             {milkOptions.find(m => m.id === order.milkType)?.name || order.milkType}, 
                             {order.sugar}

@@ -93,7 +93,7 @@ const Tooltip = ({ children, content, position = 'top', width = 'auto', delay = 
       {isVisible && (
         <div
           ref={tooltipRef}
-          className={`fixed z-50 bg-gray-800 text-white rounded shadow-lg
+          className={`fixed z-50 bg-cq-roast text-white rounded shadow-cq-card
                      after:absolute after:content-[''] after:border-8 after:border-transparent
                      ${getArrowClass()} transition-opacity duration-200 ${isVisible ? 'opacity-100' : 'opacity-0'}`}
           style={{

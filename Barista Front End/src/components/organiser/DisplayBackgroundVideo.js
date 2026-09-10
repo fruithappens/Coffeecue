@@ -70,10 +70,10 @@ export default function DisplayBackgroundVideo() {
 
   return (
     <div className="md:col-span-2 border-t pt-4 mt-2">
-      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1 flex items-center gap-1.5">
+      <p className="text-xs font-semibold text-cq-ink-3 uppercase tracking-wide mb-1 flex items-center gap-1.5">
         <Film size={14} /> Display background video (optional)
       </p>
-      <p className="text-xs text-gray-500 mb-3">
+      <p className="text-xs text-cq-ink-3 mb-3">
         A gentle looping animation behind the board — most eye-catching when there
         are no orders. Plays muted &amp; looped; the display picks portrait or
         landscape by its own orientation. <strong>Keep uploads short &amp; compressed (≤9MB)</strong> —
@@ -81,16 +81,16 @@ export default function DisplayBackgroundVideo() {
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {FIELDS.map(({ k, label, box }) => (
-          <div key={k} className="border border-gray-200 rounded-lg p-3">
-            <p className="text-xs font-medium text-gray-600 mb-2">{label}</p>
+          <div key={k} className="border border-cq-line rounded-cq-md p-3">
+            <p className="text-xs font-medium text-cq-ink-2 mb-2">{label}</p>
             <div className="flex items-start gap-3">
               {vid[k] ? (
-                <video src={vid[k]} className={`${box} object-cover border border-gray-200 rounded bg-black`} muted loop autoPlay playsInline />
+                <video src={vid[k]} className={`${box} object-cover border border-cq-line rounded bg-black`} muted loop autoPlay playsInline />
               ) : (
-                <div className={`${box} flex items-center justify-center border border-dashed border-gray-300 rounded text-xs text-gray-400 text-center`}>No video</div>
+                <div className={`${box} flex items-center justify-center border border-dashed border-cq-line rounded text-xs text-cq-ink-3 text-center`}>No video</div>
               )}
               <div className="flex flex-col gap-2 flex-1 min-w-0">
-                <label className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center cursor-pointer text-sm w-fit">
+                <label className="px-3 py-2 bg-cq-wash text-cq-ink-2 rounded-cq-md hover:bg-cq-wash flex items-center cursor-pointer text-sm w-fit">
                   <Upload className="mr-2" size={16} /> {vid[k] ? 'Replace' : 'Upload'}
                   <input type="file" accept="video/*" onChange={onUpload(k)} className="hidden" />
                 </label>
@@ -98,23 +98,23 @@ export default function DisplayBackgroundVideo() {
                   value={/^data:/.test(vid[k]) ? '' : (vid[k] || '')}
                   onChange={(e) => setVid((v) => ({ ...v, [k]: e.target.value }))}
                   placeholder="…or paste a video URL (mp4/webm)"
-                  className="border border-gray-200 rounded px-2 py-1.5 text-sm w-full"
+                  className="border border-cq-line rounded px-2 py-1.5 text-sm w-full"
                 />
                 {vid[k] && (
-                  <button type="button" onClick={() => setVid((v) => ({ ...v, [k]: '' }))} className="text-xs text-red-600 hover:underline w-fit">Remove</button>
+                  <button type="button" onClick={() => setVid((v) => ({ ...v, [k]: '' }))} className="text-xs text-cq-alert hover:underline w-fit">Remove</button>
                 )}
               </div>
             </div>
           </div>
         ))}
       </div>
-      {err && <p className="text-sm text-red-600 mt-2">{err}</p>}
+      {err && <p className="text-sm text-cq-alert mt-2">{err}</p>}
       <div className="mt-3 flex items-center gap-3">
         <button onClick={save} disabled={saving || !loaded}
-          className="inline-flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg font-semibold text-sm disabled:opacity-50">
+          className="inline-flex items-center gap-2 bg-cq-roast hover:bg-cq-caramel-deep text-white px-4 py-2 rounded-cq-md font-semibold text-sm disabled:opacity-50">
           <Save size={15} /> {saving ? 'Saving…' : 'Save background video'}
         </button>
-        {savedAt && <span className="text-sm text-green-700">Saved — reload the display to see it.</span>}
+        {savedAt && <span className="text-sm text-cq-ready">Saved — reload the display to see it.</span>}
       </div>
     </div>
   );

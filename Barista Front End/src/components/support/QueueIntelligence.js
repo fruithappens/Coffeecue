@@ -272,34 +272,34 @@ const QueueIntelligence = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'available': return 'bg-green-100 text-green-800';
-      case 'active': return 'bg-blue-100 text-blue-800';
-      case 'busy': return 'bg-yellow-100 text-yellow-800';
-      case 'overloaded': return 'bg-red-100 text-red-800';
-      case 'offline': return 'bg-gray-200 text-gray-600';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'available': return 'bg-cq-ready-wash text-cq-ready';
+      case 'active': return 'bg-cq-caramel-wash text-cq-caramel-deep';
+      case 'busy': return 'bg-cq-warn-wash text-cq-warn';
+      case 'overloaded': return 'bg-cq-alert-wash text-cq-alert';
+      case 'offline': return 'bg-cq-line text-cq-ink-2';
+      default: return 'bg-cq-wash text-cq-roast';
     }
   };
 
   const getStatusIcon = (status) => {
     switch (status) {
-      case 'available': return <CheckCircle size={16} className="text-green-600" />;
-      case 'active': return <Clock size={16} className="text-blue-600" />;
-      case 'busy': return <Users size={16} className="text-yellow-600" />;
-      case 'overloaded': return <AlertTriangle size={16} className="text-red-600" />;
-      case 'offline': return <AlertTriangle size={16} className="text-gray-500" />;
-      default: return <Clock size={16} className="text-gray-600" />;
+      case 'available': return <CheckCircle size={16} className="text-cq-ready" />;
+      case 'active': return <Clock size={16} className="text-cq-caramel-deep" />;
+      case 'busy': return <Users size={16} className="text-cq-warn" />;
+      case 'overloaded': return <AlertTriangle size={16} className="text-cq-alert" />;
+      case 'offline': return <AlertTriangle size={16} className="text-cq-ink-3" />;
+      default: return <Clock size={16} className="text-cq-ink-2" />;
     }
   };
 
   if (stationsLoading) {
     return (
-      <div className="p-6 bg-white rounded-lg shadow-sm">
+      <div className="p-6 bg-cq-milk rounded-cq-md shadow-sm">
         <div className="animate-pulse space-y-4">
-          <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+          <div className="h-4 bg-cq-line rounded w-1/4"></div>
           <div className="space-y-2">
-            <div className="h-3 bg-gray-200 rounded"></div>
-            <div className="h-3 bg-gray-200 rounded w-5/6"></div>
+            <div className="h-3 bg-cq-line rounded"></div>
+            <div className="h-3 bg-cq-line rounded w-5/6"></div>
           </div>
         </div>
       </div>
@@ -309,51 +309,52 @@ const QueueIntelligence = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-purple-600 to-blue-600 text-white p-6 rounded-lg">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold flex items-center">
-              <Brain className="mr-3" />
-              Queue Intelligence Dashboard
-            </h2>
-            <p className="text-purple-100 mt-1">
-              Intelligent order routing and workload optimization
+      <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-5">
+        <div className="flex flex-wrap items-center gap-4">
+          <Brain className="w-5 h-5 text-cq-caramel flex-shrink-0" />
+          <div className="min-w-0">
+            <h2 className="text-lg font-bold text-cq-roast">Where orders are sent</h2>
+            <p className="text-sm text-cq-ink-3">
+              How the system picks a station, and what it is picking right now.
             </p>
           </div>
-          <div className="flex items-center space-x-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold">{routingMetrics.stationsAvailable}/{routingMetrics.stationsTotal}</div>
-              <div className="text-sm text-purple-200">Stations Available</div>
+          <div className="flex items-center gap-6 ml-auto tabular-nums">
+            <div>
+              <div className="text-2xl font-bold text-cq-roast">
+                {routingMetrics.stationsAvailable}/{routingMetrics.stationsTotal}
+              </div>
+              <div className="text-sm text-cq-ink-2">Stations open</div>
             </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold">{routingMetrics.avgWaitTime || 0}m</div>
-              <div className="text-sm text-purple-200">Avg Wait (busy stations)</div>
+            <div>
+              <div className="text-2xl font-bold text-cq-roast">
+                {routingMetrics.avgWaitTime || 0}m
+              </div>
+              <div className="text-sm text-cq-ink-2">Average wait</div>
             </div>
           </div>
         </div>
       </div>
 
       {/* Routing Rules */}
-      <div className="bg-white p-6 rounded-lg shadow-sm">
+      <div className="bg-cq-milk p-6 rounded-cq-md shadow-sm">
         <h3 className="text-lg font-semibold mb-4 flex items-center justify-between">
           <span className="flex items-center">
-            <Zap className="mr-2 text-yellow-600" />
-            Routing Configuration
+            <Zap className="mr-2 text-cq-warn" />
+            How a station is chosen
           </span>
           <span className={`text-xs px-2 py-1 rounded font-medium ${
-              serverSyncStatus === 'synced'  ? 'bg-green-100 text-green-800' :
-              serverSyncStatus === 'syncing' ? 'bg-amber-100 text-amber-800 animate-pulse' :
-              serverSyncStatus === 'error'   ? 'bg-red-100 text-red-800' :
-              'bg-gray-100 text-gray-600'}`}>
-            {serverSyncStatus === 'synced'  ? '● Live — affecting routing'
+              serverSyncStatus === 'synced'  ? 'bg-cq-ready-wash text-cq-ready' :
+              serverSyncStatus === 'syncing' ? 'bg-cq-caramel-wash text-cq-caramel-deep animate-pulse' :
+              serverSyncStatus === 'error'   ? 'bg-cq-alert-wash text-cq-alert' :
+              'bg-cq-wash text-cq-ink-2'}`}>
+            {serverSyncStatus === 'synced'  ? '● Live'
              : serverSyncStatus === 'syncing' ? 'Syncing…'
              : serverSyncStatus === 'error' ? 'Saved locally only — backend offline'
              : 'Not yet synced'}
           </span>
         </h3>
-        <p className="text-xs text-gray-500 mb-4">
-          These toggles now drive the backend's <code className="bg-gray-100 px-1 rounded">_assign_station</code> algorithm
-          directly. Changes apply to the next order placed.
+        <p className="text-sm text-cq-ink-3 mb-4">
+          Applies from the next order placed.
         </p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {Object.entries(routingRules).map(([key, value]) => (
@@ -365,10 +366,14 @@ const QueueIntelligence = () => {
                   ...routingRules,
                   [key]: e.target.checked
                 })}
-                className="rounded border-gray-300"
+                className="rounded border-cq-line"
               />
               <span className="text-sm font-medium">
-                {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
+                {({ prioritizeEfficiency: 'Quickest station first',
+                    balanceWorkload: 'Share the load evenly',
+                    considerCapabilities: 'Only a station that can make it',
+                    emergencyMode: 'Emergency: any open station' })[key]
+                  || key.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase())}
               </span>
             </label>
           ))}
@@ -378,7 +383,7 @@ const QueueIntelligence = () => {
       {/* Station Performance Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {stationStats.map(station => (
-          <div key={station.id} className="bg-white p-4 rounded-lg shadow-sm border">
+          <div key={station.id} className="bg-cq-milk p-4 rounded-cq-md shadow-sm border">
             <div className="flex items-center justify-between mb-3">
               <h4 className="font-semibold">{station.name}</h4>
               <div className={`px-2 py-1 rounded-full text-xs flex items-center space-x-1 ${getStatusColor(station.status)}`}>
@@ -389,31 +394,31 @@ const QueueIntelligence = () => {
             
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span>Current Load:</span>
+                <span>Making now</span>
                 <span>{station.currentLoad}/{station.maxCapacity}</span>
               </div>
               <div className="flex justify-between">
-                <span>Workload:</span>
+                <span>Busy</span>
                 <span>{Math.round(station.workloadPercentage)}%</span>
               </div>
               <div className="flex justify-between">
-                <span>Est. Wait:</span>
+                <span>Wait</span>
                 <span>{station.estimatedWaitTime}m</span>
               </div>
               <div className="flex justify-between">
-                <span>Orders/Hour:</span>
+                <span>Per hour</span>
                 <span>{station.ordersPerHour}</span>
               </div>
             </div>
             
             {/* Workload Bar */}
             <div className="mt-3">
-              <div className="w-full bg-gray-200 rounded-full h-2">
+              <div className="w-full bg-cq-line rounded-full h-2">
                 <div 
                   className={`h-2 rounded-full ${
-                    station.workloadPercentage > 90 ? 'bg-red-500' :
-                    station.workloadPercentage > 70 ? 'bg-yellow-500' :
-                    'bg-green-500'
+                    station.workloadPercentage > 90 ? 'bg-cq-alert' :
+                    station.workloadPercentage > 70 ? 'bg-cq-warn' :
+                    'bg-cq-ready'
                   }`}
                   style={{ width: `${Math.min(100, station.workloadPercentage)}%` }}
                 ></div>
@@ -425,17 +430,17 @@ const QueueIntelligence = () => {
 
       {/* Routing Suggestions */}
       {routingSuggestions.length > 0 && (
-        <div className="bg-white p-6 rounded-lg shadow-sm">
+        <div className="bg-cq-milk p-6 rounded-cq-md shadow-sm">
           <h3 className="text-lg font-semibold mb-4 flex items-center">
-            <BarChart3 className="mr-2 text-blue-600" />
-            Intelligent Routing Suggestions ({routingSuggestions.length})
+            <BarChart3 className="mr-2 text-cq-caramel-deep" />
+            Orders that could move ({routingSuggestions.length})
           </h3>
           <div className="space-y-3">
             {routingSuggestions.slice(0, 5).map(({ order, suggested, currentStation }) => (
-              <div key={order.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              <div key={order.id} className="flex items-center justify-between p-3 bg-cq-wash rounded-cq-md">
                 <div className="flex-1">
                   <div className="font-medium">#{order.orderNumber} - {order.customerName}</div>
-                  <div className="text-sm text-gray-600">{order.coffeeType}, {order.milkType}</div>
+                  <div className="text-sm text-cq-ink-2">{order.coffeeType}, {order.milkType}</div>
                 </div>
                 
                 <div className="flex items-center space-x-3">
@@ -443,21 +448,21 @@ const QueueIntelligence = () => {
                     <>
                       <div className="text-center">
                         <div className="text-sm font-medium">{currentStation.name}</div>
-                        <div className="text-xs text-gray-500">Current</div>
+                        <div className="text-xs text-cq-ink-3">Current</div>
                       </div>
-                      <ArrowRight size={16} className="text-gray-400" />
+                      <ArrowRight size={16} className="text-cq-ink-3" />
                     </>
                   )}
                   
                   <div className="text-center">
-                    <div className="text-sm font-medium text-blue-600">{suggested.station.name}</div>
-                    <div className="text-xs text-gray-500">
-                      Score: {Math.round(suggested.score)} | Wait: {suggested.station.estimatedWaitTime}m
+                    <div className="text-sm font-medium text-cq-caramel-deep">{suggested.station.name}</div>
+                    <div className="text-xs text-cq-ink-3">
+                      {suggested.station.estimatedWaitTime}m wait
                     </div>
                   </div>
                   
-                  <button className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700">
-                    Route
+                  <button className="h-9 px-3 rounded-cq-sm bg-cq-caramel text-white text-sm font-bold hover:bg-cq-caramel-deep">
+                    Move
                   </button>
                 </div>
               </div>
@@ -466,25 +471,6 @@ const QueueIntelligence = () => {
         </div>
       )}
 
-      {/* Metrics Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-lg shadow-sm text-center">
-          <div className="text-2xl font-bold text-blue-600">{routingMetrics.totalOrdersRouted || 0}</div>
-          <div className="text-sm text-gray-600">Active Orders</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow-sm text-center">
-          <div className="text-2xl font-bold text-green-600">{routingMetrics.avgWaitTime || 0}m</div>
-          <div className="text-sm text-gray-600">Avg Wait (busy stations)</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow-sm text-center">
-          <div className="text-2xl font-bold text-purple-600">{routingMetrics.stationsAvailable}/{routingMetrics.stationsTotal}</div>
-          <div className="text-sm text-gray-600">Stations Available</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow-sm text-center">
-          <div className="text-2xl font-bold text-orange-600">{routingMetrics.workloadBalance || 0}%</div>
-          <div className="text-sm text-gray-600">Workload Balance</div>
-        </div>
-      </div>
     </div>
   );
 };
