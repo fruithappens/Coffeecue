@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, XCircle, AlertCircle, Info, X } from 'lucide-react';
 
-const Toast = ({ message, type = 'info', duration = 3000, onClose }) => {
+const Toast = ({ message, type = 'info', duration = 3000, onClose, standalone = true }) => {
   const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
@@ -23,18 +23,14 @@ const Toast = ({ message, type = 'info', duration = 3000, onClose }) => {
   };
 
   const colors = {
-    success: 'bg-green-500',
-    error: 'bg-red-500',
-    warning: 'bg-amber-500',
-    info: 'bg-blue-500'
+    success: 'bg-cq-ready',
+    error: 'bg-cq-alert',
+    warning: 'bg-cq-warn',
+    info: 'bg-cq-caramel'
   };
 
   return (
-    // `relative`, NOT `fixed`. ToastManager already positions the stack and
-    // spaces it; every toast being fixed to the same corner meant two at once
-    // landed exactly on top of each other, so only the last one could be read
-    // -- and a low-stock warning could bury the message you needed.
-    <div className={`relative ${colors[type]} text-white px-4 py-3 rounded-lg shadow-lg flex items-center space-x-3 animate-slide-in`}>
+    <div className={`${standalone ? 'fixed top-4 right-4 z-50' : 'relative'} ${colors[type]} text-white px-4 py-3 rounded-cq-md shadow-cq-card flex items-center space-x-3 animate-slide-in`}>
       {icons[type]}
       <span className="flex-1">{message}</span>
       <button
@@ -51,7 +47,11 @@ const Toast = ({ message, type = 'info', duration = 3000, onClose }) => {
 };
 
 // Toast Manager to handle multiple toasts
-export const ToastManager = () => {
+// position: 'top-right' (default) or 'bottom-center'. The barista screen
+// uses bottom-center: at top-right the stack sat on the header's lock
+// button, and two toasts at once used to land on the same spot.
+export const ToastManager = ({ position = 'top-right' } = {}) => {
+  // 'bottom-center-high' clears a strip pinned to the bottom of the screen.
   const [toasts, setToasts] = useState([]);
 
   useEffect(() => {
@@ -76,10 +76,11 @@ export const ToastManager = () => {
   };
 
   return (
-    <div className="fixed top-4 right-4 space-y-2 z-50">
+    <div className={`fixed z-50 space-y-2 ${position === 'bottom-center' ? 'bottom-6 left-1/2 -translate-x-1/2 w-[min(92vw,40rem)]' : position === 'bottom-center-high' ? 'bottom-24 left-1/2 -translate-x-1/2 w-[min(92vw,40rem)]' : 'top-4 right-4'}`}>
       {toasts.map(toast => (
         <Toast
           key={toast.id}
+          standalone={false}
           message={toast.message}
           type={toast.type}
           duration={toast.duration}
