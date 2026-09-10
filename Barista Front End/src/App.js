@@ -21,7 +21,6 @@ const ToRunner = () => {
   }, []);
   return null;
 };
-import SupportInterface from './components/support/SupportInterface';
 import OpsBoard from './components/support/OpsBoard';
 import LoginPage from './components/auth/LoginPage';
 import AuthService from './services/AuthService';
