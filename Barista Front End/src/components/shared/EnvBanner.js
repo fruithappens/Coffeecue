@@ -11,7 +11,7 @@ export default function EnvBanner() {
     let cancelled = false;
     fetch('/api/env').then((r) => (r.ok ? r.json() : null)).then((b) => {
       if (!cancelled && b && b.test_copy) setEnv(b.env);
-    }).catch(() => {});
+    }).catch(() => undefined);
     return () => { cancelled = true; };
   }, []);
   useEffect(() => {
