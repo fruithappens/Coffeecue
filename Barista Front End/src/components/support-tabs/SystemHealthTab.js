@@ -5,8 +5,11 @@ import {
   XCircle, AlertTriangle, RefreshCw
 } from 'lucide-react';
 import ApiServiceClass from '../../services/ApiService';
+import { Modal, Notice, Button } from '../../design';
 
 const _apiService = new ApiServiceClass();
+
+const mb = (b) => (b == null ? '—' : `${Math.round(b / 1048576)} MB`);
 
 const SystemHealthTab = () => {
   const [components, setComponents] = useState([
@@ -77,7 +80,22 @@ const SystemHealthTab = () => {
       status: 'unknown',
       metrics: { 'Status': 'Loading…' },
     },
+    // How full the Postgres volume is and what is in it (finding 17).
+    // Railway's gauge showed 196 of 500 MB and nothing here could say why.
+    {
+      id: 'storage',
+      name: 'Database storage',
+      icon: <HardDrive className="w-6 h-6" />,
+      status: 'unknown',
+      metrics: { 'Status': 'Loading…' },
+    },
   ]);
+  // The measured storage figures, kept whole for the meter and the
+  // reclaim dialog (the tile only shows the headline numbers).
+  const [storage, setStorage] = useState(null);
+  const [reclaimOpen, setReclaimOpen] = useState(false);
+  const [reclaimBusy, setReclaimBusy] = useState(false);
+  const [reclaimNote, setReclaimNote] = useState('');
 
 
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -229,6 +247,23 @@ const SystemHealthTab = () => {
           },
         };
       }
+      if (checks.storage) {
+        const st = checks.storage;
+        setStorage(st);
+        const bigTable = (st.tables || [])[0];
+        const bigKey = (st.settings_keys || [])[0];
+        updates.storage = {
+          status: _mapStatus(st.status),
+          metrics: {
+            'Data':          mb(st.db_bytes),
+            'WAL':           st.wal_bytes == null ? 'n/a' : mb(st.wal_bytes),
+            'Volume':        st.used_pct == null ? '—' : `${Math.round(st.used_pct)}% of ${mb(st.volume_bytes)}`,
+            'Reclaimable':   mb(st.settings_reclaimable_bytes),
+            ...(bigTable ? { 'Largest table': `${bigTable.name} ${mb(bigTable.bytes)}` } : {}),
+            ...(bigKey ? { 'Largest setting': `${bigKey.key} ${mb(bigKey.bytes)}` } : {}),
+          },
+        };
+      }
       // Backfill twilio from /health/full if /diagnostics/sms failed.
       if (checks.twilio && (!updates.twilio || updates.twilio.status === 'error')) {
         updates.twilio = {
@@ -259,6 +294,25 @@ const SystemHealthTab = () => {
     setLastUpdate(new Date());
   };
   
+  // VACUUM (FULL) the settings table: every save of a branding, sponsor or
+  // video blob leaves the old copy behind until a vacuum. Admin only on
+  // the server; a second's exclusive lock on settings, so the dialog says
+  // "quiet moment" and the button is only offered when there is something
+  // worth getting back.
+  const reclaim = async () => {
+    setReclaimBusy(true); setReclaimNote('');
+    try {
+      const r = await _apiService.post('/health/storage/reclaim', {});
+      setReclaimNote(r?.message || 'Done.');
+      await checkSystemHealth();
+    } catch (e) {
+      setReclaimNote(e?.details?.message || e?.message || 'Reclaim failed');
+    }
+    setReclaimBusy(false);
+  };
+  const reclaimable = storage?.settings_reclaimable_bytes || 0;
+  const reclaimWorth = reclaimable >= 5 * 1048576;
+
   const getStatusIcon = (status) => {
     switch (status) {
       case 'healthy':
@@ -306,7 +360,7 @@ const SystemHealthTab = () => {
           </span>
           <label className="flex items-center">
             <input
-              type="checkbox" className="w-[18px] h-[18px] rounded-cq-sm border-2 border-cq-line accent-cq-caramel cursor-pointer"
+              type="checkbox"
               checked={autoRefresh}
               onChange={(e) => setAutoRefresh(e.target.checked)}
               className="mr-2 w-[18px] h-[18px] rounded-cq-sm border-2 border-cq-line accent-cq-caramel cursor-pointer"
@@ -370,6 +424,12 @@ const SystemHealthTab = () => {
             getStatusIcon={getStatusIcon}
             getStatusColor={getStatusColor}
             onRestart={() => handleRestart(component.id)}
+            action={component.id === 'storage' && reclaimWorth ? (
+              <Button variant="secondary" size="sm" onClick={() => { setReclaimNote(''); setReclaimOpen(true); }}>
+                Reclaim {mb(reclaimable)}
+              </Button>
+            ) : null}
+            note={component.id === 'storage' && reclaimNote ? reclaimNote : null}
           />
         ))}
       </div>
@@ -398,7 +458,24 @@ const SystemHealthTab = () => {
             unit="%"
             color="green"
           />
+          {/* The Postgres volume, measured from inside: data + WAL against
+              DB_VOLUME_MB. Railway's own gauge runs a little higher because
+              it also counts Postgres' bookkeeping, which no query can sum.
+              Amber at 60 %, red at 80 % -- the same thresholds the tile uses. */}
+          <ResourceMeter
+            label="Database volume"
+            value={storage?.used_bytes == null ? 0 : Math.round(storage.used_bytes / 1048576)}
+            max={storage?.volume_bytes ? Math.round(storage.volume_bytes / 1048576) : 500}
+            unit=" MB"
+            color={storage?.used_pct >= 80 ? 'red' : storage?.used_pct >= 60 ? 'amber' : 'blue'}
+          />
         </div>
+        {storage?.used_pct != null && (
+          <p className="text-xs text-cq-ink-3 mt-3">
+            {mb(storage.db_bytes)} of data{storage.wal_bytes != null ? ` and ${mb(storage.wal_bytes)} of WAL` : ''} on a {mb(storage.volume_bytes)} volume.
+            Railway's gauge reads a little higher: it also counts Postgres' own bookkeeping.
+          </p>
+        )}
         {perf.cpu == null && (
           <p className="text-xs text-cq-ink-3 mt-3">
             Live CPU/memory unavailable — /api/diagnostics/performance unreachable.
@@ -409,6 +486,24 @@ const SystemHealthTab = () => {
           hardcoded fake (Redis threshold, backup completed, API restart) for
           services this stack doesn't even run. Real frontend crashes are in
           Diagnose → Client crashes; real order/system state is in the tiles. */}
+      {reclaimOpen && (
+        <Modal title="Reclaim database space" Icon={HardDrive} onClose={() => setReclaimOpen(false)} busy={reclaimBusy}
+               footer={(
+                 <>
+                   <Button variant="ghost" onClick={() => setReclaimOpen(false)} disabled={reclaimBusy}>Not now</Button>
+                   <Button variant="primary" onClick={async () => { await reclaim(); setReclaimOpen(false); }} disabled={reclaimBusy}>
+                     {reclaimBusy ? 'Reclaiming…' : `Reclaim ${mb(reclaimable)}`}
+                   </Button>
+                 </>
+               )}>
+          <Notice tone="warn">Do this at a quiet moment. Settings are locked for a second or two while the table is rewritten; screens that are open keep working.</Notice>
+          <p className="text-sm text-cq-ink-2">
+            Every save of a branding, sponsor or background-video blob leaves the old copy behind until the
+            database tidies up. The settings table is {mb(storage?.settings_bytes)} for {mb(storage?.settings_live_bytes)} of
+            live data; the rest comes back to the volume.
+          </p>
+        </Modal>
+      )}
     </div>
   );
 };
@@ -428,7 +523,7 @@ const OverviewCard = ({ label, value, status }) => {
   );
 };
 
-const ComponentCard = ({ component, getStatusIcon, getStatusColor, onRestart }) => (
+const ComponentCard = ({ component, getStatusIcon, getStatusColor, onRestart, action = null, note = null }) => (
   <div className={`border-2 rounded-cq-md p-4 ${getStatusColor(component.status)}`}>
     <div className="flex items-center justify-between mb-3">
       <div className="flex items-center space-x-3">
@@ -461,6 +556,12 @@ const ComponentCard = ({ component, getStatusIcon, getStatusColor, onRestart }) 
         </div>
       ))}
     </div>
+    {(action || note) && (
+      <div className="flex items-center justify-between gap-3 mt-3">
+        {action}
+        {note ? <span className="text-sm font-semibold text-cq-caramel-deep">{note}</span> : null}
+      </div>
+    )}
   </div>
 );
 
@@ -469,7 +570,9 @@ const ResourceMeter = ({ label, value, max, unit, color }) => {
   const colorClasses = {
     blue: 'bg-cq-caramel',
     green: 'bg-cq-ready',
-    purple: 'bg-cq-caramel'
+    purple: 'bg-cq-caramel',
+    amber: 'bg-cq-warn',
+    red: 'bg-cq-alert',
   };
   
   return (
@@ -483,7 +586,7 @@ const ResourceMeter = ({ label, value, max, unit, color }) => {
       <div className="w-full bg-cq-wash rounded-full h-2">
         <div
           className={`h-full rounded-full ${colorClasses[color]}`}
-          style={{ width: `${percentage}%` }}
+          style={{ width: `${Math.min(100, Math.max(0, percentage))}%` }}
         />
       </div>
     </div>
