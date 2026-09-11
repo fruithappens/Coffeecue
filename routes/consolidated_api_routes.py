@@ -639,6 +639,9 @@ def orders():
                     'wait_time': wait_time,
                     'waitTime': wait_time,  # camelCase
                     'priority': priority == 1,  # Convert 1/0 to True/False
+                    # Why they are one, when the EventsAir rule made them a
+                    # VIP -- "Priority · Speaker" on the barista card.
+                    'vipReason': (order_details.get('vip_reason') or '') if isinstance(order_details, dict) else '',
                     'special_instructions': order_details.get('notes', ''),
                     'specialInstructions': order_details.get('notes', ''),  # camelCase
                     'payment_method': order_details.get('payment_method', ''),
@@ -754,6 +757,22 @@ def orders():
                 or data.get('priority') is True
                 or str(data.get('priority') or '').lower() == 'vip'
             )
+            # The EventsAir rule, by the number on the order (services/vip_rule.py).
+            _walkin_vip_reason = ''
+            _walkin_vip_station = None
+            try:
+                from services.vip_rule import resolve as _vip_resolve
+                _hit = _vip_resolve(
+                    coffee_system.db.cursor(),
+                    phone=str(data.get('phone') or data.get('phone_number') or ''),
+                    ea_contact_id=str(data.get('ea_contact_id') or ''))
+                if _hit.get('vip'):
+                    if _hit.get('jump_queue', True):
+                        _walkin_vip = True
+                    _walkin_vip_reason = _hit.get('reason') or ''
+                    _walkin_vip_station = _hit.get('station_id')
+            except Exception as _vr:
+                logger.warning(f"VIP rule lookup skipped (fail-open): {_vr}")
 
             # Prepare order details
             order_details = {
@@ -770,6 +789,7 @@ def orders():
                 # the vip_free comp; persisting on order_details keeps
                 # it visible to the barista UI too.
                 'vip': _walkin_vip,
+                **({'vip_reason': _walkin_vip_reason} if _walkin_vip_reason else {}),
                 # Tea-specific fields from the walk-in dialog. These
                 # drive _decrement_stock_for_order (small milk amount,
                 # 2 cups when double-cupped) at order completion.
@@ -832,7 +852,11 @@ def orders():
             # Steve flagged: "the option to assign the order to
             # another station is not working".
             station_id = (
-                data.get('collection_station')
+                # The EventsAir rule's station leads for a VIP it recognised;
+                # the barista's explicit choice still wins over the default.
+                (_walkin_vip_station if _walkin_vip_station and not (
+                    data.get('collection_station') or data.get('collectionStation')) else None)
+                or data.get('collection_station')
                 or data.get('collectionStation')
                 or data.get('station_id')
                 or data.get('stationId')
@@ -1192,6 +1216,7 @@ def get_pending_orders():
                 'promisedTime': 5,
                 'priority': priority == 1,  # Convert 1/0 to True/False
                 'vip': priority == 1,  # alias used by some UI filters
+                'vipReason': (order_details.get('vip_reason') or '') if isinstance(order_details, dict) else '',
                 'batch_group': batch_group,
                 # camelCase alias the Barista UI's PendingOrdersSection
                 # actually reads — without this, batch grouping silently
@@ -1340,6 +1365,7 @@ def get_in_progress_orders():
                 'stationId': station_id,
                 'status': status,
                 'vip': priority == 1,
+                'vipReason': (order_details.get('vip_reason') or '') if isinstance(order_details, dict) else '',
             })
 
         return jsonify({
@@ -5722,6 +5748,27 @@ def create_kiosk_order():
         if not phone and ea_phone and data.get('use_registered_phone'):
             phone = ea_phone
 
+        # The EventsAir rule (services/vip_rule.py): a speaker or a tagged
+        # VIP jumps the queue and/or goes to the organiser's chosen station
+        # without typing anything. Looked up by the contact id when the
+        # badge or the EA app supplied one, else by any number we know --
+        # the typed one, or the registration mobile (used here only to
+        # RECOGNISE the person; it is never attached to the order by this).
+        vip_reason = ''
+        vip_station = None
+        try:
+            from services.vip_rule import resolve as _vip_resolve
+            _hit = _vip_resolve(db.cursor(), phone=(phone or ea_phone or ''),
+                                ea_contact_id=ea_contact_id)
+            if _hit.get('vip'):
+                if _hit.get('jump_queue', True):
+                    kiosk_vip = True
+                vip_reason = _hit.get('reason') or ''
+                vip_station = _hit.get('station_id')
+                logger.info(f"kiosk order flagged VIP by the EventsAir rule ({vip_reason})")
+        except Exception as _vr:
+            logger.warning(f"VIP rule lookup skipped (fail-open): {_vr}")
+
         try:
             db.rollback()
         except Exception:
@@ -5740,11 +5787,21 @@ def create_kiosk_order():
                 db, sid, {'type': coffee_type, 'milk': milk}
             ).get('blocked')
 
-        # Station precedence: the customer's chosen collection point, else this
-        # display's own station, else the first active station that can make the
-        # drink+milk (so the barista can actually start it).
+        # A sponsor's VIP-only cart is invisible to everyone else.
+        try:
+            from services.vip_rule import allowed_stations as _vip_allowed
+            active = _vip_allowed(db.cursor(), active, bool(kiosk_vip))
+        except Exception as _vo:
+            logger.warning(f"VIP-only station filter skipped: {_vo}")
+
+        # Station precedence: the rule's station for a VIP, else the customer's
+        # chosen collection point, else this display's own station, else the
+        # first active station that can make the drink+milk (so the barista
+        # can actually start it).
         target = None
-        if preferred_station and preferred_station in active and can_make(preferred_station):
+        if vip_station and vip_station in active and can_make(vip_station):
+            target = vip_station
+        if target is None and preferred_station and preferred_station in active and can_make(preferred_station):
             target = preferred_station
         if target is None and requested_station and requested_station in active and can_make(requested_station):
             target = requested_station
@@ -5757,7 +5814,7 @@ def create_kiosk_order():
             # only station 4 was open).
             try:
                 cs_target, _delayed = coffee_system._assign_station(
-                    False,
+                    bool(kiosk_vip),
                     None if (milk or '').lower() in ('', 'no milk', 'none', 'black') else milk,
                     coffee_type, size)
                 if cs_target in active and can_make(cs_target):
@@ -5864,6 +5921,9 @@ def create_kiosk_order():
             # one -- and which, as a SECOND 'vip' key in this same dict,
             # would silently beat any value added above it.
             'vip': kiosk_vip,
+            # Why, when the EventsAir rule made them one -- "Speaker" on the
+            # barista card beside the Priority pill, so staff can see it.
+            **({'vip_reason': vip_reason} if vip_reason else {}),
             'station_id': target,
             'stationId': target,
         }

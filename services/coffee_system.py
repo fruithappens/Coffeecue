@@ -6538,6 +6538,26 @@ class CoffeeOrderSystem:
                 except Exception as _ve:
                     logger.warning(f"VIP-customer lookup failed (non-fatal): {_ve}")
 
+            # The EventsAir rule: a speaker or a tagged VIP is one without
+            # typing a code, and may be sent to the station the organiser
+            # chose. Same rule every door applies (services/vip_rule.py).
+            if not is_friend_order:
+                try:
+                    from services.vip_rule import resolve as _vip_resolve
+                    _hit = _vip_resolve(self.db.cursor(), phone=phone)
+                    if _hit.get("vip"):
+                        if _hit.get("jump_queue", True):
+                            order_details["vip"] = True
+                        order_details["vip_reason"] = _hit.get("reason") or ""
+                        if _hit.get("station_id") and not specified_station:
+                            specified_station = _hit["station_id"]
+                        logger.info(
+                            f"Order flagged VIP by the EventsAir rule "
+                            f"({_hit.get('reason')}) for {phone}"
+                        )
+                except Exception as _ve:
+                    logger.warning(f"VIP rule lookup failed (non-fatal): {_ve}")
+
             # Assign station based on available information
             is_vip = order_details.get("vip", False)
             milk_type = order_details.get("milk")
@@ -6687,7 +6707,10 @@ class CoffeeOrderSystem:
             # them from the STORED details. price was computed, shown in the
             # SMS, then dropped right here, so the card never knew what to
             # charge (Test Bench pricing round-trip).
-            for _carry in ("price", "price_formatted", "decaf", "shots"):
+            # vip and vip_reason too: the row's queue_priority carried the
+            # fact, but the stored details never said WHY -- and the barista
+            # card reads "Priority · Speaker" from the details.
+            for _carry in ("price", "price_formatted", "decaf", "shots", "vip", "vip_reason"):
                 if _carry in order_details:
                     processed_details[_carry] = order_details[_carry]
 
@@ -7590,6 +7613,20 @@ class CoffeeOrderSystem:
                         "vip_service": capabilities.get("vip_service", False),
                     }
                 )
+
+            # The sponsor's cart that only serves VIPs: a non-VIP is never
+            # routed there. If that would leave nowhere at all, the filter
+            # stands down -- a coffee has to be made somewhere.
+            try:
+                from services.vip_rule import allowed_stations as _vip_allowed
+                _keep = set(_vip_allowed(
+                    self.db.cursor(), [st["id"] for st in stations], bool(is_vip)))
+                stations = [st for st in stations if st["id"] in _keep]
+                for _m in list(stations_with_milk.keys()):
+                    stations_with_milk[_m] = [
+                        sid for sid in stations_with_milk[_m] if sid in _keep]
+            except Exception as _vo:
+                logger.warning(f"VIP-only station filter failed (non-fatal): {_vo}")
 
             if not stations:
                 # No stations found
