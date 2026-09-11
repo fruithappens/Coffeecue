@@ -28,7 +28,8 @@ import useNotices from '../shared/useNotices';
 import NoticeBanner from '../shared/NoticeBanner';
 import { remember, recall } from '../../utils/deviceMemory';
 import { event as logEvent } from '../../services/logging';
-import { X, ArrowLeft, Plus, Minus, Check, Loader, MapPin, Zap } from 'lucide-react';
+import { X, ArrowLeft, Plus, Minus, Check, Loader, MapPin, Zap, ScanLine } from 'lucide-react';
+import BadgeScanner, { canScanBadges } from './BadgeScanner';
 
 // Idle handling: after IDLE_WARN_MS of no touch, a full-screen countdown
 // appears for IDLE_COUNTDOWN_SECONDS ("tap to keep ordering"); if it runs
@@ -83,6 +84,9 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
   // back to the code the public display config already publishes -- the
   // same one the board stamps on its QR.
   const [cfgEventCode, setCfgEventCode] = useState('');
+  // Whether the event lets a phone read the badge (attendee lookup is on).
+  const [badgeScanOn, setBadgeScanOn] = useState(false);
+  const [scanning, setScanning] = useState(false);
   const carriedEventCode = (() => {
     try {
       const fromUrl = new URLSearchParams(window.location.search).get('e');
@@ -115,6 +119,7 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
         if (!dead && n) setSmsNumber(n);
         const ec = String(cfg.event_code || '').trim();
         if (!dead && ec) setCfgEventCode(ec);
+        if (!dead) setBadgeScanOn(!!cfg.badge_scan);
       } catch (e) { /* the strip works without it */ }
     })();
     return () => { dead = true; };
@@ -920,6 +925,27 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
               className="w-full text-3xl font-bold p-5 rounded-cq-xl border-4 border-cq-line focus:outline-none"
               style={{ borderColor: name ? headerColor : undefined }}
             />
+            {/* Or read it off the badge. Only offered when the event has
+                attendee lookup on and the device has a camera; on success
+                the person is identified exactly as an EA app link would
+                identify them, and the phone step can skip. */}
+            {badgeScanOn && canScanBadges() && !eaIdentity ? (
+              <button type="button" onClick={() => setScanning(true)}
+                className="mt-3 w-full h-14 rounded-cq-xl border-2 border-cq-line bg-cq-milk text-cq-roast
+                           text-lg font-bold inline-flex items-center justify-center gap-2 hover:border-cq-caramel">
+                <ScanLine size={22} /> Scan your badge instead
+              </button>
+            ) : null}
+            {scanning ? (
+              <BadgeScanner
+                onClose={() => setScanning(false)}
+                onFound={(who) => {
+                  setScanning(false);
+                  setEaIdentity({ cid: who.cid, firstName: who.firstName, hasPhone: !!who.hasPhone, guest: false });
+                  setName(who.firstName);
+                }}
+              />
+            ) : null}
             <button
               disabled={name.trim().length < 2} onClick={afterName}
               className="mt-6 w-full py-5 rounded-cq-xl text-2xl font-extrabold text-white disabled:opacity-40"
