@@ -154,7 +154,7 @@ export default function QueueColumn({
   const badgesFor = (o) => (
     <>
       {isDecaf(o) ? <Pill tone="alert" size="sm">Decaf</Pill> : null}
-      {isPriority(o) ? <Pill tone="roast" size="sm">Priority</Pill> : null}
+      {isPriority(o) ? <Pill tone="roast" size="sm">{o.vipReason ? `Priority · ${o.vipReason}` : 'Priority'}</Pill> : null}
       <GroupBadge info={groupInfoByOrderId[o.id]} />
       <SourceBadge order={o} />
       {teamMode ? <WorkTypeBadge order={o} teamMode={teamMode} /> : null}

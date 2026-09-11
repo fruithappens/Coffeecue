@@ -613,6 +613,32 @@ def _m022_split_shot_model(cur):
     """)
 
 
+def _m023_ea_attendee_markers(cur):
+    """What the VIP rule can match on.
+
+    The attendee mirror knew a person's name and numbers but not who they
+    were to the event: the registration category (Speaker, Delegate,
+    Sponsor), the tags an organiser hangs on a record, or the four
+    user-defined fields. The VIP rule (services/vip_rule.py) reads all of
+    them, so the sync now keeps them. Additive; existing rows read as
+    NULL until the next sync.
+    """
+    cur.execute("""
+        ALTER TABLE ea_attendees
+            ADD COLUMN IF NOT EXISTS registration_category TEXT,
+            ADD COLUMN IF NOT EXISTS tags TEXT[],
+            ADD COLUMN IF NOT EXISTS udf JSONB
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_ea_attendees_mobile
+            ON ea_attendees (mobile_e164)
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_ea_attendees_mobile_alt
+            ON ea_attendees (mobile_alt_e164)
+    """)
+
+
 # Master list. Append new migrations at the bottom — DO NOT renumber
 # existing ones, and DO NOT change `version`. The runner trusts the
 # version number to determine which migrations to skip.
@@ -732,6 +758,7 @@ MIGRATIONS: list[Migration] = [
     Migration(20, 'inventory_grams_precision', _m020_inventory_grams_precision),
     Migration(21, 'event_notices',            _m021_event_notices),
     Migration(22, 'split_shot_model',         _m022_split_shot_model),
+    Migration(23, 'ea_attendee_markers',      _m023_ea_attendee_markers),
 ]
 
 
