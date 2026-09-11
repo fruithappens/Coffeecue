@@ -147,7 +147,7 @@ const PrintersTab = () => {
               <tbody>
                 {printers.map(p => (
                   <tr key={p.id} className="border-b last:border-0">
-                    <td className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">
+                    <td className="py-2 pr-3">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                         p.online ? 'bg-cq-ready-wash text-cq-ready' : 'bg-cq-alert-wash text-cq-alert'}`}>
                         {p.online ? 'online' : 'offline'}
@@ -159,7 +159,7 @@ const PrintersTab = () => {
                         </div>
                       )}
                     </td>
-                    <td className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">
+                    <td className="py-2 pr-3">
                       <input
                         className="border-2 border-cq-line rounded-cq-md bg-cq-milk px-2 py-1 w-40"
                         value={nameDrafts[p.id] !== undefined ? nameDrafts[p.id] : (p.name || '')}
@@ -174,7 +174,7 @@ const PrintersTab = () => {
                       />
                     </td>
                     <td className="py-2 pr-3 font-mono text-xs">{p.mac_address || '—'}</td>
-                    <td className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">
+                    <td className="py-2 pr-3">
                       <select
                         className="border-2 border-cq-line rounded-cq-md bg-cq-milk px-2 py-1"
                         value={p.station_id ?? ''}
@@ -190,7 +190,7 @@ const PrintersTab = () => {
                         ))}
                       </select>
                     </td>
-                    <td className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">
+                    <td className="py-2 pr-3">
                       {/* Printable dots across the roll — drives labels,
                           tickets AND banner height. 203dpi ≈ 8 dots/mm:
                           40mm stock ≈ 320, 58mm ≈ 406 (50.8mm printable),
@@ -209,7 +209,7 @@ const PrintersTab = () => {
                         <option value="640">80mm (640)</option>
                       </select>
                     </td>
-                    <td className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">
+                    <td className="py-2 pr-3">
                       {/* LEFT OFFSET, per printer.
                           Every printer needs its own. An 80mm head
                           printing onto 58mm stock held right-aligned by
@@ -268,7 +268,7 @@ const PrintersTab = () => {
                         left offset (dots)
                       </div>
                     </td>
-                    <td className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">
+                    <td className="py-2 pr-3">
                       {/* Per-printer driver. The distinction that actually
                           matters operationally is WHO POLLS WHOM: with
                           CloudPRNT the printer calls us and needs nothing
@@ -296,7 +296,7 @@ const PrintersTab = () => {
                         describes the connection; doesn't change it
                       </div>
                     </td>
-                    <td className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">
+                    <td className="py-2 pr-3">
                       <label className="inline-flex items-center">
                         <input
                           type="checkbox" className="w-[18px] h-[18px] rounded-cq-sm border-2 border-cq-line accent-cq-caramel cursor-pointer"
@@ -437,19 +437,19 @@ const PrintersTab = () => {
                     <td className="py-2 pr-3 text-cq-ink-3 whitespace-nowrap">
                       {j.created_at ? new Date(j.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
                     </td>
-                    <td className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">{j.order_id ? `#${j.order_id}` : '—'}</td>
-                    <td className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">{j.type}</td>
+                    <td className="py-2 pr-3">{j.order_id ? `#${j.order_id}` : '—'}</td>
+                    <td className="py-2 pr-3">{j.type}</td>
                     <td className="py-2 pr-3 whitespace-nowrap font-medium">
                       {stationName(j.station_id)}
                     </td>
-                    <td className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">{j.printer_name || stationName(j.station_id)}</td>
-                    <td className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">
+                    <td className="py-2 pr-3">{j.printer_name || stationName(j.station_id)}</td>
+                    <td className="py-2 pr-3">
                       <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
                         STATUS_TONES[j.status] || 'bg-cq-wash text-cq-ink-2'}`}>
                         {j.status}
                       </span>
                     </td>
-                    <td className="py-2 pr-3 text-xs font-extrabold uppercase tracking-wider text-cq-caramel-deep whitespace-nowrap">{j.attempts}</td>
+                    <td className="py-2 pr-3">{j.attempts}</td>
                     <td className="py-2 pr-3 text-cq-alert text-xs max-w-[16rem] truncate" title={j.error || ''}>
                       {j.error || ''}
                     </td>

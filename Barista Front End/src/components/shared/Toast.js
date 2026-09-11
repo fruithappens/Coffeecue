@@ -25,7 +25,7 @@ const Toast = ({ message, type = 'info', duration = 3000, onClose, standalone = 
   const colors = {
     success: 'bg-cq-ready',
     error: 'bg-cq-alert',
-    warning: 'bg-cq-caramel',
+    warning: 'bg-cq-warn',
     info: 'bg-cq-caramel'
   };
 

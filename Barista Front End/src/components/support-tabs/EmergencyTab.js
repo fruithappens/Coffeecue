@@ -374,7 +374,7 @@ const EmergencyTab = () => {
           The old version of this card listed five "backend pending"
           controls. Three of them were never missing — Restore, Reset
           Database and Purge all have working, safer equivalents in
-          Organiser -> Settings -> Event Data, which keeps stations,
+          Runner > Settings > Event data, which keeps stations,
           inventory and users instead of flattening everything. Listing
           them as pending sent support staff looking for a button that
           did not need to exist. */}
@@ -391,12 +391,12 @@ const EmergencyTab = () => {
           </p>
           <ul className="text-sm text-cq-ink-2 space-y-1 list-disc list-inside">
             <li>
-              <strong>Restore from a backup</strong> — Organiser &rarr; Settings
-              &rarr; Event Data &rarr; Import
+              <strong>Restore from a backup</strong> — Runner &gt; Settings
+              &gt; Event data &gt; Import
             </li>
             <li>
-              <strong>Reset the event / clear customer data</strong> — Organiser
-              &rarr; Settings &rarr; Event Data &rarr; Wipe. Keeps stations,
+              <strong>Reset the event / clear customer data</strong> — Runner
+              &gt; Settings &gt; Event data &gt; Wipe. Keeps stations,
               inventory and users; asks you to type WIPE first.
             </li>
           </ul>
