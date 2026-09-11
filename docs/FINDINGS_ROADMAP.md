@@ -423,6 +423,11 @@ are ordered so the shared wiring is built once.
 
 ## 19. EventsAir: VIPs and speakers go where the organiser says
 
+**Status:** BUILT 11 Sep — PR #622. Waiting on EA credentials in Railway and
+a sync before it can recognise anyone on production. Two bugs fixed on the
+way: the kiosk path never passed the VIP flag to _assign_station; the SMS
+bot's allow-list dropped `vip` from the stored details.
+
 **Why.** Speakers from overseas, sponsors' guests, a VIP category — the
 organiser wants them through the coffee line faster, or sent to a specific
 station (a sponsor's booth cart that only serves VIPs and has no queue).
