@@ -128,6 +128,36 @@ class EASurveyClient(EventsAirClient):
         medium" on the attendee record, and ordering becomes a
         confirmation rather than a conversation.
         """
+        # TODO_EA: the registration and tag field names below are the
+        # best guess from EA's public schema and have not been confirmed
+        # against a live tenant. The VIP rule (services/vip_rule.py) wants
+        # them; if they are wrong the query fails and the next tier runs
+        # without them, so a bad guess costs nothing but the category.
+        rich = """
+        query Contacts($eventId: ID!, $offset: NonNegativeInt, $limit: PaginationLimit) {
+          event(id: $eventId) {
+            contactsPaged(offset: $offset, limit: $limit) {
+              items {
+                id internalNumber firstName lastName primaryEmail externalIdentifier
+                biography
+                contactPhoneNumbers { mobile inCountryMobile }
+                userDefinedField1 userDefinedField2
+                userDefinedField3 userDefinedField4
+                registrationsPaged(offset: 0, limit: 10) {
+                  items { registrationType { name } }
+                }
+                tags { name }
+                customFieldsPaged(offset: 0, limit: 50) {
+                  items { name value uniqueCode }
+                }
+              }
+            }
+          }
+        }"""
+        ok, data = self.graphql(rich, {'eventId': ea_event_id,
+                                       'offset': skip, 'limit': take})
+        if ok:
+            return ok, data
         query = """
         query Contacts($eventId: ID!, $offset: NonNegativeInt, $limit: PaginationLimit) {
           event(id: $eventId) {

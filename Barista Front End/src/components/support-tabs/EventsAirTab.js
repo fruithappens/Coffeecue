@@ -9,6 +9,7 @@ import { CalendarClock, RefreshCw, Send, Copy } from 'lucide-react';
 import ApiServiceClass from '../../services/ApiService';
 import { showToast } from '../shared/Toast';
 import { fetchEventAccess, normalizeCode } from '../../utils/eventGate';
+import VipRuleCard from '../support/VipRuleCard';
 
 const api = new ApiServiceClass();
 
@@ -487,6 +488,7 @@ const EventsAirTab = () => {
       <CredentialsCard onChanged={refresh} />
 
       <EventAccessCard />
+      <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4"><VipRuleCard /></div>
 
       <EmbedCard />
 

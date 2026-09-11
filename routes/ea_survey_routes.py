@@ -768,13 +768,15 @@ def _upsert_attendee(conn, contact, coffee_hint=None):
         return
     pref, fields = _extract_coffee_pref(contact, coffee_hint)
     chosen, alternate, source = _contact_mobile(contact)
+    category, tags, udf = _contact_markers(contact)
     cur = conn.cursor()
     cur.execute("""
         INSERT INTO ea_attendees (ea_contact_id, internal_number,
                                   first_name, last_name,
                                   mobile_e164, mobile_alt_e164, mobile_source,
-                                  email, coffee_pref, custom_fields, synced_at)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                                  email, coffee_pref, custom_fields,
+                                  registration_category, tags, udf, synced_at)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
         ON CONFLICT (ea_contact_id) DO UPDATE SET
           internal_number=EXCLUDED.internal_number,
           first_name=EXCLUDED.first_name, last_name=EXCLUDED.last_name,
@@ -784,14 +786,62 @@ def _upsert_attendee(conn, contact, coffee_hint=None):
           email=EXCLUDED.email,
           coffee_pref=EXCLUDED.coffee_pref,
           custom_fields=EXCLUDED.custom_fields,
+          registration_category=EXCLUDED.registration_category,
+          tags=EXCLUDED.tags,
+          udf=EXCLUDED.udf,
           synced_at=CURRENT_TIMESTAMP
     """, (str(contact['id']), _as_int(contact.get('internalNumber')),
           contact.get('firstName'), contact.get('lastName'),
           normalize_phone_e164(chosen) or None,
           normalize_phone_e164(alternate or '') or None, source,
           contact.get('primaryEmail'), pref,
-          json.dumps(fields) if fields else None))
+          json.dumps(fields) if fields else None,
+          category, tags, json.dumps(udf) if udf else None))
     conn.commit()
+
+
+def _contact_markers(contact):
+    """What the VIP rule can match on, pulled off an EA contact.
+
+    The registration category and tags come from fields the contacts
+    query asks for on a best-effort basis (survey_client.fetch_contacts_page
+    tries them first and falls back without them), so both are often
+    absent; the four user-defined fields are in every tier of the query.
+    Returns (category or None, [tags], {udf name: value}).
+    """
+    category = None
+    try:
+        regs = contact.get('registrationsPaged') or contact.get('registrations') or {}
+        items = regs.get('items') if isinstance(regs, dict) else regs
+        for r in (items or []):
+            rt = (r or {}).get('registrationType') or (r or {}).get('type') or {}
+            name = rt.get('name') if isinstance(rt, dict) else rt
+            if name:
+                category = str(name).strip()
+                break
+        if not category:
+            reg = contact.get('registration') or {}
+            if isinstance(reg, dict) and reg.get('category'):
+                category = str(reg['category']).strip()
+    except Exception:
+        category = None
+    tags = []
+    try:
+        raw = contact.get('tags') or contact.get('contactTags') or []
+        if isinstance(raw, dict):
+            raw = raw.get('items') or []
+        for t in raw:
+            name = t.get('name') if isinstance(t, dict) else t
+            if name and str(name).strip():
+                tags.append(str(name).strip())
+    except Exception:
+        tags = []
+    udf = {}
+    for i in (1, 2, 3, 4):
+        v = contact.get(f'userDefinedField{i}')
+        if v is not None and str(v).strip():
+            udf[f'udf{i}'] = str(v).strip()
+    return category, tags, udf
 
 
 # ---------------------------------------------------------------------------
@@ -834,6 +884,69 @@ def ea_attendee_lookup_setting():
                     'enabled': bool(_kv_get(db, 'attendee_lookup_enabled',
                                             default=False))})
 
+
+
+@bp.route('/vip-rule', methods=['GET', 'PUT'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def ea_vip_rule():
+    """The rule that makes a speaker or a tagged VIP one without a code.
+
+    GET -> the rule (with defaults) plus the stations it can name.
+    PUT -> {markers: [..] | "a, b", jump_queue, station_id, vip_only_stations}
+    Stored in the settings KV as vip_rule; read at order time by
+    services/vip_rule.py on every door.
+    """
+    from services.vip_rule import RULE_KEY, read_rule, load_rule
+    db = _db()
+    try:
+        db.rollback()
+    except Exception:
+        pass
+    cur = db.cursor()
+    if request.method == 'PUT':
+        body = request.get_json(silent=True) or {}
+        rule = read_rule(body)
+        # A station the rule names must exist; a VIP-only station that is
+        # not one of the event's stations is a typo, not a rule.
+        cur.execute("SELECT station_id FROM station_stats")
+        known = {(r[0] if not isinstance(r, dict) else r.get('station_id')) for r in cur.fetchall()}
+        if rule['station_id'] and rule['station_id'] not in known:
+            return jsonify({'success': False,
+                            'message': f"Station {rule['station_id']} does not exist"}), 400
+        rule['vip_only_stations'] = [s for s in rule['vip_only_stations'] if s in known]
+        cur.execute("""
+            INSERT INTO settings (key, value, description)
+            VALUES (%s, %s, 'EventsAir VIP rule: who counts, and where they go')
+            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value,
+                                            updated_at = CURRENT_TIMESTAMP
+        """, (RULE_KEY, json.dumps(rule)))
+        db.commit()
+        logger.info(f"VIP rule saved: markers={rule['markers']} jump={rule['jump_queue']} "
+                    f"station={rule['station_id']} vip_only={rule['vip_only_stations']}")
+        return jsonify({'success': True, 'rule': rule})
+    rule = load_rule(cur)
+    cur.execute("SELECT station_id, COALESCE(name, 'Station ' || station_id) FROM station_stats ORDER BY station_id")
+    stations = [{'id': (r[0] if not isinstance(r, dict) else r.get('station_id')),
+                 'name': (r[1] if not isinstance(r, dict) else r.get('coalesce'))}
+                for r in cur.fetchall()]
+    # How many mirrored attendees the rule would catch right now -- the
+    # organiser's only way to see that a marker is spelled the way EA
+    # spells it, before a speaker arrives and is not recognised.
+    matched = 0
+    try:
+        from services.vip_rule import match as _match
+        if rule['markers']:
+            cur.execute("SELECT registration_category, tags, custom_fields, udf FROM ea_attendees")
+            for r in cur.fetchall():
+                row = r if isinstance(r, dict) else dict(zip(
+                    ('registration_category', 'tags', 'custom_fields', 'udf'), r))
+                if _match(rule, row):
+                    matched += 1
+    except Exception as e:
+        logger.debug(f"vip rule match count skipped: {e}")
+    return jsonify({'success': True, 'rule': rule, 'stations': stations,
+                    'matched_attendees': matched})
 
 @bp.route('/status', methods=['GET'])
 @jwt_required_with_demo()
