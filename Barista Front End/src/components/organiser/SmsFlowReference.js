@@ -14,7 +14,7 @@ import React from 'react';
  */
 
 const FLOW_SVG = `
-<svg viewBox="0 0 680 600" xmlns="http://www.w3.org/2000/svg" width="100%" height="auto" font-family="system-ui, -apple-system, sans-serif" role="img" aria-label="How the SMS bot processes each text">
+<svg viewBox="0 0 680 600" xmlns="http://www.w3.org/2000/svg" width="100%" font-family="system-ui, -apple-system, sans-serif" role="img" aria-label="How the SMS bot processes each text">
 <defs>
 <marker id="smsflow-ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
 <path d="M0 0 L10 5 L0 10 z" fill="#8C7B6E"/>
