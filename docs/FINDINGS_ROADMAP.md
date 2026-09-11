@@ -484,6 +484,10 @@ the category or tag names EA actually uses for the people who should count.
 
 ## 20. Badge scan: the phone reads the name off the EA badge
 
+**Status:** BUILT 11 Sep — PR #623, live. Inert until attendee lookup is on.
+Still needed: Steve scans a real badge and reports what the QR holds. One
+thing the security headers had to give: Permissions-Policy camera=(self).
+
 **Why.** Typing a name on a phone is the slowest step and the most
 mis-spelled. The badge is already round their neck with a QR on it.
 
@@ -518,6 +522,13 @@ scanned speaker lands in the VIP lane by itself.
 ---
 
 ## 21. Square: pay on your phone, or at the counter, without holding the coffee
+
+**Status:** levels 1 and 2 BUILT 11 Sep — PR #624, live and inert (pricing
+off, Square unconfigured). Level 3's Terminal call is written, no hardware.
+To switch on: a Square developer app -> SQUARE_APPLICATION_ID / SECRET /
+WEBHOOK_SIGNATURE_KEY in Railway, webhook URL from the Settings card into
+Square's dashboard, then the cart connects from Settings. Bug caught on the
+copy: the barista list's id IS the order number; everything resolves by it.
 
 **Why.** Most of Steve's events are free-to-delegate. Coffee-cart operators
 who already run Square are asking for the ordering system, and the
