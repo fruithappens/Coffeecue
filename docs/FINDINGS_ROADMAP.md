@@ -377,7 +377,16 @@ the guide's rule about not refactoring and converting together.
 
 ## 17. The production database volume: what is actually in the 196 MB
 
-**Status:** open — a monitoring gap, and one 17 MB row.
+**Status:** BUILT 12 Sep — PR #626, awaiting merge. System › Health has a
+**Database storage** tile (data, WAL, % of volume, largest table, largest
+setting, reclaimable) and a **Database volume** meter beside CPU and memory
+— amber at 60 %, red at 80 %, from `services/db_storage.py` via
+`/api/health/full`. **Reclaim** (admin, own connection, `VACUUM (FULL)
+settings`) is offered when 5 MB+ would come back. On the copy the settings
+table went 91 MB → 19 MB in 0.6 s. The video already has a URL option and
+its own KV row; what costs space is *saving* it — each save leaves the old
+17 MB behind until a reclaim, which is exactly what the tile now shows.
+Still yours: press Reclaim once on production at a quiet moment.
 
 Railway reports the Postgres volume at 196 MB of 500 MB. Measured on the live
 DB (read-only, 11 Sep): the database itself is **50 MB**; WAL is 64 MB (4

@@ -70,6 +70,30 @@ def health_memory_trace():
     return jsonify({'success': True, 'tracing': state, 'memory': _mw.snapshot(current_app)})
 
 
+@bp.route('/health/storage/reclaim', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin'])
+def health_storage_reclaim():
+    """VACUUM (FULL) the settings table: every save of a branding, sponsor
+    or video blob rewrites the whole value and leaves the old copy in the
+    TOAST table until a vacuum, which is how 18 MB of live settings came to
+    occupy 38 MB. Admin only, on its own connection, exclusive lock on
+    settings for the second it takes -- a quiet-moment action."""
+    from services import db_storage as _ds
+    dsn = os.environ.get('DATABASE_URL') or ''
+    if not dsn.startswith('postgres'):
+        return jsonify({'success': False, 'message': 'Reclaim needs a PostgreSQL DATABASE_URL'}), 400
+    try:
+        r = _ds.reclaim_settings(dsn)
+        logger.info(f"settings reclaimed: {_ds.mb(r['before_bytes'])} -> {_ds.mb(r['after_bytes'])}")
+        return jsonify({'success': True, **r,
+                        'message': f"Settings table {_ds.mb(r['before_bytes'])} -> {_ds.mb(r['after_bytes'])}, "
+                                   f"{_ds.mb(r['freed_bytes'])} given back"})
+    except Exception as e:
+        logger.error(f"settings reclaim failed: {e}")
+        return jsonify({'success': False, 'message': f'Reclaim failed: {e}'}), 500
+
+
 @bp.route('/health/full', methods=['GET'])
 @jwt_required_with_demo()
 def health_check_full():
@@ -193,6 +217,22 @@ def health_check_full():
     except Exception as e:
         logger.warning(f"EventsAir health probe failed: {e}")
         _set_check('eventsair', 'warn', f'probe error: {e}')
+
+    # --- 2c. Storage: how full the Postgres volume is, and of what ---
+    # Railway's volume gauge with the app's own reading beside it, so a
+    # full disk is a meter that turned amber weeks earlier, not a surprise
+    # (finding 17). WARN at 60 %, fail at 80 %.
+    try:
+        from services import db_storage as _ds
+        coffee_system = current_app.config.get('coffee_system')
+        if coffee_system and getattr(coffee_system, 'db', None):
+            _m = _ds.measure(coffee_system.db.cursor())
+            _set_check('storage', _ds.status_of(_m), _ds.detail_of(_m), extra=_m)
+        else:
+            _set_check('storage', 'warn', 'no database connection')
+    except Exception as _se:
+        logger.warning(f"storage probe failed: {_se}")
+        _set_check('storage', 'warn', f'storage metrics unavailable: {_se}')
 
     # --- 3. Pending schema migrations ---
     try:
