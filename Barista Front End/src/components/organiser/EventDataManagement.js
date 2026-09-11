@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Download, Upload, Trash2, ShieldAlert, Database, Palette, Users } from 'lucide-react';
 import { Panel, SettingRow, Toggle, TextField } from '../../design';
 import ApiServiceClass from '../../services/ApiService';
+import SquareCard from '../support/SquareCard';
 
 const api = new ApiServiceClass();
 
@@ -153,6 +154,9 @@ const EventDataManagement = () => {
           {result.msg}
         </div>
       )}
+
+      {/* Payments level 2 (services/payments.py): the event's own Square. */}
+      <SquareCard />
 
       <Panel title="Export this event" Icon={Download}>
         <p className="text-sm text-cq-ink-3 mb-4 max-w-[60ch]">

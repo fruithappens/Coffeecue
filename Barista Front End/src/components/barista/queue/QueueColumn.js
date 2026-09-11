@@ -7,7 +7,7 @@
 //             Phones and portrait tablets.
 // One primary action per card (Start / Ready / Collected); the rest behind "...".
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { Play, Check, MessageCircle, Printer, ArrowRightLeft, Edit, Clock, Users, Coffee, Plus } from 'lucide-react';
+import { Play, Check, MessageCircle, Printer, ArrowRightLeft, Edit, Clock, Users, Coffee, Plus, Banknote } from 'lucide-react';
 import { OrderCard, Button, Pill } from '../../../design';
 import MoreMenu from './MoreMenu';
 import GroupBadge from '../GroupBadge';
@@ -52,7 +52,7 @@ export default function QueueColumn({
   pendingOrders = [], inProgressOrders = [], completedOrders = [], stationId, expiryMinutes = READY_RECENCY_MIN,
   teamMode = false, groupInfoByOrderId = {}, stationPrinter = null, compact = false, layout = 'column',
   applicableStages, orderStages, toggleStage,
-  onStart, onStartGroup, onComplete, onCollected, onMessage, onPrint, onMove, onEdit, onDelay, onWalkIn, showReady = true, stationMenu = [], rushStrip = null,
+  onStart, onStartGroup, onComplete, onCollected, onMessage, onPrint, onMove, onEdit, onDelay, onWalkIn, onPaid, showReady = true, stationMenu = [], rushStrip = null,
 }) {
   const lanes = layout === 'lanes';
 
@@ -158,9 +158,21 @@ export default function QueueColumn({
       <GroupBadge info={groupInfoByOrderId[o.id]} />
       <SourceBadge order={o} />
       {teamMode ? <WorkTypeBadge order={o} teamMode={teamMode} /> : null}
-      {priceOf(o) ? <Pill tone="outline" size="sm">{priceOf(o)}</Pill> : null}
+      {/* The price, and whether it has been paid. Only an event that prices
+          its coffee ever has a paymentStatus other than 'none'; the pill is
+          the whole of payments level 1 on the floor. */}
+      {o.paymentStatus === 'paid'
+        ? <Pill tone="ready" size="sm">Paid{priceOf(o) ? ` · ${priceOf(o)}` : ''}</Pill>
+        : o.paymentStatus === 'unpaid'
+          ? <Pill tone="caramel" size="sm">Unpaid{priceOf(o) ? ` · ${priceOf(o)}` : ''}</Pill>
+          : priceOf(o) ? <Pill tone="outline" size="sm">{priceOf(o)}</Pill> : null}
     </>
   );
+  // Mark paid / unpaid, behind "..." -- only when there is something to pay.
+  const paidItem = (o) => (o.paymentStatus === 'unpaid' || o.paymentStatus === 'paid')
+    ? { label: o.paymentStatus === 'paid' ? 'Mark unpaid' : 'Mark paid', Icon: Banknote,
+        onClick: () => onPaid && onPaid(o, o.paymentStatus !== 'paid') }
+    : null;
   const phoneItem = (o) => ({ label: hasPhone(o) ? 'Message customer' : 'No phone on this order', Icon: MessageCircle, disabled: !hasPhone(o), onClick: () => onMessage && onMessage(o) });
   const printItem = (o) => stationPrinter ? { label: stationPrinter.online ? 'Print label' : 'Print label (printer offline, will queue)', Icon: Printer, onClick: () => onPrint && onPrint(o) } : null;
 
@@ -186,7 +198,7 @@ export default function QueueColumn({
               {allDone ? 'All parts done · Ready' : 'Ready'}
             </Button>
             <AskCustomerControls order={o} />
-            <MoreMenu items={[phoneItem(o), printItem(o), { label: 'Move to another station', Icon: ArrowRightLeft, onClick: () => onMove && onMove(o) }, { label: 'Edit order', Icon: Edit, onClick: () => onEdit && onEdit(o) }]} />
+            <MoreMenu items={[paidItem(o), phoneItem(o), printItem(o), { label: 'Move to another station', Icon: ArrowRightLeft, onClick: () => onMove && onMove(o) }, { label: 'Edit order', Icon: Edit, onClick: () => onEdit && onEdit(o) }]} />
           </>
         } />
     );
@@ -203,7 +215,7 @@ export default function QueueColumn({
               : <Button Icon={Play} className="flex-1" onClick={() => onStart && onStart(o)}>Start</Button>}
             <MoreMenu items={[
               members > 1 ? { label: 'Start just this one', Icon: Play, onClick: () => onStart && onStart(o) } : null,
-              phoneItem(o), { label: 'Delay', Icon: Clock, onClick: () => onDelay && onDelay(o) },
+              paidItem(o), phoneItem(o), { label: 'Delay', Icon: Clock, onClick: () => onDelay && onDelay(o) },
               { label: 'Move to another station', Icon: ArrowRightLeft, onClick: () => onMove && onMove(o) },
               { label: 'Edit order', Icon: Edit, onClick: () => onEdit && onEdit(o) }, printItem(o),
             ]} />

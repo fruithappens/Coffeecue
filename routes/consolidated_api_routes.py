@@ -487,9 +487,10 @@ def orders():
             base_query = '''
                 SELECT id, order_number, status, station_id, 
                        created_at, phone, order_details, queue_priority,
-                       completed_at, updated_at, picked_up_at
+                       completed_at, updated_at, picked_up_at, payment_status
                 FROM orders
             '''
+            _pricing = _pricing_for(coffee_system.db)
             
             if query_conditions:
                 query = base_query + " WHERE " + " AND ".join(query_conditions)
@@ -540,7 +541,7 @@ def orders():
                 # Extract order details
                 (order_id, order_number, status, station_id, created_at, phone,
                  order_details_json, priority, completed_at, updated_at,
-                 picked_up_at) = order
+                 picked_up_at, payment_status) = order
                 
                 # Parse order details
                 if isinstance(order_details_json, str):
@@ -642,6 +643,8 @@ def orders():
                     # Why they are one, when the EventsAir rule made them a
                     # VIP -- "Priority · Speaker" on the barista card.
                     'vipReason': (order_details.get('vip_reason') or '') if isinstance(order_details, dict) else '',
+                    'paymentStatus': _pay_state(payment_status, order_details, _pricing),
+                    'paidMethod': (order_details.get('paid_method') or '') if isinstance(order_details, dict) else '',
                     'special_instructions': order_details.get('notes', ''),
                     'specialInstructions': order_details.get('notes', ''),  # camelCase
                     'payment_method': order_details.get('payment_method', ''),
@@ -1114,7 +1117,7 @@ def get_pending_orders():
         if station_param is not None:
             cursor.execute('''
                 SELECT id, order_number, status, station_id,
-                       created_at, phone, order_details, queue_priority
+                       created_at, phone, order_details, queue_priority, payment_status
                 FROM orders
                 WHERE status = 'pending' AND station_id = %s
                 ORDER BY queue_priority, created_at ASC
@@ -1122,7 +1125,7 @@ def get_pending_orders():
         else:
             cursor.execute('''
                 SELECT id, order_number, status, station_id,
-                       created_at, phone, order_details, queue_priority
+                       created_at, phone, order_details, queue_priority, payment_status
                 FROM orders
                 WHERE status = 'pending'
                 ORDER BY queue_priority, created_at ASC
@@ -1132,9 +1135,10 @@ def get_pending_orders():
         pending_orders = []
         rows = cursor.fetchall()
         questions_by_phone = _pending_questions_by_phone(cursor)
+        _pricing = _pricing_for(coffee_system.db)
         for order in rows:
             # Extract order details
-            order_id, order_number, status, station_id, created_at, phone, order_details_json, priority = order
+            order_id, order_number, status, station_id, created_at, phone, order_details_json, priority, payment_status = order
             
             # Parse order details
             if isinstance(order_details_json, str):
@@ -1217,6 +1221,8 @@ def get_pending_orders():
                 'priority': priority == 1,  # Convert 1/0 to True/False
                 'vip': priority == 1,  # alias used by some UI filters
                 'vipReason': (order_details.get('vip_reason') or '') if isinstance(order_details, dict) else '',
+                'paymentStatus': _pay_state(payment_status, order_details, _pricing),
+                'paidMethod': (order_details.get('paid_method') or '') if isinstance(order_details, dict) else '',
                 'batch_group': batch_group,
                 # camelCase alias the Barista UI's PendingOrdersSection
                 # actually reads — without this, batch grouping silently
@@ -1286,7 +1292,7 @@ def get_in_progress_orders():
         if station_param is not None:
             cursor.execute('''
                 SELECT id, order_number, status, station_id,
-                       created_at, phone, order_details, queue_priority
+                       created_at, phone, order_details, queue_priority, payment_status
                 FROM orders
                 WHERE status = 'in-progress' AND station_id = %s
                 ORDER BY created_at
@@ -1294,7 +1300,7 @@ def get_in_progress_orders():
         else:
             cursor.execute('''
                 SELECT id, order_number, status, station_id,
-                       created_at, phone, order_details, queue_priority
+                       created_at, phone, order_details, queue_priority, payment_status
                 FROM orders
                 WHERE status = 'in-progress'
                 ORDER BY created_at
@@ -1303,8 +1309,9 @@ def get_in_progress_orders():
         in_progress_orders = []
         rows = cursor.fetchall()
         questions_by_phone = _pending_questions_by_phone(cursor)
+        _pricing = _pricing_for(coffee_system.db)
         for order in rows:
-            order_id, order_number, status, station_id, created_at, phone, order_details_json, priority = order
+            order_id, order_number, status, station_id, created_at, phone, order_details_json, priority, payment_status = order
 
             if isinstance(order_details_json, str):
                 order_details = json.loads(order_details_json)
@@ -1366,6 +1373,8 @@ def get_in_progress_orders():
                 'status': status,
                 'vip': priority == 1,
                 'vipReason': (order_details.get('vip_reason') or '') if isinstance(order_details, dict) else '',
+                'paymentStatus': _pay_state(payment_status, order_details, _pricing),
+                'paidMethod': (order_details.get('paid_method') or '') if isinstance(order_details, dict) else '',
             })
 
         return jsonify({
@@ -3457,9 +3466,29 @@ def _render_ready_message(order_number, order_details, station_id):
             sponsor = _sms_sponsor_tag(cs.db)
     except Exception:
         sponsor = ''
+    # Pay-to-collect (services/payments.py): the ready text says so, with
+    # the amount, and the Square link when the event has one. Plain ASCII
+    # on purpose -- a text is billed by the segment.
+    pay_line = ''
+    try:
+        _cs_p = current_app.config.get('coffee_system')
+        if _cs_p and getattr(_cs_p, 'db', None):
+            _pr = _pricing_for(_cs_p.db)
+            if _pr.get('enabled') and (_pr.get('mode') or 'honour') != 'honour' and order_details.get('price'):
+                _cur_p = _cs_p.db.cursor()
+                _cur_p.execute("SELECT payment_status, payment_link FROM orders WHERE order_number = %s", (str(order_number),))
+                _rp = _cur_p.fetchone()
+                _ps, _pl = ((_rp[0], _rp[1]) if _rp and not isinstance(_rp, dict)
+                            else ((_rp or {}).get('payment_status'), (_rp or {}).get('payment_link')))
+                if str(_ps or '').lower() != 'paid':
+                    _amt = f"${float(order_details.get('price')):.2f}"
+                    pay_line = (f" Pay {_amt} here: {_pl}" if _pl
+                                else f" Please pay {_amt} at the counter when you collect.")
+    except Exception as _pe:
+        logger.debug(f"ready text pay line skipped: {_pe}")
     default_body = (
         f"Hi {name}, your {description} (order #{order_number}) "
-        f"is ready at {station_label}. Enjoy!"
+        f"is ready at {station_label}. Enjoy!{pay_line}"
     )
     try:
         cs = current_app.config.get('coffee_system')
@@ -3720,6 +3749,75 @@ def set_order_stage(order_id):
         except Exception:
             pass
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@bp.route('/orders/<order_id>/paid', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def order_mark_paid(order_id):
+    """The Paid tap on the barista card. Body: {method: cash|card|square|other}.
+
+    Level 1 of payments (services/payments.py): the counter took the money
+    however it likes, and the card should say so. Idempotent -- a second
+    tap changes nothing. Emits order_updated so every open screen sees the
+    pill turn."""
+    try:
+        from services.payments import mark_paid
+        coffee_system = current_app.config.get('coffee_system')
+        body = request.get_json(silent=True) or {}
+        try:
+            who = get_jwt_identity()
+        except Exception:
+            who = None
+        od = mark_paid(coffee_system.db, order_id, body.get('method') or 'cash', by=who)
+        if od is None:
+            return jsonify({'success': False, 'message': 'order not found'}), 404
+        _emit_order_updated(order_id, {'paymentStatus': 'paid', 'paidMethod': od.get('paid_method')})
+        return jsonify({'success': True, 'paymentStatus': 'paid', 'paidMethod': od.get('paid_method')})
+    except Exception as e:
+        logger.error(f"order_mark_paid error: {e}")
+        try:
+            current_app.config.get('coffee_system').db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@bp.route('/orders/<order_id>/unpaid', methods=['POST'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista'])
+def order_mark_unpaid(order_id):
+    """Undo a Paid tap made by mistake."""
+    try:
+        from services.payments import mark_unpaid
+        coffee_system = current_app.config.get('coffee_system')
+        try:
+            who = get_jwt_identity()
+        except Exception:
+            who = None
+        od = mark_unpaid(coffee_system.db, order_id, by=who)
+        if od is None:
+            return jsonify({'success': False, 'message': 'order not found'}), 404
+        _emit_order_updated(order_id, {'paymentStatus': 'unpaid', 'paidMethod': ''})
+        return jsonify({'success': True, 'paymentStatus': 'unpaid'})
+    except Exception as e:
+        logger.error(f"order_mark_unpaid error: {e}")
+        try:
+            current_app.config.get('coffee_system').db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+def _emit_order_updated(order_id, extra):
+    """Tell open screens an order changed, without a reload. Best effort."""
+    try:
+        socketio = current_app.config.get('socketio')
+        if socketio:
+            socketio.emit('order_updated', {'id': str(order_id), 'orderId': str(order_id), **(extra or {})},
+                          room='orders')
+    except Exception as e:
+        logger.debug(f"order_updated emit skipped: {e}")
 
 
 @bp.route('/orders/<order_id>/pickup', methods=['POST'])
@@ -4731,6 +4829,25 @@ def _event_code_for_display(db):
         return event_access_settings(_kv_get(db, ACCESS_SETTING_KEY, default=None))['code']
     except Exception:
         return ''
+
+
+def _pay_state(payment_status, order_details, pricing):
+    """'paid' | 'unpaid' | 'none' -- services/payments.state_of, never raising."""
+    try:
+        from services.payments import state_of
+        return state_of(payment_status, order_details, pricing)
+    except Exception:
+        return 'none'
+
+
+def _pricing_for(db):
+    """The merged pricing settings, for the serialisers that need to say
+    whether an order is paid. One KV read; never raises."""
+    try:
+        saved = _kv_get(db, 'pricing_settings', default=None) or {}
+        return {**DEFAULT_PRICING, **saved}
+    except Exception:
+        return dict(DEFAULT_PRICING)
 
 
 def _badge_scan_for_display(db):
@@ -5973,11 +6090,28 @@ def create_kiosk_order():
         except Exception as e:
             logger.warning(f"kiosk price compute failed (non-fatal): {e}")
 
+        # Pay-to-order (services/payments.py): the order is not placed until
+        # the phone payment lands -- it waits as awaiting_payment, which no
+        # queue shows, and Square's webhook turns it pending. Only when
+        # Square can actually give us a link; otherwise the order goes
+        # through as pay-to-collect would, because a coffee must never be
+        # held on a payment system that is not there.
+        _initial_status = 'pending'
+        _pay_mode = 'honour'
+        try:
+            _pr0 = _pricing_for(db)
+            _pay_mode = (_pr0.get('mode') or 'honour') if _pr0.get('enabled') else 'honour'
+            if _pay_mode == 'pay_to_order' and order_details.get('price'):
+                from routes.square_routes import client_for as _sq_client
+                if _sq_client(db):
+                    _initial_status = 'awaiting_payment'
+        except Exception as _pm:
+            logger.debug(f"pay mode check skipped: {_pm}")
         ins = db.cursor()
         ins.execute('''
             INSERT INTO orders (order_number, phone, order_details, status, station_id, created_at, updated_at, queue_priority)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id, order_number
-        ''', (order_number, phone, json.dumps(order_details), 'pending', target, now, now,
+        ''', (order_number, phone, json.dumps(order_details), _initial_status, target, now, now,
               1 if kiosk_vip else 5))
         res = ins.fetchone()
         db.commit()
@@ -5985,7 +6119,19 @@ def create_kiosk_order():
         order_number = res[1] if (res and len(res) > 1) else order_number
         logger.info(f"Kiosk order {order_number} created at station {target} (id {order_id})")
 
+        # A Square Payment Link for the beacon and the ready text, when the
+        # operator wants the phone to pay. Quick, and never fails the order.
+        payment_link = ''
+        if _pay_mode != 'honour' and order_details.get('price'):
+            try:
+                from routes.square_routes import attach_payment_link as _attach_link
+                payment_link = _attach_link(db, order_number, order_details.get('price'),
+                                            f"{_drink_display_name(order_details)} for {name or 'you'}") or ''
+            except Exception as _pl:
+                logger.debug(f"square link skipped: {_pl}")
+
         try:
+          if _initial_status == 'pending':
             _emit_new_order({
                 'order_number': order_number, 'id': order_number, 'status': 'pending',
                 'station_id': target, 'stationId': target,
@@ -6054,6 +6200,8 @@ def create_kiosk_order():
         resp_payload = {
             'success': True,
             'order_number': order_number,
+            'payment_link': payment_link,
+            'awaiting_payment': _initial_status == 'awaiting_payment',
             'station_id': target,
             'station_name': station_name,
             'station_location': station_location,
@@ -6916,7 +7064,7 @@ def track_order_public(order_id):
         clean_id = clean_order_id(order_id)
         cur = db.cursor()
         cur.execute(
-            "SELECT status, station_id, order_details, created_at FROM orders "
+            "SELECT status, station_id, order_details, created_at, payment_status, payment_link FROM orders "
             "WHERE order_number = %s", (clean_id,))
         row = cur.fetchone()
         if not row:
@@ -6928,17 +7076,18 @@ def track_order_public(order_id):
                 from utils.order_numbering import is_lettered
                 if not is_lettered(clean_id):
                     cur.execute(
-                        "SELECT status, station_id, order_details, created_at FROM orders "
+                        "SELECT status, station_id, order_details, created_at, payment_status, payment_link FROM orders "
                         "WHERE order_number = %s", (f"{clean_id}a",))
                     row = cur.fetchone()
             except Exception:
                 row = None
         if not row:
             return jsonify({'success': False, 'message': 'not found'}), 404
-        status, station_id, od_raw, created_at = (
+        status, station_id, od_raw, created_at, payment_status, payment_link = (
             row if not isinstance(row, dict)
             else (row.get('status'), row.get('station_id'),
-                  row.get('order_details'), row.get('created_at')))
+                  row.get('order_details'), row.get('created_at'),
+                  row.get('payment_status'), row.get('payment_link')))
         od = json.loads(od_raw) if isinstance(od_raw, str) else (od_raw or {})
         # Queue position: how many pending orders at this station are older.
         position = None
@@ -7060,11 +7209,20 @@ def track_order_public(order_id):
             except Exception:
                 pass
 
+        # What the customer owes, if anything, and how the operator wants
+        # it paid (services/payments.py). The link is Square's page when
+        # the event has one; the beacon shows "Pay $4.50" either way.
+        _pricing_t = _pricing_for(current_app.config.get('coffee_system').db)
+        _pay_t = _pay_state(payment_status, od, _pricing_t)
         return jsonify({
             'success': True,
             'order_number': clean_id,
             'status': status,
             'position': position,
+            'price': (od.get('price_formatted') or (f"${float(od.get('price')):.2f}" if od.get('price') not in (None, '') else '')) if isinstance(od, dict) else '',
+            'payment_status': _pay_t,
+            'payment_mode': (_pricing_t.get('mode') or 'honour') if _pricing_t.get('enabled') else 'honour',
+            'payment_link': (payment_link or '') if _pay_t == 'unpaid' else '',
             'beacon_sound': _beacon_sound_setting(),
             'notice': notice,
             'eta_minutes': eta_minutes,
@@ -12953,12 +13111,22 @@ def get_today_report():
             except Exception as _be:
                 logger.warning(f"report bean maths failed: {_be}")
 
+        # What was owed and what was paid (services/payments.py). Empty
+        # unless the event prices its coffee.
+        payments = {'enabled': False}
+        try:
+            from services.payments import summary as _pay_summary
+            payments = _pay_summary(coffee_system.db.cursor(), d0, d1, _pricing_for(coffee_system.db))
+        except Exception as _pay_e:
+            logger.warning(f"report payments block failed: {_pay_e}")
+
         return jsonify({
             'success': True,
             'window': window_label,
             'timezone': tzname,
             'beans': beans,
             'unmet': unmet,
+            'payments': payments,
             'times': times,
             'channels': channels,
             'date': datetime.now().date().isoformat(),
@@ -14304,6 +14472,13 @@ DEFAULT_PRICING = {
     # dollar amount. Staff can be treated the same way by issuing
     # them a VIP code — no separate "staff_free" flag needed.
     'vip_free': False,
+    # How the customer is asked to pay (services/payments.py):
+    #   honour          order goes through, pay whenever (today)
+    #   pay_to_collect  made regardless, UNPAID until paid, "pay at the
+    #                   counter to collect" on the ready text and beacon
+    #   pay_to_order    not placed until the phone payment succeeds
+    #                   (needs a connected Square)
+    'mode': 'honour',
     # Display options
     'show_in_sms': True,            # embed total in SMS confirmation
     'show_in_walkin': True,         # show total at bottom of walk-in dialog

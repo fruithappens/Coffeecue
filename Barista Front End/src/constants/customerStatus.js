@@ -5,6 +5,8 @@
 // surface risked a third. Keys are the server's status values, with the
 // underscore/hyphen spelling both accepted via customerStatus().
 export const CUSTOMER_STATUS = Object.freeze({
+  // Pay-to-order (services/payments.py): the payment is what places it.
+  awaiting_payment: { title: 'Pay to place your order', tone: 'bg-cq-caramel' },
   pending:       { title: 'In the queue',            tone: 'bg-blue-600' },
   'in-progress': { title: 'Being made now',          tone: 'bg-amber-500' },
   completed:     { title: 'READY — come and get it', tone: 'bg-green-600' },
@@ -24,6 +26,7 @@ export function customerStatus(status) {
 // runner's list. Same keys, same order of life: queued, making, ready,
 // collected, cancelled. Tone names map to design tokens (design/tokens.css).
 export const STAFF_STATUS = Object.freeze({
+  awaiting_payment: { label: 'Awaiting payment', tone: 'caramel' },
   pending:       { label: 'Queued',    tone: 'neutral' },
   'in-progress': { label: 'Making',    tone: 'caramel' },
   completed:     { label: 'Ready',     tone: 'ready' },

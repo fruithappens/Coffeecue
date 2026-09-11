@@ -15,6 +15,7 @@ import ApiServiceClass from '../../services/ApiService';
 import EventInventoryService from '../../services/EventInventoryService';
 import useCatalog from '../../hooks/useCatalog';
 import { event as logEvent } from '../../services/logging';
+import { Segmented } from '../../design';
 
 const api = new ApiServiceClass();
 
@@ -1829,6 +1830,26 @@ const PricingSection = () => {
 
       {pricing.enabled && (
         <>
+          {/* How the customer is asked to pay (services/payments.py).
+              Honour: order goes through, pay whenever. Pay to collect: made
+              regardless, the card says UNPAID, the ready text and beacon
+              say pay at the counter. Pay to order: not placed until the
+              phone payment succeeds -- needs a connected Square. */}
+          <div className="mb-4">
+            <div className="text-xs font-extrabold uppercase tracking-wider text-cq-ink-3 mb-1.5">How they pay</div>
+            <Segmented
+              value={pricing.mode || 'honour'}
+              onChange={(v) => setPricing(p => ({ ...p, mode: v }))}
+              options={[{ value: 'honour', label: 'Honour' },
+                        { value: 'pay_to_collect', label: 'Pay to collect' },
+                        { value: 'pay_to_order', label: 'Pay to order' }]}
+            />
+            <div className="text-xs text-cq-ink-3 mt-1.5">
+              {(pricing.mode || 'honour') === 'honour' && 'The order goes through; they pay whenever. The card shows the price.'}
+              {pricing.mode === 'pay_to_collect' && 'Made regardless. The card says Unpaid until the counter taps Paid; the ready text and their phone say pay at the counter.'}
+              {pricing.mode === 'pay_to_order' && 'Not placed until they pay on their phone. Needs Square connected under Settings; the counter can still take cash.'}
+            </div>
+          </div>
           {/* Flat-fee mode — fixed price regardless of drink and milk
               (alt milk is free). Either one price for everything, or a
               price per cup size (small $2 / medium $2.50). The common
