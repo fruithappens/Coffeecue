@@ -1128,6 +1128,25 @@ const BaristaInterface = () => {
   // Open the move-to-station dialog. Just stages the order — the
   // dialog drives the actual reassign call so it can show inline
   // errors (e.g. capability mismatch) without disrupting the queue.
+  // Payments level 1: the counter took the money; say so on the card.
+  const handleMarkPaid = async (order, paid) => {
+    if (!order || !order.id) return;
+    try {
+      const r = await fetch(`/api/orders/${order.id}/${paid ? 'paid' : 'unpaid'}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json',
+                   Authorization: `Bearer ${localStorage.getItem('coffee_system_token') || ''}` },
+        body: JSON.stringify({ method: 'cash' }),
+      });
+      const b = await r.json().catch(() => ({}));
+      if (!r.ok || b.success === false) throw new Error(b.message || `Could not mark ${paid ? 'paid' : 'unpaid'}`);
+      showToast(`#${order.orderNumber || order.id} marked ${paid ? 'paid' : 'unpaid'}`, 'success', 2500);
+      if (typeof refreshData === 'function') refreshData();
+    } catch (e) {
+      showToast(e.message || 'Could not update payment', 'error', 5000);
+    }
+  };
+
   const handleOpenMoveDialog = (order) => {
     if (!order || !order.id) {
       console.error('Cannot move order: missing order ID');
@@ -2308,6 +2327,7 @@ const BaristaInterface = () => {
             onMove={handleOpenMoveDialog}
             onEdit={handleEditOrder}
             onDelay={handleDelayOrder}
+            onPaid={handleMarkPaid}
             onWalkIn={() => setShowWalkInDialog(true)}
             stationMenu={stationMenu}
             layout={lanes ? 'lanes' : 'column'}

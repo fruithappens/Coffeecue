@@ -729,6 +729,14 @@ def create_app():
                     os.environ.get('EA_SURVEY_CHANNEL_ENABLED', 'false'))
     except Exception as ea_err:
         logger.error(f"EA survey routes failed to register: {ea_err}")
+    # Square (payments level 2): inert without SQUARE_APPLICATION_ID/SECRET
+    # and an operator connection; see services/payments.py.
+    try:
+        from routes.square_routes import bp as square_bp
+        app.register_blueprint(square_bp)
+        logger.info("Square routes registered (configured: %s)", bool(os.getenv('SQUARE_APPLICATION_ID')))
+    except Exception as sq_err:
+        logger.error(f"Square routes failed to register: {sq_err}")
         
     # Hourly server-side backups. Started here so it runs wherever the
     # app runs -- Steve cannot rely on his laptop being online during an

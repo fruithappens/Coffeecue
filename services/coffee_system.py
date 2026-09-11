@@ -3797,6 +3797,8 @@ class CoffeeOrderSystem:
             # dollar amount, so neither the SMS confirmation nor the
             # barista card mistakenly asks them to pay.
             "vip_free": False,
+            # honour | pay_to_collect | pay_to_order -- services/payments.py
+            "mode": "honour",
         }
         try:
             cursor = self.db.cursor()
@@ -6819,6 +6821,19 @@ class CoffeeOrderSystem:
                     fresh_conn.commit()
 
                 logger.info(f"Created order {order_number} with ID {order_id}")
+
+                # Payments level 2 (services/payments.py): a Square link for
+                # the ready text, when the operator wants the phone to pay.
+                try:
+                    _pr = self._get_pricing_settings() or {}
+                    if _pr.get("enabled") and (_pr.get("mode") or "honour") != "honour" \
+                            and processed_details.get("price"):
+                        from flask import current_app as _ca
+                        from routes.square_routes import attach_payment_link as _attach
+                        _attach(self.db, order_number, processed_details.get("price"),
+                                f"{processed_details.get('type') or 'coffee'} for {processed_details.get('name') or 'you'}")
+                except Exception as _sq:
+                    logger.debug(f"square link skipped for SMS order: {_sq}")
 
                 # Stamp the created identifiers back onto the caller's dict so
                 # group flows (multi-drink, FRIEND) can read what was actually
