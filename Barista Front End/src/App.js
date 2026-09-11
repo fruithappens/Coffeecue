@@ -40,17 +40,6 @@ const ToRunner = () => {
   return null;
 };
 
-// /organiser and /support were two apps that overlapped; they are one app
-// now. Keep the old doors working -- a bookmark, a printed link, anything
-// in the app still pointing at them -- and carry the hash across so a deep
-// link like #branding/labels still lands where it did.
-const ToRunner = () => {
-  React.useEffect(() => {
-    window.location.replace('/run' + (window.location.hash || ''));
-  }, []);
-  return null;
-};
-
 // Renders its children EXCEPT on the screens a customer sees. Those pages
 // are deliberately unauthenticated, so anything that reports "you are not
 // connected" because an authenticated call failed is telling them about a
@@ -570,6 +559,8 @@ function App() {
               themselves; staff screens get asked. */}
           <UpdateAvailable />
 
+          {/* TEST COPY stripe -- /api/env says whether this is production. */}
+          <EnvBanner />
           <Routes>
             {/* Public routes */}
             {/* cupq.app now opens straight into ordering -- Steve: "just
@@ -646,12 +637,6 @@ function App() {
           {/* Unauthorized access page */}
           <Route path="/unauthorized" element={<UnauthorizedPage />} />
           
-<<<<<<< HEAD
-          {/* API test route */}
-          />
-          
-=======
->>>>>>> origin/main
           {/* cupq.app/treenet26 -> order page for that event. Any real
               route above wins; a bare unknown segment is treated as an
               event code and carried through as ?e= so orders bind to the
@@ -664,8 +649,6 @@ function App() {
         <AdminViewSwitcher />
         {/* One in-app confirm dialog for the whole app (askConfirm). */}
         <ConfirmHost />
-        {/* TEST COPY stripe on any non-production environment. */}
-        <EnvBanner />
       </Router>
     </AppProvider>
     </ErrorBoundary>
