@@ -1901,22 +1901,129 @@ def ea_hello():
     if not cid.startswith('local:') and not attendee_lookup_enabled(db):
         return jsonify({'success': False, 'disabled': True,
                         'message': 'attendee lookup is not enabled for this event'}), 404
-    cur.execute("SELECT first_name, mobile_e164 FROM ea_attendees "
+    cur.execute("SELECT first_name, mobile_e164, ea_contact_id FROM ea_attendees "
                 "WHERE ea_contact_id = %s", (cid,))
     row = cur.fetchone()
     if not row and cid.isdigit():
-        cur.execute("SELECT first_name, mobile_e164 FROM ea_attendees "
+        cur.execute("SELECT first_name, mobile_e164, ea_contact_id FROM ea_attendees "
                     "WHERE internal_number = %s", (int(cid),))
         row = cur.fetchone()
     if not row:
         return jsonify({'success': False, 'message': 'unknown contact'}), 404
-    first, mobile = ((row.get('first_name'), row.get('mobile_e164'))
-                     if isinstance(row, dict) else row)
+    first, mobile, real_cid = ((row.get('first_name'), row.get('mobile_e164'), row.get('ea_contact_id'))
+                               if isinstance(row, dict) else row)
     if not (first or '').strip():
         return jsonify({'success': False, 'message': 'unknown contact'}), 404
+    # The canonical contact id: a badge NUMBER resolves here, but the order
+    # path keys on ea_contact_id, so the caller must carry that one on.
     return jsonify({'success': True, 'first_name': first.strip(),
-                    'has_phone': bool(mobile)})
+                    'has_phone': bool(mobile), 'cid': real_cid or cid})
 
+
+
+def badge_identifier_candidates(payload):
+    """What an EventsAir badge QR might hold, reduced to things the mirror
+    can be asked for -- in the order to try them.
+
+    Nobody has scanned a real badge from here yet; EA's badge designer can
+    print the contact id, the badge (internal) number, a URL carrying either,
+    or an arbitrary string. So: a URL yields its cid/contactId/id/c query
+    values and its last path segment; a bare value is tried as-is; digits
+    are also tried as a badge number; and the whole payload is kept as a
+    last resort for a custom-field code match. Never raises.
+    """
+    out = []
+    try:
+        raw = str(payload or '').strip()
+        if not raw or len(raw) > 512:
+            return out
+        if _re.match(r'^https?://', raw, _re.I):
+            from urllib.parse import urlparse, parse_qs
+            u = urlparse(raw)
+            qs = parse_qs(u.query)
+            for k in ('cid', 'contactId', 'contactid', 'contact', 'id', 'c', 'badge'):
+                for v in qs.get(k, []):
+                    if v and v.strip():
+                        out.append(v.strip())
+            seg = [p for p in u.path.split('/') if p]
+            if seg:
+                out.append(seg[-1])
+            out.append(raw)
+        else:
+            out.append(raw)
+            # "CID:1234" / "id=1234" style prefixes
+            m = _re.match(r'^[A-Za-z_ ]{1,20}[:=#]\s*([\w-]+)$', raw)
+            if m:
+                out.append(m.group(1))
+        seen, uniq = set(), []
+        for c in out:
+            if c and c not in seen:
+                seen.add(c)
+                uniq.append(c)
+        return uniq[:6]
+    except Exception:
+        return out[:6]
+
+
+def _resolve_badge(cur, payload):
+    """The mirrored attendee a badge payload points at, or None."""
+    cols = "first_name, mobile_e164, ea_contact_id"
+    for cand in badge_identifier_candidates(payload):
+        try:
+            cur.execute(f"SELECT {cols} FROM ea_attendees WHERE ea_contact_id = %s", (cand,))
+            row = cur.fetchone()
+            if not row and cand.isdigit():
+                cur.execute(f"SELECT {cols} FROM ea_attendees WHERE internal_number = %s", (int(cand),))
+                row = cur.fetchone()
+            if not row:
+                # a custom-field code printed on the badge ("uniqueCode")
+                cur.execute(
+                    f"SELECT {cols} FROM ea_attendees "
+                    "WHERE custom_fields IS NOT NULL AND custom_fields::text ILIKE %s LIMIT 1",
+                    ('%' + cand.replace('%', '').replace('_', '') + '%',))
+                row = cur.fetchone() if len(cand) >= 6 else None
+            if row:
+                return row
+        except Exception as e:
+            logger.debug(f"badge candidate {cand!r} lookup failed: {e}")
+            try:
+                _db().rollback()
+            except Exception:
+                pass
+    return None
+
+
+@bp.route('/badge', methods=['POST'])
+def ea_badge():
+    """A scanned badge -> who this is. Body: {payload: <the QR's text>}.
+
+    The phone's camera read the QR on the badge round their neck; this is
+    the same privacy-tight answer /api/ea/hello gives for a contact id:
+    FIRST NAME + has_phone + the canonical cid, never the number. Gated on
+    the same operator switch. Unknown badge -> 404 and the customer types.
+    """
+    db = _db()
+    try:
+        db.rollback()
+    except Exception:
+        pass
+    if not attendee_lookup_enabled(db):
+        return jsonify({'success': False, 'disabled': True,
+                        'message': 'attendee lookup is not enabled for this event'}), 404
+    body = request.get_json(silent=True) or {}
+    payload = str(body.get('payload') or '').strip()
+    if not payload:
+        return jsonify({'success': False, 'message': 'payload required'}), 400
+    row = _resolve_badge(db.cursor(), payload)
+    if not row:
+        logger.info("badge scan: no attendee matched (payload %d chars)", len(payload))
+        return jsonify({'success': False, 'message': 'unknown badge'}), 404
+    first, mobile, real_cid = ((row.get('first_name'), row.get('mobile_e164'), row.get('ea_contact_id'))
+                               if isinstance(row, dict) else row)
+    if not (first or '').strip():
+        return jsonify({'success': False, 'message': 'unknown badge'}), 404
+    return jsonify({'success': True, 'first_name': first.strip(),
+                    'has_phone': bool(mobile), 'cid': real_cid})
 
 def maybe_writeback_order(app_obj, order_number):
     """Hook for order completion/pickup: if the channel + write-back are
