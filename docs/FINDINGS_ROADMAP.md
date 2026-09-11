@@ -412,6 +412,167 @@ bug being tolerated. Find the read, commit or rollback after it.
 
 ---
 
+# Roadmap: after the cutover
+
+Three things Steve asked for on 11 Sep, written up so they can be built one
+at a time. Each says what already exists (with the file it lives in), what
+the design is, the steps, what it costs, and what it needs from Steve. They
+are ordered so the shared wiring is built once.
+
+---
+
+## 19. EventsAir: VIPs and speakers go where the organiser says
+
+**Why.** Speakers from overseas, sponsors' guests, a VIP category — the
+organiser wants them through the coffee line faster, or sent to a specific
+station (a sponsor's booth cart that only serves VIPs and has no queue).
+Today the only way to be a VIP is to type the VIP code.
+
+**What exists.**
+- `services/eventsair/client.py` already pulls `registration { category }`
+  for every attendee and computes `is_vip` from a configurable list
+  (`vip_categories`). It has never run against a live event: EA credentials
+  are not in Railway.
+- `ea_attendees` (the mirror) stores name, mobile, email, coffee_pref and
+  `custom_fields` — but **not** the category or the VIP flag.
+- Every order path already carries a priority: `queue_priority` (1 = VIP)
+  and the `vip` flag on the order, set today only by the VIP code
+  (`consolidated_api_routes.py` ~749-830 for the API; the SMS bot's
+  equivalent in `coffee_system.py`).
+- Station routing lives in `coffee_system._assign_station` (~7345) and
+  already honours per-station capabilities; there is no "this station is
+  only for VIPs" rule.
+
+**Design.**
+1. **Store it.** Migration 23 adds `registration_category text` and
+   `tags text[]` to `ea_attendees`; the sync writes both (EA exposes tags
+   and custom fields alongside the category — the client reads `custom
+   fields` already, tags need one more field in the GraphQL query).
+2. **One rule, set by the organiser** — Runner › EventsAir › *VIP rule*:
+   - *Who counts*: registration categories and/or tags (a list; case-
+     insensitive; e.g. `Speaker`, `VIP`, `Sponsor guest`).
+   - *What happens*: **jump the queue** (priority 1, the VIP pill), and/or
+     **send to station N** (a station picker), and/or **only VIPs at
+     station N** (a per-station flag in Stations; routing skips it for
+     everyone else).
+3. **Apply it at order time**, in one shared function, so every door
+   behaves the same: when an order arrives with a phone number or an EA
+   contact id (`ea_contact_id` at ~5567), look the attendee up in the
+   mirror; if the category or a tag matches the rule, set priority and/or
+   the target station before `_assign_station` runs. SMS, `/my`, the kiosk,
+   the barista's walk-up and the badge scan (item 21) all pass through it.
+4. **Show it.** The VIP pill already exists on the barista card; add "VIP
+   (Speaker)" so staff can see *why*. The report's channels block gains a
+   VIP count.
+
+**Steps.** migration 23 → sync writes category/tags → `vip_rule` setting +
+the Runner screen → the shared apply-at-order function → per-station
+"VIP only" flag → tests (a mirror row with category Speaker: SMS order gets
+priority 1; kiosk order with `?cid=` for that row lands at the chosen
+station; a non-VIP never routes to a VIP-only station).
+
+**Cost.** ~2 days. **Needs from Steve:** EA client id / secret / event id in
+Railway (this also unblocks the survey ordering channel built in July), and
+the category or tag names EA actually uses for the people who should count.
+
+---
+
+## 20. Badge scan: the phone reads the name off the EA badge
+
+**Why.** Typing a name on a phone is the slowest step and the most
+mis-spelled. The badge is already round their neck with a QR on it.
+
+**What exists.** The kiosk and `/my` already accept `?cid=<EA contact id>`
+(`KioskOrder.js` ~293 `eaIdentity`): the server resolves it to a first name
+from the mirror — **the phone number never leaves the server** — and the
+name and phone steps are skipped. The EA app links this way today. A badge
+scan is just another way to obtain the same id.
+
+**Design.**
+1. On the *who's it for?* step, a **Scan your badge** button (only shown
+   when the event has an EA sync and the device has a camera).
+2. Camera in the browser: `getUserMedia` (needs HTTPS — cupq.app has it;
+   the first tap asks permission). Android Chrome decodes QR natively
+   (`BarcodeDetector`); iPhone Safari does not, so ship `jsQR` (~10 kB) as
+   the fallback. No app to install.
+3. Decode → extract the contact id → the existing `?cid=` path: name
+   filled, phone step skipped, and item 19's rule applied. An unknown or
+   unreadable badge falls back to typing, with one line saying so.
+4. A **kiosk** variant later: the same button on the counter tablet, using
+   its front camera — one scan and the walk-up has a name.
+
+**The unknown that decides the effort.** What EA prints in the badge QR is
+set in EA's badge designer — the contact id, a URL carrying it, or an
+arbitrary string. **Steve scans a badge with his phone camera and reports
+what it shows.** Contact id or URL → straightforward. Arbitrary string → the
+sync must also mirror that string so it can be matched.
+
+**Cost.** 1–2 days once the QR content is known. Build after 19 so a
+scanned speaker lands in the VIP lane by itself.
+
+---
+
+## 21. Square: pay on your phone, or at the counter, without holding the coffee
+
+**Why.** Most of Steve's events are free-to-delegate. Coffee-cart operators
+who already run Square are asking for the ordering system, and the
+question is how it talks to *their* Square. And the less handling of cash
+and cards at the counter, the faster the counter.
+
+**What exists.** Honour pricing is built: prices per drink and size, or a
+flat fee, in Quick Setup › Pricing (`/api/pricing`, ~14281); every order
+carries `price`, shown as a pill on the barista card (`orderMeta.priceOf`).
+`orders.payment_status` (default `pending`) and `orders.payment_link` exist
+and nothing writes them; a `payment_transactions` table exists unused. The
+Stripe keys were removed in the cutover (never wired).
+
+**Principle.** The operator chooses, in one setting (Quick Setup › Pricing):
+- **Honour** (default, today's behaviour): the order goes through, pay
+  whenever.
+- **Pay to collect**: the order goes through and is made; the card shows
+  UNPAID until paid; the barista's Ready text/beacon says "pay at the
+  counter to collect".
+- **Pay to order**: the order is not placed until the phone payment
+  succeeds (only makes sense with level 2 switched on; the kiosk/walk-up
+  path still allows counter payment).
+Nothing in levels 1-3 ever *blocks the making* of a coffee unless the
+operator chose Pay-to-order.
+
+**Level 1 — mark it paid (a day, no Square).** A *Paid* action on the
+barista card (behind "…"), a PAID / UNPAID pill in the price's place, an
+unpaid count and list on the report, `payment_status` finally written. This
+is what a cart with its own Square POS on a separate tablet needs and
+nothing more.
+
+**Level 2 — pay on the phone at the beacon (2–3 days).** The *operator's*
+Square account, connected once with Square OAuth from Runner › Settings
+(so each event links its own Square — never Steve's), plus a location
+picker. When an order is placed, the server creates a Square **Payment
+Link** (Checkout API; Square hosts the card page; we never see a card) and
+stores it in `payment_link`. The beacon shows **Pay $4.50**; the ready text
+carries the link (short, plain ASCII — texts cost by segment). Square's
+`payment.completed` webhook (signature-verified, fail-closed like the
+Twilio one) sets `payment_status = paid` and the pill turns green on the
+card within the second over the socket. AU online rate is about 2.2%.
+
+**Level 3 — the counter's own reader (2 days + hardware).** A Square
+Terminal paired to the event. The barista's *Paid* tap (level 1) becomes
+*Charge* when a Terminal is paired: Terminal Checkout API pushes the amount
+with the order number as the reference; the customer taps; the same webhook
+marks it paid. In-person rate about 1.6%. If the Terminal is offline the
+tap falls back to level 1's manual *Paid*.
+
+**Order of work.** 1 → 2 → 3. Level 1 first because every later level needs
+the pill, the report and the status write, and it is useful on its own.
+Levels 2 and 3 share the webhook and the Square connection.
+
+**Needs from Steve.** A Square developer account (free) to register the
+app for OAuth; a test cart operator willing to connect their Square in
+sandbox first; the wording for the three pricing modes as a customer reads
+them.
+
+---
+
 ## Still on Steve
 
 Not findings — decisions and config that only he can make.
