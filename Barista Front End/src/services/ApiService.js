@@ -1,5 +1,6 @@
 // services/ApiService.js
 import serviceFactory from './ServiceFactory';
+import { noteServerDate } from '../utils/orderTime';
 import MockDataService from './MockDataService';
 import authService from './AuthService';
 import webSocketService from './WebSocketService';
@@ -420,6 +421,10 @@ class ApiService {
           });
         }
       }
+
+      // Every response says what time the server thinks it is. Order ages
+      // are measured on that clock, not the tablet's (utils/orderTime.js).
+      noteServerDate(response.headers.get('date'));
 
       if (!response.ok) {
         // Try to get error details from response

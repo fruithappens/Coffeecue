@@ -1,6 +1,7 @@
 // Small readers for the order object as the API ships it (camel and snake
 // case both appear). Presentation only -- no state.
 import { parseServerDate } from '../../../utils/orderUtils';
+import { serverNow } from '../../../utils/orderTime';
 
 export const orderNumberOf = (o) => o.orderNumber || o.order_number || o.id;
 export const drinkLine = (o) => [o.size, o.coffeeType || o.coffee_type || 'Coffee'].filter(Boolean).join(' ');
@@ -26,12 +27,12 @@ const ago = (ts) => {
   if (!ts) return null;
   const t = parseServerDate(ts).getTime();
   if (Number.isNaN(t)) return null;
-  const m = Math.max(0, Math.round((Date.now() - t) / 60000));
+  const m = Math.max(0, Math.round((serverNow() - t) / 60000));
   return m === 0 ? 'just now' : `${m} min ago`;
 };
-// The server's waitTime (minutes) first: it is computed on the server's own
-// clock, so it is right whether the server stores UTC (Railway) or local
-// time (a Mac). createdAt/startedAt only when waitTime is missing.
+// waitTime first: stamped on arrival from createdAt, on the server's clock
+// (utils/orderTime.js), so it is right whatever the tablet's clock says.
+// createdAt/startedAt only when waitTime is missing.
 const mins = (v) => Math.max(0, Math.round(Number(v) || 0));
 export const sinceQueued = (o) => (o.waitTime != null ? `Waiting ${mins(o.waitTime)} min` : (ago(o.createdAt || o.created_at) ? `Ordered ${ago(o.createdAt || o.created_at)}` : ''));
 export const sinceStarted = (o) => (o.waitTime != null ? `${mins(o.waitTime)} min since ordered` : (ago(o.startedAt || o.started_at) ? `Started ${ago(o.startedAt || o.started_at)}` : ''));

@@ -16,6 +16,7 @@ import WorkTypeBadge from '../WorkTypeBadge';
 import AskCustomerControls from '../AskCustomerControls';
 import { summariseMilk, filterByMilk } from '../../../utils/currentOrderView';
 import { parseServerDate } from '../../../utils/orderUtils';
+import { serverNow } from '../../../utils/orderTime';
 import { orderNumberOf, drinkLine, milkSugarLine, notesOf, messageOf, groupIdOf, isPriority, priceOf, hasPhone, isDecaf, sinceQueued, sinceStarted, sinceReady } from './orderMeta';
 
 const READY_RECENCY_MIN = 30;
@@ -109,12 +110,13 @@ export default function QueueColumn({
   };
 
   // ---- Sort. Oldest first is the fair queue and the default (Steve saw
-  // newest on top and old ones at risk of being missed). Age comes from the
-  // server's waitTime (minutes) so it is right on any clock; createdAt only
-  // breaks ties. A device remembers its choice.
+  // newest on top and old ones at risk of being missed). Age is waitTime,
+  // stamped on arrival from createdAt on the server's clock
+  // (utils/orderTime.js); createdAt only breaks ties. A device remembers
+  // its choice.
   const [sortMode, setSortMode] = useState(() => { try { return localStorage.getItem('coffee_cue_queue_sort') || 'oldest'; } catch (e) { return 'oldest'; } });
   const chooseSort = (m) => { setSortMode(m); try { localStorage.setItem('coffee_cue_queue_sort', m); } catch (e) { /* device pref */ } };
-  const ageOf = (o) => { const w = Number(o.waitTime); if (!Number.isNaN(w) && o.waitTime != null) return w; const t = parseServerDate(o.createdAt || o.created_at || 0).getTime(); return Number.isNaN(t) ? 0 : (Date.now() - t) / 60000; };
+  const ageOf = (o) => { const w = Number(o.waitTime); if (!Number.isNaN(w) && o.waitTime != null) return w; const t = parseServerDate(o.createdAt || o.created_at || 0).getTime(); return Number.isNaN(t) ? 0 : (serverNow() - t) / 60000; };
   const created = (o) => parseServerDate(o.createdAt || o.created_at || 0).getTime() || 0;
   const olderFirst = (a, b) => (ageOf(b) - ageOf(a)) || (created(a) - created(b));
   const milkOf = (o) => String(o.milkType || o.milk_type || 'no milk').toLowerCase();
