@@ -10,8 +10,13 @@ Ordered by what it costs you, not by how interesting it is.
 
 ## 1. Elapsed time is computed on the server, and it costs you the outage
 
-**Status:** open. The cause of the 8 September outage is patched; the load
-that triggered it is not.
+**Status:** BUILT 12 Sep — PR #625, awaiting merge. The list no longer
+carries `waitTime`; `utils/orderTime.js` stamps it on arrival from
+`createdAt`, on the server's clock (every response's `Date` header), and
+`useOrders` re-stamps once a minute. With the ticking gone the `/orders`
+ETag is back and fires: on the copy, 23 of a tablet's 24 polls came back
+304 — 300 KB → 0 bytes each. Honest limit unchanged: the query still runs;
+only the bytes are saved.
 
 `/api/orders` returns ~200 KB and every barista screen re-polls it several
 times a second. That is the load that drained the connection pool and took
