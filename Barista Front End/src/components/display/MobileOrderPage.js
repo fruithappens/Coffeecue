@@ -273,6 +273,26 @@ const MobileOrderPage = () => {
                   : `Collect from ${track.station_name}${track?.station_location ? ` · ${track.station_location}` : ''}`}
               </div>
             )}
+            {/* Payments (services/payments.py). Pay-to-collect: the amount and
+                where to pay it, and the Square page when the event has one.
+                Honour mode says nothing here -- the counter handles it. */}
+            {track?.payment_status === 'unpaid' && track?.payment_mode && track.payment_mode !== 'honour' && (
+              <div className={ready ? 'mt-3' : 'mt-2'}>
+                {track?.payment_link ? (
+                  <a href={track.payment_link} target="_blank" rel="noopener noreferrer"
+                     className="inline-flex items-center justify-center h-12 px-5 rounded-cq-md bg-white text-cq-roast font-bold text-lg">
+                    Pay {track.price || ''} now
+                  </a>
+                ) : (
+                  <div className={ready ? 'text-lg font-semibold' : 'text-base opacity-95'}>
+                    {`Pay ${track.price || ''} at the counter when you collect`}
+                  </div>
+                )}
+              </div>
+            )}
+            {track?.payment_status === 'paid' && (
+              <div className={ready ? 'mt-3 text-lg font-semibold' : 'mt-2 text-base opacity-95'}>Paid ✓</div>
+            )}
           </div>
           {/* Collected, from the customer's own phone: one less press for
               the barista on the busiest surface they have. Only offered

@@ -1688,6 +1688,20 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
               {phone.trim() && (
                 <p className="text-base md:text-lg text-cq-ink-3 mt-2">We'll text you when it's ready.</p>
               )}
+              {/* Payments (services/payments.py): the Square page when the
+                  event has one. Pay-to-order says so in as many words. */}
+              {result?.payment_link && (
+                <div className="mt-4">
+                  <a href={result.payment_link} target="_blank" rel="noopener noreferrer"
+                     className="inline-flex items-center justify-center h-14 px-8 rounded-cq-xl text-white text-xl font-extrabold"
+                     style={{ backgroundColor: headerColor }}>
+                    {result.awaiting_payment ? 'Pay now to place it' : 'Pay now'}
+                  </a>
+                  {result.awaiting_payment && (
+                    <p className="text-base text-cq-ink-3 mt-2">Your coffee is made once the payment goes through.</p>
+                  )}
+                </div>
+              )}
             </div>
             <div className="md:flex md:flex-col md:items-center">
 

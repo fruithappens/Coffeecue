@@ -10,7 +10,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   BarChart3, Clock, Coffee, Printer, Mail, AlertTriangle, Info, Milk, Users,
-  Package, Ban, Timer, Smartphone,
+  Package, Ban, Timer, Smartphone, Banknote,
 } from 'lucide-react';
 import AuthService from '../../services/AuthService';
 
@@ -395,6 +395,31 @@ export default function ReportTab() {
                 <Bar key={c.channel} label={c.channel} n={c.orders}
                      max={Math.max(...d.channels.map((x) => x.orders))} />
               ))}
+            </Card>
+          )}
+
+          {/* What was owed and what was paid -- only for an event that prices
+              its coffee (services/payments.py). Unpaid is the number the
+              operator chases at the end of the day. */}
+          {d.payments?.enabled && (
+            <Card title="Payments" Icon={Banknote}
+                  right={d.payments.mode === 'honour' ? 'honour system' : d.payments.mode === 'pay_to_collect' ? 'pay to collect' : 'pay to order'}>
+              <div className="grid grid-cols-2 gap-4 mb-3">
+                <div>
+                  <div className="text-2xl font-bold text-cq-ready">${(d.payments.paid?.total || 0).toFixed(2)}</div>
+                  <div className="text-sm text-cq-ink-2">paid · {d.payments.paid?.count || 0} order{(d.payments.paid?.count || 0) === 1 ? '' : 's'}</div>
+                </div>
+                <div>
+                  <div className={`text-2xl font-bold ${(d.payments.unpaid?.count || 0) ? 'text-cq-warn' : 'text-cq-roast'}`}>${(d.payments.unpaid?.total || 0).toFixed(2)}</div>
+                  <div className="text-sm text-cq-ink-2">unpaid · {d.payments.unpaid?.count || 0} order{(d.payments.unpaid?.count || 0) === 1 ? '' : 's'}</div>
+                </div>
+              </div>
+              {Object.keys(d.payments.by_method || {}).length ? (
+                Object.entries(d.payments.by_method).map(([m, v]) => (
+                  <Bar key={m} label={m} n={v.count} max={Math.max(...Object.values(d.payments.by_method).map((x) => x.count))}
+                       suffix={` · $${(v.total || 0).toFixed(2)}`} />
+                ))
+              ) : <p className="text-sm text-cq-ink-3">Nothing marked paid yet.</p>}
             </Card>
           )}
 
