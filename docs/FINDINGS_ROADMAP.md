@@ -418,7 +418,7 @@ Not findings — decisions and config that only he can make.
 
 | | |
 | --- | --- |
-| `beans_grams_per_shot` on production | still 22, so every single-shot drink records a double |
+| `beans_grams_per_shot` on production | DONE 11 Sep — migration 22 set it to 11 and fixed the medium rows |
 | Postgres password | appeared in logs during the outage; not in the repo |
 | TSP143IV SK polling time | 30 s from the factory — the whole reason labels were slow |
 | `CLOUDPRNT_SHARED_SECRET` | `/cloudprnt` is open until it is set |
