@@ -43,8 +43,6 @@ const defaultBranding = {
   poweredByText: 'Powered by CupQ',
   
   // Contact/Support
-  supportEmail: 'support@coffeecue.com',
-  supportPhone: '+1-800-COFFEE',
   
   // Custom CSS (optional)
   customCSS: ''
