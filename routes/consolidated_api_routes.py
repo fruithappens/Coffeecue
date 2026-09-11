@@ -429,26 +429,27 @@ def _drink_display_name(order_details, default='Coffee'):
     return ' '.join(bits + [str(t)]) if bits else t
 
 
-# WHY /orders HAS NO ETag, THOUGH IT IS THE BIGGEST PAYLOAD WE SERVE
+# /orders IS THE BIGGEST PAYLOAD WE SERVE, AND IT REVALIDATES
 #
-# It is ~200 KB and every barista screen re-polls it several times a second,
-# so revalidation looks like the obvious win -- and it is what
-# _revalidating_json was written for. I shipped it, then measured it against
-# production: three consecutive polls, with no order placed, produced three
-# DIFFERENT tags. The 304 can never fire.
+# ~200 KB, re-polled by every barista screen every 5 s. _revalidating_json
+# hashes the serialised payload and answers an unchanged poll with a 304 and
+# no body. That was shipped once before (#608) and reverted the same night
+# (#609): measured against production, three polls with nothing placed gave
+# three different tags, because waitTime / wait_time -- minutes-since-created,
+# recomputed here for every order on every request -- tick. Any open order
+# crossing a minute boundary changed the bytes, so the 304 could never fire
+# during exactly the load it was for.
 #
-# The reason is waitTime / wait_time: minutes-since-created, recomputed on the
-# server for every open order on every request. They tick, so the bytes change,
-# so the hash changes -- permanently, for as long as anything is in the queue,
-# which is exactly when the load matters.
+# So elapsed time is no longer this route's business. The list carries
+# createdAt and the screen counts (utils/orderTime.js stamps waitTime on
+# every order as it arrives, corrected by the response's Date header so a
+# tablet with a wrong clock still shows the right age). Two polls 8 s apart
+# on a 227-order copy differed in those two fields and nothing else; without
+# them the bytes are identical until an order actually changes.
 #
-# Hashing the payload with those fields stripped would make it fire, but the
-# client really uses them (RushMixStrip promotes on waitTime >= 10,
-# AllOrdersTab prints "Waiting N min"), and a 304 would freeze both mid-rush.
-#
-# The real fix is that elapsed time is a CLIENT concern: send createdAt and
-# let the screen count. That is a UI change with real consequences and belongs
-# in the load work, not in a one-line swap here.
+# Honest limit, unchanged from #608: this saves the bandwidth, not the query.
+# Skipping the query needs a change-stamp every write path touches, which
+# is not yet proven.
 
 @bp.route('/orders', methods=['GET', 'POST'])
 @jwt_required_with_demo()
@@ -549,10 +550,6 @@ def orders():
                 else:
                     order_details = order_details_json
                 
-                # Calculate wait time
-                created_dt = datetime.fromisoformat(created_at) if isinstance(created_at, str) else created_at
-                wait_time = int((datetime.now() - created_dt).total_seconds() / 60)
-                
                 # Format order for frontend - include both snake_case and camelCase
                 # Batch key — the /orders listing is what the Barista UI
                 # actually polls, and it OMITTED batch_group entirely, so
@@ -637,8 +634,8 @@ def orders():
                     'status': status,
                     'created_at': created_at,
                     'createdAt': created_at.isoformat() if hasattr(created_at, 'isoformat') else created_at,  # camelCase
-                    'wait_time': wait_time,
-                    'waitTime': wait_time,  # camelCase
+                    # No waitTime here on purpose: it ticked, and every tick
+                    # broke the ETag. The screen counts from createdAt.
                     'priority': priority == 1,  # Convert 1/0 to True/False
                     # Why they are one, when the EventsAir rule made them a
                     # VIP -- "Priority · Speaker" on the barista card.
@@ -672,8 +669,8 @@ def orders():
                     'groupLabel': order_details.get('group_label'),
                 })
 
-            # NO ETag here, deliberately -- see the note above the route.
-            return jsonify({
+            # Unchanged payload -> 304, no body. See the note above the route.
+            return _revalidating_json({
                 'status': 'success',
                 'data': orders,
                 'message': f'Retrieved {len(orders)} orders'
