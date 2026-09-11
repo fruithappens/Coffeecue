@@ -4733,6 +4733,18 @@ def _event_code_for_display(db):
         return ''
 
 
+def _badge_scan_for_display(db):
+    """True when the kiosk/phone may offer to scan an EventsAir badge.
+    The same operator switch that gates /api/ea/hello, read the same way."""
+    if db is None:
+        return False
+    try:
+        from routes.ea_survey_routes import attendee_lookup_enabled
+        return bool(attendee_lookup_enabled(db))
+    except Exception:
+        return False
+
+
 def _beacon_sound_setting():
     """The operator's pick for the phone beacon's ready sound (barista
     Settings > Sounds), carried on /track and /api/ea/me so a phone needs
@@ -4965,6 +4977,10 @@ def get_display_config():
                 # over a poster code.
                 "event_code": _event_code_for_display(
                     getattr(coffee_system, 'db', None) if coffee_system else None),
+                # Whether a phone may offer "Scan your badge": only when the
+                # operator has switched attendee lookup on for this event.
+                # Never raises -- this endpoint is public and load-bearing.
+                "badge_scan": _badge_scan_for_display(coffee_system.db if coffee_system else None),
                 "sponsor": sponsor,
                 # Logo for the display screen header. Uploaded via the
                 # Branding panel as a data URI (clientLogo). 'logo' is the

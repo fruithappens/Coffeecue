@@ -162,7 +162,10 @@ def add_security_headers(response):
     permissions_policy = [
         'geolocation=()',
         'microphone=()',
-        'camera=()',
+        # The badge scan (components/display/BadgeScanner.js) reads the QR on
+        # an EventsAir badge through the phone's camera. Our own pages only;
+        # nothing embedded from elsewhere may ask for it.
+        'camera=(self)',
         'accelerometer=()',
         'autoplay=()',
         'encrypted-media=()',
