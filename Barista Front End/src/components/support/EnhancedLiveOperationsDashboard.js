@@ -588,7 +588,7 @@ const EnhancedLiveOperationsDashboard = () => {
       {/* Quick Actions Panel */}
       <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-6">
         <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <button
             onClick={() => setShowEmergencyDialog(true)}
             className="flex flex-col items-center justify-center p-4 bg-cq-alert text-white rounded-cq-md hover:bg-cq-alert transition-all"
@@ -640,19 +640,11 @@ const EnhancedLiveOperationsDashboard = () => {
             <span className="text-xs opacity-75">System {isPaused ? 'Paused' : 'Active'}</span>
           </button>
           
-          <button
-            onClick={() => {
-              // Redistribute lives in Inventory AI now (where the
-              // alert-driven transfer flow already exists). Send
-              // the operator there rather than duplicating the UI.
-              window.alert('Inventory transfers are managed under Barista → Inventory AI. The alert panel there shows suggested redistributions you can apply directly.');
-            }}
-            className="flex flex-col items-center justify-center p-4 bg-cq-caramel text-white rounded-cq-md hover:bg-cq-roast transition-all"
-          >
-            <RefreshCw size={24} className="mb-2" />
-            <span className="text-sm font-medium">Redistribute</span>
-            <span className="text-xs opacity-75">Balance Load</span>
-          </button>
+          {/* The "Redistribute" button that stood here did one thing: a
+              browser alert sending the operator to "Barista > Inventory AI",
+              a tab that no longer exists (finding 5; the alert itself was
+              finding 8). Balancing stations lives on the tablet's admin
+              sheet (Balance). */}
 
           <button
             onClick={() => {

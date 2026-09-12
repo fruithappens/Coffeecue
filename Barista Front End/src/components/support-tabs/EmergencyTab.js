@@ -400,13 +400,10 @@ const EmergencyTab = () => {
               inventory and users; asks you to type WIPE first.
             </li>
           </ul>
-          <p className="text-sm text-cq-ink-2 mt-3 mb-1">Still to build:</p>
-          <ul className="text-sm text-cq-ink-2 space-y-1 list-disc list-inside">
-            <li>
-              <strong>Reset all stations</strong> — a bulk version of taking
-              stations offline one at a time in Station Settings.
-            </li>
-          </ul>
+          {/* "Still to build: Reset all stations" sat here for months telling
+              the operator about a thing that did not exist (finding 9). Taking
+              a station offline is one tap each in Runner > Stations; nobody
+              has asked for a bulk version. Gone until someone does. */}
         </CardContent>
       </Card>
 

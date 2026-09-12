@@ -110,3 +110,7 @@ backups/
 .bench_env
 testbench/.bench_env
 testbench/live_mirror/
+
+# Build output (the Dockerfile and ./build.sh fill it). See static/README.md.
+static/*
+!static/README.md

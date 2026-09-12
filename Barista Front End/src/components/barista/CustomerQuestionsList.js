@@ -68,7 +68,7 @@ export default function CustomerQuestionsList({ items, replyDrafts, setReplyDraf
                       <button
                         onClick={() => blockSender(q)}
                         disabled={blocking && blocking[q.id]}
-                        title="Stop replying to this number (reversible in Support → SMS)"
+                        title="Stop replying to this number (reversible in Runner › Messages › Blocked numbers)"
                         className="text-xs text-cq-ink-3 hover:text-cq-alert inline-flex items-center gap-1 disabled:opacity-50"
                       >
                         <Ban size={12} />

@@ -1994,7 +1994,7 @@ const PricingSection = () => {
                 shows "VIP — no charge" and their SMS says the drink
                 is complimentary instead of asking them to pay. To
                 give staff the same treatment, set them up with the
-                VIP code (Organiser → Settings) and have them text it
+                VIP code (Quick Setup, this screen) and have them text it
                 in — no separate "staff_free" flag needed. */}
             <label className="flex items-center cursor-pointer">
               <input
