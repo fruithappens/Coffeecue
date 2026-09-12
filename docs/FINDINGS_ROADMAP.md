@@ -95,7 +95,7 @@ bug.
 
 ## 4. Demand you turned away is invisible
 
-**Status:** partly addressed.
+**Status:** partly addressed. (Next up, 12 Sep.)
 
 The report now shows `UNAVAILABLE_TAP` — someone tapping a drink or milk that
 is switched off on the ordering screen. That was already being logged and
@@ -112,7 +112,9 @@ it was refused, when. It is the number a caterer actually wants.
 
 ## 5. Dead paths from the four-interface model
 
-**Status:** two found and fixed while converting screens. No audit.
+**Status:** DONE 12 Sep — PR #629. Nine user-facing strings rewritten to the
+runner's real places; the Live board's Redistribute (an alert pointing at a
+removed tab) is gone.
 
 Organiser and Support became the one runner app. Redirects still work, but
 several screens *tell you to go somewhere that no longer exists*:
@@ -130,7 +132,7 @@ as well as the links.
 
 ## 6. Three component systems, now two
 
-**Status:** largely resolved, worth finishing.
+**Status:** largely resolved, worth finishing. (Open.)
 
 The app was built three times over:
 
@@ -146,7 +148,11 @@ The remaining question is whether `ui/` should exist at all or be folded into
 
 ## 7. The committed `static/` folder is a lie
 
-**Status:** open, low risk, high confusion.
+**Status:** DONE 12 Sep — PR #629. Turned out to be more than confusion: the
+Dockerfile's `COPY . .` ran before the build overlay, so a hundred-odd
+2025 `debug-*.html` / `fix-*.html` pages were **served live on cupq.app**.
+Untracked (401 files), gitignored, dockerignored, `static/README.md` says
+why. Live: `/static/direct-database-fix.html` → 404.
 
 Railway builds the frontend itself in the Dockerfile. The `static/` committed
 to the repo is **several builds behind** what production serves — its
@@ -161,9 +167,13 @@ bundle needed committing. It does not.
 
 ## 8. `alert()` and `window.confirm()` in a touchscreen app
 
-**Status:** open.
+**Status:** DONE 12 Sep — PR #630. `ConfirmDialog.js` rebuilt on the
+design-system Modal with `askConfirm` / `askText` / `tell`; all sixty sites
+converted (27 files); feedback became toasts; two alert-only controls
+removed. The Live board's SMS Announce now has a second look before it
+sends. A Playwright `dialog` listener proves no browser dialog appears.
 
-Several screens still use browser dialogs — `SmsBlocklistTab` confirms an
+Several screens still used browser dialogs — `SmsBlocklistTab` confirms an
 unblock with `window.confirm`. On a tablet mid-service that is a modal you
 cannot style, cannot theme, and which stops everything.
 
@@ -176,7 +186,7 @@ rewrite because it is a behaviour change, not a look change.
 
 ## 9. A feature advertised but not built
 
-**Status:** open, tiny.
+**Status:** DONE 12 Sep — PR #629. The line is gone.
 
 Emergency lists *"Still to build: Reset All Stations — a bulk version of
 taking stations offline one at a time."* It has been sitting on the screen
@@ -368,7 +378,10 @@ write one CSS rule instead of touching 35 tags.
 
 ## 16. The manager tools behind the barista PIN duplicated the runner
 
-**Status:** DONE (10 Sep), two left deliberately.
+**Status:** DONE (10 Sep), two left deliberately. Cleanup pass DONE 12 Sep —
+PR #629: the five dead render branches, their state and helpers, and four
+components nothing imported (2,282 lines) deleted; BaristaInterface 4,108 →
+3,500 lines.
 
 The lock sheet said it itself: *"Manager tools on this tablet — moving to
 the runner app; here until then."* The runner exists. Five of the seven had
@@ -428,7 +441,10 @@ Backups are copy-on-write snapshots off the volume: they cannot fill it.
 
 ## 18. One startup rollback after migration 22 ran on production
 
-**Status:** open, low. The guard did its job; the cause is worth a look.
+**Status:** DONE 12 Sep — PR #631. It fired on **every** boot, not once: the
+`users.email` constraint check at the end of `create_app()` read twice and
+committed only when it had something to ALTER. It closes its own transaction
+now; production's startup log is clean.
 
 The deploy that applied migration 22 logged once:
 `Startup left the database connection IDLE IN TRANSACTION (status=2). Some
