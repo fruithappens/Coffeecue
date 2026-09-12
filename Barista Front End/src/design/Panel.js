@@ -18,7 +18,7 @@ export function Panel({ title, Icon, right, children, className = '' }) {
       {(title || right) ? (
         <div className="flex items-center gap-2 mb-3">
           {Icon ? <Icon className="w-4 h-4 text-cq-caramel" /> : null}
-          {title ? <h3 className="text-lg font-bold text-cq-roast">{title}</h3> : null}
+          {title ? <h3 className="text-lg font-bold text-cq-roast flex-1 min-w-0">{title}</h3> : null}
           {right ? <div className="ml-auto text-sm text-cq-ink-3">{right}</div> : null}
         </div>
       ) : null}

@@ -1,9 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { Button } from '../ui/button';
-import { Badge } from '../ui/badge';
-import { Input } from '../ui/input';
-import { Select } from '../ui/select';
+import { Panel, Button, Pill, TextField } from '../../design';
 import { 
   Users, 
   UserPlus, 
@@ -195,16 +191,13 @@ const UsersAccessTab = () => {
   return (
     <div className="space-y-6">
       {/* User Management Header */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span className="flex items-center gap-2">
+      <Panel title={<span className="flex items-center justify-between"><span className="flex items-center gap-2">
               <Users className="h-5 w-5" />
               User Management
             </span>
-            <div className="flex gap-2">
+            <span className="flex gap-2">
               <Button 
-                variant="outline" 
+                variant="secondary" 
                 size="sm"
                 onClick={exportUsers}
               >
@@ -218,18 +211,15 @@ const UsersAccessTab = () => {
                 <UserPlus className="h-4 w-4 mr-2" />
                 Add User
               </Button>
-            </div>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+            </span></span>}>
           {/* Search and Filter */}
           <div className="flex gap-4 mb-4">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-cq-ink-3" />
-              <Input
+              <TextField width="w-full"
                 placeholder="Search users..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(v) => setSearchTerm(v)}
                 className="pl-10"
               />
             </div>
@@ -265,11 +255,11 @@ const UsersAccessTab = () => {
                   <tr key={user.id} className="border-b hover:bg-cq-wash">
                     <td className="p-2">
                       {editingUser === user.id ? (
-                        <Input
+                        <TextField width="w-full"
                           value={user.username}
-                          onChange={(e) => {
+                          onChange={(v) => {
                             const updated = users.map(u => 
-                              u.id === user.id ? { ...u, username: e.target.value } : u
+                              u.id === user.id ? { ...u, username: v } : u
                             );
                             setUsers(updated);
                           }}
@@ -281,11 +271,11 @@ const UsersAccessTab = () => {
                     </td>
                     <td className="p-2">
                       {editingUser === user.id ? (
-                        <Input
+                        <TextField width="w-full"
                           value={user.email || ''}
-                          onChange={(e) => {
+                          onChange={(v) => {
                             const updated = users.map(u => 
-                              u.id === user.id ? { ...u, email: e.target.value } : u
+                              u.id === user.id ? { ...u, email: v } : u
                             );
                             setUsers(updated);
                           }}
@@ -314,15 +304,15 @@ const UsersAccessTab = () => {
                           ))}
                         </select>
                       ) : (
-                        <Badge variant="secondary">
+                        <Pill size="sm" tone="neutral">
                           {user.role}
-                        </Badge>
+                        </Pill>
                       )}
                     </td>
                     <td className="p-2">
-                      <Badge variant={user.is_active ? 'success' : 'secondary'}>
+                      <Pill size="sm" tone={user.is_active ? 'ready' : 'neutral'}>
                         {user.is_active ? 'Active' : 'Inactive'}
-                      </Badge>
+                      </Pill>
                     </td>
                     <td className="p-2 text-sm text-cq-ink-2">
                       {user.last_login ? new Date(user.last_login).toLocaleDateString() : 'Never'}
@@ -400,49 +390,42 @@ const UsersAccessTab = () => {
               </tbody>
             </table>
           </div>
-        </CardContent>
-      </Card>
+        </Panel>
 
       {/* Add User Modal */}
       {showAddUser && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              Add New User
+        <Panel title={<span className="flex items-center justify-between">Add New User
               <Button 
                 variant="ghost" 
                 size="sm"
                 onClick={() => setShowAddUser(false)}
               >
                 ×
-              </Button>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+              </Button></span>}>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Username</label>
-                <Input
+                <TextField width="w-full"
                   value={newUser.username}
-                  onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
+                  onChange={(v) => setNewUser({ ...newUser, username: v })}
                   placeholder="Enter username"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Email</label>
-                <Input
+                <TextField width="w-full"
                   type="email"
                   value={newUser.email}
-                  onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                  onChange={(v) => setNewUser({ ...newUser, email: v })}
                   placeholder="Enter email (optional)"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Password</label>
-                <Input
+                <TextField width="w-full"
                   type="password"
                   value={newUser.password}
-                  onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                  onChange={(v) => setNewUser({ ...newUser, password: v })}
                   placeholder="Enter password"
                 />
               </div>
@@ -462,7 +445,7 @@ const UsersAccessTab = () => {
               </div>
               <div className="flex justify-end gap-2">
                 <Button 
-                  variant="outline"
+                  variant="secondary"
                   onClick={() => setShowAddUser(false)}
                 >
                   Cancel
@@ -475,19 +458,12 @@ const UsersAccessTab = () => {
                 </Button>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </Panel>
       )}
 
       {/* Access Control */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5" />
-            Access Control
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+      <Panel title={<span className="flex items-center gap-2"><Shield className="h-5 w-5" />
+            Access Control</span>}>
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {roles.map(role => (
@@ -501,8 +477,7 @@ const UsersAccessTab = () => {
               ))}
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </Panel>
     </div>
   );
 };
