@@ -15,7 +15,7 @@ import StationPicker from './queue/StationPicker';
 import AdminSheet from './queue/AdminSheet';
 import useLanesLayout from './queue/useLanesLayout';
 import { TabBar, SettingGroup, SettingRow, Toggle as CqToggle, Segmented, SelectRow, SettingNote } from '../../design';
-import { ArrowLeft, ArrowRightLeft, Bell, Brain, Calendar, Check, CheckCircle, Clock, Coffee, Eye, Grid, Hand, Layers, MessageCircle, Monitor, Package, Printer, RefreshCw, RotateCw, Scale, Send, Settings, Timer, Truck, Users, Wrench, XCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRightLeft, Bell, Brain, Calendar, Check, Clock, Coffee, Eye, Grid, Hand, Layers, MessageCircle, Monitor, Package, Printer, RefreshCw, RotateCw, Scale, Send, Settings, Timer, Truck, Users, Wrench, XCircle } from 'lucide-react';
 
 // Import app mode context
 import { useAppMode } from '../../context/AppContext';
@@ -35,7 +35,6 @@ import {
   applicableStages,
   parseServerDate
 } from '../../utils/orderUtils';
-import { getMilkColorStyle, getMilkDotStyle } from '../../utils/milkColorHelper';
 import '../../styles/milkColors.css';
 
 // Import services and utilities
@@ -68,10 +67,6 @@ import RushMixStrip from './RushMixStrip';
 import { byId } from '../../utils/ids';
 import QueueIntelligence from '../support/QueueIntelligence';
 import StationLoadBalancer from '../support/StationLoadBalancer';
-import DynamicStaffAllocation from '../organiser/DynamicStaffAllocation';
-import MultiLevelInventory from '../organiser/MultiLevelInventory';
-import StationCapabilitiesEditor from './StationCapabilitiesEditor';
-import EnhancedStationCapabilities from '../organiser/EnhancedStationCapabilities';
 import { askConfirm } from '../shared/ConfirmDialog';
 import useNotices from '../shared/useNotices';
 import NoticeBanner from '../shared/NoticeBanner';
@@ -185,9 +180,6 @@ const BaristaInterface = () => {
 
   // Use schedule hook to get schedule data
   const {
-    scheduleData,
-    loading: scheduleLoading,
-    error: scheduleError,
     setStation: setScheduleStation,
     refreshData: refreshScheduleData
   } = useSchedule();
@@ -197,11 +189,7 @@ const BaristaInterface = () => {
     pendingOrders,
     inProgressOrders,
     completedOrders,
-    previousOrders,
     historyOrders,
-    yesterdayOrders,
-    thisWeekOrders,
-    searchResults,
     vipOrders,
     regularOrders,
     batchGroups,
@@ -229,10 +217,6 @@ const BaristaInterface = () => {
     updateWaitTime,
     clearError,
     refreshData,
-    // History actions
-    fetchYesterdayOrders,
-    fetchThisWeekOrders,
-    searchOrders,
     getOrderHistory
   } = useOrders(selectedStation);
   
@@ -456,55 +440,6 @@ const BaristaInterface = () => {
     setRefreshDraft(String(autoRefreshInterval ?? ''));
   }, [autoRefreshInterval]);
 
-  // State to track dismissed info panels
-  const [dismissedPanels, setDismissedPanels] = useState(() => {
-    // Try to load from localStorage
-    try {
-      const saved = localStorage.getItem('dismissed_info_panels');
-      return saved ? JSON.parse(saved) : {
-        stockInfoPanel: false,
-        scheduleInfoPanel: false,
-        historyInfoPanel: false,
-        displayInfoPanel: false
-      };
-    } catch (e) {
-      console.error('Error loading dismissed panels state:', e);
-      return {
-        stockInfoPanel: false,
-        scheduleInfoPanel: false,
-        historyInfoPanel: false,
-        displayInfoPanel: false
-      };
-    }
-  });
-  
-  // Function to dismiss a panel
-  const dismissPanel = useCallback((panelId) => {
-    setDismissedPanels(prev => {
-      const updated = { ...prev, [panelId]: true };
-      // Save to localStorage
-      localStorage.setItem('dismissed_info_panels', JSON.stringify(updated));
-      return updated;
-    });
-  }, []);
-  
-  // Function to restore all panels
-  const restoreAllPanels = useCallback(() => {
-    // Honest feedback: say how many panels were actually restored —
-    // clicking it with nothing dismissed used to do nothing visible.
-    const dismissedCount = Object.values(dismissedPanels || {}).filter(Boolean).length;
-    const resetState = {
-      stockInfoPanel: false,
-      scheduleInfoPanel: false,
-      historyInfoPanel: false,
-      displayInfoPanel: false
-    };
-    setDismissedPanels(resetState);
-    localStorage.setItem('dismissed_info_panels', JSON.stringify(resetState));
-    showToast(dismissedCount > 0
-      ? `${dismissedCount} dismissed info panel${dismissedCount === 1 ? '' : 's'} restored — check the Stock / Schedule / Display tabs`
-      : 'No info panels were dismissed — nothing to restore', 'info');
-  }, [dismissedPanels]);
   
   // Handle tab changes to ensure data persists
   // Initialize inventory integration on component mount
@@ -532,9 +467,7 @@ const BaristaInterface = () => {
     }
     
   }, [activeTab, refreshData, selectedStation]);
-  const [historyTab, setHistoryTab] = useState('completed');
   const [selectedOrderId, setSelectedOrderId] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
   const [batchModeActive, setBatchModeActive] = useState(false);
   const [waitTime, setWaitTime] = useState(2); // Default wait time of 2 minutes
   const [selectedOrders, setSelectedOrders] = useState(new Set());
@@ -629,21 +562,6 @@ const BaristaInterface = () => {
   // "View Details" on a completed order was a placebo -- it only toasted
   // "Details for order #N are not available", though the order exists.
   // Now it expands the card and pulls the full breakdown from /track.
-  const [expandedOrderId, setExpandedOrderId] = useState(null);
-  const [expandedOrderData, setExpandedOrderData] = useState({}); // id -> detail | 'loading' | 'error'
-  const openOrderDetails = async (id) => {
-    if (expandedOrderId === id) { setExpandedOrderId(null); return; }
-    setExpandedOrderId(id);
-    if (expandedOrderData[id] && expandedOrderData[id] !== 'error') return;
-    setExpandedOrderData(prev => ({ ...prev, [id]: 'loading' }));
-    try {
-      const r = await fetch(`/api/orders/${id}/track`);
-      const b = r.ok ? await r.json() : null;
-      setExpandedOrderData(prev => ({ ...prev, [id]: (b && b.success) ? b : 'error' }));
-    } catch (e) {
-      setExpandedOrderData(prev => ({ ...prev, [id]: 'error' }));
-    }
-  };
   const alertedLowStockRef = useRef(new Set());
   useEffect(() => {
     let cancelled = false;
@@ -1073,40 +991,6 @@ const BaristaInterface = () => {
     setShowMessageDialog(true);
   };
 
-  // Handle sending automatic reminder for completed orders
-  const handleSendReminder = async (order) => {
-    if (!order || !order.id) {
-      console.error('Cannot send reminder: Invalid order');
-      return;
-    }
-
-    try {
-      console.log('Sending reminder for order:', order.id);
-      
-      // Calculate how long the order has been waiting
-      const minutesWaiting = order.completedAt ? calculateMinutesDiff(order.completedAt) : 0;
-      
-      // Send reminder notification using MessageService
-      const result = await MessageService.sendReminderNotification(order, minutesWaiting);
-      
-      if (result.success) {
-        // Update message status to show success
-        setMessageStatus(prev => ({
-          ...prev,
-          [order.id]: { status: 'sent', timestamp: new Date() }
-        }));
-        
-        // Show success feedback
-        showToast(`Reminder sent to ${order.customerName}`, 'success');
-      } else {
-        throw new Error(result.error || 'Failed to send reminder');
-      }
-    } catch (error) {
-      console.error('Failed to send reminder:', error);
-      showToast(`Failed to send reminder: ${error.message}`, 'error', 6000);
-    }
-  };
-
   // NEW: Handle delay order
   const handleDelayOrder = (order) => {
     if (!order || !order.id) {
@@ -1491,122 +1375,6 @@ const BaristaInterface = () => {
     window.open(`/display?station=${selectedStation}`, '_blank');
   };
 
-  // Function to render completed order card
-  const renderCompletedOrder = (order) => {
-    const minutesWaiting = order.completedAt ? calculateMinutesDiff(order.completedAt) : 0;
-    const hasSentMessage = messageStatus[order.id]?.status === 'sent';
-    
-    const milkColorStyle = order.milkType && order.milkType !== 'No Milk' 
-      ? getMilkColorStyle(order.milkType, order.milkTypeId)
-      : { borderLeftWidth: '4px', borderLeftStyle: 'solid', borderLeftColor: 'var(--cq-ready, #1F8A4C)' };
-    
-    return (
-      <div key={order.id} className="bg-cq-milk rounded-cq-md shadow-sm p-3 mb-2" style={milkColorStyle}>
-        <div className="flex justify-between items-center">
-          <div className="font-bold flex items-center">
-            Order #{order.id}
-            {hasSentMessage && (
-              <span className="ml-1 text-cq-ready" title="Message sent">
-                <CheckCircle size={14} />
-              </span>
-            )}
-          </div>
-          <div className="text-sm text-cq-ink-3">Completed {minutesWaiting} minutes ago</div>
-        </div>
-        <div className="mt-2">
-          <div className="text-cq-ink-2 flex items-center">
-            {order.milkType && order.milkType !== 'No Milk' && (
-              <span style={getMilkDotStyle(order.milkType, order.milkTypeId)}></span>
-            )}
-            {order.coffeeType || 'Coffee'}, {order.milkType || 'Regular milk'}
-          </div>
-          <div className="font-medium">{order.customerName}</div>
-          <div className="text-sm text-cq-ink-2">{order.phoneNumber}</div>
-          {order.alternativeMilk && (
-            <div className="mt-1">
-              <span className="inline-block bg-cq-caramel-wash text-cq-caramel-deep text-xs px-2 py-0.5 rounded">
-                Alternative Milk
-              </span>
-            </div>
-          )}
-        </div>
-        <div className="mt-3 flex space-x-2">
-          <button
-            className="flex-1 bg-cq-caramel text-white py-1 rounded text-sm hover:bg-cq-caramel-deep"
-            onClick={() => handleSendReminder(order)}
-          >
-            Remind
-          </button>
-          <button
-            className="flex-1 bg-cq-ready text-white py-1 rounded text-sm hover:bg-cq-ready"
-            onClick={() => markOrderPickedUp(order.id)}
-          >
-            Picked Up
-          </button>
-          {stationPrinter && (
-            <button
-              className="px-2 bg-cq-line text-cq-ink-2 py-1 rounded text-sm hover:bg-cq-line flex items-center"
-              onClick={() => handlePrintLabel(order, { reprint: true })}
-              title="Reprint label (uses the original order details)"
-            >
-              <Printer size={14} />
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  // Function to render previous order card
-  const renderPreviousOrder = (order) => {
-    const milkColorStyle = order.milkType && order.milkType !== 'No Milk' 
-      ? getMilkColorStyle(order.milkType, order.milkTypeId)
-      : { borderLeftWidth: '4px', borderLeftStyle: 'solid', borderLeftColor: 'var(--cq-ready, #1F8A4C)' };
-    
-    return (
-      <div key={order.id} className="bg-cq-milk rounded-cq-md shadow-sm p-3 mb-2" style={milkColorStyle}>
-        <div className="flex justify-between items-center">
-          <div className="font-bold">Order #{order.id}</div>
-          <button 
-            className="text-sm text-cq-ink-2 bg-cq-line px-2 py-1 rounded hover:bg-cq-line"
-            onClick={() => openOrderDetails(order.id)}
-          >
-            {expandedOrderId === order.id ? 'Hide Details' : 'View Details'}
-          </button>
-        </div>
-        {expandedOrderId === order.id && (
-          <div className="mt-2 pt-2 border-t border-cq-line text-sm text-cq-ink-2">
-            {expandedOrderData[order.id] === 'loading' ? (
-              <span className="text-cq-ink-3">Loading…</span>
-            ) : expandedOrderData[order.id] === 'error' || !expandedOrderData[order.id] ? (
-              <span className="text-cq-ink-3">Couldn't load the full details — the summary above is what we have.</span>
-            ) : (() => {
-              const d = expandedOrderData[order.id];
-              return (
-                <div className="space-y-0.5">
-                  {d.drink_full && <div><span className="text-cq-ink-3">Order:</span> {d.drink_full}</div>}
-                  {d.station_name && <div><span className="text-cq-ink-3">Station:</span> {d.station_name}{d.station_location ? ` · ${d.station_location}` : ''}</div>}
-                  {d.notice && <div className="text-cq-caramel-deep">{d.notice}</div>}
-                  <div><span className="text-cq-ink-3">Status:</span> {d.status === 'picked_up' ? 'Picked up' : d.status}</div>
-                </div>
-              );
-            })()}
-          </div>
-        )}
-        <div className="mt-2">
-          <div className="text-cq-ink-2 flex items-center">
-            {order.milkType && order.milkType !== 'No Milk' && (
-              <span style={getMilkDotStyle(order.milkType, order.milkTypeId)}></span>
-            )}
-            {order.coffeeType || 'Coffee'}, {order.milkType || 'Regular milk'} {order.sugar ? `, ${order.sugar}` : ''}
-          </div>
-          <div className="font-medium">{order.customerName}</div>
-          <div className="text-sm text-cq-ink-2">Picked up at {order.pickedUpAt ? new Date(order.pickedUpAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'unknown'}</div>
-        </div>
-      </div>
-    );
-  };
-
   // Create individual stock item component to properly use hooks
   const StockItem = ({ item, category, updateStockItem, deleteStockItem, addStockItem }) => {
     const percentage = (item.amount / item.capacity) * 100;
@@ -1849,94 +1617,8 @@ const BaristaInterface = () => {
     );
   };
 
-  // Function to render schedule item
-  const renderScheduleItem = (item, type) => {
-    const getStatusClass = (status) => {
-      switch(status) {
-        case 'active':
-          return 'bg-cq-ready-wash border-cq-ready text-cq-ready';
-        case 'upcoming':
-          return 'bg-cq-caramel-wash border-cq-caramel text-cq-caramel-deep';
-        case 'completed':
-          return 'bg-cq-wash border-cq-ink-3 text-cq-ink-2';
-        default:
-          return 'bg-cq-wash border-cq-ink-3 text-cq-ink-2';
-      }
-    };
-    
-    return (
-      <div 
-        key={`${type}-${item.id}`}
-        className={`mb-2 p-3 rounded-cq-md border-l-4 ${getStatusClass(item.status)} shadow-sm`}
-      >
-        <div className="flex justify-between items-center">
-          <div className="font-bold">{item.start} - {item.end}</div>
-          {type === 'shift' && (
-            <div className="text-sm bg-cq-caramel-wash text-cq-caramel-deep px-2 py-1 rounded">
-              {item.barista}
-            </div>
-          )}
-          {type === 'rush' && (
-            <div className="text-sm bg-cq-alert-wash text-cq-alert px-2 py-1 rounded">
-              Rush Period
-            </div>
-          )}
-        </div>
-        <div className="mt-2">
-          {type === 'shift' && <div className="text-cq-ink-2">Barista Shift</div>}
-          {type === 'break' && <div className="text-cq-ink-2">Break Time for {item.barista}</div>}
-          {type === 'rush' && <div className="text-cq-ink-2">{item.reason}</div>}
-        </div>
-      </div>
-    );
-  };
   
     // Dismissible Info Panel Component
-  // `tone` replaces the old borderColor/bgColor pair, which built its classes
-  // as `bg-${bgColor}-100`. Tailwind only generates classes it can SEE in the
-  // source, so a constructed name works purely by accident -- whenever that
-  // literal happens to appear in some other file. Any tone nobody else used
-  // rendered with no colour at all.
-  const PANEL_TONE = {
-    ok: 'bg-cq-ready-wash border-cq-ready text-cq-ready',
-    warn: 'bg-cq-warn-wash border-cq-warn text-cq-warn',
-    bad: 'bg-cq-alert-wash border-cq-alert text-cq-alert',
-    info: 'bg-cq-caramel-wash border-cq-caramel text-cq-caramel-deep',
-  };
-  const DismissibleInfoPanel = ({ id, title, message, extraContent, tone = 'ok', isDismissed, onDismiss }) => {
-    if (isDismissed) return null;
-
-    return (
-      <div className={`${PANEL_TONE[tone] || PANEL_TONE.ok} border-l-4 rounded-cq-md p-2.5 mb-3 relative`}>
-        <div className="flex">
-          <div className="py-1">
-            <svg className="fill-current h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-              <path d="M2.93 17.07A10 10 0 1 1 17.07 2.93 10 10 0 0 1 2.93 17.07zm12.73-1.41A8 8 0 1 0 4.34 4.34a8 8 0 0 0 11.32 11.32zM9 11V9h2v6H9v-4zm0-6h2v2H9V5z"/>
-            </svg>
-          </div>
-          <div className="pr-7">
-            <p className="font-bold text-sm">{title}</p>
-            <p className="text-xs">{message}</p>
-            {extraContent && <div className="mt-1 text-xs">{extraContent}</div>}
-          </div>
-        </div>
-        
-        {/* Close button */}
-        <button 
-          className="absolute top-1 right-1 text-cq-ink-3 hover:text-cq-roast bg-cq-milk rounded-full p-1 shadow-sm"
-          onClick={() => onDismiss(id)}
-          aria-label="Dismiss message"
-          title="Dismiss this message"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
-      </div>
-    );
-  };
-  
   // Notification Settings Component
   const NotificationSettings = () => {
     const [localSettings, setLocalSettings] = useState({
@@ -2434,7 +2116,7 @@ const BaristaInterface = () => {
                 <div className="text-center py-8 text-cq-ink-3 bg-cq-milk rounded-cq-md shadow-sm">
                   <Package size={48} className="mx-auto mb-2 text-cq-ink-3" />
                   <p>No {liveStockCat} items in inventory</p>
-                  <p className="text-sm text-cq-ink-3">Add stock in Organiser → Event Stock</p>
+                  <p className="text-sm text-cq-ink-3">Add stock in Runner › Menu › Event Stock</p>
                 </div>
               )}
             </div>
@@ -2458,256 +2140,11 @@ const BaristaInterface = () => {
 
             <p className="text-xs text-cq-ink-3 mt-3">
               Structural changes (adding items, capacities, minimums) live in
-              Organiser → Event Stock. This tab is for adjusting what's on hand.
+              Runner › Menu › Event Stock. This tab is for adjusting what's on hand.
             </p>
           </div>
         )}
 
-        {/* Inventory Intelligence Tab */}
-        {!loading && activeTab === 'inventory' && (
-          <div className="p-4">
-            <MultiLevelInventory />
-          </div>
-        )}
-        
-        {/* Schedule Tab */}
-        {!loading && activeTab === 'schedule' && (
-          <div className="p-4">
-            {/* API Not Implemented Notification */}
-            <DismissibleInfoPanel tone="info"
-              id="scheduleInfoPanel"
-              title="Schedule Management Available in Organiser"
-              message="Create and manage schedules in the Organiser interface. Go to Organiser → Schedule to add shifts for today."
-              isDismissed={dismissedPanels.scheduleInfoPanel}
-              onDismiss={dismissPanel}
-            />
-          
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4">
-                <h2 className="text-xl font-bold mb-4">Today's Schedule</h2>
-                <div className="space-y-2">
-                  {scheduleLoading ? (
-                    <div className="text-center py-6">
-                      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-cq-caramel mx-auto"></div>
-                      <p className="mt-2 text-cq-ink-3">Loading schedule data...</p>
-                    </div>
-                  ) : scheduleData.shifts && scheduleData.shifts.length > 0 ? (
-                    scheduleData.shifts.map(item => {
-                      // Format the schedule item for display
-                      const formattedItem = {
-                        id: item.id,
-                        start: item.start_time || '9:00',
-                        end: item.end_time || '17:00',
-                        status: item.status || 'active',
-                        barista: item.staff_name || 'Barista'
-                      };
-                      return renderScheduleItem(formattedItem, 'shift');
-                    })
-                  ) : (
-                    <div className="text-center py-6 text-cq-ink-3">
-                      <p>No schedule data available for this station</p>
-                      <p className="text-sm text-cq-ink-3">Create schedules in the Organiser interface</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-              
-              <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4">
-                <h2 className="text-xl font-bold mb-4">Breaks</h2>
-                <div className="space-y-2">
-                  {scheduleLoading ? (
-                    <div className="text-center py-6">
-                      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-cq-caramel mx-auto"></div>
-                      <p className="mt-2 text-cq-ink-3">Loading break data...</p>
-                    </div>
-                  ) : scheduleData.breaks && scheduleData.breaks.length > 0 ? (
-                    scheduleData.breaks.map(item => renderScheduleItem(item, 'break'))
-                  ) : (
-                    <div className="text-center py-6 text-cq-ink-3">
-                      <p>No break data available</p>
-                      <p className="text-sm text-cq-ink-3">Break scheduling will be added soon</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-              
-              <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4 md:col-span-2">
-                <h2 className="text-xl font-bold mb-4">Predicted Rush Periods</h2>
-                <div className="space-y-2">
-                  {scheduleLoading ? (
-                    <div className="text-center py-6">
-                      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-cq-caramel mx-auto"></div>
-                      <p className="mt-2 text-cq-ink-3">Loading rush period data...</p>
-                    </div>
-                  ) : scheduleData.rushPeriods && scheduleData.rushPeriods.length > 0 ? (
-                    scheduleData.rushPeriods.map(item => renderScheduleItem(item, 'rush'))
-                  ) : (
-                    <div className="text-center py-6 text-cq-ink-3">
-                      <p>No rush period data available</p>
-                      <p className="text-sm text-cq-ink-3">Rush period analytics will be added soon</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {/* Completed Orders Tab */}
-        {!loading && activeTab === 'completed' && (
-          <div>
-            <div className="bg-cq-milk rounded-cq-md shadow-cq-card p-4 mb-4">
-              <h2 className="text-xl font-bold mb-3">Completed Orders</h2>
-              <div className="flex space-x-2 mb-4">
-                <button 
-                  className={`${historyTab === 'completed' ? 'bg-cq-caramel text-white' : 'bg-cq-line hover:bg-cq-line'} px-6 py-2 rounded-full`}
-                  onClick={() => setHistoryTab('completed')}
-                >
-                  Today
-                </button>
-                <button 
-                  className={`${historyTab === 'yesterday' ? 'bg-cq-caramel text-white' : 'bg-cq-line hover:bg-cq-line'} px-6 py-2 rounded-full`}
-                  onClick={() => {
-                    setHistoryTab('yesterday');
-                    fetchYesterdayOrders();
-                  }}
-                >
-                  Yesterday
-                </button>
-                <button 
-                  className={`${historyTab === 'thisWeek' ? 'bg-cq-caramel text-white' : 'bg-cq-line hover:bg-cq-line'} px-6 py-2 rounded-full`}
-                  onClick={() => {
-                    setHistoryTab('thisWeek');
-                    fetchThisWeekOrders();
-                  }}
-                >
-                  This Week
-                </button>
-                <button 
-                  className={`${historyTab === 'search' ? 'bg-cq-caramel text-white' : 'bg-cq-line hover:bg-cq-line'} px-6 py-2 rounded-full ml-auto`}
-                  onClick={() => setHistoryTab('search')}
-                >
-                  Search Orders
-                </button>
-              </div>
-              
-              {/* Search Box - Only shown when search tab is active */}
-              {historyTab === 'search' && (
-                <div className="mb-4">
-                  <div className="flex">
-                    <input
-                      type="text"
-                      placeholder="Search by customer name, order number, or coffee type..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="flex-1 p-2 border rounded-l-md"
-                    />
-                    <button
-                      className="bg-cq-caramel text-white px-4 py-2 rounded-r-md"
-                      onClick={() => searchOrders(searchTerm)}
-                    >
-                      Search
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-            
-            {/* Content based on active history tab */}
-            {historyTab === 'completed' && (
-              <>
-                <h3 className="text-xl font-bold mb-3 ml-2">Ready for Pickup</h3>
-                <div className="space-y-2 mb-6">
-                  {completedOrders.length > 0 ? (
-                    completedOrders.map(order => renderCompletedOrder(order))
-                  ) : (
-                    <div className="text-center py-6 bg-cq-milk rounded-cq-md shadow-sm text-cq-ink-3">
-                      <p>No orders ready for pickup</p>
-                    </div>
-                  )}
-                </div>
-                
-                <h3 className="text-xl font-bold mb-3 ml-2">Previously Completed</h3>
-                <div className="space-y-2">
-                  {previousOrders.length > 0 ? (
-                    previousOrders.map(order => renderPreviousOrder(order))
-                  ) : (
-                    <div className="text-center py-6 bg-cq-milk rounded-cq-md shadow-sm text-cq-ink-3">
-                      <p>No previous orders to display</p>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-            
-            {historyTab === 'yesterday' && (
-              <>
-                <h3 className="text-xl font-bold mb-3 ml-2">Yesterday's Orders</h3>
-                <div className="space-y-2">
-                  {loading ? (
-                    <div className="text-center py-6 bg-cq-milk rounded-cq-md shadow-sm">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cq-caramel mx-auto mb-2"></div>
-                      <p className="text-cq-ink-3">Loading yesterday's orders...</p>
-                    </div>
-                  ) : yesterdayOrders.length > 0 ? (
-                    yesterdayOrders.map(order => renderPreviousOrder(order))
-                  ) : (
-                    <div className="text-center py-6 bg-cq-milk rounded-cq-md shadow-sm text-cq-ink-3">
-                      <p>No orders from yesterday</p>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-            
-            {historyTab === 'thisWeek' && (
-              <>
-                <h3 className="text-xl font-bold mb-3 ml-2">This Week's Orders</h3>
-                <div className="space-y-2">
-                  {loading ? (
-                    <div className="text-center py-6 bg-cq-milk rounded-cq-md shadow-sm">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cq-caramel mx-auto mb-2"></div>
-                      <p className="text-cq-ink-3">Loading this week's orders...</p>
-                    </div>
-                  ) : thisWeekOrders.length > 0 ? (
-                    thisWeekOrders.map(order => renderPreviousOrder(order))
-                  ) : (
-                    <div className="text-center py-6 bg-cq-milk rounded-cq-md shadow-sm text-cq-ink-3">
-                      <p>No orders from this week</p>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-            
-            {historyTab === 'search' && (
-              <>
-                <h3 className="text-xl font-bold mb-3 ml-2">Search Results</h3>
-                <div className="space-y-2">
-                  {loading ? (
-                    <div className="text-center py-6 bg-cq-milk rounded-cq-md shadow-sm">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cq-caramel mx-auto mb-2"></div>
-                      <p className="text-cq-ink-3">Searching orders...</p>
-                    </div>
-                  ) : searchTerm ? (
-                    searchResults.length > 0 ? (
-                      searchResults.map(order => renderPreviousOrder(order))
-                    ) : (
-                      <div className="text-center py-6 bg-cq-milk rounded-cq-md shadow-sm text-cq-ink-3">
-                        <p>No orders match your search</p>
-                      </div>
-                    )
-                  ) : (
-                    <div className="text-center py-6 bg-cq-milk rounded-cq-md shadow-sm text-cq-ink-3">
-                      <p>Enter a search term to find orders</p>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-        )}
-        
         {/* Barista Tools Tab — offline helpers (timer, recipes, dial-in…).
             stationId lets the Dial-in card load/save the shared per-station recipe. */}
         {!loading && activeTab === 'tools' && (
@@ -2731,35 +2168,6 @@ const BaristaInterface = () => {
         {/* Enhanced Capabilities Tab — two stacked sections:
             (1) the new per-station milk/drink/size editor that drives
                 _assign_station routing (built May 2026), and
-            (2) the older barista skill-level profile editor below it. */}
-        {!loading && activeTab === 'capabilities' && (
-          <div className="p-4 space-y-6">
-            <div>
-              <h2 className="text-xl font-bold mb-3">Station Capabilities</h2>
-              <p className="text-sm text-cq-ink-2 mb-3">
-                What each station can serve. Drives where the SMS bot
-                routes incoming orders.
-              </p>
-              <StationCapabilitiesEditor />
-            </div>
-            <div className="border-t border-cq-line pt-6">
-              <h2 className="text-xl font-bold mb-3">Barista Skill Profiles</h2>
-              <p className="text-sm text-cq-ink-2 mb-3">
-                Optional skill-level tracking per barista. Read-only
-                analytics for now.
-              </p>
-              <EnhancedStationCapabilities />
-            </div>
-          </div>
-        )}
-        
-        {/* Staff Allocation Tab */}
-        {!loading && activeTab === 'staff' && (
-          <div className="p-4">
-            <DynamicStaffAllocation />
-          </div>
-        )}
-        
         {/* Settings Tab. Order matters: Notifications first (the settings
             a barista actually reaches for mid-service), then station
             identity, then the housekeeping cards — the old order left a
@@ -3046,7 +2454,7 @@ const BaristaInterface = () => {
               ) : (
                 <p className="text-sm text-cq-ink-3">
                   No label printer is assigned to this station. Printers are set
-                  up in Support → Printers (they appear there automatically the
+                  up in Runner › Printers (they appear there automatically the
                   first time they connect).
                 </p>
               )}
@@ -3310,15 +2718,6 @@ const BaristaInterface = () => {
                 <div>API Status: {online ? 'Connected' : 'Offline'}</div>
                 <div>App Mode: {isDemoMode ? 'Demo' : 'Production'}</div>
               </div>
-
-              {/* Restore dismissed info panels (folded in from its own
-                  near-empty card; gives honest toast feedback now). */}
-              <button
-                className="mt-3 text-sm text-cq-caramel-deep hover:text-cq-caramel-deep underline"
-                onClick={restoreAllPanels}
-              >
-                Restore dismissed info panels
-              </button>
 
               {/* The duplicate "Save Settings" button that lived here
                   (a second, slightly different station save that also

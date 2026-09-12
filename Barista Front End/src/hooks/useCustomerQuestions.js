@@ -86,7 +86,7 @@ export default function useCustomerQuestions() {
     if (!phone) { alert('No phone number on this message to block.'); return; }
     if (!window.confirm(
       `Block ${phone}?\n\nThe system will stop replying to this number to protect ` +
-      `your SMS credit. You can undo this anytime in Support → SMS. ` +
+      `your SMS credit. You can undo this anytime in Runner › Messages › Blocked numbers. ` +
       `Nothing is deleted.`
     )) return;
     setBlocking(s => ({ ...s, [q.id]: true }));
