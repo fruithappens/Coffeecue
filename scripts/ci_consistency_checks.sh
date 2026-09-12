@@ -190,6 +190,27 @@ else
   ok "none"
 fi
 
+# ---------------------------------------------------------------------------
+# Check 9: no query groups or filters by the bare UTC date.
+# The server stores naive UTC and runs TZ=UTC. Adelaide is UTC+9:30, so
+# DATE(created_at), created_at::date and CURRENT_DATE file every morning
+# under the day before -- Treenet read 463 orders instead of 577 (finding 3).
+# utils/event_time.py gives today_bounds() / range_bounds() for a range over
+# the column, and local_date_sql() / local_hour_sql() for grouping. The only
+# allowed ::date is the one already shifted through AT TIME ZONE.
+# ---------------------------------------------------------------------------
+note "Check 9: dates resolve through the event's clock (utils/event_time.py)"
+hits=$(grep -rnE "::date|::DATE|CURRENT_DATE|[^_A-Za-z]DATE\(|datetime\.now\(\)\.date\(\)|date\.today\(\)|datetime\.now\(\)\.strftime\('%Y-%m-%d'\)" routes/ services/ --include='*.py' 2>/dev/null \
+  | grep -vE ":[0-9]+:[[:space:]]*#" \
+  | grep -v "AT TIME ZONE" \
+  || true)
+if [ -n "$hits" ]; then
+  bad "bare UTC date in a query -- use utils/event_time (today_bounds, range_bounds, local_date_sql):"
+  printf '%s\n' "$hits" | sed 's/^/      /'
+else
+  ok "none"
+fi
+
 printf '\n'
 if [ "$FAIL" -ne 0 ]; then
   echo "Consistency checks FAILED — see above. These guard against the 'two views of the same fact disagree' bug class."

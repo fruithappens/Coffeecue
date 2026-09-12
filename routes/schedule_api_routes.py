@@ -2,7 +2,7 @@
 Schedule API Routes
 Handles barista schedules and shift management
 """
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime, date, timedelta
 import logging
@@ -10,10 +10,17 @@ import logging
 from models.stations import StationSchedule
 from models.users import User
 from utils.database import db
+from utils import event_time
 
 logger = logging.getLogger(__name__)
 
 schedule_api_bp = Blueprint('schedule_api', __name__, url_prefix='/api/schedules')
+
+
+def _local_today():
+    """Today where the event is, not the UTC day (finding 3)."""
+    cs = current_app.config.get('coffee_system')
+    return event_time.local_today(event_time.resolve_zone(getattr(cs, '_get_setting', None)))
 
 @schedule_api_bp.route('/', methods=['POST'])
 @jwt_required()
@@ -81,7 +88,7 @@ def create_schedule():
 def get_today_schedules():
     """Get all schedules for today"""
     try:
-        today = date.today()
+        today = _local_today()
         
         # Get station filter if provided
         station_id = request.args.get('station_id', type=int)
@@ -127,7 +134,7 @@ def get_week_schedules():
     """Get schedules for the current week"""
     try:
         # Calculate week range
-        today = date.today()
+        today = _local_today()
         start_of_week = today - timedelta(days=today.weekday())
         end_of_week = start_of_week + timedelta(days=6)
         

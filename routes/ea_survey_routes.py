@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import json
 import re as _re
+from utils import event_time as _event_time
 import logging
 import secrets
 import os
@@ -958,9 +959,13 @@ def ea_status():
     cur = db.cursor()
     counts = {}
     try:
+        # Today where the event is, not the UTC day (finding 3).
+        _cs = current_app.config.get('coffee_system')
+        _t0, _t1 = _event_time.today_bounds(
+            _event_time.resolve_zone(getattr(_cs, '_get_setting', None)))
         cur.execute(
             "SELECT status, COUNT(*) FROM ea_webhook_log "
-            "WHERE received_at::date = CURRENT_DATE GROUP BY status")
+            "WHERE received_at >= %s AND received_at < %s GROUP BY status", (_t0, _t1))
         for r in cur.fetchall():
             k, v = (r.get('status'), r.get('count')) if isinstance(r, dict) else r
             counts[k] = v
