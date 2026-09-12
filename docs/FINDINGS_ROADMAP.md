@@ -10,7 +10,8 @@ Ordered by what it costs you, not by how interesting it is.
 
 ## 1. Elapsed time is computed on the server, and it costs you the outage
 
-**Status:** BUILT 12 Sep — PR #625, awaiting merge. The list no longer
+**Status:** DONE 12 Sep — PR #625, live (prod log: 39 × 304 to 4 × 200 in
+ten minutes). The list no longer
 carries `waitTime`; `utils/orderTime.js` stamps it on arrival from
 `createdAt`, on the server's clock (every response's `Date` header), and
 `useOrders` re-stamps once a minute. With the ticking gone the `/orders`
@@ -42,7 +43,13 @@ the last outage.
 
 ## 2. Strict equality against ids that arrive as strings
 
-**Status:** two instances fixed, no audit done.
+**Status:** DONE 12 Sep — PR #627, live. Audited 185 strict comparisons; the
+barista action path now goes through `utils/ids.js` (`sameId`/`byId`/`notId`).
+The audit found the **Ready** button carrying the exact code #606 fixed on
+Collected — a local lookup that refused the tap before the server was asked
+— now fixed the same way. CI check 8 blocks a raw `===` on an id in the
+action-path files. Organiser/support screens comparing within one list were
+left alone.
 
 `/api/orders` returns ids as **strings** (`'435'`). Any `===` against a number
 is a control that silently does nothing.
@@ -64,7 +71,13 @@ the single most expensive bug class in the codebase's history.
 
 ## 3. Anything grouping by `created_at::date` is in the wrong timezone
 
-**Status:** fixed **inside the report only**.
+**Status:** DONE 12 Sep — PR #628, live. Twelve more sites had the bug
+(history, statistics, both station-stats routes, schedule, cup
+reconciliation, channels, EA counter, system stats, the report's own date).
+`utils/event_time.py` is the one clock; the report delegates to it. CI check
+9 blocks any bare `::date` / `CURRENT_DATE` / `DATE(` / `date.today()` not
+shifted `AT TIME ZONE`. Live: history/statistics/channels/report all say
+324 + 254 = 578 for Treenet; busiest hour 8am.
 
 The server runs `TZ=UTC` to match Railway. Adelaide is UTC+9:30, so a 7am
 start is 21:30 UTC the previous day. On Treenet that filed 144 of the first
@@ -377,7 +390,8 @@ the guide's rule about not refactoring and converting together.
 
 ## 17. The production database volume: what is actually in the 196 MB
 
-**Status:** BUILT 12 Sep — PR #626, awaiting merge. System › Health has a
+**Status:** DONE 12 Sep — PR #626, live; Reclaim pressed once on production:
+settings 37 → 19 MB, database 50 → 32 MB. System › Health has a
 **Database storage** tile (data, WAL, % of volume, largest table, largest
 setting, reclaimable) and a **Database volume** meter beside CPU and memory
 — amber at 60 %, red at 80 %, from `services/db_storage.py` via
@@ -386,7 +400,8 @@ settings`) is offered when 5 MB+ would come back. On the copy the settings
 table went 91 MB → 19 MB in 0.6 s. The video already has a URL option and
 its own KV row; what costs space is *saving* it — each save leaves the old
 17 MB behind until a reclaim, which is exactly what the tile now shows.
-Still yours: press Reclaim once on production at a quiet moment.
+Every save of the background video leaves another 17 MB behind — the tile
+will offer Reclaim again when it is worth it.
 
 Railway reports the Postgres volume at 196 MB of 500 MB. Measured on the live
 DB (read-only, 11 Sep): the database itself is **50 MB**; WAL is 64 MB (4
