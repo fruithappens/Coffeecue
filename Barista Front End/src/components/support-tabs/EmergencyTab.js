@@ -1,9 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { Button } from '../ui/button';
-import { Badge } from '../ui/badge';
-import { Input } from '../ui/input';
-import { Textarea } from '../ui/textarea';
+import { Panel, Button, Pill } from '../../design';
 // Icon list trimmed after batch F removed the dead buttons (Power,
 // Trash2, Upload, etc) — keep only what's still used in the JSX below so
 // ESLint doesn't flag the leftovers. Lock/Unlock are back: their backend
@@ -203,46 +199,35 @@ const EmergencyTab = () => {
   return (
     <div className="space-y-6">
       {/* Emergency Status */}
-      <Card className={emergencyMode ? 'border-cq-alert' : ''}>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span className="flex items-center gap-2">
+      <Panel title={<span className="flex items-center justify-between"><span className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-cq-alert" />
               Emergency controls
             </span>
-            <div className="flex items-center gap-2">
+            <span className="flex items-center gap-2">
               {emergencyMode && (
-                <Badge variant="destructive" className="animate-pulse">
+                <Pill size="sm" tone="alert" className="animate-pulse">
                   EMERGENCY MODE ACTIVE
-                </Badge>
+                </Pill>
               )}
               {systemLocked && (
-                <Badge variant="warning">
+                <Pill size="sm" tone="caramel">
                   SYSTEM LOCKED
-                </Badge>
+                </Pill>
               )}
-            </div>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+            </span></span>} className={emergencyMode ? 'border-2 border-cq-alert' : ''}>
           <div className="bg-cq-alert-wash rounded-cq-md p-4 mb-4">
             <p className="text-sm text-cq-alert">
               <strong>WARNING:</strong> These controls can significantly impact system operations. 
               Use only in emergency situations. All actions are logged and require confirmation.
             </p>
           </div>
-        </CardContent>
-      </Card>
+        </Panel>
 
       {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick actions</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <Panel title="Quick actions">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Button
-              variant="destructive"
+              variant="danger"
               className="h-20"
               onClick={emergencyMode ? resumeOperations : stopAllOperations}
               disabled={Object.keys(confirmations).length > 0}
@@ -264,7 +249,7 @@ const EmergencyTab = () => {
                 queue as well; this only closes the door on NEW orders so
                 the baristas can work through what they already have. */}
             <Button
-              variant="outline"
+              variant="secondary"
               className="h-20"
               onClick={systemLocked ? unlockSystem : lockSystem}
               disabled={Object.keys(confirmations).length > 0}
@@ -282,21 +267,14 @@ const EmergencyTab = () => {
               )}
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </Panel>
 
       {/* Reset */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <RefreshCw className="h-5 w-5" />
-            Reset
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+      <Panel title={<span className="flex items-center gap-2"><RefreshCw className="h-5 w-5" />
+            Reset</span>}>
           <div className="space-y-3">
             <Button
-              variant="outline"
+              variant="secondary"
               className="w-full justify-start text-cq-alert"
               onClick={clearAllQueues}
               disabled={Object.keys(confirmations).length > 0}
@@ -311,18 +289,11 @@ const EmergencyTab = () => {
                 would silently 404 in an actual emergency, which is
                 the worst possible time to discover. */}
           </div>
-        </CardContent>
-      </Card>
+        </Panel>
 
       {/* Backup */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Database className="h-5 w-5" />
-            Backup
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+      <Panel title={<span className="flex items-center gap-2"><Database className="h-5 w-5" />
+            Backup</span>}>
           <div className="space-y-4">
             <div className="flex gap-2">
               <Button
@@ -343,35 +314,29 @@ const EmergencyTab = () => {
               <p className="text-sm text-cq-alert">Backup failed</p>
             )}
           </div>
-        </CardContent>
-      </Card>
+        </Panel>
 
       {/* Confirmations */}
       {Object.entries(confirmations).map(([key, confirm]) => (
-        <Card key={key} className="border-cq-warn">
-          <CardHeader>
-            <CardTitle className="text-cq-warn">Are you sure?</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <Panel title={<span className="text-cq-warn">Are you sure?</span>} key={key} className="border-2 border-cq-warn">
             <p className="mb-4">
               Are you sure you want to: <strong>{confirm.action}</strong>?
             </p>
             <div className="flex gap-2">
               <Button
-                variant="destructive"
+                variant="danger"
                 onClick={() => executeAction(key)}
               >
                 Yes, Proceed
               </Button>
               <Button
-                variant="outline"
+                variant="secondary"
                 onClick={() => cancelConfirmation(key)}
               >
                 Cancel
               </Button>
             </div>
-          </CardContent>
-        </Card>
+          </Panel>
       ))}
 
       {/* What is NOT here, and where it lives instead.
@@ -383,14 +348,8 @@ const EmergencyTab = () => {
           inventory and users instead of flattening everything. Listing
           them as pending sent support staff looking for a button that
           did not need to exist. */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-cq-ink-3">
-            <AlertCircle className="h-5 w-5" />
-            Not on this tab
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+      <Panel title={<span className="flex items-center gap-2 text-cq-ink-3"><AlertCircle className="h-5 w-5" />
+            Not on this tab</span>}>
           <p className="text-sm text-cq-ink-2 mb-2">
             These live elsewhere, and the versions there are safer:
           </p>
@@ -409,18 +368,11 @@ const EmergencyTab = () => {
               the operator about a thing that did not exist (finding 9). Taking
               a station offline is one tap each in Runner > Stations; nobody
               has asked for a bulk version. Gone until someone does. */}
-        </CardContent>
-      </Card>
+        </Panel>
 
       {/* Action Log */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5" />
-            What has been done
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+      <Panel title={<span className="flex items-center gap-2"><Shield className="h-5 w-5" />
+            What has been done</span>}>
           <div className="max-h-64 overflow-y-auto">
             {actionLog.length === 0 ? (
               <p className="text-sm text-cq-ink-3">Nothing has been done here.</p>
@@ -430,9 +382,9 @@ const EmergencyTab = () => {
                   <div key={index} className="border-b pb-2 last:border-0">
                     <div className="flex items-center justify-between">
                       <span className="font-medium">{entry.action}</span>
-                      <Badge variant={entry.status === 'success' ? 'success' : 'destructive'}>
+                      <Pill size="sm" tone={entry.status === 'ready' ? 'ready' : 'alert'}>
                         {entry.status}
-                      </Badge>
+                      </Pill>
                     </div>
                     <div className="text-sm text-cq-ink-2">
                       <p>{new Date(entry.timestamp).toLocaleString()}</p>
@@ -444,8 +396,7 @@ const EmergencyTab = () => {
               </div>
             )}
           </div>
-        </CardContent>
-      </Card>
+        </Panel>
     </div>
   );
 };
