@@ -1,5 +1,6 @@
 // components/StationChat.js
 import React, { useState, useEffect, useRef } from 'react';
+import { sameId } from '../../utils/ids';
 import { XCircle, RefreshCw, AlertTriangle, ChevronDown, Edit, Save, User, AtSign } from 'lucide-react';
 import ChatService from '../../services/ChatService';
 import StationsService from '../../services/StationsService';
@@ -107,20 +108,14 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
   // Get the current station name based on ID
   const getCurrentStationName = () => {
     if (!stations || stations.length === 0) return "Unknown Station";
-    const station = stations.find(s => s.id === selectedStationId);
+    const station = stations.find(s => sameId(s.id, selectedStationId));
     return station ? station.name : `Station ${selectedStationId}`;
   };
 
   // Initialize chat service on mount and when selected station changes
   useEffect(() => {
     // Get the station name dynamically from the stations array
-    const stationObj = stations.find(s => {
-      // Handle various ID type combinations
-      if (s.id === selectedStationId) return true;
-      if (typeof s.id === 'string' && typeof selectedStationId === 'number' && parseInt(s.id, 10) === selectedStationId) return true;
-      if (typeof selectedStationId === 'string' && typeof s.id === 'number' && parseInt(selectedStationId, 10) === s.id) return true;
-      return false;
-    });
+    const stationObj = stations.find(s => sameId(s.id, selectedStationId));
     
     // Use found station name or fallback
     const stationName = stationObj ? stationObj.name : `Station #${selectedStationId}`;
@@ -275,7 +270,7 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
                 {stations.map(station => (
                   <div 
                     key={station.id}
-                    className={`p-2 hover:bg-cq-wash cursor-pointer ${station.id === selectedStationId ? 'bg-cq-caramel-wash' : ''}`}
+                    className={`p-2 hover:bg-cq-wash cursor-pointer ${sameId(station.id, selectedStationId) ? 'bg-cq-caramel-wash' : ''}`}
                     onClick={() => {
                       // Set the selected station ID
                       setSelectedStationId(station.id);
@@ -388,11 +383,9 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
             // can tell at a glance "this one's for me" vs "this is a
             // global urgent broadcast". Urgent still wins if both apply.
             const mentionsMe = _mentions(message.content, getCurrentStationName());
-            const fromMe = (
-              message.station_id === selectedStationId ||
-              (typeof selectedStationId === 'string' && message.station_id === parseInt(selectedStationId, 10)) ||
-              (message.sender === baristaName && message.station_id === selectedStationId)
-            );
+            // Ids compare as strings (utils/ids.js) -- this used to try
+            // three type combinations by hand and still missed one.
+            const fromMe = sameId(message.station_id, selectedStationId);
             return (
             <div
               key={message.id}
@@ -413,14 +406,7 @@ const StationChat = ({ onClose, onMessageRead, stations, currentStationId, curre
                   {' '}
                   <span className="text-cq-caramel-deep">
                     (
-                    {stations.find(s => s.id === message.station_id || 
-                                    (typeof message.station_id === 'string' && 
-                                     typeof s.id === 'number' && 
-                                     parseInt(message.station_id, 10) === s.id) ||
-                                    (typeof s.id === 'string' && 
-                                     typeof message.station_id === 'number' && 
-                                     parseInt(s.id, 10) === message.station_id)
-                    )?.name || 
+                    {stations.find(s => sameId(s.id, message.station_id))?.name || 
                      message.station_name || 
                      `Station #${message.station_id}`}
                     )
