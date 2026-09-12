@@ -11108,15 +11108,17 @@ class CoffeeOrderSystem:
             cursor.execute("SELECT COUNT(*) FROM customer_preferences")
             customer_count = cursor.fetchone()[0]
 
-            # Get today's orders
-            today = datetime.now().date()
+            # Get today's orders -- today where the event is, not UTC
+            # (finding 3; utils/event_time.py).
+            from utils import event_time as _et
+            _t0, _t1 = _et.today_bounds(_et.resolve_zone(self._get_setting))
             cursor.execute(
                 """
                 SELECT COUNT(*) 
                 FROM orders 
-                WHERE DATE(created_at) = %s
+                WHERE created_at >= %s AND created_at < %s
             """,
-                (today,),
+                (_t0, _t1),
             )
 
             todays_orders = cursor.fetchone()[0]

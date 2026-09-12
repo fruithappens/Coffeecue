@@ -14,6 +14,7 @@ from datetime import timezone as _tz
 import json
 import re
 from auth import jwt_required_with_demo, role_required_with_demo
+from utils import event_time as _event_time
 from utils.broadcast import (
     BROADCAST_KEY, applies_to as broadcast_applies, build as build_broadcast,
     is_live as broadcast_is_live)
@@ -1799,24 +1800,22 @@ def get_order_history():
         
         params = []
         
-        # Add date range filter
-        if start_date:
-            try:
-                # Validate date format
-                datetime.strptime(start_date, '%Y-%m-%d')
-                query += " AND DATE(created_at) >= %s"
-                params.append(start_date)
-            except ValueError:
-                logger.warning(f"Invalid start_date format: {start_date}")
-        
-        if end_date:
-            try:
-                # Validate date format
-                datetime.strptime(end_date, '%Y-%m-%d')
-                query += " AND DATE(created_at) <= %s"
-                params.append(end_date)
-            except ValueError:
-                logger.warning(f"Invalid end_date format: {end_date}")
+        # Date range filter. The dates are LOCAL days where the event is;
+        # DATE(created_at) compared them against the UTC date and lost the
+        # morning (finding 3). A range over created_at, index-friendly.
+        _a = _event_time.parse_date(start_date) if start_date else None
+        _b = _event_time.parse_date(end_date) if end_date else None
+        if start_date and not _a:
+            logger.warning(f"Invalid start_date format: {start_date}")
+        if end_date and not _b:
+            logger.warning(f"Invalid end_date format: {end_date}")
+        _s, _e = _event_time.range_bounds(_a, _b, _event_timezone())
+        if _s:
+            query += " AND created_at >= %s"
+            params.append(_s)
+        if _e:
+            query += " AND created_at < %s"
+            params.append(_e)
         
         # Add status filter
         if status:
@@ -1921,19 +1920,21 @@ def get_order_statistics():
         
         cursor = db.cursor()
         
-        # Set default date range based on time period if not provided
+        # Set default date range based on time period if not provided --
+        # "today" on the event's clock (finding 3).
+        _now = _event_time.local_now(_event_timezone())
         if not start_date:
             if time_period == 'day':
-                start_date = datetime.now().strftime('%Y-%m-%d')
+                start_date = _now.strftime('%Y-%m-%d')
             elif time_period == 'week':
-                start_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+                start_date = (_now - timedelta(days=7)).strftime('%Y-%m-%d')
             elif time_period == 'month':
-                start_date = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+                start_date = (_now - timedelta(days=30)).strftime('%Y-%m-%d')
             elif time_period == 'year':
-                start_date = (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
+                start_date = (_now - timedelta(days=365)).strftime('%Y-%m-%d')
         
         if not end_date:
-            end_date = datetime.now().strftime('%Y-%m-%d')
+            end_date = _now.strftime('%Y-%m-%d')
         
         # Validate date parameters
         try:
@@ -1944,6 +1945,14 @@ def get_order_statistics():
                 'success': False,
                 'message': 'Invalid date format. Use YYYY-MM-DD.'
             }), 400
+
+        # Local days where the event is, as a UTC window (finding 3):
+        # DATE(created_at) BETWEEN filed every morning under the day before.
+        _tz = _event_timezone()
+        _w0, _w1 = _event_time.range_bounds(start_dt.date(), end_dt.date(), _tz)
+        _win = (_w0, _w1)
+        _day = _event_time.local_date_sql('created_at')
+        _hour = _event_time.local_hour_sql('created_at')
         
         # Generate statistics
         
@@ -1951,23 +1960,23 @@ def get_order_statistics():
         cursor.execute('''
             SELECT status, COUNT(*) as count
             FROM orders
-            WHERE DATE(created_at) BETWEEN %s AND %s
+            WHERE created_at >= %s AND created_at < %s
             GROUP BY status
-        ''', (start_date, end_date))
+        ''', _win)
         
         status_counts = {}
         for row in cursor.fetchall():
             status, count = row
             status_counts[status] = count
         
-        # 2. Orders by day
-        cursor.execute('''
-            SELECT DATE(created_at) as day, COUNT(*) as count
+        # 2. Orders by (local) day
+        cursor.execute(f'''
+            SELECT {_day} as day, COUNT(*) as count
             FROM orders
-            WHERE DATE(created_at) BETWEEN %s AND %s
-            GROUP BY DATE(created_at)
+            WHERE created_at >= %(w0)s AND created_at < %(w1)s
+            GROUP BY 1
             ORDER BY day
-        ''', (start_date, end_date))
+        ''', {'tz': _tz, 'w0': _w0, 'w1': _w1})
         
         daily_counts = {}
         for row in cursor.fetchall():
@@ -1978,11 +1987,11 @@ def get_order_statistics():
         cursor.execute('''
             SELECT order_details->>'type' as coffee_type, COUNT(*) as count
             FROM orders
-            WHERE DATE(created_at) BETWEEN %s AND %s
+            WHERE created_at >= %s AND created_at < %s
             AND order_details->>'type' IS NOT NULL
             GROUP BY order_details->>'type'
             ORDER BY count DESC
-        ''', (start_date, end_date))
+        ''', _win)
         
         coffee_type_counts = {}
         for row in cursor.fetchall():
@@ -1993,25 +2002,25 @@ def get_order_statistics():
         cursor.execute('''
             SELECT order_details->>'milk' as milk_type, COUNT(*) as count
             FROM orders
-            WHERE DATE(created_at) BETWEEN %s AND %s
+            WHERE created_at >= %s AND created_at < %s
             AND order_details->>'milk' IS NOT NULL
             GROUP BY order_details->>'milk'
             ORDER BY count DESC
-        ''', (start_date, end_date))
+        ''', _win)
         
         milk_type_counts = {}
         for row in cursor.fetchall():
             milk_type, count = row
             milk_type_counts[milk_type] = count
         
-        # 5. Busiest hours
-        cursor.execute('''
-            SELECT EXTRACT(HOUR FROM created_at) as hour, COUNT(*) as count
+        # 5. Busiest hours, on the event's clock (1am was never the rush)
+        cursor.execute(f'''
+            SELECT {_hour} as hour, COUNT(*) as count
             FROM orders
-            WHERE DATE(created_at) BETWEEN %s AND %s
-            GROUP BY EXTRACT(HOUR FROM created_at)
+            WHERE created_at >= %(w0)s AND created_at < %(w1)s
+            GROUP BY 1
             ORDER BY hour
-        ''', (start_date, end_date))
+        ''', {'tz': _tz, 'w0': _w0, 'w1': _w1})
         
         hourly_counts = {}
         for row in cursor.fetchall():
@@ -7997,16 +8006,18 @@ def get_station(station_id):
         # Extract station details
         station_id, name, location, status, barista_name, wait_time, last_updated = station
         
-        # Get station order statistics
+        # Get station order statistics. "Today" is the event's day, not the
+        # UTC one (finding 3): CURRENT_DATE turned over at 09:30 Adelaide.
+        _t0, _t1 = _today_bounds()
         cursor.execute('''
             SELECT 
                 COUNT(*) FILTER (WHERE status = 'pending') as pending_count,
                 COUNT(*) FILTER (WHERE status = 'in-progress') as in_progress_count,
                 COUNT(*) FILTER (WHERE status = 'completed') as completed_count,
-                COUNT(*) FILTER (WHERE DATE(created_at) = CURRENT_DATE) as total_today
+                COUNT(*) FILTER (WHERE created_at >= %s AND created_at < %s) as total_today
             FROM orders
             WHERE station_id = %s
-        ''', (station_id,))
+        ''', (_t0, _t1, station_id))
         
         stats_row = cursor.fetchone()
         stats = {
@@ -8226,29 +8237,32 @@ def get_station_stats(station_id):
         
         # Get station order statistics
         cursor = db.cursor()
+        # "Today" and "hour" on the event's clock, not UTC (finding 3).
+        _tz = _event_timezone()
+        _t0, _t1 = _event_time.today_bounds(_tz)
         cursor.execute('''
             SELECT 
                 COUNT(*) FILTER (WHERE status = 'pending') as pending_count,
                 COUNT(*) FILTER (WHERE status = 'in-progress') as in_progress_count,
                 COUNT(*) FILTER (WHERE status = 'completed') as completed_count,
-                COUNT(*) FILTER (WHERE DATE(created_at) = CURRENT_DATE) as total_today,
+                COUNT(*) FILTER (WHERE created_at >= %s AND created_at < %s) as total_today,
                 AVG(EXTRACT(EPOCH FROM (updated_at - created_at)) / 60) FILTER (WHERE status = 'completed') as avg_completion_time
             FROM orders
             WHERE station_id = %s
-        ''', (station_id,))
+        ''', (_t0, _t1, station_id))
         
         stats_row = cursor.fetchone()
         
-        # Get hourly breakdown of orders
-        cursor.execute('''
+        # Get hourly breakdown of today's orders
+        cursor.execute(f'''
             SELECT 
-                EXTRACT(HOUR FROM created_at) as hour,
+                {_event_time.local_hour_sql('created_at')} as hour,
                 COUNT(*) as order_count
             FROM orders
-            WHERE station_id = %s AND DATE(created_at) = CURRENT_DATE
-            GROUP BY EXTRACT(HOUR FROM created_at)
+            WHERE station_id = %(sid)s AND created_at >= %(t0)s AND created_at < %(t1)s
+            GROUP BY 1
             ORDER BY hour
-        ''', (station_id,))
+        ''', {'tz': _tz, 'sid': station_id, 't0': _t0, 't1': _t1})
         
         hourly_data = {}
         for row in cursor.fetchall():
@@ -10158,8 +10172,9 @@ def get_today_schedule():
         except Exception as e:
             logger.warning(f"Error creating schedule tables: {str(e)}")
         
-        # Get today's date
-        today = datetime.now().date()
+        # Today where the event is (finding 3): datetime.now() on a TZ=UTC
+        # server is yesterday until 09:30 Adelaide.
+        today = _event_time.local_today(_event_timezone())
         
         # Query shifts
         shifts_query = "SELECT * FROM schedule_shifts WHERE date = %s"
@@ -10380,15 +10395,18 @@ def get_barista_schedule(barista_id):
         coffee_system = current_app.config.get('coffee_system')
         db = coffee_system.db
         
-        # Query barista shifts
+        # Query barista shifts. The schedule's `date` is a calendar day where
+        # the event is; CURRENT_DATE is the UTC one and lags it until 09:30
+        # Adelaide, showing yesterday's shifts all morning (finding 3).
+        _today = _event_time.local_today(_event_timezone())
         cursor = db.cursor()
         try:
             cursor.execute('''
                 SELECT * FROM schedule_shifts
-                WHERE barista_id = %s AND date >= CURRENT_DATE
+                WHERE barista_id = %s AND date >= %s
                 ORDER BY date, start_time
                 LIMIT 20
-            ''', (barista_id,))
+            ''', (barista_id, _today))
             shifts_columns = [desc[0] for desc in cursor.description]
             shifts = [dict(zip(shifts_columns, row)) for row in cursor.fetchall()]
         except Exception as e:
@@ -10399,10 +10417,10 @@ def get_barista_schedule(barista_id):
         try:
             cursor.execute('''
                 SELECT * FROM schedule_breaks
-                WHERE barista_id = %s AND date >= CURRENT_DATE
+                WHERE barista_id = %s AND date >= %s
                 ORDER BY date, start_time
                 LIMIT 20
-            ''', (barista_id,))
+            ''', (barista_id, _today))
             breaks_columns = [desc[0] for desc in cursor.description]
             breaks = [dict(zip(breaks_columns, row)) for row in cursor.fetchall()]
         except Exception as e:
@@ -12404,13 +12422,16 @@ def cup_reconciliation():
         # Our tally: today's completed/picked-up orders per station.
         # Walk-ins and kiosk orders are orders like any other, so the
         # main drift sources the venue doc names are already inside.
+        # "Today" is the event's day: CURRENT_DATE (UTC) started it at
+        # 09:30 Adelaide and the morning's cups went missing (finding 3).
+        _t0, _t1 = _today_bounds()
         cur.execute(
             """
             SELECT station_id, COUNT(*) FROM orders
             WHERE status IN ('completed', 'picked_up')
-              AND created_at >= CURRENT_DATE
+              AND created_at >= %s AND created_at < %s
             GROUP BY station_id
-            """
+            """, (_t0, _t1)
         )
         system_by_station = {}
         for r in cur.fetchall():
@@ -12452,7 +12473,7 @@ def cup_reconciliation():
 
 
 def _event_timezone():
-    """Where the event actually is, as an IANA zone.
+    """Where the event actually is, as an IANA zone (utils/event_time.py).
 
     The server stores UTC (it runs TZ=UTC to match Railway) and every report
     grouped by the UTC date, which for an Australian coffee cart is simply the
@@ -12462,25 +12483,22 @@ def _event_timezone():
     event, filed under a day it did not happen on.
 
     Settable per event; defaults to Steve's own zone rather than UTC, because
-    a default of UTC is the bug.
+    a default of UTC is the bug. Every "today" in the app resolves through
+    this same clock now, not just the report (finding 3).
     """
-    tz = ''
+    getter = None
     try:
         coffee_system = current_app.config.get('coffee_system')
         if coffee_system:
-            tz = coffee_system._get_setting('event_timezone', '') or ''
+            getter = coffee_system._get_setting
     except Exception:
-        tz = ''
-    tz = (tz or '').strip() or 'Australia/Adelaide'
-    try:
-        from zoneinfo import ZoneInfo
-        ZoneInfo(tz)
-        return tz
-    except Exception:
-        # Fall back to UTC, not to the default zone: if the zone database is
-        # missing the default fails the same way and the report goes dark.
-        logger.warning("event_timezone %r is not a known zone; using UTC", tz)
-        return 'UTC'
+        getter = None
+    return _event_time.resolve_zone(getter)
+
+
+def _today_bounds():
+    """(start, end) naive UTC for today where the event is; end EXCLUSIVE."""
+    return _event_time.today_bounds(_event_timezone())
 
 
 def _report_window():
@@ -12499,31 +12517,11 @@ def _report_window():
     Bad dates fall back to today rather than erroring: a mistyped URL should
     show today's numbers, not a stack trace.
     """
-    from datetime import date as _date, datetime as _dt, timedelta as _td
-    from zoneinfo import ZoneInfo
-
     tz = _event_timezone()
-    try:
-        zone = ZoneInfo(tz)
-    except Exception:
-        # 'UTC' itself needs the zone database; timezone.utc never does.
-        zone = _tz.utc
-
-    def _parse(v):
-        try:
-            return _date.fromisoformat(str(v).strip()[:10])
-        except (ValueError, TypeError):
-            return None
-
-    def _utc(d):
-        """Local midnight on `d`, as a naive UTC timestamp for the DB."""
-        return (_dt(d.year, d.month, d.day, tzinfo=zone)
-                .astimezone(_tz.utc).replace(tzinfo=None))
-
-    today = _dt.now(zone).date()
-    one = _parse(request.args.get('date'))
-    a = _parse(request.args.get('from'))
-    b = _parse(request.args.get('to'))
+    today = _event_time.local_today(tz)
+    one = _event_time.parse_date(request.args.get('date'))
+    a = _event_time.parse_date(request.args.get('from'))
+    b = _event_time.parse_date(request.args.get('to'))
     if one:
         a = b = one
     elif a and b:
@@ -12534,7 +12532,8 @@ def _report_window():
     else:
         a = b = today
     label = a.isoformat() if a == b else f'{a.isoformat()} to {b.isoformat()}'
-    return _utc(a), _utc(b + _td(days=1)), label, tz
+    start, end = _event_time.range_bounds(a, b, tz)
+    return start, end, label, tz
 
 
 @bp.route('/reports/days', methods=['GET'])
@@ -13126,7 +13125,7 @@ def get_today_report():
             'payments': payments,
             'times': times,
             'channels': channels,
-            'date': datetime.now().date().isoformat(),
+            'date': _event_time.local_today(_event_timezone()).isoformat(),
             'total_orders': total,
             'status_breakdown': status_counts,
             'avg_wait_min': round(avg_wait_min, 1) if avg_wait_min is not None else None,
@@ -13582,16 +13581,25 @@ def report_channels():
         sql = ("SELECT order_details, status, station_id, created_at "
                "FROM orders WHERE 1=1")
         params = []
-        for arg, op in (('start_date', '>='), ('end_date', '<=')):
+        # The dates are local days where the event is (finding 3):
+        # created_at::date compared them against the UTC date.
+        _bounds = {}
+        for arg in ('start_date', 'end_date'):
             val = request.args.get(arg)
             if val:
-                try:
-                    datetime.strptime(val, '%Y-%m-%d')
-                except ValueError:
+                d = _event_time.parse_date(val)
+                if not d or len(str(val).strip()) != 10:
                     return jsonify({'success': False,
                                     'message': f'{arg} must be YYYY-MM-DD'}), 400
-                sql += f" AND created_at::date {op} %s"
-                params.append(val)
+                _bounds[arg] = d
+        _s, _e = _event_time.range_bounds(_bounds.get('start_date'), _bounds.get('end_date'),
+                                          _event_timezone())
+        if _s:
+            sql += " AND created_at >= %s"
+            params.append(_s)
+        if _e:
+            sql += " AND created_at < %s"
+            params.append(_e)
         cur = db.cursor()
         cur.execute(sql, params)
         rows = cur.fetchall() or []
