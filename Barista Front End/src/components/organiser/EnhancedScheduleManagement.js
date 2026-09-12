@@ -10,6 +10,7 @@ import StationsService from '../../services/StationsService';
 import MessageService from '../../services/MessageService';
 import ApiServiceClass from '../../services/ApiService';
 import QuickSetupStatusBanner from './QuickSetupStatusBanner';
+import { askConfirm, askText } from '../shared/ConfirmDialog';
 
 // Backend-backed event_sessions + session_statuses. The /settings/
 // event-sessions KV endpoint persists these to Postgres so a
@@ -215,8 +216,8 @@ const EnhancedScheduleManagement = () => {
   };
   
   // Delete session
-  const deleteSession = (sessionId) => {
-    if (window.confirm('Are you sure you want to delete this session?')) {
+  const deleteSession = async (sessionId) => {
+    if (await askConfirm({ title: 'Delete this session?', confirmLabel: 'Delete', danger: true })) {
       const updatedSessions = sessions.filter(s => s.id !== sessionId);
       saveSessions(updatedSessions);
     }
@@ -430,8 +431,8 @@ const EnhancedScheduleManagement = () => {
               </div>
             ) : (
               <button
-                onClick={() => {
-                  if (window.confirm('Activate emergency override? This will unlock ALL stations immediately.')) {
+                onClick={async () => {
+                  if (await askConfirm({ title: 'Emergency override?', message: 'Unlocks ALL stations immediately, whatever the schedule says.', confirmLabel: 'Unlock all', danger: true })) {
                     activateEmergencyOverride();
                   }
                 }}
@@ -888,8 +889,8 @@ const EnhancedScheduleManagement = () => {
               </h4>
               <div className="flex space-x-3">
                 <button
-                  onClick={() => {
-                    const message = prompt('Enter message for all stations:');
+                  onClick={async () => {
+                    const message = await askText({ title: 'Message every station', placeholder: 'What should every barista screen say?', confirmLabel: 'Send', maxLength: 200 });
                     if (message) {
                       MessageService.broadcastToStations({
                         type: 'organizer_message',

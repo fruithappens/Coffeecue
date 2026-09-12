@@ -4,6 +4,7 @@ import {
   Edit3, X, AlertCircle, CheckCircle
 } from 'lucide-react';
 import StationDefaults from './StationDefaults';
+import { askConfirm } from '../shared/ConfirmDialog';
 
 /**
  * Simplified Station Settings Component
@@ -103,7 +104,7 @@ const StationSettings = ({ stations, onStationUpdate, onAddStation, onDeleteStat
 
   // Handle station deletion
   const handleDeleteStation = async (stationId) => {
-    if (!window.confirm('Are you sure you want to delete this station? This action cannot be undone.')) {
+    if (!(await askConfirm({ title: 'Delete this station?', message: 'Its settings and stock go with it. This cannot be undone.', confirmLabel: 'Delete station', danger: true }))) {
       return;
     }
 

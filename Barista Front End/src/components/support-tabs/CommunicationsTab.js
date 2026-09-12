@@ -5,6 +5,7 @@ import {
   FileText, Users, Search, Filter, Megaphone
 } from 'lucide-react';
 import ApiServiceClass from '../../services/ApiService';
+import { askConfirm } from '../shared/ConfirmDialog';
 
 // Broadcast cap kept in sync with the backend
 // (BROADCAST_MAX_RECIPIENTS in routes/support_api_routes.py).
@@ -102,10 +103,12 @@ const CommunicationsTab = () => {
   const handleBroadcastSend = async () => {
     if (!broadcast.message.trim()) return;
     // Always confirm before sending — this hits real customers.
-    const ok = window.confirm(
-      `Send this message to ${broadcastPreview?.recipient_count ?? 'everyone matching the audience'}?\n\n` +
-      `"${broadcast.message.trim()}"\n\nThis cannot be undone.`,
-    );
+    const n = broadcastPreview?.recipient_count;
+    const ok = await askConfirm({
+      title: n != null ? `Text ${n} ${n === 1 ? 'person' : 'people'}?` : 'Text everyone in this audience?',
+      message: `“${broadcast.message.trim()}”\n\nEach person gets one text. This cannot be recalled.`,
+      confirmLabel: 'Send', danger: true,
+    });
     if (!ok) return;
     setBroadcastBusy(true);
     setBroadcastResult(null);

@@ -3,6 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { PlusCircle, Trash2, Check, FileText, Coffee, Copy } from 'lucide-react';
 import { DEFAULT_MILK_TYPES } from '../../utils/milkConfig';
 import useCatalog from '../../hooks/useCatalog';
+import { askConfirm } from '../shared/ConfirmDialog';
+import { showToast } from '../shared/Toast';
 
 const GroupOrdersTab = ({ onSubmitGroupOrders }) => {
   // Canonical milk list from /api/catalog/milk. Falls back to
@@ -63,7 +65,7 @@ const GroupOrdersTab = ({ onSubmitGroupOrders }) => {
 
   const handleAddIndividualOrder = () => {
     if (!newOrder.name) {
-      alert('Please enter a name for this order');
+      showToast('Enter a name for this order first', 'warning');
       return;
     }
     
@@ -82,12 +84,12 @@ const GroupOrdersTab = ({ onSubmitGroupOrders }) => {
 
   const handleCreateGroup = () => {
     if (!groupName) {
-      alert('Please enter a group name');
+      showToast('Give the group a name first', 'warning');
       return;
     }
     
     if (individualOrders.length === 0) {
-      alert('Please add at least one coffee order to the group');
+      showToast('Add at least one coffee to the group first', 'warning');
       return;
     }
     
@@ -108,26 +110,26 @@ const GroupOrdersTab = ({ onSubmitGroupOrders }) => {
       setSavedGroups(updatedGroups);
       
       // Show confirmation and clear form
-      alert(`Group "${groupName}" created with code ${groupCode}`);
+      showToast(`Group "${groupName}" created — code ${groupCode}`, 'success', 5000);
       setGroupName('');
       setGroupCode('');
       setNotes('');
       setIndividualOrders([]);
     } catch (err) {
       console.error('Failed to save group order:', err);
-      alert('Failed to save group order. Please try again.');
+      showToast('Could not save the group order — try again', 'error');
     }
   };
 
   const handleSubmitGroupToBarista = (group) => {
     if (onSubmitGroupOrders) {
       onSubmitGroupOrders(group);
-      alert(`Group "${group.groupName}" has been sent to the barista queue!`);
+      showToast(`Group "${group.groupName}" sent to the barista queue`, 'success');
     }
   };
 
-  const handleDeleteGroup = (groupId) => {
-    if (window.confirm('Are you sure you want to delete this group?')) {
+  const handleDeleteGroup = async (groupId) => {
+    if (await askConfirm({ title: 'Delete this group?', message: 'The saved group and its coffees are removed from this device.', confirmLabel: 'Delete', danger: true })) {
       const updatedGroups = savedGroups.filter(group => group.id !== groupId);
       localStorage.setItem('coffee_group_orders', JSON.stringify(updatedGroups));
       setSavedGroups(updatedGroups);

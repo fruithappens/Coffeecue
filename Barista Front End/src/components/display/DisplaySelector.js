@@ -12,6 +12,7 @@ import { Monitor, Hand, Eye, Copy, Check, QrCode, ExternalLink, Sparkles, Smartp
 import { AreaMark, Button, Pill, useEventBrand, EventHeader } from '../../design';
 import useStations from '../../hooks/useStations';
 import AdminViewSwitcher from '../shared/AdminViewSwitcher';
+import { tell } from '../shared/ConfirmDialog';
 
 const origin = () => (typeof window !== 'undefined' ? window.location.origin : '');
 
@@ -23,7 +24,7 @@ const ScreenRow = ({ Icon, title, what, path, badge, extra }) => {
   const url = origin() + path;
   const copy = async () => {
     try { await navigator.clipboard.writeText(url); }
-    catch (e) { window.prompt('Copy this address for the other screen:', url); }
+    catch (e) { await tell({ title: 'Copy this address', message: url, confirmLabel: 'Done' }); }
     setCopied(true); setTimeout(() => setCopied(false), 2000);
   };
   return (

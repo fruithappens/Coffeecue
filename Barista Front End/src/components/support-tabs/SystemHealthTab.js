@@ -335,19 +335,6 @@ const SystemHealthTab = () => {
     }
   };
   
-  // Component-restart buttons are non-functional: there's no per-
-  // component restart endpoint on the backend (and "restart Postgres
-  // from the support UI" isn't a thing you actually want to wire up
-  // anyway). Left in place but no-op'd to make this explicit — was
-  // previously a console.log that looked like it worked.
-  const handleRestart = (componentId) => {
-    window.alert(
-      `Restarting "${componentId}" from this panel isn't supported. ` +
-      `Restart the service from your deploy host (Railway dashboard, ` +
-      `systemd, etc).`
-    );
-  };
-  
   return (
     // Gutter comes from the Support shell's <main className="p-6">.
     <div>
@@ -423,7 +410,6 @@ const SystemHealthTab = () => {
             component={component}
             getStatusIcon={getStatusIcon}
             getStatusColor={getStatusColor}
-            onRestart={() => handleRestart(component.id)}
             action={component.id === 'storage' && reclaimWorth ? (
               <Button variant="secondary" size="sm" onClick={() => { setReclaimNote(''); setReclaimOpen(true); }}>
                 Reclaim {mb(reclaimable)}
@@ -523,7 +509,9 @@ const OverviewCard = ({ label, value, status }) => {
   );
 };
 
-const ComponentCard = ({ component, getStatusIcon, getStatusColor, onRestart, action = null, note = null }) => (
+// No "restart" button: there is no per-component restart on the backend, and
+// the one that stood here only opened a browser alert saying so (finding 8).
+const ComponentCard = ({ component, getStatusIcon, getStatusColor, action = null, note = null }) => (
   <div className={`border-2 rounded-cq-md p-4 ${getStatusColor(component.status)}`}>
     <div className="flex items-center justify-between mb-3">
       <div className="flex items-center space-x-3">
@@ -532,13 +520,6 @@ const ComponentCard = ({ component, getStatusIcon, getStatusColor, onRestart, ac
       </div>
       <div className="flex items-center space-x-2">
         {getStatusIcon(component.status)}
-        <button
-          onClick={onRestart}
-          className="p-1 hover:bg-cq-wash rounded transition-colors"
-          title="Restart component"
-        >
-          <RefreshCw className="w-4 h-4" />
-        </button>
       </div>
     </div>
     

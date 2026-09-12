@@ -16,6 +16,7 @@ import EventInventoryService from '../../services/EventInventoryService';
 import useCatalog from '../../hooks/useCatalog';
 import { event as logEvent } from '../../services/logging';
 import { Segmented } from '../../design';
+import { askConfirm, askText } from '../shared/ConfirmDialog';
 
 const api = new ApiServiceClass();
 
@@ -836,13 +837,13 @@ const QuickSetup = () => {
         setPreview(resp);
       } else {
         logEvent('QUICK_SETUP_PREVIEW_FAIL', { reason: 'no_success_flag' });
-        // Endpoint missing on older backends — fall back to the old
-        // window.confirm so we don't block the operator.
-        if (window.confirm(
-          'Could not preview changes (dry-run endpoint unavailable).\n\n' +
-          'Apply Quick Setup anyway? This rebuilds inventory and may ' +
-          'change stock amounts.'
-        )) {
+        // Endpoint missing on older backends — ask, rather than block the
+        // operator.
+        if (await askConfirm({
+          title: 'Apply without a preview?',
+          message: 'The preview could not be produced. Quick Setup can still be applied; it rebuilds inventory and may change stock amounts.',
+          confirmLabel: 'Apply anyway', danger: true,
+        })) {
           await applyForReal();
         }
       }
@@ -1665,10 +1666,12 @@ const EventTemplatesSection = ({ config, setConfig }) => {
   };
 
   const handleSave = async () => {
-    const name = window.prompt(
-      'Save current Quick Setup config as a template.\n\n' +
-      'Name (e.g. "Hills Baptist standard", "Café cart default"):'
-    );
+    const name = await askText({
+      title: 'Save as a template',
+      message: 'The current Quick Setup, saved to load again for another event.',
+      placeholder: 'e.g. Hills Baptist standard, Café cart default', confirmLabel: 'Save',
+      validate: (v) => (v.trim() ? '' : 'Give the template a name'),
+    });
     if (!name || !name.trim()) return;
     setSaving(true);
     setStatus(null);

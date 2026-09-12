@@ -9,6 +9,8 @@ import useStations from '../../hooks/useStations';
 import useOrders from '../../hooks/useOrders';
 import useStock from '../../hooks/useStock';
 import useSettings from '../../hooks/useSettings';
+import { askConfirm, askText } from '../shared/ConfirmDialog';
+import { showToast } from '../shared/Toast';
 
 // A pending order waiting longer than this is treated as stale/abandoned
 // (or leftover test data) and excluded from the live avg-wait calc and
@@ -599,14 +601,26 @@ const EnhancedLiveOperationsDashboard = () => {
           </button>
           
           <button
-            onClick={() => {
-              // Quick announce — prompt for a message and broadcast
-              // to anyone who ordered today. Wired to the existing
-              // /api/support/broadcast/customers endpoint.
-              const msg = window.prompt('Announce to today\'s customers (SMS):\n\nKeep it short — under 160 chars works best.');
+            onClick={async () => {
+              // Quick announce: one text to everyone who ordered today, via
+              // the existing /api/support/broadcast/customers endpoint. Two
+              // steps on purpose -- write it, then confirm who gets it --
+              // because this sends real texts and used to sit behind a
+              // browser prompt() with no second look (finding 8).
+              const msg = await askText({
+                title: 'Announce to today’s customers',
+                message: 'One text to everyone who ordered today. Plain words, under 160 characters.',
+                placeholder: 'e.g. Coffee is running 10 minutes behind — thanks for your patience',
+                maxLength: 160, multiline: true, confirmLabel: 'Next',
+                validate: (v) => (v.trim() ? '' : 'Write the message first'),
+              });
               if (!msg || !msg.trim()) return;
-              const token = localStorage.getItem('coffee_auth_token')
-                         || localStorage.getItem('coffee_system_token');
+              if (!(await askConfirm({
+                title: 'Send it to everyone who ordered today?',
+                message: `“${msg.trim()}”\n\nEach person gets one text. This cannot be recalled.`,
+                confirmLabel: 'Send to everyone', danger: true,
+              }))) return;
+              const token = localStorage.getItem('coffee_system_token');
               fetch('/api/support/broadcast/customers', {
                 method: 'POST',
                 headers: {
@@ -615,10 +629,10 @@ const EnhancedLiveOperationsDashboard = () => {
                 },
                 body: JSON.stringify({ message: msg.trim(), audience: 'today' }),
               }).then(r => r.json()).then(data => {
-                window.alert(data?.sent
-                  ? `Announcement sent to ${data.sent} customer(s).`
-                  : `Done. ${data?.message || ''}`);
-              }).catch(e => window.alert('Broadcast failed: ' + e.message));
+                showToast(data?.sent
+                  ? `Announcement sent to ${data.sent} customer${data.sent === 1 ? '' : 's'}`
+                  : `Done. ${data?.message || ''}`, 'success', 6000);
+              }).catch(e => showToast('Broadcast failed: ' + e.message, 'error', 7000));
             }}
             className="flex flex-col items-center justify-center p-4 bg-cq-roast text-white rounded-cq-md hover:bg-cq-caramel-deep transition-all"
           >
@@ -647,15 +661,21 @@ const EnhancedLiveOperationsDashboard = () => {
               sheet (Balance). */}
 
           <button
-            onClick={() => {
-              // Manual SMS — send a one-off message to a phone
-              // number. Used for ad-hoc replies the bot can't handle.
-              const phone = window.prompt('Phone number (E.164 format, e.g. +61412345678):');
+            onClick={async () => {
+              // Manual SMS — a one-off text to one number, for the replies
+              // the bot cannot handle.
+              const phone = await askText({
+                title: 'Text one person', message: 'Their mobile number, with the country code.',
+                placeholder: '+61 4xx xxx xxx', confirmLabel: 'Next',
+                validate: (v) => (/^\+?\d[\d\s-]{6,}$/.test(v.trim()) ? '' : 'That does not look like a mobile number'),
+              });
               if (!phone || !phone.trim()) return;
-              const msg = window.prompt('Message:');
+              const msg = await askText({
+                title: `Text ${phone.trim()}`, placeholder: 'Your message', maxLength: 320, multiline: true,
+                confirmLabel: 'Send', validate: (v) => (v.trim() ? '' : 'Write the message first'),
+              });
               if (!msg || !msg.trim()) return;
-              const token = localStorage.getItem('coffee_auth_token')
-                         || localStorage.getItem('coffee_system_token');
+              const token = localStorage.getItem('coffee_system_token');
               fetch('/api/sms/send', {
                 method: 'POST',
                 headers: {
@@ -664,10 +684,9 @@ const EnhancedLiveOperationsDashboard = () => {
                 },
                 body: JSON.stringify({ to: phone.trim(), message: msg.trim() }),
               }).then(r => r.json()).then(data => {
-                window.alert(data?.success === false
-                  ? `Failed: ${data?.message || 'unknown error'}`
-                  : 'Message sent.');
-              }).catch(e => window.alert('Send failed: ' + e.message));
+                if (data?.success === false) showToast(`Not sent: ${data?.message || 'unknown error'}`, 'error', 7000);
+                else showToast('Message sent', 'success');
+              }).catch(e => showToast('Send failed: ' + e.message, 'error', 7000));
             }}
             className="flex flex-col items-center justify-center p-4 bg-cq-ink-2 text-white rounded-cq-md hover:bg-cq-roast transition-all"
           >

@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import useStations from '../../hooks/useStations';
 import ApiServiceClass from '../../services/ApiService';
+import { askConfirm } from '../shared/ConfirmDialog';
+import { showToast } from '../shared/Toast';
 
 // One ApiService instance per component import — request() handles
 // JWT refresh and base URL automatically.
@@ -138,19 +140,19 @@ const UserManagementTab = () => {
 
   const handleAddUser = async () => {
     if (!userForm.username || !userForm.password || !userForm.fullName) {
-      alert('Please fill in all required fields');
+      showToast('Username, full name and password are needed', 'warning');
       return;
     }
 
     if (userForm.password !== userForm.confirmPassword) {
-      alert('Passwords do not match');
+      showToast('The two passwords do not match', 'warning');
       return;
     }
 
     // Check if username already exists locally (defensive — backend
     // also checks).
     if (users.some(u => u.username === userForm.username)) {
-      alert('Username already exists');
+      showToast('That username is already taken', 'warning');
       return;
     }
 
@@ -197,7 +199,7 @@ const UserManagementTab = () => {
 
   const handleUpdateUser = async () => {
     if (!userForm.username || !userForm.fullName) {
-      alert('Please fill in all required fields');
+      showToast('Username and full name are needed', 'warning');
       return;
     }
 
@@ -251,7 +253,7 @@ const UserManagementTab = () => {
   };
 
   const handleDeleteUser = async (userId) => {
-    if (!window.confirm('Are you sure you want to delete this user?')) return;
+    if (!(await askConfirm({ title: 'Delete this user?', message: 'They will not be able to sign in again. This cannot be undone.', confirmLabel: 'Delete', danger: true }))) return;
     const target = users.find(u => u.id === userId);
     setLoading(true);
     setError(null);
