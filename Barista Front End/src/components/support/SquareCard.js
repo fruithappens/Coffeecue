@@ -11,6 +11,7 @@
 import React, { useEffect, useState } from 'react';
 import { CreditCard, Link2, Unplug, RefreshCw } from 'lucide-react';
 import { Panel, SettingRow, SelectRow, Button, Status, SettingNote } from '../../design';
+import { askConfirm } from '../shared/ConfirmDialog';
 
 const authHeaders = () => ({
   Authorization: `Bearer ${localStorage.getItem('coffee_system_token') || ''}`,
@@ -56,7 +57,7 @@ const SquareCard = () => {
     } catch (e) { setNote(e.message); setBusy(false); }
   };
   const disconnect = async () => {
-    if (!window.confirm('Disconnect Square? New orders will stop getting a pay link; nothing already paid changes.')) return;
+    if (!(await askConfirm({ title: 'Disconnect Square?', message: 'New orders stop getting a pay link. Nothing already paid changes.', confirmLabel: 'Disconnect', danger: true }))) return;
     setBusy(true);
     try { await fetch('/api/square/disconnect', { method: 'DELETE', headers: authHeaders() }); setNote('Disconnected.'); await load(); }
     catch (e) { setNote(e.message); }

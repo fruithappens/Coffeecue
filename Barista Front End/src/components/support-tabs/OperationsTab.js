@@ -23,6 +23,7 @@ import {
 import ApiServiceClass from '../../services/ApiService';
 import SettingsService from '../../services/SettingsService';
 import StationsService from '../../services/StationsService';
+import { askConfirm } from '../shared/ConfirmDialog';
 
 // Create an instance of ApiService
 const ApiService = new ApiServiceClass();
@@ -159,7 +160,7 @@ const OperationsTab = () => {
   };
 
   const clearAllQueues = async () => {
-    if (!window.confirm('Are you sure you want to clear ALL station queues? This cannot be undone.')) {
+    if (!(await askConfirm({ title: 'Clear every station’s queue?', message: 'Every waiting order is removed from every station. This cannot be undone.', confirmLabel: 'Clear all queues', danger: true }))) {
       return;
     }
     

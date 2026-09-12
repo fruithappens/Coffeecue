@@ -6,6 +6,7 @@ import {
 import useOrders from '../../hooks/useOrders';
 import useStations from '../../hooks/useStations';
 import ApiServiceClass from '../../services/ApiService';
+import { askConfirm, askText } from '../shared/ConfirmDialog';
 
 const api = new ApiServiceClass();
 
@@ -36,13 +37,13 @@ const DashboardTab = () => {
 
   // Pause / Resume / Emergency Stop wire to the real backend endpoints.
   const handlePauseAll = () => quickAction('Pause All Orders', async () => {
-    if (!window.confirm('Pause all pending and in-progress orders? Customers will need to be told their order is delayed.')) return 'Cancelled';
+    if (!(await askConfirm({ title: 'Pause all orders?', message: 'Every pending and in-progress order is paused. Customers will need to be told their order is delayed.', confirmLabel: 'Pause all', danger: true }))) return 'Cancelled';
     const r = await api.request('/emergency/stop-all', { method: 'POST' });
     return r?.message || 'All active orders paused';
   }, setQuickStatus);
 
   const handleEmergencyStop = () => quickAction('Emergency Stop', async () => {
-    if (!window.confirm('Emergency stop will pause ALL active orders. Use only if there\'s an immediate safety issue. Continue?')) return 'Cancelled';
+    if (!(await askConfirm({ title: 'Emergency stop?', message: 'This pauses ALL active orders. Use it only for an immediate safety issue.', confirmLabel: 'Stop everything', danger: true }))) return 'Cancelled';
     const r = await api.request('/emergency/stop-all', { method: 'POST' });
     return r?.message || 'Emergency stop activated';
   }, setQuickStatus);
@@ -494,11 +495,12 @@ const TodayReport = () => {
   // tells the operator to Save-as-PDF instead if SMTP isn't configured
   // server-side (EMAIL_ENABLED off).
   const handleEmail = async () => {
-    const to = window.prompt(
-      'Email the post-event summary to which address?\n' +
-      '(Requires SMTP configured on the server — otherwise use ' +
-      'Post-event summary → Save as PDF.)'
-    );
+    const to = await askText({
+      title: 'Email the post-event summary',
+      message: 'Needs email set up on the server — otherwise use Post-event summary → Save as PDF.',
+      placeholder: 'name@example.com', confirmLabel: 'Send',
+      validate: (v) => (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) ? '' : 'That is not an email address'),
+    });
     if (!to) return;
     setEmailing(true);
     setEmailStatus(null);

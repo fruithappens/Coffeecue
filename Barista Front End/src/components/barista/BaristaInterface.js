@@ -2124,9 +2124,9 @@ const BaristaInterface = () => {
             {(live.byCategory[liveStockCat] || []).length > 0 && (
               <button
                 className="w-full mt-4 py-3 bg-cq-ready text-white rounded-md font-medium hover:bg-cq-ready"
-                onClick={() => {
+                onClick={async () => {
                   const rows = live.byCategory[liveStockCat] || [];
-                  if (window.prompt(`Type 'yes' to restock all ${liveStockCat} to full:`) === 'yes') {
+                  if (await askConfirm({ title: `Restock all ${liveStockCat} to full?`, message: 'Every item in this category is set to its capacity.', confirmLabel: 'Restock all' })) {
                     rows.forEach(it => {
                       const cap = parseFloat(it.capacity) || 0;
                       if (cap > 0) live.setAmount(it.id, cap);

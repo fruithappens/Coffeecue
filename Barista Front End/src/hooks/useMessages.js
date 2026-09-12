@@ -1,6 +1,7 @@
 // hooks/useMessages.js
 import { useState, useEffect, useCallback } from 'react';
 import OrderDataService from '../services/OrderDataService';
+import { askConfirm } from '../components/shared/ConfirmDialog';
 
 /**
  * Custom hook for managing customer messages
@@ -87,8 +88,8 @@ export default function useMessages() {
   }, [selectedOrderId]);
 
   // Clear message history
-  const clearHistory = useCallback(() => {
-    if (window.confirm('Are you sure you want to clear all message history? This cannot be undone.')) {
+  const clearHistory = useCallback(async () => {
+    if (await askConfirm({ title: 'Clear the message history?', message: 'Every logged text on this device is removed. This cannot be undone.', confirmLabel: 'Clear', danger: true })) {
       OrderDataService.clearMessageHistory();
       setMessages([]);
     }

@@ -10,6 +10,8 @@
 // inbox panel.
 import { useState, useEffect, useCallback, useRef } from 'react';
 import ApiService from '../services/ApiService';
+import { askConfirm } from '../components/shared/ConfirmDialog';
+import { showToast } from '../components/shared/Toast';
 
 const POLL_MS = 15000;
 
@@ -69,10 +71,10 @@ export default function useCustomerQuestions() {
         setItems(its => its.filter(x => x.id !== q.id)); // optimistic remove
         setReplyDrafts(d => { const { [q.id]: _omit, ...rest } = d; return rest; });
       } else {
-        alert((resp && resp.message) || 'Failed to send reply');
+        showToast((resp && resp.message) || 'Failed to send reply', 'error');
       }
     } catch (err) {
-      alert(err?.message || 'Failed to send reply');
+      showToast(err?.message || 'Failed to send reply', 'error');
     } finally {
       setSending(s => ({ ...s, [q.id]: false }));
     }
@@ -80,15 +82,16 @@ export default function useCustomerQuestions() {
 
   // Block the sender of a message (e.g. an SMS spammer, or the ⚠️ auto-pause
   // alert). The bot stops replying to that number until it's unblocked in
-  // Support → SMS. Reversible; deletes nothing.
+  // Runner › Messages › Blocked numbers. Reversible; deletes nothing.
   const blockSender = useCallback(async (q) => {
     const phone = q.phone || q.from || '';
-    if (!phone) { alert('No phone number on this message to block.'); return; }
-    if (!window.confirm(
-      `Block ${phone}?\n\nThe system will stop replying to this number to protect ` +
-      `your SMS credit. You can undo this anytime in Runner › Messages › Blocked numbers. ` +
-      `Nothing is deleted.`
-    )) return;
+    if (!phone) { showToast('No phone number on this message to block.', 'warning'); return; }
+    if (!(await askConfirm({
+      title: `Block ${phone}?`,
+      message: 'The system will stop replying to this number to protect your SMS credit. ' +
+               'You can undo this anytime in Runner › Messages › Blocked numbers. Nothing is deleted.',
+      confirmLabel: 'Block', danger: true,
+    }))) return;
     setBlocking(s => ({ ...s, [q.id]: true }));
     try {
       const resp = await apiRef.current.post('/sms/block', {
@@ -97,10 +100,10 @@ export default function useCustomerQuestions() {
       if (resp && (resp.success === true || resp.status === 'success')) {
         setItems(its => its.filter(x => x.id !== q.id)); // optimistic remove
       } else {
-        alert((resp && resp.message) || 'Failed to block number');
+        showToast((resp && resp.message) || 'Failed to block number', 'error');
       }
     } catch (err) {
-      alert(err?.message || 'Failed to block number');
+      showToast(err?.message || 'Failed to block number', 'error');
     } finally {
       setBlocking(s => ({ ...s, [q.id]: false }));
     }

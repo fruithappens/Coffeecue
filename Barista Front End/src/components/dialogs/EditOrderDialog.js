@@ -3,6 +3,7 @@ import { Save, Trash2, Pencil } from 'lucide-react';
 import useCatalog from '../../hooks/useCatalog';
 import { QuickGroup, QuickTile } from '../shared/QuickTiles';
 import { Modal, Button, Segmented } from '../../design';
+import { askConfirm } from '../shared/ConfirmDialog';
 
 /**
  * EditOrderDialog — barista override for an order taken down wrong.
@@ -145,10 +146,12 @@ const EditOrderDialog = ({ order, onClose, onSave, onCancelOrder, saving = false
     onSave(fields);
   };
 
-  const handleCancelOrder = () => {
-    if (window.confirm(
-      `Cancel order #${label}? This removes it from the queue (the record is kept). This can't be undone.`
-    )) {
+  const handleCancelOrder = async () => {
+    if (await askConfirm({
+      title: `Cancel order #${label}?`,
+      message: 'It comes off the queue; the record is kept. This cannot be undone.',
+      confirmLabel: 'Cancel the order', cancelLabel: 'Keep it', danger: true,
+    })) {
       onCancelOrder();
     }
   };

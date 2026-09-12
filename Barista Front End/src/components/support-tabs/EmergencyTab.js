@@ -22,6 +22,7 @@ import {
   Unlock,
 } from 'lucide-react';
 import ApiServiceClass from '../../services/ApiService';
+import { askText } from '../shared/ConfirmDialog';
 
 // Create an instance of ApiService
 const ApiService = new ApiServiceClass();
@@ -187,7 +188,11 @@ const EmergencyTab = () => {
 
   const resetDatabase = () => {
     requireConfirmation('RESET ENTIRE DATABASE', async () => {
-      const confirmation = prompt('Type "RESET DATABASE" to confirm this action:');
+      const confirmation = await askText({
+        title: 'Reset the entire database', tone: 'bad',
+        message: 'Everything goes: orders, customers, settings, stations. Type RESET DATABASE to go ahead.',
+        placeholder: 'RESET DATABASE', confirmLabel: 'Reset it', danger: true,
+      });
       if (confirmation !== 'RESET DATABASE') {
         throw new Error('Confirmation text did not match');
       }

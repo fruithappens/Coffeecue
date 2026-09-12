@@ -9,6 +9,8 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Ban, RotateCcw, ShieldCheck, Loader, AlertTriangle } from 'lucide-react';
 import ApiServiceClass from '../../services/ApiService';
 import { Panel, DataTable, TableRow, Cell, Empty, TextField } from '../../design';
+import { askConfirm } from '../shared/ConfirmDialog';
+import { showToast } from '../shared/Toast';
 
 export default function SmsBlocklistTab() {
   const apiRef = useRef(null);
@@ -46,27 +48,27 @@ export default function SmsBlocklistTab() {
         setNewPhone('');
         await load();
       } else {
-        alert((resp && resp.message) || 'Failed to block number');
+        showToast((resp && resp.message) || 'Failed to block number', 'error');
       }
     } catch (err) {
-      alert(err?.message || 'Failed to block number');
+      showToast(err?.message || 'Failed to block number', 'error');
     } finally {
       setBusy(false);
     }
   };
 
   const unblock = async (phone) => {
-    if (!window.confirm(`Unblock ${phone}? They'll be able to order by SMS again.`)) return;
+    if (!(await askConfirm({ title: `Unblock ${phone}?`, message: 'They will be able to order by SMS again.', confirmLabel: 'Unblock' }))) return;
     setBusy(true);
     try {
       const resp = await apiRef.current.post('/sms/unblock', { phone });
       if (resp && (resp.success === true || resp.status === 'success')) {
         await load();
       } else {
-        alert((resp && resp.message) || 'Failed to unblock number');
+        showToast((resp && resp.message) || 'Failed to unblock number', 'error');
       }
     } catch (err) {
-      alert(err?.message || 'Failed to unblock number');
+      showToast(err?.message || 'Failed to unblock number', 'error');
     } finally {
       setBusy(false);
     }
