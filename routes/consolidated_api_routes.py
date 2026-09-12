@@ -6076,6 +6076,12 @@ def create_kiosk_order():
         except Exception:
             _mk_ok, _mk_msg = True, ''
         if not _mk_ok:
+            # Counted, so the report can say what we could not serve
+            # (finding 4). The customer's message is unchanged.
+            try:
+                coffee_system._count_refusal(req_channel or 'web', order_details, message=_mk_msg)
+            except Exception:
+                pass
             return jsonify({'success': False, 'message': _mk_msg}), 409
 
         stamp_provenance(order_details, req_channel, req_source, data.get('surface'))
@@ -12915,6 +12921,20 @@ def get_today_report():
         except Exception as e:
             logger.warning(f"report unanswered questions failed: {e}")
         unmet['cancelled'] = int(status_counts.get('cancelled', 0))
+        # Orders actually REFUSED -- a text that said "we've run out of oat",
+        # a touchscreen 409 for a mocha with no chocolate. Until finding 4
+        # these were a log line; now they are rows (utils/refusals.py).
+        try:
+            from utils.refusals import summary as _refused_summary, LABELS as _refused_labels
+            _rf = _refused_summary(cur, d0, d1)
+            for it in _rf['items']:
+                it['label'] = _refused_labels.get(it['reason'], it['reason'])
+            unmet['refused'] = _rf['items']
+            unmet['refused_total'] = _rf['total']
+            unmet['refused_by_channel'] = _rf['by_channel']
+        except Exception as e:
+            logger.warning(f"report refusals failed: {e}")
+            unmet['refused'], unmet['refused_total'], unmet['refused_by_channel'] = [], 0, {}
 
         # --- TIMES ----------------------------------------------------
         # "Average wait" alone hides the tail: a 13 minute mean with a 40
