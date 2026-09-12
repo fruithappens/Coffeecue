@@ -95,7 +95,12 @@ bug.
 
 ## 4. Demand you turned away is invisible
 
-**Status:** partly addressed. (Next up, 12 Sep.)
+**Status:** DONE 12 Sep — PR #632, live. `utils/refusals.py`: every door
+that says no (twelve SMS refusals, the makeable check on SMS and the
+touchscreen's 409) writes one `ORDER_REFUSED` row into `client_events` —
+channel, reason, item, drink, milk, never a phone number. The report's
+*Couldn't be served* leads with "N orders turned away" per item. Proven live
+with a simulated (unsent) coconut-milk text.
 
 The report now shows `UNAVAILABLE_TAP` — someone tapping a drink or milk that
 is switched off on the ordering screen. That was already being logged and
@@ -132,7 +137,10 @@ as well as the links.
 
 ## 6. Three component systems, now two
 
-**Status:** largely resolved, worth finishing. (Open.)
+**Status:** DONE 12 Sep — PR #633, live. `components/ui` deleted; the two
+dead users (OperationsTab, CommunicationsTab, reachable only via an
+unimported barrel) deleted; the three live screens converted onto
+Panel/Button/Pill/TextField. −1,286 lines.
 
 The app was built three times over:
 
