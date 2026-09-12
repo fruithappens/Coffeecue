@@ -902,6 +902,14 @@ def create_app():
                 db.commit()
                 logger.info("users.email: relaxed unique/not-null "
                             "(login is by username; email may repeat or be blank)")
+            else:
+                # The two SELECTs above opened a transaction. On the ordinary
+                # boot -- constraint already relaxed, nothing to ALTER -- this
+                # branch used to leave it open, and the guard below fired on
+                # EVERY boot ("Startup left the database connection IDLE IN
+                # TRANSACTION"), rolling back a read that this block should
+                # have closed itself. Finding 18.
+                db.rollback()
         except Exception as _relax_err:
             try:
                 db.rollback()
