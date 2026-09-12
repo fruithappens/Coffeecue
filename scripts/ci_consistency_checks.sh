@@ -168,6 +168,28 @@ else
   ok "none"
 fi
 
+# ---------------------------------------------------------------------------
+# Check 8: on the barista action path, ids compare as strings.
+# /api/orders returns ids as STRINGS ('435'); pickers, URLs and socket events
+# hand back numbers. `42 === '42'` is false, and here a false comparison is
+# not an error -- it is a button that silently does nothing (the dead
+# Collected button at Treenet, #606; the Ready button had the same code,
+# finding 2). utils/ids.js has sameId/byId/notId. This flags a raw ===/!==
+# between an `.id` and an id variable in the files that act on orders.
+# ---------------------------------------------------------------------------
+note "Check 8: barista action path compares ids as strings (utils/ids.js)"
+hits=$(grep -nE "\.id[[:space:]]*(===|!==)[[:space:]]*(orderId|persistentId|order\.id|targetId|currentStationId|selectedStationId)\b|\b(orderId|persistentId)[[:space:]]*(===|!==)[[:space:]]*[a-zA-Z_.]*\.id\b" \
+  "$SRC/hooks/useOrders.js" "$SRC/components/barista/BaristaInterface.js" \
+  "$SRC/components/barista/queue/"*.js "$SRC/components/dialogs/"*.js "$SRC/services/OrderDataService.js" 2>/dev/null \
+  | grep -vE ":[0-9]+:[[:space:]]*//" \
+  || true)
+if [ -n "$hits" ]; then
+  bad "raw id comparison on the action path -- use sameId / byId / notId from utils/ids.js:"
+  printf '%s\n' "$hits" | sed 's/^/      /'
+else
+  ok "none"
+fi
+
 printf '\n'
 if [ "$FAIL" -ne 0 ]; then
   echo "Consistency checks FAILED — see above. These guard against the 'two views of the same fact disagree' bug class."

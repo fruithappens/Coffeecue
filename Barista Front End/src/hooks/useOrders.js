@@ -14,6 +14,7 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { withWaitTime, serverNow } from '../utils/orderTime';
+import { sameId, byId, notId } from '../utils/ids';
 import OrderDataService from '../services/OrderDataService';
 import StockService from '../services/StockService';
 import { planDepletion } from '../utils/stockDepletion';
@@ -1301,7 +1302,7 @@ export default function useOrders(stationId = null) {
         try {
           const localOrdersKey = `local_orders_station_${currentStationId}`;
           const localOrders = JSON.parse(localStorage.getItem(localOrdersKey) || '[]');
-          const updatedLocalOrders = localOrders.filter(o => o.id !== order.id);
+          const updatedLocalOrders = localOrders.filter(notId(order.id));
           localStorage.setItem(localOrdersKey, JSON.stringify(updatedLocalOrders));
           console.log(`Removed order ${order.id} from local orders collection`);
         } catch (e) {
@@ -1309,7 +1310,7 @@ export default function useOrders(stationId = null) {
         }
         
         // Update UI state without API call
-        setPendingOrders(prev => prev.filter(o => o.id !== order.id));
+        setPendingOrders(prev => prev.filter(notId(order.id)));
         
         const updatedOrder = { 
           ...order, 
@@ -1345,7 +1346,7 @@ export default function useOrders(stationId = null) {
           if (!ordersCache.inProgressOrders) ordersCache.inProgressOrders = [];
           
           // Remove from pending
-          ordersCache.pendingOrders = ordersCache.pendingOrders.filter(o => o.id !== order.id);
+          ordersCache.pendingOrders = ordersCache.pendingOrders.filter(notId(order.id));
           
           // Add to in-progress 
           ordersCache.inProgressOrders.push(updatedOrder);
@@ -1379,7 +1380,7 @@ export default function useOrders(stationId = null) {
       // Optimistically update UI state + pin the transition so the
       // next backend fetch can't bounce the order back to pending.
       _markTransition(order.id, 'in-progress');
-      setPendingOrders(prev => prev.filter(o => o.id !== order.id));
+      setPendingOrders(prev => prev.filter(notId(order.id)));
 
       const updatedOrder = {
         ...order,
@@ -1411,7 +1412,7 @@ export default function useOrders(stationId = null) {
         if (!ordersCache.inProgressOrders) ordersCache.inProgressOrders = [];
         
         // Remove from pending
-        ordersCache.pendingOrders = ordersCache.pendingOrders.filter(o => o.id !== order.id);
+        ordersCache.pendingOrders = ordersCache.pendingOrders.filter(notId(order.id));
         
         // Add to in-progress 
         ordersCache.inProgressOrders.push(updatedOrder);
@@ -1449,15 +1450,19 @@ export default function useOrders(stationId = null) {
     }
     
     try {
-      // Check if this is a local order from our localStorage system
-      const orderToComplete = inProgressOrders.find(o => o.id === orderId);
-      
-      if (!orderToComplete) {
-        throw new Error(`Order with ID ${orderId} not found in progress orders`);
-      }
-      
-      const isLocalOrder = orderToComplete.isLocalOrder || 
-                          orderId.toString().startsWith('local_order_');
+      // Look it up for the optimistic update -- but do NOT require it.
+      // This is the Ready button's copy of the bug #606 fixed on Collected:
+      // it threw when the order was not in `inProgressOrders`, BEFORE any
+      // call to the server. A double tap, a second device, or a refresh
+      // landing mid-action, and every further tap on Ready died locally
+      // while the server never heard a thing. The server is the truth;
+      // the local list is a cache. Ids compare as strings (utils/ids.js).
+      const orderToComplete = inProgressOrders.find(byId(orderId))
+                           || pendingOrders.find(byId(orderId))
+                           || { id: orderId };
+
+      const isLocalOrder = orderToComplete.isLocalOrder ||
+                          String(orderId).startsWith('local_order_');
       
       // Calculate prep time for this order (time from start to completion)
       let prepTimeMinutes = 0;
@@ -1581,7 +1586,7 @@ export default function useOrders(stationId = null) {
         console.log('Completing local order without API call:', orderId);
         
         // Update UI state without API call
-        setInProgressOrders(prev => prev.filter(o => o.id !== orderId));
+        setInProgressOrders(prev => prev.filter(notId(orderId)));
         
         const completedOrder = {
           ...orderToComplete,
@@ -1617,7 +1622,7 @@ export default function useOrders(stationId = null) {
           }
           
           // Update inProgress and completed lists
-          ordersCache.inProgressOrders = ordersCache.inProgressOrders?.filter(o => o.id !== orderId) || [];
+          ordersCache.inProgressOrders = ordersCache.inProgressOrders?.filter(notId(orderId)) || [];
           
           if (!ordersCache.completedOrders) {
             ordersCache.completedOrders = [];
@@ -1679,7 +1684,7 @@ export default function useOrders(stationId = null) {
       // handler — same race protects against bouncing back to
       // in-progress when the next fetch returns the pre-complete state).
       _markTransition(orderId, 'completed');
-      setInProgressOrders(prev => prev.filter(o => o.id !== orderId));
+      setInProgressOrders(prev => prev.filter(notId(orderId)));
 
       const completedOrder = {
         ...orderToComplete,
@@ -1715,7 +1720,7 @@ export default function useOrders(stationId = null) {
         }
         
         // Update inProgress and completed lists
-        ordersCache.inProgressOrders = ordersCache.inProgressOrders?.filter(o => o.id !== orderId) || [];
+        ordersCache.inProgressOrders = ordersCache.inProgressOrders?.filter(notId(orderId)) || [];
         
         if (!ordersCache.completedOrders) {
           ordersCache.completedOrders = [];
@@ -1755,7 +1760,7 @@ export default function useOrders(stationId = null) {
       console.error('Complete order error:', err);
       return false;
     }
-  }, [inProgressOrders, refreshData, currentStationId]);
+  }, [inProgressOrders, pendingOrders, refreshData, currentStationId]);
 
   const markOrderPickedUp = useCallback(async (orderId) => {
     if (!orderId) {
@@ -1777,9 +1782,8 @@ export default function useOrders(stationId = null) {
       // Ids are compared as strings: the API has handed back both numbers and
       // strings over the years, and === between 42 and "42" is a silently dead
       // button.
-      const sameId = (a, b) => String(a) === String(b);
-      const orderToPickUp = completedOrders.find(o => sameId(o.id, orderId))
-                         || previousOrders.find(o => sameId(o.id, orderId))
+      const orderToPickUp = completedOrders.find(byId(orderId))
+                         || previousOrders.find(byId(orderId))
                          || { id: orderId };
 
       const isLocalOrder = orderToPickUp.isLocalOrder ||
@@ -1789,7 +1793,7 @@ export default function useOrders(stationId = null) {
         console.log('Marking local order as picked up without API call:', orderId);
         
         // Update UI state without API call
-        setCompletedOrders(prev => prev.filter(o => o.id !== orderId));
+        setCompletedOrders(prev => prev.filter(notId(orderId)));
         
         const pickedUpOrder = {
           ...orderToPickUp,
@@ -1833,7 +1837,7 @@ export default function useOrders(stationId = null) {
       }
       
       // Optimistically update UI state
-      setCompletedOrders(prev => prev.filter(o => !sameId(o.id, orderId)));
+      setCompletedOrders(prev => prev.filter(notId(orderId)));
       
       const pickedUpOrder = {
         ...orderToPickUp,
@@ -2083,7 +2087,7 @@ export default function useOrders(stationId = null) {
         console.log(`Saved local order to localStorage with key ${localOrdersKey} (target station: ${targetStationId})`);
         
         // Also clear from current station if different from target
-        if (targetStationId !== currentStationId) {
+        if (!sameId(targetStationId, currentStationId)) {
           console.log(`Order is for station ${targetStationId}, not current station ${currentStationId}`);
         }
         
@@ -2128,7 +2132,7 @@ export default function useOrders(stationId = null) {
       localStorage.setItem(`order_created_at_station_${persistentId}`, String(targetStationId));
       
       // Only update UI if the order is for the current station
-      if (targetStationId === currentStationId) {
+      if (sameId(targetStationId, currentStationId)) {
         setPendingOrders(prev => [...prev, clientOrder]);
         setQueueCount(prev => prev + 1);
       } else {
@@ -2136,7 +2140,7 @@ export default function useOrders(stationId = null) {
       }
       
       // Trigger sound notification only at the target station
-      if (targetStationId === currentStationId) {
+      if (sameId(targetStationId, currentStationId)) {
         try {
           window.dispatchEvent(new CustomEvent('app:newOrder'));
         } catch (soundError) {
@@ -2158,7 +2162,7 @@ export default function useOrders(stationId = null) {
           try {
             const localKey = `local_orders_station_${targetStationId}`;
             const cur = JSON.parse(localStorage.getItem(localKey) || '[]');
-            const pruned = cur.filter(o => o.id !== persistentId);
+            const pruned = cur.filter(notId(persistentId));
             if (pruned.length !== cur.length) {
               localStorage.setItem(localKey, JSON.stringify(pruned));
               console.log(`✓ Removed local placeholder ${persistentId}`);
@@ -2170,12 +2174,12 @@ export default function useOrders(stationId = null) {
             const cacheKey = `orders_cache_station_${targetStationId}`;
             const cache = JSON.parse(localStorage.getItem(cacheKey) || '{}');
             if (Array.isArray(cache.pendingOrders)) {
-              cache.pendingOrders = cache.pendingOrders.filter(o => o.id !== persistentId);
+              cache.pendingOrders = cache.pendingOrders.filter(notId(persistentId));
               localStorage.setItem(cacheKey, JSON.stringify(cache));
             }
           } catch (e) { /* ignore */ }
-          if (targetStationId === currentStationId) {
-            setPendingOrders(prev => prev.filter(o => o.id !== persistentId));
+          if (sameId(targetStationId, currentStationId)) {
+            setPendingOrders(prev => prev.filter(notId(persistentId)));
           }
         };
 
@@ -2338,7 +2342,7 @@ export default function useOrders(stationId = null) {
         // Optimistic: drop from this station's pending list.
         // The 500ms refresh will then reflect the canonical state
         // (and re-add if the move bounced for some race reason).
-        setPendingOrders(prev => prev.filter(o => o.id !== order.id));
+        setPendingOrders(prev => prev.filter(notId(order.id)));
         setTimeout(refreshData, 500);
       } else {
         // Surface backend's specific reason via the dialog.

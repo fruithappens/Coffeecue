@@ -11,6 +11,7 @@
 // re-implement that here. If the backend refuses, we surface the
 // reason verbatim.
 import React, { useState } from 'react';
+import { sameId } from '../../utils/ids';
 import { ArrowRight, RefreshCw, MoveRight } from 'lucide-react';
 import { Modal, Notice, Subject, PickRow, Button } from '../../design';
 
@@ -22,7 +23,7 @@ const MoveOrderDialog = ({ order, stations, currentStationId, onConfirm, onClose
   // offering inactive/maintenance ones — the backend would reject
   // them and the operator would have to try again.
   const candidates = (stations || [])
-    .filter((s) => s && s.id != null && s.id !== currentStationId)
+    .filter((s) => s && s.id != null && !sameId(s.id, currentStationId))
     .filter((s) => {
       const status = (s.status || '').toLowerCase();
       // Treat blank status as "active" — some older rows don't set it
