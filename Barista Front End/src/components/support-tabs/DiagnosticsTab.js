@@ -1,8 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { Button } from '../ui/button';
-import { Badge } from '../ui/badge';
-import { Textarea } from '../ui/textarea';
+import { Panel, Button, Pill } from '../../design';
 import { 
   Activity, 
   Terminal, 
@@ -250,24 +247,18 @@ const DiagnosticsTab = () => {
       <ClientCrashesPanel />
 
       {/* System Status */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span className="flex items-center gap-2">
+      <Panel title={<span className="flex items-center justify-between"><span className="flex items-center gap-2">
               <Activity className="h-5 w-5" />
               System Status
             </span>
             <Button 
-              variant="outline" 
+              variant="secondary" 
               size="sm"
               onClick={runDiagnostics}
             >
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh
-            </Button>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+            </Button></span>}>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {Object.entries(diagnostics).map(([service, info]) => (
               <div key={service} className="border-2 border-cq-line rounded-cq-md bg-cq-milk p-4">
@@ -283,25 +274,18 @@ const DiagnosticsTab = () => {
                   </div>
                   {getStatusIcon(info.status)}
                 </div>
-                <Badge variant={getStatusBadge(info.status)} className="mb-2">
+                <Pill size="sm" tone={getStatusBadge(info.status)} className="mb-2">
                   {info.status}
-                </Badge>
+                </Pill>
                 <p className="text-sm text-cq-ink-2">{info.message}</p>
               </div>
             ))}
           </div>
-        </CardContent>
-      </Card>
+        </Panel>
 
       {/* Performance Metrics */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Activity className="h-5 w-5" />
-            Performance Metrics
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+      <Panel title={<span className="flex items-center gap-2"><Activity className="h-5 w-5" />
+            Performance Metrics</span>}>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="text-center">
               <p className="text-2xl font-bold">{performanceMetrics.apiResponseTime}ms</p>
@@ -320,18 +304,11 @@ const DiagnosticsTab = () => {
               <p className="text-sm text-cq-ink-2">CPU Usage</p>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </Panel>
 
       {/* System Tests */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Bug className="h-5 w-5" />
-            System Tests
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+      <Panel title={<span className="flex items-center gap-2"><Bug className="h-5 w-5" />
+            System Tests</span>}>
           <div className="space-y-4">
             <div className="flex gap-2">
               <select
@@ -365,9 +342,9 @@ const DiagnosticsTab = () => {
                       <span className="text-sm">{result?.test || 'Unknown test'}</span>
                       <div className="flex items-center gap-2">
                         {getStatusIcon(result?.status || 'error')}
-                        <Badge variant={getStatusBadge(result?.status || 'error')}>
+                        <Pill size="sm" tone={getStatusBadge(result?.status || 'error')}>
                           {result?.status || 'error'}
-                        </Badge>
+                        </Pill>
                       </div>
                     </div>
                   ))}
@@ -375,20 +352,16 @@ const DiagnosticsTab = () => {
               </div>
             )}
           </div>
-        </CardContent>
-      </Card>
+        </Panel>
 
       {/* System Logs */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span className="flex items-center gap-2">
+      <Panel title={<span className="flex items-center justify-between"><span className="flex items-center gap-2">
               <Terminal className="h-5 w-5" />
               System Logs
             </span>
-            <div className="flex gap-2">
+            <span className="flex gap-2">
               <Button 
-                variant="outline" 
+                variant="secondary" 
                 size="sm"
                 onClick={loadSystemLogs}
               >
@@ -396,17 +369,14 @@ const DiagnosticsTab = () => {
                 Refresh
               </Button>
               <Button 
-                variant="outline" 
+                variant="secondary" 
                 size="sm"
                 onClick={downloadLogs}
               >
                 <Download className="h-4 w-4 mr-2" />
                 Download
               </Button>
-            </div>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+            </span></span>}>
           <div className="bg-cq-roast-deep text-cq-cream p-4 rounded-cq-md font-mono text-sm max-h-96 overflow-y-auto">
             {logs.length === 0 ? (
               <p className="text-cq-ink-3">No logs available</p>
@@ -422,8 +392,7 @@ const DiagnosticsTab = () => {
               ))
             )}
           </div>
-        </CardContent>
-      </Card>
+        </Panel>
     </div>
   );
 };
