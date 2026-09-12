@@ -54,3 +54,6 @@ test_results/
 
 # Worktrees (this repo is being worked on inside .claude/worktrees)
 .claude/
+
+# Build output: the Dockerfile builds it fresh and overlays it (finding 7).
+static/

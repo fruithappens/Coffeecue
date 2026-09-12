@@ -139,7 +139,8 @@ const SmsFlowReference = () => (
       <div className="bg-cq-milk rounded-cq-lg shadow-cq-card p-4">
         <h3 className="font-semibold text-cq-roast mb-1">Want to see real texts?</h3>
         <p className="text-sm text-cq-ink-3">
-          Support → Comms Hub shows the live log of messages in and out.
+          Every text an order sent or received is on its card: on the tablet, “…” → Message
+          shows the history. Runner › Messages › Test a text sends one to your own phone.
         </p>
       </div>
     </div>
