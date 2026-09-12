@@ -3010,6 +3010,7 @@ class CoffeeOrderSystem:
         if drink:
             available = self._get_available_coffee_types() or []
             if available and not self._is_valid_coffee_type(drink, available):
+                self._count_refusal("sms", od, reason="no_drink", item=drink)
                 self._set_conversation_state(
                     phone, "awaiting_coffee_type", {"name": name}
                 )
@@ -3153,6 +3154,7 @@ class CoffeeOrderSystem:
             if available_types and not self._is_valid_coffee_type(
                 drink, available_types
             ):
+                self._count_refusal("sms", od, reason="no_drink", item=drink)
                 return self._multi_drink_fallback(
                     phone, name, f"we don't have {drink} today"
                 )
@@ -3165,6 +3167,7 @@ class CoffeeOrderSystem:
                     else self._default_milk()
                 )
             if not self._milk_is_makeable(od.get("milk")):
+                self._count_refusal("sms", od, reason="no_milk", item=od.get("milk"))
                 return self._multi_drink_fallback(
                     phone, name, f"we don't have {od.get('milk')} milk"
                 )
@@ -4455,6 +4458,22 @@ class CoffeeOrderSystem:
         r"(bean|blend|roast|single\s*origin|decaf|colombian?|ethiopian?"
         r"|brazilian?|kenyan?|guatemalan?)", re.I)
 
+    def _count_refusal(self, channel, od, reason=None, item="", message=""):
+        """One row per order we turned away (utils/refusals.py). When
+        `reason` is not given, the last check_order_makeable() refusal
+        supplies it. Never raises."""
+        try:
+            from utils.refusals import note_refusal
+            od = od if isinstance(od, dict) else {}
+            if reason is None:
+                last = getattr(self, "_last_refusal", None) or {}
+                reason, item = last.get("reason", "other"), item or last.get("item", "")
+            self._last_refusal = None
+            note_refusal(self.db, channel, reason, item=item,
+                         drink=od.get("type", ""), milk=od.get("milk", ""), message=message)
+        except Exception as e:
+            logger.debug(f"refusal not counted: {e}")
+
     def check_order_makeable(self, od):
         """Gate 2 for a COMPLETE order: can the resolved recipe be made?
 
@@ -4492,6 +4511,9 @@ class CoffeeOrderSystem:
                     _lines, _meta.get("drink"), _ov)
                 if _verdict == "86":
                     drink = str(od.get("type") or "that")
+                    # For the caller to count (utils/refusals.py): what
+                    # stopped it, in the terms the report groups by.
+                    self._last_refusal = {"reason": "86", "item": ", ".join(_names)}
                     return False, (
                         f"Sorry, we can't make {drink} right now - "
                         f"the barista has marked {', '.join(_names)} "
@@ -4517,6 +4539,7 @@ class CoffeeOrderSystem:
             if ok:
                 return True, ""
             drink = str(od.get("type") or "that")
+            self._last_refusal = {"reason": "stock", "item": ", ".join(missing)}
             return False, (
                 f"Sorry, we can't make {drink} right now - "
                 f"we've run out of {', '.join(missing)}."
@@ -5272,6 +5295,7 @@ class CoffeeOrderSystem:
             # answer. Only fires when we genuinely serve no such drink --
             # at an event that does stock tea, the normal menu reply is
             # the more useful one.
+            self._count_refusal("sms", order_details, reason="no_drink", item=coffee_type)
             if not teas and self._is_catering_drink(coffee_type):
                 return (
                     f"We're coffee only - tea, juice and water are "
@@ -5290,6 +5314,7 @@ class CoffeeOrderSystem:
         if milk_type:
             available_milk_types = self._get_available_milk_types()
             if not self._is_valid_milk_type(milk_type, available_milk_types):
+                self._count_refusal("sms", order_details, reason="no_milk", item=milk_type)
                 return (
                     f"Sorry, we don't have {milk_type} milk. Available milks: "
                     f"{', '.join(available_milk_types)}."
@@ -5314,6 +5339,7 @@ class CoffeeOrderSystem:
                 requested_bean in b or b in requested_bean
                 for b in available_beans
             ):
+                self._count_refusal("sms", order_details, reason="no_bean", item=requested_bean)
                 return (
                     f"Sorry, we don't have {requested_bean} today. "
                     f"We can make it with: {', '.join(available_beans)}.\n"
@@ -5329,6 +5355,7 @@ class CoffeeOrderSystem:
         # being makeable, on every channel, from this one check.
         _mk_ok, _mk_msg = self.check_order_makeable(order_details)
         if not _mk_ok:
+            self._count_refusal("sms", order_details, message=_mk_msg)
             return _mk_msg + "\nReply MENU for what's available."
 
         # Validate sweetener if specified
@@ -5337,6 +5364,7 @@ class CoffeeOrderSystem:
             available_sweeteners = self._get_available_sweeteners()
             if not self._is_valid_sweetener(sweetener, available_sweeteners):
                 sweetener_names = [s[0] for s in available_sweeteners]
+                self._count_refusal("sms", order_details, reason="no_sweetener", item=sweetener)
                 return (
                     f"Sorry, we don't have {sweetener}. Available sweeteners: "
                     f"{', '.join(sweetener_names)}.\n"
@@ -5445,6 +5473,7 @@ class CoffeeOrderSystem:
             opts = (
                 (", ".join(available) + ", or 'no milk'") if available else "'no milk'"
             )
+            self._count_refusal("sms", order_details, reason="no_milk", item=milk_type)
             return f"Sorry, we don't have {milk_type} at any station today. What milk would you like? ({opts})"
 
         # If milk type was provided, update order details
@@ -9464,6 +9493,7 @@ class CoffeeOrderSystem:
             if coffee_type:
                 available_coffee_types = self._get_available_coffee_types()
                 if not self._is_valid_coffee_type(coffee_type, available_coffee_types):
+                    self._count_refusal("sms", order_details, reason="no_drink", item=coffee_type)
                     return f"Sorry, we don't offer {coffee_type}. Available options are: {', '.join(available_coffee_types)}. Please text MENU for full options."
 
             # Validate milk type
@@ -9471,6 +9501,7 @@ class CoffeeOrderSystem:
             if milk_type:
                 available_milk_types = self._get_available_milk_types()
                 if not self._is_valid_milk_type(milk_type, available_milk_types):
+                    self._count_refusal("sms", order_details, reason="no_milk", item=milk_type)
                     return f"Sorry, we don't have {milk_type} milk. Available options are: {', '.join(available_milk_types)}.{self._offmenu_note()} Please text MENU for full options."
 
             # Validate sweetener
@@ -9479,6 +9510,7 @@ class CoffeeOrderSystem:
                 available_sweeteners = self._get_available_sweeteners()
                 if not self._is_valid_sweetener(sweetener, available_sweeteners):
                     sweetener_names = [s[0] for s in available_sweeteners]
+                    self._count_refusal("sms", order_details, reason="no_sweetener", item=sweetener)
                     return f"Sorry, we don't have {sweetener}. Available options are: {', '.join(sweetener_names)}. Please text MENU for full options."
 
         # Get customer info

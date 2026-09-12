@@ -355,9 +355,29 @@ export default function ReportTab() {
             </Card>
 
             <Card title="Couldn't be served" Icon={Ban}>
-              {(d.unmet?.taps || []).length > 0 ? (
+              {/* Orders we actually turned away -- a text back saying we had
+                  run out, a touchscreen that refused. Counted per refusal
+                  since finding 4; before that they were a log line. */}
+              {(d.unmet?.refused || []).length > 0 ? (
                 <>
                   <p className="text-sm text-cq-ink-2 mb-2">
+                    <span className="font-semibold text-cq-roast">{d.unmet.refused_total}</span> order{d.unmet.refused_total === 1 ? '' : 's'} turned
+                    away{d.unmet.refused_by_channel ? ` (${Object.entries(d.unmet.refused_by_channel).map(([c, n]) => `${n} by ${c}`).join(', ')})` : ''}:
+                  </p>
+                  {(d.unmet.refused || []).map((t) => (
+                    <Bar key={`${t.reason}-${t.item}`} label={`${t.item} — ${t.label || t.reason}`}
+                         n={t.count}
+                         max={Math.max(...d.unmet.refused.map((x) => x.count))} />
+                  ))}
+                </>
+              ) : (
+                <p className="text-sm text-cq-ink-3 mb-2">
+                  No order was refused for stock.
+                </p>
+              )}
+              {(d.unmet?.taps || []).length > 0 ? (
+                <>
+                  <p className="text-sm text-cq-ink-2 mb-2 mt-3">
                     Tapped on the ordering screen while switched off — the
                     questions people were about to ask you:
                   </p>
