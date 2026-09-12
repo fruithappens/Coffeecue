@@ -11,6 +11,7 @@ from psycopg2.extras import RealDictCursor
 
 from models.stations import Station, StationSchedule
 from utils.helpers import role_required
+from utils import event_time
 from auth import jwt_required_with_demo, role_required_with_demo
 
 # Set up logging
@@ -714,27 +715,30 @@ def get_station_stats(station_id):
         
         orders_by_status = cursor.fetchall()
         
-        # Get order counts by hour for today
-        today = datetime.now().strftime('%Y-%m-%d')
-        cursor.execute("""
-            SELECT EXTRACT(HOUR FROM created_at) as hour, COUNT(*) as count
+        # "Today", "hour" and "day" on the event's clock, not UTC (finding 3):
+        # datetime.now() on a TZ=UTC server plus DATE(created_at) filed every
+        # Adelaide morning under the day before.
+        tz = event_time.resolve_zone(getattr(coffee_system, '_get_setting', None))
+        t0, t1 = event_time.today_bounds(tz)
+        cursor.execute(f"""
+            SELECT {event_time.local_hour_sql('created_at')} as hour, COUNT(*) as count
             FROM orders
-            WHERE station_id = %s AND DATE(created_at) = %s
-            GROUP BY hour
+            WHERE station_id = %(sid)s AND created_at >= %(t0)s AND created_at < %(t1)s
+            GROUP BY 1
             ORDER BY hour
-        """, (station_id, today))
+        """, {'tz': tz, 'sid': station_id, 't0': t0, 't1': t1})
         
         orders_by_hour = cursor.fetchall()
         
-        # Get daily statistics for the past week
-        one_week_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
-        cursor.execute("""
-            SELECT DATE(created_at) as date, COUNT(*) as count
+        # Get daily statistics for the past week (local days)
+        week0 = event_time.local_midnight_utc(event_time.local_today(tz) - timedelta(days=7), tz)
+        cursor.execute(f"""
+            SELECT {event_time.local_date_sql('created_at')} as date, COUNT(*) as count
             FROM orders
-            WHERE station_id = %s AND created_at >= %s
-            GROUP BY date
+            WHERE station_id = %(sid)s AND created_at >= %(w0)s
+            GROUP BY 1
             ORDER BY date
-        """, (station_id, one_week_ago))
+        """, {'tz': tz, 'sid': station_id, 'w0': week0})
         
         orders_by_day = cursor.fetchall()
         
@@ -750,8 +754,8 @@ def get_station_stats(station_id):
             SELECT AVG(EXTRACT(EPOCH FROM (completed_at - created_at))) as avg_completion_time
             FROM orders
             WHERE station_id = %s AND status = 'completed' AND completed_at IS NOT NULL
-            AND DATE(created_at) >= %s
-        """, (station_id, one_week_ago))
+            AND created_at >= %s
+        """, (station_id, week0))
         
         avg_completion_result = cursor.fetchone()
         avg_completion_time = avg_completion_result['avg_completion_time'] if avg_completion_result and avg_completion_result['avg_completion_time'] else 0
