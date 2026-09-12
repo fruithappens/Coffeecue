@@ -3,6 +3,7 @@ import { Download, Upload, Trash2, ShieldAlert, Database, Palette, Users } from 
 import { Panel, SettingRow, Toggle, TextField } from '../../design';
 import ApiServiceClass from '../../services/ApiService';
 import SquareCard from '../support/SquareCard';
+import { askConfirm } from '../shared/ConfirmDialog';
 
 const api = new ApiServiceClass();
 
@@ -92,7 +93,7 @@ const EventDataManagement = () => {
   // --- Wipe: requires typing WIPE; backend also enforces the token.
   const handleWipe = async () => {
     if (wipeText !== 'WIPE') return;
-    if (!window.confirm('This permanently clears ALL customer and order data for this event. Stations and inventory config are kept. Continue?')) return;
+    if (!(await askConfirm({ title: 'Wipe this event’s data?', tone: 'bad', message: 'Permanently clears ALL customer and order data for this event. Stations and inventory config are kept.', confirmLabel: 'Wipe it', danger: true }))) return;
     setBusy('wipe'); setResult(null);
     try {
       const resp = await api.request('/event-data/wipe', {

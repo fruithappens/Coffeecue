@@ -7,6 +7,8 @@ import {
 import InventoryIntegrationService from '../../services/InventoryIntegrationService';
 import ApiServiceClass from '../../services/ApiService';
 import QuickSetupStatusBanner from './QuickSetupStatusBanner';
+import { askConfirm } from '../shared/ConfirmDialog';
+import { showToast } from '../shared/Toast';
 
 // One ApiService instance per import — request() handles JWT refresh
 // and base URL.
@@ -581,18 +583,18 @@ const StationInventoryConfig = ({ stations }) => {
                       with all_stations_same off). Confirmation guard
                       prevents accidental overwrite. */}
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       const otherStations = stations.filter(s => s.id !== selectedStation.id);
                       if (otherStations.length === 0) {
-                        alert('No other stations to copy to.');
+                        showToast('There is no other station to copy to', 'info');
                         return;
                       }
                       const stationNames = otherStations.map(s => s.name || `Station ${s.id}`).join(', ');
-                      if (!window.confirm(
-                        `Copy ${selectedStation.name}'s inventory configuration to all other stations?\n\n` +
-                        `Will overwrite: ${stationNames}\n\n` +
-                        `(Each station's stock quantities are preserved — only which items are AVAILABLE is copied.)`
-                      )) {
+                      if (!(await askConfirm({
+                        title: `Copy ${selectedStation.name}’s items to every other station?`,
+                        message: `Overwrites which items are available at: ${stationNames}.\n\nStock quantities are kept — only availability is copied.`,
+                        confirmLabel: 'Copy to all', danger: true,
+                      }))) {
                         return;
                       }
                       const sourceCfg = stationConfigs[selectedStation.id] || {};
@@ -605,7 +607,7 @@ const StationInventoryConfig = ({ stations }) => {
                       saveStationConfigs(newConfigs);
                       // Then re-sync stock from the new configs.
                       InventoryIntegrationService.forceSyncAllStations();
-                      alert(`Copied to ${otherStations.length} station(s).`);
+                      showToast(`Copied to ${otherStations.length} station${otherStations.length === 1 ? '' : 's'}`, 'success');
                     }}
                     className="px-3 py-1 text-sm bg-cq-roast text-white rounded-md hover:bg-cq-caramel-deep transition-colors"
                     title="Copy this station's enabled items to all other stations (overwrites)"

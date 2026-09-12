@@ -16,6 +16,7 @@
 //   /api/diagnostics/performance server cpu/mem (kept small, de-emphasised)
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ApiServiceClass from '../../services/ApiService';
+import { askConfirm } from '../shared/ConfirmDialog';
 
 const api = new ApiServiceClass();
 
@@ -83,7 +84,7 @@ export default function OpsBoard() {
   const refresh = () => { setBusy('refresh'); setNote(''); setTimeout(() => setBusy(''), 400); window.dispatchEvent(new Event('opsboard:refresh')); };
 
   const emergencyStop = async () => {
-    if (!window.confirm('Pause ALL active orders across every station? Use this if you need to halt the floor.')) return;
+    if (!(await askConfirm({ title: 'Halt the floor?', message: 'Pauses ALL active orders across every station.', confirmLabel: 'Pause everything', danger: true }))) return;
     setBusy('stop'); setNote('');
     try { const r = await api.post('/emergency/stop-all', {}); setNote(r?.message || 'All active orders paused.'); }
     catch (e) { setNote('Could not reach the server to pause orders.'); }

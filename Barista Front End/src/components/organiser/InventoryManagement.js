@@ -381,8 +381,8 @@ const InventoryManagement = () => {
   };
 
   // Delete item
-  const deleteItem = (itemId) => {
-    if (!window.confirm('Are you sure you want to delete this item?')) return;
+  const deleteItem = async (itemId) => {
+    if (!(await askConfirm({ title: 'Delete this item?', message: 'It disappears from the menu and every station that offers it.', confirmLabel: 'Delete', danger: true }))) return;
 
     applyAndSave((prev) => ({
       ...prev,

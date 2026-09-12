@@ -7,6 +7,7 @@ import SettingsService from '../../services/SettingsService';
 import brandingConfig, { updateBranding, resetBranding } from '../../config/brandingConfig';
 import DisplayBackgroundVideo from './DisplayBackgroundVideo';
 import { compressImageFile, compressLogoFile } from '../../utils/imageCompress';
+import { askConfirm } from '../shared/ConfirmDialog';
 
 /**
  * Branding Settings Component
@@ -970,8 +971,8 @@ const BrandingSettings = () => {
       {/* Save Button */}
       <div className="flex justify-between">
         <button
-          onClick={() => {
-            if (window.confirm('Are you sure you want to reset to default Coffee Cue branding? This will reload the page.')) {
+          onClick={async () => {
+            if (await askConfirm({ title: 'Back to the default branding?', message: 'Your logo, colours and wording are replaced with CupQ’s defaults, and the page reloads.', confirmLabel: 'Reset branding', danger: true })) {
               resetBranding();
             }
           }}

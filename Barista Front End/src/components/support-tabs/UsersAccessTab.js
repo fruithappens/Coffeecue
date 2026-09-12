@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import ApiServiceClass from '../../services/ApiService';
 import { showToast } from '../shared/Toast';
+import { askConfirm, tell } from '../shared/ConfirmDialog';
 
 // Turn a raw API/DB error into something an operator can act on. The most
 // common one here is a duplicate email/username — the DB throws a unique-
@@ -126,7 +127,7 @@ const UsersAccessTab = () => {
   };
 
   const handleDeleteUser = async (userId) => {
-    if (!window.confirm('Are you sure you want to delete this user?')) return;
+    if (!(await askConfirm({ title: 'Delete this user?', message: 'They will not be able to sign in again. This cannot be undone.', confirmLabel: 'Delete', danger: true }))) return;
 
     setLoading(true);
     try {
@@ -142,12 +143,13 @@ const UsersAccessTab = () => {
   };
 
   const handleResetPassword = async (userId) => {
-    if (!window.confirm('Reset password for this user?')) return;
+    if (!(await askConfirm({ title: 'Reset this password?', message: 'A new password is generated and shown to you once. The old one stops working immediately.', confirmLabel: 'Reset' }))) return;
 
     setLoading(true);
     try {
       const response = await ApiService.post(`/users/${userId}/reset-password`);
-      alert(`New password: ${response.data.newPassword}`);
+      // A box, not a toast: this has to be read and copied before it is gone.
+      await tell({ title: 'New password', message: `${response.data.newPassword}\n\nGive it to them now — it is not shown again.`, confirmLabel: 'Done' });
     } catch (error) {
       console.error('Error resetting password:', error);
       showToast(friendlyUserError(error, 'Could not reset the password'), 'error', 7000);

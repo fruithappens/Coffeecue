@@ -2,6 +2,7 @@
 import React from 'react';
 import { LogOut } from 'lucide-react'; 
 import AuthService from '../../services/AuthService';
+import { askConfirm } from './ConfirmDialog';
 
 /**
  * LogoutButton component that can be used in any interface
@@ -17,10 +18,10 @@ const LogoutButton = ({
   showText = true,
   confirmLogout = true
 }) => {
-  const handleLogout = () => {
+  const handleLogout = async () => {
     // Ask for confirmation if confirmLogout is true
     if (confirmLogout) {
-      const confirmed = window.confirm('Are you sure you want to log out?');
+      const confirmed = await askConfirm({ title: 'Sign out?', confirmLabel: 'Sign out' });
       if (!confirmed) return;
     }
     

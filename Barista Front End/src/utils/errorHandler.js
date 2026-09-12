@@ -3,6 +3,7 @@
  * 
  * Provides consistent error handling, logging, and user feedback.
  */
+import { showToast } from '../components/shared/Toast';
 
 // Error types for categorization
 export const ERROR_TYPES = {
@@ -151,9 +152,11 @@ const notifyUser = (errorDetails) => {
     return;
   }
   
-  // Fallback to alert for critical errors
+  // Critical errors with no notification system mounted: a toast, not a
+  // browser alert (finding 8). If no ToastManager is on the page either,
+  // the console line below is the record.
   if (errorDetails.severity === ERROR_SEVERITY.CRITICAL) {
-    alert(`Error: ${errorDetails.message}`);
+    showToast(`Error: ${errorDetails.message}`, 'error', 8000);
   }
   
   // For other severities, log to console only if notification system not available
