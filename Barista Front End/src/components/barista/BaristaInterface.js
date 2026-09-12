@@ -65,6 +65,7 @@ import '../../styles/boardDensity.css';
 import GroupBadge from './GroupBadge';
 import SourceBadge from './SourceBadge';
 import RushMixStrip from './RushMixStrip';
+import { byId } from '../../utils/ids';
 import QueueIntelligence from '../support/QueueIntelligence';
 import StationLoadBalancer from '../support/StationLoadBalancer';
 import DynamicStaffAllocation from '../organiser/DynamicStaffAllocation';
@@ -1020,9 +1021,9 @@ const BaristaInterface = () => {
     try {
       // First find the full order object if available
       const order = 
-        inProgressOrders.find(o => o.id === orderId) || 
-        completedOrders.find(o => o.id === orderId) ||
-        pendingOrders.find(o => o.id === orderId) || 
+        inProgressOrders.find(byId(orderId)) || 
+        completedOrders.find(byId(orderId)) ||
+        pendingOrders.find(byId(orderId)) || 
         orderId;
       
       // Update status to indicate sending
@@ -1321,14 +1322,16 @@ const BaristaInterface = () => {
     try {
       console.log('Starting order completion process for order:', orderId);
       
-      // First find the order before it gets moved to completed
-      const orderToComplete = inProgressOrders.find(o => o.id === orderId);
-      
-      if (!orderToComplete) {
-        console.error('Could not find order in inProgressOrders array:', orderId);
-        showToast('Could not find the order details. Please try again.', 'error', 6000);
-        return false;
-      }
+      // Find the order for the label/notification details -- but do not
+      // refuse the tap if it is not in the local list. That refusal was the
+      // Ready button's version of the dead Collected button (#606): a
+      // double tap, a second tablet, or a poll landing mid-action, and the
+      // barista got "Could not find the order details. Please try again"
+      // forever while the server was never asked. The hook resolves the
+      // order by number on the server; the details here are a nicety.
+      const orderToComplete = inProgressOrders.find(byId(orderId))
+                           || pendingOrders.find(byId(orderId))
+                           || { id: orderId, orderNumber: orderId };
       
       // Find the actual station info from the stations list
       const stationInfo = stations.find(s => s.id === selectedStation);
