@@ -1,5 +1,6 @@
 // services/OrderDataService.refactored.js
 import ApiService from './ApiService';
+import { stampWaitTimes } from '../utils/orderTime';
 import { getCatalogMilks } from '../utils/milkConfig';
 import { ORDER_STATUS, isPending, isInProgress, isCompleted, isPickedUp } from '../constants/orderStatus';
 
@@ -121,7 +122,9 @@ class OrderDataService {
       const response = await this.apiService.get(`/orders?${params.toString()}`);
       
       if (response.status === 'success') {
-        const orders = response.data || [];
+        // The list carries createdAt only; the age (waitTime) is the
+        // screen's job -- see utils/orderTime.js for why.
+        const orders = stampWaitTimes(response.data || []);
 
         // Group orders by status. Uses the ORDER_STATUS helpers which
         // tolerate the historical in-progress/in_progress drift +
@@ -786,7 +789,7 @@ class OrderDataService {
       const response = await this.apiService.get(`/orders?${params.toString()}`);
       return { 
         success: response.status === 'success', 
-        data: response.data || [] 
+        data: stampWaitTimes(response.data || []) 
       };
     } catch (error) {
       console.error('Error getting yesterday orders:', error);
@@ -806,10 +809,11 @@ class OrderDataService {
         date: 'week' 
       });
       const response = await this.apiService.get(`/orders?${params.toString()}`);
+      const weekOrders = stampWaitTimes(response.data || []);
       return { 
         success: response.status === 'success', 
-        orders: response.data || [],
-        data: response.data || [] 
+        orders: weekOrders,
+        data: weekOrders 
       };
     } catch (error) {
       console.error('Error getting week orders:', error);

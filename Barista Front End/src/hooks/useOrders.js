@@ -13,11 +13,12 @@
  * @typedef {import('../types').Station} Station
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { withWaitTime, serverNow } from '../utils/orderTime';
 import OrderDataService from '../services/OrderDataService';
 import StockService from '../services/StockService';
 import { planDepletion } from '../utils/stockDepletion';
 import { appendOrder, dedupeOrders, upsertOrder } from '../utils/orderListUtils';
-import { calculateWaitTime, parseServerDate } from '../utils/orderUtils';
+import { calculateWaitTime } from '../utils/orderUtils';
 import { event as logEvent } from '../services/logging';
 
 // Connection-loss bookkeeping, for the record. The red banner shows it to
@@ -1085,55 +1086,29 @@ export default function useOrders(stationId = null) {
   // Track wait time update interval in a ref to prevent memory leaks
   const waitTimeIntervalRef = useRef(null);
   
-  // Update order wait times periodically - with optimized state updates
+  // Re-stamp order ages once a minute. The list no longer carries waitTime
+  // (it ticked, and every tick defeated the /orders ETag); each order is
+  // stamped as it arrives (OrderDataService) and kept current here.
   useEffect(() => {
     // Define update function that batches state updates to prevent render loops
     const updateWaitTimes = () => {
+      // One instant for every order, on the server's clock (utils/orderTime.js).
+      const now = serverNow();
       // Use functional state updates to avoid dependency on state values
       setPendingOrders(prevOrders => {
         if (!prevOrders || prevOrders.length === 0) return prevOrders;
         
-        return prevOrders.map(order => {
-          try {
-            // Parse as UTC (backend sends naive UTC timestamps) so the wait
-            // time is correct regardless of the viewer's timezone.
-            const createdAt = order.createdAt ? parseServerDate(order.createdAt) : new Date();
-            const _ms = createdAt.getTime();
-            const waitTime = Number.isNaN(_ms) ? 0 : Math.max(0, Math.floor((Date.now() - _ms) / 60000));
-            
-            // Only update if wait time changed
-            if (order.waitTime !== waitTime) {
-              return { ...order, waitTime };
-            }
-            return order;
-          } catch (e) {
-            console.error('Error calculating wait time:', e);
-            return order; // Keep original if error
-          }
-        });
+        // withWaitTime returns the SAME object when the minute has not
+        // changed, so React sees no update for orders that did not age.
+        return prevOrders.map(order => withWaitTime(order, now));
       });
       
       setInProgressOrders(prevOrders => {
         if (!prevOrders || prevOrders.length === 0) return prevOrders;
         
-        return prevOrders.map(order => {
-          try {
-            // Parse as UTC (backend sends naive UTC timestamps) so the wait
-            // time is correct regardless of the viewer's timezone.
-            const createdAt = order.createdAt ? parseServerDate(order.createdAt) : new Date();
-            const _ms = createdAt.getTime();
-            const waitTime = Number.isNaN(_ms) ? 0 : Math.max(0, Math.floor((Date.now() - _ms) / 60000));
-            
-            // Only update if wait time changed
-            if (order.waitTime !== waitTime) {
-              return { ...order, waitTime };
-            }
-            return order;
-          } catch (e) {
-            console.error('Error calculating wait time:', e);
-            return order; // Keep original if error
-          }
-        });
+        // withWaitTime returns the SAME object when the minute has not
+        // changed, so React sees no update for orders that did not age.
+        return prevOrders.map(order => withWaitTime(order, now));
       });
     };
     

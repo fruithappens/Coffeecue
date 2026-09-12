@@ -4,6 +4,7 @@ import { Coffee, Clock, CheckCircle, Package, Users, Search, Filter, AlertCircle
 import { getMilkColorStyle, getMilkDotStyle } from '../../utils/milkColorHelper';
 import { Segmented, TextField } from '../../design';
 import { parseServerDate } from '../../utils/orderUtils';
+import { minutesSince } from '../../utils/orderTime';
 import '../../styles/milkColors.css';
 
 const AllOrdersTab = () => {
@@ -62,10 +63,11 @@ const AllOrdersTab = () => {
         completedAt: o.completedAt || o.completed_at,
         pickedUpAt: o.pickedUpAt || o.picked_up_at || o.updatedAt || o.updated_at,
         // For finished orders the wait is created -> completed, not "minutes
-        // since created" (which grows forever on an old order).
+        // since created" (which grows forever on an old order). Open ones
+        // are counted here: the list carries createdAt, not an age.
         waitTime: (o.completedAt || o.completed_at)
           ? (mins(o.createdAt || o.created_at, o.completedAt || o.completed_at) ?? o.waitTime)
-          : o.waitTime,
+          : (minutesSince(o.createdAt || o.created_at) ?? o.waitTime),
       });
       const allOrders = {
         pending: pending.map(shape),
