@@ -54,7 +54,7 @@ export default function BadgeScanner({ onFound, onClose }) {
         const b = await r.json().catch(() => ({}));
         if (r.ok && b.success && b.first_name) {
           cleanup();
-          onFound({ cid: b.cid, firstName: b.first_name, hasPhone: !!b.has_phone });
+          onFound({ cid: b.cid, firstName: b.first_name, hasPhone: !!b.has_phone, phoneHint: b.phone_hint || '' });
           return;
         }
         setMessage(b.disabled ? 'Badge scanning is not on for this event.' : "That badge isn't on the list — type your name instead.");

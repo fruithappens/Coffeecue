@@ -1922,8 +1922,33 @@ def ea_hello():
     # The canonical contact id: a badge NUMBER resolves here, but the order
     # path keys on ea_contact_id, so the caller must carry that one on.
     return jsonify({'success': True, 'first_name': first.strip(),
-                    'has_phone': bool(mobile), 'cid': real_cid or cid})
+                    'has_phone': bool(mobile), 'phone_hint': phone_hint(mobile),
+                    'cid': real_cid or cid})
 
+
+
+def phone_hint(mobile):
+    """The last three digits of a mobile, for 'ending in ...279' on the
+    Is-this-you screen -- enough to recognise your own number, not enough
+    to be anyone's number. Empty when there is none."""
+    digits = _re.sub(r'\D', '', str(mobile or ''))
+    return digits[-3:] if len(digits) >= 6 else ''
+
+
+def payload_pattern(payload):
+    """The SHAPE of a badge payload for the log, never its value: runs of
+    hex/digits become their lengths ('[36hex]-[3d]'), letters become 'a',
+    punctuation stays. What a Treenet badge holds was unknown until the
+    first real scan; this answers it without copying the badge."""
+    def sub(m):
+        t = m.group(0)
+        if t.isdigit():
+            return f'[{len(t)}d]'
+        return f'[{len(t)}hex]' if _re.fullmatch(r'[0-9A-Fa-f]+', t) and len(t) >= 8 else 'a' * min(len(t), 3)
+    try:
+        return _re.sub(r'[0-9A-Za-z]+', sub, str(payload or '')[:120])
+    except Exception:
+        return '?'
 
 
 def badge_identifier_candidates(payload):
@@ -2030,13 +2055,10 @@ def ea_badge():
     # What a real badge holds is the one thing nobody knew when this was
     # built. Log the SHAPE of the payload (never the number or the name), so
     # the first real scan answers it from the deploy log.
-    shape = ('url' if _re.match(r'^https?://', payload, _re.I) else
-             'guid' if _re.match(r'^[0-9a-f-]{32,36}$', payload, _re.I) else
-             'digits' if payload.isdigit() else 'text')
-    logger.info("badge scan: matched cid=%s from a %s payload of %d chars (mobile on file: %s)",
-                real_cid, shape, len(payload), 'yes' if mobile else 'no')
+    logger.info("badge scan: matched cid=%s; payload %d chars, pattern %s (mobile on file: %s)",
+                real_cid, len(payload), payload_pattern(payload), 'yes' if mobile else 'no')
     return jsonify({'success': True, 'first_name': first.strip(),
-                    'has_phone': bool(mobile), 'cid': real_cid})
+                    'has_phone': bool(mobile), 'phone_hint': phone_hint(mobile), 'cid': real_cid})
 
 def maybe_writeback_order(app_obj, order_number):
     """Hook for order completion/pickup: if the channel + write-back are
