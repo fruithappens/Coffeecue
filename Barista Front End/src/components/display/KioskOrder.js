@@ -128,7 +128,7 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
   // Drink FIRST (Steve: "the first thing that should appear is not the
   // person's name, but the coffee type") — the order is the point; the
   // name and phone/collection come at the end.
-  const [step, setStep] = useState('drink'); // drink → milk → size → sugar → name → location → phone → review → done
+  const [step, setStep] = useState('drink'); // drink → milk → size → sugar → phone → name (or name_confirm) → location → review → done
 
   // WHERE BACK GOES. Steve, on the strength step: "back doesnt go back to
   // where it was before, i was on the double shot page and clicked back
@@ -648,6 +648,10 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
   // ambiguous, unknown, offline -- the flow continues; the lookup can
   // only ever SAVE typing, never block an order.
   const continueWithNumber = async () => {
+    // Already identified by a badge scan: the number is just where the
+    // text goes. Do not look it up -- a second person's number must not
+    // rename the first.
+    if (eaIdentity && name.trim()) { setEaSuggest(null); afterName(); return; }
     setLookupBusy(true);
     try {
       // A dead connection must not hold "One sec..." forever (Steve's
@@ -1434,6 +1438,32 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
               className="w-full text-3xl font-bold p-5 rounded-cq-xl border-4 border-cq-line focus:outline-none"
               style={{ borderColor: phoneValid ? headerColor : undefined }}
             />
+            {/* The badge is the other way to say who you are, and this is the
+                FIRST identity step, so it belongs here as much as on the name
+                step (Steve: "so you still have to type your phone number?").
+                A scan fills the name from the registration and, when the
+                registration carries a mobile, this step turns into "Is this
+                right? -- Yes, text that number", so nothing gets typed. */}
+            {badgeScanOn && canScanBadges() && !eaIdentity && !phone ? (
+              <button type="button" onClick={() => setScanning(true)}
+                className="mt-3 w-full h-14 rounded-cq-xl border-2 border-cq-line bg-cq-milk text-cq-roast
+                           text-lg font-bold inline-flex items-center justify-center gap-2 hover:border-cq-caramel">
+                <ScanLine size={22} /> Scan your badge instead
+              </button>
+            ) : null}
+            {scanning && step === 'phone' ? (
+              <BadgeScanner
+                onClose={() => setScanning(false)}
+                onFound={(who) => {
+                  setScanning(false);
+                  setEaIdentity({ cid: who.cid, firstName: who.firstName, hasPhone: !!who.hasPhone, guest: false });
+                  setName(who.firstName);
+                  // No mobile on the registration: the name is known and
+                  // this step stays -- they can still type a number for a
+                  // text, or skip; either way the name step is not asked.
+                }}
+              />
+            ) : null}
             {phoneValid && (
               <button
                 onClick={() => setSmsOptIn(!smsOptIn)}
@@ -1467,7 +1497,7 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
                   {lookupBusy ? 'One sec…' : 'Continue →'}
                 </button>
               ) : (
-                <button onClick={() => { setPhone(''); setEaSuggest(null); goTo('name'); }}
+                <button onClick={() => { setPhone(''); setEaSuggest(null); if (eaIdentity && name.trim()) afterName(); else goTo('name'); }}
                   className="w-full py-5 rounded-cq-xl text-xl font-extrabold text-white shadow active:scale-95"
                   style={{ backgroundColor: headerColor }}>
                   {isOwnDevice ? '📱 No number — watch it on this phone' : "📺 No number — I'll watch the board"}
