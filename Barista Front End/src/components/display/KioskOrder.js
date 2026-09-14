@@ -303,6 +303,10 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
   // the browser). Steve's flow: confirm what's on record, opt IN to the
   // ready-text, or change details -- never assume the text.
   const [useRegisteredPhone, setUseRegisteredPhone] = useState(false);
+  // Set by a badge scan on the phone step: show "Is this you?" for the
+  // registration it found -- with or without a mobile on file -- before
+  // asking for anything else. Cleared by any choice on that screen.
+  const [badgeConfirm, setBadgeConfirm] = useState(false);
   useEffect(() => {
     // The cid can arrive two ways: in the URL (an app link with a merge
     // field) or as a PROP from /my, which holds the identity in state
@@ -1379,39 +1383,59 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
         )}
 
         {/* ---------- PHONE (always optional — offer a ready-text) ---------- */}
-        {step === 'phone' && eaIdentity?.hasPhone && !phone && (
+        {/* ---------- IS THIS YOU? (a badge or an EA link named them) ----------
+            Steve, after his first scan: "I would have thought if it had found
+            my name it would have grabbed my phone number at the same time and
+            asked is this me". It does when the registration has a mobile. When
+            it does not, the flow used to fall straight into the number box, which
+            read as "enter more details" -- so both cases now stop here first:
+            who we found, what we have, and the choice. */}
+        {step === 'phone' && eaIdentity && !phone && (badgeConfirm || eaIdentity.hasPhone) && (
           <>
-            <Header title="Is this right?" onBack={goBack} />
-            <p className="text-xl text-cq-ink-2 mb-4 font-medium">
-              We have <b>{name || eaIdentity.firstName}</b> and a mobile number
-              on your registration.
-            </p>
+            <Header title="Is this you?" onBack={goBack} />
+            <div className="rounded-cq-xl border-4 p-5 mb-4" style={{ borderColor: headerColor }}>
+              <div className="text-3xl font-extrabold text-cq-roast">{name || eaIdentity.firstName}</div>
+              <div className="text-base text-cq-ink-2 mt-1">
+                {eaIdentity.hasPhone
+                  ? 'From your event registration, with a mobile number on file.'
+                  : 'From your event registration. No mobile number on file.'}
+              </div>
+            </div>
             <div className="space-y-3">
+              {eaIdentity.hasPhone ? (
+                <button
+                  onClick={() => { setBadgeConfirm(false); setUseRegisteredPhone(true); afterName(); }}
+                  className="w-full py-4 rounded-cq-xl text-white text-xl font-bold"
+                  style={{ backgroundColor: headerColor }}
+                >
+                  Yes — text that number when it’s ready
+                </button>
+              ) : (
+                <button
+                  onClick={() => { setBadgeConfirm(false); setEaIdentity((e) => (e ? { ...e, hasPhone: false } : e)); }}
+                  className="w-full py-4 rounded-cq-xl text-white text-xl font-bold"
+                  style={{ backgroundColor: headerColor }}
+                >
+                  Yes — add a mobile for a text
+                </button>
+              )}
               <button
-                onClick={() => { setUseRegisteredPhone(true); afterName(); }}
-                className="w-full py-4 rounded-cq-xl text-white text-xl font-bold"
-                style={{ backgroundColor: headerColor }}
-              >
-                Yes — text that number when it’s ready
-              </button>
-              <button
-                onClick={() => { setUseRegisteredPhone(false); afterName(); }}
+                onClick={() => { setBadgeConfirm(false); setUseRegisteredPhone(false); afterName(); }}
                 className="w-full py-4 rounded-cq-xl text-xl font-bold border-4"
                 style={{ borderColor: headerColor, color: headerColor }}
               >
-                No texts — I’ll watch this screen
+                {eaIdentity.hasPhone ? 'Yes, but no texts — I’ll watch this screen' : 'Yes — no texts, I’ll watch this screen'}
               </button>
               <button
-                onClick={() => { setUseRegisteredPhone(false);
-                  setEaIdentity((e) => (e ? { ...e, hasPhone: false } : e)); }}
+                onClick={() => { setBadgeConfirm(false); setUseRegisteredPhone(false); setEaIdentity(null); setName(''); }}
                 className="w-full py-3 text-cq-ink-2 underline"
               >
-                Use a different name or number
+                Not me — I’ll type my details
               </button>
             </div>
           </>
         )}
-        {step === 'phone' && !(eaIdentity?.hasPhone && !phone) && (
+        {step === 'phone' && !(eaIdentity && !phone && (badgeConfirm || eaIdentity.hasPhone)) && (
           <>
             <Header title={isOwnDevice ? 'How should we tell you?' : 'Want a text when it’s ready?'}
                     onBack={goBack} />
@@ -1458,9 +1482,7 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
                   setScanning(false);
                   setEaIdentity({ cid: who.cid, firstName: who.firstName, hasPhone: !!who.hasPhone, guest: false });
                   setName(who.firstName);
-                  // No mobile on the registration: the name is known and
-                  // this step stays -- they can still type a number for a
-                  // text, or skip; either way the name step is not asked.
+                  setBadgeConfirm(true);
                 }}
               />
             ) : null}
