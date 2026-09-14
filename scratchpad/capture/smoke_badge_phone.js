@@ -20,9 +20,9 @@ const results=[]; const ok=(n,c,d='')=>{ results.push(!!c); console.log((c?'  ok
   ok('the phone step comes first and offers "Scan your badge instead"', /mobile/i.test(await body()) && await p.getByRole('button', { name: /Scan your badge/ }).isVisible());
   await p.screenshot({ path: `${__dirname}/badge_phone_step.png` });
   await p.getByRole('button', { name: /Scan your badge/ }).click();
-  let right = false; for (let i = 0; i < 40; i++) { await sleep(500); if (/Is this right\?/.test(await body())) { right = true; break; } }
+  let right = false; for (let i = 0; i < 40; i++) { await sleep(500); if (/Is this you\?/.test(await body())) { right = true; break; } }
   const t1 = await body();
-  ok('Ada\'s badge (mobile on file): the step becomes "Is this right? -- Yes, text that number"', right && /We have Ada and a mobile number/.test(t1.replace(/\s+/g,' ')) && /Yes — text that number/.test(t1), t1.replace(/\s+/g,' ').slice(0, 120));
+  ok('Ada\'s badge (mobile on file): "Is this you? Ada -- with a mobile number on file -- Yes, text that number"', right && /Ada/.test(t1) && /with a mobile number on file/.test(t1) && /Yes — text that number/.test(t1) && /Not me/.test(t1), t1.replace(/\s+/g,' ').slice(0, 140));
   ok('the number itself is not on the page', !/0400 ?000 ?777|\+61400000777/.test(t1));
   await p.screenshot({ path: `${__dirname}/badge_phone_right.png` });
   await click(/Yes — text that number/); await sleep(1200);
@@ -32,6 +32,26 @@ const results=[]; const ok=(n,c,d='')=>{ results.push(!!c); console.log((c?'  ok
   const num = ((await body()).match(/YOUR ORDER\s*#\s*(\d+)/i) || [])[1];
   const row = num ? sql(`select coalesce(order_details->>'name','')||'|'||coalesce(phone,'')||'|'||coalesce(order_details->>'ea_contact_id','') from orders where order_number='${num}'`) : '';
   ok('the order is Ada\'s, with her registered mobile, tied to her contact id', /^Ada( L)?\|\+61400000777\|badge-test-1$/.test(row), row || 'no order');
+  // --- Second pass: the same badge, but the registration has NO mobile.
+  sql(`update ea_attendees set mobile_e164 = NULL where ea_contact_id='badge-test-1'`);
+  // A fresh context: the first page remembers Ada's order and opens on it.
+  const ctx2 = await b.newContext({ viewport: { width: 390, height: 844 }, permissions: ['camera'] });
+  const p2 = await ctx2.newPage(); p2.on('pageerror', e=>errs.push(e.message));
+  const body2 = () => p2.locator('body').innerText();
+  const click2 = async (re) => { await p2.locator('button:not([disabled])').filter({ hasText: re }).first().click(); await sleep(900); };
+  await p2.goto(`${BASE}/my?e=${code}`, { waitUntil: 'networkidle' }); await sleep(1500);
+  await click2(/Flat White/); await click2(/Full Cream/); await click2(/Normal/); await p2.getByRole('button',{name:/Next/}).first().click(); await sleep(800);
+  await p2.getByRole('button', { name: /Scan your badge/ }).click();
+  let you = false; for (let i = 0; i < 40; i++) { await sleep(500); if (/Is this you\?/.test(await body2())) { you = true; break; } }
+  const t3 = await body2();
+  ok('no mobile on file: still "Is this you? Ada -- no mobile number on file", with add-a-mobile / no-texts / not-me', you && /No mobile number on file/.test(t3) && /add a mobile/.test(t3) && /no texts/i.test(t3) && /Not me/.test(t3), t3.replace(/\s+/g,' ').slice(0, 140));
+  await p2.screenshot({ path: `${__dirname}/badge_phone_nomobile.png` });
+  await click2(/add a mobile/); await sleep(600);
+  const t4 = await body2();
+  ok('"add a mobile" shows the number box with the name already known', /mobile/i.test(t4) && (await p2.locator('input[placeholder="04XX XXX XXX"]').count()) === 1, t4.replace(/\s+/g,' ').slice(0, 100));
+  await click2(/No number/); await sleep(1000);
+  let t5 = await body2(); if (/Collect from/i.test(t5)) { await click2(/Fastest/); t5 = await body2(); }
+  ok('skipping the number goes straight to review as Ada (no name step)', /Ada/.test(t5) && /Place order/.test(t5) && !/Type your name/.test(t5));
   console.log('page errors:', errs.length ? errs : 'none'); await b.close();
   if (num) sql(`delete from orders where order_number='${num}'`); sql(`delete from ea_attendees where ea_contact_id in ('badge-test-1','badge-test-2')`);
   console.log(`\n${results.filter(Boolean).length}/${results.length} passed`); process.exit(results.every(Boolean) ? 0 : 1);
