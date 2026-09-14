@@ -19,10 +19,16 @@ const hasCamera = () => typeof navigator !== 'undefined'
 
 export const canScanBadges = hasCamera;
 
+// Are we a frame inside someone else's page (the EventsAir app's "Order
+// Coffee" tab is our /my page in an iframe)? A frame only gets the camera
+// if the page around it says so, and the app around THAT has to have asked
+// the phone -- neither is ours to fix from here.
+const isEmbedded = () => { try { return window.self !== window.top; } catch (e) { return true; } };
+
 export default function BadgeScanner({ onFound, onClose }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
-  const [state, setState] = useState('starting'); // starting | scanning | denied | error | looking-up | unknown
+  const [state, setState] = useState('starting'); // starting | scanning | denied | error | embedded | looking-up | unknown
   const [message, setMessage] = useState('');
 
   useEffect(() => {
@@ -94,10 +100,18 @@ export default function BadgeScanner({ onFound, onClose }) {
           const mod = await import('jsqr');
           jsQR = mod.default || mod;
         }
-        stream = await navigator.mediaDevices.getUserMedia({
+        // Inside another app's web view (the EventsAir app shows this page
+        // in an iframe), the camera request can sit forever with no prompt
+        // -- Steve saw a blank box and nothing in his phone's settings. Six
+        // seconds, then say so instead of waiting.
+        const ask = navigator.mediaDevices.getUserMedia({
           video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
           audio: false,
         });
+        const slow = new Promise((_, reject) => setTimeout(() => {
+          const err = new Error('camera did not answer'); err.name = 'TimeoutError'; reject(err);
+        }, 6000));
+        stream = await Promise.race([ask, slow]);
         if (stop) { stream.getTracks().forEach((t) => t.stop()); return; }
         const v = videoRef.current;
         if (v) { v.srcObject = stream; await v.play().catch(() => undefined); }
@@ -105,8 +119,15 @@ export default function BadgeScanner({ onFound, onClose }) {
         tick();
       } catch (e) {
         const denied = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError');
-        setMessage(denied ? 'Camera permission was refused — type your name instead.' : "Couldn't open the camera — type your name instead.");
-        setState(denied ? 'denied' : 'error');
+        if (isEmbedded()) {
+          // The host app never asked for the camera, so it cannot give it
+          // to us. Say where the scan does work.
+          setMessage('The event app can’t open the camera here. Open this page in Safari to scan — or type your name.');
+          setState('embedded');
+        } else {
+          setMessage(denied ? 'Camera permission was refused — type your name instead.' : "Couldn't open the camera — type your name instead.");
+          setState(denied ? 'denied' : 'error');
+        }
       }
     })();
 
@@ -123,26 +144,37 @@ export default function BadgeScanner({ onFound, onClose }) {
           <X size={24} />
         </button>
       </div>
+      {/* The words sit ABOVE the camera box. They used to sit below it, and
+          inside the EventsAir app's iframe the box filled the frame and the
+          words were off the bottom -- a blank dark panel and no explanation. */}
+      <div className="px-5 pb-3 text-center text-cq-cream">
+        {state === 'starting' ? <p className="text-base">Opening the camera…</p> : null}
+        {state === 'scanning' ? <p className="text-base">Point it at the QR code on your badge.</p> : null}
+        {state === 'looking-up' ? <p className="text-base">Checking…</p> : null}
+        {(state === 'unknown' || state === 'denied' || state === 'error' || state === 'embedded') ? (
+          <>
+            <p className="text-base font-semibold text-cq-tan">{message}</p>
+            <div className="mt-3 flex flex-wrap justify-center gap-2">
+              {state === 'embedded' ? (
+                <a href={typeof window !== 'undefined' ? window.location.href : '/my'} target="_blank" rel="noopener noreferrer"
+                   className="h-12 px-6 rounded-cq-md bg-cq-cream text-cq-roast font-bold inline-flex items-center">
+                  Open in Safari
+                </a>
+              ) : null}
+              <button type="button" onClick={onClose}
+                className="h-12 px-6 rounded-cq-md bg-cq-caramel text-white font-bold">
+                Type it instead
+              </button>
+            </div>
+          </>
+        ) : null}
+      </div>
       <div className="relative flex-1 min-h-0 flex items-center justify-center">
         <video ref={videoRef} playsInline muted className="max-h-full max-w-full rounded-cq-lg" />
         <canvas ref={canvasRef} className="hidden" />
         {state === 'scanning' ? (
           <div className="absolute inset-x-8 top-1/2 -translate-y-1/2 aspect-square max-h-[60%] mx-auto
                           border-4 border-cq-tan/80 rounded-cq-xl pointer-events-none" style={{ maxWidth: '70vmin' }} />
-        ) : null}
-      </div>
-      <div className="p-5 text-center text-cq-cream">
-        {state === 'starting' ? <p className="text-base">Opening the camera…</p> : null}
-        {state === 'scanning' ? <p className="text-base">Point it at the QR code on your badge.</p> : null}
-        {state === 'looking-up' ? <p className="text-base">Checking…</p> : null}
-        {(state === 'unknown' || state === 'denied' || state === 'error') ? (
-          <>
-            <p className="text-base font-semibold text-cq-tan">{message}</p>
-            <button type="button" onClick={onClose}
-              className="mt-3 h-12 px-6 rounded-cq-md bg-cq-caramel text-white font-bold">
-              Type it instead
-            </button>
-          </>
         ) : null}
       </div>
     </div>
