@@ -327,6 +327,7 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
             cid,
             firstName: b.first_name,
             hasPhone: !!b.has_phone,
+            phoneHint: b.phone_hint || '',
             // 'local:' means /api/ea/guest minted this a moment ago for
             // someone who typed their own details — an exhibitor, AV crew,
             // a speaker. They have no event registration and no number on
@@ -949,7 +950,7 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
                 onClose={() => setScanning(false)}
                 onFound={(who) => {
                   setScanning(false);
-                  setEaIdentity({ cid: who.cid, firstName: who.firstName, hasPhone: !!who.hasPhone, guest: false });
+                  setEaIdentity({ cid: who.cid, firstName: who.firstName, hasPhone: !!who.hasPhone, phoneHint: who.phoneHint || '', guest: false });
                   setName(who.firstName);
                 }}
               />
@@ -1396,8 +1397,14 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
             <div className="rounded-cq-xl border-4 p-5 mb-4" style={{ borderColor: headerColor }}>
               <div className="text-3xl font-extrabold text-cq-roast">{name || eaIdentity.firstName}</div>
               <div className="text-base text-cq-ink-2 mt-1">
+                {/* The last three digits, so you can tell it is YOUR number
+                    (Steve: "maybe should say found number ending in 279") --
+                    and no more than that, because this screen is on a
+                    shared touchscreen as often as a phone. */}
                 {eaIdentity.hasPhone
-                  ? 'From your event registration, with a mobile number on file.'
+                  ? (eaIdentity.phoneHint
+                      ? <>From your event registration, with a mobile ending in <b>…{eaIdentity.phoneHint}</b> on file.</>
+                      : 'From your event registration, with a mobile number on file.')
                   : 'From your event registration. No mobile number on file.'}
               </div>
             </div>
@@ -1426,6 +1433,15 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
               >
                 {eaIdentity.hasPhone ? 'Yes, but no texts — I’ll watch this screen' : 'Yes — no texts, I’ll watch this screen'}
               </button>
+              {eaIdentity.hasPhone ? (
+                <button
+                  onClick={() => { setBadgeConfirm(false); setUseRegisteredPhone(false);
+                    setEaIdentity((e) => (e ? { ...e, hasPhone: false, phoneHint: '' } : e)); }}
+                  className="w-full py-3 text-cq-ink-2 underline"
+                >
+                  Text a different number
+                </button>
+              ) : null}
               <button
                 onClick={() => { setBadgeConfirm(false); setUseRegisteredPhone(false); setEaIdentity(null); setName(''); }}
                 className="w-full py-3 text-cq-ink-2 underline"
@@ -1480,7 +1496,7 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
                 onClose={() => setScanning(false)}
                 onFound={(who) => {
                   setScanning(false);
-                  setEaIdentity({ cid: who.cid, firstName: who.firstName, hasPhone: !!who.hasPhone, guest: false });
+                  setEaIdentity({ cid: who.cid, firstName: who.firstName, hasPhone: !!who.hasPhone, phoneHint: who.phoneHint || '', guest: false });
                   setName(who.firstName);
                   setBadgeConfirm(true);
                 }}

@@ -22,8 +22,8 @@ const results=[]; const ok=(n,c,d='')=>{ results.push(!!c); console.log((c?'  ok
   await p.getByRole('button', { name: /Scan your badge/ }).click();
   let right = false; for (let i = 0; i < 40; i++) { await sleep(500); if (/Is this you\?/.test(await body())) { right = true; break; } }
   const t1 = await body();
-  ok('Ada\'s badge (mobile on file): "Is this you? Ada -- with a mobile number on file -- Yes, text that number"', right && /Ada/.test(t1) && /with a mobile number on file/.test(t1) && /Yes — text that number/.test(t1) && /Not me/.test(t1), t1.replace(/\s+/g,' ').slice(0, 140));
-  ok('the number itself is not on the page', !/0400 ?000 ?777|\+61400000777/.test(t1));
+  ok('Ada\'s badge (mobile on file): "Is this you? Ada -- with a mobile ending in …777 on file -- Yes, text that number"', right && /Ada/.test(t1) && /mobile ending in …777 on file/.test(t1) && /Yes — text that number/.test(t1) && /Text a different number/.test(t1) && /Not me/.test(t1), t1.replace(/\s+/g,' ').slice(0, 160));
+  ok('only the last three digits are on the page', !/0400 ?000|400000777/.test(t1));
   await p.screenshot({ path: `${__dirname}/badge_phone_right.png` });
   await click(/Yes — text that number/); await sleep(1200);
   let t2 = await body(); if (/Collect from/i.test(t2)) { await click(/Fastest/); t2 = await body(); }
@@ -52,6 +52,22 @@ const results=[]; const ok=(n,c,d='')=>{ results.push(!!c); console.log((c?'  ok
   await click2(/No number/); await sleep(1000);
   let t5 = await body2(); if (/Collect from/i.test(t5)) { await click2(/Fastest/); t5 = await body2(); }
   ok('skipping the number goes straight to review as Ada (no name step)', /Ada/.test(t5) && /Place order/.test(t5) && !/Type your name/.test(t5));
+  // --- Third pass: mobile on file, but "Text a different number".
+  sql(`update ea_attendees set mobile_e164 = '+61400000777' where ea_contact_id='badge-test-1'`);
+  const ctx3 = await b.newContext({ viewport: { width: 390, height: 844 }, permissions: ['camera'] });
+  const p3 = await ctx3.newPage(); p3.on('pageerror', e=>errs.push(e.message));
+  const body3 = () => p3.locator('body').innerText();
+  const click3 = async (re) => { await p3.locator('button:not([disabled])').filter({ hasText: re }).first().click(); await sleep(900); };
+  await p3.goto(`${BASE}/my?e=${code}`, { waitUntil: 'networkidle' }); await sleep(1500);
+  await click3(/Flat White/); await click3(/Full Cream/); await click3(/Normal/); await p3.getByRole('button',{name:/Next/}).first().click(); await sleep(800);
+  await p3.getByRole('button', { name: /Scan your badge/ }).click();
+  for (let i = 0; i < 40; i++) { await sleep(500); if (/Is this you\?/.test(await body3())) break; }
+  await click3(/Text a different number/); await sleep(600);
+  const t6 = await body3();
+  ok('"Text a different number" keeps the name and shows the number box', (await p3.locator('input[placeholder="04XX XXX XXX"]').count()) === 1 && !/Is this you/.test(t6));
+  await p3.locator('input[placeholder="04XX XXX XXX"]').fill('0400000999'); await sleep(300); await click3(/Continue/); await sleep(1500);
+  let t7 = await body3(); if (/Collect from/i.test(t7)) { await click3(/Fastest/); t7 = await body3(); }
+  ok('a typed number goes to review still as Ada (not re-looked-up, no name step)', /Ada/.test(t7) && /Place order/.test(t7) && !/Type your name/.test(t7), t7.replace(/\s+/g,' ').slice(0, 90));
   console.log('page errors:', errs.length ? errs : 'none'); await b.close();
   if (num) sql(`delete from orders where order_number='${num}'`); sql(`delete from ea_attendees where ea_contact_id in ('badge-test-1','badge-test-2')`);
   console.log(`\n${results.filter(Boolean).length}/${results.length} passed`); process.exit(results.every(Boolean) ? 0 : 1);
