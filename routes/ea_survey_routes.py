@@ -2027,6 +2027,14 @@ def ea_badge():
                                if isinstance(row, dict) else row)
     if not (first or '').strip():
         return jsonify({'success': False, 'message': 'unknown badge'}), 404
+    # What a real badge holds is the one thing nobody knew when this was
+    # built. Log the SHAPE of the payload (never the number or the name), so
+    # the first real scan answers it from the deploy log.
+    shape = ('url' if _re.match(r'^https?://', payload, _re.I) else
+             'guid' if _re.match(r'^[0-9a-f-]{32,36}$', payload, _re.I) else
+             'digits' if payload.isdigit() else 'text')
+    logger.info("badge scan: matched cid=%s from a %s payload of %d chars (mobile on file: %s)",
+                real_cid, shape, len(payload), 'yes' if mobile else 'no')
     return jsonify({'success': True, 'first_name': first.strip(),
                     'has_phone': bool(mobile), 'cid': real_cid})
 
