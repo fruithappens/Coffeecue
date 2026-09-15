@@ -23,7 +23,54 @@ export const canScanBadges = hasCamera;
 // Coffee" tab is our /my page in an iframe)? A frame only gets the camera
 // if the page around it says so, and the app around THAT has to have asked
 // the phone -- neither is ours to fix from here.
-const isEmbedded = () => { try { return window.self !== window.top; } catch (e) { return true; } };
+export const isEmbedded = () => { try { return window.self !== window.top; } catch (e) { return true; } };
+
+/** Ask the server who a badge payload is. Resolves {cid, firstName, hasPhone,
+ *  phoneHint} or null (unknown, off, or unreachable). Shared by the camera
+ *  scanner and the USB/Bluetooth scanner path. */
+export async function lookupBadge(text) {
+  try {
+    const r = await fetch('/api/ea/badge', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ payload: text }),
+    });
+    const b = await r.json().catch(() => ({}));
+    if (r.ok && b.success && b.first_name) {
+      return { cid: b.cid, firstName: b.first_name, hasPhone: !!b.has_phone, phoneHint: b.phone_hint || '' };
+    }
+  } catch (e) { /* unreachable: the caller falls back to typing */ }
+  return null;
+}
+
+// A USB or Bluetooth badge scanner is a keyboard: it "types" the QR's text
+// in a few milliseconds and presses Enter. Nobody types like that. Watch the
+// keystrokes on the page; a burst of 8+ characters with under 40 ms between
+// them, ending in Enter, is a scan -- and the same lookup as the camera.
+// Steve's ask: the station's touchscreen may have a wired scanner rather
+// than a usable camera. Returns the remover.
+export function listenForWedgeScan(onPayload, { minLength = 8, maxGapMs = 40 } = {}) {
+  let buf = '', last = 0, first = 0;
+  const onKey = (e) => {
+    const now = Date.now();
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === 'Enter') {
+      const text = buf; const span = last - first; const n = text.length;
+      buf = '';
+      if (n >= minLength && span / Math.max(1, n - 1) <= maxGapMs) {
+        e.preventDefault();
+        onPayload(text);
+      }
+      return;
+    }
+    if (e.key.length !== 1) return;
+    if (now - last > 150) { buf = ''; first = now; }   // a pause: a person, not a scanner
+    buf += e.key; last = now;
+    if (buf.length === 1) first = now;
+  };
+  window.addEventListener('keydown', onKey, true);
+  return () => window.removeEventListener('keydown', onKey, true);
+}
+
 
 export default function BadgeScanner({ onFound, onClose }) {
   const videoRef = useRef(null);
@@ -120,8 +167,10 @@ export default function BadgeScanner({ onFound, onClose }) {
       } catch (e) {
         const denied = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError');
         if (isEmbedded()) {
-          // The host app never asked for the camera, so it cannot give it
-          // to us. Say where the scan does work.
+          // Not normally reachable: the ordering page hides the camera
+          // button inside another app's frame (Steve: "Open in Safari"
+          // did not work from the EventsAir app either). Kept for a frame
+          // that does grant the camera and still fails.
           setMessage('The event app can’t open the camera here. Open this page in Safari to scan — or type your name.');
           setState('embedded');
         } else {
