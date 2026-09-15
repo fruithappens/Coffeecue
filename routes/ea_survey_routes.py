@@ -1840,6 +1840,34 @@ def ea_attendee_detail():
     return jsonify({'success': True, 'attendee': rec})
 
 
+@bp.route('/events', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def ea_list_events():
+    """The events this EventsAir tenant holds, and which one CupQ is pointed
+    at. Everything EA-side is scoped to ONE event -- contacts, badges, the
+    app's links -- so an app built in a different event (Steve tests in
+    'Springfield 2029', the real one was 'Treenet 2026') hands us contact ids
+    CupQ cannot see until it is pointed there."""
+    db = _db()
+    _ensure_tables(db)
+    row = _ea_row(db)
+    client = _client(db)
+    if client.is_stub():
+        return jsonify({'success': False, 'message': 'stub mode — no EA credentials configured'}), 400
+    ok, data = client.graphql("""
+        query CupqEvents { events { id name alias startDate endDate isSandbox isArchived } }""", {})
+    if not ok:
+        return jsonify({'success': False, 'message': str(data)}), 502
+    events = (data or {}).get('events') or []
+    current = row.get('ea_event_id') or client.event_id
+    return jsonify({'success': True, 'current': current,
+                    'events': [{'id': e.get('id'), 'name': e.get('name'), 'alias': e.get('alias'),
+                                'start': e.get('startDate'), 'end': e.get('endDate'),
+                                'sandbox': bool(e.get('isSandbox')), 'archived': bool(e.get('isArchived')),
+                                'current': e.get('id') == current} for e in events]})
+
+
 @bp.route('/surveys', methods=['GET'])
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff'])
