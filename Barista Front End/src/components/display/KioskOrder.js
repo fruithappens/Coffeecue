@@ -29,7 +29,7 @@ import NoticeBanner from '../shared/NoticeBanner';
 import { remember, recall } from '../../utils/deviceMemory';
 import { event as logEvent } from '../../services/logging';
 import { X, ArrowLeft, Plus, Minus, Check, Loader, MapPin, Zap, ScanLine } from 'lucide-react';
-import BadgeScanner, { canScanBadges } from './BadgeScanner';
+import BadgeScanner, { canScanBadges, isEmbedded, lookupBadge, listenForWedgeScan } from './BadgeScanner';
 
 // Idle handling: after IDLE_WARN_MS of no touch, a full-screen countdown
 // appears for IDLE_COUNTDOWN_SECONDS ("tap to keep ordering"); if it runs
@@ -307,6 +307,28 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
   // registration it found -- with or without a mobile on file -- before
   // asking for anything else. Cleared by any choice on that screen.
   const [badgeConfirm, setBadgeConfirm] = useState(false);
+  // A wired or Bluetooth badge scanner (a keyboard, as far as the page can
+  // tell) on the station's touchscreen: a burst of keystrokes ending in
+  // Enter on the phone or name step is looked up like a camera scan. The
+  // characters it typed into the box are taken back out. Inside another
+  // app's frame the camera button is hidden (it cannot work there) but this
+  // still listens -- a scanner plugged into a kiosk does not care.
+  const stepRef = useRef(step); stepRef.current = step;
+  const identRef = useRef(eaIdentity); identRef.current = eaIdentity;
+  useEffect(() => {
+    if (!badgeScanOn) return undefined;
+    return listenForWedgeScan(async (payload) => {
+      const at = stepRef.current;
+      if (identRef.current || (at !== 'phone' && at !== 'name')) return;
+      const strip = (v) => (typeof v === 'string' && v.endsWith(payload) ? v.slice(0, -payload.length) : v);
+      setPhone(strip); setName(strip);
+      const who = await lookupBadge(payload);
+      if (!who) return;
+      setEaIdentity({ cid: who.cid, firstName: who.firstName, hasPhone: !!who.hasPhone, phoneHint: who.phoneHint || '', guest: false });
+      setName(who.firstName);
+      if (at === 'phone') setBadgeConfirm(true);
+    });
+  }, [badgeScanOn]);
   useEffect(() => {
     // The cid can arrive two ways: in the URL (an app link with a merge
     // field) or as a PROP from /my, which holds the identity in state
@@ -938,7 +960,7 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
                 attendee lookup on and the device has a camera; on success
                 the person is identified exactly as an EA app link would
                 identify them, and the phone step can skip. */}
-            {badgeScanOn && canScanBadges() && !eaIdentity ? (
+            {badgeScanOn && canScanBadges() && !isEmbedded() && !eaIdentity ? (
               <button type="button" onClick={() => setScanning(true)}
                 className="mt-3 w-full h-14 rounded-cq-xl border-2 border-cq-line bg-cq-milk text-cq-roast
                            text-lg font-bold inline-flex items-center justify-center gap-2 hover:border-cq-caramel">
@@ -1484,7 +1506,7 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
                 A scan fills the name from the registration and, when the
                 registration carries a mobile, this step turns into "Is this
                 right? -- Yes, text that number", so nothing gets typed. */}
-            {badgeScanOn && canScanBadges() && !eaIdentity && !phone ? (
+            {badgeScanOn && canScanBadges() && !isEmbedded() && !eaIdentity && !phone ? (
               <button type="button" onClick={() => setScanning(true)}
                 className="mt-3 w-full h-14 rounded-cq-xl border-2 border-cq-line bg-cq-milk text-cq-roast
                            text-lg font-bold inline-flex items-center justify-center gap-2 hover:border-cq-caramel">
