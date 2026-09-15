@@ -609,6 +609,14 @@ def create_app():
             MemoryWatchService(db=db).start()
         except Exception as mem_err:
             logger.error(f"Failed to start memory watchdog (non-fatal): {mem_err}")
+        try:
+            # The EventsAir attendee mirror refreshes itself (EA_SYNC_MINUTES,
+            # default 10) while credentials are set and attendee lookup is
+            # on -- see start_attendee_auto_sync for why.
+            from routes.ea_survey_routes import start_attendee_auto_sync
+            start_attendee_auto_sync(app)
+        except Exception as _ea_sync_err:
+            logger.warning(f"EA attendee auto-sync not started: {_ea_sync_err}")
     else:
         logger.info("Skipping background services in reloader parent process")
         pickup_reminder = None
