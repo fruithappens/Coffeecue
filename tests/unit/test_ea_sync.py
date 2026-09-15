@@ -55,3 +55,50 @@ def test_auto_sync_respects_zero(monkeypatch):
     from routes import ea_survey_routes as ea
     monkeypatch.setenv('EA_SYNC_MINUTES', '0')
     assert ea.start_attendee_auto_sync(None) is None
+
+
+class TestLiveRefresh:
+    """One contact refreshed from EA when the mirror copy is stale."""
+
+    class _Cur:
+        def __init__(self, age): self.age = age; self.sql = ''; self.params = None; self.writes = []
+        def execute(self, sql, params=None):
+            self.sql = sql; self.params = params
+            if 'INSERT INTO ea_attendees' in sql: self.writes.append(params)
+        def fetchone(self):
+            return (self.age,) if self.age is not None else None
+
+    class _Db:
+        def __init__(self, age): self.cur = TestLiveRefresh._Cur(age); self.commits = 0
+        def cursor(self): return self.cur
+        def commit(self): self.commits += 1
+        def rollback(self): pass
+
+    def _client(self, contact):
+        class C:
+            def is_stub(self): return False
+            def fetch_contact(self, cid): return (True, {'contact': contact}) if contact else (False, 'nope')
+        return C()
+
+    def test_fresh_copy_is_left_alone(self, monkeypatch):
+        from routes import ea_survey_routes as ea
+        monkeypatch.setattr(ea, '_client', lambda db: self._client({'id': 'X'}))
+        db = self._Db(age=30)
+        assert ea._refresh_contact_if_stale(db, 'X') is False and db.commits == 0
+
+    def test_stale_copy_is_refreshed_with_name_and_number_only(self, monkeypatch):
+        from routes import ea_survey_routes as ea
+        monkeypatch.setattr(ea, '_client', lambda db: self._client({
+            'id': 'X', 'internalNumber': 330, 'firstName': 'Steve', 'lastName': 'R',
+            'contactPhoneNumbers': {'mobile': '0412693279', 'inCountryMobile': None}, 'primaryEmail': 's@x'}))
+        db = self._Db(age=900)
+        assert ea._refresh_contact_if_stale(db, 'X') is True and db.commits == 1
+        sql = db.cur.sql
+        assert 'COALESCE(EXCLUDED.mobile_e164' in sql and 'registration_category' not in sql
+        assert db.cur.writes[0][4] == '+61412693279'
+
+    def test_missing_copy_and_ea_failure_are_quiet(self, monkeypatch):
+        from routes import ea_survey_routes as ea
+        monkeypatch.setattr(ea, '_client', lambda db: self._client(None))
+        db = self._Db(age=None)
+        assert ea._refresh_contact_if_stale(db, 'X') is False

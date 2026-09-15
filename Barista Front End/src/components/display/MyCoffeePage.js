@@ -15,6 +15,7 @@
 // Anyone we don't recognise falls through to the normal ordering flow, so
 // a wrong badge number or a guest who isn't in EventsAir is never stuck.
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { contactIdFromSearch } from '../../utils/contactId';
 import CancelOrderButton from './CancelOrderButton';
 import BaristaAskCard from './BaristaAskCard';
 import SponsorTicker from './SponsorTicker';
@@ -116,9 +117,9 @@ const MyCoffeePage = () => {
   // ?cid={ContactID} -- and every attendee would land on an error. An
   // unexpanded token is no identity at all: ignore it and fall through
   // to the ordinary flow.
-  const paramCidRaw = params.get('cid');
-  const paramCid = (paramCidRaw && !/[{}[\]%]/.test(paramCidRaw))
-    ? paramCidRaw : null;
+  // ...and EventsAir's Thank You link appends the id under its own key
+  // name, so every spelling is read (utils/contactId.js).
+  const paramCid = contactIdFromSearch(window.location.search);
   // Which QR they scanned: ?src=foyer-poster, ?src=cart-1-ipad, ?src=lanyard.
   // Remembered like cid, because the page reloads on its own during
   // ordering and the parameter would otherwise be lost after the first tap.
