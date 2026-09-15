@@ -2015,8 +2015,11 @@ def _refresh_contact_if_stale(db, cid, max_age_s=REFRESH_STALE_S):
         client = _client(db)
         if client.is_stub():
             return False
-        ok, data = client.fetch_contact(cid)
-        contact = (data or {}).get('contact') if ok else None
+        ea_event_id = _ea_row(db).get('ea_event_id') or client.event_id
+        if not ea_event_id:
+            return False
+        ok, data = client.fetch_contact(cid, ea_event_id)
+        contact = ((data or {}).get('event') or {}).get('contact') if ok else None
         if not contact or not contact.get('id'):
             return False
         chosen, alternate, source = _contact_mobile(contact)
