@@ -101,19 +101,26 @@ class EASurveyClient(EventsAirClient):
         }"""
         return self.graphql(query, {'id': response_id})
 
-    def fetch_contact(self, contact_id: str):
+    def fetch_contact(self, contact_id: str, ea_event_id: str = None):
         """One contact, the fields the mirror keeps for it -- the same shape
         the paged query returns, so the same helpers read it. Used to refresh
         a person who has just arrived from an EventsAir page (their details
-        may be a minute old, newer than the last mirror sync)."""
+        may be a minute old, newer than the last mirror sync).
+
+        Introspected 15 Sep 2026: there is no root `contact` query; a contact
+        is reached THROUGH its event (`event(id) { contact(id) }`), so a
+        contact from another event cannot be fetched at all -- which is also
+        why CupQ must be pointed at the event whose app links to it."""
         query = """
-        query Contact($id: ID!) {
-          contact(id: $id) {
-            id internalNumber firstName lastName primaryEmail
-            contactPhoneNumbers { mobile inCountryMobile }
+        query Contact($eventId: ID!, $id: ID!) {
+          event(id: $eventId) {
+            contact(id: $id) {
+              id internalNumber firstName lastName primaryEmail
+              contactPhoneNumbers { mobile inCountryMobile }
+            }
           }
         }"""
-        return self.graphql(query, {'id': contact_id})
+        return self.graphql(query, {'eventId': ea_event_id or self.event_id, 'id': contact_id})
 
     def fetch_contacts_page(self, ea_event_id: str, skip: int = 0,
                             take: int = 200, modified_since: str = None):

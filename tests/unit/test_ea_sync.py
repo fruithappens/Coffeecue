@@ -77,17 +77,20 @@ class TestLiveRefresh:
     def _client(self, contact):
         class C:
             def is_stub(self): return False
-            def fetch_contact(self, cid): return (True, {'contact': contact}) if contact else (False, 'nope')
+            event_id = 'EV1'
+            def fetch_contact(self, cid, ea_event_id=None): return (True, {'event': {'contact': contact}}) if contact else (False, 'nope')
         return C()
 
     def test_fresh_copy_is_left_alone(self, monkeypatch):
         from routes import ea_survey_routes as ea
+        monkeypatch.setattr(ea, '_ea_row', lambda db: {'ea_event_id': 'EV1'})
         monkeypatch.setattr(ea, '_client', lambda db: self._client({'id': 'X'}))
         db = self._Db(age=30)
         assert ea._refresh_contact_if_stale(db, 'X') is False and db.commits == 0
 
     def test_stale_copy_is_refreshed_with_name_and_number_only(self, monkeypatch):
         from routes import ea_survey_routes as ea
+        monkeypatch.setattr(ea, '_ea_row', lambda db: {'ea_event_id': 'EV1'})
         monkeypatch.setattr(ea, '_client', lambda db: self._client({
             'id': 'X', 'internalNumber': 330, 'firstName': 'Steve', 'lastName': 'R',
             'contactPhoneNumbers': {'mobile': '0412693279', 'inCountryMobile': None}, 'primaryEmail': 's@x'}))
@@ -99,6 +102,7 @@ class TestLiveRefresh:
 
     def test_missing_copy_and_ea_failure_are_quiet(self, monkeypatch):
         from routes import ea_survey_routes as ea
+        monkeypatch.setattr(ea, '_ea_row', lambda db: {'ea_event_id': 'EV1'})
         monkeypatch.setattr(ea, '_client', lambda db: self._client(None))
         db = self._Db(age=None)
         assert ea._refresh_contact_if_stale(db, 'X') is False
