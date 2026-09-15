@@ -182,7 +182,11 @@ const MyCoffeePage = () => {
       // with a matching code (a scanned QR / cupq.app/<code> link did).
       if (access.require && access.code) {
         setEventCode(access.code);
-        if (!urlCodeMatches(access.code) && !codeAlreadyOk()) {
+        if (urlCodeMatches(access.code)) {
+          // Arrived with the code (a scanned QR, the app's embed): keep it
+          // for the order even if the URL is rewritten later.
+          rememberCodeOk(access.code);
+        } else if (!codeAlreadyOk()) {
           setCodeGate(true);
         }
       }
@@ -197,7 +201,7 @@ const MyCoffeePage = () => {
     const typed = normalizeCode(codeInput);
     if (!typed) return;
     if (typed === eventCode) {
-      rememberCodeOk();
+      rememberCodeOk(eventCode);
       // Stamp ?e= into the URL so the order that follows carries the code.
       stampUrlWithCode(eventCode);
       setCodeGate(false);

@@ -21,6 +21,7 @@
 //   POST /api/display/order  → { order_number, station_id, station_name }
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { contactIdFromSearch } from '../../utils/contactId';
+import { rememberedCode } from '../../utils/eventGate';
 import { getSavedRounds, saveRound } from '../../utils/savedRounds';
 import DrinkIcon from './DrinkIcon';
 import SponsorTicker from './SponsorTicker';
@@ -91,8 +92,10 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
   const carriedEventCode = (() => {
     try {
       const fromUrl = new URLSearchParams(window.location.search).get('e');
-      return (fromUrl && fromUrl.trim()) || eventCode || (channel === 'walkin' ? cfgEventCode : '');
-    } catch (e) { return eventCode || (channel === 'walkin' ? cfgEventCode : ''); }
+      // ...then the code this session already proved it knows (typed at the
+      // door, or arrived with): the URL is not a safe place to keep it.
+      return (fromUrl && fromUrl.trim()) || eventCode || rememberedCode() || (channel === 'walkin' ? cfgEventCode : '');
+    } catch (e) { return eventCode || rememberedCode() || (channel === 'walkin' ? cfgEventCode : ''); }
   })();
   // PICK MODE. With `onPick` supplied this screen chooses a drink and
   // hands it back instead of ordering one -- same tiles, same pictures,
@@ -905,7 +908,7 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
   })();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-2 sm:p-4 overflow-y-auto"
+    <div className="fixed inset-0 z-50 flex flex-wrap content-start sm:content-center items-start sm:items-center justify-center p-2 sm:p-4 overflow-y-auto"
          onPointerDown={resetIdle}
          style={{ background: `linear-gradient(135deg, ${headerColor}ee, #000000cc)`,
                   // The EventsAir app's webview sits UNDER the app's own
@@ -919,7 +922,7 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
                   paddingTop: 'max(1.25rem, env(safe-area-inset-top))',
                   // Plus the sponsor strip's height when it is showing.
                   paddingBottom: embeddedInApp
-                    ? (stripOn ? 'calc(env(safe-area-inset-bottom) + 16rem)' : 'calc(env(safe-area-inset-bottom) + 11rem)')
+                    ? 'calc(env(safe-area-inset-bottom) + 11rem)'
                     : (stripOn ? 'calc(env(safe-area-inset-bottom) + 11rem)' : 'calc(env(safe-area-inset-bottom) + 6rem)') }}>
 
       {/* Idle countdown — big, unmissable, tap-to-dismiss. */}
@@ -1881,11 +1884,21 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
           </div>
         )}
       </div>
-      {/* Sponsor strip, pinned above the phone toolbar / the events-app nav
-          while the customer picks their drink. */}
-      {stripOn && channel !== 'walkin' && (
+      {/* Sponsor strip while the customer picks their drink. On a phone it is
+          pinned above the browser toolbar. Inside the EventsAir app's frame
+          it is NOT pinned: the frame's bottom edge sits somewhere under the
+          app's own nav bar, by an amount that depends on the app's header,
+          and two guesses at that amount both left the logos cut off (Steve,
+          twice). In the frame the strip rides in the scrolling content,
+          directly under the card, where it is visible whenever the card is. */}
+      {stripOn && channel !== 'walkin' && !embeddedInApp && (
         <div className="fixed left-0 right-0 z-[55] shadow-cq-card"
-             style={{ bottom: embeddedInApp ? 'calc(env(safe-area-inset-bottom) + 8.5rem)' : 'env(safe-area-inset-bottom)' }}>
+             style={{ bottom: 'env(safe-area-inset-bottom)' }}>
+          <SponsorTicker items={sponsorStrip.sponsors} position="bottom" size={phoneNarrow ? 'xs' : 'small'} />
+        </div>
+      )}
+      {stripOn && channel !== 'walkin' && embeddedInApp && (
+        <div className="basis-full w-full max-w-3xl mx-auto mt-3 rounded-cq-lg overflow-hidden shadow-cq-card">
           <SponsorTicker items={sponsorStrip.sponsors} position="bottom" size={phoneNarrow ? 'xs' : 'small'} />
         </div>
       )}

@@ -70,11 +70,28 @@ export function stampLink(url, code) {
 }
 
 // Session flag so a visitor who typed the code once isn't asked again on
-// this device for this browser session.
+// this device for this browser session -- AND the code itself, so the order
+// still carries it after the page has moved on.
+//
+// The flag alone was a trap: the typed code was stamped into the URL, the
+// gate stayed closed on the flag, and then anything that rewrote the URL
+// (a "start again", a re-render inside the EventsAir app's frame) dropped
+// the ?e= while the flag kept the gate open. The order went out with no
+// code and came back "That code is from a different event" -- Steve, in
+// the app, on the last tap. The code now travels in storage too.
 const OK_KEY = 'cupq_event_code_ok';
-export function rememberCodeOk() {
-  try { sessionStorage.setItem(OK_KEY, '1'); } catch (e) { /* private mode */ }
+const CODE_KEY = 'cupq_event_code';
+export function rememberCodeOk(code) {
+  try {
+    sessionStorage.setItem(OK_KEY, '1');
+    const c = normalizeCode(code);
+    if (c) sessionStorage.setItem(CODE_KEY, c);
+  } catch (e) { /* private mode */ }
 }
 export function codeAlreadyOk() {
   try { return sessionStorage.getItem(OK_KEY) === '1'; } catch (e) { return false; }
+}
+/** The code this session has proven it knows -- typed, or arrived with. */
+export function rememberedCode() {
+  try { return normalizeCode(sessionStorage.getItem(CODE_KEY) || ''); } catch (e) { return ''; }
 }
