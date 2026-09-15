@@ -102,11 +102,15 @@ class EASurveyClient(EventsAirClient):
         return self.graphql(query, {'id': response_id})
 
     def fetch_contact(self, contact_id: str):
-        """TODO_EA: confirm root field + mobile field name."""
+        """One contact, the fields the mirror keeps for it -- the same shape
+        the paged query returns, so the same helpers read it. Used to refresh
+        a person who has just arrived from an EventsAir page (their details
+        may be a minute old, newer than the last mirror sync)."""
         query = """
         query Contact($id: ID!) {
           contact(id: $id) {
-            id firstName lastName mobile email
+            id internalNumber firstName lastName primaryEmail
+            contactPhoneNumbers { mobile inCountryMobile }
           }
         }"""
         return self.graphql(query, {'id': contact_id})

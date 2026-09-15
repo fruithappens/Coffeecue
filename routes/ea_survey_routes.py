@@ -1969,6 +1969,13 @@ def ea_hello():
     if not cid.startswith('local:') and not attendee_lookup_enabled(db):
         return jsonify({'success': False, 'disabled': True,
                         'message': 'attendee lookup is not enabled for this event'}), 404
+    # Arriving from an EventsAir page (the Thank You link with "Append
+    # contact ID"), the person may have typed their mobile a moment ago.
+    # The mirror syncs every few minutes; this one record is refreshed
+    # live when it is older than that, so the number they just gave is
+    # the number we text. Silent on any failure: the mirror still answers.
+    if not cid.startswith('local:') and not cid.isdigit():
+        _refresh_contact_if_stale(db, cid)
     cur.execute("SELECT first_name, mobile_e164, ea_contact_id FROM ea_attendees "
                 "WHERE ea_contact_id = %s", (cid,))
     row = cur.fetchone()
@@ -1988,6 +1995,59 @@ def ea_hello():
                     'has_phone': bool(mobile), 'phone_hint': phone_hint(mobile),
                     'cid': real_cid or cid})
 
+
+
+REFRESH_STALE_S = 120
+
+
+def _refresh_contact_if_stale(db, cid, max_age_s=REFRESH_STALE_S):
+    """Pull ONE contact live from EventsAir when the mirror's copy is older
+    than max_age_s (or missing), updating only name and numbers -- never
+    the category, tags or custom fields the full sync owns. Never raises."""
+    try:
+        cur = db.cursor()
+        cur.execute("SELECT EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - synced_at)) FROM ea_attendees "
+                    "WHERE ea_contact_id = %s", (cid,))
+        r = cur.fetchone()
+        age = (r[0] if not isinstance(r, dict) else list(r.values())[0]) if r else None
+        if age is not None and float(age) < max_age_s:
+            return False
+        client = _client(db)
+        if client.is_stub():
+            return False
+        ok, data = client.fetch_contact(cid)
+        contact = (data or {}).get('contact') if ok else None
+        if not contact or not contact.get('id'):
+            return False
+        chosen, alternate, source = _contact_mobile(contact)
+        cur.execute("""
+            INSERT INTO ea_attendees (ea_contact_id, internal_number, first_name, last_name,
+                                      mobile_e164, mobile_alt_e164, mobile_source, email, synced_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+            ON CONFLICT (ea_contact_id) DO UPDATE SET
+              first_name = COALESCE(EXCLUDED.first_name, ea_attendees.first_name),
+              last_name = COALESCE(EXCLUDED.last_name, ea_attendees.last_name),
+              mobile_e164 = COALESCE(EXCLUDED.mobile_e164, ea_attendees.mobile_e164),
+              mobile_alt_e164 = COALESCE(EXCLUDED.mobile_alt_e164, ea_attendees.mobile_alt_e164),
+              mobile_source = COALESCE(EXCLUDED.mobile_source, ea_attendees.mobile_source),
+              email = COALESCE(EXCLUDED.email, ea_attendees.email),
+              synced_at = CURRENT_TIMESTAMP
+        """, (str(contact['id']), _as_int(contact.get('internalNumber')),
+              contact.get('firstName'), contact.get('lastName'),
+              normalize_phone_e164(chosen) or None,
+              normalize_phone_e164(alternate or '') or None, source,
+              contact.get('primaryEmail')))
+        db.commit()
+        logger.info("EA contact %s refreshed live (mirror copy was %s)",
+                    cid, 'missing' if age is None else f'{int(float(age))} s old')
+        return True
+    except Exception as e:
+        logger.debug(f"live contact refresh skipped for {cid}: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return False
 
 
 def phone_hint(mobile):
