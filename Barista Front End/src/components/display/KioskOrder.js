@@ -20,6 +20,7 @@
 //   GET  /api/display/menu   → { menu: { stations:[{id,name,wait,load}], coffee_types, milks, sizes } }
 //   POST /api/display/order  → { order_number, station_id, station_name }
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { contactIdFromSearch } from '../../utils/contactId';
 import { getSavedRounds, saveRound } from '../../utils/savedRounds';
 import DrinkIcon from './DrinkIcon';
 import SponsorTicker from './SponsorTicker';
@@ -337,7 +338,7 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
     // again, and the resulting order was attributed to whatever they
     // typed — so it never appeared as their order and the label carried
     // the wrong name.
-    const cid = eaCid || new URLSearchParams(window.location.search).get('cid');
+    const cid = eaCid || contactIdFromSearch(window.location.search);
     if (!cid) return;
     let cancelled = false;
     (async () => {
