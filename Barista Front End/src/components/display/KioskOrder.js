@@ -1424,11 +1424,19 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
                     (Steve: "maybe should say found number ending in 279") --
                     and no more than that, because this screen is on a
                     shared touchscreen as often as a phone. */}
-                {eaIdentity.hasPhone
-                  ? (eaIdentity.phoneHint
-                      ? <>From your event registration, with a mobile ending in <b>…{eaIdentity.phoneHint}</b> on file.</>
-                      : 'From your event registration, with a mobile number on file.')
-                  : 'From your event registration. No mobile number on file.'}
+                {/* Say WHERE we know them from. A 'local:' identity is one
+                    this device remembered from an earlier order, not the
+                    organiser's registration -- and Steve's first test read
+                    "from your event registration" when it was really his
+                    laptop remembering him, which made the test unreadable. */}
+                {(() => {
+                  const from = eaIdentity.guest ? 'Remembered from your last order on this device' : 'From your event registration';
+                  return eaIdentity.hasPhone
+                    ? (eaIdentity.phoneHint
+                        ? <>{from}, with a mobile ending in <b>…{eaIdentity.phoneHint}</b>.</>
+                        : `${from}, with a mobile number on file.`)
+                    : `${from}. No mobile number on file.`;
+                })()}
               </div>
             </div>
             <div className="space-y-3">

@@ -22,7 +22,7 @@ const results=[]; const ok=(n,c,d='')=>{ results.push(!!c); console.log((c?'  ok
   await p.getByRole('button', { name: /Scan your badge/ }).click();
   let right = false; for (let i = 0; i < 40; i++) { await sleep(500); if (/Is this you\?/.test(await body())) { right = true; break; } }
   const t1 = await body();
-  ok('Ada\'s badge (mobile on file): "Is this you? Ada -- with a mobile ending in …777 on file -- Yes, text that number"', right && /Ada/.test(t1) && /mobile ending in …777 on file/.test(t1) && /Yes — text that number/.test(t1) && /Text a different number/.test(t1) && /Not me/.test(t1), t1.replace(/\s+/g,' ').slice(0, 160));
+  ok('Ada\'s badge (mobile on file): "Is this you? Ada -- with a mobile ending in …777 on file -- Yes, text that number"', right && /Ada/.test(t1) && /mobile ending in …777/.test(t1) && /Yes — text that number/.test(t1) && /Text a different number/.test(t1) && /Not me/.test(t1), t1.replace(/\s+/g,' ').slice(0, 160));
   ok('only the last three digits are on the page', !/0400 ?000|400000777/.test(t1));
   await p.screenshot({ path: `${__dirname}/badge_phone_right.png` });
   await click(/Yes — text that number/); await sleep(1200);
