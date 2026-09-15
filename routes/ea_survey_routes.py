@@ -32,6 +32,7 @@ from utils import event_time as _event_time
 import logging
 import secrets
 import os
+import time
 import threading
 from datetime import datetime, timedelta
 
@@ -1069,6 +1070,102 @@ def ea_webhook_log():
     return jsonify({'success': True, 'rows': rows})
 
 
+def sync_attendees(db, row, client, ea_event_id, replace=False):
+    """Pull every contact for the event into the ea_attendees mirror (paged,
+    200 a page). Returns (ok, result). Shared by the Sync button and the
+    background loop below; places no orders, writes nothing back to EA."""
+    run_start = None
+    if replace:
+        _c = db.cursor()
+        _c.execute("SELECT CURRENT_TIMESTAMP")
+        run_start = (_c.fetchone() or [None])[0]
+    total, skip = 0, 0
+    while True:
+        ok, data = client.fetch_contacts_page(ea_event_id, skip=skip, take=200)
+        if not ok:
+            return False, {'message': f'contacts fetch failed at skip={skip}: {data}', 'synced': total}
+        page = (((data.get('event') or {}).get('contactsPaged') or {}).get('items')) or []
+        for contact in page:
+            _upsert_attendee(db, contact, row.get('coffee_field_hint'))
+            total += 1
+        if len(page) < 200:
+            break
+        skip += 200
+    purged = 0
+    if replace and run_start is not None and total > 0:
+        cur_p = db.cursor()
+        cur_p.execute("DELETE FROM ea_attendees WHERE synced_at < %s", (run_start,))
+        purged = cur_p.rowcount or 0
+        db.commit()
+    cur = db.cursor()
+    cur.execute("SELECT COUNT(*) FROM ea_attendees WHERE mobile_e164 IS NOT NULL")
+    with_mobile = (cur.fetchone() or [0])[0]
+    cur.execute("SELECT COUNT(*) FROM ea_attendees "
+                "WHERE coffee_pref IS NOT NULL AND coffee_pref <> ''")
+    with_pref = (cur.fetchone() or [0])[0]
+    return True, {'synced': total, 'purged': purged,
+                  'with_mobile': with_mobile, 'with_coffee_pref': with_pref}
+
+
+def start_attendee_auto_sync(app_obj):
+    """Refresh the mirror on its own, every EA_SYNC_MINUTES (default 10;
+    0 switches it off), whenever EventsAir credentials are configured and
+    attendee lookup is on for the event.
+
+    Steve updated his registration's mobile in EventsAir and the badge scan
+    still said 'no mobile on file' until someone pressed Sync: the mirror
+    only ever moved by hand. A person who fixes their details in the EA app
+    a minute before ordering should be found. Own connection from the pool,
+    never the request's; a failed pull is logged and tried again next tick.
+    """
+    try:
+        minutes = int(os.environ.get('EA_SYNC_MINUTES', '10') or '0')
+    except ValueError:
+        minutes = 10
+    if minutes <= 0:
+        logger.info("EA attendee auto-sync off (EA_SYNC_MINUTES=0)")
+        return None
+
+    def run():
+        from utils.database import get_db_connection, close_connection
+        time.sleep(90)  # let the boot settle first
+        while True:
+            conn = None
+            try:
+                conn = get_db_connection()
+                _ensure_tables(conn)
+                if attendee_lookup_enabled(conn):
+                    row = _ea_row(conn)
+                    client = _client(conn)
+                    ea_event_id = row.get('ea_event_id') or client.event_id
+                    if not client.is_stub() and ea_event_id:
+                        ok, result = sync_attendees(conn, row, client, ea_event_id)
+                        if ok:
+                            logger.info("EA attendee auto-sync: %s contacts, %s with a mobile",
+                                        result['synced'], result['with_mobile'])
+                        else:
+                            logger.warning("EA attendee auto-sync failed: %s", result.get('message'))
+            except Exception as e:
+                logger.warning(f"EA attendee auto-sync: {e}")
+                try:
+                    if conn is not None:
+                        conn.rollback()
+                except Exception:
+                    pass
+            finally:
+                if conn is not None:
+                    try:
+                        close_connection(conn)
+                    except Exception:
+                        pass
+            time.sleep(minutes * 60)
+
+    t = threading.Thread(target=run, daemon=True, name='ea-attendee-sync')
+    t.start()
+    logger.info("EA attendee auto-sync every %d min", minutes)
+    return t
+
+
 @bp.route('/sync-attendees', methods=['POST'])
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff'])
@@ -1096,44 +1193,10 @@ def ea_sync_attendees():
     # attendees (e.g. the Simpsons test data) so the mirror holds ONLY the
     # current event — the mirror is CupQ-local, nothing is written to EA.
     replace = str(request.args.get('replace', '')).lower() in ('1', 'true', 'yes')
-    run_start = None
-    if replace:
-        _c = db.cursor()
-        _c.execute("SELECT CURRENT_TIMESTAMP")
-        run_start = (_c.fetchone() or [None])[0]
-    total, skip = 0, 0
-    while True:
-        ok, data = client.fetch_contacts_page(ea_event_id, skip=skip, take=200)
-        if not ok:
-            return jsonify({'success': False,
-                            'message': f'contacts fetch failed at skip={skip}: {data}',
-                            'synced': total}), 502
-        page = (((data.get('event') or {}).get('contactsPaged') or {}).get('items')) or []
-        for contact in page:
-            _upsert_attendee(db, contact, row.get('coffee_field_hint'))
-            total += 1
-        if len(page) < 200:
-            break
-        skip += 200
-    # Replace-mode purge: only after every page succeeded AND we actually
-    # synced something (never wipe the mirror on an empty pull).
-    purged = 0
-    if replace and run_start is not None and total > 0:
-        cur_p = db.cursor()
-        cur_p.execute("DELETE FROM ea_attendees WHERE synced_at < %s", (run_start,))
-        purged = cur_p.rowcount or 0
-        db.commit()
-    # Counts that decide whether preference-led ordering is viable: an
-    # attendee with no mobile cannot be texted, and one with no preference
-    # still has to be asked.
-    cur = db.cursor()
-    cur.execute("SELECT COUNT(*) FROM ea_attendees WHERE mobile_e164 IS NOT NULL")
-    with_mobile = (cur.fetchone() or [0])[0]
-    cur.execute("SELECT COUNT(*) FROM ea_attendees "
-                "WHERE coffee_pref IS NOT NULL AND coffee_pref <> ''")
-    with_pref = (cur.fetchone() or [0])[0]
-    return jsonify({'success': True, 'synced': total, 'purged': purged,
-                    'with_mobile': with_mobile, 'with_coffee_pref': with_pref})
+    ok, result = sync_attendees(db, row, client, ea_event_id, replace=replace)
+    if not ok:
+        return jsonify({'success': False, **result}), 502
+    return jsonify({'success': True, **result})
 
 
 @bp.route('/test-order', methods=['POST'])
