@@ -13065,7 +13065,10 @@ def get_today_report():
                 people['watched_screen'] = people['orders'] - people['chose_texts']
             _ex("""
                 SELECT COALESCE(order_details::jsonb->>'identified_by',
-                                CASE WHEN order_details::jsonb ? 'ea_contact_id' THEN 'app'
+                                -- Before identified_by existed, a contact id on the
+                                -- order only says they were found on the list (by
+                                -- number or the app link); do not guess which.
+                                CASE WHEN order_details::jsonb ? 'ea_contact_id' THEN 'registration'
                                      ELSE 'unknown' END) AS how, COUNT(*)
                 FROM orders
                 WHERE created_at >= %(d0)s AND created_at < %(d1)s

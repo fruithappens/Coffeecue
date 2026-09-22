@@ -426,7 +426,7 @@ export default function ReportTab() {
           {d.people && d.people.orders > 0 && (() => {
             const pp = d.people; const pct = (n) => `${Math.round((n / pp.orders) * 100)}%`;
             const HOW = { badge: 'Badge scan', app: 'Event app link', remembered: 'Remembered', number: 'Mobile lookup',
-                          name: 'Typed a name', unknown: 'Not recorded' };
+                          name: 'Typed a name', registration: 'Found on the registration list', unknown: 'Not recorded' };
             const ids = Object.entries(pp.identified || {}).sort((a, b) => b[1] - a[1]);
             const maxId = Math.max(1, ...ids.map(([, n]) => n));
             return (
