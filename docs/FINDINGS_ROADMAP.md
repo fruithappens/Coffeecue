@@ -652,3 +652,55 @@ Not findings — decisions and config that only he can make.
 | Postgres password | appeared in logs during the outage; not in the repo |
 | TSP143IV SK polling time | 30 s from the factory — the whole reason labels were slow |
 | `CLOUDPRNT_SHARED_SECRET` | `/cloudprnt` is open until it is set |
+
+---
+
+# What's next (22 Sep 2026)
+
+Everything above is built. These are the open lines of work, in the order
+they should be picked up.
+
+## 22. Commercial: tiers, gating, the quote page
+
+Steve has inbound interest and is setting price points. Proposed model
+(unconfirmed by Steve): per event, three tiers by attendee count — Lite
+≤150 pax / 1 station $290 first day; Standard ≤400 / 2 stations $690 (+EA
+$350, +Square $150); Pro ≤1,000 / unlimited $1,290 — plus texts at 15¢ in
+packs, hardware dry hire per day (station kit $60, printer $90, screen $120,
+USB scanner $30), remote setup $250, on-site $110/h. Treenet (organiser
+paid $1,400 with ~$300 software; a coffee sponsor covered the cart; CupQ was
+a late add-in) would be Standard × 2 days = $980.
+
+**To build:** (a) a `plan` setting (lite/standard/pro) with a limits table;
+locked features greyed in the runner with "Included in Standard"; enforce at
+station-add, branding save, EA and Square cards; soft attendee cap in Health.
+(b) `cupq.app/pricing`: a no-login quote builder (attendees, days, stations,
+add-ons, hardware, location) with a live total and "Send me this quote".
+(c) a one-page PDF with the sponsor angle. Full notes in memory
+`project_cupq_commercial_plan.md`.
+
+## 23. EventsAir in-app identity — settled, one retest pending
+
+Inside the EA attendee app our page is a Static Content iframe and EA passes
+nothing about who is logged in (merge tokens tested: not expanded). The
+interactive-site route is slower than typing a number and was dropped. The
+in-app ceiling is: type the mobile once, remembered on that phone after.
+Pending: Steve's retest without logging out of the app (logging out wipes
+the web storage — that caused the "forgot me / beacon gone" report). If it
+still forgets between normal visits, switch the app item to the button
+version (`docs/eventsair-app-link-button.html`), which opens `/my` as a
+normal page: durable memory and a working camera.
+
+## 24. Production is pointed at the Springfield sandbox event
+
+`eventsair_config.event_id` = Springfield Global Summit
+(`D3EDBD02-272E-4A9E-BAD4-941043AA69C3`) so Steve can test from that app.
+Switch back to Treenet (`BA810457-5B6D-461F-8B97-CC75E9005BFA`) or the next
+real event via Runner › EventsAir, then Sync, before any real event.
+
+## Still on Steve (unchanged)
+
+Rotate the Postgres password (it appeared in tool output during the 8 Sep
+outage work); EA badge QR is a 40-character text payload — the pattern is in
+the deploy log after any scan; Square developer app if payments are wanted;
+decide on 13 (two events at once = a second Railway instance).
