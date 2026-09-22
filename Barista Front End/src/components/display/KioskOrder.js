@@ -311,6 +311,12 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
   // registration it found -- with or without a mobile on file -- before
   // asking for anything else. Cleared by any choice on that screen.
   const [badgeConfirm, setBadgeConfirm] = useState(false);
+  // HOW they told us who they were, for the report (Steve: "how many people
+  // generally choose what option"): 'badge' (camera or wired scanner),
+  // 'app' (arrived identified from the event app / a link), 'remembered'
+  // (this device knew them from last time), 'number' (the mobile found their
+  // registration), or 'name' (typed). Stamped on the order as identified_by.
+  const [identifiedBy, setIdentifiedBy] = useState('');
   // A wired or Bluetooth badge scanner (a keyboard, as far as the page can
   // tell) on the station's touchscreen: a burst of keystrokes ending in
   // Enter on the phone or name step is looked up like a camera scan. The
@@ -329,6 +335,7 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
       const who = await lookupBadge(payload);
       if (!who) return;
       setEaIdentity({ cid: who.cid, firstName: who.firstName, hasPhone: !!who.hasPhone, phoneHint: who.phoneHint || '', guest: false });
+                  setIdentifiedBy('badge');
       setName(who.firstName);
       if (at === 'phone') setBadgeConfirm(true);
     });
@@ -361,6 +368,7 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
             // either.
             guest: String(cid).startsWith('local:'),
           });
+          setIdentifiedBy(String(cid).startsWith('local:') ? 'remembered' : 'app');
           setName(b.first_name);
         }
       } catch (e) { /* anonymous flow */ }
@@ -777,6 +785,9 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
         // Explicit, so the report can count 'chose texts' without inferring
         // it from whether a number happened to be attached.
         sms_opt_in: !!(smsOptIn && phone.trim()),
+        // How they identified themselves (see identifiedBy); 'name' when
+        // none of the shortcuts applied and they typed one.
+        identified_by: identifiedBy || 'name',
         src: new URLSearchParams(window.location.search).get('src') || undefined,
         e: carriedEventCode || undefined,
       };
@@ -977,6 +988,7 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
                 onFound={(who) => {
                   setScanning(false);
                   setEaIdentity({ cid: who.cid, firstName: who.firstName, hasPhone: !!who.hasPhone, phoneHint: who.phoneHint || '', guest: false });
+                  setIdentifiedBy('badge');
                   setName(who.firstName);
                 }}
               />
@@ -1531,6 +1543,7 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
                 onFound={(who) => {
                   setScanning(false);
                   setEaIdentity({ cid: who.cid, firstName: who.firstName, hasPhone: !!who.hasPhone, phoneHint: who.phoneHint || '', guest: false });
+                  setIdentifiedBy('badge');
                   setName(who.firstName);
                   setBadgeConfirm(true);
                 }}
@@ -1596,6 +1609,7 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
                     onClick={() => {
                       setEaSuggest({ firstName: c.first_name, cid: c.cid || null });
                       setName(c.first_name);
+                      setIdentifiedBy('number');
                       afterName();
                     }}
                     className="w-full py-4 rounded-cq-xl text-white text-xl font-bold"
@@ -1606,7 +1620,7 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
                 ))
               ) : (
                 <button
-                  onClick={() => { setName(eaSuggest.firstName); afterName(); }}
+                  onClick={() => { setName(eaSuggest.firstName); setIdentifiedBy('number'); afterName(); }}
                   className="w-full py-4 rounded-cq-xl text-white text-xl font-bold"
                   style={{ backgroundColor: headerColor }}
                 >

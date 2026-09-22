@@ -418,6 +418,44 @@ export default function ReportTab() {
             </Card>
           )}
 
+          {/* Who they said they were, and how they wanted to be told. The
+              numbers the next client asks for ("do people opt in to texts?")
+              and the ones that size a text allowance. Stamped at order time
+              since 5 Sep 2026 (opt-in) and 22 Sep (identified_by); older
+              days count as 'unknown'. */}
+          {d.people && d.people.orders > 0 && (() => {
+            const pp = d.people; const pct = (n) => `${Math.round((n / pp.orders) * 100)}%`;
+            const HOW = { badge: 'Badge scan', app: 'Event app link', remembered: 'Remembered', number: 'Mobile lookup',
+                          name: 'Typed a name', unknown: 'Not recorded' };
+            const ids = Object.entries(pp.identified || {}).sort((a, b) => b[1] - a[1]);
+            const maxId = Math.max(1, ...ids.map(([, n]) => n));
+            return (
+              <Card title="Who they were, and how they wanted to be told" Icon={Users}>
+                <div className="grid grid-cols-3 gap-4 mb-4">
+                  <div>
+                    <div className="text-2xl font-bold text-cq-roast tabular-nums">{pct(pp.gave_mobile)}</div>
+                    <div className="text-xs text-cq-ink-3">gave a mobile</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-cq-roast tabular-nums">{pct(pp.chose_texts)}</div>
+                    <div className="text-xs text-cq-ink-3">chose texts · {pp.chose_texts} orders</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-cq-roast tabular-nums">{pct(pp.watched_screen)}</div>
+                    <div className="text-xs text-cq-ink-3">watched the screen or board</div>
+                  </div>
+                </div>
+                {ids.map(([how, n]) => (
+                  <Bar key={how} label={HOW[how] || how} n={n} max={maxId} />
+                ))}
+                <p className="text-xs text-cq-ink-3 mt-3">
+                  Texts this would send with the ready text only: about {pp.chose_texts} ·
+                  with “being made” texts on as well: about {pp.chose_texts * 2}.
+                </p>
+              </Card>
+            );
+          })()}
+
           {/* What was owed and what was paid -- only for an event that prices
               its coffee (services/payments.py). Unpaid is the number the
               operator chases at the end of the day. */}

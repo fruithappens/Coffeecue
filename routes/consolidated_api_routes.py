@@ -6055,6 +6055,11 @@ def create_kiosk_order():
             # Explicit 'chose texts' flag from the kiosk/app/phone flows (None
             # when the caller predates it) -- reportable without inference.
             'sms_opt_in': (bool(data.get('sms_opt_in')) if 'sms_opt_in' in data else None),
+            # How they told us who they were: badge / app / remembered /
+            # number / name (see KioskOrder identifiedBy). A report line, so
+            # the next client can be told what people actually choose.
+            'identified_by': (str(data.get('identified_by'))[:20]
+                              if data.get('identified_by') in ('badge', 'app', 'remembered', 'number', 'name') else None),
             # Set from the notes-box VIP code. Was hardcoded False, which
             # is what a kiosk order used to be before a code could redeem
             # one -- and which, as a SECOND 'vip' key in this same dict,
@@ -6277,7 +6282,7 @@ def create_kiosk_order_group():
     shared = {k: body.get(k) for k in (
         'phone', 'use_registered_phone', 'ea_contact_id', 'station_id',
         'preferred_station', 'channel', 'src', 'e', 'lookup_phone',
-        'event_password', 'sms_opt_in', 'surface') if k in body}
+        'event_password', 'sms_opt_in', 'surface', 'identified_by') if k in body}
 
     # Letter the round: reserve ONE base (336) and pre-assign 336a/336b/336c
     # so the sequence advances once per round (no gaps) and every surface
@@ -13032,6 +13037,44 @@ def get_today_report():
         except Exception as e:
             logger.warning(f"report channels failed: {e}")
 
+        # --- WHO THEY WERE, HOW THEY WANTED TO BE TOLD ----------------
+        # Steve: "how many people generally choose what option, how many opt
+        # in for SMS" -- for the next client, and for sizing the text
+        # allowance. identified_by and sms_opt_in are stamped at order time
+        # (both arrived after Treenet, so older days show 'unknown').
+        people = {'orders': 0, 'gave_mobile': 0, 'chose_texts': 0, 'watched_screen': 0,
+                  'identified': {}, 'texts_per_order_if_on': 2}
+        try:
+            _ex("""
+                SELECT
+                  COUNT(*),
+                  COUNT(*) FILTER (WHERE (phone IS NOT NULL AND phone <> ''
+                                     AND phone NOT ILIKE 'walk%%' AND phone NOT IN ('na', 'n/a'))
+                                     OR (order_details::jsonb->>'identified_by') = 'number'),
+                  -- A number is only ATTACHED to an order when texts were
+                  -- chosen (the opt-in toggle, a registered number said yes
+                  -- to, or an SMS order), so 'has a phone' IS 'chose texts'.
+                  COUNT(*) FILTER (WHERE phone IS NOT NULL AND phone <> ''
+                                     AND phone NOT ILIKE 'walk%%' AND phone NOT IN ('na', 'n/a'))
+                FROM orders
+                WHERE created_at >= %(d0)s AND created_at < %(d1)s
+            """)
+            r = cur.fetchone()
+            if r:
+                people['orders'], people['gave_mobile'], people['chose_texts'] = int(r[0]), int(r[1]), int(r[2])
+                people['watched_screen'] = people['orders'] - people['chose_texts']
+            _ex("""
+                SELECT COALESCE(order_details::jsonb->>'identified_by',
+                                CASE WHEN order_details::jsonb ? 'ea_contact_id' THEN 'app'
+                                     ELSE 'unknown' END) AS how, COUNT(*)
+                FROM orders
+                WHERE created_at >= %(d0)s AND created_at < %(d1)s
+                GROUP BY 1 ORDER BY 2 DESC
+            """)
+            people['identified'] = {r[0]: int(r[1]) for r in cur.fetchall()}
+        except Exception as e:
+            logger.warning(f"report people failed: {e}")
+
         # --- BEANS ---------------------------------------------------
         # The report described the milk in detail and never once mentioned
         # coffee, which is the thing you actually have to order more of.
@@ -13145,6 +13188,7 @@ def get_today_report():
             'payments': payments,
             'times': times,
             'channels': channels,
+            'people': people,
             'date': _event_time.local_today(_event_timezone()).isoformat(),
             'total_orders': total,
             'status_breakdown': status_counts,
