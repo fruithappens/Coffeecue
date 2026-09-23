@@ -56,20 +56,22 @@ def update_order_status(order_id):
         # Get current user
         current_user_id = get_jwt_identity()
         
-        # Get the order - check if order_id is numeric or alphanumeric
-        if order_id.isdigit():
-            cursor.execute("""
-                SELECT id, order_number, status, order_details, station_id 
-                FROM orders 
-                WHERE id = %s OR order_number = %s
-            """, (int(order_id), order_id))
-        else:
-            # order_id is actually an order_number (alphanumeric)
-            cursor.execute("""
-                SELECT id, order_number, status, order_details, station_id 
-                FROM orders 
-                WHERE order_number = %s
-            """, (order_id,))
+        # Every other order-mutating route (start_order, complete_order,
+        # pickup_order) resolves the URL's :order_id against order_number
+        # ONLY -- that's the customer-facing number the frontend always
+        # sends. This route used to also try the internal `id` column
+        # ("WHERE id = %s OR order_number = %s"), which meant a request for
+        # order_number "2310" could silently match some unrelated row whose
+        # internal id happened to be 2310 -- confirmed live: cancelling
+        # order_number 2310 actually cancelled order_number 759, because
+        # that row's id was 2310. Two different identifier spaces sharing
+        # one OR clause, with no ORDER BY to break ties, picks whichever
+        # row Postgres returns first.
+        cursor.execute("""
+            SELECT id, order_number, status, order_details, station_id
+            FROM orders
+            WHERE order_number = %s
+        """, (order_id,))
         
         order = cursor.fetchone()
         if not order:

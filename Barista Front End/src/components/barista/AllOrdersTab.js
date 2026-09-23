@@ -5,6 +5,8 @@ import { getMilkColorStyle, getMilkDotStyle } from '../../utils/milkColorHelper'
 import { Segmented, TextField } from '../../design';
 import { parseServerDate } from '../../utils/orderUtils';
 import { minutesSince } from '../../utils/orderTime';
+import { askConfirm } from '../shared/ConfirmDialog';
+import { showToast } from '../shared/Toast';
 import '../../styles/milkColors.css';
 
 const AllOrdersTab = () => {
@@ -180,6 +182,32 @@ const AllOrdersTab = () => {
     });
   };
 
+  // No API in this app could ever cancel an order -- once placed, it had to
+  // run the full pending -> in-progress -> completed -> picked-up pipeline
+  // or sit there forever. Two test orders from 11 and 15 Sep did exactly
+  // that on production: still "Waiting" today, counted in every active-
+  // order total on the Live board. The backend status endpoint already
+  // accepts 'cancelled' (routes/order_status_api.py); nothing in the UI
+  // could reach it. This is that missing reach.
+  const handleCancel = async (order) => {
+    const ok = await askConfirm({
+      title: 'Cancel this order?',
+      message: `#${order.id} — ${order.coffeeType || 'coffee'} for ${order.customerName || 'a customer'}. This can't be undone.`,
+      confirmLabel: 'Cancel order',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      const { default: ApiServiceClass } = await import('../../services/ApiService');
+      const api = new ApiServiceClass();
+      await api.put(`/orders/${order.id}/status`, { status: 'cancelled' });
+      showToast(`Order #${order.id} cancelled`, 'success');
+      loadAllOrders();
+    } catch (e) {
+      showToast('Could not cancel that order — try again.', 'error');
+    }
+  };
+
   const renderOrderCard = (order, status) => {
     const milkColorStyle = order.milkType && order.milkType !== 'No Milk' 
       ? getMilkColorStyle(order.milkType, order.milkTypeId)
@@ -243,6 +271,14 @@ const AllOrdersTab = () => {
               <div className="text-cq-ink-3">
                 Picked up {new Date(order.pickedUpAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
               </div>
+            )}
+            {(status === 'pending' || status === 'inProgress') && (
+              <button
+                onClick={() => handleCancel(order)}
+                className="mt-1.5 text-xs font-semibold text-cq-alert hover:underline"
+              >
+                Cancel order
+              </button>
             )}
           </div>
         </div>
