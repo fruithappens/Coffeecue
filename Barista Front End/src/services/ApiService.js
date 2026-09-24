@@ -38,6 +38,24 @@ const antiFlickerProtection = {
 // Singleton instance storage
 let webSocketInitialized = false;
 
+// Module-level, not on `this` -- shared by every ApiService for the life
+// of the page (the class is a singleton anyway; this just says so
+// plainly), keyed by the exact request URL. It exists for one reason: a 304.
+//
+// The backend's /orders route answers an unchanged poll with a real,
+// bodiless 304 (routes/consolidated_api_routes.py, _revalidating_json) --
+// confirmed live, and correct: it's cheap, and it's the reason the
+// barista screens can poll every few seconds without hammering egress.
+// fetchWithAuth had no branch for it, so a 304 fell into the generic
+// error path, which calls response.json() (throws on an empty body,
+// since "" isn't valid JSON) and then response.text() on the SAME
+// already-drained body (throws again, "body stream already read") --
+// producing a mangled "HTTP error: 500 NOT MODIFIED" that looked like a
+// server fault. Every barista screen reading /orders would have gone
+// blank the moment the queue held still for one poll cycle. This is
+// what lets a 304 return the last real body instead of crashing.
+const _apiResponseCache = new Map();
+
 class ApiService {
   constructor() {
     // Add debug logging to track instance creation
@@ -426,17 +444,48 @@ class ApiService {
       // are measured on that clock, not the tablet's (utils/orderTime.js).
       noteServerDate(response.headers.get('date'));
 
+      // A 304 has no body by definition — the server is saying "what you
+      // polled with hasn't changed". Some GET routes (see the note by
+      // _apiResponseCache above) answer this way on purpose. Serve the
+      // last real body we saw for this exact URL instead of falling into
+      // the error path below, which would try to JSON-parse an empty
+      // string and crash.
+      if (response.status === 304) {
+        if (_apiResponseCache.has(url)) {
+          if (this.debugMode) {
+            console.log(`304 for ${endpoint} — serving the cached response`);
+          }
+          localStorage.setItem('coffee_connection_status', 'online');
+          return _apiResponseCache.get(url);
+        }
+        // We have no memory of this URL (fresh page load, but the
+        // browser's OWN disk cache still remembers an ETag from before
+        // this tab ever ran) — our cache can't answer, so force one real
+        // body rather than guess at one.
+        if (this.debugMode) {
+          console.log(`304 for ${endpoint} with nothing cached — forcing a fresh fetch`);
+        }
+        response = await fetch(url, { ...options, headers, mode: 'cors', cache: 'reload' });
+        noteServerDate(response.headers.get('date'));
+      }
+
       if (!response.ok) {
-        // Try to get error details from response
+        // Try to get error details from response. A Response body can only
+        // be read ONCE — calling .json() and then .text() on the same
+        // response after .json() throws (e.g. an empty or non-JSON body)
+        // throws again ("body stream already read"), which used to land
+        // every non-JSON error on the generic status/statusText message
+        // below instead of whatever the server actually said.
         let errorDetails = {};
         try {
-          errorDetails = await response.json();
-        } catch (e) {
+          const raw = await response.text();
           try {
-            errorDetails = { message: await response.text() };
-          } catch (e2) {
-            errorDetails = { message: `HTTP error: ${response.status} ${response.statusText}` };
+            errorDetails = raw ? JSON.parse(raw) : {};
+          } catch (e) {
+            errorDetails = { message: raw || `HTTP error: ${response.status} ${response.statusText}` };
           }
+        } catch (e2) {
+          errorDetails = { message: `HTTP error: ${response.status} ${response.statusText}` };
         }
 
         console.error(`API error: ${response.status}`, errorDetails);
@@ -452,7 +501,10 @@ class ApiService {
       if (this.debugMode) {
         console.log(`Response from ${endpoint}:`, data);
       }
-      
+      if ((options.method || 'GET').toUpperCase() === 'GET') {
+        _apiResponseCache.set(url, data);
+      }
+
       // Mark connection as online
       localStorage.setItem('coffee_connection_status', 'online');
       
