@@ -643,6 +643,11 @@ def send_test_sms():
             to=to,
         )
         logger.info(f"Test SMS sent to {to}: sid={msg.sid}")
+        try:
+            from services import sms_meter
+            sms_meter.record(to, message, 'test', sms_meter.SENT, msg.sid)
+        except Exception:
+            pass
         return jsonify({
             'success': True,
             'testing_mode': False,

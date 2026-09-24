@@ -3027,7 +3027,7 @@ def _notify_customer_order_started(phone, order_number, order_details):
                 _gdb.commit()
                 body = _render_group_started_message(
                     order_details.get('name'), _n, str(_group_id))
-                messaging_service.send_message(phone, body)
+                messaging_service.send_message(phone, body, kind='started')
                 _record_order_message(str(_lead_num), phone, body, 'sent')
                 return
             except Exception as _gs_err:
@@ -3040,7 +3040,7 @@ def _notify_customer_order_started(phone, order_number, order_details):
                     pass
 
         body = _render_started_message(order_number, order_details)
-        messaging_service.send_message(phone, body)
+        messaging_service.send_message(phone, body, kind='started')
         _record_order_message(str(order_number), phone, body, 'sent')
     except Exception as exc:
         logger.error(f"Error sending start-notification SMS: {exc}")
@@ -3417,8 +3417,18 @@ def _notify_customer_order_ready(phone, order_number, order_details, station_id)
         # guard and test_no_send did -- so the view showed no ready texts at
         # all. A round's text is filed against its LEAD cup, the order the
         # customer was sent to track. Steve: "yes, good idea".
-        _record_order_message(
-            str(_lead_num) if _group_final else str(order_number), phone, body, 'sent')
+        _msg_order = str(_lead_num) if _group_final else str(order_number)
+        # Past the event's text cap the ready text is HELD, not sent -- the
+        # customer still has the board and their phone page. Say so in the
+        # barista's per-order Messages view instead of claiming 'sent'.
+        from services import sms_meter
+        _ok, _why = sms_meter.decide('ready', body)
+        if not _ok:
+            logger.info(f"Order {order_number}: ready text {_why}")
+            _record_order_message(_msg_order, phone, body, 'held_text_limit')
+            sms_meter.record(phone, body, 'ready', sms_meter.HELD)
+            return
+        _record_order_message(_msg_order, phone, body, 'sent')
         _dispatch_sms_async(messaging_service, phone, body, order_number)
     except Exception as exc:
         logger.error(f"Error sending ready-notification SMS: {exc}")
@@ -3433,7 +3443,7 @@ def _dispatch_sms_async(messaging_service, phone, body, order_number):
     """
     def _send():
         try:
-            messaging_service.send_message(phone, body)
+            messaging_service.send_message(phone, body, kind='ready')
         except Exception as exc:
             logger.error("Async ready-SMS failed for order %s: %s",
                          order_number, exc)
@@ -4192,7 +4202,7 @@ def reply_to_customer_question(qid):
             try:
                 # Plain text — no template wrapping. The barista's words
                 # are the customer's answer.
-                messaging_service.send_message(phone, response_text)
+                messaging_service.send_message(phone, response_text, kind='question_reply')
             except Exception as sms_err:
                 logger.error(f"Failed to SMS reply for q{qid}: {sms_err}")
 
@@ -4315,7 +4325,7 @@ def send_message(order_id):
                 result = 'DRYRUN'
                 logger.info(f"[dry_run] skipping real SMS send for order {clean_id}")
             else:
-                result = messaging_service.send_message(phone_number, message)
+                result = messaging_service.send_message(phone_number, message, kind='manual')
                 logger.info(f"Message sent to {phone_number} for order {clean_id}, result: {result}")
                 logger.info(f"Result type: {type(result)}, Result value: {repr(result)}")
 
@@ -16321,7 +16331,7 @@ def _notice_send_sms(message, audience):
         sent = 0
         for phone in recipients:
             try:
-                if svc.send_message(phone, message):
+                if svc.send_message(phone, message, kind='notice'):
                     sent += 1
             except Exception as send_err:
                 logger.error(f"notice sms failed for {phone}: {send_err}")

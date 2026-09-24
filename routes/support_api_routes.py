@@ -1183,7 +1183,7 @@ def broadcast_customers():
         sample_failures = []
         for phone in recipients:
             try:
-                sid = messaging_service.send_message(phone, message)
+                sid = messaging_service.send_message(phone, message, kind='broadcast')
                 if sid:
                     sent += 1
                 else:

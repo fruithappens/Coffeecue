@@ -22,11 +22,16 @@ import logging
 
 logger = logging.getLogger("expresso.plan_limits")
 
+# "sms" is the plan's included texts, counted in billed segments -- the
+# allowances Steve settled on 22 Sep. services/sms_meter.py enforces it
+# (or the organiser's own cap, if they set one).
+#
 # Keys match the tier values the pricing-page quote tool already uses
 # (deploy/index.html's #qTier radios), so the same word means the same
 # thing on the website and in this setting.
 PLAN_LIMITS = {
     "lite": {
+        "sms": 500,
         "attendees": 150,
         "stations": 1,
         "vip": False,
@@ -35,6 +40,7 @@ PLAN_LIMITS = {
         "badge_scan": False,
     },
     "standard": {
+        "sms": 2000,
         "attendees": 400,
         "stations": 2,
         "vip": False,
@@ -43,6 +49,7 @@ PLAN_LIMITS = {
         "badge_scan": False,
     },
     "pro": {
+        "sms": 6000,
         "attendees": 1000,
         "stations": None,
         "vip": True,
@@ -51,6 +58,7 @@ PLAN_LIMITS = {
         "badge_scan": True,
     },
     "urn": {
+        "sms": None,
         "attendees": None,
         "stations": None,
         "vip": True,
@@ -62,6 +70,7 @@ PLAN_LIMITS = {
 # No plan_tier set (every instance today): unlimited, matching current
 # behaviour exactly -- gating only ever switches on once Steve sets a tier.
 UNLIMITED = {
+    "sms": None,
     "attendees": None,
     "stations": None,
     "vip": True,
