@@ -961,6 +961,13 @@ def orders():
                     "code": "STATION_CAPABILITY_MISMATCH",
                 }), 400
 
+            from utils.plan_limits import attendee_cap_message
+            _cap_phone = (data.get('phone') or data.get('phone_number') or '').strip()
+            _cap_msg = attendee_cap_message(db, _cap_phone)
+            if _cap_msg:
+                return jsonify({"status": "error", "message": _cap_msg,
+                                 "code": "ATTENDEE_CAP_REACHED"}), 400
+
             # Insert order into database
             cursor = db.cursor()
             # Provenance. This is the barista's own walk-in dialog (the
@@ -4858,10 +4865,14 @@ def _pricing_for(db):
 
 def _badge_scan_for_display(db):
     """True when the kiosk/phone may offer to scan an EventsAir badge.
-    The same operator switch that gates /api/ea/hello, read the same way."""
+    The same operator switch that gates /api/ea/hello, read the same way,
+    ANDed with the event's plan tier."""
     if db is None:
         return False
     try:
+        from utils.plan_limits import feature_allowed
+        if not feature_allowed(db, "badge_scan"):
+            return False
         from routes.ea_survey_routes import attendee_lookup_enabled
         return bool(attendee_lookup_enabled(db))
     except Exception:
@@ -5887,6 +5898,11 @@ def create_kiosk_order():
         if not phone and ea_phone and data.get('use_registered_phone'):
             phone = ea_phone
 
+        from utils.plan_limits import attendee_cap_message, feature_allowed
+        _cap_msg = attendee_cap_message(db, phone)
+        if _cap_msg:
+            return jsonify({'success': False, 'message': _cap_msg}), 503
+
         # The EventsAir rule (services/vip_rule.py): a speaker or a tagged
         # VIP jumps the queue and/or goes to the organiser's chosen station
         # without typing anything. Looked up by the contact id when the
@@ -6118,7 +6134,8 @@ def create_kiosk_order():
         try:
             _pr0 = _pricing_for(db)
             _pay_mode = (_pr0.get('mode') or 'honour') if _pr0.get('enabled') else 'honour'
-            if _pay_mode == 'pay_to_order' and order_details.get('price'):
+            if _pay_mode == 'pay_to_order' and order_details.get('price') \
+                    and feature_allowed(db, 'square'):
                 from routes.square_routes import client_for as _sq_client
                 if _sq_client(db):
                     _initial_status = 'awaiting_payment'
@@ -6139,7 +6156,7 @@ def create_kiosk_order():
         # A Square Payment Link for the beacon and the ready text, when the
         # operator wants the phone to pay. Quick, and never fails the order.
         payment_link = ''
-        if _pay_mode != 'honour' and order_details.get('price'):
+        if _pay_mode != 'honour' and order_details.get('price') and feature_allowed(db, 'square'):
             try:
                 from routes.square_routes import attach_payment_link as _attach_link
                 payment_link = _attach_link(db, order_number, order_details.get('price'),
@@ -6279,6 +6296,12 @@ def create_kiosk_order_group():
     if not isinstance(items, list) or not items:
         return jsonify({'success': False, 'message': 'No drinks in the group'}), 400
     items = items[:10]
+
+    if len(items) > 1:
+        from utils.plan_limits import feature_allowed, GROUP_ORDER_DISABLED_MESSAGE
+        if not feature_allowed(db, 'group_orders'):
+            return jsonify({'success': False, 'message': GROUP_ORDER_DISABLED_MESSAGE}), 403
+
     shared = {k: body.get(k) for k in (
         'phone', 'use_registered_phone', 'ea_contact_id', 'station_id',
         'preferred_station', 'channel', 'src', 'e', 'lookup_phone',
