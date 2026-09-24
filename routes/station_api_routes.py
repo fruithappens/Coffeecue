@@ -226,6 +226,12 @@ def create_station():
 
         coffee_system = current_app.config.get('coffee_system')
         db = coffee_system.db
+
+        from utils.plan_limits import station_cap_message
+        _cap_msg = station_cap_message(db)
+        if _cap_msg:
+            return jsonify({'success': False, 'error': _cap_msg}), 400
+
         cursor = db.cursor()
 
         station_id = data.get('station_id')

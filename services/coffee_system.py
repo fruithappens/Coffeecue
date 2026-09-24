@@ -1399,6 +1399,7 @@ class CoffeeOrderSystem:
         # Same gate as _confirm_order — a scheduled order is still a new
         # order arriving, it just arrives with a delay.
         from utils.order_intake import intake_blocked_reason
+        from utils.plan_limits import attendee_cap_message
 
         _blocked = intake_blocked_reason(self.db)
         if _blocked:
@@ -1406,6 +1407,13 @@ class CoffeeOrderSystem:
                 "Scheduled SMS order from %s refused: intake gate is closed", phone
             )
             return _blocked
+
+        _cap_msg = attendee_cap_message(self.db, phone)
+        if _cap_msg:
+            logger.info(
+                "Scheduled SMS order from %s refused: attendee cap reached", phone
+            )
+            return _cap_msg
 
         try:
             now = datetime.now()
@@ -2438,6 +2446,9 @@ class CoffeeOrderSystem:
     def _is_vip_code(self, code):
         """Check if this is a valid VIP code"""
         try:
+            from utils.plan_limits import feature_allowed
+            if not feature_allowed(self.db, "vip"):
+                return False
             # First check for default VIP code
             cursor = self.db.cursor()
             cursor.execute("SELECT value FROM settings WHERE key = 'vip_code'")
@@ -2511,6 +2522,9 @@ class CoffeeOrderSystem:
         if not raw.strip():
             return raw, False
         try:
+            from utils.plan_limits import feature_allowed
+            if not feature_allowed(self.db, "vip"):
+                return raw, False
             codes = []
             cursor = self.db.cursor()
             cursor.execute("SELECT value FROM settings WHERE key = 'vip_code'")
@@ -6428,11 +6442,17 @@ class CoffeeOrderSystem:
         # a customer who already has a drink in the queue still needs to be
         # able to ask about it or cancel it.
         from utils.order_intake import intake_blocked_reason
+        from utils.plan_limits import attendee_cap_message
 
         _blocked = intake_blocked_reason(self.db)
         if _blocked:
             logger.info("SMS order from %s refused: intake gate is closed", phone)
             return _blocked
+
+        _cap_msg = attendee_cap_message(self.db, phone)
+        if _cap_msg:
+            logger.info("SMS order from %s refused: attendee cap reached", phone)
+            return _cap_msg
 
         # Stash the computed price on the order_details blob so the
         # barista UI can show "what to charge" without having to
@@ -6854,9 +6874,11 @@ class CoffeeOrderSystem:
                 # Payments level 2 (services/payments.py): a Square link for
                 # the ready text, when the operator wants the phone to pay.
                 try:
+                    from utils.plan_limits import feature_allowed
                     _pr = self._get_pricing_settings() or {}
                     if _pr.get("enabled") and (_pr.get("mode") or "honour") != "honour" \
-                            and processed_details.get("price"):
+                            and processed_details.get("price") \
+                            and feature_allowed(self.db, "square"):
                         from flask import current_app as _ca
                         from routes.square_routes import attach_payment_link as _attach
                         _attach(self.db, order_number, processed_details.get("price"),
@@ -11359,6 +11381,10 @@ Text RESET to clear preferences or DELETE to remove all data."""
     def _handle_friend_command(self, phone, state):
         """Handle FRIEND command - add a coffee for a friend"""
         try:
+            from utils.plan_limits import feature_allowed, GROUP_ORDER_DISABLED_MESSAGE
+            if not feature_allowed(self.db, "group_orders"):
+                return GROUP_ORDER_DISABLED_MESSAGE
+
             # Get customer info
             customer = self.get_customer(phone)
             if not customer or not customer.get("name"):
