@@ -639,6 +639,34 @@ def _m023_ea_attendee_markers(cur):
     """)
 
 
+def _m025_demo_requests(cur):
+    """Enquiries from the "Book a demo" form on cupq.com.au.
+
+    The marketing site's button used to be a mailto: link, which does
+    nothing on a machine with no mail app set up and put Steve's personal
+    address on a public page. The form posts here instead; the row is the
+    record, and Steve gets a text (see routes/demo_request_routes.py).
+    """
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS demo_requests (
+            id SERIAL PRIMARY KEY,
+            created_at TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC'),
+            name VARCHAR(120) NOT NULL,
+            organisation VARCHAR(160),
+            email VARCHAR(200),
+            phone VARCHAR(40),
+            event_when VARCHAR(120),
+            attendees VARCHAR(40),
+            message TEXT,
+            quote TEXT,
+            source VARCHAR(40),
+            ip VARCHAR(64),
+            notified BOOLEAN NOT NULL DEFAULT FALSE,
+            handled_at TIMESTAMP
+        )
+    """)
+
+
 # Master list. Append new migrations at the bottom — DO NOT renumber
 # existing ones, and DO NOT change `version`. The runner trusts the
 # version number to determine which migrations to skip.
@@ -759,6 +787,9 @@ MIGRATIONS: list[Migration] = [
     Migration(21, 'event_notices',            _m021_event_notices),
     Migration(22, 'split_shot_model',         _m022_split_shot_model),
     Migration(23, 'ea_attendee_markers',      _m023_ea_attendee_markers),
+    # 24 is sms_outbound_log, on its own branch (PR #650). Versions are
+    # checked one by one, not as a high-water mark, so either can land first.
+    Migration(25, 'demo_requests',            _m025_demo_requests),
 ]
 
 
