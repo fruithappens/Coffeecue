@@ -5628,11 +5628,29 @@ def _kiosk_menu_data(coffee_system):
             pass
         not_today = []
 
+    coffee_built = build('coffee_types')
+    sizes_built = build('sizes')
+    # The organiser's one-tap drinks, checked against this exact menu so a
+    # pick is only offered while everything in it can be made.
+    quick_picks = []
+    try:
+        from utils.quick_picks import resolve_picks
+        quick_picks = resolve_picks(
+            _kv_get(db, 'quick_picks', default=None),
+            {'coffee_types': coffee_built, 'milks': milks_built, 'sizes': sizes_built})
+    except Exception as e:
+        logger.warning(f"kiosk menu: quick picks skipped: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
     return {
         'stations': stations,
-        'coffee_types': build('coffee_types'),
+        'coffee_types': coffee_built,
         'milks': milks_built,
-        'sizes': build('sizes'),
+        'sizes': sizes_built,
+        'quick_picks': quick_picks,
         'beans': beans,
         # Named so a customer screen can answer "is there hot chocolate?"
         # without anyone having to ask a barista.
@@ -5667,6 +5685,43 @@ def get_display_menu():
                         'features': {'attendee_lookup': badge_ok}})
     except Exception as e:
         logger.error(f"display/menu error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/quick-picks', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def get_quick_picks():
+    """The saved quick picks, as the Runner wrote them (not filtered by
+    today's menu -- the editor must show a pick even while its milk is
+    86'd, or saving would silently delete it)."""
+    try:
+        from utils.quick_picks import normalize_picks
+        db = current_app.config.get('coffee_system').db
+        return jsonify({'success': True,
+                        'quick_picks': normalize_picks(_kv_get(db, 'quick_picks', default=None))})
+    except Exception as e:
+        logger.error(f"quick-picks read error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/quick-picks', methods=['PUT'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def put_quick_picks():
+    """Replace the quick picks. Body: {"quick_picks": [{drink, milk, size, label}]}."""
+    try:
+        from utils.quick_picks import normalize_picks
+        body = request.get_json(silent=True) or {}
+        if not isinstance(body.get('quick_picks'), list):
+            return jsonify({'success': False,
+                            'message': 'quick_picks must be a list'}), 400
+        picks = normalize_picks(body['quick_picks'])
+        db = current_app.config.get('coffee_system').db
+        _kv_put(db, 'quick_picks', picks)
+        return jsonify({'success': True, 'quick_picks': picks})
+    except Exception as e:
+        logger.error(f"quick-picks write error: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 

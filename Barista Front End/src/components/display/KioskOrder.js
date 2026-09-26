@@ -219,6 +219,10 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
   // want it (an afternoon session, someone avoiding caffeine) were
   // the only ones who could not choose it.
   const [decaf, setDecaf] = useState(false);
+  // Set when the drink came from a quick pick (the organiser's one-tap
+  // drinks). A quick pick is the whole drink, so it skips the strength
+  // question the tapped-through path asks of espresso drinks.
+  const [quickPicked, setQuickPicked] = useState(false);
   const [chosenStation, setChosenStation] = useState(null); // collect-from station id
   const [phone, setPhone] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -236,7 +240,7 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
     setCart((c) => [...c, currentDrinkSnapshot()]);
     setDrink(null); setMilk(null); setSize(null); setSugar(0);
     setStrength(''); setExtraHot(false); setDecaf(false); setNotes('');
-    setName(''); setDrinkCat('All');
+    setName(''); setDrinkCat('All'); setQuickPicked(false);
     goTo('drink');
   };
   // Saved group rounds (Phase 2): a team's regular round, re-ordered in
@@ -656,7 +660,7 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
   };
 
   const afterSugar = () => {
-    if (drinkIsEspresso) { goTo('strength'); return; }
+    if (drinkIsEspresso && !quickPicked) { goTo('strength'); return; }
     afterStrength();
   };
   const afterStrength = () => {
@@ -739,6 +743,28 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
     goTo('review');
   };
   const chooseStation = (sid) => { setChosenStation(sid); routeFromStation(); };
+
+  // QUICK PICKS. The organiser's one-tap drinks (Runner > Menu > Quick
+  // picks), already checked against today's menu by the server. One tap
+  // sets drink, milk and cup and goes straight on to the name -- the
+  // lounge's "8 seconds from QR to ordered". Sugar is still asked unless
+  // the venue runs self-serve sugar, because a wrong sugar is a remake.
+  const quickPicks = picking ? [] : (menu?.quick_picks || []);
+  const orderQuickPick = (qp) => {
+    const d = (menu?.coffee_types || []).find(x => x.value === qp.drink);
+    if (!d) return;
+    const m = qp.milk ? milkOptions.find(x => x.value === qp.milk) : noMilkOption();
+    if (!m) return;
+    logEvent('QUICK_PICK', { drink: qp.drink, milk: qp.milk, channel });
+    setDrink(d);
+    setMilk(m);
+    setSize(sizeChoices.find(x => x.value === qp.size) || sizeChoices[0] || null);
+    setNotes('');
+    setStrength('');
+    setQuickPicked(true);
+    if (menu?.sugar_self_serve) { setSugar(0); afterStrength(); return; }
+    goTo('sugar');
+  };
 
   const collectingHere = myStation != null && chosenStation === myStation;
   const phoneDigits = phone.replace(/\D/g, '');
@@ -1076,6 +1102,32 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
                     </div>
                   </div>
                 )}
+                {quickPicks.length > 0 && drinkCat === 'All' && (
+                  <div className="mb-5">
+                    <div className="text-xs font-bold uppercase tracking-wide text-cq-ink-3 mb-2">One tap</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {quickPicks.map((qp) => (
+                        <button key={`${qp.drink}|${qp.milk}|${qp.size}`}
+                          onClick={() => orderQuickPick(qp)}
+                          className="flex items-center gap-3 rounded-cq-xl px-4 py-4 min-h-[72px] text-left text-white shadow active:scale-95 transition"
+                          style={{ backgroundColor: headerColor }}>
+                          <span className="flex items-center justify-center h-10 w-10 flex-shrink-0 rounded-full bg-white/90" aria-hidden>
+                            <DrinkIcon name={qp.drink} />
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block text-xl font-extrabold leading-tight break-words">{qp.label}</span>
+                            {qp.label.toLowerCase().indexOf(String(qp.drink_name).toLowerCase()) === -1 && (
+                              <span className="block text-sm font-semibold opacity-90">
+                                {qp.milk_name ? `${qp.drink_name} · ${qp.milk_name}` : qp.drink_name}
+                              </span>
+                            )}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="text-xs font-bold uppercase tracking-wide text-cq-ink-3 mt-5 mb-2">Or choose your own</div>
+                  </div>
+                )}
                 {(() => {
                   // A drink an old server never labelled counts as
                   // featured, so nothing vanishes on a stale bundle.
@@ -1094,6 +1146,7 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
                             : (madeHere(d) ? null : `Station ${stationLabel(d)} only`)}
                           onClick={() => {
                             setDrink(d);
+                            setQuickPicked(false);
                             const v = d.value || '';
                             // A long black / americano / short black gets a
                             // quick "how would you like it?" step (black / dash
