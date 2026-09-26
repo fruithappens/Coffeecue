@@ -4432,6 +4432,10 @@ class CoffeeOrderSystem:
         "whole milk": "full cream",
         "regular": "full cream",
         "dairy": "full cream",
+        # The Organiser's default row is "Lactose-Free Milk"; Quick Setup
+        # and the stations say "lactose free". Without this the event list
+        # never matched and lactose free vanished from the kiosk menu.
+        "lactose-free": "lactose free",
     }
 
     @classmethod
