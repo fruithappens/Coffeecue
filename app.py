@@ -724,6 +724,14 @@ def create_app():
     except Exception as meter_err:
         logger.error(f"SMS meter routes failed to register: {meter_err}")
 
+    # "Book a demo" form on cupq.com.au: /api/public/demo-request.
+    try:
+        from routes.demo_request_routes import bp as demo_request_bp
+        app.register_blueprint(demo_request_bp)
+        logger.info("Demo request routes registered")
+    except Exception as demo_err:
+        logger.error(f"Demo request routes failed to register: {demo_err}")
+
     # Print subsystem: /api/print/* (JWT'd app API) + /cloudprnt (public
     # printer-polling endpoint for the Star mC-Label3 — printers can't
     # OAuth; job delivery is MAC-gated with capability tokens).

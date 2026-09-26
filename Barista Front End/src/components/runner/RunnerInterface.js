@@ -48,6 +48,7 @@ import DisplaySelector from '../display/DisplaySelector';
 // Review & system
 import SystemHealthTab from '../support-tabs/SystemHealthTab';
 import DiagnosticsTab from '../support-tabs/DiagnosticsTab';
+import EnquiriesTab from '../support-tabs/EnquiriesTab';
 import EventsAirTab from '../support-tabs/EventsAirTab';
 import EventDataManagement from '../organiser/EventDataManagement';
 import EmergencyTab from '../support-tabs/EmergencyTab';
@@ -169,6 +170,7 @@ const RunnerInterface = () => {
       {/* Diagnostics already lists the frontend crashes; a separate
           Crashes tab was the same panel twice. */}
       {activeSection === 'system' && activeTab === 'diagnostics' && <DiagnosticsTab />}
+      {activeSection === 'system' && activeTab === 'enquiries' && <EnquiriesTab />}
 
       {activeSection === 'eventsair' && <EventsAirTab />}
       {activeSection === 'settings' && <EventDataManagement />}
