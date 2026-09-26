@@ -180,7 +180,32 @@ def sms_webhook():
             body = result.get_data(as_text=True)
         if body is not None:
             _sid_cache_put(sid, body)
+    _meter_twiml_reply(result)
     return result
+
+
+def _meter_twiml_reply(result):
+    """Count the reply this webhook is about to hand Twilio. Twilio sends it
+    and bills it like any other text, but it never passes through
+    send_message, so the SMS meter would otherwise miss most of what an
+    SMS order costs. A replayed MessageSid returned earlier and is not
+    counted again: Twilio only delivers the reply it actually received."""
+    try:
+        if isinstance(result, str):
+            twiml = result
+        elif isinstance(result, Response) and result.status_code == 200:
+            twiml = result.get_data(as_text=True)
+        else:
+            return
+        to = request.values.get('From', '')
+        if not twiml or '<Message' not in twiml:
+            return
+        if str(to).startswith('+6140000'):
+            return  # bench simulator phone, never a real text
+        from services import sms_meter
+        sms_meter.record_twiml(to, twiml)
+    except Exception as e:
+        logger.debug(f"meter: TwiML reply not counted: {e}")
 
 
 def _sms_webhook_inner():
@@ -643,6 +668,14 @@ def _process_inbound_via_provider(provider_name: str):
     # is a separate outbound API call, not an in-band webhook response.
     if response_text:
         result = provider.send(inbound.from_number, response_text)
+        try:
+            from services import sms_meter
+            sms_meter.record(
+                inbound.from_number, response_text, 'reply',
+                sms_meter.SENT if result.ok else sms_meter.FAILED,
+                getattr(result, 'message_id', None))
+        except Exception:
+            pass
         if not result.ok:
             logger.error(
                 f"{provider_name} outbound reply to {inbound.from_number} failed: %s",
@@ -803,7 +836,7 @@ def send_test_sms():
             })
         
         # Send the test message
-        message_sid = messaging_service.send_message(to_number, message)
+        message_sid = messaging_service.send_message(to_number, message, kind='test')
         
         if message_sid:
             # Log successful message
@@ -934,7 +967,7 @@ def send_sms():
             })
         
         # Send the message
-        message_sid = messaging_service.send_message(to_number, message)
+        message_sid = messaging_service.send_message(to_number, message, kind='manual')
         
         if message_sid:
             # Log successful message

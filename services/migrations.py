@@ -639,6 +639,39 @@ def _m023_ea_attendee_markers(cur):
     """)
 
 
+def _m024_sms_outbound_log(cur):
+    """Every text the event sends, one row each, with what it cost.
+
+    There was no such record. sms_messages holds inbound texts (with the
+    reply glued on), order_messages holds some customer texts for the
+    barista's per-order view, and the SMS health counters are in-memory.
+    None of them could answer "how many texts has this event used?" --
+    which the plan allowance and the organiser's hard cap both depend on.
+    See services/sms_meter.py.
+
+    body is kept (capped) so a surprising number can be explained by
+    reading what was actually sent, not guessed at.
+    """
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS sms_outbound_log (
+            id SERIAL PRIMARY KEY,
+            sent_at TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC'),
+            to_number VARCHAR(32),
+            kind VARCHAR(32) NOT NULL DEFAULT 'other',
+            status VARCHAR(16) NOT NULL,
+            segments INTEGER NOT NULL DEFAULT 0,
+            chars INTEGER NOT NULL DEFAULT 0,
+            gsm BOOLEAN NOT NULL DEFAULT TRUE,
+            provider_id VARCHAR(64),
+            body TEXT
+        )
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_sms_outbound_log_sent_at
+            ON sms_outbound_log (sent_at)
+    """)
+
+
 def _m025_demo_requests(cur):
     """Enquiries from the "Book a demo" form on cupq.com.au.
 
@@ -787,8 +820,7 @@ MIGRATIONS: list[Migration] = [
     Migration(21, 'event_notices',            _m021_event_notices),
     Migration(22, 'split_shot_model',         _m022_split_shot_model),
     Migration(23, 'ea_attendee_markers',      _m023_ea_attendee_markers),
-    # 24 is sms_outbound_log, on its own branch (PR #650). Versions are
-    # checked one by one, not as a high-water mark, so either can land first.
+    Migration(24, 'sms_outbound_log',         _m024_sms_outbound_log),
     Migration(25, 'demo_requests',            _m025_demo_requests),
 ]
 

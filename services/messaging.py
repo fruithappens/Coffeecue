@@ -122,9 +122,15 @@ class MessagingService:
         resp.message(message_body)
         return str(resp)
     
-    def send_message(self, to, body):
+    def send_message(self, to, body, kind='other'):
         """
         Send an SMS message.
+
+        `kind` says what the text is for (see services/sms_meter.KINDS):
+        the meter uses it to decide which texts stop first as the event's
+        text cap nears, and the runner's Text meter shows the count per
+        kind. A caller that does not say is 'other', which stops at the cap
+        -- so a forgotten kind can never slip past it.
 
         Outbound provider selection:
         - If SMS_USE_PROVIDER_FACTORY=true (opt-in for now), delegate
@@ -168,6 +174,31 @@ class MessagingService:
         if str(to or '').startswith(BENCH_PHONE_PREFIX):
             logger.info("BENCH NUMBER %s - not sent: %s", to, body)
             return "bench_blocked"
+
+        # THE METER, in the same one place. Held texts are written down too,
+        # so the runner can see what the cap stopped rather than wonder why
+        # a customer never heard. Returns None like any unsent text.
+        from services import sms_meter
+        allowed, reason = sms_meter.decide(kind, body)
+        if not allowed:
+            logger.info("SMS to %s NOT sent (%s, kind=%s)", to, reason, kind)
+            sms_meter.record(to, body, kind, sms_meter.HELD)
+            return None
+
+        result = self._deliver(to, body)
+        if result == "testing_mode_message_sid":
+            status = sms_meter.SIMULATED
+        elif result:
+            status = sms_meter.SENT
+        else:
+            status = sms_meter.FAILED
+        sms_meter.record(to, body, kind, status,
+                         result if status == sms_meter.SENT else None)
+        return result
+
+    def _deliver(self, to, body):
+        """The actual provider call. Only send_message calls this: going
+        round it would skip the bench wall and the meter."""
 
         # Opt-in to the provider factory. Default off — preserves the
         # exact behaviour every production deploy has today.
@@ -330,7 +361,7 @@ class MessagingService:
             pass
         
         # Send the message
-        return self.send_message(to, message)
+        return self.send_message(to, message, kind='confirmation')
     
     def send_order_ready_notification(self, to, order_number, station_id, for_friend=None):
         """
@@ -394,7 +425,7 @@ class MessagingService:
             message += f"\n\nReceipt: {receipt_link}"
 
         # Send the message
-        return self.send_message(to, message)
+        return self.send_message(to, message, kind='ready')
 
     @staticmethod
     def _maybe_push_eventsair(order_details, order_number, station_id, coffee_type):
@@ -483,7 +514,7 @@ class MessagingService:
             f"Please collect it from {self._station_label(station_id)} soon!"
         )
         
-        return self.send_message(to, message)
+        return self.send_message(to, message, kind='reminder')
     
     @staticmethod
     def generate_qr_code(data, size=10):

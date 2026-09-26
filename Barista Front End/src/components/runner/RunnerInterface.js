@@ -42,6 +42,7 @@ import GroupOrdersTab from '../barista/GroupOrdersTab';
 import EnhancedCommunicationHub from '../support/EnhancedCommunicationHub';
 import SMSTestSimulator from '../support/SMSTestSimulator';
 import SmsBlocklistTab from '../support-tabs/SmsBlocklistTab';
+import SmsMeterTab from '../support-tabs/SmsMeterTab';
 import PrintersTab from '../support-tabs/PrintersTab';
 import DisplaySelector from '../display/DisplaySelector';
 // Review & system
@@ -156,6 +157,7 @@ const RunnerInterface = () => {
       {activeSection === 'messages' && activeTab === 'notice' && <NoticeComposer />}
       {activeSection === 'messages' && activeTab === 'broadcast' && <EnhancedCommunicationHub />}
       {activeSection === 'messages' && activeTab === 'test' && <SMSTestSimulator />}
+      {activeSection === 'messages' && activeTab === 'meter' && <SmsMeterTab />}
       {activeSection === 'messages' && activeTab === 'blocked' && <SmsBlocklistTab />}
 
       {/* Every screen CupQ can put on a wall, plus where the look is set. */}

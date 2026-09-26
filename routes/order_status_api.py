@@ -166,7 +166,7 @@ def update_order_status(order_id):
 
                     message = f"Hi {customer_name}! Your order #{updated_order['order_number']} is ready for pickup at {station_name}. Enjoy your coffee!"
 
-                    messaging_service.send_message(order_details['phone'], message)
+                    messaging_service.send_message(order_details['phone'], message, kind='ready')
                     logger.info(f"SMS notification sent for completed order {updated_order['order_number']}")
 
             except Exception as sms_error:
