@@ -8,7 +8,7 @@
 // screens have no login. One request is shared by every component that asks.
 import React, { useEffect, useState } from 'react';
 
-const FALLBACK = { eventName: '', logo: '', accent: '#B8764A', systemName: 'CupQ', sponsor: null,
+const FALLBACK = { eventName: '', logo: '', accent: '#B8764A', systemName: 'CupQ', sponsor: null, poweredBy: true,
                    header: { mode: 'logo_name', image: '', color: '' }, loaded: false };
 
 let cached = null;      // the resolved brand
@@ -27,6 +27,10 @@ export function loadEventBrand() {
         // The operator's own colour. Falls back to caramel, never to blue.
         accent: c.header_color || '#B8764A',
         systemName: c.system_name || 'CupQ',
+        // Signed "powered by CupQ" unless the plan is white-label (Pro,
+        // Urn). Only an explicit false hides it: an older server that
+        // sends nothing keeps the mark.
+        poweredBy: c.powered_by !== false,
         sponsor: c.sponsor && c.sponsor.enabled ? c.sponsor : null,
         // How the operator wants the top of a customer screen to look.
         header: {
@@ -87,6 +91,7 @@ export function EventHeader({ brand, className = '', align = 'center' }) {
 // event's own mark.
 export function PoweredBy({ brand, className = '' }) {
   const b = brand || FALLBACK;
+  if (b.poweredBy === false) return null;
   return (
     <div className={`text-xs text-cq-ink-3 ${className}`}>
       powered by <span className="font-semibold text-cq-ink-3">{b.systemName || 'CupQ'}</span>

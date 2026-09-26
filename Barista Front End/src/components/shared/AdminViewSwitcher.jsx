@@ -45,8 +45,9 @@ const AdminViewSwitcher = ({ embedded = false }) => {
   // Also hidden on /barista — that screen has its own "Switch view" control in
   // the header pill row (the floating one collided with the action bar there).
   // /displays now carries it in its own header too, so the floating copy
-  // stands down there as well.
-  if (!embedded && ['/', '/login', '/auth/login', '/display', '/barista', '/run', '/displays']
+  // stands down there as well. /bar is the machine's touch strip: every
+  // pixel is a card, and a floating pill sits on top of the Ready column.
+  if (!embedded && ['/', '/login', '/auth/login', '/display', '/barista', '/bar', '/run', '/displays']
       .includes(location.pathname)) return null;
 
   const items = VIEWS.map((v) => {

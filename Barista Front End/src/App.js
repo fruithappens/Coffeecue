@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import BaristaInterface from './components/barista/BaristaInterface';
+import TouchBar from './components/barista/TouchBar';
 import DisplayScreen from './components/display/DisplayScreen';
 import SponsorWall from './components/display/SponsorWall';
 import SignPage from './components/display/SignPage';
@@ -588,6 +589,17 @@ function App() {
           <Route path="/design" element={<DesignSheet />} />
           
           {/* Protected routes with role-based access control */}
+          {/* The stretched touch display at the machine (its own small PC). */}
+          <Route
+            path="/bar"
+            element={
+              <AuthGuard requiredRoles={['barista', 'admin', 'staff', 'organizer', 'organiser', 'event_organizer']}>
+                <ErrorBoundary componentName="Touch Bar" showErrorDetails={true}>
+                  <TouchBar />
+                </ErrorBoundary>
+              </AuthGuard>
+            }
+          />
           <Route 
             path="/barista" 
             element={

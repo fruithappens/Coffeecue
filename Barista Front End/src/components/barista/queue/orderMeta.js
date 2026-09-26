@@ -16,6 +16,12 @@ export const priceOf = (o) => o.priceFormatted || o.price_formatted || null;
 // missing entirely: the order carried beanType 'decaf' and nothing on the
 // barista's screen said so.
 export const isDecaf = (o) => /decaf/i.test(String(o.beanType || o.bean_type || ''));
+// Dine in / take away, when the order was asked (the quick order checkout).
+// null when it was not, so older orders show nothing rather than a guess.
+export const serviceOf = (o) => {
+  const s = String(o.service || '').toLowerCase();
+  return s === 'takeaway' ? 'Take away' : s === 'here' ? 'Dine in' : null;
+};
 
 export const hasPhone = (o) => {
   if (o.hasPhone !== undefined) return !!o.hasPhone;

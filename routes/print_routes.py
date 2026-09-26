@@ -380,6 +380,10 @@ def _snapshot_order(db, order_number, station_id=None):
     # not say so -- and the cup goes to the person who asked for decaf.
     if od.get("decaf") or 'decaf' in str(od.get("bean_type") or od.get("beanType") or '').lower():
         modifiers.append("DECAF")
+    # Take away decides the cup, so it prints; dine in is the lounge default
+    # and would only crowd the label.
+    if str(od.get("service") or "").lower() == "takeaway":
+        modifiers.append("TAKE AWAY")
     # Customer's free-text NOTES ("1/4 strength, 3 shots", "no lid", "oat not
     # soy") must print on the cup — they were never added, so the sticker
     # dropped the one instruction the barista follows while making the drink

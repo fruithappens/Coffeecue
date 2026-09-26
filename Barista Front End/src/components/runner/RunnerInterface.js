@@ -25,6 +25,7 @@ import QuickSetup from '../organiser/QuickSetup';
 import InventoryManagement from '../organiser/InventoryManagement';
 import EventStockManagement from '../organiser/EventStockManagement';
 import StationInventoryConfig from '../organiser/StationInventoryConfig';
+import QuickPicksSettings from '../organiser/QuickPicksSettings';
 import StationSettings from '../organiser/StationSettings';
 import BrandingSettings from '../organiser/BrandingSettings';
 import SponsorsPanel from '../organiser/SponsorsPanel';
@@ -116,6 +117,7 @@ const RunnerInterface = () => {
       {activeSection === 'menu' && activeTab === 'inventory' && <InventoryManagement />}
       {activeSection === 'menu' && activeTab === 'stock' && <EventStockManagement />}
       {activeSection === 'menu' && activeTab === 'stationInventory' && <StationInventoryConfig stations={stations} />}
+      {activeSection === 'menu' && activeTab === 'quickPicks' && <QuickPicksSettings />}
 
       {activeSection === 'stations' && (
         <StationSettings

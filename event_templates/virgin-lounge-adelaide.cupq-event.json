@@ -1,0 +1,616 @@
+{
+  "cupq_event_template": 1,
+  "name": "Virgin Australia Lounge - Adelaide (concept demo)",
+  "description": "Concept demo for pitching Virgin Australia. One barista station, self-serve sugar, four quick picks. The red and the lounge name are placeholders: swap in Virgin's official colour and logo from their brand guidelines (Runner > Branding) before showing it. Lounge hours 5am-11pm are daily, so leave the schedule always open.",
+  "payload": {
+    "milks": [
+      "full cream",
+      "skim",
+      "oat",
+      "almond",
+      "soy",
+      "lactose free"
+    ],
+    "sizes": [
+      "medium"
+    ],
+    "sweeteners": [
+      "no sugar",
+      "1 sugar",
+      "2 sugar"
+    ],
+    "drinks": {
+      "espresso_drinks": true,
+      "hot_chocolate": true,
+      "chai": true,
+      "matcha": false
+    },
+    "teas": {
+      "english_breakfast": false,
+      "earl_grey": false,
+      "green": false,
+      "peppermint": false,
+      "chamomile": false,
+      "lemon_ginger": false,
+      "rooibos": false,
+      "generic": false
+    },
+    "custom_teas": "",
+    "unlimited_stock": true,
+    "all_stations_same_capabilities": true,
+    "always_open_schedule": true,
+    "vip_code": "",
+    "activate_all_stations": false,
+    "active_stations": 1,
+    "sugar_self_serve": true,
+    "branding": {
+      "eventName": "Virgin Australia Lounge",
+      "clientName": "Virgin Australia",
+      "headerColor": "#C8102E",
+      "primaryColor": "#C8102E",
+      "customerHeaderMode": "name",
+      "customerHeaderColor": "#C8102E"
+    },
+    "quick_picks": [
+      {
+        "drink": "cappuccino",
+        "milk": "full cream",
+        "size": "",
+        "service": "here",
+        "label": ""
+      },
+      {
+        "drink": "flat white",
+        "milk": "full cream",
+        "size": "",
+        "service": "here",
+        "label": ""
+      },
+      {
+        "drink": "latte",
+        "milk": "skim",
+        "size": "",
+        "service": "here",
+        "label": ""
+      },
+      {
+        "drink": "long black",
+        "milk": "",
+        "size": "",
+        "service": "takeaway",
+        "label": "Long black to go"
+      }
+    ],
+    "event_inventory": {
+      "coffee": [
+        {
+          "category": "coffee",
+          "description": "Strong coffee shot",
+          "enabled": true,
+          "id": "coffee_1",
+          "name": "Espresso"
+        },
+        {
+          "category": "coffee",
+          "description": "Espresso with steamed milk",
+          "enabled": true,
+          "id": "coffee_2",
+          "name": "Latte"
+        },
+        {
+          "category": "coffee",
+          "description": "Espresso with foam",
+          "enabled": true,
+          "id": "coffee_3",
+          "name": "Cappuccino"
+        },
+        {
+          "category": "coffee",
+          "description": "Double shot with microfoam",
+          "enabled": true,
+          "id": "coffee_4",
+          "name": "Flat White"
+        },
+        {
+          "category": "coffee",
+          "description": "Espresso topped with hot water",
+          "enabled": true,
+          "id": "coffee_5",
+          "name": "Long Black"
+        },
+        {
+          "category": "coffee",
+          "description": "Chocolate coffee drink",
+          "enabled": true,
+          "id": "coffee_6",
+          "name": "Mocha"
+        },
+        {
+          "id": "qs-add-coffee-Americano",
+          "name": "Americano",
+          "description": "Espresso with hot water",
+          "enabled": false
+        },
+        {
+          "id": "qs-add-coffee-Macchiato",
+          "name": "Macchiato",
+          "description": "Espresso with milk foam",
+          "enabled": false
+        },
+        {
+          "id": "qs-add-coffee-Cortado",
+          "name": "Cortado",
+          "description": "Equal parts espresso and warm milk",
+          "enabled": false
+        },
+        {
+          "id": "qs-add-coffee-Filter-Coffee",
+          "name": "Filter Coffee",
+          "description": "Drip brewed coffee",
+          "enabled": false
+        },
+        {
+          "id": "qs-add-coffee-Cold-Brew",
+          "name": "Cold Brew",
+          "description": "Cold steeped coffee",
+          "enabled": false
+        }
+      ],
+      "cups": [
+        {
+          "category": "cups",
+          "description": "240ml cup",
+          "enabled": false,
+          "id": "cups_1",
+          "name": "Small (8oz)",
+          "shots": 1,
+          "volume": 240
+        },
+        {
+          "category": "cups",
+          "description": "350ml cup",
+          "enabled": true,
+          "id": "cups_2",
+          "name": "Medium (12oz)",
+          "shots": 1,
+          "volume": 350
+        },
+        {
+          "category": "cups",
+          "description": "470ml cup",
+          "enabled": false,
+          "id": "cups_3",
+          "name": "Large (16oz)",
+          "shots": 2,
+          "volume": 470
+        },
+        {
+          "category": "cups",
+          "description": "590ml cup",
+          "enabled": false,
+          "id": "cups_4",
+          "name": "Extra Large (20oz)",
+          "shots": 2,
+          "volume": 590
+        },
+        {
+          "category": "cups",
+          "description": "Small disposable cup",
+          "enabled": false,
+          "id": "cups_5",
+          "name": "Takeaway Cup Small",
+          "shots": 1,
+          "volume": 240
+        },
+        {
+          "category": "cups",
+          "description": "Medium disposable cup",
+          "enabled": false,
+          "id": "cups_6",
+          "name": "Takeaway Cup Medium",
+          "shots": 1,
+          "volume": 350
+        },
+        {
+          "category": "cups",
+          "description": "Large disposable cup",
+          "enabled": false,
+          "id": "cups_7",
+          "name": "Takeaway Cup Large",
+          "shots": 2,
+          "volume": 470
+        },
+        {
+          "category": "cups",
+          "description": "Reusable ceramic mug",
+          "enabled": false,
+          "id": "cups_8",
+          "name": "Ceramic Mug",
+          "shots": 1,
+          "volume": 300
+        }
+      ],
+      "drinks": [
+        {
+          "category": "drinks",
+          "description": "Rich chocolate drink",
+          "enabled": true,
+          "id": "drinks_1",
+          "name": "Hot Chocolate"
+        },
+        {
+          "category": "drinks",
+          "description": "Spiced tea with milk",
+          "enabled": true,
+          "id": "drinks_2",
+          "name": "Chai Latte"
+        },
+        {
+          "category": "drinks",
+          "description": "Green tea latte",
+          "enabled": false,
+          "id": "drinks_3",
+          "name": "Matcha Latte"
+        },
+        {
+          "category": "drinks",
+          "description": "Turmeric-based latte",
+          "enabled": false,
+          "id": "drinks_4",
+          "name": "Golden Latte"
+        },
+        {
+          "category": "drinks",
+          "description": "Generic hot tea (black, no specific flavor)",
+          "enabled": false,
+          "id": "drinks_5",
+          "isTea": true,
+          "name": "Hot Tea"
+        },
+        {
+          "category": "drinks",
+          "description": "Classic black tea blend",
+          "enabled": false,
+          "id": "drinks_6",
+          "isTea": true,
+          "name": "English Breakfast Tea"
+        },
+        {
+          "category": "drinks",
+          "description": "Black tea with bergamot",
+          "enabled": false,
+          "id": "drinks_7",
+          "isTea": true,
+          "name": "Earl Grey Tea"
+        },
+        {
+          "category": "drinks",
+          "description": "Light, grassy green tea",
+          "enabled": false,
+          "id": "drinks_8",
+          "isTea": true,
+          "name": "Green Tea"
+        },
+        {
+          "category": "drinks",
+          "description": "Caffeine-free mint herbal",
+          "enabled": false,
+          "id": "drinks_9",
+          "isTea": true,
+          "name": "Peppermint Tea"
+        },
+        {
+          "category": "drinks",
+          "description": "Caffeine-free floral herbal",
+          "enabled": false,
+          "id": "drinks_10",
+          "isTea": true,
+          "name": "Chamomile Tea"
+        },
+        {
+          "category": "drinks",
+          "description": "Zesty herbal infusion",
+          "enabled": false,
+          "id": "drinks_11",
+          "isTea": true,
+          "name": "Lemon & Ginger Tea"
+        },
+        {
+          "category": "drinks",
+          "description": "Caffeine-free South African red tea",
+          "enabled": false,
+          "id": "drinks_12",
+          "isTea": true,
+          "name": "Rooibos Tea"
+        },
+        {
+          "category": "drinks",
+          "description": "Refreshing cold tea",
+          "enabled": false,
+          "id": "drinks_13",
+          "name": "Iced Tea"
+        },
+        {
+          "category": "drinks",
+          "description": "Freshly squeezed juice",
+          "enabled": false,
+          "id": "drinks_14",
+          "name": "Fresh Juice"
+        },
+        {
+          "category": "drinks",
+          "description": "Blended fruit drink",
+          "enabled": false,
+          "id": "drinks_15",
+          "name": "Smoothie"
+        }
+      ],
+      "extras": [
+        {
+          "category": "extras",
+          "description": "Premium chocolate powder for hot chocolate drinks",
+          "enabled": true,
+          "id": "extras_1",
+          "name": "Hot Chocolate Powder"
+        },
+        {
+          "category": "extras",
+          "description": "Spiced tea blend for chai lattes",
+          "enabled": true,
+          "id": "extras_2",
+          "name": "Chai Tea Mix"
+        },
+        {
+          "category": "extras",
+          "description": "Premium green tea powder for matcha lattes",
+          "enabled": true,
+          "id": "extras_3",
+          "name": "Matcha Powder"
+        },
+        {
+          "category": "extras",
+          "description": "Golden milk turmeric powder",
+          "enabled": true,
+          "id": "extras_4",
+          "name": "Turmeric Powder"
+        },
+        {
+          "category": "extras",
+          "description": "Dairy whipped topping",
+          "enabled": true,
+          "id": "extras_5",
+          "name": "Whipped Cream"
+        },
+        {
+          "category": "extras",
+          "description": "Ground cinnamon spice",
+          "enabled": true,
+          "id": "extras_6",
+          "name": "Cinnamon Powder"
+        },
+        {
+          "category": "extras",
+          "description": "Chocolate dusting powder",
+          "enabled": true,
+          "id": "extras_7",
+          "name": "Cocoa Powder"
+        },
+        {
+          "category": "extras",
+          "description": "Sweet marshmallow topping",
+          "enabled": true,
+          "id": "extras_8",
+          "name": "Marshmallows"
+        },
+        {
+          "category": "extras",
+          "description": "Italian almond biscuit",
+          "enabled": true,
+          "id": "extras_9",
+          "name": "Biscotti"
+        },
+        {
+          "category": "extras",
+          "description": "Mini chocolate chips for drinks",
+          "enabled": true,
+          "id": "extras_10",
+          "name": "Chocolate Chips"
+        }
+      ],
+      "milk": [
+        {
+          "category": "milk",
+          "description": "Regular dairy milk",
+          "enabled": true,
+          "id": "milk_1",
+          "name": "Whole Milk"
+        },
+        {
+          "category": "milk",
+          "description": "Low-fat dairy milk",
+          "enabled": true,
+          "id": "milk_2",
+          "name": "Skim Milk"
+        },
+        {
+          "category": "milk",
+          "description": "Plant-based oat milk",
+          "enabled": true,
+          "id": "milk_3",
+          "name": "Oat Milk"
+        },
+        {
+          "category": "milk",
+          "description": "Plant-based almond milk",
+          "enabled": true,
+          "id": "milk_4",
+          "name": "Almond Milk"
+        },
+        {
+          "category": "milk",
+          "description": "Plant-based soy milk",
+          "enabled": true,
+          "id": "milk_5",
+          "name": "Soy Milk"
+        },
+        {
+          "category": "milk",
+          "description": "Plant-based coconut milk",
+          "enabled": false,
+          "id": "milk_6",
+          "name": "Coconut Milk"
+        },
+        {
+          "category": "milk",
+          "description": "Plant-based macadamia milk",
+          "enabled": false,
+          "id": "milk_7",
+          "name": "Macadamia Milk"
+        },
+        {
+          "category": "milk",
+          "description": "Plant-based rice milk",
+          "enabled": false,
+          "id": "milk_8",
+          "name": "Rice Milk"
+        },
+        {
+          "id": "qs-add-milk-Lactose-Free-Milk",
+          "name": "Lactose-Free Milk",
+          "description": "Lactose-free dairy alternative",
+          "enabled": true
+        }
+      ],
+      "sweeteners": [
+        {
+          "category": "sweeteners",
+          "description": "Regular granulated sugar",
+          "enabled": true,
+          "id": "sweeteners_1",
+          "name": "White Sugar"
+        },
+        {
+          "category": "sweeteners",
+          "description": "Raw cane sugar",
+          "enabled": false,
+          "id": "sweeteners_2",
+          "name": "Brown Sugar"
+        },
+        {
+          "category": "sweeteners",
+          "description": "Natural honey sweetener",
+          "enabled": false,
+          "id": "sweeteners_3",
+          "name": "Honey"
+        },
+        {
+          "category": "sweeteners",
+          "description": "Natural leaf sweetener",
+          "enabled": false,
+          "id": "sweeteners_4",
+          "name": "Stevia"
+        },
+        {
+          "category": "sweeteners",
+          "description": "Sugar substitute",
+          "enabled": true,
+          "id": "sweeteners_5",
+          "name": "Artificial Sweetener"
+        },
+        {
+          "category": "sweeteners",
+          "description": "Plant-based sweetener",
+          "enabled": true,
+          "id": "sweeteners_6",
+          "name": "Agave Syrup"
+        },
+        {
+          "category": "sweeteners",
+          "description": "Natural coconut sweetener",
+          "enabled": true,
+          "id": "sweeteners_7",
+          "name": "Coconut Sugar"
+        },
+        {
+          "category": "sweeteners",
+          "description": "Natural maple sweetener",
+          "enabled": true,
+          "id": "sweeteners_8",
+          "name": "Maple Sugar"
+        }
+      ],
+      "syrups": [
+        {
+          "category": "syrups",
+          "description": "Classic vanilla flavor",
+          "enabled": true,
+          "id": "syrups_1",
+          "name": "Vanilla Syrup"
+        },
+        {
+          "category": "syrups",
+          "description": "Sweet caramel flavor",
+          "enabled": true,
+          "id": "syrups_2",
+          "name": "Caramel Syrup"
+        },
+        {
+          "category": "syrups",
+          "description": "Nutty hazelnut flavor",
+          "enabled": true,
+          "id": "syrups_3",
+          "name": "Hazelnut Syrup"
+        },
+        {
+          "category": "syrups",
+          "description": "Warm spice flavor",
+          "enabled": true,
+          "id": "syrups_4",
+          "name": "Cinnamon Syrup"
+        },
+        {
+          "category": "syrups",
+          "description": "Tropical coconut flavor",
+          "enabled": true,
+          "id": "syrups_5",
+          "name": "Coconut Syrup"
+        },
+        {
+          "category": "syrups",
+          "description": "Rich chocolate flavor",
+          "enabled": true,
+          "id": "syrups_6",
+          "name": "Chocolate Syrup"
+        },
+        {
+          "category": "syrups",
+          "description": "Fresh mint flavor",
+          "enabled": true,
+          "id": "syrups_7",
+          "name": "Peppermint Syrup"
+        },
+        {
+          "category": "syrups",
+          "description": "Seasonal spice flavor",
+          "enabled": true,
+          "id": "syrups_8",
+          "name": "Gingerbread Syrup"
+        },
+        {
+          "category": "syrups",
+          "description": "Creamy liqueur flavor",
+          "enabled": true,
+          "id": "syrups_9",
+          "name": "Irish Cream Syrup"
+        },
+        {
+          "category": "syrups",
+          "description": "Natural maple sweetener",
+          "enabled": true,
+          "id": "syrups_10",
+          "name": "Maple Syrup"
+        }
+      ]
+    }
+  }
+}
