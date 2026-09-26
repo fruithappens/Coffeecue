@@ -31,3 +31,23 @@ describe('reconcileUnits', () => {
     expect(reconcileUnits([null, 5, ['x']], [o(1)])).toEqual([['1']]);
   });
 });
+
+import { delayedBy } from './barUnits';
+
+describe('delayedBy', () => {
+  test('moving a card forward delays the ones it jumps', () => {
+    expect(delayedBy([['1'], ['2'], ['3']], [['3'], ['1'], ['2']])).toEqual(['1', '2']);
+  });
+  test('moving a card back delays only that card', () => {
+    expect(delayedBy([['1'], ['2'], ['3']], [['2'], ['3'], ['1']])).toEqual(['1']);
+  });
+  test('batching two neighbours delays nobody', () => {
+    expect(delayedBy([['1'], ['2'], ['3']], [['1', '2'], ['3']])).toEqual([]);
+  });
+  test('pulling a later card into an earlier batch delays the ones between', () => {
+    expect(delayedBy([['1'], ['2'], ['3']], [['1', '3'], ['2']])).toEqual(['2']);
+  });
+  test('no change, no delay', () => {
+    expect(delayedBy([['1'], ['2']], [['1'], ['2']])).toEqual([]);
+  });
+});

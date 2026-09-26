@@ -29,3 +29,25 @@ export function reconcileUnits(saved, liveOrders) {
   return units;
 }
 
+
+// Orders that would wait LONGER after a move: more cups are now ahead of
+// them than before. A batch counts as one slot made together, so joining
+// two cards that are already side by side delays nobody. Used to ask the
+// barista before a drag quietly breaks the time a customer was given.
+export function delayedBy(before, after) {
+  const ahead = (units) => {
+    const m = new Map();
+    let n = 0;
+    for (const u of units) {
+      for (const id of u) m.set(String(id), n);
+      n += u.length;
+    }
+    return m;
+  };
+  const a = ahead(before), b = ahead(after);
+  const out = [];
+  for (const [id, was] of a) {
+    if (b.has(id) && b.get(id) > was) out.push(id);
+  }
+  return out;
+}

@@ -26,7 +26,7 @@ import { ArrowLeftRight, Check, Play, Coffee, Layers, Ban, X } from 'lucide-reac
 import useOrders from '../../hooks/useOrders';
 import useStations from '../../hooks/useStations';
 import { getMilkColor } from '../../utils/milkColorHelper';
-import { reconcileUnits } from '../../utils/barUnits';
+import { reconcileUnits, delayedBy } from '../../utils/barUnits';
 import {
   orderNumberOf, notesOf, isPriority, isDecaf, sinceQueued, sinceStarted, sinceReady,
 } from './queue/orderMeta';
@@ -170,17 +170,25 @@ const TouchBar = () => {
     setDrag(null);
     if (!moving) return;
     let rest = units.filter(u => unitKey(u) !== drag.key);
+    let next;
     if (over.mode === 'merge' && over.key) {
-      rest = rest.map(u => (unitKey(u) === over.key ? [...u, ...moving] : u));
-      saveUnits(rest);
-      return;
+      next = rest.map(u => (unitKey(u) === over.key ? [...u, ...moving] : u));
+    } else {
+      // Insert in VISUAL order, then store in logical (flow) order.
+      let vis = reverse ? [...rest].reverse() : rest;
+      const at = over.key ? vis.findIndex(u => unitKey(u) === over.key) : vis.length;
+      vis = [...vis.slice(0, at < 0 ? vis.length : at), moving, ...vis.slice(at < 0 ? vis.length : at)];
+      next = reverse ? vis.reverse() : vis;
     }
-    // Insert in VISUAL order, then store in logical (flow) order.
-    let vis = reverse ? [...rest].reverse() : rest;
-    const at = over.key ? vis.findIndex(u => unitKey(u) === over.key) : vis.length;
-    vis = [...vis.slice(0, at < 0 ? vis.length : at), moving, ...vis.slice(at < 0 ? vis.length : at)];
-    saveUnits(reverse ? vis.reverse() : vis);
+    // The wait a customer was quoted comes from the server's queue, which a
+    // drag here does not change. If the move makes anyone wait longer than
+    // that, say who and ask first; moves that delay nobody just happen.
+    const delayed = delayedBy(units, next);
+    if (delayed.length) setPendingMove({ next, delayed, moving });
+    else saveUnits(next);
   };
+  const [pendingMove, setPendingMove] = useState(null);
+  const who = (id) => { const o = byId.get(String(id)); return o ? `#${orderNumberOf(o)} ${nameOf(o)}` : `#${id}`; };
   const ungroup = (key) => saveUnits(units.flatMap(u => (unitKey(u) === key ? u.map(id => [id]) : [u])));
 
   const onBodyPointerDown = (e) => { if (!drag) swipe.current = { x: e.clientX, y: e.clientY }; };
@@ -420,6 +428,28 @@ const TouchBar = () => {
           <ArrowLeftRight size={16} /> {reverse ? 'Ready ← Waiting' : 'Waiting → Ready'}
         </button>
       </header>
+
+      {pendingMove && (() => {
+        const self = pendingMove.delayed.filter(id => pendingMove.moving.includes(id));
+        const others = pendingMove.delayed.filter(id => !pendingMove.moving.includes(id));
+        return (
+          <div className="absolute inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }}>
+            <div className="rounded-2xl px-8 py-6 flex items-center gap-8" style={{ background: C.panel, border: `2px solid ${C.batch}`, maxWidth: 1400 }}>
+              <div>
+                <div className="text-2xl font-black" style={{ color: C.ink }}>This changes someone's wait</div>
+                <div className="text-lg font-semibold mt-1" style={{ color: C.ink2 }}>
+                  {others.length > 0 && <>{others.map(who).join(', ')} will wait longer than the time they were given. </>}
+                  {self.length > 0 && <>{self.map(who).join(', ')} moves back and will wait longer than quoted.</>}
+                </div>
+              </div>
+              <button onClick={() => setPendingMove(null)}
+                className="rounded-xl px-6 py-4 text-xl font-black" style={{ background: C.line, color: C.ink }}>Cancel</button>
+              <button onClick={() => { saveUnits(pendingMove.next); setPendingMove(null); }}
+                className="rounded-xl px-6 py-4 text-xl font-black" style={{ background: C.batch, color: '#fff' }}>Move anyway</button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* screens */}
       <div className="flex-1 min-h-0 relative"
