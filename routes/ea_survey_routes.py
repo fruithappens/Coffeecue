@@ -565,7 +565,8 @@ def _process_one(app_obj, conn, correlation_id, fixture=None, qmap_override=None
                     f"Thanks {first}! Your {body['coffee_type'].title()} order "
                     f"#{order_number} is in the queue"
                     + (f" for Station {sid}" if sid else "")
-                    + " - we'll text you when it's ready.")
+                    + " - we'll text you when it's ready.",
+                    kind='confirmation')
         except Exception as e:
             logger.warning(f"EA confirmation SMS failed (non-fatal): {e}")
     else:

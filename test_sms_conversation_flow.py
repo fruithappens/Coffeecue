@@ -271,7 +271,7 @@ def t_start_notification_body():
     captured = {}
 
     class FakeMessagingService:
-        def send_message(self, to, body):
+        def send_message(self, to, body, kind="other"):
             captured['to'] = to
             captured['body'] = body
             return 'sid_fake'
@@ -301,7 +301,7 @@ def t_start_notification_no_phone():
     app = Flask(__name__)
 
     class FailIfCalled:
-        def send_message(self, to, body):
+        def send_message(self, to, body, kind="other"):
             raise AssertionError("should not be called when phone is None")
 
     app.config['messaging_service'] = FailIfCalled()
@@ -318,7 +318,7 @@ def t_start_notification_swallows_errors():
     app = Flask(__name__)
 
     class Boom:
-        def send_message(self, to, body):
+        def send_message(self, to, body, kind="other"):
             raise RuntimeError("twilio down")
 
     app.config['messaging_service'] = Boom()
@@ -374,7 +374,7 @@ def t_broadcast_preview():
     sent_log = []
 
     class FakeMsg:
-        def send_message(self, to, body):
+        def send_message(self, to, body, kind="other"):
             sent_log.append((to, body))
             return 'sid'
 
@@ -403,7 +403,7 @@ def t_broadcast_send_success():
     sent_log = []
 
     class FakeMsg:
-        def send_message(self, to, body):
+        def send_message(self, to, body, kind="other"):
             sent_log.append((to, body))
             return 'sid_' + to
 
@@ -454,7 +454,7 @@ def t_broadcast_capped():
     sent_log = []
 
     class FakeMsg:
-        def send_message(self, to, body):
+        def send_message(self, to, body, kind="other"):
             sent_log.append(to)
             return 'sid'
 

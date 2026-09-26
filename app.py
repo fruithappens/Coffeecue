@@ -716,6 +716,14 @@ def create_app():
         app.register_blueprint(readiness_bp)
         logger.info("Readiness API routes registered")
 
+    # The runner's Text meter: /api/sms/meter (see services/sms_meter.py).
+    try:
+        from routes.sms_meter_routes import bp as sms_meter_bp
+        app.register_blueprint(sms_meter_bp)
+        logger.info("SMS meter routes registered")
+    except Exception as meter_err:
+        logger.error(f"SMS meter routes failed to register: {meter_err}")
+
     # Print subsystem: /api/print/* (JWT'd app API) + /cloudprnt (public
     # printer-polling endpoint for the Star mC-Label3 — printers can't
     # OAuth; job delivery is MAC-gated with capability tokens).
