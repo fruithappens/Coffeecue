@@ -219,10 +219,6 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
   // want it (an afternoon session, someone avoiding caffeine) were
   // the only ones who could not choose it.
   const [decaf, setDecaf] = useState(false);
-  // Set when the drink came from a quick pick (the organiser's one-tap
-  // drinks). A quick pick is the whole drink, so it skips the strength
-  // question the tapped-through path asks of espresso drinks.
-  const [quickPicked, setQuickPicked] = useState(false);
   const [chosenStation, setChosenStation] = useState(null); // collect-from station id
   const [phone, setPhone] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -240,7 +236,7 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
     setCart((c) => [...c, currentDrinkSnapshot()]);
     setDrink(null); setMilk(null); setSize(null); setSugar(0);
     setStrength(''); setExtraHot(false); setDecaf(false); setNotes('');
-    setName(''); setDrinkCat('All'); setQuickPicked(false);
+    setName(''); setDrinkCat('All');
     goTo('drink');
   };
   // Saved group rounds (Phase 2): a team's regular round, re-ordered in
@@ -660,7 +656,7 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
   };
 
   const afterSugar = () => {
-    if (drinkIsEspresso && !quickPicked) { goTo('strength'); return; }
+    if (drinkIsEspresso) { goTo('strength'); return; }
     afterStrength();
   };
   const afterStrength = () => {
@@ -744,11 +740,13 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
   };
   const chooseStation = (sid) => { setChosenStation(sid); routeFromStation(); };
 
-  // QUICK PICKS. The organiser's one-tap drinks (Runner > Menu > Quick
-  // picks), already checked against today's menu by the server. One tap
-  // sets drink, milk and cup and goes straight on to the name -- the
-  // lounge's "8 seconds from QR to ordered". Sugar is still asked unless
-  // the venue runs self-serve sugar, because a wrong sugar is a remake.
+  // QUICK ORDER. The organiser's one-tap drinks (Runner > Menu > Quick
+  // picks), already checked against today's menu by the server. A tap
+  // fills the drink in and opens ONE checkout page: the name box with the
+  // cursor in it, and the pick laid out as choices -- its drink lit up
+  // among the other drinks, its milk among the other milks -- so it can
+  // be changed right there at the last step (Steve's lounge spec). The
+  // lounge's "8 seconds from QR to ordered": tap, type a name, Order.
   const quickPicks = picking ? [] : (menu?.quick_picks || []);
   const orderQuickPick = (qp) => {
     const d = (menu?.coffee_types || []).find(x => x.value === qp.drink);
@@ -759,12 +757,34 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
     setDrink(d);
     setMilk(m);
     setSize(sizeChoices.find(x => x.value === qp.size) || sizeChoices[0] || null);
+    setSugar(0);
     setNotes('');
     setStrength('');
-    setQuickPicked(true);
-    if (menu?.sugar_self_serve) { setSugar(0); afterStrength(); return; }
-    goTo('sugar');
+    goTo('quick');
   };
+  // Changing the drink on the checkout page keeps the milk sensible: a
+  // black drink takes no milk, and a milk drink coming off a black one
+  // gets the first milk on the shelf rather than "no milk".
+  const quickChangeDrink = (d) => {
+    setDrink(d);
+    const v = d.value || '';
+    if (MILKLESS.test(v) && !/macchiato|piccolo|cortado/i.test(v)) {
+      setMilk(noMilkOption());
+    } else if (!milk || (milk.value || '').includes('no milk')) {
+      setMilk(milkOptions.find(m => !m.unavailable && !(m.value || '').includes('no milk')) || milk);
+    }
+  };
+  // Collect from: this screen's station when it can make the drink, else
+  // the fastest one that can. No question asked on the checkout page.
+  const quickStation = () => {
+    if (myStation != null && capable.includes(myStation)) return myStation;
+    if (fastestStation != null) return fastestStation;
+    return capable[0] ?? null;
+  };
+  useEffect(() => {
+    if (step === 'quick') setChosenStation(quickStation());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, drink, milk, size, capable.join(',')]);
 
   const collectingHere = myStation != null && chosenStation === myStation;
   const phoneDigits = phone.replace(/\D/g, '');
@@ -1104,7 +1124,7 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
                 )}
                 {quickPicks.length > 0 && drinkCat === 'All' && (
                   <div className="mb-5">
-                    <div className="text-xs font-bold uppercase tracking-wide text-cq-ink-3 mb-2">One tap</div>
+                    <div className="text-xs font-bold uppercase tracking-wide text-cq-ink-3 mb-2">Quick order</div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {quickPicks.map((qp) => (
                         <button key={`${qp.drink}|${qp.milk}|${qp.size}`}
@@ -1125,7 +1145,7 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
                         </button>
                       ))}
                     </div>
-                    <div className="text-xs font-bold uppercase tracking-wide text-cq-ink-3 mt-5 mb-2">Or choose your own</div>
+                    <div className="text-xs font-bold uppercase tracking-wide text-cq-ink-3 mt-5 mb-2">Or build your own</div>
                   </div>
                 )}
                 {(() => {
@@ -1146,7 +1166,6 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
                             : (madeHere(d) ? null : `Station ${stationLabel(d)} only`)}
                           onClick={() => {
                             setDrink(d);
-                            setQuickPicked(false);
                             const v = d.value || '';
                             // A long black / americano / short black gets a
                             // quick "how would you like it?" step (black / dash
@@ -1206,6 +1225,116 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
             )}
           </>
         )}
+
+        {/* ---------- QUICK ORDER CHECKOUT ---------- */}
+        {step === 'quick' && drink && (() => {
+          const chip = (on, disabled) =>
+            `px-4 py-3 rounded-full text-lg font-bold transition active:scale-95 ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`;
+          const chipStyle = (on) => on
+            ? { backgroundColor: headerColor, color: '#fff' }
+            : { backgroundColor: 'var(--cq-milk, #FFFFFF)', color: 'var(--cq-ink-2, #5C4A3D)',
+                boxShadow: '0 1px 2px rgba(59,35,20,0.12)' };
+          const drinkChoices = (menu?.coffee_types || []).filter(d =>
+            (d.stations || []).length > 0
+            && (d.featured !== false || d.value === drink.value)
+            && (drinkCat === 'All' || d.category === drinkCat || d.value === drink.value));
+          const black = MILKLESS.test(drink.value || '') && !/macchiato|piccolo|cortado/i.test(drink.value || '');
+          const milkChoices = milkOptions.filter(m => !m.unavailable && !(m.value || '').includes('no milk'));
+          const sid = chosenStation;
+          const canOrder = name.trim().length > 0 && capable.length > 0 && !submitting;
+          const submit = () => { if (canOrder) placeOrder(); };
+          return (
+            <>
+              <Header title="Quick order" onBack={goBack} />
+              <label className="block text-sm font-bold uppercase tracking-wide text-cq-ink-3 mb-2" htmlFor="quick-name">Your name</label>
+              <input id="quick-name" autoFocus value={name} maxLength={30}
+                onChange={e => setName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') submit(); }}
+                placeholder="First name"
+                autoComplete="given-name"
+                className="w-full text-3xl font-bold px-5 py-4 rounded-cq-xl border-2 bg-cq-milk text-cq-roast mb-6 outline-none"
+                style={{ borderColor: headerColor }} />
+
+              <div className="text-sm font-bold uppercase tracking-wide text-cq-ink-3 mb-2">Coffee</div>
+              <div className="flex flex-wrap gap-2 mb-5" role="radiogroup" aria-label="Coffee">
+                {drinkChoices.map(d => (
+                  <button key={d.value} role="radio" aria-checked={d.value === drink.value}
+                    onClick={() => quickChangeDrink(d)}
+                    className={chip(d.value === drink.value)} style={chipStyle(d.value === drink.value)}>
+                    {d.name}
+                  </button>
+                ))}
+              </div>
+
+              {!black && (
+                <>
+                  <div className="text-sm font-bold uppercase tracking-wide text-cq-ink-3 mb-2">Milk</div>
+                  <div className="flex flex-wrap gap-2 mb-5" role="radiogroup" aria-label="Milk">
+                    {milkChoices.map(m => {
+                      const on = milk?.value === m.value;
+                      return (
+                        <button key={m.value} role="radio" aria-checked={on}
+                          onClick={() => setMilk(m)}
+                          className={chip(on)} style={chipStyle(on)}>
+                          {m.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              {needsSizeStep && (
+                <>
+                  <div className="text-sm font-bold uppercase tracking-wide text-cq-ink-3 mb-2">Cup</div>
+                  <div className="flex flex-wrap gap-2 mb-5" role="radiogroup" aria-label="Cup">
+                    {sizeChoices.map(z => {
+                      const on = size?.value === z.value;
+                      return (
+                        <button key={z.value} role="radio" aria-checked={on}
+                          onClick={() => setSize(z)} className={chip(on)} style={chipStyle(on)}>
+                          {z.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              {!menu?.sugar_self_serve && (
+                <div className="flex items-center gap-4 mb-5">
+                  <div className="text-sm font-bold uppercase tracking-wide text-cq-ink-3">Sugar</div>
+                  <button onClick={() => setSugar(v => Math.max(0, v - 1))} disabled={sugar === 0}
+                    aria-label="Less sugar"
+                    className="p-2 rounded-full bg-cq-milk shadow text-cq-ink-2 disabled:opacity-40"><Minus size={22} /></button>
+                  <span className="text-2xl font-extrabold w-8 text-center" style={{ color: headerColor }}>{sugar}</span>
+                  <button onClick={() => setSugar(v => Math.min(9, v + 1))} aria-label="More sugar"
+                    className="p-2 rounded-full bg-cq-milk shadow text-cq-ink-2"><Plus size={22} /></button>
+                </div>
+              )}
+
+              {sid != null && (menu?.stations || []).length > 1 && (
+                <div className="flex items-center gap-2 text-base text-cq-ink-3 mb-4">
+                  <MapPin size={18} /> Collect from <strong className="text-cq-roast">{stationName(sid)}</strong> · {waitText(sid)}
+                </div>
+              )}
+              {capable.length === 0 && (
+                <div className="rounded-cq-xl p-4 mb-4 bg-cq-alert-wash text-cq-alert text-lg font-semibold">
+                  No station can make that combination right now. Try another milk or drink.
+                </div>
+              )}
+              {errorMsg && (
+                <div className="rounded-cq-xl p-4 mb-4 bg-cq-alert-wash text-cq-alert text-lg font-semibold">{errorMsg}</div>
+              )}
+
+              <button onClick={submit} disabled={!canOrder}
+                className="w-full py-5 rounded-cq-xl text-2xl font-extrabold text-white disabled:opacity-50 flex items-center justify-center gap-2"
+                style={{ backgroundColor: headerColor }}>
+                {submitting ? <><Loader className="animate-spin" /> Sending…</> : <>Order <Check size={28} /></>}
+              </button>
+            </>
+          );
+        })()}
 
         {/* ---------- MILK ---------- */}
         {step === 'milk' && (
