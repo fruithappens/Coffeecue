@@ -895,7 +895,7 @@ def send_message(order_id):
         
         # Send the message using messaging service
         try:
-            result = messaging_service.send_message(phone_number, message)
+            result = messaging_service.send_message(phone_number, message, kind='manual')
             logger.info(f"Message sent to {phone_number} for order {clean_id}, result: {result}")
             
             # Log the message in the database

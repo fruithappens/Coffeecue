@@ -639,6 +639,67 @@ def _m023_ea_attendee_markers(cur):
     """)
 
 
+def _m024_sms_outbound_log(cur):
+    """Every text the event sends, one row each, with what it cost.
+
+    There was no such record. sms_messages holds inbound texts (with the
+    reply glued on), order_messages holds some customer texts for the
+    barista's per-order view, and the SMS health counters are in-memory.
+    None of them could answer "how many texts has this event used?" --
+    which the plan allowance and the organiser's hard cap both depend on.
+    See services/sms_meter.py.
+
+    body is kept (capped) so a surprising number can be explained by
+    reading what was actually sent, not guessed at.
+    """
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS sms_outbound_log (
+            id SERIAL PRIMARY KEY,
+            sent_at TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC'),
+            to_number VARCHAR(32),
+            kind VARCHAR(32) NOT NULL DEFAULT 'other',
+            status VARCHAR(16) NOT NULL,
+            segments INTEGER NOT NULL DEFAULT 0,
+            chars INTEGER NOT NULL DEFAULT 0,
+            gsm BOOLEAN NOT NULL DEFAULT TRUE,
+            provider_id VARCHAR(64),
+            body TEXT
+        )
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_sms_outbound_log_sent_at
+            ON sms_outbound_log (sent_at)
+    """)
+
+
+def _m025_demo_requests(cur):
+    """Enquiries from the "Book a demo" form on cupq.com.au.
+
+    The marketing site's button used to be a mailto: link, which does
+    nothing on a machine with no mail app set up and put Steve's personal
+    address on a public page. The form posts here instead; the row is the
+    record, and Steve gets a text (see routes/demo_request_routes.py).
+    """
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS demo_requests (
+            id SERIAL PRIMARY KEY,
+            created_at TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC'),
+            name VARCHAR(120) NOT NULL,
+            organisation VARCHAR(160),
+            email VARCHAR(200),
+            phone VARCHAR(40),
+            event_when VARCHAR(120),
+            attendees VARCHAR(40),
+            message TEXT,
+            quote TEXT,
+            source VARCHAR(40),
+            ip VARCHAR(64),
+            notified BOOLEAN NOT NULL DEFAULT FALSE,
+            handled_at TIMESTAMP
+        )
+    """)
+
+
 # Master list. Append new migrations at the bottom — DO NOT renumber
 # existing ones, and DO NOT change `version`. The runner trusts the
 # version number to determine which migrations to skip.
@@ -759,6 +820,8 @@ MIGRATIONS: list[Migration] = [
     Migration(21, 'event_notices',            _m021_event_notices),
     Migration(22, 'split_shot_model',         _m022_split_shot_model),
     Migration(23, 'ea_attendee_markers',      _m023_ea_attendee_markers),
+    Migration(24, 'sms_outbound_log',         _m024_sms_outbound_log),
+    Migration(25, 'demo_requests',            _m025_demo_requests),
 ]
 
 

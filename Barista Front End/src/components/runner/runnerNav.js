@@ -7,7 +7,7 @@ import {
   Zap, Package, Coffee, Palette, Calendar, Users, Activity, Clock, Radio,
   Printer, BarChart3, Heart, CalendarClock, Settings, AlertTriangle, HelpCircle,
   ListChecks, Boxes, Image as ImageIcon, Tag, Droplet, FileText, CheckCircle,
-  Terminal, MessageSquare, Phone, Ban, UserCog, Monitor, Megaphone,
+  Terminal, MessageSquare, Phone, Ban, UserCog, Monitor, Megaphone, Gauge, Inbox,
 } from 'lucide-react';
 
 export const NAV = [
@@ -69,11 +69,13 @@ export const TABS = {
     { id: 'notice',    label: 'Tell everyone', Icon: Megaphone },
     { id: 'broadcast', label: 'Text blast', Icon: MessageSquare },
     { id: 'test',      label: 'Test a text', Icon: Phone },
+    { id: 'meter',     label: 'Text meter', Icon: Gauge },
     { id: 'blocked',   label: 'Blocked numbers', Icon: Ban },
   ],
   system: [
     { id: 'health',      label: 'Health',      Icon: Heart },
     { id: 'diagnostics', label: 'Diagnostics', Icon: Terminal },
+    { id: 'enquiries',   label: 'Enquiries',   Icon: Inbox },
   ],
 };
 

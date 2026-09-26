@@ -281,7 +281,7 @@ class PickupReminderService:
                 f"{verb} still waiting at {station_text}. Come grab {tail}!"
             )
             if self.messaging_service:
-                self.messaging_service.send_message(phone, body)
+                self.messaging_service.send_message(phone, body, kind='reminder')
                 logger.info(
                     "[pickup-reminder] sent ONE round reminder for group %s to %s",
                     group_id, phone,
@@ -318,7 +318,7 @@ class PickupReminderService:
                 f"Come grab it before it goes cold!"
             )
             if self.messaging_service:
-                self.messaging_service.send_message(phone, body)
+                self.messaging_service.send_message(phone, body, kind='reminder')
                 logger.info(
                     "[pickup-reminder] sent reminder for order %s to %s",
                     order_number, phone,
