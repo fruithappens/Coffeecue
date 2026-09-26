@@ -42,8 +42,14 @@ def test_normalize_cleans_folds_and_dedupes():
         ]
     )
     assert out == [
-        {"drink": "flat white", "milk": "full cream", "size": "regular", "label": ""},
-        {"drink": "long black", "milk": "", "size": "", "label": ""},
+        {
+            "drink": "flat white",
+            "milk": "full cream",
+            "size": "regular",
+            "label": "",
+            "service": "",
+        },
+        {"drink": "long black", "milk": "", "size": "", "label": "", "service": ""},
     ]
 
 
@@ -62,6 +68,7 @@ def test_resolve_uses_menu_values_and_builds_label():
             "milk_name": "Full Cream",
             "size": "regular",
             "label": "Flat White · Full Cream",
+            "service": "",
         }
     ]
 
@@ -98,3 +105,19 @@ def test_retired_size_falls_back_to_default_cup():
 def test_empty_menu_resolves_nothing():
     assert resolve_picks([{"drink": "latte"}], {}) == []
     assert resolve_picks([{"drink": "latte"}], None) == []
+
+
+def test_service_default_is_kept_and_checked():
+    out = normalize_picks(
+        [
+            {"drink": "latte", "service": "Takeaway"},
+            {"drink": "mocha", "service": "to the moon"},
+        ]
+    )
+    assert [p["service"] for p in out] == ["takeaway", ""]
+    assert (
+        resolve_picks([{"drink": "latte", "milk": "skim", "service": "here"}], MENU)[0][
+            "service"
+        ]
+        == "here"
+    )

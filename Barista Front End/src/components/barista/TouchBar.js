@@ -28,7 +28,7 @@ import useStations from '../../hooks/useStations';
 import { getMilkColor } from '../../utils/milkColorHelper';
 import { reconcileUnits, delayedBy } from '../../utils/barUnits';
 import {
-  orderNumberOf, notesOf, isPriority, isDecaf, sinceQueued, sinceStarted, sinceReady,
+  orderNumberOf, notesOf, isPriority, isDecaf, serviceOf, sinceQueued, sinceStarted, sinceReady,
 } from './queue/orderMeta';
 
 const HOLD_MS = 450;
@@ -222,6 +222,12 @@ const TouchBar = () => {
         <span className="flex gap-1">
           {isPriority(o) && <span className="px-1.5 rounded text-xs font-black" style={{ background: C.vip, color: '#000' }}>VIP</span>}
           {isDecaf(o) && <span className="px-1.5 rounded text-xs font-black" style={{ background: '#7C3AED', color: '#fff' }}>DECAF</span>}
+          {serviceOf(o) && (
+            <span className="px-1.5 rounded text-xs font-black"
+              style={serviceOf(o) === 'Take away' ? { background: '#F59E0B', color: '#000' } : { background: C.line, color: C.ink }}>
+              {serviceOf(o).toUpperCase()}
+            </span>
+          )}
         </span>
       </div>
       <div className={`${compact ? 'text-2xl' : 'text-4xl'} font-black leading-none mt-1 truncate`} style={{ color: C.ink }}>{nameOf(o)}</div>

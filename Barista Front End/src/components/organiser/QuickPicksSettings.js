@@ -63,7 +63,7 @@ const QuickPicksSettings = () => {
   });
   const remove = (i) => setPicks(ps => ps.filter((_, j) => j !== i));
   const add = () => setPicks(ps => [...ps, {
-    drink: drinks[0]?.value || '', milk: milks[0]?.value || '', size: '', label: '',
+    drink: drinks[0]?.value || '', milk: milks[0]?.value || '', size: '', service: '', label: '',
   }]);
 
   const save = async () => {
@@ -118,7 +118,7 @@ const QuickPicksSettings = () => {
           const live = liveKeys.has(keyOf(p));
           return (
             <div key={i} className="p-3 border-2 border-cq-line rounded-cq-md">
-              <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_1.4fr_auto] gap-2 items-center">
+              <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_1fr_1.4fr_auto] gap-2 items-center">
                 <select className={select} value={p.drink} aria-label="Drink"
                   onChange={e => update(i, { drink: e.target.value })}>
                   {!drinks.some(d => d.value === p.drink) && <option value={p.drink}>{p.drink || 'Choose a drink'}</option>}
@@ -134,6 +134,12 @@ const QuickPicksSettings = () => {
                   onChange={e => update(i, { size: e.target.value })}>
                   <option value="">Default cup</option>
                   {sizes.map(s => <option key={s.value} value={s.value}>{s.name}</option>)}
+                </select>
+                <select className={select} value={p.service || ''} aria-label="Dine in or take away"
+                  onChange={e => update(i, { service: e.target.value })}>
+                  <option value="">Dine in (default)</option>
+                  <option value="here">Dine in</option>
+                  <option value="takeaway">Take away</option>
                 </select>
                 <input className={select} value={p.label || ''} maxLength={40} aria-label="Button text"
                   placeholder="Button text (optional)"

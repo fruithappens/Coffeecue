@@ -630,6 +630,7 @@ def orders():
                     'shots': order_details.get('shots'),
                     'bean_type': order_details.get('bean_type'),
                     'beanType': order_details.get('bean_type'),
+                    'service': order_details.get('service'),
                     'batch_group': _bg,
                     'batchGroup': _bg,
                     'status': status,
@@ -1198,6 +1199,7 @@ def get_pending_orders():
                 'shots': order_details.get('shots'),
                 'bean_type': order_details.get('bean_type'),
                 'beanType': order_details.get('bean_type'),
+                'service': order_details.get('service'),
                 # Order channel + no-SMS flag (EA app orders).
                 'orderSource': order_details.get('source') or 'sms',
                 'needsContact': bool(order_details.get('needs_contact')),
@@ -1365,6 +1367,7 @@ def get_in_progress_orders():
                 'milkType': milk_type,
                 'extraHot': extra_hot,
                 'strength': order_details.get('strength', '') if isinstance(order_details, dict) else '',
+                'service': order_details.get('service') if isinstance(order_details, dict) else None,
                 # Team mode: which stages (shots/milk) are already done.
                 'stages': order_details.get('stages') or {},
                 # Order channel + no-SMS flag (EA app orders).
@@ -1470,6 +1473,7 @@ def get_completed_orders():
                 'coffeeType': _drink_display_name(order_details),     # camelCase
                 'milk_type': order_details.get('milk', 'Standard'),
                 'milkType': order_details.get('milk', 'Standard'),     # camelCase
+                'service': order_details.get('service'),
                 'completed_at': completed_at,
                 'completedAt': completed_at.isoformat() if hasattr(completed_at, 'isoformat') else completed_at,
                 'picked_up_at': picked_up_at,
@@ -5789,6 +5793,10 @@ def create_kiosk_order():
         # ask for it. Same key the walk-in path writes, so the barista card
         # and the label read it without knowing where the order came from.
         bean_type = str(data.get('bean_type') or '').strip().lower()
+        # Dine in or take away (the lounge's quick order asks). Only the two
+        # known words are kept; anything else is "not asked" (None).
+        service = str(data.get('service') or '').strip().lower()
+        service = service if service in ('here', 'takeaway') else None
 
         # EventsAir pre-identification (research Phase 4.8): the EA app
         # links here with ?cid={ContactID}; the kiosk passes it through.
@@ -6119,6 +6127,7 @@ def create_kiosk_order():
             'strength': strength,
             'temp': temp,
             'bean_type': bean_type or None,
+            'service': service,
             # The barista's walk-up form posts here too (channel 'walkin' ->
             # 'barista'); keep the legacy order_type honest for it.
             'order_type': 'walk-in' if req_channel == 'barista' else 'kiosk',

@@ -18,6 +18,8 @@ here, both pure so they are testable without a database:
 
 MAX_PICKS = 6
 MAX_LABEL = 40
+# Dine in / take away default for the checkout page; "" = the venue default.
+_SERVICES = {"", "here", "takeaway"}
 
 # Milk values that mean "no milk" -- the kiosk sends 'no milk' for a black
 # drink, the Runner may save an empty string.
@@ -56,6 +58,9 @@ def normalize_picks(raw):
         if milk in _NO_MILK:
             milk = ""
         size = _clean(item.get("size")).lower()
+        service = _clean(item.get("service")).lower()
+        if service not in _SERVICES:
+            service = ""
         key = (drink, milk, size)
         if key in seen:
             continue
@@ -66,6 +71,7 @@ def normalize_picks(raw):
                 "milk": milk,
                 "size": size,
                 "label": _clean(item.get("label"), MAX_LABEL),
+                "service": service,
             }
         )
         if len(out) >= MAX_PICKS:
@@ -126,6 +132,7 @@ def resolve_picks(picks, menu):
                 "milk_name": milk_name,
                 "size": (size or {}).get("value", "") if isinstance(size, dict) else "",
                 "label": label,
+                "service": p["service"],
             }
         )
     return out

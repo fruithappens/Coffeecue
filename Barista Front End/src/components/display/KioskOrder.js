@@ -219,6 +219,8 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
   // want it (an afternoon session, someone avoiding caffeine) were
   // the only ones who could not choose it.
   const [decaf, setDecaf] = useState(false);
+  // Dine in / take away. Only the quick order checkout asks; '' = not asked.
+  const [service, setService] = useState('');
   const [chosenStation, setChosenStation] = useState(null); // collect-from station id
   const [phone, setPhone] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -228,7 +230,7 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
   // single order, and the single-order flow below is untouched.
   const [cart, setCart] = useState([]);
   const currentDrinkSnapshot = () => ({
-    name: name.trim(), drink, milk, size, sugar, strength, extraHot, decaf, notes,
+    name: name.trim(), drink, milk, size, sugar, strength, extraHot, decaf, notes, service,
   });
   const addAnotherDrink = () => {
     // Stash the drink just built; keep the phone/station/identity for the
@@ -760,6 +762,9 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
     setSugar(0);
     setNotes('');
     setStrength('');
+    setExtraHot(false);
+    setDecaf(false);
+    setService(qp.service || 'here');
     goTo('quick');
   };
   // Changing the drink on the checkout page keeps the milk sensible: a
@@ -847,6 +852,7 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
         notes: (it.notes || '').trim() || undefined,
         temp: it.extraHot ? 'extra hot' : undefined,
         bean_type: it.decaf ? 'decaf' : undefined,
+        service: it.service || undefined,
       });
       const isGroup = cart.length > 0;
       const url = isGroup ? '/api/display/order-group' : '/api/display/order';
@@ -1284,22 +1290,46 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
                 </>
               )}
 
-              {needsSizeStep && (
-                <>
-                  <div className="text-sm font-bold uppercase tracking-wide text-cq-ink-3 mb-2">Cup</div>
-                  <div className="flex flex-wrap gap-2 mb-5" role="radiogroup" aria-label="Cup">
-                    {sizeChoices.map(z => {
-                      const on = size?.value === z.value;
-                      return (
-                        <button key={z.value} role="radio" aria-checked={on}
-                          onClick={() => setSize(z)} className={chip(on)} style={chipStyle(on)}>
-                          {z.name}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
+              {/* Dine in / take away: the cup the barista reaches for. */}
+              <div className="text-sm font-bold uppercase tracking-wide text-cq-ink-3 mb-2">Having it</div>
+              <div className="flex flex-wrap gap-2 mb-5" role="radiogroup" aria-label="Dine in or take away">
+                {[['here', 'Dine in'], ['takeaway', 'Take away']].map(([v, label]) => (
+                  <button key={v} role="radio" aria-checked={service === v}
+                    onClick={() => setService(v)} className={chip(service === v)} style={chipStyle(service === v)}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Every cup size is shown so nobody wonders; the ones this
+                  event does not pour are greyed and cannot be picked. */}
+              {(() => {
+                const offered = new Set(sizeChoices.map(z => z.value));
+                const all = [...sizeChoices];
+                ['small', 'medium', 'large'].forEach(v => {
+                  if (!offered.has(v)) all.push({ value: v, name: v.charAt(0).toUpperCase() + v.slice(1), off: true });
+                });
+                const rank = { small: 0, regular: 1, medium: 1, large: 2 };
+                all.sort((a, b) => (rank[a.value] ?? 1) - (rank[b.value] ?? 1));
+                return (
+                  <>
+                    <div className="text-sm font-bold uppercase tracking-wide text-cq-ink-3 mb-2">Cup</div>
+                    <div className="flex flex-wrap gap-2 mb-5" role="radiogroup" aria-label="Cup">
+                      {all.map(z => {
+                        const on = !z.off && size?.value === z.value;
+                        return (
+                          <button key={z.value} role="radio" aria-checked={on} disabled={z.off}
+                            aria-label={z.off ? `${z.name} (not available)` : z.name}
+                            onClick={() => { if (!z.off) setSize(z); }}
+                            className={chip(on, z.off)} style={chipStyle(on)}>
+                            {z.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                );
+              })()}
 
               {!menu?.sugar_self_serve && (
                 <div className="flex items-center gap-4 mb-5">
@@ -1312,6 +1342,32 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
                     className="p-2 rounded-full bg-cq-milk shadow text-cq-ink-2"><Plus size={22} /></button>
                 </div>
               )}
+
+              {/* The usual asks, all off until tapped, and a notes box left
+                  blank for anything else ("1/8 strength", "no lid"). */}
+              <div className="text-sm font-bold uppercase tracking-wide text-cq-ink-3 mb-2">Customise</div>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {!black && (
+                  <>
+                    <button aria-pressed={strength === 'strong'}
+                      onClick={() => setStrength(v => (v === 'strong' ? '' : 'strong'))}
+                      className={chip(strength === 'strong')} style={chipStyle(strength === 'strong')}>Double shot</button>
+                    <button aria-pressed={strength === 'weak'}
+                      onClick={() => setStrength(v => (v === 'weak' ? '' : 'weak'))}
+                      className={chip(strength === 'weak')} style={chipStyle(strength === 'weak')}>Half strength</button>
+                  </>
+                )}
+                <button aria-pressed={extraHot} onClick={() => setExtraHot(v => !v)}
+                  className={chip(extraHot)} style={chipStyle(extraHot)}>Extra hot</button>
+                {(!Array.isArray(menu?.beans) || menu.beans.some(b => /decaf/i.test(b))) && (
+                  <button aria-pressed={decaf} onClick={() => setDecaf(v => !v)}
+                    className={chip(decaf)} style={chipStyle(decaf)}>Decaf</button>
+                )}
+              </div>
+              <input value={notes} onChange={e => setNotes(e.target.value)} maxLength={120}
+                aria-label="Notes"
+                placeholder="Anything else? (e.g. no lid, half full)"
+                className="w-full text-lg px-4 py-3 rounded-cq-xl border border-cq-line bg-cq-milk text-cq-roast mb-5 outline-none" />
 
               {sid != null && (menu?.stations || []).length > 1 && (
                 <div className="flex items-center gap-2 text-base text-cq-ink-3 mb-4">
