@@ -106,7 +106,7 @@ const KioskAdminPanel = ({ stationId, stationName }) => {
       const r = await fetch('/api/kiosk/verify-pin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pin: candidate }),
+        body: JSON.stringify({ pin: candidate, surface: 'kiosk' }),
       });
       const b = await r.json().catch(() => ({}));
       if (r.ok && b.success) {

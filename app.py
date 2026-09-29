@@ -724,6 +724,14 @@ def create_app():
     except Exception as meter_err:
         logger.error(f"SMS meter routes failed to register: {meter_err}")
 
+    # Runner > People > Unlock PINs: /api/pins (see utils/pins.py).
+    try:
+        from routes.pin_routes import bp as pin_bp
+        app.register_blueprint(pin_bp)
+        logger.info("PIN routes registered")
+    except Exception as pin_err:
+        logger.error(f"PIN routes failed to register: {pin_err}")
+
     # "Book a demo" form on cupq.com.au: /api/public/demo-request.
     try:
         from routes.demo_request_routes import bp as demo_request_bp

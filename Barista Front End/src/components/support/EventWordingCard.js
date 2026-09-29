@@ -48,7 +48,6 @@ const segments = (msg) => {
 const EventWordingCard = () => {
   const [sponsor, setSponsor] = useState('');
   const [cafe, setCafe] = useState('');
-  const [pin, setPin] = useState('');
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
@@ -61,7 +60,6 @@ const EventWordingCard = () => {
         const st = b.settings || b.data || b || {};
         setSponsor(String(st.sponsor_line || ''));
         setCafe(String(st.venue_cafe_name || ''));
-        setPin(String(st.kiosk_pin || ''));
       } catch (e) { /* fields start blank; save still works */ }
       setLoaded(true);
     })();
@@ -76,7 +74,6 @@ const EventWordingCard = () => {
         body: JSON.stringify({
           sponsor_line: sponsor.trim(),
           venue_cafe_name: cafe.trim(),
-          kiosk_pin: pin.trim(),
         }),
       });
       if (r.ok) setSavedAt(new Date());
@@ -154,28 +151,13 @@ const EventWordingCard = () => {
               : 'Empty — refusals just list what we do have'}
           </div>
         </div>
-        <div>
-          <label className="block text-sm font-medium text-cq-ink-2 mb-1">
-            Device admin PIN
-            <span className="text-cq-ink-3 font-normal"> — press-and-hold the display's top-left corner</span>
-          </label>
-          <input
-            value={pin}
-            onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
-            placeholder="1234 until you change it"
-            inputMode="numeric"
-            className="w-full border border-cq-line rounded-cq-md px-3 py-2 font-mono tracking-widest"
-            disabled={!loaded}
-          />
-          <div className="mt-1 text-xs text-cq-ink-3">
-            Unlocks the hidden panel on any display: switch it to a barista
-            terminal, change station, clear the device, test sound. 4–6 digits.
-            {!pin.trim() && (
-              <span className="text-cq-caramel-deep block">
-                Empty = the default (1234). Set your own before the event.
-              </span>
-            )}
-          </div>
+        <div className="text-sm text-cq-ink-3 self-end">
+          {/* The event PIN moved to Runner > People > Unlock PINs, next to
+              each person's own PIN. It is NOT saved from here any more:
+              this form used to send kiosk_pin with every wording save, so
+              if the settings load failed (box left blank) a save reset the
+              PIN to 1234. */}
+          The device PIN now lives in <b>People &gt; Unlock PINs</b>, with each person's own PIN.
         </div>
       </div>
 

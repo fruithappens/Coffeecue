@@ -29,6 +29,7 @@ export default function AdminSheet({ open, onClose, state = {}, actions = {}, un
   const [checking, setChecking] = useState(false);
   const [version, setVersion] = useState('');
   const [defaultPin, setDefaultPin] = useState(false);
+  const [who, setWho] = useState('');
   // A correct PIN unlocks this tablet for a while (see BaristaInterface):
   // the sheet then opens straight to the panel until it is locked again.
   useEffect(() => { if (open) { setStage(unlocked ? 'panel' : 'pin'); setPinError(false); } }, [open, unlocked]);
@@ -41,9 +42,9 @@ export default function AdminSheet({ open, onClose, state = {}, actions = {}, un
   const tryPin = async (pin) => {
     setChecking(true); setPinError(false);
     try {
-      const r = await fetch('/api/kiosk/verify-pin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin }) });
+      const r = await fetch('/api/kiosk/verify-pin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin, surface: 'barista' }) });
       const b = r.ok ? await r.json() : { success: false };
-      if (b.success) { setDefaultPin(!!b.default_pin); setStage('panel'); if (onUnlock) onUnlock(); } else { setPinError(true); setTimeout(() => setPinError(false), 1200); }
+      if (b.success) { setDefaultPin(!!b.default_pin); setWho(b.who || ''); setStage('panel'); if (onUnlock) onUnlock(); } else { setPinError(true); setTimeout(() => setPinError(false), 1200); }
     } catch (e) { setPinError(true); setTimeout(() => setPinError(false), 1200); }
     finally { setChecking(false); }
   };
@@ -55,7 +56,7 @@ export default function AdminSheet({ open, onClose, state = {}, actions = {}, un
       <div className="absolute inset-0 bg-cq-roast/60" onClick={onClose} />
       {stage === 'pin' ? (
         <div className="relative m-4">
-          <PinPanel title="Station admin" hint={`Enter the event PIN${checking ? '…' : ''}`} onSubmit={tryPin} error={pinError} />
+          <PinPanel title="Station admin" hint={`Enter your PIN${checking ? '…' : ''}`} onSubmit={tryPin} error={pinError} />
           <button type="button" onClick={onClose} className="mt-3 w-full text-center text-cq-cream/90 font-semibold underline underline-offset-4">Cancel</button>
         </div>
       ) : (
@@ -64,7 +65,8 @@ export default function AdminSheet({ open, onClose, state = {}, actions = {}, un
             <div>
               <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-cq-ink-3">Station admin</div>
               <h2 className="text-xl font-extrabold text-cq-roast mt-0.5">{stationName || 'This tablet'}</h2>
-              {defaultPin ? <div className="text-sm text-cq-alert font-semibold mt-1">The PIN is still the default (1234). Set one in the organiser.</div> : null}
+              {who ? <div className="text-sm text-cq-ink-2 mt-1">Unlocked by <b>{who}</b></div> : null}
+              {defaultPin ? <div className="text-sm text-cq-alert font-semibold mt-1">That was the default event PIN (1234). Give people their own in Runner &gt; People.</div> : null}
               {unlocked ? <div className="text-sm text-cq-ink-3 mt-1">Unlocked for {unlockedMinutes} more min · <button type="button" onClick={() => { if (onLock) onLock(); onClose(); }} className="font-bold text-cq-caramel-deep underline underline-offset-4">Lock now</button></div> : null}
             </div>
             <button type="button" onClick={onClose} aria-label="Close" className="h-11 w-11 inline-flex items-center justify-center rounded-cq-md text-cq-ink-2 hover:bg-cq-wash"><X size={22} /></button>
