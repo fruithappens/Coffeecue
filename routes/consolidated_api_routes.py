@@ -3393,6 +3393,11 @@ def _notify_customer_order_ready(phone, order_number, order_details, station_id)
         # rendered message instead of sending, so template propagation
         # stays provable and the zero-real-SMS rule holds structurally,
         # whatever the caller forgot.
+        # Demo numbers (0400 009 9xx) are inside that range: show the text
+        # in the Demo Room's Messages pane first (services/demo_texts.py).
+        from services import demo_texts
+        if demo_texts.is_demo(phone):
+            demo_texts.add(phone, body, 'ready')
         if str(phone).startswith('+6140000'):
             try:
                 _bc = current_app.config.get('coffee_system').db.cursor()

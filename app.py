@@ -720,6 +720,14 @@ def create_app():
     except Exception as plan_err:
         logger.error(f"Plan routes failed to register: {plan_err}")
 
+    # The Demo Room's server side: /api/demo (texts to demo numbers).
+    try:
+        from routes.demo_routes import bp as demo_bp
+        app.register_blueprint(demo_bp)
+        logger.info("Demo routes registered")
+    except Exception as demo_err:
+        logger.error(f"Demo routes failed to register: {demo_err}")
+
     if has_readiness_api:
         app.register_blueprint(readiness_bp)
         logger.info("Readiness API routes registered")
