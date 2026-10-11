@@ -93,7 +93,10 @@ def add_security_headers(response):
         # letting frame-ancestors govern is the modern, correct way.
         response.headers.pop('X-Frame-Options', None)
     else:
-        response.headers['X-Frame-Options'] = 'DENY'
+        # SAMEORIGIN, not DENY: the Demo Room (/demo) shows the barista
+        # screen in a frame on cupq.app itself. Clickjacking needs a
+        # page on ANOTHER site to do the framing, and that stays refused.
+        response.headers['X-Frame-Options'] = 'SAMEORIGIN'
     
     # Prevent MIME type sniffing
     response.headers['X-Content-Type-Options'] = 'nosniff'
@@ -134,8 +137,9 @@ def add_security_headers(response):
         # wrapper a client's app might use, and guessing wrong looks
         # identical to being blocked. These pages hold no session and no
         # personal data — the staff screens, which do, keep
-        # frame-ancestors 'none' and X-Frame-Options: DENY.
-        None if embeddable else "frame-ancestors 'none'",
+        # frame-ancestors 'self' and X-Frame-Options: SAMEORIGIN (only
+        # cupq.app's own pages may frame them).
+        None if embeddable else "frame-ancestors 'self'",
         "upgrade-insecure-requests"
     ]
     response.headers['Content-Security-Policy'] = "; ".join(
