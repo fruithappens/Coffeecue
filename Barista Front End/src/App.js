@@ -13,6 +13,7 @@ import DesignSheet from './components/design/DesignSheet';
 import RunnerInterface from './components/runner/RunnerInterface';
 
 import OpsBoard from './components/support/OpsBoard';
+import DemoRoom from './components/demo/DemoRoom';
 import LoginPage from './components/auth/LoginPage';
 import AuthService from './services/AuthService';
 import DeploymentService from './services/DeploymentService';
@@ -643,6 +644,18 @@ function App() {
             }
           />
           
+          {/* Every screen of the event on one page, live: the sales demo. */}
+          <Route
+            path="/demo"
+            element={
+              <AuthGuard requiredRoles={['admin', 'staff', 'event_organizer', 'organizer', 'organiser']}>
+                <ErrorBoundary componentName="Demo Room" showErrorDetails={true}>
+                  <DemoRoom />
+                </ErrorBoundary>
+              </AuthGuard>
+            }
+          />
+
           {/* Unauthorized access page */}
           <Route path="/unauthorized" element={<UnauthorizedPage />} />
           

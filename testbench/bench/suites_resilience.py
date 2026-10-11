@@ -164,7 +164,11 @@ def suite_resilience(rn):
                  refs=[] if open_ok else ["security_middleware.py"]))
 
     sxfo, scsp = frame_headers('/support')
-    staff_safe = (sxfo or '').upper() == 'DENY' or "frame-ancestors 'none'" in (scsp or '')
+    # SAMEORIGIN / 'self' still refuses every other site; only cupq.app's
+    # own Demo Room may frame a staff screen.
+    staff_safe = ((sxfo or '').upper() in ('DENY', 'SAMEORIGIN')
+                  or "frame-ancestors 'none'" in (scsp or '')
+                  or "frame-ancestors 'self'" in (scsp or ''))
     out.append(R("resilience", "staff screens still refuse to be framed",
                  "pass" if staff_safe else "fail",
                  f"X-Frame-Options={sxfo!r}",

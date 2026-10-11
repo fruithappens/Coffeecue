@@ -47,8 +47,11 @@ const AdminViewSwitcher = ({ embedded = false }) => {
   // /displays now carries it in its own header too, so the floating copy
   // stands down there as well. /bar is the machine's touch strip: every
   // pixel is a card, and a floating pill sits on top of the Ready column.
-  if (!embedded && ['/', '/login', '/auth/login', '/display', '/barista', '/bar', '/run', '/displays']
+  if (!embedded && ['/', '/login', '/auth/login', '/display', '/barista', '/bar', '/run', '/displays', '/demo']
       .includes(location.pathname)) return null;
+  // Inside a frame (the Demo Room shows every screen on one page) the
+  // floating pill would sit on top of each little screen.
+  if (!embedded && window.self !== window.top) return null;
 
   const items = VIEWS.map((v) => {
     const active = location.pathname.startsWith(v.path.replace('/displays', '/display'));
