@@ -700,6 +700,45 @@ def _m025_demo_requests(cur):
     """)
 
 
+def _m026_personal_pins(cur):
+    """A PIN per person, and a record of every unlock.
+
+    Until now the barista padlock and the display kiosk took ONE event PIN
+    (settings.kiosk_pin) shared by everyone -- nobody could tell who had
+    unlocked a tablet, and changing it meant telling every barista again.
+    Steve asked for PINs "tracked by person or user".
+
+    users.pin_hash is an HMAC of the PIN under the server's secret (see
+    utils/pins.py), not a slow password hash: a 4-8 digit PIN has so few
+    possibilities that a slow hash buys nothing, while a keyed hash lets a
+    PIN be looked up directly (so the padlock can say WHO it was) and kept
+    unique across people.
+    """
+    cur.execute("""
+        ALTER TABLE users
+            ADD COLUMN IF NOT EXISTS pin_hash VARCHAR(64),
+            ADD COLUMN IF NOT EXISTS pin_set_at TIMESTAMP
+    """)
+    cur.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_users_pin_hash
+            ON users (pin_hash) WHERE pin_hash IS NOT NULL
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS pin_unlocks (
+            id SERIAL PRIMARY KEY,
+            at TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC'),
+            ok BOOLEAN NOT NULL,
+            user_id INTEGER,
+            who VARCHAR(120),
+            surface VARCHAR(40),
+            ip VARCHAR(64)
+        )
+    """)
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_pin_unlocks_at ON pin_unlocks (at)
+    """)
+
+
 # Master list. Append new migrations at the bottom — DO NOT renumber
 # existing ones, and DO NOT change `version`. The runner trusts the
 # version number to determine which migrations to skip.
@@ -822,6 +861,7 @@ MIGRATIONS: list[Migration] = [
     Migration(23, 'ea_attendee_markers',      _m023_ea_attendee_markers),
     Migration(24, 'sms_outbound_log',         _m024_sms_outbound_log),
     Migration(25, 'demo_requests',            _m025_demo_requests),
+    Migration(26, 'personal_pins',            _m026_personal_pins),
 ]
 
 

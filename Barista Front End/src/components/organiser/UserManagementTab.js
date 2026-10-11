@@ -9,6 +9,7 @@ import useStations from '../../hooks/useStations';
 import ApiServiceClass from '../../services/ApiService';
 import { askConfirm } from '../shared/ConfirmDialog';
 import { showToast } from '../shared/Toast';
+import UnlockPinsPanel from '../support-tabs/UnlockPinsPanel';
 
 // One ApiService instance per component import — request() handles
 // JWT refresh and base URL automatically.
@@ -811,6 +812,8 @@ const UserManagementTab = () => {
           </div>
         )}
       </div>
+
+      <UnlockPinsPanel />
     </div>
   );
 };

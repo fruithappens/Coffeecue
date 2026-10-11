@@ -41,6 +41,10 @@ logger = logging.getLogger("expresso.routes.consolidated_api")
 # Create blueprint with url_prefix to ensure all routes are under /api
 bp = Blueprint('consolidated_api', __name__, url_prefix='/api')
 
+# The PIN pad is the one public endpoint that guards staff screens, so it is
+# rate limited per real client (Cloudflare-aware, as for /login).
+from security_middleware import limiter as _pin_limiter, _client_ip as _pin_client_ip
+
 # Helper function to handle CORS preflight requests
 @bp.route('/<path:path>', methods=['OPTIONS'])
 def handle_options(path):
@@ -6987,6 +6991,7 @@ def recipes_check():
 
 
 @bp.route('/kiosk/verify-pin', methods=['POST'])
+@_pin_limiter.limit("15 per minute; 120 per hour", key_func=_pin_client_ip)
 def kiosk_verify_pin():
     """Gate for the hidden device admin panel (demo findings A3).
 
@@ -6996,29 +7001,35 @@ def kiosk_verify_pin():
     no way out) and the device-failover path: display -> barista
     terminal in twenty seconds.
 
-    kiosk_pin lives in settings (default 1234 until changed in the
-    Organiser). Wrong attempts pay a small delay; the reply says
-    whether the default is still in use so the panel can nag.
+    Two kinds of PIN open it (utils/pins.py): a person's own PIN, set in
+    Runner > People, or the shared event PIN (settings.kiosk_pin, default
+    1234) unless an organiser has switched that off. Every attempt is
+    logged with who it was, so the reply names them too. Wrong attempts
+    pay a small delay; the reply says whether the default event PIN is
+    still in use so the panel can nag.
     """
     import time as _time
     try:
+        from utils.pins import verify as _verify_pin
+        try:
+            from security_middleware import _client_ip
+            ip = _client_ip()
+        except Exception:
+            ip = request.remote_addr
+        data = request.get_json(silent=True) or {}
         coffee_system = current_app.config.get('coffee_system')
-        data = request.get_json() or {}
-        attempt = str(data.get('pin') or '').strip()
-        stored = str(coffee_system._get_setting_fresh('kiosk_pin', '') or '').strip()
-        is_default = not stored
-        actual = stored or '1234'
-        import hmac
-        ok = bool(attempt) and hmac.compare_digest(attempt, actual)
-        if not ok:
+        res = _verify_pin(coffee_system.db, data.get('pin'),
+                          surface=str(data.get('surface') or ''), ip=ip)
+        if not res['ok']:
             _time.sleep(0.4)  # brute-force tax
             try:
                 from services.logging_utils import event as _event
-                _event('KIOSK_PIN_FAIL', remote_addr=request.remote_addr)
+                _event('KIOSK_PIN_FAIL', remote_addr=ip)
             except Exception:
                 pass
             return jsonify({'success': False}), 401
-        return jsonify({'success': True, 'default_pin': is_default})
+        return jsonify({'success': True, 'default_pin': res['default_pin'],
+                        'who': res['who']})
     except Exception as e:
         logger.error(f"kiosk_verify_pin error: {e}")
         return jsonify({'success': False}), 500
