@@ -1252,12 +1252,12 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
           return (
             <>
               <Header title="Quick order" onBack={goBack} />
-              <label className="block text-sm font-bold uppercase tracking-wide text-cq-ink-3 mb-2" htmlFor="quick-name">Your name</label>
+              <label className="block text-sm font-bold uppercase tracking-wide text-cq-ink-3 mb-2" htmlFor="quick-name">{channel === 'walkin' ? "Customer's name" : 'Your name'}</label>
               <input id="quick-name" autoFocus value={name} maxLength={30}
                 onChange={e => setName(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') submit(); }}
                 placeholder="First name"
-                autoComplete="given-name"
+                autoComplete={channel === 'walkin' ? 'off' : 'given-name'}
                 className="w-full text-3xl font-bold px-5 py-4 rounded-cq-xl border-2 bg-cq-milk text-cq-roast mb-6 outline-none"
                 style={{ borderColor: headerColor }} />
 
