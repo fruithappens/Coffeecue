@@ -179,41 +179,36 @@ def t_complete_order_confirms():
 # ---------- handle_sms: sugar handler ---------------------------------------
 
 
-@test("Unrecognized sugar reply re-prompts instead of silently using 'no sugar'")
-def t_sugar_unrecognized_reprompts():
+@test("Sugar isn't asked: the order is placed with 'no sugar' shown in the recap")
+def t_sugar_defaults_in_recap():
+    # Current rule (coffee_system: "Sugar isn't prompted"): don't make the
+    # customer answer a sugar question; default to no sugar, SHOW it in the
+    # recap so they can CHANGE it, and place the order.
     system = make_system()
     phone = '+1555000004'
 
     send(system, phone, 'hi')
     send(system, phone, 'Pat')
-    send(system, phone, 'latte')        # asks for milk
-    send(system, phone, 'oat')          # asks for size
-    send(system, phone, 'large')        # asks for sugar
-    reply = send(system, phone, 'yeah a little bit')
+    send(system, phone, 'oat latte')    # asks for size, not sugar
+    reply = send(system, phone, 'large')
 
-    # Should NOT have committed the order with "no sugar" silently.
-    assert_not_contains(reply, 'Order #', label='unrecognized sugar')
-    assert_not_contains(reply, 'confirmed', label='unrecognized sugar')
-    # Should re-prompt about sugar.
-    assert_contains(reply, 'sugar', label='unrecognized sugar')
+    assert_contains(reply, 'Order #', label='sugar defaulted')
+    assert_contains(reply, 'no sugar', label='sugar defaulted')
+    assert_contains(reply, 'oat', label='sugar defaulted - milk kept')
 
 
-@test("'no sugar' phrasing is accepted and order summary read-back is correct")
-def t_sugar_no_sugar_accepted():
+@test("A sugar the customer DID ask for is kept in the recap")
+def t_sugar_stated_is_kept():
     system = make_system()
     phone = '+1555000005'
 
     send(system, phone, 'hi')
     send(system, phone, 'Robin')
-    send(system, phone, 'latte')        # → milk?
-    send(system, phone, 'oat')          # → size?
-    send(system, phone, 'medium')       # → sugar?
-    reply = send(system, phone, 'none')
+    reply = send(system, phone, 'medium oat latte 2 sugars')
 
-    # Now in awaiting_confirmation. The read-back should mention the order
-    # contents but no Order # (not committed yet, just summarized).
-    assert_contains(reply, 'confirm', label='no-sugar accepted')
-    assert_contains(reply, 'no sugar', label='no-sugar accepted')
+    assert_contains(reply, 'Order #', label='stated sugar')
+    assert_contains(reply, '2 sugar', label='stated sugar')
+    assert_not_contains(reply, 'no sugar', label='stated sugar')
 
 
 # ---------- handle_sms: black coffee skips milk question --------------------
@@ -242,7 +237,13 @@ def t_queue_position_none_on_error():
 
     # The MagicMock DB will raise on the subquery because nothing is set
     # up — our helper must catch and return None, not crash.
-    system.db.cursor = MagicMock(side_effect=Exception('boom'))
+    # A fake connection: the real psycopg2 connection's .cursor can't be
+    # patched (read-only attribute).
+    # (`closed = 0` or CoffeeSystem.db treats the fake as dead and swaps
+    # the real connection back in.)
+    fake_db = MagicMock(closed=0)
+    fake_db.cursor = MagicMock(side_effect=Exception('boom'))
+    system.db = fake_db
     pos = system._get_queue_position(station_id=1, order_number='A123')
     assert pos is None, f"expected None on error, got {pos!r}"
 
@@ -254,7 +255,9 @@ def t_queue_position_success():
     fake_cursor = MagicMock()
     fake_cursor.execute = MagicMock()
     fake_cursor.fetchone = MagicMock(return_value=(3,))
-    system.db.cursor = MagicMock(return_value=fake_cursor)
+    fake_db = MagicMock(closed=0)
+    fake_db.cursor = MagicMock(return_value=fake_cursor)
+    system.db = fake_db
 
     pos = system._get_queue_position(station_id=1, order_number='A123')
     assert pos == 3, f"expected 3, got {pos!r}"

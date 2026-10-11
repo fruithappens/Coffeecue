@@ -7,7 +7,7 @@ name: CI
 #
 # To make this actually BLOCK a merge (not just show a red X), enable branch
 # protection on `main` → "Require status checks to pass" → select
-# "Frontend build" and "Backend syntax".
+# "Frontend build", "Backend syntax", "Python unit tests" and "Consistency checks".
 
 on:
   pull_request:
@@ -39,12 +39,10 @@ jobs:
         # error (missing import, bad JSX, etc.) still fails the build — which is
         # exactly the breakage we want to catch.
         run: CI=false npm run build
-      - name: Unit tests (informational)
-        # Non-blocking for now: surfaces failures without wedging PRs while the
-        # test suite is brought up to green. Flip continue-on-error to false once
-        # the suite is reliable.
+      - name: Unit tests
+        # Blocking since the suite went green (Oct 2026): a red test now means
+        # a real regression, not a stale test.
         run: CI=true npm test -- --watchAll=false --passWithNoTests
-        continue-on-error: true
 
   backend:
     name: Backend syntax
@@ -59,6 +57,24 @@ jobs:
         # syntax errors that would crash the app on boot — the backend equivalent
         # of the frontend build failing.
         run: python -m compileall -q app.py auth.py config.py routes services models utils
+
+  python-tests:
+    name: Python unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest
+      - name: Unit tests
+        # tests/unit needs no database. (test_sms_conversation_flow.py talks to
+        # a real Postgres, so it runs locally, not here.)
+        env:
+          TESTING_MODE: "True"
+        run: python -m pytest -q tests/unit
 
   consistency:
     name: Consistency checks

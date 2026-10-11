@@ -1,361 +1,72 @@
-import OrderDataService from './OrderDataService';
-import axios from 'axios';
+// OrderDataService: the order list every barista and display screen reads.
+//
+// The previous version of this file was written against an earlier API
+// (/api/orders/pending and friends) and never ran -- the suite failed to
+// load because Jest couldn't parse axios. It now tests what the service
+// actually does: one /orders call grouped by status, a 2 s burst cache that
+// Refresh bypasses, a localStorage copy used only when the API fails, and
+// live order events clearing the cache.
+import orderDataService from './OrderDataService';
 
-// Mock axios
-jest.mock('axios');
+const sample = [
+  { id: 1, order_number: '101', status: 'pending', createdAt: new Date().toISOString() },
+  { id: 2, order_number: '102', status: 'in_progress', createdAt: new Date().toISOString() },
+  { id: 3, order_number: '103', status: 'completed', createdAt: new Date().toISOString() },
+  { id: 4, order_number: '104', status: 'picked_up', createdAt: new Date().toISOString() },
+];
 
-// Mock localStorage
-const localStorageMock = (function() {
-  let store = {};
-  return {
-    getItem: jest.fn(key => store[key] || null),
-    setItem: jest.fn((key, value) => {
-      store[key] = value.toString();
-    }),
-    clear: jest.fn(() => {
-      store = {};
-    }),
-    removeItem: jest.fn(key => {
-      delete store[key];
-    }),
-  };
-})();
+let api;
+beforeEach(() => {
+  api = { get: jest.fn().mockResolvedValue({ status: 'success', data: sample }) };
+  orderDataService.apiService = api;
+  orderDataService.cache.clear();
+  localStorage.clear();
+  jest.spyOn(console, 'log').mockImplementation(() => {});
+  jest.spyOn(console, 'warn').mockImplementation(() => {});
+  jest.spyOn(console, 'error').mockImplementation(() => {});
+});
+afterEach(() => jest.restoreAllMocks());
 
-Object.defineProperty(window, 'localStorage', {
-  value: localStorageMock,
+test('groups one /orders response by status', async () => {
+  const got = await orderDataService.getOrders();
+  expect(api.get).toHaveBeenCalledWith('/orders?');
+  expect(got.pendingOrders.map((o) => o.order_number)).toEqual(['101']);
+  expect(got.inProgressOrders.map((o) => o.order_number)).toEqual(['102']);
+  // Collected orders count as completed for the screens.
+  expect(got.completedOrders.map((o) => o.order_number)).toEqual(['103', '104']);
 });
 
-describe('OrderDataService', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    localStorage.clear();
-  });
+test('filters by station when given one', async () => {
+  await orderDataService.getOrders(2);
+  expect(api.get).toHaveBeenCalledWith('/orders?station_id=2');
+});
 
-  describe('getPendingOrders', () => {
-    it('returns pending orders from API when connection is successful', async () => {
-      const mockOrders = { 
-        orders: [
-          { order_number: 'A123', status: 'pending' },
-          { order_number: 'A124', status: 'pending' }
-        ] 
-      };
-      
-      axios.get.mockResolvedValueOnce({ 
-        data: mockOrders,
-        status: 200 
-      });
+test('a burst of calls costs one request; Refresh (force) always asks the server', async () => {
+  await orderDataService.getOrders();
+  await orderDataService.getPendingOrders();
+  await orderDataService.getInProgressOrders();
+  expect(api.get).toHaveBeenCalledTimes(1);
+  await orderDataService.getOrders(null, { force: true });
+  expect(api.get).toHaveBeenCalledTimes(2);
+});
 
-      const result = await OrderDataService.getPendingOrders();
-      
-      expect(axios.get).toHaveBeenCalledWith('/api/orders/pending', expect.any(Object));
-      expect(result).toEqual(mockOrders);
-      expect(localStorage.setItem).toHaveBeenCalledWith(
-        'pendingOrders',
-        JSON.stringify(mockOrders)
-      );
-    });
+test('uses the saved copy only when the API fails', async () => {
+  await orderDataService.getOrders(); // saves the backup
+  orderDataService.cache.clear();
+  api.get.mockRejectedValueOnce(new Error('offline'));
+  const got = await orderDataService.getOrders();
+  expect(got.pendingOrders.map((o) => o.order_number)).toEqual(['101']);
+});
 
-    it('falls back to localStorage when API connection fails', async () => {
-      const mockOrders = { 
-        orders: [
-          { order_number: 'A123', status: 'pending' },
-          { order_number: 'A124', status: 'pending' }
-        ] 
-      };
-      
-      // Setup localStorage with fallback data
-      localStorage.setItem('pendingOrders', JSON.stringify(mockOrders));
-      
-      // Mock API failure
-      axios.get.mockRejectedValueOnce(new Error('Network error'));
+test('with no saved copy and no API, screens get empty lists, not a crash', async () => {
+  api.get.mockRejectedValueOnce(new Error('offline'));
+  const got = await orderDataService.getOrders();
+  expect(got).toEqual({ pendingOrders: [], inProgressOrders: [], completedOrders: [] });
+});
 
-      const result = await OrderDataService.getPendingOrders();
-      
-      expect(axios.get).toHaveBeenCalledWith('/api/orders/pending', expect.any(Object));
-      expect(result).toEqual(mockOrders);
-      expect(localStorage.getItem).toHaveBeenCalledWith('pendingOrders');
-    });
-
-    it('returns empty array when both API and localStorage fail', async () => {
-      // Mock API failure
-      axios.get.mockRejectedValueOnce(new Error('Network error'));
-      
-      // Ensure localStorage returns null for this key
-      localStorage.getItem.mockReturnValueOnce(null);
-
-      const result = await OrderDataService.getPendingOrders();
-      
-      expect(axios.get).toHaveBeenCalledWith('/api/orders/pending', expect.any(Object));
-      expect(localStorage.getItem).toHaveBeenCalledWith('pendingOrders');
-      expect(result).toEqual({ orders: [] });
-    });
-  });
-
-  describe('getInProgressOrders', () => {
-    it('returns in-progress orders from API when connection is successful', async () => {
-      const mockOrders = { 
-        orders: [
-          { order_number: 'A123', status: 'in_progress' },
-          { order_number: 'A124', status: 'in_progress' }
-        ] 
-      };
-      
-      axios.get.mockResolvedValueOnce({ 
-        data: mockOrders,
-        status: 200 
-      });
-
-      const result = await OrderDataService.getInProgressOrders();
-      
-      expect(axios.get).toHaveBeenCalledWith('/api/orders/in-progress', expect.any(Object));
-      expect(result).toEqual(mockOrders);
-      expect(localStorage.setItem).toHaveBeenCalledWith(
-        'inProgressOrders',
-        JSON.stringify(mockOrders)
-      );
-    });
-  });
-
-  describe('startOrder', () => {
-    it('starts an order successfully via API', async () => {
-      const orderNumber = 'A123';
-      const mockResponse = { 
-        success: true, 
-        message: 'Order started' 
-      };
-      
-      axios.post.mockResolvedValueOnce({ 
-        data: mockResponse,
-        status: 200 
-      });
-
-      const result = await OrderDataService.startOrder(orderNumber);
-      
-      expect(axios.post).toHaveBeenCalledWith(`/api/orders/${orderNumber}/start`, {}, expect.any(Object));
-      expect(result).toEqual(mockResponse);
-    });
-
-    it('handles API errors gracefully', async () => {
-      const orderNumber = 'A123';
-      
-      // Mock API failure
-      axios.post.mockRejectedValueOnce(new Error('Network error'));
-
-      await expect(OrderDataService.startOrder(orderNumber)).rejects.toThrow('Network error');
-      expect(axios.post).toHaveBeenCalledWith(`/api/orders/${orderNumber}/start`, {}, expect.any(Object));
-    });
-  });
-
-  describe('completeOrder', () => {
-    it('completes an order successfully via API', async () => {
-      const orderNumber = 'A123';
-      const mockResponse = { 
-        success: true, 
-        message: 'Order completed' 
-      };
-      
-      axios.post.mockResolvedValueOnce({ 
-        data: mockResponse,
-        status: 200 
-      });
-
-      const result = await OrderDataService.completeOrder(orderNumber);
-      
-      expect(axios.post).toHaveBeenCalledWith(`/api/orders/${orderNumber}/complete`, {}, expect.any(Object));
-      expect(result).toEqual(mockResponse);
-    });
-  });
-
-  describe('batchProcessOrders', () => {
-    it('processes a batch of orders successfully', async () => {
-      const orderIds = ['A123', 'A124', 'A125'];
-      const action = 'start';
-      const mockResponse = { 
-        success: true, 
-        message: 'Batch processed successfully',
-        results: [
-          { order_number: 'A123', success: true },
-          { order_number: 'A124', success: true },
-          { order_number: 'A125', success: true }
-        ]
-      };
-      
-      axios.post.mockResolvedValueOnce({ 
-        data: mockResponse,
-        status: 200 
-      });
-
-      const result = await OrderDataService.batchProcessOrders(orderIds, action);
-      
-      expect(axios.post).toHaveBeenCalledWith('/api/orders/batch', {
-        order_ids: orderIds,
-        action: action
-      }, expect.any(Object));
-      expect(result).toEqual(mockResponse);
-    });
-  });
-
-  describe('getOrderDetails', () => {
-    it('retrieves order details successfully', async () => {
-      const orderNumber = 'A123';
-      const mockOrderDetails = { 
-        order_number: 'A123',
-        name: 'Test Customer',
-        type: 'Cappuccino',
-        status: 'in_progress'
-      };
-      
-      axios.get.mockResolvedValueOnce({ 
-        data: mockOrderDetails,
-        status: 200 
-      });
-
-      const result = await OrderDataService.getOrderDetails(orderNumber);
-      
-      expect(axios.get).toHaveBeenCalledWith(`/api/orders/${orderNumber}`, expect.any(Object));
-      expect(result).toEqual(mockOrderDetails);
-    });
-
-    it('falls back to localStorage when API fails', async () => {
-      const orderNumber = 'A123';
-      const mockOrderDetails = { 
-        order_number: 'A123',
-        name: 'Test Customer',
-        type: 'Cappuccino',
-        status: 'in_progress'
-      };
-      
-      // Setup localStorage with the order details in different lists
-      const pendingOrders = { orders: [] };
-      const inProgressOrders = { orders: [mockOrderDetails] };
-      const completedOrders = { orders: [] };
-      
-      localStorage.setItem('pendingOrders', JSON.stringify(pendingOrders));
-      localStorage.setItem('inProgressOrders', JSON.stringify(inProgressOrders));
-      localStorage.setItem('completedOrders', JSON.stringify(completedOrders));
-      
-      // Mock API failure
-      axios.get.mockRejectedValueOnce(new Error('Network error'));
-
-      const result = await OrderDataService.getOrderDetails(orderNumber);
-      
-      expect(axios.get).toHaveBeenCalledWith(`/api/orders/${orderNumber}`, expect.any(Object));
-      expect(result).toEqual(mockOrderDetails);
-    });
-  });
-
-  describe('sendOrderMessage', () => {
-    it('sends a message for an order successfully', async () => {
-      const orderNumber = 'A123';
-      const message = 'Your order is almost ready!';
-      const mockResponse = { 
-        success: true, 
-        message: 'Message sent successfully' 
-      };
-      
-      axios.post.mockResolvedValueOnce({ 
-        data: mockResponse,
-        status: 200 
-      });
-
-      const result = await OrderDataService.sendOrderMessage(orderNumber, message);
-      
-      expect(axios.post).toHaveBeenCalledWith(`/api/orders/${orderNumber}/message`, {
-        message: message
-      }, expect.any(Object));
-      expect(result).toEqual(mockResponse);
-    });
-  });
-  
-  describe('sendReadyNotification', () => {
-    it('sends a notification using direct phone number when available', async () => {
-      const order = {
-        id: 'A123',
-        customerName: 'John Doe',
-        phoneNumber: '+61412345678',
-        coffeeType: 'Cappuccino',
-        stationName: 'Station 1'
-      };
-      
-      const mockResponse = { 
-        success: true, 
-        message: 'Notification sent successfully',
-        method: 'direct_phone'
-      };
-      
-      axios.post.mockResolvedValueOnce({ 
-        data: mockResponse,
-        status: 200 
-      });
-
-      const result = await OrderDataService.sendReadyNotification(order);
-      
-      expect(axios.post).toHaveBeenCalledWith('/api/sms/send', expect.objectContaining({
-        to: '+61412345678',
-        message: expect.stringContaining('YOUR COFFEE IS READY')
-      }), expect.any(Object));
-      expect(result).toEqual(mockResponse);
-    });
-    
-    it('falls back to order-based notification when direct notification fails', async () => {
-      const order = {
-        id: 'A123',
-        customerName: 'John Doe',
-        phoneNumber: '+61412345678',
-        coffeeType: 'Cappuccino'
-      };
-      
-      // Mock first attempt failure
-      axios.post.mockRejectedValueOnce(new Error('SMS service unavailable'));
-      
-      // Mock second attempt success
-      const mockResponse = { 
-        success: true, 
-        message: 'Notification sent via order API',
-        method: 'order_based'
-      };
-      
-      axios.post.mockResolvedValueOnce({ 
-        data: mockResponse,
-        status: 200 
-      });
-
-      const result = await OrderDataService.sendReadyNotification(order);
-      
-      expect(axios.post).toHaveBeenCalledTimes(2);
-      expect(axios.post).toHaveBeenLastCalledWith('/api/orders/A123/ready', expect.any(Object), expect.any(Object));
-      expect(result).toEqual(mockResponse);
-    });
-    
-    it('falls back to sendMessageToCustomer as last resort', async () => {
-      const order = {
-        id: 'A123',
-        customerName: 'John Doe',
-        coffeeType: 'Cappuccino'
-      };
-      
-      // Mock first two attempts failing
-      axios.post.mockRejectedValueOnce(new Error('SMS service unavailable'));
-      axios.post.mockRejectedValueOnce(new Error('Order API unavailable'));
-      
-      // Mock third attempt success
-      const mockResponse = { 
-        success: true, 
-        message: 'Message sent to customer',
-        method: 'message_to_customer'
-      };
-      
-      // Setup for sendMessageToCustomer
-      OrderDataService.sendMessageToCustomer = jest.fn().mockResolvedValueOnce(mockResponse);
-
-      const result = await OrderDataService.sendReadyNotification(order);
-      
-      expect(axios.post).toHaveBeenCalledTimes(2);
-      expect(OrderDataService.sendMessageToCustomer).toHaveBeenCalledWith(
-        'A123', 
-        expect.stringContaining('YOUR COFFEE IS READY')
-      );
-      expect(result).toEqual(mockResponse);
-    });
-  });
+test('a live order update clears the cache so the next read is fresh', async () => {
+  await orderDataService.getOrders();
+  window.dispatchEvent(new CustomEvent('order_updated', { detail: { id: 2 } }));
+  await orderDataService.getOrders();
+  expect(api.get).toHaveBeenCalledTimes(2);
 });

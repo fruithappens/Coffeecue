@@ -39,14 +39,22 @@ class TestNormalizeCode:
 class TestReadSettings:
     def test_unconfigured_does_not_require_a_code(self):
         # An event that never set this up must keep taking orders.
-        assert read_settings(None) == {"code": "", "require": False}
-        assert read_settings({}) == {"code": "", "require": False}
+        empty = {"code": "", "require": False, "password": ""}
+        assert read_settings(None) == empty
+        assert read_settings({}) == empty
 
     def test_reads_a_configured_event(self):
         assert read_settings({"code": "CTN26", "require": True}) == {
             "code": "ctn26",
             "require": True,
+            "password": "",
         }
+
+    def test_reads_the_optional_password(self):
+        # The event password is the "were you invited" gate; trimmed, capped.
+        got = read_settings({"code": "x", "require": True, "password": "  beans  "})
+        assert got["password"] == "beans"
+        assert len(read_settings({"password": "p" * 200})["password"]) == 64
 
     def test_junk_falls_back(self):
         assert read_settings("nonsense")["require"] is False
