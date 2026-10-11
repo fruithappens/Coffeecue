@@ -11,8 +11,10 @@
 // work: the barista frame is signed in because you are, and the "after
 // ordering" phone shows the order the customer phone just placed.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ExternalLink, RotateCw } from 'lucide-react';
+import { Download, ExternalLink, RotateCw, Trash2 } from 'lucide-react';
 import ApiServiceClass from '../../services/ApiService';
+import { applyEventPreset } from '../../services/eventPreset';
+import { askConfirm } from '../shared/ConfirmDialog';
 
 const api = new ApiServiceClass();
 const TOKEN_KEY = 'coffee_system_token';
@@ -221,12 +223,106 @@ const MessagesPreview = ({ reloadKey }) => {
   );
 };
 
+// Load a saved event (Runner > Event setup > saved events) and clear the
+// demo's orders, one tap each. Load is the same apply Quick Setup runs
+// (services/eventPreset.js). Wipe removes ONLY demo orders: those placed in
+// these frames (tagged demo) or on a demo number -- never a real one.
+const DemoControls = ({ onChanged }) => {
+  const [templates, setTemplates] = useState([]);
+  const [selected, setSelected] = useState('');
+  const [busy, setBusy] = useState('');
+  const [status, setStatus] = useState(null); // {ok, msg}
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await api.request('/event-templates', { method: 'GET' });
+        const list = r?.templates || [];
+        setTemplates(list);
+        const demo = list.find(t => /demo|virgin/i.test(t.name)) || list[0];
+        if (demo) setSelected(String(demo.id));
+      } catch (e) { /* no saved events: the Load half stays empty */ }
+    })();
+  }, []);
+  const load = async () => {
+    const t = templates.find(x => String(x.id) === selected);
+    if (!t) return;
+    if (!(await askConfirm({
+      title: `Load "${t.name}"?`,
+      message: 'This replaces the live event\'s menu, stations, look and quick picks with the saved event. Orders are not touched.',
+      confirmLabel: 'Load it', danger: true,
+    }))) return;
+    setBusy('load'); setStatus(null);
+    try {
+      const r = await api.request(`/event-templates/${t.id}`, { method: 'GET' });
+      const payload = r?.template?.payload;
+      if (!payload) throw new Error('That saved event is empty.');
+      const { resp, warnings } = await applyEventPreset(api, payload);
+      if (resp?.success === false) throw new Error(resp.message || 'Load failed');
+      setStatus({ ok: !warnings.length, msg: warnings.length ? `Loaded "${t.name}", but: ${warnings.join('; ')}` : `Loaded "${t.name}".` });
+      onChanged();
+    } catch (e) { setStatus({ ok: false, msg: e?.message || 'Load failed' }); }
+    setBusy('');
+  };
+  const wipe = async () => {
+    if (!(await askConfirm({
+      title: 'Wipe the demo?',
+      message: 'Removes every order placed in this demo room or on a demo number (0400 009 9xx), puts their stock back, and clears the demo texts. Real orders are not touched.',
+      confirmLabel: 'Wipe demo', danger: true,
+    }))) return;
+    setBusy('wipe'); setStatus(null);
+    try {
+      const r = await api.request('/demo/wipe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm: 'DEMO' }),
+      });
+      if (r?.success === false) throw new Error(r.message || 'Wipe failed');
+      const n = r?.data?.orders ?? 0;
+      // The phones in these frames remember their live order; forget it
+      // so they open on a fresh order form.
+      try { localStorage.removeItem('cupq_active_order'); } catch (e) { /* private mode */ }
+      setStatus({ ok: true, msg: n ? `Wiped ${n} demo order${n === 1 ? '' : 's'}.` : 'Nothing to wipe.' });
+      onChanged();
+    } catch (e) { setStatus({ ok: false, msg: e?.message || 'Wipe failed' }); }
+    setBusy('');
+  };
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {templates.length > 0 && (
+        <>
+          <select value={selected} onChange={e => setSelected(e.target.value)}
+            aria-label="Saved event to load"
+            className="px-3 py-2 rounded-cq-lg border border-cq-line bg-cq-milk text-sm text-cq-roast max-w-[14rem]">
+            {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+          <button type="button" onClick={load} disabled={!!busy || !selected}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-cq-lg border-2 border-cq-roast text-cq-roast font-semibold disabled:opacity-40">
+            <Download size={16} /> {busy === 'load' ? 'Loading…' : 'Load demo'}
+          </button>
+        </>
+      )}
+      <button type="button" onClick={wipe} disabled={!!busy}
+        className="inline-flex items-center gap-2 px-4 py-2 rounded-cq-lg border-2 border-red-700 text-red-700 font-semibold disabled:opacity-40">
+        <Trash2 size={16} /> {busy === 'wipe' ? 'Wiping…' : 'Wipe demo'}
+      </button>
+      {status && (
+        <span role="status" className={`text-sm ${status.ok ? 'text-green-800' : 'text-red-700'}`}>{status.msg}</span>
+      )}
+    </div>
+  );
+};
+
 const DemoRoom = () => {
   const [eventCode, setEventCode] = useState(null);
   const [eventName, setEventName] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
 
+  // Mark this tab as the Demo Room: the frames read it (they share the
+  // tab's sessionStorage) and tag their orders demo, so Wipe can find them.
   useEffect(() => {
+    try { sessionStorage.setItem('cupq_demo', '1'); } catch (e) { /* private mode */ }
+  }, []);
+  const loadConfig = useCallback(() => {
     (async () => {
       try {
         const r = await fetch('/api/display/config', { cache: 'no-cache' });
@@ -237,6 +333,8 @@ const DemoRoom = () => {
       } catch (e) { setEventCode(''); }
     })();
   }, []);
+  useEffect(() => { loadConfig(); }, [loadConfig]);
+  const afterChange = () => { loadConfig(); setReloadKey(k => k + 1); };
 
   if (eventCode == null) {
     return <div className="min-h-screen bg-cq-cream p-6 text-cq-ink-3">Loading the demo room…</div>;
@@ -254,14 +352,19 @@ const DemoRoom = () => {
             {eventName ? `${eventName}: ` : ''}every screen, live. Order on the phone and watch the rest.
           </p>
         </div>
-        <button type="button" onClick={() => setReloadKey(k => k + 1)}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-cq-lg bg-cq-roast text-white font-semibold">
-          <RotateCw size={16} /> Reload all
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <DemoControls onChanged={afterChange} />
+          <button type="button" onClick={() => setReloadKey(k => k + 1)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-cq-lg bg-cq-roast text-white font-semibold">
+            <RotateCw size={16} /> Reload all
+          </button>
+        </div>
       </header>
 
       <div className="grid gap-5 grid-cols-1 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_2.4fr]">
-        <Screen title="Customer's phone" hint="Scan the QR, order" src={`/order${e}`}
+        {/* ?new=1: always a fresh order form; the other phone shows the
+            live order this one just placed. */}
+        <Screen title="Customer's phone" hint="Scan the QR, order" src={`/order?new=1${e ? `&${e.slice(1)}` : ''}`}
           w={390} h={844} reloadKey={reloadKey} />
         <Screen title="Their phone after ordering" hint="Where it's up to" src={`/my${e}`}
           w={390} h={844} reloadKey={reloadKey} />
