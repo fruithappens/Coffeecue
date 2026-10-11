@@ -10,6 +10,7 @@
 // only; everything else off. Operators tweak the checkboxes if they
 // need more.
 import React, { useEffect, useState } from 'react';
+import { applyEventPreset } from '../../services/eventPreset';
 import { Zap, Check, AlertTriangle, RefreshCw } from 'lucide-react';
 import ApiServiceClass from '../../services/ApiService';
 import EventInventoryService from '../../services/EventInventoryService';
@@ -881,79 +882,11 @@ const QuickSetup = () => {
     // rather than left in a console nobody has open.
     const warnings = [];
     try {
-      const resp = await api.request('/quick-setup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ preset: config }),
-      });
-
-      // Persist the "started" SMS policy separately — it lives in its
-      // own settings/sms-policy endpoint so the policy gate can read
-      // it from anywhere (not just after Quick Setup runs).
-      try {
-        await api.request('/settings/sms-policy', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            policy: config.started_sms_policy || 'queue_only',
-            threshold_seconds: 60,
-          }),
-        });
-      } catch (smsPolErr) {
-        // Non-fatal — the main Quick Setup still succeeded.
-        console.warn('Could not save started_sms_policy:', smsPolErr);
-      }
-
-      // Event identity — only push if the operator actually typed a
-      // name. Blank means "preserve existing", which matters when
-      // re-running Quick Setup to add a new milk without wiping the
-      // event branding.
-      //
-      // Two endpoints, two stores: SMS welcome copy reads from the
-      // top-level `settings` table (admin_routes.py:692 hardcodes
-      // SELECT value FROM settings WHERE key = 'event_name'), while
-      // the Branding tab UI reads from the `branding_settings` JSON
-      // blob via _kv_get. Push to both so neither view goes stale.
+      // Menu, stations, look, picks, sugar rule, text policy, event name:
+      // shared with the Demo Room's Load demo (services/eventPreset.js).
+      const { resp, warnings: presetWarnings } = await applyEventPreset(api, config);
+      warnings.push(...presetWarnings);
       const eventName = (config.event_name || '').trim();
-      if (eventName) {
-        try {
-          await api.request('/settings', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ event_name: eventName }),
-          });
-        } catch (brandErr) {
-          // Same treatment as the branding save below: recorded and shown.
-          // This is the key the SMS welcome copy reads, so a silent
-          // failure here means texts keep naming the previous event.
-          console.warn('Could not save event_name to /settings:', brandErr);
-          warnings.push(
-            `Event name not saved to SMS settings: ${brandErr?.message || brandErr}`
-          );
-        }
-        try {
-          // Send ONLY the field this screen owns. The server merges under
-          // a row lock, so the Branding tab's logo and colours survive.
-          // This used to be a client-side GET-then-PUT read-merge-write,
-          // which had a gap: a branding save landing between the two was
-          // silently overwritten.
-          await api.request('/settings/branding', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ settings: { event_name: eventName } }),
-          });
-        } catch (brandErr) {
-          // Recorded and shown, not just logged. NOT thrown: the main
-          // /quick-setup call above has already created stations and
-          // inventory, and account creation still has to run below —
-          // failing the whole apply over the event name would cost more
-          // than it saves.
-          console.warn('Could not save event_name to /settings/branding:', brandErr);
-          warnings.push(
-            `Event name not saved: ${brandErr?.message || brandErr}`
-          );
-        }
-      }
 
       // Event accounts — create one {slug}admin and N {slug}1..N. We
       // POST sequentially because /api/users/ doesn't do bulk and

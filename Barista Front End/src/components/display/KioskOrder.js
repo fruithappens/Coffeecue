@@ -378,6 +378,10 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
     return () => { cancelled = true; };
   }, [eaCid]);
 
+  // The Demo Room (cupq.app/demo) marks its browser tab; its frames share
+  // that tab's sessionStorage, and the mark ends when the tab closes.
+  const inDemoRoom = (() => { try { return sessionStorage.getItem('cupq_demo') === '1'; } catch (e) { return false; } })();
+
   const myStation = useMemo(() => {
     const n = parseInt(stationId, 10);
     return Number.isFinite(n) ? n : null;
@@ -822,6 +826,8 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
           || (name.trim() === (eaSuggest?.firstName || '') ? eaSuggest?.cid : undefined)
           || undefined,
         channel,
+        // Placed inside the Demo Room: Wipe demo removes it, nothing else.
+        demo: inDemoRoom || undefined,
         // Which physical SURFACE this is (device/frame), separate from
         // channel: the cart kiosk, the EventsAir app frame, or a standalone
         // phone from a QR -- so each area is tracked and tunable on its own.
@@ -832,7 +838,8 @@ const KioskOrder = ({ stationId, headerColor = '#B8764A', onClose, onOrderPlaced
             // same form the customer uses, so the options and "add another"
             // are identical, stamped as a barista-entered order.
             ? 'walkin'
-            : ((() => { try { return window.self !== window.top; } catch (e) { return true; } })() ? 'ea_app' : 'phone'),
+            // A Demo Room frame is a phone, not the EventsAir app.
+            : (!inDemoRoom && (() => { try { return window.self !== window.top; } catch (e) { return true; } })() ? 'ea_app' : 'phone'),
         // Explicit, so the report can count 'chose texts' without inferring
         // it from whether a number happened to be attached.
         sms_opt_in: !!(smsOptIn && phone.trim()),

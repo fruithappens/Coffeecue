@@ -6180,6 +6180,9 @@ def create_kiosk_order():
             # Why, when the EventsAir rule made them one -- "Speaker" on the
             # barista card beside the Priority pill, so staff can see it.
             **({'vip_reason': vip_reason} if vip_reason else {}),
+            # Placed inside the Demo Room (cupq.app/demo): Wipe demo removes
+            # it and nothing else. See routes/demo_routes.py.
+            **({'demo': True} if data.get('demo') is True else {}),
             'station_id': target,
             'stationId': target,
         }
@@ -6401,7 +6404,7 @@ def create_kiosk_order_group():
     shared = {k: body.get(k) for k in (
         'phone', 'use_registered_phone', 'ea_contact_id', 'station_id',
         'preferred_station', 'channel', 'src', 'e', 'lookup_phone',
-        'event_password', 'sms_opt_in', 'surface', 'identified_by') if k in body}
+        'event_password', 'sms_opt_in', 'surface', 'identified_by', 'demo') if k in body}
 
     # Letter the round: reserve ONE base (336) and pre-assign 336a/336b/336c
     # so the sequence advances once per round (no gaps) and every surface
