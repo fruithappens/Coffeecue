@@ -432,7 +432,10 @@ const MobileOrderPage = () => {
             }} />
           <button
             className="w-full mt-6 py-3 rounded-cq-lg bg-cq-roast text-white font-semibold"
-            onClick={() => { setParams({ ...(stationId ? { station: stationId } : {}) }); setTrack(null); }}
+            // new=1 tells the order form this is a SECOND coffee on
+            // purpose; without it the remembered live order sent the
+            // person straight back here (MyCoffeePage's restore).
+            onClick={() => { setParams({ ...(stationId ? { station: stationId } : {}), new: '1' }); setTrack(null); }}
           >
             Order another coffee
           </button>

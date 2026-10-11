@@ -1066,7 +1066,13 @@ const MyCoffeePage = () => {
   // A live order remembered on this device survives the app being
   // closed: restore the beacon instead of offering a fresh order form.
   // Cleared by age (3h) here and by the tracking page on pickup.
-  if (!me && !checkExisting) {
+  // ?new=1 is "Order another coffee": the person has just left their
+  // live order's page on purpose, so don't bounce them back to it.
+  const wantsAnother = (() => {
+    try { return new URLSearchParams(window.location.search).get('new') === '1'; }
+    catch (er) { return false; }
+  })();
+  if (!me && !checkExisting && !wantsAnother) {
     try {
       const raw = recall('cupq_active_order');
       if (raw) {
