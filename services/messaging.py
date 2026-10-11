@@ -155,6 +155,16 @@ class MessagingService:
         # bench number in national form is still recognised.
         to = _to_e164_au(to)
 
+        # DEMO NUMBERS (0400 009 9xx): shown in the Demo Room's Messages
+        # pane, never sent and never metered. They sit inside the bench
+        # range, so the wall below would refuse them anyway; this only
+        # writes them down first. See services/demo_texts.py.
+        from services import demo_texts
+        if demo_texts.is_demo(to):
+            demo_texts.add(to, body, kind)
+            logger.info("DEMO NUMBER %s - shown, not sent (kind=%s)", to, kind)
+            return "demo_preview"
+
         # BENCH WALL, in the one place every send has to pass through.
         #
         # There was already a wall like this, but it sat at ONE call site
