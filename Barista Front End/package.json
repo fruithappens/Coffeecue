@@ -50,5 +50,10 @@
     "cypress": "^13.17.0",
     "http-proxy-middleware": "^3.0.3",
     "postcss": "^8.5.3"
+  },
+  "jest": {
+    "transformIgnorePatterns": [
+      "node_modules/(?!(axios)/)"
+    ]
   }
 }
