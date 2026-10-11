@@ -612,9 +612,22 @@ def printer_fault(last_status):
 
 
 def _cloudprnt_auth_ok():
+    """Optional shared secret (CLOUDPRNT_SHARED_SECRET). Off unless set,
+    because turning it on means adding ?secret=... to every printer's
+    CloudPRNT URL (and the agent's config) at the same moment. Accepted as
+    the `secret` query parameter (what a printer's URL can carry) or an
+    X-CloudPRNT-Secret header (the agent)."""
     if not CLOUDPRNT_SHARED_SECRET:
         return True
-    return request.args.get("secret") == CLOUDPRNT_SHARED_SECRET
+    import hmac
+    given = request.args.get("secret") or request.headers.get("X-CloudPRNT-Secret") or ""
+    return hmac.compare_digest(given, CLOUDPRNT_SHARED_SECRET)
+
+
+# Zero-touch onboarding registers an unknown MAC on its first poll. Without a
+# ceiling, anything that can reach /cloudprnt could fill the printers table
+# with junk rows by inventing MACs; real deployments have a handful.
+MAX_UNCLAIMED_PRINTERS = 25
 
 
 # How a printer is actually driven. Kept here because the Support UI and
@@ -657,6 +670,16 @@ def cloudprnt_poll():
         if printer is None:
             # Zero-touch onboarding: register DISABLED; operator enables
             # + assigns a station in the Support print panel.
+            cur.execute(
+                "SELECT COUNT(*) FROM printers WHERE NOT enabled AND station_id IS NULL"
+            )
+            _row = cur.fetchone()
+            _unclaimed = (_row[0] if not isinstance(_row, dict) else list(_row.values())[0]) or 0
+            if _unclaimed >= MAX_UNCLAIMED_PRINTERS:
+                logger.warning(
+                    "cloudprnt: not registering MAC %s -- already %s unclaimed printers",
+                    mac, _unclaimed)
+                return jsonify({"jobReady": False})
             cur.execute(
                 "INSERT INTO printers (name, mac_address, enabled, last_poll_at, last_status) "
                 "VALUES (%s, %s, FALSE, NOW(), %s)",
@@ -754,8 +777,12 @@ def cloudprnt_fetch():
         )
         job = _row_to_dict(cur, cur.fetchone())
         # The token is an unguessable capability, but a job for printer A
-        # must never print on printer B: the MAC has to match too.
-        if not job or (mac and _norm_mac(job.get("mac_address")) != mac):
+        # must never print on printer B: the MAC has to match too. It is
+        # REQUIRED -- this used to skip the check when no MAC was sent, so
+        # anyone holding a token could download the label (a customer's
+        # name and drink) without being a printer at all. Star's CloudPRNT
+        # client and print-agent both always send it.
+        if not job or not mac or _norm_mac(job.get("mac_address")) != mac:
             return Response(status=404)
         payload = {}
         try:
@@ -855,8 +882,22 @@ def cloudprnt_confirm():
     _ensure_tables(db)
     token = request.args.get("token") or ""
     code = str(request.args.get("code") or "")
+    mac = _norm_mac(request.args.get("mac"))
     try:
         cur = db.cursor()
+        # Only the printer the job belongs to may report its result -- the
+        # same rule as fetching it. Otherwise anyone with a token could mark
+        # a label printed (it never comes out) or keep re-queueing it.
+        cur.execute(
+            "SELECT p.mac_address FROM print_jobs j JOIN printers p "
+            "ON p.id = j.printer_id WHERE j.id = %s",
+            (token,),
+        )
+        _owner = cur.fetchone()
+        if _owner is not None:
+            _owner_mac = _owner[0] if not isinstance(_owner, dict) else _owner.get("mac_address")
+            if not mac or _norm_mac(_owner_mac) != mac:
+                return Response(status=404)
         cur.execute(
             "SELECT attempts, printer_id, order_id, "
             "EXTRACT(EPOCH FROM (NOW() - created_at)) AS total_s, "

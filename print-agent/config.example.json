@@ -1,5 +1,6 @@
 {
   "cloudBase": "https://web-production-4cc9c.up.railway.app",
+  "secret": "",
   "pollIntervalMs": 3000,
   "port": 8631,
   "printers": [

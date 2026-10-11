@@ -102,3 +102,11 @@ label up to whatever media the driver has selected, and a Star mC-Label3
 defaults to **72mm** stock. On narrower labels the design comes out oversized
 and clipped off the edge. If prints look enlarged and cut off, that default is
 the first thing to check — not the label design.
+
+## Shared secret (optional)
+
+If the server has `CLOUDPRNT_SHARED_SECRET` set, put the same value in this
+agent's `config.json` as `"secret"`. The agent sends it as an
+`X-CloudPRNT-Secret` header. Printers that talk to the cloud directly need it
+on their CloudPRNT URL instead: `https://<your-app>/cloudprnt?secret=<value>`.
+Set all three (server, agent, printer URL) together, or printing stops.

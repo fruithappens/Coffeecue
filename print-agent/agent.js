@@ -398,11 +398,13 @@ function cloudRequest(cfg, method, urlPath, body) {
     const url = new URL(cfg.cloudBase + urlPath);
     const mod = url.protocol === 'https:' ? https : http;
     const payload = body ? JSON.stringify(body) : null;
+    // Optional shared secret, matching CLOUDPRNT_SHARED_SECRET on the server.
+    const secretHeader = cfg.secret ? { 'X-CloudPRNT-Secret': cfg.secret } : {};
     const req = mod.request(url, {
       method,
       headers: payload
-        ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) }
-        : {},
+        ? { ...secretHeader, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) }
+        : secretHeader,
       timeout: 15000,
     }, (res) => {
       const chunks = [];
