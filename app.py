@@ -712,6 +712,14 @@ def create_app():
         app.register_blueprint(health_bp)
         logger.info("Health API routes registered")
 
+    # Runner > Settings > Plan: /api/plan (tiers in utils/plan_limits.py).
+    try:
+        from routes.plan_routes import bp as plan_bp
+        app.register_blueprint(plan_bp)
+        logger.info("Plan routes registered")
+    except Exception as plan_err:
+        logger.error(f"Plan routes failed to register: {plan_err}")
+
     if has_readiness_api:
         app.register_blueprint(readiness_bp)
         logger.info("Readiness API routes registered")
