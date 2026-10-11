@@ -724,6 +724,14 @@ def create_app():
     except Exception as meter_err:
         logger.error(f"SMS meter routes failed to register: {meter_err}")
 
+    # Runner > Settings > Plan: /api/plan (tiers in utils/plan_limits.py).
+    try:
+        from routes.plan_routes import bp as plan_bp
+        app.register_blueprint(plan_bp)
+        logger.info("Plan routes registered")
+    except Exception as plan_err:
+        logger.error(f"Plan routes failed to register: {plan_err}")
+
     # "Book a demo" form on cupq.com.au: /api/public/demo-request.
     try:
         from routes.demo_request_routes import bp as demo_request_bp

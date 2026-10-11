@@ -3,6 +3,7 @@ import { Download, Upload, Trash2, ShieldAlert, Database, Palette, Users } from 
 import { Panel, SettingRow, Toggle, TextField } from '../../design';
 import ApiServiceClass from '../../services/ApiService';
 import SquareCard from '../support/SquareCard';
+import PlanTierCard from './PlanTierCard';
 import { askConfirm } from '../shared/ConfirmDialog';
 
 const api = new ApiServiceClass();
@@ -148,6 +149,8 @@ const EventDataManagement = () => {
         Archive this event, hand the next client a clean system, and carry
         returning attendees' saved orders forward to next year.
       </p>
+
+      <PlanTierCard />
 
       {result && (
         <div className={`mb-5 p-3 rounded-cq-md text-sm ${
