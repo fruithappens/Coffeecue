@@ -60,6 +60,28 @@ jobs:
         # of the frontend build failing.
         run: python -m compileall -q app.py auth.py config.py routes services models utils
 
+  audit:
+    name: Dependency audit (informational)
+    # Reports known-vulnerable packages; doesn't block. Triage and upgrade
+    # plan: docs/DEPENDENCY_AUDIT.md.
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Python (pip-audit)
+        run: pip install pip-audit && pip-audit -r requirements.txt --progress-spinner off
+      - uses: actions/setup-node@v4
+        if: always()
+        with:
+          node-version: 20
+      - name: Frontend (npm audit, runtime deps)
+        if: always()
+        working-directory: "Barista Front End"
+        run: npm audit --omit=dev --audit-level=critical
+
   consistency:
     name: Consistency checks
     runs-on: ubuntu-latest
