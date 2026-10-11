@@ -1,0 +1,46 @@
+# Post-deploy check: did the merge actually go live, and does it work?
+#
+# Railway deploys main on every push, with no gate of its own, and has been
+# seen to skip a deploy silently ("Railway can miss a deploy -- re-push").
+# This waits until production reports the merged commit (/api/app-version
+# `commit`, from RAILWAY_GIT_COMMIT_SHA), then runs the read-only smoke test
+# in scripts/smoke_live.sh. Either failing turns the check red and GitHub
+# emails the repo owner.
+name: Post-deploy check
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+concurrency:
+  group: post-deploy
+  cancel-in-progress: true
+
+jobs:
+  live:
+    name: Live after deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Wait for Railway to serve this commit
+        env:
+          BASE: https://cupq.app
+        run: |
+          want="$GITHUB_SHA"
+          for i in $(seq 1 40); do
+            live=$(curl -s -m 15 "$BASE/api/app-version" | python3 -c "import json,sys; print(json.load(sys.stdin).get('commit') or '')" 2>/dev/null || true)
+            if [ "$live" = "$want" ]; then echo "Live on $want"; exit 0; fi
+            # A newer merge already deployed counts too.
+            if [ -n "$live" ] && git merge-base --is-ancestor "$want" "$live" 2>/dev/null; then
+              echo "Live on newer commit $live (includes $want)"; exit 0; fi
+            echo "[$i] live=${live:-unknown}, waiting for ${want:0:7}..."
+            sleep 30
+          done
+          echo "::error::Production is not serving ${want:0:7} after 20 minutes. Railway may have skipped this deploy: redeploy it from the Railway dashboard, or push again."
+          exit 1
+      - name: Smoke test
+        run: bash scripts/smoke_live.sh https://cupq.app
