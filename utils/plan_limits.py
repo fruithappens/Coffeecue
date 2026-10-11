@@ -18,6 +18,7 @@ keying every order in at the counter instead of letting people self-order.
 Fail-open throughout, same reasoning as order_intake.py: a transient DB
 error should never be the thing that stops a real coffee order.
 """
+
 import logging
 
 logger = logging.getLogger("expresso.plan_limits")
@@ -38,6 +39,7 @@ PLAN_LIMITS = {
         "group_orders": False,
         "square": False,
         "badge_scan": False,
+        "white_label": False,
     },
     "standard": {
         "sms": 2000,
@@ -47,6 +49,7 @@ PLAN_LIMITS = {
         "group_orders": False,
         "square": False,
         "badge_scan": False,
+        "white_label": False,
     },
     "pro": {
         "sms": 6000,
@@ -56,6 +59,7 @@ PLAN_LIMITS = {
         "group_orders": True,
         "square": True,
         "badge_scan": True,
+        "white_label": True,
     },
     "urn": {
         "sms": None,
@@ -65,6 +69,7 @@ PLAN_LIMITS = {
         "group_orders": True,
         "square": True,
         "badge_scan": True,
+        "white_label": True,
     },
 }
 # No plan_tier set (every instance today): unlimited, matching current
@@ -77,6 +82,7 @@ UNLIMITED = {
     "group_orders": True,
     "square": True,
     "badge_scan": True,
+    "white_label": False,
 }
 
 # Plain ASCII only -- see [[expresso-sms-cost]]: an emoji or em-dash pushes
@@ -124,6 +130,20 @@ def feature_allowed(db, feature):
         return bool(get_limits(db).get(feature, True))
     except Exception as e:
         logger.error("plan_limits: feature check failed for %s: %s", feature, e)
+        return True
+
+
+def shows_powered_by(db):
+    """Whether guest screens sign "powered by CupQ". Lite and Standard do;
+    Pro and Urn (rental) are white-label. No tier set = shown, as today.
+
+    Fails CLOSED to showing it -- the opposite of feature_allowed -- because
+    a broken read must never quietly hand out the paid white-label look.
+    """
+    try:
+        return not bool(get_limits(db).get("white_label", False))
+    except Exception as e:
+        logger.error("plan_limits: white-label check failed: %s", e)
         return True
 
 

@@ -30,6 +30,7 @@ import { Coffee, Check, Clock, ArrowLeft, RefreshCw, MapPin,
          Maximize2, MessageCircle, RotateCw, Volume2, VolumeX, Volume1 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { CupMark, CupQWordmark } from './CupQMarks';
+import { useEventBrand } from '../../design/eventBrand';
 import OrderDataService from '../../services/OrderDataService';
 import StationsService from '../../services/StationsService';
 import ApiService from '../../services/ApiService';
@@ -252,6 +253,8 @@ const _normalizeRotation = (value) => {
 };
 
 const DisplayScreen = () => {
+  // Whether this plan signs the board with CupQ's marks (white-label hides them).
+  const footerBrand = useEventBrand();
   // Self-heal after a network outage: an iPad in fullscreen has no F5.
   // The watchdog reloads on the down->up transition, never mid-touch
   // (a customer ordering keeps their screen; see connectionWatchdog).
@@ -2083,14 +2086,18 @@ const DisplayScreen = () => {
             near-black: on the dark brand bar the original would simply
             disappear, which is why both marks take their colours as
             props instead of baking the palette in. */}
+        {/* White-label plans (Pro, Urn) keep the bar and the clock but drop
+            CupQ's own marks. */}
         <div className="flex items-center gap-3 min-w-0">
+          {footerBrand.poweredBy !== false && (<>
           <CupMark size={30} cup="#FFFFFF" accent={bannerEdge} />
           <span className="text-xs font-bold uppercase tracking-[0.22em] truncate opacity-80">
             Cue the cups.
           </span>
+          </>)}
         </div>
         <div className="flex-shrink-0">
-          <CupQWordmark height={26} word="#FFFFFF" accent={bannerEdge} />
+          {footerBrand.poweredBy !== false && <CupQWordmark height={26} word="#FFFFFF" accent={bannerEdge} />}
         </div>
         <div className="text-sm font-semibold tabular-nums opacity-90 text-right">
           {lastUpdated

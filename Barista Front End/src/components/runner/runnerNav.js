@@ -41,6 +41,7 @@ export const TABS = {
     { id: 'inventory',        label: 'Event Inventory',   Icon: ListChecks },
     { id: 'stock',            label: 'Event Stock',       Icon: Boxes },
     { id: 'stationInventory', label: 'Station Inventory', Icon: Coffee },
+    { id: 'quickPicks',       label: 'Quick picks',       Icon: Zap },
   ],
   branding: [
     { id: 'logo',     label: 'Logo & look',  Icon: Palette },

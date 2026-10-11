@@ -17,7 +17,7 @@ import AskCustomerControls from '../AskCustomerControls';
 import { summariseMilk, filterByMilk } from '../../../utils/currentOrderView';
 import { parseServerDate } from '../../../utils/orderUtils';
 import { serverNow } from '../../../utils/orderTime';
-import { orderNumberOf, drinkLine, milkSugarLine, notesOf, messageOf, groupIdOf, isPriority, priceOf, hasPhone, isDecaf, sinceQueued, sinceStarted, sinceReady } from './orderMeta';
+import { orderNumberOf, drinkLine, milkSugarLine, notesOf, messageOf, groupIdOf, isPriority, priceOf, hasPhone, isDecaf, serviceOf, sinceQueued, sinceStarted, sinceReady } from './orderMeta';
 
 const READY_RECENCY_MIN = 30;
 const NO_SMS_EXPIRY_MULTIPLIER = 2;
@@ -156,6 +156,7 @@ export default function QueueColumn({
   const badgesFor = (o) => (
     <>
       {isDecaf(o) ? <Pill tone="alert" size="sm">Decaf</Pill> : null}
+      {serviceOf(o) ? <Pill tone={serviceOf(o) === 'Take away' ? 'caramel' : 'outline'} size="sm">{serviceOf(o)}</Pill> : null}
       {isPriority(o) ? <Pill tone="roast" size="sm">{o.vipReason ? `Priority · ${o.vipReason}` : 'Priority'}</Pill> : null}
       <GroupBadge info={groupInfoByOrderId[o.id]} />
       <SourceBadge order={o} />

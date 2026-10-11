@@ -630,6 +630,7 @@ def orders():
                     'shots': order_details.get('shots'),
                     'bean_type': order_details.get('bean_type'),
                     'beanType': order_details.get('bean_type'),
+                    'service': order_details.get('service'),
                     'batch_group': _bg,
                     'batchGroup': _bg,
                     'status': status,
@@ -1198,6 +1199,7 @@ def get_pending_orders():
                 'shots': order_details.get('shots'),
                 'bean_type': order_details.get('bean_type'),
                 'beanType': order_details.get('bean_type'),
+                'service': order_details.get('service'),
                 # Order channel + no-SMS flag (EA app orders).
                 'orderSource': order_details.get('source') or 'sms',
                 'needsContact': bool(order_details.get('needs_contact')),
@@ -1365,6 +1367,7 @@ def get_in_progress_orders():
                 'milkType': milk_type,
                 'extraHot': extra_hot,
                 'strength': order_details.get('strength', '') if isinstance(order_details, dict) else '',
+                'service': order_details.get('service') if isinstance(order_details, dict) else None,
                 # Team mode: which stages (shots/milk) are already done.
                 'stages': order_details.get('stages') or {},
                 # Order channel + no-SMS flag (EA app orders).
@@ -1470,6 +1473,7 @@ def get_completed_orders():
                 'coffeeType': _drink_display_name(order_details),     # camelCase
                 'milk_type': order_details.get('milk', 'Standard'),
                 'milkType': order_details.get('milk', 'Standard'),     # camelCase
+                'service': order_details.get('service'),
                 'completed_at': completed_at,
                 'completedAt': completed_at.isoformat() if hasattr(completed_at, 'isoformat') else completed_at,
                 'picked_up_at': picked_up_at,
@@ -4873,6 +4877,16 @@ def _pricing_for(db):
         return dict(DEFAULT_PRICING)
 
 
+def _powered_by_for_display(db):
+    """True when guest screens should sign "powered by CupQ". Never raises;
+    shows it when anything goes wrong."""
+    try:
+        from utils.plan_limits import shows_powered_by
+        return shows_powered_by(db)
+    except Exception:
+        return True
+
+
 def _badge_scan_for_display(db):
     """True when the kiosk/phone may offer to scan an EventsAir badge.
     The same operator switch that gates /api/ea/hello, read the same way,
@@ -5139,6 +5153,9 @@ def get_display_config():
                 # CupQ house dark, from the logo. Was a generic blue that
                 # belonged to nothing. A client's own branding still wins:
                 # this is only the fallback when nothing is configured.
+                # "powered by CupQ" on guest screens: by plan tier (Pro and
+                # Urn are white-label). utils/plan_limits.shows_powered_by.
+                "powered_by": _powered_by_for_display(coffee_system.db),
                 "header_color": (branding.get('headerColor')
                                  or branding.get('primaryColor') or '#C08552'),
                 "custom_message": disp.get('custom_message') or branding.get('customMessage') or branding.get('footerText') or '',
@@ -5638,11 +5655,29 @@ def _kiosk_menu_data(coffee_system):
             pass
         not_today = []
 
+    coffee_built = build('coffee_types')
+    sizes_built = build('sizes')
+    # The organiser's one-tap drinks, checked against this exact menu so a
+    # pick is only offered while everything in it can be made.
+    quick_picks = []
+    try:
+        from utils.quick_picks import resolve_picks
+        quick_picks = resolve_picks(
+            _kv_get(db, 'quick_picks', default=None),
+            {'coffee_types': coffee_built, 'milks': milks_built, 'sizes': sizes_built})
+    except Exception as e:
+        logger.warning(f"kiosk menu: quick picks skipped: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
     return {
         'stations': stations,
-        'coffee_types': build('coffee_types'),
+        'coffee_types': coffee_built,
         'milks': milks_built,
-        'sizes': build('sizes'),
+        'sizes': sizes_built,
+        'quick_picks': quick_picks,
         'beans': beans,
         # Named so a customer screen can answer "is there hot chocolate?"
         # without anyone having to ask a barista.
@@ -5677,6 +5712,43 @@ def get_display_menu():
                         'features': {'attendee_lookup': badge_ok}})
     except Exception as e:
         logger.error(f"display/menu error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/quick-picks', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def get_quick_picks():
+    """The saved quick picks, as the Runner wrote them (not filtered by
+    today's menu -- the editor must show a pick even while its milk is
+    86'd, or saving would silently delete it)."""
+    try:
+        from utils.quick_picks import normalize_picks
+        db = current_app.config.get('coffee_system').db
+        return jsonify({'success': True,
+                        'quick_picks': normalize_picks(_kv_get(db, 'quick_picks', default=None))})
+    except Exception as e:
+        logger.error(f"quick-picks read error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/quick-picks', methods=['PUT'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def put_quick_picks():
+    """Replace the quick picks. Body: {"quick_picks": [{drink, milk, size, label}]}."""
+    try:
+        from utils.quick_picks import normalize_picks
+        body = request.get_json(silent=True) or {}
+        if not isinstance(body.get('quick_picks'), list):
+            return jsonify({'success': False,
+                            'message': 'quick_picks must be a list'}), 400
+        picks = normalize_picks(body['quick_picks'])
+        db = current_app.config.get('coffee_system').db
+        _kv_put(db, 'quick_picks', picks)
+        return jsonify({'success': True, 'quick_picks': picks})
+    except Exception as e:
+        logger.error(f"quick-picks write error: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -5744,6 +5816,10 @@ def create_kiosk_order():
         # ask for it. Same key the walk-in path writes, so the barista card
         # and the label read it without knowing where the order came from.
         bean_type = str(data.get('bean_type') or '').strip().lower()
+        # Dine in or take away (the lounge's quick order asks). Only the two
+        # known words are kept; anything else is "not asked" (None).
+        service = str(data.get('service') or '').strip().lower()
+        service = service if service in ('here', 'takeaway') else None
 
         # EventsAir pre-identification (research Phase 4.8): the EA app
         # links here with ?cid={ContactID}; the kiosk passes it through.
@@ -6074,6 +6150,7 @@ def create_kiosk_order():
             'strength': strength,
             'temp': temp,
             'bean_type': bean_type or None,
+            'service': service,
             # The barista's walk-up form posts here too (channel 'walkin' ->
             # 'barista'); keep the legacy order_type honest for it.
             'order_type': 'walk-in' if req_channel == 'barista' else 'kiosk',
@@ -12012,6 +12089,103 @@ def _apply_quick_setup(coffee_system, preset):
             logger.warning(f"quick-setup activate_all_stations failed: {e}")
             db.rollback()
 
+    # 7-10. A saved EVENT, not just a menu: a template may also carry the
+    # look, the one-tap drinks, the sugar rule and how many stations run
+    # (Steve: "save events and recall"). Each is applied only when the
+    # template has the key, so every older template behaves as before.
+    summary.extend(_apply_event_extras(coffee_system, preset))
+
+    return summary
+
+
+def _apply_event_extras(coffee_system, preset):
+    """Branding, quick picks, self-serve sugar and active-station count
+    from a recalled event template. Returns summary lines; never raises."""
+    db = coffee_system.db
+    summary = []
+
+    branding = preset.get('branding')
+    if isinstance(branding, dict) and branding:
+        try:
+            # Merge, like the Branding screen: keys the template leaves out
+            # (an uploaded logo, say) are kept rather than wiped.
+            _kv_put(db, 'branding_settings', branding, merge=True)
+            summary.append(f"branding set ({len(branding)} field(s))")
+        except Exception as e:
+            logger.warning(f"event template branding failed: {e}")
+            try:
+                db.rollback()
+            except Exception:
+                pass
+
+    # The Organiser's Event Inventory is the other half of the menu: Quick
+    # Setup writes stock and capabilities, but what the kiosk and SMS OFFER
+    # is also filtered by this list. Without it a recalled event kept the
+    # previous event's extras switched on. A template holds the complete
+    # list, so it REPLACES (a merge would resurrect items it switched off).
+    inv = preset.get('event_inventory')
+    if isinstance(inv, dict) and inv:
+        try:
+            _kv_put(db, 'event_inventory', inv)
+            on = sum(1 for items in inv.values() if isinstance(items, list)
+                     for it in items if isinstance(it, dict) and it.get('enabled', True))
+            summary.append(f"event inventory set ({on} item(s) on)")
+        except Exception as e:
+            logger.warning(f"event template event_inventory failed: {e}")
+            try:
+                db.rollback()
+            except Exception:
+                pass
+
+    if isinstance(preset.get('quick_picks'), list):
+        try:
+            from utils.quick_picks import normalize_picks
+            picks = normalize_picks(preset['quick_picks'])
+            _kv_put(db, 'quick_picks', picks)
+            summary.append(f"{len(picks)} quick pick(s)")
+        except Exception as e:
+            logger.warning(f"event template quick picks failed: {e}")
+            try:
+                db.rollback()
+            except Exception:
+                pass
+
+    if 'sugar_self_serve' in preset:
+        val = 'true' if preset.get('sugar_self_serve') else 'false'
+        try:
+            cur = db.cursor()
+            cur.execute("""
+                INSERT INTO settings(key, value) VALUES('sugar_self_serve', %s)
+                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+            """, (val,))
+            db.commit()
+            cache = getattr(coffee_system, 'settings_cache', None)
+            if isinstance(cache, dict):
+                cache.pop('sugar_self_serve', None)
+            summary.append('sugar is self-serve' if val == 'true' else 'sugar asked at order')
+        except Exception as e:
+            logger.warning(f"event template sugar_self_serve failed: {e}")
+            db.rollback()
+
+    n = preset.get('active_stations')
+    if isinstance(n, int) and not isinstance(n, bool) and n >= 1:
+        # The first N stations by id run; the rest are switched off. A
+        # lounge is one station; an event template can say three.
+        try:
+            cur = db.cursor()
+            cur.execute("SELECT station_id FROM station_stats ORDER BY station_id")
+            ids = [r['station_id'] if isinstance(r, dict) else r[0] for r in cur.fetchall()]
+            on, off = ids[:n], ids[n:]
+            if on:
+                cur.execute("UPDATE station_stats SET status = 'active' WHERE station_id = ANY(%s)", (on,))
+            if off:
+                cur.execute("UPDATE station_stats SET status = 'inactive' WHERE station_id = ANY(%s)", (off,))
+            db.commit()
+            summary.append(f"{len(on)} station(s) on" + (f", {len(off)} off" if off else ''))
+        except Exception as e:
+            logger.warning(f"event template active_stations failed: {e}")
+            db.rollback()
+
     return summary
 
 
@@ -12308,6 +12482,20 @@ def dry_run_quick_setup():
         settings_diff['always_open_schedule'] = {
             'breaks_to_delete': breaks_to_delete,
         }
+        # What a recalled EVENT template sets beyond the menu (see
+        # _apply_event_extras), so the preview names it before Apply.
+        extras = []
+        if isinstance(merged.get('branding'), dict) and merged['branding']:
+            extras.append(f"branding ({len(merged['branding'])} field(s))")
+        if isinstance(merged.get('event_inventory'), dict) and merged['event_inventory']:
+            extras.append('event inventory replaced')
+        if isinstance(merged.get('quick_picks'), list):
+            extras.append(f"{len(merged['quick_picks'])} quick pick(s)")
+        if 'sugar_self_serve' in merged:
+            extras.append('sugar self-serve ' + ('on' if merged.get('sugar_self_serve') else 'off'))
+        if isinstance(merged.get('active_stations'), int) and not isinstance(merged.get('active_stations'), bool):
+            extras.append(f"{merged['active_stations']} station(s) on, the rest off")
+        settings_diff['event_extras'] = extras
 
         return jsonify({
             'success': True,

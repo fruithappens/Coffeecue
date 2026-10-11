@@ -150,6 +150,8 @@ export default function DisplaySelector({ embedded = false }) {
             what="What a delegate gets from a QR code: order, then watch it." />
           <ScreenRow Icon={Activity} title="Ops board" path="/opsboard"
             what="For you, not the room. Leave it open and glance at it." />
+          <ScreenRow Icon={Hand} title="Touch bar at the machine" path="/bar"
+            what="The long touch strip above the machine: queue side by side, hold to batch, Start and Ready. Add ?station=2 for another cart." />
         </div>
       </Section>
 

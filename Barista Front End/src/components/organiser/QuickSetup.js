@@ -698,8 +698,15 @@ const QuickSetup = () => {
       qsKnownByCategory[catKey] = new Set(tmpls.map(t => _lower(t.name)));
     });
 
-    const updated = {};
-    Object.entries(existing).forEach(([catKey, items]) => {
+    // A recalled EVENT template carries its own complete Event Inventory.
+    // Use it exactly -- rebuilding from this browser's cached copy kept
+    // items Quick Setup does not know by name (Golden Latte, Iced Tea...)
+    // switched on from the previous event, and saved that over the
+    // template's list the server had just written.
+    const fromTemplate = (config.event_inventory && typeof config.event_inventory === 'object'
+      && !Array.isArray(config.event_inventory)) ? config.event_inventory : null;
+    const updated = fromTemplate ? JSON.parse(JSON.stringify(fromTemplate)) : {};
+    if (!fromTemplate) Object.entries(existing).forEach(([catKey, items]) => {
       const allowed = lowerCaseFilter[catKey];
       const qsKnown = qsKnownByCategory[catKey] || new Set();
       if (!Array.isArray(items)) {
@@ -727,7 +734,7 @@ const QuickSetup = () => {
     // Add any custom tea blends as new rows in the drinks category
     // so they're discoverable in InventoryManagement after Quick
     // Setup runs. Existing rows are not touched.
-    const customTeas = customTeaList();
+    const customTeas = fromTemplate ? [] : customTeaList();
     if (customTeas.length > 0) {
       if (!Array.isArray(updated.drinks)) updated.drinks = [];
       customTeas.forEach((teaName, i) => {
@@ -1588,6 +1595,12 @@ const QuickSetupPreviewModal = ({ loading, preview, error, onConfirm, onCancel }
                     <strong>{settings.always_open_schedule.breaks_to_delete}</strong>
                   </li>
                 )}
+                {Array.isArray(settings.event_extras) && settings.event_extras.length > 0 && (
+                  <li>
+                    <span className="text-cq-ink-2">From the event template:</span>{' '}
+                    <strong>{settings.event_extras.join(' · ')}</strong>
+                  </li>
+                )}
               </ul>
             </div>
           )}
@@ -1629,6 +1642,78 @@ const EventTemplatesSection = ({ config, setConfig }) => {
   const [selected, setSelected] = React.useState('');
   const [saving, setSaving] = React.useState(false);
   const [status, setStatus] = React.useState(null);
+  // A template can be a whole EVENT: the look, the quick picks and the
+  // sugar rule ride along with the menu, so recalling it brings the event
+  // back as it was (Steve: "save events and recall").
+  const [withEvent, setWithEvent] = React.useState(true);
+  const fileRef = React.useRef(null);
+
+  // The event parts that live outside the Quick Setup form.
+  const eventExtras = async () => {
+    const extras = {};
+    try {
+      const b = await api.request('/settings/branding', { method: 'GET' });
+      if (b?.settings && Object.keys(b.settings).length) extras.branding = b.settings;
+    } catch (e) { /* saved without the look */ }
+    try {
+      const inv = await api.request('/event-inventory', { method: 'GET' });
+      // GET /event-inventory answers with the list itself ({milk:[..], coffee:[..], ...}).
+      const blob = inv && (inv.milk || inv.coffee || inv.drinks) ? inv : null;
+      if (blob) extras.event_inventory = blob;
+    } catch (e) { /* saved without the event inventory */ }
+    try {
+      const q = await api.request('/quick-picks', { method: 'GET' });
+      if (Array.isArray(q?.quick_picks)) extras.quick_picks = q.quick_picks;
+    } catch (e) { /* saved without picks */ }
+    try {
+      const r = await fetch('/api/display/menu', { cache: 'no-cache' });
+      const m = r.ok ? await r.json() : null;
+      if (m?.menu && 'sugar_self_serve' in m.menu) extras.sugar_self_serve = !!m.menu.sugar_self_serve;
+    } catch (e) { /* saved without the sugar rule */ }
+    return extras;
+  };
+
+  // A template as a FILE: to keep, email, or load on another CupQ.
+  const handleExport = async () => {
+    if (!selected) return;
+    try {
+      const resp = await api.request(`/event-templates/${selected}`, { method: 'GET' });
+      const t = resp?.template;
+      if (!t) throw new Error('Template not found');
+      const file = { cupq_event_template: 1, name: t.name, description: t.description || '', payload: t.payload };
+      const url = URL.createObjectURL(new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${String(t.name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'event'}.cupq-event.json`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setStatus({ ok: true, msg: `Downloaded "${t.name}".` });
+    } catch (e) {
+      setStatus({ ok: false, msg: e?.message || 'Export failed' });
+    }
+  };
+  const handleImport = async (e) => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    try {
+      const file = JSON.parse(await f.text());
+      if (!file || typeof file.payload !== 'object' || !String(file.name || '').trim()) {
+        throw new Error('That file is not a CupQ event template');
+      }
+      const resp = await api.request('/event-templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: String(file.name).trim(), description: file.description || '', payload: file.payload }),
+      });
+      if (!resp?.success) throw new Error(resp?.error || 'Import failed');
+      await loadList();
+      setSelected(String(resp.id || ''));
+      setStatus({ ok: true, msg: `Imported "${file.name}". Load it into the form, check, then Apply.` });
+    } catch (er) {
+      setStatus({ ok: false, msg: er?.message || 'Import failed' });
+    }
+  };
 
   const loadList = React.useCallback(async () => {
     setLoading(true);
@@ -1655,7 +1740,13 @@ const EventTemplatesSection = ({ config, setConfig }) => {
         // Merge over current config so unrelated fields (event_name etc)
         // aren't wiped. The backend strips per-event identity before
         // saving, so payload won't carry stale credentials.
-        setConfig(prev => ({ ...prev, ...resp.template.payload }));
+        // The event parts (look, picks, sugar, stations) come only from the
+        // template being loaded -- never left over from a previous one.
+        setConfig(prev => {
+          // eslint-disable-next-line no-unused-vars
+          const { branding, quick_picks, sugar_self_serve, active_stations, event_inventory, ...rest } = prev;
+          return { ...rest, ...resp.template.payload };
+        });
         setStatus({ ok: true, msg: `Loaded "${resp.template.name}" — review and click Apply.` });
       } else {
         setStatus({ ok: false, msg: 'Template payload was empty.' });
@@ -1681,7 +1772,7 @@ const EventTemplatesSection = ({ config, setConfig }) => {
       const resp = await api.request('/event-templates', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), payload: config }),
+        body: JSON.stringify({ name: name.trim(), payload: withEvent ? { ...config, ...(await eventExtras()) } : config }),
       });
       if (resp?.success) {
         setStatus({ ok: true, msg: `Saved as "${name.trim()}".` });
@@ -1729,7 +1820,28 @@ const EventTemplatesSection = ({ config, setConfig }) => {
         >
           {saving ? 'Saving…' : 'Save current as template'}
         </button>
+        <button
+          type="button"
+          onClick={handleExport}
+          disabled={!selected}
+          className="h-10 px-4 rounded-cq-md bg-cq-milk border-2 border-cq-line text-cq-roast text-sm font-bold hover:border-cq-caramel disabled:opacity-40"
+        >
+          Download file
+        </button>
+        <button
+          type="button"
+          onClick={() => fileRef.current && fileRef.current.click()}
+          className="h-10 px-4 rounded-cq-md bg-cq-milk border-2 border-cq-line text-cq-roast text-sm font-bold hover:border-cq-caramel"
+        >
+          Import file
+        </button>
+        <input ref={fileRef} type="file" accept=".json,application/json" className="hidden"
+          onChange={handleImport} aria-label="Import template file" />
       </div>
+      <label className="flex items-center gap-2 mt-3 text-sm text-cq-ink-2">
+        <input type="checkbox" checked={withEvent} onChange={e => setWithEvent(e.target.checked)} />
+        Save the whole event: branding, quick picks and the sugar rule, not just the menu
+      </label>
       {status && (
         <div className={`text-sm mt-3 ${status.ok ? 'text-cq-ready' : 'text-cq-alert'}`}>
           {status.ok ? '✓ ' : '✗ '}{status.msg}
