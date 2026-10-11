@@ -6543,7 +6543,12 @@ def app_version():
             # read anyway -- this is on a polled path.
             head = fh.read(20000)
         m = re.search(r'/static/js/(main\.[A-Za-z0-9]+\.js)', head)
-        return jsonify({'success': True, 'bundle': m.group(1) if m else None})
+        # `commit` is the git commit Railway deployed (it sets
+        # RAILWAY_GIT_COMMIT_SHA). The post-deploy CI check waits for it to
+        # match what was merged, so a deploy Railway silently skipped shows
+        # up as a red check instead of a mystery.
+        return jsonify({'success': True, 'bundle': m.group(1) if m else None,
+                        'commit': os.environ.get('RAILWAY_GIT_COMMIT_SHA') or None})
     except Exception as e:
         # Never 500 a version check. A page that cannot tell whether it is
         # stale should carry on quietly, not show an error to a barista.
