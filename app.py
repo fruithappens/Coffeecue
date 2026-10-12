@@ -443,6 +443,14 @@ def create_app():
     # white-label deployment serving the frontend from its own domain.
     # It also asserted Allow-Credentials: true on EVERY response,
     # regardless of what Flask-CORS had decided.
+    # Server errors (500s, uncaught exceptions) recorded next to tablet
+    # crashes, so Runner > System > Diagnostics shows both (U4-7).
+    try:
+        from services.server_errors import install as install_error_capture
+        install_error_capture(app)
+    except Exception as cap_err:
+        logger.error(f"Server error capture not installed: {cap_err}")
+
     @app.after_request
     def after_request(response):
         # Only log CORS headers for non-OPTIONS requests to reduce log noise

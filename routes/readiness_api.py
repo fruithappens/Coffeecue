@@ -233,14 +233,14 @@ def _check_recent_crashes(db):
                 'detail': 'client_errors table not yet migrated'}
     if count == 0:
         return {'status': 'ok',
-                'detail': 'No frontend crashes in the last hour'}
+                'detail': 'No tablet or server crashes in the last hour'}
     if count > 5:
         return {'status': 'fail',
-                'detail': f'{count} frontend crashes in last hour — '
-                          'check Support → Diagnose.'}
+                'detail': f'{count} crashes in the last hour (tablets and server). '
+                          'See System > Diagnostics.'}
     return {'status': 'warn',
-            'detail': f'{count} frontend crash(es) in last hour. '
-                      'Check Support → Diagnose.'}
+            'detail': f'{count} crash(es) in the last hour (tablets and server). '
+                      'See System > Diagnostics.'}
 
 
 def _check_capabilities_coverage(db):
@@ -597,6 +597,7 @@ FIX_LINKS = {
     'inbound_sms': ('Test a text', 'messages/test'),
     'admin_alerts': ('Set below', 'live/readiness'),
     'printers_polling': ('Printers', 'printers'),
+    'crashes': ('Diagnostics', 'system/diagnostics'),
     'cloudprnt_secret': ('Printers', 'printers'),
     'stations': ('Stations', 'stations'),
     'event_name': ('Logo & look', 'branding/logo'),
@@ -658,7 +659,7 @@ def get_readiness():
                     lambda: _check_migrations(db)),
         _safe_check('quick_setup', 'Quick Setup recency',
                     lambda: _check_quick_setup_recency(db)),
-        _safe_check('crashes', 'Recent frontend crashes',
+        _safe_check('crashes', 'Recent crashes (tablets and server)',
                     lambda: _check_recent_crashes(db)),
         # The go-live checklist (C3-9).
         _safe_check('branding', 'Logo and colours', lambda: _check_branding(db)),

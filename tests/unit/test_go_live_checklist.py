@@ -64,5 +64,5 @@ def test_fix_link_only_on_lines_that_need_fixing():
     assert red["fix"] == {"label": "Logo & look", "href": "/run#branding/logo"}
     green = r._with_fix({"name": "branding", "status": "ok"})
     assert "fix" not in green
-    unknown = r._with_fix({"name": "crashes", "status": "fail"})
+    unknown = r._with_fix({"name": "migrations", "status": "fail"})
     assert "fix" not in unknown
