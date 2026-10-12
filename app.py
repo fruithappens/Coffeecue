@@ -899,7 +899,17 @@ def create_app():
             default_username = getattr(config, 'DEFAULT_ADMIN_USERNAME', 'admin')
             default_email = getattr(config, 'DEFAULT_ADMIN_EMAIL', 'admin@example.com')
             default_password = getattr(config, 'DEFAULT_ADMIN_PASSWORD', 'adminpassword')
-            
+            # Never a built-in password on a real server: config.py falls
+            # back to 'coffee123' when DEFAULT_ADMIN_PASSWORD isn't set.
+            # ensure_admin_user (run before this) makes the server's first
+            # admin with a random password instead.
+            _on_server = bool(os.getenv('RAILWAY_ENVIRONMENT') or os.getenv('RAILWAY_PUBLIC_DOMAIN')) \
+                or os.getenv('APP_ENV', '').lower() == 'production'
+            if _on_server and not os.getenv('DEFAULT_ADMIN_PASSWORD'):
+                logger.warning("No admin user and no DEFAULT_ADMIN_PASSWORD; not creating one "
+                               "with a built-in password (see ensure_admin_user.py).")
+                default_password = None
+
             if default_username and default_email and default_password:
                 try:
                     User.create(
