@@ -50,6 +50,7 @@ import DisplaySelector from '../display/DisplaySelector';
 import SystemHealthTab from '../support-tabs/SystemHealthTab';
 import DiagnosticsTab from '../support-tabs/DiagnosticsTab';
 import EnquiriesTab from '../support-tabs/EnquiriesTab';
+import FleetBoard from '../support-tabs/FleetBoard';
 import EventsAirTab from '../support-tabs/EventsAirTab';
 import EventDataManagement from '../organiser/EventDataManagement';
 import EmergencyTab from '../support-tabs/EmergencyTab';
@@ -173,6 +174,7 @@ const RunnerInterface = () => {
           Crashes tab was the same panel twice. */}
       {activeSection === 'system' && activeTab === 'diagnostics' && <DiagnosticsTab />}
       {activeSection === 'system' && activeTab === 'enquiries' && <EnquiriesTab />}
+      {activeSection === 'system' && activeTab === 'fleet' && <FleetBoard />}
 
       {activeSection === 'eventsair' && <EventsAirTab />}
       {activeSection === 'settings' && <EventDataManagement />}

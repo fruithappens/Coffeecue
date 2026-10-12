@@ -720,6 +720,14 @@ def create_app():
     except Exception as plan_err:
         logger.error(f"Plan routes failed to register: {plan_err}")
 
+    # The fleet board: /api/fleet (every CupQ copy on one page).
+    try:
+        from routes.fleet_routes import bp as fleet_bp
+        app.register_blueprint(fleet_bp)
+        logger.info("Fleet routes registered")
+    except Exception as fleet_err:
+        logger.error(f"Fleet routes failed to register: {fleet_err}")
+
     # The Demo Room's server side: /api/demo (texts to demo numbers).
     try:
         from routes.demo_routes import bp as demo_bp
