@@ -122,6 +122,21 @@ const TouchBar = () => {
   const [drag, setDrag] = useState(null); // {key, x0, dx, over:{key, mode}}
   const hold = useRef(null);
 
+  // A FINGER, not a mouse. Cards say touch-action: pan-x so a swipe scrolls
+  // the column -- but the browser decides that when the finger lands, so
+  // after a hold lifts a card, sliding it would start a scroll instead and
+  // the browser cancels the drag (pointercancel). A mouse never meets this,
+  // which is why it worked on every desk test. While a card is lifted, a
+  // non-passive touchmove listener refuses the scroll. React's onTouchMove
+  // is passive and cannot.
+  const dragging = useRef(false);
+  useEffect(() => { dragging.current = !!drag; }, [drag]);
+  useEffect(() => {
+    const stopScroll = (ev) => { if (dragging.current && ev.cancelable) ev.preventDefault(); };
+    document.addEventListener('touchmove', stopScroll, { passive: false });
+    return () => document.removeEventListener('touchmove', stopScroll);
+  }, []);
+
   const unitKey = (u) => u.join('+');
   const visualUnits = reverse ? [...units].reverse() : units;
 
@@ -146,6 +161,7 @@ const TouchBar = () => {
     hold.current = { x, y, timer: setTimeout(() => {
       try { el.setPointerCapture(pid); } catch (er) { /* fine without */ }
       if (navigator.vibrate) navigator.vibrate(15);
+      dragging.current = true; // before React re-renders: the next touchmove must already be refused
       setDrag({ key, x0: x, dx: 0, over: null });
     }, HOLD_MS) };
   };
@@ -289,6 +305,11 @@ const TouchBar = () => {
             zIndex: lifted ? 30 : undefined,
             position: 'relative',
             touchAction: 'pan-x',
+            // A long press must lift the card, not select its text or
+            // open the iOS callout.
+            userSelect: 'none',
+            WebkitUserSelect: 'none',
+            WebkitTouchCallout: 'none',
           }}>
           {isBatch ? (
             <>
