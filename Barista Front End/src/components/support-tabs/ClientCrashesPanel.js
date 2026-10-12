@@ -33,6 +33,9 @@ const ClientCrashesPanel = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [expanded, setExpanded] = useState(new Set());
   const [lastFetched, setLastFetched] = useState(null);
+  // Grouped view (U4-7): each distinct problem once, with a count, server
+  // and tablet side by side, over the last 24 hours.
+  const [groups, setGroups] = useState([]);
 
   const load = useCallback(async () => {
     try {
@@ -40,6 +43,10 @@ const ClientCrashesPanel = () => {
       // The endpoint returns {success, errors: [...]} but never rejects on
       // empty-DB or missing-table — falls back to []. Use whatever we get.
       setErrors(Array.isArray(resp?.errors) ? resp.errors : []);
+      try {
+        const sum = await api.request('/client-errors/summary?hours=24', { method: 'GET' });
+        setGroups(Array.isArray(sum?.groups) ? sum.groups : []);
+      } catch (e) { /* older server: list only */ }
       setLastFetched(new Date());
     } catch (e) {
       // Endpoint might not be deployed yet (e.g. Railway hasn't picked up
@@ -99,7 +106,7 @@ const ClientCrashesPanel = () => {
         <div className="flex items-center gap-2">
           <Icon size={20} className={iconClasses} />
           <h3 className="font-semibold">
-            Frontend crashes
+            Crashes (tablets and server)
             {hasRecent && (
               <span className="ml-2 text-sm font-normal text-cq-alert">
                 — {recent.length} in the last hour
@@ -138,10 +145,37 @@ const ClientCrashesPanel = () => {
         <div className="px-4 py-3 text-sm text-cq-ink-2">Loading…</div>
       )}
 
+      {!loading && groups.length > 0 && (
+        <div className="px-4 py-3 border-b border-current/10">
+          <div className="text-xs font-bold uppercase tracking-wide text-cq-ink-3 mb-2">
+            Last 24 hours, grouped
+          </div>
+          <table className="w-full text-sm">
+            <tbody>
+              {groups.map((g, i) => (
+                <tr key={i} className="align-top border-t border-current/10 first:border-t-0">
+                  <td className="py-1.5 pr-2 whitespace-nowrap">
+                    <span className={`inline-block px-1.5 py-0.5 rounded text-[11px] font-bold ${g.source === 'server' ? 'bg-cq-alert text-white' : 'bg-cq-caramel-wash text-cq-caramel-deep'}`}>
+                      {g.source === 'server' ? 'Server' : 'Tablet'}
+                    </span>
+                  </td>
+                  <td className="py-1.5 pr-2 min-w-0">
+                    <div className="font-medium break-words">{g.message}</div>
+                    <div className="text-xs text-cq-ink-3 break-all">{g.where}</div>
+                  </td>
+                  <td className="py-1.5 pr-2 text-right tabular-nums font-bold">×{g.count}</td>
+                  <td className="py-1.5 text-right text-xs text-cq-ink-3 whitespace-nowrap">{formatWhen(g.last)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {!loading && errors.length === 0 && (
         <div className="px-4 py-3 text-sm text-cq-ready">
-          No React Error Boundary catches recorded. When a component crashes,
-          it'll appear here automatically — phoned home via
+          No crashes recorded. When a tablet screen crashes or the server
+          answers with an error, it appears here automatically — via
           <code className="mx-1 px-1 bg-cq-milk/60 rounded">/api/client-errors</code>.
         </div>
       )}

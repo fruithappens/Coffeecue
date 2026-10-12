@@ -15724,6 +15724,55 @@ def report_client_error():
         return ('', 204)
 
 
+@bp.route('/client-errors/summary', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff'])
+def client_errors_summary():
+    """Crashes grouped: each distinct problem once, with how many times,
+    first and last seen, and whether it was the server or a tablet.
+    ?hours=N (default 24, max 720). Runner > System > Diagnostics (U4-7)."""
+    try:
+        hours = max(1, min(int(request.args.get('hours', 24)), 720))
+    except ValueError:
+        hours = 24
+    try:
+        db = current_app.config.get('coffee_system').db
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        cur = db.cursor()
+        cur.execute(
+            """
+            SELECT CASE WHEN component = 'server' THEN 'server' ELSE 'tablet' END AS source,
+                   LEFT(message, 300) AS msg,
+                   CASE WHEN component = 'server' THEN url ELSE component END AS place,
+                   COUNT(*), MIN(occurred_at), MAX(occurred_at)
+              FROM client_errors
+             WHERE occurred_at > NOW() - (%s || ' hours')::interval
+             GROUP BY 1, 2, 3
+             ORDER BY COUNT(*) DESC, MAX(occurred_at) DESC
+             LIMIT 100
+            """, (str(hours),))
+        rows = cur.fetchall() or []
+        db.rollback()
+        groups = []
+        for r in rows:
+            v = list(r.values()) if isinstance(r, dict) else list(r)
+            groups.append({'source': v[0], 'message': v[1], 'where': v[2], 'count': int(v[3]),
+                           'first': v[4].isoformat() if v[4] else None,
+                           'last': v[5].isoformat() if v[5] else None})
+        return jsonify({'success': True, 'hours': hours, 'groups': groups,
+                        'total': sum(g['count'] for g in groups)})
+    except Exception as e:
+        logger.error(f"client_errors_summary error: {e}")
+        try:
+            current_app.config.get('coffee_system').db.rollback()
+        except Exception:
+            pass
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 @bp.route('/client-errors', methods=['GET'])
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff'])
