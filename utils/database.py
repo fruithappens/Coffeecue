@@ -179,7 +179,16 @@ def init_db_pool(db_url=None):
         logger.info("DB timeouts: lock=%dms statement=%dms idle_in_transaction=%dms",
                     lock_ms, stmt_ms, idle_ms)
 
-        connection_pool = pool.SimpleConnectionPool(
+        # ThreadedConnectionPool, not SimpleConnectionPool. The simple one
+        # has no lock, and under eventlet opening a connection yields to
+        # other requests half-way through getconn(): two hundred requests
+        # all passed its "fewer than maxconn in use?" check before any was
+        # counted, and a pool capped at 4 opened connections until
+        # Postgres refused everyone ("sorry, too many clients already").
+        # The threaded pool holds a lock across that check, and eventlet's
+        # monkey-patching makes the lock green. Reproduced and fixed
+        # locally, 13 Oct 2026 (ab -c 200 against a pool of 4).
+        connection_pool = pool.ThreadedConnectionPool(
             minconn=pool_min,
             maxconn=pool_max,
             user=user,
@@ -209,6 +218,37 @@ def init_db_pool(db_url=None):
     except Exception as e:
         logger.error(f"Failed to initialize PostgreSQL pool: {str(e)}")
         raise # Re-raise the exception to be handled by the caller
+
+class _PoolBusy(Exception):
+    """Every pooled connection is checked out and none came back in time."""
+
+
+# How long a request waits for a free connection when all of them are in
+# use. psycopg2's pool doesn't wait: the moment the last connection is out
+# it raises "connection pool exhausted", and this module used to read that
+# as a broken pool and rebuild it. The 1,000-phone load test on
+# demo.cupq.app (13 Oct 2026) did exactly that mid-run. Under eventlet a
+# short sleep yields to the other requests, which finish and hand their
+# connections back, so waiting a moment is almost always enough.
+_POOL_WAIT_S = float(os.environ.get('DB_POOL_WAIT_SECONDS', 10))
+
+
+def _getconn_waiting():
+    import time as _time
+
+    deadline = _time.monotonic() + _POOL_WAIT_S
+    delay = 0.005
+    while True:
+        try:
+            return connection_pool.getconn()
+        except pool.PoolError as e:
+            if "exhausted" not in str(e):
+                raise
+            if _time.monotonic() >= deadline:
+                raise _PoolBusy(str(e))
+            _time.sleep(delay)
+            delay = min(delay * 2, 0.05)
+
 
 def get_db_connection(db_url=None):
     """Get a connection from the pool
@@ -245,7 +285,7 @@ def get_db_connection(db_url=None):
         init_db_pool(db_url)
 
     try:
-        conn = connection_pool.getconn()
+        conn = _getconn_waiting()
         # Tag it with the pool that owns it. If the pool is later replaced,
         # close_connection still knows where this one has to go back to.
         try:
@@ -253,6 +293,14 @@ def get_db_connection(db_url=None):
         except Exception:
             pass
         return conn
+    except _PoolBusy:
+        # Every connection is in use and none came back in time. That is
+        # load, not breakage: rebuilding the pool here would orphan all the
+        # connections still checked out (the 2026-09-08 spiral). Fail this
+        # one request and leave the pool alone.
+        logger.warning("Database busy: no free connection after %.0fs (pool max %s)",
+                       _POOL_WAIT_S, getattr(connection_pool, "maxconn", "?"))
+        raise
     except Exception as e:
         logger.error(f"Error getting database connection: {str(e)}")
 

@@ -9985,7 +9985,13 @@ class CoffeeOrderSystem:
                     g._pooled_db = conn
                     return conn
                 # pool unavailable — fall through to the shared singleton
-        except Exception:
+        except Exception as e:
+            # Pool busy (every connection out, none back in time): fail
+            # THIS request. Falling back to the shared singleton under load
+            # puts dozens of concurrent requests on one connection, which
+            # collide and poison it for the background SMS scheduler too.
+            if type(e).__name__ == "_PoolBusy":
+                raise
             # Any import/context problem: fall back to the singleton below.
             pass
 
