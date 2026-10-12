@@ -511,6 +511,114 @@ def _check_inbound_sms():
     return {'status': 'ok', 'detail': f'{hits} inbound text(s) received since start' + (f', {rej} rejected' if rej else '') + '.'}
 
 
+
+# ----------------------------------------------------------------------
+# The go-live checklist (roadmap C3-9): what a fresh copy needs before
+# doors, each with a link to the screen that fixes it. A fresh copy is
+# red here and turns green as it is set up.
+# ----------------------------------------------------------------------
+
+def _check_branding(db):
+    """The event's look: a logo and a header colour on every screen."""
+    b = _kv_get(db, 'branding_settings', default={}) or {}
+    if not isinstance(b, dict):
+        b = {}
+    logo = b.get('logo') or b.get('clientLogo')
+    colour = b.get('headerColor') or b.get('customerHeaderColor')
+    if logo and colour:
+        return {'status': 'ok', 'detail': 'Logo and colours are set.'}
+    if logo or colour:
+        missing = 'a header colour' if logo else 'a logo'
+        return {'status': 'warn', 'detail': f'Screens still need {missing}.'}
+    return {'status': 'fail',
+            'detail': 'No logo or colours yet: customers would see a plain CupQ screen.'}
+
+
+def _check_quick_picks(db):
+    """The one-tap drinks on phones, kiosk and walk-ups. Optional, but the
+    fastest way to order, so say so when there are none."""
+    picks = _kv_get(db, 'quick_picks', default=[]) or []
+    n = len(picks) if isinstance(picks, list) else 0
+    if n:
+        return {'status': 'ok', 'detail': f'{n} quick pick{"" if n == 1 else "s"} set.'}
+    return {'status': 'warn',
+            'detail': 'No quick picks: add the 2-4 drinks most people order for one-tap ordering.'}
+
+
+def _check_device_pin(db):
+    """The PIN that opens the hidden admin panel on displays and the
+    barista padlock. 1234 is printed in the runbook, so it is no lock."""
+    from utils.pins import event_pin_state
+    try:
+        db.rollback()
+    except Exception:
+        pass
+    st = event_pin_state(db.cursor())
+    if not st['enabled']:
+        return {'status': 'ok', 'detail': 'Event PIN is off; only personal PINs unlock.'}
+    if st['is_default']:
+        return {'status': 'fail',
+                'detail': 'The unlock PIN is still 1234. Change it, or give each person their own.'}
+    return {'status': 'ok', 'detail': 'The unlock PIN has been changed.'}
+
+
+def _check_plan_tier(db):
+    """Plan limits and the included texts do nothing until a tier is set."""
+    tier = str(_kv_get(db, 'plan_tier', default='') or '').strip().lower()
+    names = {'lite': 'Skim', 'standard': 'Flat White', 'pro': 'Double Shot', 'urn': 'The Urn'}
+    if tier in names:
+        return {'status': 'ok', 'detail': f'Plan: {names[tier]}.'}
+    return {'status': 'warn',
+            'detail': 'No plan chosen: no attendee cap or text allowance applies.'}
+
+
+def _check_test_order(db):
+    """One order taken all the way to Ready in the last 12 hours: the
+    whole chain (order, station, label, ready text) has worked today."""
+    try:
+        db.rollback()
+    except Exception:
+        pass
+    cur = db.cursor()
+    cur.execute(
+        "SELECT COUNT(*) FROM orders WHERE status IN ('completed', 'picked_up') "
+        "AND COALESCE(updated_at, created_at) > NOW() - INTERVAL '12 hours'")
+    row = cur.fetchone()
+    n = (row[0] if not isinstance(row, dict) else list(row.values())[0]) or 0
+    if n:
+        return {'status': 'ok', 'detail': f'{n} order{"" if n == 1 else "s"} made and marked ready in the last 12 hours.'}
+    return {'status': 'fail',
+            'detail': 'No order has gone end to end today. Place one, Start it, mark it Ready.'}
+
+
+# Where each check gets fixed: a Runner deep link (/run#section/tab).
+FIX_LINKS = {
+    'sms_config': ('Test a text', 'messages/test'),
+    'inbound_sms': ('Test a text', 'messages/test'),
+    'admin_alerts': ('Set below', 'live/readiness'),
+    'printers_polling': ('Printers', 'printers'),
+    'cloudprnt_secret': ('Printers', 'printers'),
+    'stations': ('Stations', 'stations'),
+    'event_name': ('Logo & look', 'branding/logo'),
+    'branding': ('Logo & look', 'branding/logo'),
+    'quick_picks': ('Quick picks', 'menu/quickPicks'),
+    'capabilities': ('Station inventory', 'menu/stationInventory'),
+    'inventory': ('Event stock', 'menu/stock'),
+    'quick_setup': ('Quick Setup', 'quickSetup'),
+    'device_pin': ('Unlock PINs', 'users/people'),
+    'plan_tier': ('Plan', 'settings'),
+    'test_order': ('Orders', 'orders'),
+}
+
+
+def _with_fix(check):
+    """Attach the fix link to anything that isn't green."""
+    link = FIX_LINKS.get(check.get('name'))
+    if link and check.get('status') in ('warn', 'fail'):
+        check['fix'] = {'label': link[0], 'href': f'/run#{link[1]}'}
+    return check
+
+
 @bp.route('/readiness', methods=['GET'])
 @jwt_required_with_demo()
 @role_required_with_demo(['admin', 'staff'])
@@ -552,7 +660,14 @@ def get_readiness():
                     lambda: _check_quick_setup_recency(db)),
         _safe_check('crashes', 'Recent frontend crashes',
                     lambda: _check_recent_crashes(db)),
+        # The go-live checklist (C3-9).
+        _safe_check('branding', 'Logo and colours', lambda: _check_branding(db)),
+        _safe_check('quick_picks', 'Quick picks', lambda: _check_quick_picks(db)),
+        _safe_check('device_pin', 'Unlock PIN changed', lambda: _check_device_pin(db)),
+        _safe_check('plan_tier', 'Plan chosen', lambda: _check_plan_tier(db)),
+        _safe_check('test_order', 'A test order went end to end', lambda: _check_test_order(db)),
     ]
+    checks = [_with_fix(c) for c in checks]
 
     return jsonify({
         'status': _rollup(checks),

@@ -39,6 +39,14 @@ const ReadinessRow = ({ check }) => {
           </div>
         )}
       </div>
+      {/* Straight to the screen that turns this line green. A hash link,
+          so the Runner switches screens without reloading. */}
+      {check.fix?.href && (
+        <a href={check.fix.href}
+          className={`flex-shrink-0 self-center text-sm font-semibold underline underline-offset-2 ${s.text}`}>
+          Fix: {check.fix.label} →
+        </a>
+      )}
       <span className={`text-xs font-mono uppercase ${s.text} opacity-80`}>
         {check.status}
       </span>
