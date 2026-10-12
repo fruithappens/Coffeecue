@@ -11,7 +11,7 @@
 // work: the barista frame is signed in because you are, and the "after
 // ordering" phone shows the order the customer phone just placed.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Download, ExternalLink, RotateCw, Trash2 } from 'lucide-react';
+import { Download, ExternalLink, Pause, Play, RotateCw, Square, Trash2 } from 'lucide-react';
 import ApiServiceClass from '../../services/ApiService';
 import { applyEventPreset } from '../../services/eventPreset';
 import { askConfirm } from '../shared/ConfirmDialog';
@@ -312,6 +312,147 @@ const DemoControls = ({ onChanged }) => {
   );
 };
 
+// THE 60-SECOND AUTOPILOT. One button runs Priya's whole order -- text,
+// barista, label, ready text, board, collected -- with a caption for each
+// step, so the demo tells itself while the presenter talks. Every step is
+// the real thing through the real endpoints, on a demo number (never
+// texted), so the panes below update exactly as they would at the cart.
+const AUTOPILOT_PHONE = '+61400009950';
+const sleepMs = (ms) => new Promise(r => setTimeout(r, ms));
+
+const Autopilot = ({ onChanged }) => {
+  const [step, setStep] = useState(null); // {i, n, caption}
+  const [paused, setPaused] = useState(false);
+  const [error, setError] = useState('');
+  const pausedRef = useRef(false);
+  const stopRef = useRef(false);
+  const running = step != null;
+
+  // A wait that honours Pause and Stop. Counts real elapsed time, not
+  // ticks: a browser slows timers in a tab that isn't in front, and a
+  // tick count would stretch every step there.
+  const wait = async (ms) => {
+    let left = ms;
+    let last = Date.now();
+    while (left > 0) {
+      if (stopRef.current) throw new Error('stopped');
+      await sleepMs(200);
+      const now = Date.now();
+      if (!pausedRef.current) left -= now - last;
+      last = now;
+    }
+    if (stopRef.current) throw new Error('stopped');
+  };
+  const post = (path, body) => api.request(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {}),
+  });
+  const text = async (t) => {
+    const r = await post('/demo/sms', { phone: AUTOPILOT_PHONE, text: t });
+    if (r?.success === false) throw new Error(r.message || 'The text did not go through');
+    const texts = r?.data?.texts || [];
+    return texts.length ? texts[texts.length - 1].body : '';
+  };
+
+  const run = async () => {
+    stopRef.current = false; pausedRef.current = false;
+    setPaused(false); setError('');
+    let orderNo = null;
+    const steps = [
+      ['Starting fresh: clearing the last demo.', async () => {
+        await post('/demo/wipe', { confirm: 'DEMO' });
+        try { localStorage.removeItem('cupq_active_order'); } catch (e) { /* private mode */ }
+        onChanged();
+        await wait(3000);
+      }],
+      ['Priya texts the event number. No app, no sign-up.', async () => {
+        await text('Hi');
+        await wait(5000);
+      }],
+      ['She orders the way she would say it.', async () => {
+        await text('Large oat flat white');
+        await wait(5000);
+      }],
+      ['She gives her name, and the order is in.', async () => {
+        const reply = await text('Priya');
+        const m = reply.match(/#\s*([0-9]+[a-z]?)/i);
+        if (!m) throw new Error(`No order number in the reply: "${reply.slice(0, 80)}"`);
+        orderNo = m[1];
+        // Put it in front of the tablet on screen, whichever station it is on.
+        const sid = parseInt(localStorage.getItem('coffee_cue_selected_station') || '', 10);
+        if (Number.isFinite(sid)) {
+          try { await post(`/orders/${orderNo}/reassign`, { target_station_id: sid }); } catch (e) { /* stays where it was routed */ }
+        }
+        await wait(6000);
+      }],
+      ['It is on the barista’s tablet straight away, in the queue.', async () => {
+        await wait(5000);
+      }],
+      ['The barista taps Start. The cup label prints.', async () => {
+        await post(`/orders/${orderNo}/start`);
+        await wait(7000);
+      }],
+      ['Ready. Priya gets a text, and her name goes up on the board.', async () => {
+        await post(`/orders/${orderNo}/complete`);
+        await wait(9000);
+      }],
+      ['She collects it. Done, in about a minute.', async () => {
+        await post(`/orders/${orderNo}/pickup`);
+        await wait(5000);
+      }],
+    ];
+    try {
+      for (let i = 0; i < steps.length; i += 1) {
+        const [caption, act] = steps[i];
+        setStep({ i: i + 1, n: steps.length, caption });
+        await act();
+      }
+    } catch (e) {
+      if (e.message !== 'stopped') setError(e.message || 'The autopilot stopped');
+    }
+    setStep(null);
+  };
+  const togglePause = () => { pausedRef.current = !pausedRef.current; setPaused(pausedRef.current); };
+  const stopAndReset = async () => {
+    stopRef.current = true;
+    try { await post('/demo/wipe', { confirm: 'DEMO' }); } catch (e) { /* best effort */ }
+    try { localStorage.removeItem('cupq_active_order'); } catch (e) { /* private mode */ }
+    onChanged();
+  };
+
+  if (!running) {
+    return (
+      <>
+        <button type="button" onClick={run}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-cq-lg bg-cq-caramel text-white font-semibold">
+          <Play size={16} /> Run the 60-second demo
+        </button>
+        {error && <span role="alert" className="text-sm text-red-700">{error}</span>}
+      </>
+    );
+  }
+  return (
+    <div className="fixed inset-x-0 top-0 z-50 bg-cq-roast text-white shadow-lg" role="status" aria-live="polite">
+      <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-4">
+        <span className="text-xs font-bold tabular-nums opacity-70 flex-shrink-0">{step.i} / {step.n}</span>
+        <p className="flex-1 min-w-0 text-lg sm:text-2xl font-extrabold leading-tight">{step.caption}</p>
+        <button type="button" onClick={togglePause}
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-cq-lg bg-white/15 hover:bg-white/25 font-semibold flex-shrink-0">
+          {paused ? <><Play size={16} /> Resume</> : <><Pause size={16} /> Pause</>}
+        </button>
+        <button type="button" onClick={stopAndReset}
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-cq-lg bg-white/15 hover:bg-white/25 font-semibold flex-shrink-0">
+          <Square size={16} /> Stop and reset
+        </button>
+      </div>
+      <div className="h-1 bg-white/20">
+        <div className="h-1 bg-cq-caramel transition-all duration-500" style={{ width: `${(step.i / step.n) * 100}%` }} />
+      </div>
+    </div>
+  );
+};
+
 const DemoRoom = () => {
   const [eventCode, setEventCode] = useState(null);
   const [eventName, setEventName] = useState('');
@@ -353,6 +494,7 @@ const DemoRoom = () => {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Autopilot onChanged={afterChange} />
           <DemoControls onChanged={afterChange} />
           <button type="button" onClick={() => setReloadKey(k => k + 1)}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-cq-lg bg-cq-roast text-white font-semibold">
