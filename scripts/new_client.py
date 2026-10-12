@@ -191,7 +191,7 @@ def plan(slug, event_name, event_file):
     steps = [
         ("Railway project", f"create project cupq-{slug} (API: projectCreate; the CLI refuses workspace tokens)"),
         ("Web service", f"deploy {REPO} @ main with the Dockerfile; start: python run_server.py; restart on failure"),
-        ("Database", "add Postgres; set its region to Singapore (multiRegionConfig asia-southeast1-eqsg3a) while empty"),
+        ("Database", "add Postgres; set region (multiRegionConfig asia-southeast1-eqsg3a), REDEPLOY it so its disk moves too, check volumeInstances.region"),
         ("Volume", "attach a volume at /data to the web service (backups, uploads), same region"),
         ("Settings", f"{len(groups['generate'])} generated, {len(groups['per_client'])} per client, "
                      f"{len(groups['sms'])} for texts; the other {len(groups['defaults'])} keep code defaults"),

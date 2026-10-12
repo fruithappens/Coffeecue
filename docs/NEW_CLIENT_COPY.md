@@ -48,6 +48,13 @@ that uses your normal login (`env -u RAILWAY_API_TOKEN railway ...`).
    environmentId, input: {multiRegionConfig: {"asia-southeast1-eqsg3a":
    {numReplicas: 1}}})`. The old `region` field returns true and does
    nothing. Read it back from `latestDeployment.meta.serviceManifest.deploy`.
+   **Then redeploy Postgres** (`serviceInstanceDeployV2`) and check its
+   **disk** moved too: `volumeInstances { region }` must say Singapore.
+   Changing the region alone left the disk in us-west2, the database ran
+   next to its disk, and every query crossed the Pacific: the demo menu
+   took 15.7 s instead of 1.2 s. The redeploy migrates the disk (about
+   90 s). After it, **restart the web service** (`deploymentRestart`),
+   or it hangs on its old connections (502/524).
 4. **Web service.** `serviceCreate` with source repo
    `fruithappens/Coffeecue`, branch `main`, and its settings in the same
    call (below), so the first deploy already has them.
@@ -100,6 +107,9 @@ that uses your normal login (`env -u RAILWAY_API_TOKEN railway ...`).
   demo.cupq.app the first admin (`demoadmin`) was created before the fix
   and its password was never seen, so a second admin, `demoowner`, was
   made. `demoadmin` can be deleted in People.
+- **A region change doesn't move the database's disk** until Postgres
+  is redeployed (step 3). Check `volumeInstances { region }` for every
+  volume before calling the copy done. Then restart web.
 - **Railway SSH needs an SSH key** registered with Railway. We didn't
   make one; the first-admin line is the way in.
 - **Timing from a Mac on a VPN is meaningless.** Both copies measured
