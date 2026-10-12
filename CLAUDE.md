@@ -316,7 +316,10 @@ python scripts/reset_admin.py
 ```
 
 ## Default Credentials
-- **Primary Admin**: coffeecue/adminpassword ✅ (WORKING - Use this for login!)
+- **Primary Admin (LOCAL ONLY)**: coffeecue/adminpassword works on a laptop copy.
+  It is NOT the password on cupq.app or any client copy: since Oct 2026 boot never resets
+  an existing admin, and a new server's first admin gets a random password printed once in
+  its deploy log (ensure_admin_user.py).
 - Secondary Admin: admin/coffee123 (password may be incorrect)
 - Test Barista: barista/barista123
 - Test Admin: admin/admin123
