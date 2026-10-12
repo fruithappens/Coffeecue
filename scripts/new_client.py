@@ -53,6 +53,7 @@ PER_CLIENT = {  # value comes from the client / the plan
     "PUBLIC_BASE_URL": "https://{host}",
     "EVENT_NAME": "{event_name}",
     "TESTING_MODE": "False (texts really send)",
+    "FLEET_STATUS_TOKEN": "the fleet's shared value, the SAME on every copy (lets System > Fleet read its numbers)",
     "ADMIN_ALERT_ENABLED": "true",
     "ADMIN_ALERT_PHONE": "the client's on-call mobile",
     "ADMIN_ALERT_EMAIL": "the client's on-call email",
