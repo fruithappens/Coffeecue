@@ -100,6 +100,14 @@ const FONT_SCALE = {
   'extra-large':{ num: 'text-8xl',  name: 'text-6xl', body: 'text-3xl', label: 'text-xl' },
 };
 
+// The tall strip (a 43" bar on its end, 1080x3840 and the like): one
+// column three-and-a-half screens high, read from across a lounge. The
+// operator's size setting was tuned for a 55" portrait TV; on the strip the
+// same classes come out about 15 mm high, so names step up to 72px (about
+// 20 mm there) whatever the setting. The number stays beside the name.
+const TALL_FONT_SCALE = { num: 'text-7xl', name: 'text-7xl', body: 'text-3xl', label: 'text-xl' };
+const TALL_ASPECT = 2.2;
+
 // Pick the layout for the current viewport + setting combination.
 // "auto" looks at window aspect ratio at render time.
 // How often the board re-reads orders when no WebSocket event arrives.
@@ -375,7 +383,17 @@ const DisplayScreen = () => {
   // read it; that was why theme/font/etc. set by the operator never applied.
   const themeKey = config.display_theme || 'light';
   const theme = THEMES[themeKey] || THEMES.light;
-  const fonts = FONT_SCALE[config.display_font_size] || FONT_SCALE.large;
+  // ?tall=1 / ?tall=0 decides per screen; otherwise the shape does.
+  const tallParam = searchParams.get('tall');
+  const [aspect, setAspect] = useState(() =>
+    (typeof window === 'undefined' ? 1 : window.innerHeight / Math.max(1, window.innerWidth)));
+  useEffect(() => {
+    const onResize = () => setAspect(window.innerHeight / Math.max(1, window.innerWidth));
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  const isTall = tallParam === '1' || (tallParam !== '0' && aspect >= TALL_ASPECT);
+  const fonts = isTall ? TALL_FONT_SCALE : (FONT_SCALE[config.display_font_size] || FONT_SCALE.large);
   const zoom = config.display_zoom || 100;
   const showCustomerName = config.show_customer_name !== false;
   const showDetails = config.show_order_details !== false;
@@ -2105,6 +2123,23 @@ const DisplayScreen = () => {
             : ''}
         </div>
       </footer>
+      )}
+
+      {/* The tall strip's base: the event's logo and name, big, where the
+          eye lands after reading down the Ready list. */}
+      {isTall && !isPickupMode && (config.logo || config.event_name) && (
+        <div className={`flex-shrink-0 flex items-center justify-center gap-6 px-8 py-8 ${theme.panel} ${theme.border} border-t`}>
+          {config.logo && (
+            <div className="bg-cq-milk rounded-cq-xl p-3 shadow-sm flex items-center">
+              <img src={config.logo} alt="" className="h-32 w-auto max-w-[420px] object-contain" />
+            </div>
+          )}
+          {config.event_name && (
+            <div className={`text-6xl font-extrabold tracking-tight leading-tight ${theme.text} min-w-0 break-words`}>
+              {config.event_name}
+            </div>
+          )}
+        </div>
       )}
 
       {/* --- Footer: self-service "Order here" + SMS prompt + sponsor ---
