@@ -21,6 +21,28 @@ from utils.order_provenance import stamp as stamp_provenance
 logger = logging.getLogger("expresso.services.coffee_system")
 
 
+
+def _milk_key(name):
+    """A milk's one name: lowercase, without a trailing "milk" ("Oat Milk"
+    -> "oat", "Full Cream Milk" -> "full cream"). "no milk" -> "" so it is
+    never offered as a milk (the phantom 'no' milk, matrix mx07)."""
+    s = re.sub(r"\s+", " ", str(name or "").strip().lower())
+    if s in ("no milk", "none", "black"):
+        return ""
+    return re.sub(r"\s*\bmilk$", "", s).strip()
+
+
+def _unique_milk_keys(names):
+    """_milk_key of each, blanks dropped, first spelling's order kept."""
+    out, seen = [], set()
+    for n in names:
+        k = _milk_key(n)
+        if k and k not in seen:
+            seen.add(k)
+            out.append(k)
+    return out
+
+
 class CoffeeOrderSystem:
     """Main service class for Coffee Ordering System"""
 
@@ -4722,7 +4744,15 @@ class CoffeeOrderSystem:
                     ORDER BY name
                 """
                 )
-            milk_types = [row[0].lower() for row in cursor.fetchall()]
+            # One name per milk. inventory_items holds a row per station
+            # plus the event-level one, each with its own spelling ("Oat
+            # Milk", "oat"), and these were listed as-is: the SMS MENU read
+            # "almond, almond milk, almond milk, ..." and, worse, the stock
+            # gate below compared "oat" against "oat milk" and never matched.
+            milk_types = _unique_milk_keys(
+                (row[0] if not isinstance(row, dict) else list(row.values())[0])
+                for row in cursor.fetchall()
+            )
 
             if not milk_types:
                 # No milks configured yet — only happens on a brand-new
@@ -4749,7 +4779,8 @@ class CoffeeOrderSystem:
                 # A menu milk with NO inventory row at all is untracked
                 # and passes -- same rule as everywhere else.
                 stocked = set(milk_types)
-                tracked = set(self._all_tracked_milk_names() or [])
+                tracked = set(_unique_milk_keys(self._all_tracked_milk_names() or []))
+                event_milks = _unique_milk_keys(event_milks)
                 merged = [
                     m for m in event_milks
                     if m in stocked or m not in tracked
@@ -4773,7 +4804,7 @@ class CoffeeOrderSystem:
             try:
                 from services.recipes import get_overrides
                 _ov = get_overrides(self.db)
-                _dead = {n for (c, n), st in _ov.items()
+                _dead = {_milk_key(n) for (c, n), st in _ov.items()
                          if c == "milk" and st == "86"}
                 if _dead:
                     milk_types = [m for m in milk_types if m not in _dead]
