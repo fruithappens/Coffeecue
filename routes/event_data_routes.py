@@ -480,6 +480,120 @@ def wipe_event_data():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+# ---------------------------------------------------------------------------
+# Retire an event, part 1: erase attendee details, keep the numbers.
+# (Roadmap C3-8. Part 2, parking or deleting the server, needs Railway.)
+# ---------------------------------------------------------------------------
+
+_ERASE_CONFIRM_TOKEN = "ERASE"
+
+# Order keys that name or reach a person. Drinks, times, station, status,
+# channel and VIP stay, so the event report still adds up.
+_PERSONAL_ORDER_KEYS = (
+    "name", "customer_name", "phone", "lookup_phone", "notes", "note",
+    "ea_contact_id", "email", "for_friend_name", "display_name",
+)
+
+# (description, SQL). Each runs in its own savepoint so a table this copy
+# doesn't have can't undo the steps already done.
+_ERASE_STEPS = [
+    ("attendee list (EventsAir)", "DELETE FROM ea_attendees"),
+    ("EventsAir webhook log", "DELETE FROM ea_webhook_log"),
+    ("text conversations", "DELETE FROM conversation_states"),
+    ("texts received", "DELETE FROM sms_messages"),
+    ("per-order messages", "DELETE FROM order_messages"),
+    ("saved customer preferences", "DELETE FROM customer_preferences"),
+    ("customer questions", "DELETE FROM customer_questions"),
+    ("half-finished orders", "DELETE FROM partial_orders"),
+    ("texts sent: number and wording (counts kept)",
+     "UPDATE sms_outbound_log SET to_number = NULL, body = NULL "
+     "WHERE to_number IS NOT NULL OR body IS NOT NULL"),
+    # phone is NOT NULL on orders and loyalty_transactions: blank, not NULL.
+    ("loyalty: phone and notes", "UPDATE loyalty_transactions SET phone = '', notes = NULL "
+     "WHERE phone <> '' OR notes IS NOT NULL"),
+    ("feedback comments (ratings kept)", "UPDATE feedback SET comments = NULL WHERE comments IS NOT NULL"),
+    ("orders: phone, notes, history",
+     "UPDATE orders SET phone = '', barista_notes = NULL, edit_history = NULL, "
+     "ea_response_id = NULL, payment_link = NULL, qr_code_url = NULL, last_modified_by = NULL"),
+    ("orders: name and contact inside each order",
+     "UPDATE orders SET order_details = order_details - %s::text[] "
+     "WHERE order_details ?| %s::text[]"),
+    ("blocked numbers", "DELETE FROM settings WHERE key = 'sms_blocklist'"),
+]
+
+
+@bp.route("/api/event-data/erase-attendees", methods=["POST"])
+@jwt_required_with_demo()
+@role_required_with_demo(["admin"])
+def erase_attendee_details():
+    """Erase every attendee's personal details, keep what the report needs.
+
+    Removes names, phone numbers, emails, typed notes, text conversations
+    and the EventsAir attendee list. Keeps every order's drink, times,
+    station and status, the text counts, and feedback ratings, so the
+    event report still adds up. Staff accounts, the menu and settings are
+    untouched.
+
+    Body {"confirm": "ERASE"}. Backs up first and refuses if it can't,
+    like the wipe (allow_without_backup: true overrides).
+    """
+    data = request.get_json(silent=True) or {}
+    if data.get("confirm") != _ERASE_CONFIRM_TOKEN:
+        return jsonify({
+            "status": "error",
+            "message": f'Not confirmed. Send {{"confirm": "{_ERASE_CONFIRM_TOKEN}"}} '
+                       "to erase every attendee's details.",
+            "code": "CONFIRM_REQUIRED",
+        }), 400
+
+    backup_note = "no backup taken"
+    if not data.get("allow_without_backup"):
+        try:
+            from services.backup_scheduler import take_backup
+            written = take_backup(current_app, force=True)
+            if not written:
+                return jsonify({"status": "error", "code": "BACKUP_FAILED",
+                                "message": "Could not take a backup first, so nothing was erased."}), 503
+            backup_note = written
+        except Exception as be:
+            logger.error(f"erase: pre-erase backup failed: {be}")
+            return jsonify({"status": "error", "code": "BACKUP_FAILED",
+                            "message": f"Could not take a backup first ({str(be)[:80]}), so nothing was erased."}), 503
+
+    keys = list(_PERSONAL_ORDER_KEYS)
+    done = []
+    db = None
+    try:
+        db = get_db_connection()
+        cursor = db.cursor()
+        for i, (what, sql) in enumerate(_ERASE_STEPS):
+            cursor.execute(f"SAVEPOINT erase_{i}")
+            try:
+                if "%s" in sql:
+                    cursor.execute(sql, (keys, keys))
+                else:
+                    cursor.execute(sql)
+                done.append({"what": what, "rows": cursor.rowcount})
+                cursor.execute(f"RELEASE SAVEPOINT erase_{i}")
+            except Exception as se:
+                cursor.execute(f"ROLLBACK TO SAVEPOINT erase_{i}")
+                done.append({"what": what, "rows": None, "skipped": str(se).split("\n")[0][:80]})
+        db.commit()
+    except Exception as e:
+        logger.exception(f"erase attendees failed: {e}")
+        try:
+            if db is not None:
+                db.rollback()
+        except Exception:
+            pass
+        return jsonify({"status": "error", "message": f"Erase failed, nothing changed: {e}"}), 500
+
+    logger.warning(f"ATTENDEE DETAILS ERASED: {done}")
+    return jsonify({"status": "success", "success": True,
+                    "data": {"steps": done, "backup": backup_note,
+                             "at": datetime.now().isoformat()}})
+
+
 @bp.route("/api/event-data/reset-order-numbers", methods=["POST"])
 @jwt_required_with_demo()
 @role_required_with_demo(["admin"])

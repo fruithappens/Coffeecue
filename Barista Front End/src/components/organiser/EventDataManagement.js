@@ -60,6 +60,7 @@ const EventDataManagement = () => {
   const [busy, setBusy] = useState('');          // 'export' | 'wipe' | 'import'
   const [result, setResult] = useState(null);     // {ok, msg}
   const [wipeText, setWipeText] = useState('');
+  const [eraseText, setEraseText] = useState('');
   const [clearStaff, setClearStaff] = useState(false);
   const [resetBranding, setResetBranding] = useState(false);
   const [importFile, setImportFile] = useState(null);
@@ -112,6 +113,31 @@ const EventDataManagement = () => {
       setTimeout(() => window.location.reload(), 1500);
     } catch (e) {
       say(false, `Wipe failed: ${e?.message || e}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  // --- Retire: erase every attendee's details, keep the report's numbers.
+  const handleErase = async () => {
+    if (eraseText !== 'ERASE') return;
+    if (!(await askConfirm({ title: 'Erase attendee details?', tone: 'bad', message: 'Removes every name, phone number, email, note and text conversation, and the EventsAir attendee list. Orders stay as counts (drink, time, station) so the report still adds up. A backup is taken first.', confirmLabel: 'Erase them', danger: true }))) return;
+    setBusy('erase'); setResult(null);
+    try {
+      const resp = await api.request('/event-data/erase-attendees', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm: 'ERASE' }),
+      });
+      if (resp?.success === false || resp?.status === 'error') throw new Error(resp?.message || 'Erase failed');
+      const steps = resp?.data?.steps || [];
+      const rows = steps.reduce((n, x) => n + (x.rows || 0), 0);
+      const skipped = steps.filter(x => x.skipped).map(x => x.what);
+      setEraseText('');
+      say(!skipped.length, `Attendee details erased (${rows} rows changed).`
+        + (skipped.length ? ` Not done: ${skipped.join(', ')}.` : ''));
+    } catch (e) {
+      say(false, `Erase failed: ${e?.message || e}`);
     } finally {
       setBusy('');
     }
@@ -202,6 +228,31 @@ const EventDataManagement = () => {
           {busy === 'import' ? 'Importing…' : 'Import customers'}
         </button>
       </Panel>
+
+      {/* Retiring an event (roadmap C3-8): keep the numbers, drop the people. */}
+      <section className="bg-cq-wash rounded-cq-lg p-5 mb-5 border border-cq-line">
+        <div className="flex items-center gap-2 mb-1">
+          <ShieldAlert className="w-4 h-4 text-cq-caramel-deep" />
+          <h3 className="text-lg font-bold text-cq-roast">Retire this event</h3>
+        </div>
+        <ol className="text-sm text-cq-ink-2 mb-4 max-w-[62ch] list-decimal pl-5 space-y-1">
+          <li>Download the event report (Report) and, if wanted, an export (above).</li>
+          <li><strong>Erase attendee details:</strong> every name, phone number, email, note and text
+            conversation, and the EventsAir attendee list. Orders stay as counts, so the report
+            still adds up. Staff logins, menu and settings are kept.</li>
+          <li>Ask Steve to park or delete this copy&apos;s server (automatic once the Railway token is in).</li>
+        </ol>
+        <label className="block text-sm font-semibold text-cq-roast mb-2">Type ERASE to enable</label>
+        <div className="flex items-center gap-3 flex-wrap">
+          <TextField width="w-32" value={eraseText} onChange={setEraseText} placeholder="ERASE" className="font-mono" />
+          <button type="button" onClick={handleErase}
+            disabled={busy === 'erase' || eraseText !== 'ERASE'}
+            className="h-10 px-4 rounded-cq-md bg-cq-roast text-white font-semibold hover:opacity-90 disabled:opacity-40 inline-flex items-center gap-2">
+            <Users className="w-4 h-4" />
+            {busy === 'erase' ? 'Erasing…' : 'Erase attendee details'}
+          </button>
+        </div>
+      </section>
 
       {/* The one place red is right: this deletes a client's data for good.
           Semantic colour, not decoration -- it stays. */}
