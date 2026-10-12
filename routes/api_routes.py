@@ -251,8 +251,14 @@ def orders():
             return jsonify({"success": False, "error": str(e)}), 500
 
 @bp.route('/orders/<order_id>', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista', 'organizer', 'organiser', 'event_organizer', 'support'])
 def get_order(order_id):
-    """Get a specific order by ID"""
+    """Get a specific order by ID. Staff only: it returns the customer's
+    name and full phone number, and order numbers count up, so without a
+    login anyone could walk 1, 2, 3... and list every customer (found by
+    the public-endpoint probe, 12 Oct 2026). Customers' own pages use
+    /orders/<n>/track, which carries no phone number."""
     try:
         # Use the existing lookup function
         return lookup_order(order_id)
@@ -1088,6 +1094,8 @@ def create_test_order():
 # because it sits next to two real problems would be tidiness at the
 # cost of a monitor that stops working without saying so.
 @bp.route('/debug/api-health', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'support'])
 def api_health():
     """Check API health and connection status"""
     try:

@@ -33,6 +33,12 @@ def get_current_user_id():
         return None
 
 # Ensure inventory management tables exist
+# The read endpoints below were 'login optional'. Only staff screens use
+# them (the public kiosk and board read /api/display/menu), so since the
+# public-endpoint probe (12 Oct 2026) they need a staff login, like the
+# guarded copies in consolidated_api_routes that these shadow.
+
+
 def ensure_inventory_management_tables(db):
     """Ensure inventory management related tables exist"""
     try:
@@ -115,7 +121,8 @@ def ensure_inventory_management_tables(db):
 
 # Get event-level inventory
 @bp.route('/api/inventory/event', methods=['GET'])
-@jwt_required_with_demo(optional=True)
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista', 'organizer', 'organiser', 'event_organizer', 'support'])
 def get_event_inventory():
     """Get event-level inventory summary"""
     try:
@@ -173,7 +180,8 @@ def get_event_inventory():
 
 # Get all inventory items
 @bp.route('/api/inventory', methods=['GET'])
-@jwt_required_with_demo(optional=True)
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista', 'organizer', 'organiser', 'event_organizer', 'support'])
 def get_inventory():
     """Get all inventory items, optionally filtered by category"""
     try:
@@ -209,7 +217,8 @@ def get_inventory():
 
 # Get inventory item by ID
 @bp.route('/api/inventory/<int:item_id>', methods=['GET'])
-@jwt_required_with_demo(optional=True)
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista', 'organizer', 'organiser', 'event_organizer', 'support'])
 def get_inventory_item(item_id):
     """Get inventory item by ID"""
     try:
@@ -328,7 +337,8 @@ def delete_inventory_item(item_id):
 
 # Get low stock items
 @bp.route('/api/inventory/low-stock', methods=['GET'])
-@jwt_required_with_demo(optional=True)
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista', 'organizer', 'organiser', 'event_organizer', 'support'])
 def get_low_stock():
     """Get items with stock below minimum threshold"""
     try:
@@ -590,6 +600,8 @@ def adjust_stock(item_id):
 
 # Get inventory categories
 @bp.route('/api/inventory/categories', methods=['GET'])
+@jwt_required_with_demo()
+@role_required_with_demo(['admin', 'staff', 'barista', 'organizer', 'organiser', 'event_organizer', 'support'])
 def get_categories():
     """Get available inventory categories"""
     return jsonify({
