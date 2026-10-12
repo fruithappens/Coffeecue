@@ -256,7 +256,7 @@ const DemoControls = ({ onChanged }) => {
       const r = await api.request(`/event-templates/${t.id}`, { method: 'GET' });
       const payload = r?.template?.payload;
       if (!payload) throw new Error('That saved event is empty.');
-      const { resp, warnings } = await applyEventPreset(api, payload);
+      const { resp, warnings } = await applyEventPreset(api, payload, { replaceLook: true });
       if (resp?.success === false) throw new Error(resp.message || 'Load failed');
       setStatus({ ok: !warnings.length, msg: warnings.length ? `Loaded "${t.name}", but: ${warnings.join('; ')}` : `Loaded "${t.name}".` });
       onChanged();

@@ -12122,6 +12122,22 @@ def _apply_quick_setup(coffee_system, preset):
     return summary
 
 
+# What "the look" of an event is, inside branding_settings: cleared when a
+# saved event is loaded (see _apply_event_extras). Deliberately a list of
+# what to CLEAR, not what to keep, so a key nobody listed here (the SMS
+# number, the system name) survives.
+EVENT_LOOK_KEYS = frozenset({
+    'logo', 'clientLogo', 'clientName', 'companyName',
+    'eventName', 'event_name', 'landingTitle', 'landingPageTitle',
+    'headerColor', 'primaryColor', 'secondaryColor', 'accentColor',
+    'backgroundColor', 'textColor',
+    'customerHeaderColor', 'customerHeaderMode', 'customerHeaderImage',
+    'background_landscape', 'background_portrait', 'bgLandscape', 'bgPortrait',
+    'customMessage', 'footerText',
+    'sponsorEnabled', 'showSponsor', 'sponsorName', 'sponsorMessage', 'sponsorLogo',
+})
+
+
 def _apply_event_extras(coffee_system, preset):
     """Branding, quick picks, self-serve sugar and active-station count
     from a recalled event template. Returns summary lines; never raises."""
@@ -12129,7 +12145,37 @@ def _apply_event_extras(coffee_system, preset):
     summary = []
 
     branding = preset.get('branding')
-    if isinstance(branding, dict) and branding:
+    if preset.get('_replace_look'):
+        # LOADING A SAVED EVENT REPLACES THE LOOK (Steve, 12 Oct). Merging
+        # left the previous event's logo, colours, backgrounds and quick
+        # picks on screen whenever the event being loaded didn't carry its
+        # own (a menu-only saved event) -- the Virgin demo would have stayed
+        # Virgin-red under the next client's name. Only the look keys are
+        # cleared; the rest of the blob (SMS number, system name) stays.
+        # Running Quick Setup by hand does not send _replace_look, so adding
+        # a milk mid-event still keeps the branding.
+        try:
+            current = _kv_get(db, 'branding_settings', default={}) or {}
+            if not isinstance(current, dict):
+                current = {}
+            kept = {k: v for k, v in current.items() if k not in EVENT_LOOK_KEYS}
+            fresh = {**kept, **(branding if isinstance(branding, dict) else {})}
+            _kv_put(db, 'branding_settings', fresh)
+            _kv_put(db, 'display_bg_video', {})
+            try:
+                coffee_system._event_name_cache = None
+            except Exception:
+                pass
+            if not isinstance(preset.get('quick_picks'), list):
+                _kv_put(db, 'quick_picks', [])
+            summary.append('look replaced' + (f" ({len(branding)} field(s))" if isinstance(branding, dict) and branding else ' (reset to plain)'))
+        except Exception as e:
+            logger.warning(f"event template look reset failed: {e}")
+            try:
+                db.rollback()
+            except Exception:
+                pass
+    elif isinstance(branding, dict) and branding:
         try:
             # Merge, like the Branding screen: keys the template leaves out
             # (an uploaded logo, say) are kept rather than wiped.
@@ -12237,6 +12283,10 @@ def apply_quick_setup():
         # Merge with defaults so callers can send just the fields
         # they want to override.
         merged = {**DEFAULT_QUICK_PRESET, **(preset or {})}
+        # A SAVED EVENT is being applied (Demo Room Load, or Quick Setup
+        # after loading one): its look replaces the current one.
+        if body.get('replace_look') is True:
+            merged['_replace_look'] = True
         # drinks is a nested dict — merge it too
         if isinstance(preset.get('drinks'), dict):
             merged['drinks'] = {
@@ -12250,6 +12300,7 @@ def apply_quick_setup():
                 **preset['teas'],
             }
         summary = _apply_quick_setup(coffee_system, merged)
+        merged.pop('_replace_look', None)  # an instruction, not part of the event
         # Invalidate the unlimited-stock cache so the conversation
         # flow's next read picks up the new value immediately.
         if hasattr(coffee_system, '_invalidate_unlimited_stock_cache'):

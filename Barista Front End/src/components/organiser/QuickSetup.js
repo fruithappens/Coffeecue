@@ -884,8 +884,13 @@ const QuickSetup = () => {
     try {
       // Menu, stations, look, picks, sugar rule, text policy, event name:
       // shared with the Demo Room's Load demo (services/eventPreset.js).
-      const { resp, warnings: presetWarnings } = await applyEventPreset(api, config);
+      // eslint-disable-next-line no-unused-vars
+      const { _saved_event: fromSavedEvent, ...preset } = config;
+      const { resp, warnings: presetWarnings } = await applyEventPreset(
+        api, preset, { replaceLook: !!fromSavedEvent });
       warnings.push(...presetWarnings);
+      // Applied once; later hand edits (a milk added mid-event) keep the look.
+      if (fromSavedEvent) setConfig(prev => { const { _saved_event, ...rest } = prev; return rest; });
       const eventName = (config.event_name || '').trim();
 
       // Event accounts — create one {slug}admin and N {slug}1..N. We
@@ -1678,7 +1683,9 @@ const EventTemplatesSection = ({ config, setConfig }) => {
         setConfig(prev => {
           // eslint-disable-next-line no-unused-vars
           const { branding, quick_picks, sugar_self_serve, active_stations, event_inventory, ...rest } = prev;
-          return { ...rest, ...resp.template.payload };
+          // _saved_event: Apply replaces the look with this event's (and
+          // resets it to plain if it has none) -- see applyEventPreset.
+          return { ...rest, ...resp.template.payload, _saved_event: true };
         });
         setStatus({ ok: true, msg: `Loaded "${resp.template.name}" — review and click Apply.` });
       } else {
@@ -1699,13 +1706,16 @@ const EventTemplatesSection = ({ config, setConfig }) => {
     if (!name || !name.trim()) return;
     setSaving(true);
     setStatus(null);
+    // eslint-disable-next-line no-unused-vars
+    const { _saved_event: _mark, ...plainConfig } = config;
     try {
       // The whole `config` object IS the payload — the backend strips
       // per-event identity fields itself, so we don't need to filter here.
       const resp = await api.request('/event-templates', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), payload: withEvent ? { ...config, ...(await eventExtras()) } : config }),
+        // (_saved_event is this screen's own mark, not part of the event.)
+        body: JSON.stringify({ name: name.trim(), payload: withEvent ? { ...plainConfig, ...(await eventExtras()) } : plainConfig }),
       });
       if (resp?.success) {
         setStatus({ ok: true, msg: `Saved as "${name.trim()}".` });
