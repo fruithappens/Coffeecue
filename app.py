@@ -743,6 +743,14 @@ def create_app():
     except Exception as sr_err:
         logger.error(f"Support request routes failed to register: {sr_err}")
 
+    # Public status of this event: /api/public/status, page /status (U4-4).
+    try:
+        from routes.public_status_routes import bp as public_status_bp
+        app.register_blueprint(public_status_bp)
+        logger.info("Public status routes registered")
+    except Exception as ps_err:
+        logger.error(f"Public status routes failed to register: {ps_err}")
+
     # The fleet board: /api/fleet (every CupQ copy on one page).
     try:
         from routes.fleet_routes import bp as fleet_bp
