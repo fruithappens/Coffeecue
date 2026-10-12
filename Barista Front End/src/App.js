@@ -21,6 +21,7 @@ import SoundNotificationService from './services/SoundNotificationService';
 import { AppProvider } from './context/AppContext';
 import AuthGuard from './components/auth/AuthGuard';
 import AdminViewSwitcher from './components/shared/AdminViewSwitcher';
+import HelpButton from './components/shared/HelpButton';
 import UnauthorizedPage from './components/auth/UnauthorizedPage';
 import OfflineDataHelper from './utils/offlineDataHelper';
 import ApiNotificationBanner from './components/shared/ApiNotificationBanner';
@@ -669,6 +670,8 @@ function App() {
         </Routes>
         {/* Admin-only floating switcher between Barista/Organiser/Support/Display. */}
         <AdminViewSwitcher />
+        {/* The ? button on staff screens: a help request with diagnostics (U4-5). */}
+        <HelpButton />
         {/* One in-app confirm dialog for the whole app (askConfirm). */}
         <ConfirmHost />
       </Router>

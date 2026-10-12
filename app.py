@@ -735,6 +735,14 @@ def create_app():
     except Exception as plan_err:
         logger.error(f"Plan routes failed to register: {plan_err}")
 
+    # Help requests from the ? button: /api/support-requests (U4-5).
+    try:
+        from routes.support_request_routes import bp as support_requests_bp
+        app.register_blueprint(support_requests_bp)
+        logger.info("Support request routes registered")
+    except Exception as sr_err:
+        logger.error(f"Support request routes failed to register: {sr_err}")
+
     # The fleet board: /api/fleet (every CupQ copy on one page).
     try:
         from routes.fleet_routes import bp as fleet_bp

@@ -23,6 +23,53 @@ function Field({ label, children }) {
   );
 }
 
+// Help requests from the ? button on staff screens (U4-5), newest first.
+function HelpRequests() {
+  const apiRef = useRef(null);
+  if (!apiRef.current) apiRef.current = new ApiServiceClass();
+  const [rows, setRows] = useState(null);
+  const load = useCallback(async () => {
+    try {
+      const r = await apiRef.current.get('/support-requests');
+      setRows(Array.isArray(r?.requests) ? r.requests : []);
+    } catch (e) { setRows([]); }
+  }, []);
+  useEffect(() => { load(); const t = setInterval(load, 30000); return () => clearInterval(t); }, [load]);
+  const markHandled = async (r) => {
+    try { await apiRef.current.post(`/support-requests/${r.id}/handled`, {}); load(); } catch (e) { /* stays */ }
+  };
+  if (!rows || rows.length === 0) return null;
+  const open = rows.filter(r => !r.handled_at).length;
+  return (
+    <div className="mb-6">
+      <h3 className="text-base font-bold text-cq-roast mb-1">Help requests {open ? `(${open} open)` : ''}</h3>
+      <p className="text-sm text-cq-ink-3 mb-2">Sent from the ? button on staff screens, with where they were.</p>
+      <div className="space-y-2">
+        {rows.map(r => (
+          <div key={r.id} className={`rounded-cq-md border p-3 ${r.handled_at ? 'border-cq-line bg-cq-wash opacity-70' : 'border-cq-caramel bg-cq-milk'}`}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="font-semibold text-cq-roast break-words">#{r.id} · {r.message}</div>
+                <div className="text-xs text-cq-ink-3 mt-1">
+                  {r.username || 'someone'}{r.role ? ` (${r.role})` : ''} · {when(r.created_at)} · {r.screen || '?'}
+                  {r.station ? ` · station ${r.station}` : ''}{r.crashes ? ` · ${r.crashes} crash(es) just before` : ''}
+                  {r.notified ? ' · texted' : ''}
+                </div>
+              </div>
+              {!r.handled_at && (
+                <button type="button" onClick={() => markHandled(r)}
+                  className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded border border-cq-line text-xs">
+                  <Check size={14} /> Handled
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function EnquiriesTab() {
   const apiRef = useRef(null);
   if (!apiRef.current) apiRef.current = new ApiServiceClass();
@@ -104,6 +151,7 @@ export default function EnquiriesTab() {
         "Book a demo" requests from cupq.com.au. Each one is also texted to the
         admin alert number (Live &gt; Readiness &gt; Admin alerts).
       </p>
+      <HelpRequests />
       {loading ? (
         <Empty><span className="inline-flex items-center gap-2"><Loader className="animate-spin" size={16} /> Loading…</span></Empty>
       ) : error ? (

@@ -742,6 +742,31 @@ def _m026_personal_pins(cur):
 # Master list. Append new migrations at the bottom — DO NOT renumber
 # existing ones, and DO NOT change `version`. The runner trusts the
 # version number to determine which migrations to skip.
+def _m027_support_requests(cur):
+    """Help requests sent from inside the app (the ? button, roadmap U4-5).
+
+    A barista or organiser describes the problem; the app attaches where
+    they were (screen, station, version, who) and the latest crashes, and
+    the admin gets a text. The row is the record (Runner > System >
+    Enquiries)."""
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS support_requests (
+            id SERIAL PRIMARY KEY,
+            created_at TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC'),
+            username VARCHAR(100),
+            role VARCHAR(40),
+            message TEXT NOT NULL,
+            screen VARCHAR(300),
+            station VARCHAR(40),
+            app_version VARCHAR(80),
+            user_agent VARCHAR(400),
+            diagnostics TEXT,
+            notified BOOLEAN NOT NULL DEFAULT FALSE,
+            handled_at TIMESTAMP
+        )
+    """)
+
+
 def _m019_station_stats_twin_columns(cur):
     """Bring station_stats' twin columns into line.
 
@@ -862,6 +887,7 @@ MIGRATIONS: list[Migration] = [
     Migration(24, 'sms_outbound_log',         _m024_sms_outbound_log),
     Migration(25, 'demo_requests',            _m025_demo_requests),
     Migration(26, 'personal_pins',            _m026_personal_pins),
+    Migration(27, 'support_requests',         _m027_support_requests),
 ]
 
 
