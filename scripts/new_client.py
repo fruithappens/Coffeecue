@@ -53,6 +53,7 @@ PER_CLIENT = {  # value comes from the client / the plan
     "PUBLIC_BASE_URL": "https://{host}",
     "EVENT_NAME": "{event_name}",
     "TESTING_MODE": "False (texts really send)",
+    "PYTHONUNBUFFERED": "1 (so the first-admin line reaches the deploy log)",
     "FLEET_STATUS_TOKEN": "the fleet's shared value, the SAME on every copy (lets System > Fleet read its numbers)",
     "ADMIN_ALERT_ENABLED": "true",
     "ADMIN_ALERT_PHONE": "the client's on-call mobile",
@@ -188,10 +189,10 @@ def plan(slug, event_name, event_file):
     host = f"{slug}.{DOMAIN}"
     groups = classify(code_env_vars())
     steps = [
-        ("Railway project", f"create project cupq-{slug}"),
+        ("Railway project", f"create project cupq-{slug} (API: projectCreate; the CLI refuses workspace tokens)"),
         ("Web service", f"deploy {REPO} @ main with the Dockerfile; start: python run_server.py; restart on failure"),
-        ("Database", "add Postgres to the project; DATABASE_URL references it"),
-        ("Volume", "attach a 1 GB volume to the web service (backups, uploads)"),
+        ("Database", "add Postgres; set its region to Singapore (multiRegionConfig asia-southeast1-eqsg3a) while empty"),
+        ("Volume", "attach a volume at /data to the web service (backups, uploads), same region"),
         ("Settings", f"{len(groups['generate'])} generated, {len(groups['per_client'])} per client, "
                      f"{len(groups['sms'])} for texts; the other {len(groups['defaults'])} keep code defaults"),
         ("Subdomain", f"Cloudflare CNAME {host} -> the service's Railway domain; add {host} as a custom domain in Railway"),
