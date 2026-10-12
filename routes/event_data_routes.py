@@ -594,6 +594,56 @@ def erase_attendee_details():
                              "at": datetime.now().isoformat()}})
 
 
+@bp.route("/api/event-data/retention", methods=["GET", "PUT"])
+@jwt_required_with_demo()
+@role_required_with_demo(["admin"])
+def attendee_retention():
+    """Erase attendee details automatically N days after they order
+    (services/retention.py). GET: {days, last_run}. PUT {"days": N}
+    (0 = never, max 3650). PUT {"run_now": true} runs it immediately."""
+    from services import retention
+    db = None
+    try:
+        db = get_db_connection()
+        cur = db.cursor()
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        if request.method == "PUT":
+            data = request.get_json(silent=True) or {}
+            if "days" in data:
+                try:
+                    days = int(data.get("days") or 0)
+                except (TypeError, ValueError):
+                    return jsonify({"success": False, "message": "days must be a number"}), 400
+                if days < 0 or days > 3650:
+                    return jsonify({"success": False, "message": "days must be 0 to 3650"}), 400
+                cur.execute(
+                    "INSERT INTO settings(key, value) VALUES(%s, %s) "
+                    "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+                    (retention.SETTING, _json.dumps(days)))
+                db.commit()
+            ran = None
+            if data.get("run_now"):
+                ran = retention.run(db)
+            cur = db.cursor()
+            return jsonify({"success": True, "days": retention.get_days(cur),
+                            "last_run": retention._setting(cur, retention.LAST_RUN, None), "ran": ran})
+        days = retention.get_days(cur)
+        last = retention._setting(cur, retention.LAST_RUN, None)
+        db.rollback()
+        return jsonify({"success": True, "days": days, "last_run": last})
+    except Exception as e:
+        logger.exception(f"retention endpoint failed: {e}")
+        try:
+            if db is not None:
+                db.rollback()
+        except Exception:
+            pass
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
 @bp.route("/api/event-data/reset-order-numbers", methods=["POST"])
 @jwt_required_with_demo()
 @role_required_with_demo(["admin"])

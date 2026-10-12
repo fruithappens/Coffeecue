@@ -82,6 +82,23 @@ def check_once(app=None, alert=None):
             except Exception:
                 pass
 
+    # Attendee details erased on schedule (L6-2): at most once a day, only
+    # when the organiser has set a number of days.
+    rconn = None
+    try:
+        rconn = _connect()
+        if rconn is not None:
+            from services import retention
+            retention.run_daily_if_due(rconn)
+    except Exception as e:
+        logger.warning("[service-watch] retention run failed: %s", e)
+    finally:
+        if rconn is not None:
+            try:
+                rconn.close()
+            except Exception:
+                pass
+
     # Texts: the same verdict the barista banner shows, but checked here
     # whether or not a barista screen is open. Not limited to service: it
     # only trips after real sends have failed, so it can't fire overnight.
