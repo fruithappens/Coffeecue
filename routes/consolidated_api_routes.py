@@ -7540,15 +7540,20 @@ def customer_reply_to_barista(order_id):
     if not reply:
         return jsonify({'success': False, 'message': 'reply required'}), 400
     cur = db.cursor()
+    # Only while the barista has asked something and the order is still
+    # live. Public, so without this anyone could write 280 characters onto
+    # any order's barista card by guessing its number (public-endpoint
+    # probe, 12 Oct 2026).
     cur.execute(
         "UPDATE orders SET order_details = "
         "COALESCE(order_details::jsonb, '{}'::jsonb) || %s::jsonb "
-        "WHERE order_number = %s",
+        "WHERE order_number = %s AND COALESCE(order_details::jsonb, '{}'::jsonb) ? '_barista_ask' "
+        "AND status IN ('pending', 'in-progress', 'in_progress', 'completed')",
         (json.dumps({'_customer_reply': {'text': reply,
                                          'at': datetime.now().isoformat()}}), clean_id))
     if cur.rowcount == 0:
         db.rollback()
-        return jsonify({'success': False, 'message': 'order not found'}), 404
+        return jsonify({'success': False, 'message': 'No question to answer on that order.'}), 404
     db.commit()
     return jsonify({'success': True})
 
@@ -16179,7 +16184,8 @@ def _eventsair_secret_ok(db):
         logger.warning("EventsAir inbound REJECTED: webhook_secret not set (set one in Organiser > EventsAir)")
         return False, 'webhook_secret not set'
     provided = request.headers.get('X-Coffee-Cue-Webhook-Secret', '')
-    if provided != secret:
+    import hmac  # constant-time: a plain != leaks how much of the secret matched
+    if not hmac.compare_digest(provided.encode(), secret.encode()):
         return False, 'secret mismatch'
     return True, 'ok'
 
