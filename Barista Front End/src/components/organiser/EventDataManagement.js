@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Download, Upload, Trash2, ShieldAlert, Database, Palette, Users } from 'lucide-react';
 import { Panel, SettingRow, Toggle, TextField } from '../../design';
 import ApiServiceClass from '../../services/ApiService';
@@ -61,6 +61,31 @@ const EventDataManagement = () => {
   const [result, setResult] = useState(null);     // {ok, msg}
   const [wipeText, setWipeText] = useState('');
   const [eraseText, setEraseText] = useState('');
+  // Automatic erase N days after ordering (L6-2). null = not loaded yet.
+  const [retentionDays, setRetentionDays] = useState(null);
+  const [retentionLast, setRetentionLast] = useState(null);
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await api.request('/event-data/retention', { method: 'GET' });
+        if (r?.success) { setRetentionDays(String(r.days ?? 0)); setRetentionLast(r.last_run || null); }
+      } catch (e) { setRetentionDays('0'); }
+    })();
+  }, []);
+  const saveRetention = async () => {
+    const days = parseInt(retentionDays, 10);
+    if (!Number.isFinite(days) || days < 0 || days > 3650) { say(false, 'Days must be 0 to 3650.'); return; }
+    setBusy('retention'); setResult(null);
+    try {
+      const r = await api.request('/event-data/retention', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ days }),
+      });
+      if (!r?.success) throw new Error(r?.message || 'Not saved');
+      setRetentionDays(String(r.days)); setRetentionLast(r.last_run || null);
+      say(true, days ? `Attendee details will be erased ${days} day${days === 1 ? '' : 's'} after each order, checked daily.` : 'Automatic erase is off.');
+    } catch (e) { say(false, `Not saved: ${e?.message || e}`); }
+    finally { setBusy(''); }
+  };
   const [clearStaff, setClearStaff] = useState(false);
   const [resetBranding, setResetBranding] = useState(false);
   const [importFile, setImportFile] = useState(null);
@@ -242,6 +267,22 @@ const EventDataManagement = () => {
             still adds up. Staff logins, menu and settings are kept.</li>
           <li>Ask Steve to park or delete this copy&apos;s server (automatic once the Railway token is in).</li>
         </ol>
+        <div className="bg-cq-milk rounded-cq-md px-4 py-3 mb-4 max-w-[62ch]">
+          <div className="text-sm font-semibold text-cq-roast mb-1">Or automatically</div>
+          <div className="flex items-center gap-2 flex-wrap text-sm text-cq-ink-2">
+            Erase attendee details
+            <TextField width="w-20" value={retentionDays ?? ''} onChange={setRetentionDays} placeholder="0" className="font-mono" />
+            days after they order (0 = never).
+            <button type="button" onClick={saveRetention} disabled={busy === 'retention' || retentionDays === null}
+              className="h-9 px-3 rounded-cq-md border border-cq-roast text-cq-roast font-semibold disabled:opacity-40">
+              {busy === 'retention' ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+          <p className="text-xs text-cq-ink-3 mt-1">
+            Checked once a day. Same rules as the button below: the people go, the counts stay.
+            {retentionLast?.ran_at ? ` Last checked ${new Date(retentionLast.ran_at).toLocaleString()}.` : ''}
+          </p>
+        </div>
         <label className="block text-sm font-semibold text-cq-roast mb-2">Type ERASE to enable</label>
         <div className="flex items-center gap-3 flex-wrap">
           <TextField width="w-32" value={eraseText} onChange={setEraseText} placeholder="ERASE" className="font-mono" />
