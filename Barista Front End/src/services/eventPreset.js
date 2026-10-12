@@ -12,12 +12,18 @@
 //
 // Returns { resp, warnings }: resp is /quick-setup's answer; warnings are
 // the parts that failed without stopping the rest, for the caller to show.
-export async function applyEventPreset(api, preset) {
+//
+// { replaceLook: true } when a SAVED EVENT is being applied: its look
+// (logo, colours, backgrounds, quick picks) replaces the current one, and
+// an event saved without a look resets to plain instead of keeping the
+// last event's. Running Quick Setup by hand leaves it off, so adding a
+// milk mid-event keeps the branding.
+export async function applyEventPreset(api, preset, { replaceLook = false } = {}) {
   const warnings = [];
   const resp = await api.request('/quick-setup', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ preset }),
+    body: JSON.stringify({ preset, ...(replaceLook ? { replace_look: true } : {}) }),
   });
 
   // Persist the "started" SMS policy separately — it lives in its
