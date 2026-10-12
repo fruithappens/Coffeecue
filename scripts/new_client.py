@@ -48,7 +48,7 @@ GENERATE = {  # fresh random value per copy, never shared between clients
     "CLOUDPRNT_SHARED_SECRET": "locks the printer endpoint to this client's printers",
 }
 PER_CLIENT = {  # value comes from the client / the plan
-    "DATABASE_URL": "${{Postgres.DATABASE_URL}} (Railway reference to this copy's own database)",
+    "DATABASE_URL": "${{Postgres.DATABASE_URL}}  (Railway reference to this copy's own database)",
     "CORS_ALLOWED_ORIGINS": "https://{host}",
     "PUBLIC_BASE_URL": "https://{host}",
     "EVENT_NAME": "{event_name}",
@@ -56,6 +56,11 @@ PER_CLIENT = {  # value comes from the client / the plan
     "ADMIN_ALERT_ENABLED": "true",
     "ADMIN_ALERT_PHONE": "the client's on-call mobile",
     "ADMIN_ALERT_EMAIL": "the client's on-call email",
+}
+FIRST_ADMIN = {  # ensure_admin_user.py makes the first admin at first boot
+    "DEFAULT_ADMIN_USERNAME": "{slug}admin",
+    "DEFAULT_ADMIN_EMAIL": "{slug}admin@cupq.app",
+    "DEFAULT_ADMIN_PASSWORD": "leave UNSET: first boot picks a random one and prints it once in the deploy log",
 }
 SMS = {  # C3-5: a Twilio sub-account and number per client
     "TWILIO_ACCOUNT_SID": "the client's Twilio SUB-account (not ours)",
@@ -88,7 +93,9 @@ def code_env_vars() -> list[str]:
     found = set()
     for path in ROOT.rglob("*.py"):
         rel = path.relative_to(ROOT).as_posix()
-        if rel.startswith(("_archive", "venv", "node_modules", "tests/", "testbench/")) or "/_archive" in rel:
+        # The app only: tools, tests and backups read their own variables.
+        if rel.startswith(("_archive", "venv", "node_modules", "tests/", "testbench/", "scripts/",
+                           "backend_backup", "test_")) or "/_archive" in rel:
             continue
         try:
             for a, b in pat.findall(path.read_text(errors="ignore")):
@@ -99,13 +106,17 @@ def code_env_vars() -> list[str]:
 
 
 def classify(names):
-    groups = {"generate": [], "per_client": [], "sms": [], "optional": {}, "never_copy": [],
+    groups = {"generate": [], "per_client": [], "first_admin": [], "sms": [], "optional": {}, "never_copy": [],
               "railway": [], "defaults": []}
     for n in names:
         if n in GENERATE:
             groups["generate"].append(n)
         elif n in PER_CLIENT:
             groups["per_client"].append(n)
+        elif n in FIRST_ADMIN:
+            groups["first_admin"].append(n)
+        elif n in ("ADMIN_USER", "ADMIN_PASS"):
+            groups["never_copy"].append(n)  # test-tool logins, not the app's
         elif n in SMS:
             groups["sms"].append(n)
         elif n in NEVER_COPY or n.startswith(NEVER_COPY_PREFIXES):
@@ -125,6 +136,9 @@ def classify(names):
     for k in PER_CLIENT:
         if k not in groups["per_client"]:
             groups["per_client"].append(k)
+    for k in FIRST_ADMIN:
+        if k not in groups["first_admin"]:
+            groups["first_admin"].append(k)
     return groups
 
 
@@ -181,8 +195,8 @@ def plan(slug, event_name, event_file):
                      f"{len(groups['sms'])} for texts; the other {len(groups['defaults'])} keep code defaults"),
         ("Subdomain", f"Cloudflare CNAME {host} -> the service's Railway domain; add {host} as a custom domain in Railway"),
         ("Text number", "Twilio sub-account cupq-" + slug + ", buy an AU mobile number, point its webhook at "
-                        f"https://{host}/api/sms/webhook"),
-        ("First admin", f"create {slug}admin with a generated password (shown once, then only its hash is kept)"),
+                        f"https://{host}/sms"),
+        ("First admin", f"{slug}admin, made at first boot with a random password printed once in the deploy log"),
         ("Saved event", f"import {event_file}" if event_file else "none given (--event-file to load one)"),
         ("Plan tier", "set in Runner > Settings > Plan"),
         ("Check", f"open https://{host}/run#live/readiness and work it to green"),
@@ -231,7 +245,8 @@ def main(argv=None):
         }, indent=2))
         return 0
 
-    fill = {"host": host, "event_name": event_name}
+    fill = {"host": host, "event_name": event_name, "slug": slug}
+    sub = lambda t: t.replace("{host}", host).replace("{event_name}", event_name).replace("{slug}", slug)
     print(f"\nDRY RUN: nothing is created or changed.\n\nNew client copy: {host}  ({event_name})\n")
     print("What a real run would do:")
     for i, (what, detail) in enumerate(steps, 1):
@@ -242,7 +257,10 @@ def main(argv=None):
         print(f"    {k:<26} {GENERATE.get(k, '')}")
     print("  Set for this client:")
     for k in groups["per_client"]:
-        print(f"    {k:<26} {PER_CLIENT.get(k, '').format(**fill)}")
+        print(f"    {k:<26} {sub(PER_CLIENT.get(k, ''))}")
+    print("  First admin:")
+    for k in groups["first_admin"]:
+        print(f"    {k:<26} {sub(FIRST_ADMIN.get(k, ''))}")
     print("  Texts (C3-5):")
     for k in groups["sms"]:
         print(f"    {k:<26} {SMS.get(k, '')}")
