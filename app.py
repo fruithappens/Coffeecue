@@ -609,6 +609,13 @@ def create_app():
             MemoryWatchService(db=db).start()
         except Exception as mem_err:
             logger.error(f"Failed to start memory watchdog (non-fatal): {mem_err}")
+        # During service: printers and texts checked every minute, the admin
+        # alerted when one stops (services/service_watch.py). Non-fatal.
+        try:
+            from services.service_watch import ServiceWatch
+            ServiceWatch(app).start()
+        except Exception as sw_err:
+            logger.error(f"Failed to start service watch (non-fatal): {sw_err}")
         try:
             # The EventsAir attendee mirror refreshes itself (EA_SYNC_MINUTES,
             # default 10) while credentials are set and attendee lookup is

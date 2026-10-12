@@ -1,10 +1,18 @@
-# Uptime ping — the cheapest possible "is Coffee Cue up?" monitor.
+# Uptime ping — the cheapest possible "is CupQ up?" monitor.
 #
-# Every 10 minutes GitHub curls the production health endpoint. If it
-# fails (after one retry 30s later, so a single transient blip doesn't
-# page anyone), the workflow fails and GitHub emails the repo owner —
-# so an outage is noticed before a queue of delegates notices it.
+# Every 10 minutes (as scheduled -- GitHub often runs quiet repos' schedules
+# hours apart, so this is a backstop, not a fast alarm; see roadmap U4-3)
+# GitHub asks each address for /api/health. A probe that fails three tries
+# 20 s apart (so one transient blip doesn't page anyone) fails the run, and
+# GitHub emails the repo owner -- so an outage is noticed before a queue of
+# delegates notices it.
 #
+#   cupq.app                          what guests use (Cloudflare + Railway)
+#   web-production-4cc9c.up.railway   cupq.app's server direct (tells a
+#                                     Cloudflare fault from a server fault)
+#   demo.cupq.app                     the demo copy
+#
+# Add a client copy here when it's created (docs/NEW_CLIENT_COPY.md).
 # No secrets, no cost, no external service. workflow_dispatch lets you
 # test it from the Actions tab.
 name: Uptime ping
@@ -14,21 +22,28 @@ on:
     - cron: '*/10 * * * *'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   ping:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 4
+    strategy:
+      fail-fast: false
+      matrix:
+        url:
+          - https://cupq.app
+          - https://web-production-4cc9c.up.railway.app
+          - https://demo.cupq.app
     steps:
-      - name: Probe /api/health
+      - name: Probe ${{ matrix.url }}/api/health
         run: |
-          URL="https://web-production-4cc9c.up.railway.app/api/health"
-          if curl -fsS --max-time 20 "$URL" > /dev/null; then
-            echo "up"
-            exit 0
-          fi
-          echo "first probe failed — retrying in 30s (transient blip filter)"
-          sleep 30
-          curl -fsS --max-time 20 "$URL" > /dev/null && echo "up (after retry)" || {
-            echo "::error::Coffee Cue production health check FAILED twice — check Railway"
-            exit 1
-          }
+          for try in 1 2 3; do
+            if curl -fsS --max-time 20 "${{ matrix.url }}/api/health" > /dev/null; then
+              echo "up (try $try)"; exit 0
+            fi
+            echo "try $try failed"; sleep 20
+          done
+          echo "::error::${{ matrix.url }} health check FAILED three times -- check Railway (and Cloudflare if only cupq.app fails)"
+          exit 1
