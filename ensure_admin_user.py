@@ -92,13 +92,16 @@ def main():
         from create_admin import create_admin
 
         if create_admin(db_url, username, email, password, force=False):
-            print(f"Admin user '{username}' created.")
+            print(f"Admin user '{username}' created.", flush=True)
             if generated:
                 # Once, here, and nowhere else: only its hash is stored.
-                print("=" * 64)
-                print(f"FIRST ADMIN LOGIN for this server: {username} / {password}")
-                print("Change it in Runner > People after logging in.")
-                print("=" * 64)
+                # flush=True: on a server stdout is a pipe, so without it this
+                # line sat in Python's buffer and never reached the deploy log
+                # (found building demo.cupq.app, 12 Oct 2026).
+                print("=" * 64, flush=True)
+                print(f"FIRST ADMIN LOGIN for this server: {username} / {password}", flush=True)
+                print("Change it in Runner > People after logging in.", flush=True)
+                print("=" * 64, flush=True)
         else:
             print(f"Admin user '{username}' was not created.")
     except Exception as e:
