@@ -129,7 +129,7 @@ def update_event_settings():
         db.session.rollback()
         return jsonify({'status': 'error', 'message': 'Failed to update settings'}), 500
 
-@settings_api_bp.route('/branding', methods=['GET'])
+# Not routed (roadmap X7-10): GET /api/settings/branding is served by consolidated_api.get_branding_settings.
 @jwt_required_with_demo()
 def get_branding_settings():
     """Get branding settings specifically.
@@ -195,7 +195,7 @@ def get_branding_settings():
             'message': 'Failed to get branding settings'
         }), 500
 
-@settings_api_bp.route('/branding', methods=['POST', 'PUT'])
+# Not routed (roadmap X7-10): POST PUT /api/settings/branding is served by consolidated_api.upsert_branding_settings.
 @jwt_required()
 def update_branding_settings():
     """Update branding settings specifically"""
@@ -450,7 +450,7 @@ def update_milk_colors():
         db.session.rollback()
         return jsonify({'status': 'error', 'message': 'Failed to update milk colors'}), 500
 
-@settings_api_bp.route('/wait-time', methods=['PUT', 'POST'])
+# Not routed (roadmap X7-10): POST PUT /api/settings/wait-time is served by consolidated_api.update_wait_time.
 @jwt_required()
 def update_wait_time():
     """Update the estimated wait time for all stations"""

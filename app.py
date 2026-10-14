@@ -1168,7 +1168,7 @@ def create_app():
     # key the real client IP, not Railway's edge. 10/min covers a whole
     # team logging in at once; 60/hour is ~1,400 guesses a day at most.
     from security_middleware import limiter as _login_limiter
-    @app.route('/api/auth/login', methods=['POST'])
+    # Not routed (roadmap X7-10): POST /api/auth/login is served by auth.api_login.
     @_login_limiter.limit("10 per minute; 60 per hour")
     def api_auth_login():
         """Direct API endpoint for authentication"""
@@ -1289,7 +1289,7 @@ def create_app():
     # This avoids duplicate route registration
     
     # Orders API routes with direct database access
-    @app.route('/api/orders/pending', methods=['GET'])
+    # Not routed (roadmap X7-10): GET /api/orders/pending is served by consolidated_api.get_pending_orders.
     def api_orders_pending():
         """Route that returns pending orders directly from database"""
         try:
@@ -1354,7 +1354,7 @@ def create_app():
                 return get_pending_orders()
             return jsonify([])
 
-    @app.route('/api/orders/in-progress', methods=['GET'])
+    # Not routed (roadmap X7-10): GET /api/orders/in-progress is served by consolidated_api.get_in_progress_orders.
     def api_orders_in_progress():
         """Route that returns in-progress orders directly from database"""
         try:
@@ -1428,7 +1428,7 @@ def create_app():
                 return get_in_progress_orders()
             return jsonify([])
     
-    @app.route('/api/orders/completed', methods=['GET'])
+    # Not routed (roadmap X7-10): GET /api/orders/completed is served by consolidated_api.get_completed_orders.
     def api_orders_completed():
         """Route that returns completed orders directly from database"""
         try:
@@ -1488,7 +1488,7 @@ def create_app():
                 return get_completed_orders()
             return jsonify([])
 
-    @app.route('/api/chat/messages', methods=['GET'])
+    # Not routed (roadmap X7-10): GET /api/chat/messages is served by consolidated_api.get_chat_messages.
     def api_chat_messages():
         """Route that returns chat messages from database if available"""
         try:
@@ -1547,7 +1547,7 @@ def create_app():
                 return get_chat_messages()
             return jsonify([])
 
-    @app.route('/api/test', methods=['GET'])
+    # Not routed (roadmap X7-10): GET /api/test is served by consolidated_api.test_api.
     def api_test():
         """Simple API test endpoint"""
         return jsonify({"status": "success", "message": "API is working"})
@@ -1646,7 +1646,7 @@ def create_app():
         return redirect('/api/test')
     
     # Debug endpoint for database info
-    @app.route('/api/debug/database-info', methods=['GET'])
+    # Not routed (roadmap X7-10): GET /api/debug/database-info is served by consolidated_api.database_info.
     def database_info():
         """Get information about the database and its tables"""
         try:

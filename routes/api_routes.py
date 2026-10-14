@@ -71,7 +71,7 @@ def clean_order_id(order_id):
     return order_id
 
 # Add general orders endpoint for creating new orders
-@bp.route('/orders', methods=['GET', 'POST'])
+# Not routed (roadmap X7-10): GET POST /api/orders is served by consolidated_api.orders.
 def orders():
     """Handle orders - GET for listing all orders, POST for creating new orders"""
     if request.method == 'GET':
@@ -266,7 +266,7 @@ def get_order(order_id):
         logger.error(f"Error getting order {order_id}: {str(e)}")
         return jsonify({"success": False, "error": str(e)}), 500
 
-@bp.route('/orders/pending', methods=['GET'])
+# Not routed (roadmap X7-10): GET /api/orders/pending is served by consolidated_api.get_pending_orders.
 def get_pending_orders():
     """Get all pending orders, optionally filtered by station"""
     try:
@@ -368,7 +368,7 @@ def get_pending_orders():
             'data': []
         }), 500
 
-@bp.route('/orders/in-progress', methods=['GET'])
+# Not routed (roadmap X7-10): GET /api/orders/in-progress is served by consolidated_api.get_in_progress_orders.
 def get_in_progress_orders():
     """Get all in-progress orders, optionally filtered by station"""
     try:
@@ -466,7 +466,7 @@ def get_in_progress_orders():
             'data': []
         }), 500
 
-@bp.route('/orders/completed', methods=['GET'])
+# Not routed (roadmap X7-10): GET /api/orders/completed is served by consolidated_api.get_completed_orders.
 def get_completed_orders():
     """Get all completed orders"""
     try:
@@ -543,7 +543,7 @@ def get_completed_orders():
             }
         ])
 
-@bp.route('/chat/messages', methods=['GET'])
+# Not routed (roadmap X7-10): GET /api/chat/messages is served by consolidated_api.get_chat_messages.
 def get_chat_messages():
     """Get chat messages"""
     try:
@@ -590,7 +590,7 @@ def get_chat_messages():
         return jsonify({'success': False, 'messages': [],
                         'error': 'chat temporarily unavailable'}), 500
 
-@bp.route('/test', methods=['GET'])
+# Not routed (roadmap X7-10): GET /api/test is served by consolidated_api.test_api.
 def test_api():
     """Simple API connectivity test"""
     return jsonify({
@@ -598,7 +598,7 @@ def test_api():
         'message': 'API is working'
     })
 
-@bp.route('/orders/<order_id>/start', methods=['POST'])
+# Not routed (roadmap X7-10): POST /api/orders/<order_id>/start is served by consolidated_api.start_order.
 def start_order(order_id):
     """Start an order"""
     try:
@@ -659,7 +659,7 @@ def start_order(order_id):
         logger.error(f"Error starting order {order_id}: {str(e)}")
         return jsonify({"success": False, "message": f"Error processing request: {str(e)}"})
 
-@bp.route('/orders/<order_id>/complete', methods=['POST'])
+# Not routed (roadmap X7-10): POST /api/orders/<order_id>/complete is served by consolidated_api.complete_order.
 def complete_order(order_id):
     """Complete an order"""
     try:
@@ -711,7 +711,7 @@ def complete_order(order_id):
         logger.error(f"Error completing order {order_id}: {str(e)}")
         return jsonify({"success": False, "message": f"Error processing request: {str(e)}"})
 
-@bp.route('/orders/<order_id>/pickup', methods=['POST'])
+# Not routed (roadmap X7-10): POST /api/orders/<order_id>/pickup is served by consolidated_api.pickup_order.
 def pickup_order(order_id):
     """Mark an order as picked up"""
     try:
@@ -772,7 +772,7 @@ def pickup_order(order_id):
         logger.error(f"Error marking order as picked up {order_id}: {str(e)}")
         return jsonify({"success": False, "message": f"Error processing request: {str(e)}"})
 
-@bp.route('/orders/batch', methods=['POST'])
+# Not routed (roadmap X7-10): POST /api/orders/batch is served by consolidated_api.batch_process_orders.
 def batch_process_orders():
     """Process a batch of orders"""
     try:
@@ -833,7 +833,7 @@ def batch_process_orders():
         logger.error(f"Error batch processing orders: {str(e)}")
         return jsonify({"success": False, "message": f"Error processing request: {str(e)}"})
 
-@bp.route('/orders/<order_id>/message', methods=['POST'])
+# Not routed (roadmap X7-10): POST /api/orders/<order_id>/message is served by consolidated_api.send_message.
 def send_message(order_id):
     """Send a message to a customer about their order"""
     try:
@@ -930,7 +930,7 @@ def send_message(order_id):
         logger.error(f"Error sending message for order {order_id}: {str(e)}")
         return jsonify({"success": False, "message": f"Error processing request: {str(e)}"})
 
-@bp.route('/settings/wait-time', methods=['POST'])
+# Not routed (roadmap X7-10): POST /api/settings/wait-time is served by consolidated_api.update_wait_time.
 def update_wait_time():
     """Update the estimated wait time for all stations"""
     try:
@@ -975,7 +975,7 @@ def update_wait_time():
         logger.error(f"Error updating wait time: {str(e)}")
         return jsonify({"success": False, "message": f"Error processing request: {str(e)}"})
 
-@bp.route('/debug/database-info', methods=['GET'])
+# Not routed (roadmap X7-10): GET /api/debug/database-info is served by consolidated_api.database_info.
 @jwt_required_with_demo()
 @role_required_with_demo(['admin'])
 def database_info():
@@ -1157,7 +1157,7 @@ def api_health():
         })
 
 # Add an endpoint for direct order lookup
-@bp.route('/orders/lookup/<order_id>', methods=['GET'])
+# Not routed (roadmap X7-10): GET /api/orders/lookup/<order_id> is served by consolidated_api.lookup_order.
 def lookup_order(order_id):
     """Look up an order by ID or order number"""
     try:
